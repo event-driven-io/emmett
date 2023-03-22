@@ -1,0 +1,19 @@
+version: '3'
+
+services:
+  #######################################################
+  #  Postgres
+  #######################################################
+  postgres:
+    image: postgres:15.1-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_PASSWORD=Password12!
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+    volumes:
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql

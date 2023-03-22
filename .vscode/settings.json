@@ -1,0 +1,18 @@
+{
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnPaste": false,
+  "editor.formatOnSave": true,
+
+  "editor.codeActionsOnSave": {
+    // For ESLint
+    "source.fixAll.eslint": true
+  },
+
+  "editor.tabSize": 2,
+
+  "files.exclude": {
+    "node_modules/": true,
+    "dist/": true
+  },
+  "files.eol": "\n"
+}
