@@ -1,5 +1,6 @@
-import { EventStore } from 'src/eventStore';
+import { EventStore } from '../eventStore';
 import { Pool, PoolClient, PoolConfig } from 'pg';
+import { ConnectionWrapper } from '../shared/lifetime';
 
 export type PostgresEventStoreOptions = {
   type: 'postgres';
@@ -15,6 +16,16 @@ const isPong = (obj: unknown): obj is Pong => {
     'pong' in obj &&
     obj.pong == 'pong'
   );
+};
+
+type PostgresConnection = ConnectionWrapper<Pool>;
+
+const getPostgresConnection = ({
+  poolConfig,
+}: PostgresEventStoreOptions): PostgresConnection => {
+  const pool = new Pool(poolConfig);
+
+  return ConnectionWrapper(pool, () => pool.end());
 };
 
 const query = async <Result>(
@@ -41,18 +52,19 @@ const ping = (pool: Pool): Promise<'pong'> =>
     return result.rows[0].pong;
   });
 
-export const getPostgresEventStore = ({
-  poolConfig,
-}: PostgresEventStoreOptions): EventStore => {
-  const pool = new Pool(poolConfig);
+export const getPostgresEventStore = (
+  options: PostgresEventStoreOptions
+): EventStore => {
+  const connection = getPostgresConnection(options);
 
   return {
     type: 'postgres',
     init: async () => {
-      await query(pool, (client) => client.query('SELECT NOW()'));
+      await query(connection.db(), (client) => client.query('SELECT NOW()'));
     },
+    close: connection.close,
     diagnostics: {
-      ping: () => ping(pool),
+      ping: async () => ping(connection.db()),
     },
   };
 };
