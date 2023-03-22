@@ -1,6 +1,6 @@
-import { testEventStores } from '../';
+import { getTestEventStores } from '..';
 
-testEventStores.forEach((eventStore) =>
+getTestEventStores().forEach((eventStore) =>
   describe(`${eventStore.type} Event Store`, () => {
     it('Should do ping pong successfully', async () => {
       const pong = await eventStore.diagnostics.ping();
