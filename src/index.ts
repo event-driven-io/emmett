@@ -14,7 +14,7 @@ export const getEventStore = (options: EventStoreOptions): EventStore => {
   switch (options.type) {
     case 'postgres':
       return getPostgresEventStore(options);
-    case 'inMemory':
+    case 'inmemory':
       return getInMemoryEventStore(options);
     case 'sqlite':
       return getSQLiteEventStore(options);
