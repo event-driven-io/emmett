@@ -1,16 +1,21 @@
 import { EventStore } from 'src/eventStore';
+import { Pool, PoolConfig } from 'pg';
 
 export type PostgresEventStoreOptions = {
   type: 'postgres';
-  connectionString: string;
+  poolConfig?: PoolConfig;
 };
 
-export const getPostgresEventStore = (
-  _options: PostgresEventStoreOptions
-): EventStore => {
+export const getPostgresEventStore = ({
+  poolConfig,
+}: PostgresEventStoreOptions): EventStore => {
+  const pool = new Pool(poolConfig);
+
   return {
-    init: () => {
-      return Promise.resolve();
+    init: async () => {
+      const client = await pool.connect();
+      await client.query('SELECT NOW()');
+      client.release();
     },
   };
 };

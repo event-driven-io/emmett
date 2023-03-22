@@ -37,6 +37,7 @@
   "homepage": "https://github.com/oskardudycz/nodejs-event-store#readme",
   "dependencies": {
     "@faker-js/faker": "7.6.0",
+    "better-sqlite3": "^8.2.0",
     "convict": "6.2.4",
     "dotenv": "16.0.3",
     "dotenv-cli": "7.1.0",
@@ -46,10 +47,12 @@
     "pg-logical-replication": "^2.0.3"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.3",
     "@types/convict": "6.1.1",
     "@types/express": "4.17.17",
     "@types/jest": "29.5.0",
     "@types/node": "18.15.5",
+    "@types/pg": "^8.6.6",
     "@types/supertest": "2.0.12",
     "@types/uuid": "9.0.1",
     "@typescript-eslint/eslint-plugin": "5.56.0",
