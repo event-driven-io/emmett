@@ -8,6 +8,8 @@ Event Sourcing, contrary to the standard approach, keeps all the facts that happ
 
 **This project aims to deliver an opinionated event store based on my experience working on [Marten](martendb.io/) and [EventStoreDB](https://developers.eventstore.com/).**
 
+Check my inspirations and what I'm up to in [Reference materials](./ReferenceMaterials.md).
+
 ## FAQ
 
 ### **Is it production-ready?**
