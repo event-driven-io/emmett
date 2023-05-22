@@ -42,3 +42,10 @@ I put here links that either are useful or may be useful for my implementation.
 - [Ryan Carniato - The Evolution of Signals in JavaScript](https://dev.to/this-is-learning/the-evolution-of-signals-in-javascript-8ob)
 - [Preact - Signals](https://preactjs.com/guide/v10/signals/)
 - [Preact - Signal Boosting](https://preactjs.com/blog/signal-boosting/)
+
+## Schema Registry
+- [Robert Yokota - Understanding JSON Schema Compatibility](https://yokota.blog/2021/03/29/understanding-json-schema-compatibility/)
+- [Confluent - Avro Schema Evolution and Compatibility](https://docs.confluent.io/platform/current/schema-registry/fundamentals/avro.html)
+- [Mike Kowalski - JSON, Kafka, and the need for schema](https://mikemybytes.com/2022/07/11/json-kafka-and-the-need-for-schema/)
+- [Spring - Schema Evolution Support](https://cloud.spring.io/spring-cloud-static/Finchley.SR4/multi/multi_schema-evolution.html)
+- [AWS - Evolve JSON Schemas in Amazon MSK and Amazon Kinesis Data Streams with the AWS Glue Schema Registry](https://aws.amazon.com/blogs/big-data/evolve-json-schemas-in-amazon-msk-and-amazon-kinesis-data-streams-with-the-aws-glue-schema-registry/)
