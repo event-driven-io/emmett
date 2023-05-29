@@ -49,3 +49,6 @@ I put here links that either are useful or may be useful for my implementation.
 - [Mike Kowalski - JSON, Kafka, and the need for schema](https://mikemybytes.com/2022/07/11/json-kafka-and-the-need-for-schema/)
 - [Spring - Schema Evolution Support](https://cloud.spring.io/spring-cloud-static/Finchley.SR4/multi/multi_schema-evolution.html)
 - [AWS - Evolve JSON Schemas in Amazon MSK and Amazon Kinesis Data Streams with the AWS Glue Schema Registry](https://aws.amazon.com/blogs/big-data/evolve-json-schemas-in-amazon-msk-and-amazon-kinesis-data-streams-with-the-aws-glue-schema-registry/)
+
+## Node.js Streams
+- [Nathan Jones - Node.js Stream Composition](https://blog.ncjones.com/posts/nodejs-stream-composition/)
