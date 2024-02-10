@@ -26,6 +26,7 @@ I put here links that either are useful or may be useful for my implementation.
 - [Sohan Kamani - A Complete Guide to HTTP/2 in Node.js (With Example Code)](https://www.sohamkamani.com/nodejs/http2/)
 
 ## GraphQL
+
 - [GraphQL - Running an Express GraphQL Server](https://graphql.org/graphql-js/running-an-express-graphql-server/)
 - [LogRocket - Build a GraphQL app in Node.js with TypeScript and graphql-request](https://blog.logrocket.com/build-graphql-app-node-js-typescript-graphql-request/)
 - [LogRocket - How to integrate TypeScript with GraphQL using TypeGraphQL](https://blog.logrocket.com/integrate-typescript-graphql-typegraphql)
@@ -50,6 +51,7 @@ I put here links that either are useful or may be useful for my implementation.
 - [Preact - Signal Boosting](https://preactjs.com/blog/signal-boosting/)
 
 ## Schema Registry
+
 - [Robert Yokota - Understanding JSON Schema Compatibility](https://yokota.blog/2021/03/29/understanding-json-schema-compatibility/)
 - [Confluent - Avro Schema Evolution and Compatibility](https://docs.confluent.io/platform/current/schema-registry/fundamentals/avro.html)
 - [Mike Kowalski - JSON, Kafka, and the need for schema](https://mikemybytes.com/2022/07/11/json-kafka-and-the-need-for-schema/)
@@ -57,4 +59,5 @@ I put here links that either are useful or may be useful for my implementation.
 - [AWS - Evolve JSON Schemas in Amazon MSK and Amazon Kinesis Data Streams with the AWS Glue Schema Registry](https://aws.amazon.com/blogs/big-data/evolve-json-schemas-in-amazon-msk-and-amazon-kinesis-data-streams-with-the-aws-glue-schema-registry/)
 
 ## Node.js Streams
+
 - [Nathan Jones - Node.js Stream Composition](https://blog.ncjones.com/posts/nodejs-stream-composition/)
