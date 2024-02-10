@@ -4,21 +4,24 @@ layout: home
 
 hero:
   name: 'Emmett'
-  text: 'Event Sourcing made simple'
-  tagline: My great project tagline
+  text: 'Event Sourcing development made simple'
+  tagline: Take your event-driven applications back to the future!
+  image:
+    src: /logo.png
+    alt: Emmett logo
   actions:
     - theme: brand
-      text: Markdown Examples
-      link: /markdown-examples
+      text: Getting Started
+      link: /getting-started
     - theme: alt
-      text: API Examples
-      link: /api-examples
+      text: API Docs
+      link: /api-docs
 
 features:
-  - title: Feature A
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
-  - title: Feature B
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
-  - title: Feature C
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
+  - title: DevExperience as prime goal
+    details: Reduce the boilerplate, and focus on delivery with accessible tooling
+  - title: Gain insights from your data
+    details: Unleash the power of your data with Event Sourcing capabilities
+  - title: All patterns in one place
+    details: Use Decider, Workflow and other event-driven best practices seamlessly
 ---

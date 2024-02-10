@@ -1,3 +1,1 @@
-export interface EventStore {
-  appendEvents: () => Promise<void>;
-}
+export * from './typing';

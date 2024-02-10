@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/emmett",
-  "version": "0.0.1",
-  "description": "Emmett - Event Sourcing made simple",
+  "version": "0.1.0",
+  "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
     "build": "tsup",
@@ -37,18 +37,22 @@
   "bugs": {
     "url": "https://github.com/event-driven-io/emmett/issues"
   },
-  "homepage": "https://github.com/event-driven-io/emmett#readme",
+  "homepage": "https://event-driven-io.github.io/emmett/",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "files": [
     "dist"
   ],
-  "dependencies": {},
+  "dependencies": {
+    "express": "4.18.2",
+    "express-async-errors": "3.1.1"
+  },
   "devDependencies": {
     "@faker-js/faker": "8.4.1",
     "@types/jest": "29.5.0",
     "@types/node": "20.11.17",
+    "@types/express": "4.17.21",
     "@typescript-eslint/eslint-plugin": "6.21.0",
     "@typescript-eslint/parser": "6.21.0",
     "eslint": "8.56.0",

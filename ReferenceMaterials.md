@@ -40,6 +40,7 @@ I put here links that either are useful or may be useful for my implementation.
 ## NPM Packaging
 
 - [Orhun Özer - How to bundle a tree-shakable typescript library with tsup and publish with npm](https://dev.to/orabazu/how-to-bundle-a-tree-shakable-typescript-library-with-tsup-and-publish-with-npm-3c46)
+- [Andrea Stagi - Publish to NPM using GitHub Actions](https://dev.to/astagi/publish-to-npm-using-github-actions-23fn)
 - [Colin Diesh - You may not need a bundler for your NPM library](https://cmdcolin.github.io/posts/2022-05-27-youmaynotneedabundler)
 
 ## Frontend
