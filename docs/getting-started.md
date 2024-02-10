@@ -39,3 +39,7 @@ $ bun add -D @event-driven-io/emmett
 We could define it as follows:
 
 <<< @/snippets/shoppingCart.ts#getting-started-events
+
+It shows that clients can add or remove products to our shopping cart and confirm or cancel them. All events represent facts that happened and tell the story of the shopping cart. To highlight that, we're grouping all type definitions with the `ShoppingCartEvent` union type. It tells that either of those events may happen.
+
+We're using [Event type](/api-docs.md#event), which helps to keep the event definition aligned. It's not a must, but it helps to ensure that it has a type name defined (e.g. `ProductItemAddedToShoppingCart`) and read-only payload data.

@@ -5,7 +5,7 @@
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
     "build": "tsup",
-    "build:ts": "tsc",
+    "build:ts": "tsc --build --verbose tsconfig.build.json",
     "build:ts:watch": "tsc  --watch",
     "start": "ts-node -r tsconfig-paths/register ./src/index.ts",
     "lint": "npm run lint:eslint && npm run lint:prettier",
@@ -49,6 +49,7 @@
     "express-async-errors": "3.1.1"
   },
   "devDependencies": {
+    "@event-driven-io/emmett": "0.1.1",
     "@faker-js/faker": "8.4.1",
     "@types/jest": "29.5.0",
     "@types/node": "20.11.17",
@@ -68,5 +69,8 @@
     "tsup": "8.0.2",
     "typescript": "5.3.3",
     "vitepress": "1.0.0-rc.42"
-  }
+  },
+  "workspaces": [
+    "samples/*"
+  ]
 }

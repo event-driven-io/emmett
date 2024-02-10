@@ -1,24 +1,13 @@
 {
-  "name": "emmett-webapi",
+  "name": "@emmett/webapi",
   "version": "1.0.0",
-  "description": "Sample showing basic Web Api with Emmett",
+  "description": "",
   "main": "index.js",
+  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/event-driven-io/emmett.git"
-  },
-  "keywords": [
-    "event sourcing",
-    "emmett",
-    "nodejs"
-  ],
-  "author": "oskardudycz",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/event-driven-io/emmett/issues"
-  },
-  "homepage": "https://github.com/event-driven-io/emmett#readme",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }
