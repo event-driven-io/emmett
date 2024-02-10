@@ -1,6 +1,6 @@
 {
   "env": {
-    "es2022": true,
+    "es2023": true,
     "node": true
   },
   "plugins": ["@typescript-eslint"],
@@ -12,7 +12,7 @@
   ],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
-    "ecmaVersion": 13,
+    "ecmaVersion": 2023,
     "sourceType": "module",
     "project": "./tsconfig.json"
   },

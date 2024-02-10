@@ -25,6 +25,12 @@ I put here links that either are useful or may be useful for my implementation.
 - [Rising Stack - HTTP/2 Server Push with Node.js](https://blog.risingstack.com/node-js-http-2-push/)
 - [Sohan Kamani - A Complete Guide to HTTP/2 in Node.js (With Example Code)](https://www.sohamkamani.com/nodejs/http2/)
 
+## GraphQL
+- [GraphQL - Running an Express GraphQL Server](https://graphql.org/graphql-js/running-an-express-graphql-server/)
+- [LogRocket - Build a GraphQL app in Node.js with TypeScript and graphql-request](https://blog.logrocket.com/build-graphql-app-node-js-typescript-graphql-request/)
+- [LogRocket - How to integrate TypeScript with GraphQL using TypeGraphQL](https://blog.logrocket.com/integrate-typescript-graphql-typegraphql)
+- [Ben Awad - Benchmarks for different Node.js GraphQL Servers](https://github.com/benawad/node-graphql-benchmarks)
+
 ## Websockets
 
 - [LogRocket - WebSockets tutorial: How to go real-time with Node and React](https://blog.logrocket.com/websocket-tutorial-real-time-node-react/)

@@ -4,8 +4,9 @@
   "editor.formatOnSave": true,
 
   "editor.codeActionsOnSave": {
-    // For ESLint
-    "source.fixAll.eslint": true
+    "source.organizeImports": "explicit",
+    "source.fixAll.eslint": "explicit",
+    "source.addMissingImports": "always"
   },
 
   "editor.tabSize": 2,
@@ -14,5 +15,7 @@
     "node_modules/": true,
     "dist/": true
   },
-  "files.eol": "\n"
+  "files.eol": "\n",
+
+  "typescript.preferences.importModuleSpecifier": "relative"
 }
