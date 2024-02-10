@@ -19,17 +19,14 @@ jobs:
         # selected operation systems to run CI
         os: [ubuntu-latest] #, windows-latest, macos-latest]
         # selected node version to run CI
-        node-version: [18.x]
+        node-version: [20.10.x]
 
     steps:
       - name: Check Out Repo
-        uses: actions/checkout@v3
-
-      - name: Start containers
-        run: docker-compose -f "docker-compose.yml" up -d
+        uses: actions/checkout@v4
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           # use the node version defined in matrix above
           node-version: ${{ matrix.node-version }}

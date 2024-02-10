@@ -1,5 +1,5 @@
 {
-  "name": "emmett",
+  "name": "@event-driven-io/emmett",
   "version": "0.0.1",
   "description": "Emmett - Event Sourcing made simple",
   "scripts": {
@@ -28,16 +28,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/oskardudycz/emmett.git"
+    "url": "git+https://github.com/event-driven-io/emmett.git"
   },
   "keywords": [
     "Event Sourcing"
   ],
   "author": "Oskar Dudycz",
   "bugs": {
-    "url": "https://github.com/oskardudycz/emmett/issues"
+    "url": "https://github.com/event-driven-io/emmett/issues"
   },
-  "homepage": "https://github.com/oskardudycz/emmett#readme",
+  "homepage": "https://github.com/event-driven-io/emmett#readme",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
