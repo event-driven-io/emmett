@@ -12,8 +12,8 @@
   "editor.tabSize": 2,
 
   "files.exclude": {
-    "node_modules/": true,
-    "dist/": true
+    "node_modules/": true
+    // "dist/": true
   },
   "files.eol": "\n",
 

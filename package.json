@@ -4,7 +4,7 @@
   "description": "Emmett - Event Sourcing made simple",
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
-    "build": "run-s lint build:ts",
+    "build": "tsup",
     "build:ts": "tsc",
     "build:ts:watch": "tsc  --watch",
     "start": "ts-node -r tsconfig-paths/register ./src/index.ts",
@@ -38,9 +38,13 @@
     "url": "https://github.com/oskardudycz/emmett/issues"
   },
   "homepage": "https://github.com/oskardudycz/emmett#readme",
-  "dependencies": {
-    "dotenv": "16.4.1"
-  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "dependencies": {},
   "devDependencies": {
     "@faker-js/faker": "8.4.1",
     "@types/jest": "29.5.0",
@@ -57,6 +61,7 @@
     "ts-jest": "29.1.2",
     "ts-node": "10.9.2",
     "tsconfig-paths": "4.2.0",
+    "tsup": "8.0.2",
     "typescript": "5.3.3",
     "vitepress": "1.0.0-rc.42"
   }
