@@ -14,6 +14,8 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: Install dependencies and build 🔧
         run: npm ci && npm run build
+        env:
+          NODE_ENV: production
 
       - name: Set public publishing
         run: npm config set access public
@@ -22,3 +24,4 @@ jobs:
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_ENV: production

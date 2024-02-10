@@ -1,13 +1,6 @@
 // #region getting-started-events
+
 export type ShoppingCartEvent =
-  | {
-      type: 'ShoppingCartOpened';
-      data: {
-        shoppingCartId: string;
-        clientId: string;
-        openedAt: string;
-      };
-    }
   | {
       type: 'ProductItemAddedToShoppingCart';
       data: {
@@ -26,14 +19,14 @@ export type ShoppingCartEvent =
       type: 'ShoppingCartConfirmed';
       data: {
         shoppingCartId: string;
-        confirmedAt: string;
+        confirmedAt: Date;
       };
     }
   | {
       type: 'ShoppingCartCanceled';
       data: {
         shoppingCartId: string;
-        canceledAt: string;
+        canceledAt: Date;
       };
     };
 
