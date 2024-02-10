@@ -1,6 +1,8 @@
 /node_modules/*
 # build artifacts
 dist/*coverage/*
+dist/*
+lib/*
 
 # data definition files
 **/*.d.ts
