@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/emmett",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
@@ -49,7 +49,7 @@
     "express-async-errors": "3.1.1"
   },
   "devDependencies": {
-    "@event-driven-io/emmett": "0.1.1",
+    "@event-driven-io/emmett": "0.1.3",
     "@faker-js/faker": "8.4.1",
     "@types/jest": "29.5.0",
     "@types/node": "20.11.17",
