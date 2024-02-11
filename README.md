@@ -2,7 +2,7 @@
 
 ![](./docs/public/logo.png)
 
-# Emmett - vent Sourcing development made simple
+# Emmett - Event Sourcing development made simple
 
 Nowadays, storage is cheap, but the information is priceless.
 
@@ -26,7 +26,7 @@ Maybe.
 
 I like its minimalistic approach and flexibility, plus TypeScript is an excellent language with its shapeshifter capabilities. Plus, I've been asked if I could deliver such a store for Node.js.
 
-### Why Emmeett?
+### Why Emmett?
 
 [Because](https://en.m.wikipedia.org/wiki/Emmett_Brown).
 

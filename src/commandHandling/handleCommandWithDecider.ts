@@ -2,6 +2,7 @@ import type { EventStore } from '../eventStore';
 import type { Command, Event } from '../typing';
 import type { Decider } from '../typing/decider';
 
+// #region command-handler
 export const DeciderCommandHandler =
   <State, CommandType extends Command, StreamEvent extends Event>(
     {
@@ -25,3 +26,4 @@ export const DeciderCommandHandler =
       return eventStore.appendToStream(streamName, ...result);
     else return eventStore.appendToStream(streamName, result);
   };
+// #endregion command-handler

@@ -1,6 +1,7 @@
 import type { EventStore } from '../eventStore';
 import type { Event } from '../typing';
 
+// #region command-handler
 export const CommandHandler =
   <State, StreamEvent extends Event>(
     evolve: (state: State, event: StreamEvent) => State,
@@ -25,3 +26,4 @@ export const CommandHandler =
       return eventStore.appendToStream(streamName, ...result);
     else return eventStore.appendToStream(streamName, result);
   };
+// #endregion command-handler

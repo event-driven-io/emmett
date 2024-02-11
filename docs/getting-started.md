@@ -1,5 +1,7 @@
 # Getting Started
 
+![](/logo.png)
+
 ## Event Sourcing
 
 **Event Sourcing keeps all the facts that happened in our system, and that's powerful!** Facts are stored as events that can be used to make decisions, fine-tune read models, integrate our systems, and enhance our analytics and tracking. All in one package, wash and go!
@@ -114,7 +116,7 @@ Now let's define the `evolve` function that will evolve our state based on event
 
 One of the mentioned benefits is testing, which Emmett helps to do out of the box.
 
-::: info For Event Sourcing, the testing pattern looks like this:
+::: tip For Event Sourcing, the testing pattern looks like this:
 
 - **GIVEN** set of events recorded for the entity,
 - **WHEN** we run the command on the state built from events,

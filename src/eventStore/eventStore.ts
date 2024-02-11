@@ -1,5 +1,6 @@
 import type { Event } from '../typing';
 
+// #region event-store
 export interface EventStore {
   aggregateStream<Entity, E extends Event>(
     streamName: string,
@@ -16,3 +17,4 @@ export interface EventStore {
     ...events: E[]
   ): Promise<NextExpectedVersion>;
 }
+// #endregion event-store
