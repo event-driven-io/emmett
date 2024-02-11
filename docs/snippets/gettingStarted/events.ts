@@ -1,23 +1,25 @@
 // #region getting-started-events
 import type { Event } from '@event-driven-io/emmett';
 
-type ProductItemAddedToShoppingCart = Event<
+export type ProductItemAddedToShoppingCart = Event<
   'ProductItemAddedToShoppingCart',
   {
     shoppingCartId: string;
     productItem: PricedProductItem;
+    addedAt: Date;
   }
 >;
 
-type ProductItemRemovedFromShoppingCart = Event<
+export type ProductItemRemovedFromShoppingCart = Event<
   'ProductItemRemovedFromShoppingCart',
   {
     shoppingCartId: string;
     productItem: PricedProductItem;
+    removedAt: Date;
   }
 >;
 
-type ShoppingCartConfirmed = Event<
+export type ShoppingCartConfirmed = Event<
   'ShoppingCartConfirmed',
   {
     shoppingCartId: string;
@@ -25,8 +27,8 @@ type ShoppingCartConfirmed = Event<
   }
 >;
 
-type ShoppingCartCanceled = Event<
-  'ShoppingCartCanceled',
+export type ShoppingCartCancelled = Event<
+  'ShoppingCartCancelled',
   {
     shoppingCartId: string;
     canceledAt: Date;
@@ -37,7 +39,7 @@ export type ShoppingCartEvent =
   | ProductItemAddedToShoppingCart
   | ProductItemRemovedFromShoppingCart
   | ShoppingCartConfirmed
-  | ShoppingCartCanceled;
+  | ShoppingCartCancelled;
 
 export interface ProductItem {
   productId: string;

@@ -13,7 +13,7 @@ export default defineConfig({
   entryPoints: ['src/index.ts'],
   watch: env === 'development',
   target: 'esnext',
-  outDir: env === 'production' ? 'dist' : 'lib',
+  outDir: 'dist', //env === 'production' ? 'dist' : 'lib',
   entry: ['src/**/*.ts'], //include all files under src
   sourcemap: true,
 });

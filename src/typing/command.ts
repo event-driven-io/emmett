@@ -1,7 +1,5 @@
 import type { Flavour } from './';
 
-export type DefaultCommandMetadata = { now: Date };
-
 export type Command<
   CommandType extends string = string,
   CommandData extends Record<string, unknown> = Record<string, unknown>,
@@ -14,3 +12,5 @@ export type Command<
   }>,
   'Command'
 >;
+
+export type DefaultCommandMetadata = { now: Date };
