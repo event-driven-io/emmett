@@ -41,6 +41,12 @@ I put here links that either are useful or may be useful for my implementation.
 
 - [Orhun Özer - How to bundle a tree-shakable typescript library with tsup and publish with npm](https://dev.to/orabazu/how-to-bundle-a-tree-shakable-typescript-library-with-tsup-and-publish-with-npm-3c46)
 - [Andrea Stagi - Publish to NPM using GitHub Actions](https://dev.to/astagi/publish-to-npm-using-github-actions-23fn)
+- [Jacopo Marrone - Publish a Typescript React library to NPM in a monorepo](https://jacopomarrone.netlify.app/blog/publish-a-typescript-react-package-to-npm-in-a-monorepo)
+- [Dmitry Kudryavtsev - Typescript Monorepo with NPM workspaces](https://www.yieldcode.blog/post/npm-workspaces/)
+- [TurboRepo - Bundling packages in a Monorepo](https://turbo.build/repo/docs/handbook/publishing-packages/bundling)
+- [Nx - Adding Nx to NPM/Yarn/PNPM Workspace](https://nx.dev/recipes/adopting-nx/adding-to-monorepo)
+- [Aziz Nal - Easy Typescript Monorepo with Nx and NPM Workspaces](https://itnext.io/easy-typescript-monorepo-with-npm-workspaces-b271d81837e7)
+- [Changesets - A way to manage your versioning and changelogs with a focus on monorepos](https://github.com/changesets/changesets/tree/main)
 - [Colin Diesh - You may not need a bundler for your NPM library](https://cmdcolin.github.io/posts/2022-05-27-youmaynotneedabundler)
 
 ## Frontend
