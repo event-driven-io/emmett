@@ -40,18 +40,23 @@ export const evolve = (
   switch (type) {
     case 'ProductItemAddedToShoppingCart':
     case 'ProductItemRemovedFromShoppingCart': {
-      if (state.status !== 'Opened') return state;
+      if (state.status !== 'Opened' && state.status !== 'Empty') return state;
 
       const {
         productItem: { productId, quantity },
       } = data;
 
+      const productItems =
+        state.status === 'Opened'
+          ? state.productItems
+          : new Map<string, number>();
+
       const plusOrMinus = type == 'ProductItemAddedToShoppingCart' ? 1 : -1;
 
       return {
-        ...state,
+        status: 'Opened',
         productItems: withUpdatedQuantity(
-          state.productItems,
+          productItems,
           productId,
           plusOrMinus * quantity,
         ),

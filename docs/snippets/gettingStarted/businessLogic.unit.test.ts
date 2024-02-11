@@ -1,92 +1,114 @@
-// import { v4 as uuid } from 'uuid';
-// import { ShoppingCartErrors, decider } from './shoppingCart';
+import { v4 as uuid } from 'uuid';
+import { decide } from './businessLogic';
+import { evolve, getInitialState } from './state';
 
-// // #region getting-started-state-default
-// import { DeciderSpecification } from '@event-driven-io/emmett/dist/testing/deciderSpecification';
+// #region getting-started-unit-tests
+import { DeciderSpecification } from '@event-driven-io/emmett';
 
-// describe('ShoppingCart', () => {
-//   describe('When not initialised', () => {
-//     it('should open a new one', () => {
-//       given([])
-//         .when({
-//           type: 'OpenShoppingCart',
-//           data: {
-//             shoppingCartId,
-//             clientId,
-//             now,
-//           },
-//         })
-//         .then([
-//           {
-//             type: 'ShoppingCartOpened',
-//             data: {
-//               shoppingCartId,
-//               clientId,
-//               openedAt: now.toJSON(),
-//             },
-//           },
-//         ]);
-//     });
-//   });
+const given = DeciderSpecification.for({
+  decide,
+  evolve,
+  initialState: getInitialState,
+});
 
-//   describe('When opened', () => {
-//     it('should not allow to reopen', () => {
-//       given({
-//         type: 'ShoppingCartOpened',
-//         data: {
-//           shoppingCartId,
-//           clientId,
-//           openedAt: now.toJSON(),
-//         },
-//       })
-//         .when({
-//           type: 'OpenShoppingCart',
-//           data: {
-//             shoppingCartId,
-//             clientId,
-//             now,
-//           },
-//         })
-//         .thenThrows(
-//           (error: unknown) => error === ShoppingCartErrors.CART_ALREADY_EXISTS,
-//         );
-//     });
-//   });
+describe('ShoppingCart', () => {
+  describe('When empty', () => {
+    it('should add product item', () => {
+      given([])
+        .when({
+          type: 'AddProductItemToShoppingCart',
+          data: {
+            shoppingCartId,
+            productItem,
+          },
+          metadata: { now },
+        })
+        .then([
+          {
+            type: 'ProductItemAddedToShoppingCart',
+            data: {
+              shoppingCartId,
+              productItem,
+              addedAt: now,
+            },
+          },
+        ]);
+    });
+  });
 
-//   it('should add product to empty cart', () => {
-//     given({
-//       type: 'ShoppingCartOpened',
-//       data: {
-//         shoppingCartId,
-//         clientId,
-//         openedAt: now.toJSON(),
-//       },
-//     })
-//       .when({
-//         type: 'AddProductItemToShoppingCart',
-//         data: {
-//           shoppingCartId,
-//           productItem,
-//         },
-//       })
-//       .then({
-//         type: 'ProductItemAddedToShoppingCart',
-//         data: { shoppingCartId, productItem },
-//       });
-//   });
+  describe('When opened', () => {
+    it('should confirm', () => {
+      given({
+        type: 'ProductItemAddedToShoppingCart',
+        data: {
+          shoppingCartId,
+          productItem,
+          addedAt: oldTime,
+        },
+      })
+        .when({
+          type: 'AddProductItemToShoppingCart',
+          data: {
+            shoppingCartId,
+            productItem,
+          },
+          metadata: { now },
+        })
+        .then([
+          {
+            type: 'ProductItemAddedToShoppingCart',
+            data: {
+              shoppingCartId,
+              productItem,
+              addedAt: now,
+            },
+          },
+        ]);
+    });
+  });
 
-//   const getRandomProduct = () => {
-//     return {
-//       productId: uuid(),
-//       price: Math.random(),
-//       quantity: Math.random(),
-//     };
-//   };
+  describe('When confirmed', () => {
+    it('should not add products', () => {
+      given([
+        {
+          type: 'ProductItemAddedToShoppingCart',
+          data: {
+            shoppingCartId,
+            productItem,
+            addedAt: oldTime,
+          },
+        },
+        {
+          type: 'ShoppingCartConfirmed',
+          data: { shoppingCartId, confirmedAt: oldTime },
+        },
+      ])
+        .when({
+          type: 'AddProductItemToShoppingCart',
+          data: {
+            shoppingCartId,
+            productItem,
+          },
+          metadata: { now },
+        })
+        .thenThrows(
+          (error: Error) => error.message === 'Shopping Cart already closed',
+        );
+    });
+  });
 
-//   const now = new Date();
-//   const given = CommandHandlerSpecification.for(decider);
-//   const shoppingCartId = uuid();
-//   const clientId = uuid();
+  const getRandomProduct = () => {
+    return {
+      productId: uuid(),
+      price: Math.random() * 10,
+      quantity: Math.random() * 10,
+    };
+  };
+  const oldTime = new Date();
+  const now = new Date();
+  const shoppingCartId = uuid();
 
-//   const productItem = getRandomProduct();
-// });
+  const productItem = getRandomProduct();
+});
+
+// #endregion getting-started-unit-tests

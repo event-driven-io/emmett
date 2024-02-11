@@ -46,12 +46,12 @@ export const DeciderSpecification = {
 
                 assert.deepEqual(resultEventsArray, expectedEventsArray);
               },
-              thenThrows: <Error>(check: (error: Error) => boolean): void => {
+              thenThrows: <Error>(check?: (error: Error) => boolean): void => {
                 try {
                   handle();
                   assert.fail('Handler did not fail as expected');
                 } catch (error) {
-                  assert.ok(check(error as Error));
+                  if (check) assert.ok(check(error as Error));
                 }
               },
             };

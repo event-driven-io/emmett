@@ -49,11 +49,12 @@
     "express-async-errors": "3.1.1"
   },
   "devDependencies": {
-    "@event-driven-io/emmett": "0.1.5",
+    "@event-driven-io/emmett": "0.1.6",
     "@faker-js/faker": "8.4.1",
+    "@types/express": "4.17.21",
     "@types/jest": "29.5.0",
     "@types/node": "20.11.17",
-    "@types/express": "4.17.21",
+    "@types/uuid": "9.0.8",
     "@typescript-eslint/eslint-plugin": "6.21.0",
     "@typescript-eslint/parser": "6.21.0",
     "eslint": "8.56.0",
@@ -68,6 +69,7 @@
     "tsconfig-paths": "4.2.0",
     "tsup": "8.0.2",
     "typescript": "5.3.3",
+    "uuid": "9.0.1",
     "vitepress": "1.0.0-rc.42"
   },
   "workspaces": [
