@@ -113,3 +113,17 @@ Now let's define the `evolve` function that will evolve our state based on event
 ## Testing
 
 One of the mentioned benefits is testing, which Emmett helps to do out of the box.
+
+::: info For Event Sourcing, the testing pattern looks like this:
+
+- **GIVEN** set of events recorded for the entity,
+- **WHEN** we run the command on the state built from events,
+- **THEN** we’re getting new event(s) as a result of business logic. Or the exception is thrown.
+
+:::
+
+Tests for our Shopping Cart business logic can look like this:
+
+<<< @/snippets/gettingStarted/businessLogic.unit.test.ts#getting-started-unit-tests
+
+Above tests use [Jest testing library](https://jestjs.io/), but you can use it in any other testing package, as it's fully independent.
