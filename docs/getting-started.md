@@ -17,19 +17,19 @@ I assume that you have Node.js installed. Add the package from the terminal usin
 ::: code-group
 
 ```sh [npm]
-$ npm add -D @event-driven-io/emmett
+$ npm add @event-driven-io/emmett
 ```
 
 ```sh [pnpm]
-$ pnpm add -D @event-driven-io/emmett
+$ pnpm add @event-driven-io/emmett
 ```
 
 ```sh [yarn]
-$ yarn add -D @event-driven-io/emmett
+$ yarn add @event-driven-io/emmett
 ```
 
 ```sh [bun]
-$ bun add -D @event-driven-io/emmett
+$ bun add @event-driven-io/emmett
 ```
 
 :::

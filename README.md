@@ -16,11 +16,11 @@ This project aims to experiment with an opinionated Event Sourcing framework bas
 
 ### **Is it production-ready?**
 
-Nope.
+Kinda. What is here is already usable, but you'll need to wait for the full production experience in all essential aspects.
 
-### **Will it be?**
+### **Will it be production-ready?**
 
-Maybe.
+Hopefully.
 
 ### **Why Node.js?**
 
@@ -32,28 +32,34 @@ I like its minimalistic approach and flexibility, plus TypeScript is an excellen
 
 ### **What features it has?**
 
-Currently, none, but that will change.
+Essential building blocks for designing and running business and application logic like:
+
+- typings around events, commands, Deciders, Workflows, etc.
+- command handling wrappers for application layer,
+- basic, in-memory event store implementation.
 
 ### **What features will it have?**
 
 We'll see, but for sure, I'd like to have the following:
 
-- atomicity of the stream append operations,
-- reading your writes,
-- subscriptions based on Postgres logical replications,
-- Postgres partitioning,
+- building blocks for the Web Apis with Event Sourcing and CQRS,
+- implementation of event store using EventStoreDB, PostgreSQL, SQLite, etc.
+- abstractions for building read models,
+- building blocks for integration and running distributed processes,
+- GraphQL API for event stores,
+- Full stack development helpers with Next.js or HTMX,
 - running it serverless or on the web with SQLite,
 - streaming data through HTTP API (and enabling integration scenarios through it).
 - defining event transformations and projections with WebAssembly,
-- build-in read models based on the JSON capabilities of Postgres and SQLite.
+- etc.
 
 ### **Would it be a competitor to other stores?**
 
-Probably not. For now, I'd like to have a safe playground to have fun and try out new ideas. Still, what I deliver, I expect to be safe to use on a small scale.
+Probably not. For now, I'd like to have a safe playground to have fun, experiment and try out new ideas. Still, I expect what I deliver to be safe to use in production.
 
 ### **Why there's no license?**
 
-Because I'm unsure when this will end, and I don't want to expose it as an MIT license from the beginning.
+Because I'm unsure how this will end, and I don't want to expose it as an MIT license from the beginning.
 
 ## Support
 
