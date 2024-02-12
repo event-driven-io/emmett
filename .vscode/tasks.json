@@ -3,11 +3,11 @@
   "tasks": [
     {
       "type": "npm",
-      "script": "build:ts:watch",
+      "script": "build:ts:watch --ws",
       "group": "build",
       "problemMatcher": [],
-      "label": "npm: build:ts:watch",
-      "detail": "tsc  --watch"
+      "label": "npm: build:ts:watch -ws",
+      "detail": "tsc  --watch -ws"
     }
   ]
 }
