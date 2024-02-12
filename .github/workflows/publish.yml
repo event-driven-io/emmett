@@ -13,7 +13,7 @@ jobs:
           node-version: '20.10.x'
           registry-url: 'https://registry.npmjs.org'
       - name: Install dependencies and build 🔧
-        run: npm ci && npm run build
+        run: npm ci && npm run build -ws
         env:
           NODE_ENV: production
 
@@ -22,6 +22,7 @@ jobs:
 
       - name: Publish package on NPM 📦
         run: npm publish
+        working-directory: ./packages/emmett
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_ENV: production

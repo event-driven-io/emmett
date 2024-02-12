@@ -18,5 +18,6 @@
   },
   "files.eol": "\n",
 
-  "typescript.preferences.importModuleSpecifier": "relative"
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "eslint.workingDirectories": [{ "mode": "auto" }]
 }
