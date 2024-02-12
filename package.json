@@ -1,11 +1,11 @@
 {
-  "name": "@event-driven-io/emmett",
+  "name": "@event-driven-io/core",
   "version": "0.1.6",
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
     "build": "tsup",
-    "build:ts": "tsc --build --verbose tsconfig.build.json",
+    "build:ts": "tsc",
     "build:ts:watch": "tsc  --watch",
     "start": "ts-node -r tsconfig-paths/register ./src/index.ts",
     "lint": "npm run lint:eslint && npm run lint:prettier",
@@ -73,6 +73,8 @@
     "vitepress": "1.0.0-rc.42"
   },
   "workspaces": [
-    "samples/*"
+    "packages/emmett",
+    "packages/emmett-esdb",
+    "packages/emmett-expressjs"
   ]
 }

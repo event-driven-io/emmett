@@ -14,8 +14,9 @@
   "parserOptions": {
     "ecmaVersion": 2023,
     "sourceType": "module",
-    "project": "./tsconfig.json"
+    "project": "tsconfig.json"
   },
+  "ignorePatterns": ["./dist/*"],
   "rules": {
     "no-unused-vars": "off",
     "@typescript-eslint/no-unused-vars": [

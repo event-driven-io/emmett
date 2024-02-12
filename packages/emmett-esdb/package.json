@@ -1,0 +1,28 @@
+{
+  "name": "@event-driven-io/emmett-esdb",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsup",
+    "build:ts": "tsc",
+    "build:ts:watch": "tsc  --watch",
+    "lint": "npm run lint:eslint && npm run lint:prettier",
+    "lint:prettier": "prettier --check \"**/**/!(*.d).{ts,json,md}\"",
+    "lint:eslint": "eslint **/*.ts",
+    "fix": "run-s fix:eslint fix:prettier",
+    "fix:prettier": "prettier --write \"**/**/!(*.d).{ts,json,md}\"",
+    "fix:eslint": "eslint **/*.ts --fix",
+    "test": "run-s test:unit test:int test:e2e",
+    "test:unit": "jest unit --passWithNoTests --forceExit",
+    "test:int": "jest int --passWithNoTests --forceExit",
+    "test:e2e": "jest e2e --passWithNoTests --forceExit",
+    "test:watch": "jest test --passWithNoTests",
+    "test:unit:watch": "jest unit --passWithNoTests --forceExit --watch",
+    "test:int:watch": "jest int --passWithNoTests --forceExit --watch",
+    "test:e2e:watch": "jest e2e --passWithNoTests --forceExit --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

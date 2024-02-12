@@ -1,7 +1,7 @@
 export const sum = (
   iterator: Iterator<number, number, number> | Iterator<number>,
 ) => {
-  let value,
+  let value: number,
     done,
     sum = 0;
   do {
