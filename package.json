@@ -4,6 +4,7 @@
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
+    "version": "npm version $npm_package_version --workspaces && git add **/package.json",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
