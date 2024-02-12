@@ -1,8 +1,7 @@
 {
   "name": "@event-driven-io/emmett-esdb",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "0.1.6",
+  "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "build": "tsup",
     "build:ts": "tsc",
