@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/emmett",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.1.6",
+  "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "build": "tsup",
     "build:ts": "tsc",
@@ -21,13 +21,22 @@
     "test:int:watch": "jest int --passWithNoTests --forceExit --watch",
     "test:e2e:watch": "jest e2e --passWithNoTests --forceExit --watch"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/event-driven-io/emmett.git"
+  },
+  "keywords": [
+    "Event Sourcing"
+  ],
+  "author": "Oskar Dudycz",
+  "bugs": {
+    "url": "https://github.com/event-driven-io/emmett/issues"
+  },
+  "homepage": "https://event-driven-io.github.io/emmett/",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "files": [
     "dist"
-  ],
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  ]
 }
