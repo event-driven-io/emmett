@@ -21,7 +21,22 @@
     "test:int:watch": "jest int --passWithNoTests --forceExit --watch",
     "test:e2e:watch": "jest e2e --passWithNoTests --forceExit --watch"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/event-driven-io/emmett.git"
+  },
+  "keywords": [
+    "Event Sourcing"
+  ],
+  "author": "Oskar Dudycz",
+  "bugs": {
+    "url": "https://github.com/event-driven-io/emmett/issues"
+  },
+  "homepage": "https://event-driven-io.github.io/emmett/",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ]
 }

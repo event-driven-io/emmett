@@ -1,1 +1,1 @@
-console.log('null');
+export type Nullo = { test: 'string' };

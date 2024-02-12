@@ -39,6 +39,8 @@ I put here links that either are useful or may be useful for my implementation.
 
 ## NPM Packaging
 
+- [Antonello Zanini - How to Set Up a TypeScript Monorepo](https://earthly.dev/blog/setup-typescript-monorepo/)
+- [TsUp - DTS error with composite](https://github.com/egoist/tsup/issues/571#issuecomment-1760052931)
 - [Orhun Özer - How to bundle a tree-shakable typescript library with tsup and publish with npm](https://dev.to/orabazu/how-to-bundle-a-tree-shakable-typescript-library-with-tsup-and-publish-with-npm-3c46)
 - [Andrea Stagi - Publish to NPM using GitHub Actions](https://dev.to/astagi/publish-to-npm-using-github-actions-23fn)
 - [Jacopo Marrone - Publish a Typescript React library to NPM in a monorepo](https://jacopomarrone.netlify.app/blog/publish-a-typescript-react-package-to-npm-in-a-monorepo)
