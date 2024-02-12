@@ -22,7 +22,7 @@ The type is a simple wrapper to ensure the structure's correctness. It defines:
 
 See more context in [getting started guide](./getting-started.md#events)
 
-<<< @./../src/typing/event.ts
+<<< @./../packages/emmett/src/typing/event.ts
 
 ## Command
 
@@ -42,13 +42,13 @@ The type is a simple wrapper to ensure the structure's correctness. It defines:
 
 See more context in [getting started guide](./getting-started.md#commands)
 
-<<< @./../src/typing/command.ts
+<<< @./../packages/emmett/src/typing/command.ts
 
 ## Event Store
 
 Emmett assumes the following event store structure:
 
-<<< @./../src/eventStore/eventStore.ts#event-store
+<<< @./../packages/emmett/src/eventStore/eventStore.ts#event-store
 
 ## Command Handler
 
@@ -56,11 +56,11 @@ Emmett provides the composition around the business logic.
 
 Using simple functions:
 
-<<< @./../src/commandHandling/handleCommand.ts#command-handler
+<<< @./../packages/emmett/src/commandHandling/handleCommand.ts#command-handler
 
 Using decider:
 
-<<< @./../src/commandHandling/handleCommandWithDecider.ts#command-handler
+<<< @./../packages/emmett/src/commandHandling/handleCommandWithDecider.ts#command-handler
 
 You can define it for you code as:
 
