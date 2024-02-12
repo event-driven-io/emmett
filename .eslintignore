@@ -4,6 +4,9 @@ dist/*coverage/*
 dist/*
 lib/*
 
+packages/**/dist/*
+packages/**/lub/*
+
 # data definition files
 **/*.d.ts
 
