@@ -48,6 +48,7 @@ We'll see, but for sure, I'd like to have the following:
 - building blocks for integration and running distributed processes,
 - GraphQL API for event stores,
 - Full stack development helpers with Next.js or HTMX,
+- built-in open telemetry,
 - running it serverless or on the web with SQLite,
 - streaming data through HTTP API (and enabling integration scenarios through it).
 - defining event transformations and projections with WebAssembly,
