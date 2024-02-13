@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/core",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
