@@ -4,7 +4,12 @@ import type { Decider } from '../typing/decider';
 
 // #region command-handler
 export const DeciderCommandHandler =
-  <State, CommandType extends Command, StreamEvent extends Event>(
+  <
+    State,
+    CommandType extends Command,
+    StreamEvent extends Event,
+    NextExpectedVersion = bigint,
+  >(
     {
       decide,
       evolve,
@@ -15,15 +20,24 @@ export const DeciderCommandHandler =
   async (eventStore: EventStore, id: string, command: CommandType) => {
     const streamName = mapToStreamId(id);
 
-    const state = await eventStore.aggregateStream(streamName, {
-      evolve,
-      getInitialState,
-    });
+    const { entity: state, nextExpectedVersion } =
+      await eventStore.aggregateStream<State, StreamEvent, NextExpectedVersion>(
+        streamName,
+        {
+          evolve,
+          getInitialState,
+        },
+      );
 
     const result = decide(command, state ?? getInitialState());
 
     if (Array.isArray(result))
-      return eventStore.appendToStream(streamName, ...result);
-    else return eventStore.appendToStream(streamName, result);
+      return eventStore.appendToStream(
+        streamName,
+        nextExpectedVersion,
+        ...result,
+      );
+    else
+      return eventStore.appendToStream(streamName, nextExpectedVersion, result);
   };
 // #endregion command-handler
