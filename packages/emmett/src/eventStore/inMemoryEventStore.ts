@@ -1,89 +1,118 @@
-// import type { Event } from '../typing';
-// import {
-//   NO_CONCURRENCY_CHECK,
-//   type AppendToStreamOptions,
-//   type AppendToStreamResult,
-//   type DefaultStreamVersionType,
-//   type EventStore,
-//   type ReadStreamOptions,
-//   type ReadStreamResult,
-// } from './eventStore';
+import { v4 as uuid } from 'uuid';
+import type { Event } from '../typing';
+import {
+  type AggregateStreamOptions,
+  type AggregateStreamResult,
+  type AppendToStreamOptions,
+  type AppendToStreamResult,
+  type EventStore,
+  type ReadStreamOptions,
+  type ReadStreamResult,
+} from './eventStore';
+import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
 
-// export type EventMetadata = Readonly<{
-//   eventId: string;
-//   streamPosition: number;
-//   logPosition: bigint;
-// }>;
+export type EventMetadata = Readonly<{
+  eventId: string;
+  streamPosition: number;
+  logPosition: bigint;
+}>;
 
-// export type EventEnvelope<E extends Event = Event> = E & {
-//   metadata: EventMetadata;
-// };
+export type EventEnvelope<E extends Event = Event> = {
+  event: E;
+  metadata: EventMetadata;
+};
 
-// export type EventHandler<E extends Event = Event> = (
-//   eventEnvelope: EventEnvelope<E>,
-// ) => void;
+export type EventHandler<E extends Event = Event> = (
+  eventEnvelope: EventEnvelope<E>,
+) => void;
 
-// export const getEventStore = <
-//   StreamVersion = DefaultStreamVersionType,
-// >(): EventStore<StreamVersion> => {
-//   const streams = new Map<string, EventEnvelope[]>();
-//   const handlers: EventHandler[] = [];
+export const getInMemoryEventStore = (): EventStore => {
+  const streams = new Map<string, EventEnvelope[]>();
 
-//   const getAllEventsCount = () => {
-//     return Array.from<EventEnvelope[]>(streams.values())
-//       .map((s) => s.length)
-//       .reduce((p, c) => p + c, 0);
-//   };
+  const getAllEventsCount = () => {
+    return Array.from<EventEnvelope[]>(streams.values())
+      .map((s) => s.length)
+      .reduce((p, c) => p + c, 0);
+  };
 
-//   return {
-//     // aggregateStream<State, EventType extends Event>(
-//     //   streamName: string,
-//     //   options: AggregateStreamOptions<State, EventType, StreamVersion>,
-//     // ): Promise<AggregateStreamResult<State, StreamVersion>>;
+  return {
+    async aggregateStream<State, EventType extends Event>(
+      streamName: string,
+      options: AggregateStreamOptions<State, EventType>,
+    ): Promise<AggregateStreamResult<State> | null> {
+      const { evolve, getInitialState, read } = options;
 
-//     readStream: <EventType extends Event>(
-//       streamName: string,
-//       options?: ReadStreamOptions<StreamVersion>,
-//     ): Promise<ReadStreamResult<EventType, StreamVersion>> => {
-//       const events = streams.get(streamName);
-//       const currentStreamVersion = events?.length;
+      const result = await this.readStream<EventType>(streamName, read);
 
-//       const expectedStreamVersion =
-//         options?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK;
+      if (!result) return null;
 
-//       return Promise.resolve({ currentStreamVersion, events });
-//     },
+      const events = result?.events ?? [];
 
-//     appendToStream: <EventType extends Event>(
-//       streamId: string,
-//       events: EventType[],
-//       options?: AppendToStreamOptions<StreamVersion>,
-//     ): Promise<AppendToStreamResult<StreamVersion>> => {
-//       const current = streams.get(streamId) ?? [];
+      return {
+        currentStreamVersion: BigInt(evolve.length),
+        state: events.reduce(evolve, getInitialState()),
+      };
+    },
 
-//       const eventEnvelopes: EventEnvelope[] = events.map((event, index) => {
-//         return {
-//           ...event,
-//           metadata: {
-//             eventId: uuid(),
-//             streamPosition: current.length + index + 1,
-//             logPosition: BigInt(getAllEventsCount() + index + 1),
-//           },
-//         };
-//       });
+    readStream: <EventType extends Event>(
+      streamName: string,
+      options?: ReadStreamOptions,
+    ): Promise<ReadStreamResult<EventType>> => {
+      const events = streams.get(streamName);
+      const currentStreamVersion = events ? BigInt(events.length) : undefined;
 
-//       streams.set(streamId, [...current, ...eventEnvelopes]);
+      assertExpectedVersionMatchesCurrent(
+        currentStreamVersion,
+        options?.expectedStreamVersion,
+      );
 
-//       for (const eventEnvelope of eventEnvelopes) {
-//         for (const handler of handlers) {
-//           handler(eventEnvelope);
-//         }
-//       }
-//     },
-//     subscribe: <E extends Event>(eventHandler: EventHandler<E>): void => {
-//       handlers.push((eventEnvelope) =>
-//         eventHandler(eventEnvelope as EventEnvelope<E>),
-//       );
-//     },
-//   };
-// };
+      const result: ReadStreamResult<EventType> =
+        events && events.length > 0
+          ? {
+              currentStreamVersion: currentStreamVersion!,
+              events: events.map((e) => e.event as EventType),
+            }
+          : null;
+
+      return Promise.resolve(result);
+    },
+
+    appendToStream: <EventType extends Event>(
+      streamName: string,
+      events: EventType[],
+      options?: AppendToStreamOptions,
+    ): Promise<AppendToStreamResult> => {
+      const currentEvents = streams.get(streamName) ?? [];
+      const currentStreamVersion =
+        currentEvents.length > 0 ? BigInt(currentEvents.length) : undefined;
+
+      assertExpectedVersionMatchesCurrent(
+        currentStreamVersion,
+        options?.expectedStreamVersion,
+      );
+
+      const eventEnvelopes: EventEnvelope[] = events.map((event, index) => {
+        return {
+          event,
+          metadata: {
+            eventId: uuid(),
+            streamPosition: currentEvents.length + index + 1,
+            logPosition: BigInt(getAllEventsCount() + index + 1),
+          },
+        };
+      });
+
+      const positionOfLastEventInTheStream = BigInt(
+        eventEnvelopes.slice(-1)[0]!.metadata.streamPosition,
+      );
+
+      streams.set(streamName, [...currentEvents, ...eventEnvelopes]);
+
+      const result: AppendToStreamResult = {
+        nextExpectedStreamVersion: positionOfLastEventInTheStream,
+      };
+
+      return Promise.resolve(result);
+    },
+  };
+};
