@@ -24,7 +24,7 @@ export const CommandHandler =
   ) => {
     const streamName = mapToStreamId(id);
 
-    const { state, currentStreamVersion } = await eventStore.aggregateStream<
+    const aggregationResult = await eventStore.aggregateStream<
       State,
       StreamEvent
     >(streamName, {
@@ -38,7 +38,10 @@ export const CommandHandler =
       },
     });
 
-    const result = handle(state ?? getInitialState());
+    const state = aggregationResult?.state ?? getInitialState();
+    const currentStreamVersion = aggregationResult?.currentStreamVersion;
+
+    const result = handle(state);
 
     // Either use:
     // - provided expected stream version,
