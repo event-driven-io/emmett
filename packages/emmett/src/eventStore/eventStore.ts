@@ -1,4 +1,5 @@
-import type { Event, Flavour } from '../typing';
+import type { Event } from '../typing';
+import type { ExpectedStreamVersion } from './expectedVersion';
 
 // #region event-store
 export interface EventStore<StreamVersion = DefaultStreamVersionType> {
@@ -26,7 +27,7 @@ export type DefaultStreamVersionType = bigint;
 /// ReadStream types
 ////////////////////////////////////////////////////////////////////
 
-export type ReadStreamOptions<StreamVersion = bigint> = (
+export type ReadStreamOptions<StreamVersion = DefaultStreamVersionType> = (
   | {
       from: StreamVersion;
     }
@@ -39,7 +40,10 @@ export type ReadStreamOptions<StreamVersion = bigint> = (
   expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
 };
 
-export type ReadStreamResult<E extends Event, StreamVersion = bigint> = {
+export type ReadStreamResult<
+  E extends Event,
+  StreamVersion = DefaultStreamVersionType,
+> = {
   currentStreamVersion: StreamVersion;
   events: E[];
 } | null;
@@ -51,14 +55,17 @@ export type ReadStreamResult<E extends Event, StreamVersion = bigint> = {
 export type AggregateStreamOptions<
   State,
   E extends Event,
-  StreamVersion = bigint,
+  StreamVersion = DefaultStreamVersionType,
 > = {
   evolve: (currentState: State, event: E) => State;
   getInitialState: () => State;
   read?: ReadStreamOptions<StreamVersion>;
 };
 
-export type AggregateStreamResult<State, StreamVersion = bigint> = {
+export type AggregateStreamResult<
+  State,
+  StreamVersion = DefaultStreamVersionType,
+> = {
   currentStreamVersion: StreamVersion | null;
   state: State | null;
 };
@@ -67,28 +74,10 @@ export type AggregateStreamResult<State, StreamVersion = bigint> = {
 /// AppendToStream types
 ////////////////////////////////////////////////////////////////////
 
-export type AppendToStreamOptions<StreamVersion = bigint> = {
+export type AppendToStreamOptions<StreamVersion = DefaultStreamVersionType> = {
   expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
 };
 
-export type AppendToStreamResult<StreamVersion = bigint> = {
+export type AppendToStreamResult<StreamVersion = DefaultStreamVersionType> = {
   nextExpectedStreamVersion: StreamVersion;
 } | null;
-
-export type ExpectedStreamVersion<VersionType = DefaultStreamVersionType> =
-  | ExpectedStreamVersionWithValue<VersionType>
-  | ExpectedStreamVersionGeneral;
-
-export type ExpectedStreamVersionWithValue<
-  VersionType = DefaultStreamVersionType,
-> = Flavour<VersionType, 'StreamVersion'>;
-
-export type ExpectedStreamVersionGeneral = Flavour<
-  'STREAM_EXISTS' | 'STREAM_DOES_NOT_EXISTS' | 'NO_CHECK',
-  'StreamVersion'
->;
-
-export const STREAM_EXISTS = 'STREAM_EXISTS' as ExpectedStreamVersionGeneral;
-export const STREAM_DOES_NOT_EXISTS =
-  'STREAM_DOES_NOT_EXISTS' as ExpectedStreamVersionGeneral;
-export const NO_CHECK = 'NO_CHECK' as ExpectedStreamVersionGeneral;
