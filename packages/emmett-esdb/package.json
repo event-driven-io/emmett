@@ -13,13 +13,13 @@
     "fix:prettier": "prettier --write \"**/**/!(*.d).{ts,json,md}\"",
     "fix:eslint": "eslint **/*.ts --fix",
     "test": "run-s test:unit test:int test:e2e",
-    "test:unit": "jest unit --passWithNoTests --forceExit",
-    "test:int": "jest int --passWithNoTests --forceExit",
-    "test:e2e": "jest e2e --passWithNoTests --forceExit",
-    "test:watch": "jest test --passWithNoTests",
-    "test:unit:watch": "jest unit --passWithNoTests --forceExit --watch",
-    "test:int:watch": "jest int --passWithNoTests --forceExit --watch",
-    "test:e2e:watch": "jest e2e --passWithNoTests --forceExit --watch"
+    "test:unit": "node --import tsx --test ./src/**/*.spec.ts",
+    "test:int": "node --import tsx --test ./src/**/*.int-spec.ts",
+    "test:e2e": "node --import tsx --test ./src/**/*.e2e-spec.ts",
+    "test:watch": "node --import tsx --test --watch",
+    "test:unit:watch": "node --import tsx --test --watch ./src/**/*.spec.ts",
+    "test:int:watch": "node --import tsx --test  --watch ./src/**/*.int-spec.ts",
+    "test:e2e:watch": "node --import tsx --test --watch ./src/**/*.e2e-spec.ts"
   },
   "repository": {
     "type": "git",
