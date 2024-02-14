@@ -1,6 +1,6 @@
 import {
-  NO_CHECK,
-  STREAM_DOES_NOT_EXISTS,
+  NO_CONCURRENCY_CHECK,
+  STREAM_DOES_NOT_EXIST,
   type DefaultStreamVersionType,
   type EventStore,
   type ExpectedStreamVersion,
@@ -33,7 +33,8 @@ export const CommandHandler =
       read: {
         // expected stream version is passed to fail fast
         // if stream is in the wrong state
-        expectedStreamVersion: options?.expectedStreamVersion ?? NO_CHECK,
+        expectedStreamVersion:
+          options?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
       },
     });
 
@@ -46,7 +47,7 @@ export const CommandHandler =
     const expectedStreamVersion: ExpectedStreamVersion<StreamVersion> =
       options?.expectedStreamVersion ??
       currentStreamVersion ??
-      STREAM_DOES_NOT_EXISTS;
+      STREAM_DOES_NOT_EXIST;
 
     return eventStore.appendToStream(
       streamName,
