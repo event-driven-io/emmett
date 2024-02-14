@@ -42,4 +42,4 @@ jobs:
         run: npm run build -ws
 
       - name: Test
-        run: npm run test -ws
+        run: npm run test

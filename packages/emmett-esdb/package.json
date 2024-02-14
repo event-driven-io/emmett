@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/emmett-esdb",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "build": "tsup",
@@ -38,5 +38,8 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "@event-driven-io/emmett": "^0.1.7"
+  }
 }

@@ -1,6 +1,6 @@
 import {
-  NO_CHECK,
-  STREAM_DOES_NOT_EXISTS,
+  NO_CONCURRENCY_CHECK,
+  STREAM_DOES_NOT_EXIST,
   type DefaultStreamVersionType,
   type EventStore,
   type ExpectedStreamVersion,
@@ -24,7 +24,7 @@ export const CommandHandler =
   ) => {
     const streamName = mapToStreamId(id);
 
-    const { state, currentStreamVersion } = await eventStore.aggregateStream<
+    const aggregationResult = await eventStore.aggregateStream<
       State,
       StreamEvent
     >(streamName, {
@@ -33,11 +33,15 @@ export const CommandHandler =
       read: {
         // expected stream version is passed to fail fast
         // if stream is in the wrong state
-        expectedStreamVersion: options?.expectedStreamVersion ?? NO_CHECK,
+        expectedStreamVersion:
+          options?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
       },
     });
 
-    const result = handle(state ?? getInitialState());
+    const state = aggregationResult?.state ?? getInitialState();
+    const currentStreamVersion = aggregationResult?.currentStreamVersion;
+
+    const result = handle(state);
 
     // Either use:
     // - provided expected stream version,
@@ -46,7 +50,7 @@ export const CommandHandler =
     const expectedStreamVersion: ExpectedStreamVersion<StreamVersion> =
       options?.expectedStreamVersion ??
       currentStreamVersion ??
-      STREAM_DOES_NOT_EXISTS;
+      STREAM_DOES_NOT_EXIST;
 
     return eventStore.appendToStream(
       streamName,
