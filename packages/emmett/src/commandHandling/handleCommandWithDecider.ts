@@ -1,6 +1,11 @@
-import type { EventStore } from '../eventStore';
+import type {
+  DefaultStreamVersionType,
+  EventStore,
+  ExpectedStreamVersion,
+} from '../eventStore';
 import type { Command, Event } from '../typing';
 import type { Decider } from '../typing/decider';
+import { CommandHandler } from './handleCommand';
 
 // #region command-handler
 export const DeciderCommandHandler =
@@ -8,36 +13,26 @@ export const DeciderCommandHandler =
     State,
     CommandType extends Command,
     StreamEvent extends Event,
-    NextExpectedVersion = bigint,
+    StreamVersion = DefaultStreamVersionType,
   >(
     {
       decide,
       evolve,
       getInitialState,
     }: Decider<State, CommandType, StreamEvent>,
-    mapToStreamId: (id: string) => string,
+    mapToStreamId: (id: string) => string = (id) => id,
   ) =>
-  async (eventStore: EventStore, id: string, command: CommandType) => {
-    const streamName = mapToStreamId(id);
-
-    const { entity: state, nextExpectedVersion } =
-      await eventStore.aggregateStream<State, StreamEvent, NextExpectedVersion>(
-        streamName,
-        {
-          evolve,
-          getInitialState,
-        },
-      );
-
-    const result = decide(command, state ?? getInitialState());
-
-    if (Array.isArray(result))
-      return eventStore.appendToStream(
-        streamName,
-        nextExpectedVersion,
-        ...result,
-      );
-    else
-      return eventStore.appendToStream(streamName, nextExpectedVersion, result);
-  };
+  async (
+    eventStore: EventStore<StreamVersion>,
+    id: string,
+    command: CommandType,
+    options?: {
+      expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
+    },
+  ) =>
+    CommandHandler<State, StreamEvent, StreamVersion>(
+      evolve,
+      getInitialState,
+      mapToStreamId,
+    )(eventStore, id, (state) => decide(command, state), options);
 // #endregion command-handler
