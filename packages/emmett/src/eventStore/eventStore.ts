@@ -26,9 +26,16 @@ export type DefaultStreamVersionType = bigint;
 /// ReadStream types
 ////////////////////////////////////////////////////////////////////
 
-export type ReadStreamOptions<StreamVersion = bigint> = {
-  from?: StreamVersion;
-  to?: StreamVersion;
+export type ReadStreamOptions<StreamVersion = bigint> = (
+  | {
+      from: StreamVersion;
+    }
+  | { to: StreamVersion }
+  | { from: StreamVersion; maxCount?: bigint }
+  | {
+      expectedStreamVersion: ExpectedStreamVersion<StreamVersion>;
+    }
+) & {
   expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
 };
 
