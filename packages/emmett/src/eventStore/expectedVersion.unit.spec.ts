@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
 import {
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
@@ -10,25 +13,24 @@ describe('matchesExpectedVersion', () => {
     const allCurrentVersions = [undefined, 0, -1, 1, 100, 'random', ''];
 
     for (const currentStreamVersion of allCurrentVersions) {
-      expect(
+      assert.ok(
         matchesExpectedVersion(currentStreamVersion, NO_CONCURRENCY_CHECK),
-      ).toBeTruthy();
+      );
     }
   });
 
   it('When STREAM_DOES_NOT_EXIST provided returns `true` for current equals `undefined`', () => {
-    expect(
-      matchesExpectedVersion(undefined, STREAM_DOES_NOT_EXIST),
-    ).toBeTruthy();
+    assert.ok(matchesExpectedVersion(undefined, STREAM_DOES_NOT_EXIST));
   });
 
   it('When STREAM_DOES_NOT_EXIST provided returns `false` for current different than `undefined`', () => {
     const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
 
     for (const currentStreamVersion of definedStreamVersion) {
-      expect(
+      assert.equal(
         matchesExpectedVersion(currentStreamVersion, STREAM_DOES_NOT_EXIST),
-      ).toBeFalsy();
+        false,
+      );
     }
   });
 
@@ -36,21 +38,19 @@ describe('matchesExpectedVersion', () => {
     const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
 
     for (const currentStreamVersion of definedStreamVersion) {
-      expect(
-        matchesExpectedVersion(currentStreamVersion, STREAM_EXISTS),
-      ).toBeTruthy();
+      assert.ok(matchesExpectedVersion(currentStreamVersion, STREAM_EXISTS));
     }
   });
 
   it('When STREAM_EXISTS provided returns `false` for current equals `undefined`', () => {
-    expect(matchesExpectedVersion(undefined, STREAM_EXISTS)).toBeFalsy();
+    assert.equal(matchesExpectedVersion(undefined, STREAM_EXISTS), false);
   });
 
   it('When value provided returns `true` for current matching expected value', () => {
     const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
 
     for (const streamVersion of definedStreamVersion) {
-      expect(matchesExpectedVersion(streamVersion, streamVersion)).toBeTruthy();
+      assert.ok(matchesExpectedVersion(streamVersion, streamVersion));
     }
   });
 
@@ -65,9 +65,10 @@ describe('matchesExpectedVersion', () => {
     ];
 
     for (const streamVersion of definedStreamVersion) {
-      expect(
+      assert.equal(
         matchesExpectedVersion(streamVersion.current, streamVersion.expected),
-      ).toBeFalsy();
+        false,
+      );
     }
   });
 });
