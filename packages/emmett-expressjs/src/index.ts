@@ -1,3 +1,4 @@
+import { ExpectedVersionConflictError } from '@event-driven-io/emmett';
 import express, {
   Router,
   type Application,
@@ -90,23 +91,32 @@ export const problemDetailsMiddleware =
     response: Response,
     _next: NextFunction,
   ): void => {
-    const statusCode = 500;
-
     let problemDetails: ProblemDocument | undefined;
 
     if (mapError) problemDetails = mapError(error, request);
 
     problemDetails =
-      problemDetails ??
-      new ProblemDocument({
-        detail: error.message,
-        status: statusCode,
-      });
+      problemDetails ?? defaulErrorToProblemDetailsMapping(error);
 
     response.statusCode = problemDetails.status;
     response.setHeader('Content-Type', 'application/problem+json');
     response.json(problemDetails);
   };
+
+export const defaulErrorToProblemDetailsMapping = (
+  error: Error,
+): ProblemDocument => {
+  let statusCode = 500;
+
+  if (error instanceof ExpectedVersionConflictError) {
+    statusCode = 412;
+  }
+
+  return new ProblemDocument({
+    detail: error.message,
+    status: statusCode,
+  });
+};
 
 export const sendCreated = (
   response: Response,
