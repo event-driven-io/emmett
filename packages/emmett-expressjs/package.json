@@ -13,13 +13,13 @@
     "fix:prettier": "prettier --write \"**/**/!(*.d).{ts,json,md}\"",
     "fix:eslint": "eslint **/*.ts --fix",
     "test": "run-s test:unit test:int test:e2e",
-    "test:unit": "node --import tsx --test ./src/**/*.unit .spec.ts docs/**/*.unit.spec.ts",
-    "test:int": "node --import tsx --test ./src/**/*.int .spec.ts docs/**/*.int.spec.ts",
-    "test:e2e": "node --import tsx --test ./src/**/*.e2e .spec.ts docs/**/*.e2e.spec.ts",
+    "test:unit": "glob -c \"node --import tsx --test\" **/*.unit.spec.ts",
+    "test:int": "glob -c \"node --import tsx --test\" **/*.int.spec.ts",
+    "test:e2e": "glob -c \"node --import tsx --test\" **/*.e2e.spec.ts",
     "test:watch": "node --import tsx --test --watch",
-    "test:unit:watch": "node --import tsx --test --watch ./src/**/*.unit .spec.ts docs/**/*.unit.spec.ts",
-    "test:int:watch": "node --import tsx --test  --watch ./src/**/*.int .spec.ts docs/**/*.int.spec.ts",
-    "test:e2e:watch": "node --import tsx --test --watch ./src/**/*.e2e .spec.ts docs/**/*.e2e.spec.ts"
+    "test:unit:watch": "glob -c \"node --import tsx --test --watch\" **/*.unit.spec.ts",
+    "test:int:watch": "glob -c \"node --import tsx --test --watch\" **/*.int.spec.ts",
+    "test:e2e:watch": "glob -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts"
   },
   "repository": {
     "type": "git",
