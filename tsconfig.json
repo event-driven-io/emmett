@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.shared.json",
-  "include": ["./src/**/*", "./packages/**/*", "./tsup.config.ts"],
+  "include": ["./packages/**/*", "./packages/**/**/*", "./tsup.config.ts"],
   "files": [],
   "compilerOptions": {
     "noEmit": true /* Do not emit outputs. */
