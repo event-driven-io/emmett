@@ -4,7 +4,6 @@
   "exclude": ["node_modules", "tmp"],
   "files": [],
   "compilerOptions": {
-    "disableSourceOfProjectReferenceRedirect": true,
     "noEmit": true /* Do not emit outputs. */,
     "paths": {
       "@event-driven-io/emmett": ["./packages/emmett/src"],
