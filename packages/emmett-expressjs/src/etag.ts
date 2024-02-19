@@ -23,11 +23,11 @@ export const enum ETagErrors {
 }
 
 export const isWeakETag = (etag: ETag): etag is WeakETag => {
-  return WeakETagRegex.test(etag);
+  return WeakETagRegex.test(etag as string);
 };
 
 export const getWeakETagValue = (etag: ETag): string => {
-  const result = WeakETagRegex.exec(etag);
+  const result = WeakETagRegex.exec(etag as string);
   if (result === null || result.length === 0) {
     throw new Error(ETagErrors.WRONG_WEAK_ETAG_FORMAT);
   }
@@ -59,5 +59,5 @@ export const getETagFromIfNotMatch = (request: Request): ETag => {
 };
 
 export const setETag = (response: Response, etag: ETag): void => {
-  response.setHeader(HeaderNames.ETag, etag);
+  response.setHeader(HeaderNames.ETag, etag as string);
 };

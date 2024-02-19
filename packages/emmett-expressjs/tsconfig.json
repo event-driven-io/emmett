@@ -1,10 +1,17 @@
 {
   "extends": "../../tsconfig.shared.json",
-  "include": ["./src/**/*", "./tsup.config.ts"],
+  "include": ["./src/**/*"],
   "compilerOptions": {
     "composite": true,
+    "outDir": "./dist" /* Redirect output structure to the directory. */,
+    "rootDir": "./src",
     "paths": {
-      "@event-driven-io/emmett": ["./packages/emmett/src"]
+      "@event-driven-io/emmett": ["./packages/emmett"]
     }
-  }
+  },
+  "references": [
+    {
+      "path": "../emmett/"
+    }
+  ]
 }

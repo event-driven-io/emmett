@@ -7,6 +7,7 @@ export type EmptyShoppingCart = {
 
 export type OpenedShoppingCart = {
   status: 'Opened';
+
   productItems: ProductItems;
 };
 
