@@ -2,6 +2,9 @@
   "extends": "../../tsconfig.shared.json",
   "include": ["./src/**/*", "./tsup.config.ts"],
   "compilerOptions": {
-    "composite": true
+    "composite": true,
+    "paths": {
+      "@event-driven-io/emmett": ["./packages/emmett/src"]
+    }
   }
 }

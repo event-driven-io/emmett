@@ -1,8 +1,12 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
 import {
+  assertMatches,
   getInMemoryEventStore,
   type EventStore,
 } from '@event-driven-io/emmett';
 import { type Application } from 'express';
+import assert from 'node:assert/strict';
+import { beforeEach, describe, it } from 'node:test';
 import request from 'supertest';
 import { v4 as uuid } from 'uuid';
 import { getApplication } from '..';
@@ -21,7 +25,7 @@ describe('Application logic with optimistic concurrency', () => {
   let app: Application;
   let eventStore: EventStore;
 
-  beforeAll(() => {
+  beforeEach(() => {
     eventStore = getInMemoryEventStore();
     app = getApplication({ apis: [shoppingCartApi(eventStore)] });
   });
@@ -39,10 +43,10 @@ describe('Application logic with optimistic concurrency', () => {
     const current = createResponse.body;
 
     if (!current.id) {
-      expect(false).toBeTruthy();
+      assert.fail();
       return;
     }
-    expect(current.id).toBeDefined();
+    assert.ok(current.id);
 
     const shoppingCartId = current.id;
 
@@ -120,8 +124,8 @@ describe('Application logic with optimistic concurrency', () => {
       .delete(`/clients/${clientId}/shopping-carts/${shoppingCartId}`)
       .set(HeaderNames.IF_MATCH, toWeakETag(currentRevision))
       .expect((response) => {
-        expect(response.statusCode).toBe(500);
-        expect(response.body).toMatchObject({
+        assert.equal(response.statusCode, 500);
+        assertMatches(response.body, {
           detail: ShoppingCartErrors.CART_IS_ALREADY_CLOSED,
         });
       });
@@ -130,10 +134,10 @@ describe('Application logic with optimistic concurrency', () => {
       mapShoppingCartStreamId(shoppingCartId),
     );
 
-    expect(result).toBeDefined();
-    expect(result!.events.length).toBe(Number(currentRevision));
+    assert.ok(result);
+    assert.equal(result.events.length, Number(currentRevision));
 
-    expect(result?.events).toMatchObject([
+    assertMatches(result?.events, [
       {
         type: 'ShoppingCartOpened',
         data: {
