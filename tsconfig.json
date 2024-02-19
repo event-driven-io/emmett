@@ -1,9 +1,18 @@
 {
   "extends": "./tsconfig.shared.json",
-  "include": ["./packages/**/*", "./packages/**/**/*", "./tsup.config.ts"],
+  "include": ["docs/**/*.ts", "./tsup.config.ts"],
+  "exclude": ["node_modules", "tmp"],
   "files": [],
   "compilerOptions": {
-    "noEmit": true /* Do not emit outputs. */
+    "disableSourceOfProjectReferenceRedirect": true,
+    "noEmit": true /* Do not emit outputs. */,
+    "paths": {
+      "@event-driven-io/emmett": ["./packages/emmett/src"],
+      "@event-driven-io/emmett-expressjs": ["./packages/emmett-expressjs/src"],
+      "@event-driven-io/emmett-eventstoredb": [
+        "./packages/emmett-eventstoredb/src"
+      ]
+    }
   },
   "references": [
     {

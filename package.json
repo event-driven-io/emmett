@@ -8,8 +8,8 @@
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
     "build": "npm run build --ws",
-    "build:ts": "npm run build:ts --ws",
-    "build:ts:watch": "npm run build:ts:watch --ws",
+    "build:ts": "tsc -b",
+    "build:ts:watch": "tsc -b --watch",
     "lint": "npm run lint --ws",
     "fix": "npm run fix --ws",
     "test": "run-s test:unit test:int test:e2e",
