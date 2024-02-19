@@ -19,5 +19,8 @@
   "files.eol": "\n",
 
   "typescript.preferences.importModuleSpecifier": "relative",
-  "eslint.workingDirectories": [{ "mode": "auto" }]
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+  "debug.javascript.terminalOptions": {
+    "nodeVersionHint": 20
+  }
 }

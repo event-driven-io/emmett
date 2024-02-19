@@ -13,13 +13,13 @@
     "fix:prettier": "prettier --write \"**/**/!(*.d).{ts,json,md}\"",
     "fix:eslint": "eslint **/*.ts --fix",
     "test": "run-s test:unit test:int test:e2e",
-    "test:unit": "jest unit --passWithNoTests --forceExit",
-    "test:int": "jest int --passWithNoTests --forceExit",
-    "test:e2e": "jest e2e --passWithNoTests --forceExit",
-    "test:watch": "jest test --passWithNoTests",
-    "test:unit:watch": "jest unit --passWithNoTests --forceExit --watch",
-    "test:int:watch": "jest int --passWithNoTests --forceExit --watch",
-    "test:e2e:watch": "jest e2e --passWithNoTests --forceExit --watch"
+    "test:unit": "glob -c \"node --import tsx --test\" **/*.unit.spec.ts",
+    "test:int": "glob -c \"node --import tsx --test\" **/*.int.spec.ts",
+    "test:e2e": "glob -c \"node --import tsx --test\" **/*.e2e.spec.ts",
+    "test:watch": "node --import tsx --test --watch",
+    "test:unit:watch": "glob -c \"node --import tsx --test --watch\" **/*.unit.spec.ts",
+    "test:int:watch": "glob -c \"node --import tsx --test --watch\" **/*.int.spec.ts",
+    "test:e2e:watch": "glob -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts"
   },
   "repository": {
     "type": "git",

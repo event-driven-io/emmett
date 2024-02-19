@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import { decide } from './businessLogic';
 import { evolve, getInitialState } from './state';
