@@ -126,4 +126,4 @@ One of the mentioned benefits is testing, which Emmett helps to do out of the bo
 
 Tests for our Shopping Cart business logic can look like this:
 
-<<< @/snippets/gettingStarted/businessLogic.unit.test.ts#getting-started-unit-tests
+<<< @/snippets/gettingStarted/businessLogic.unit.spec.ts#getting-started-unit-tests

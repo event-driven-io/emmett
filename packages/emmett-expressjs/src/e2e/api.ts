@@ -52,7 +52,7 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
       );
 
-      setETag(response, toWeakETag(result!.nextExpectedStreamVersion));
+      setETag(response, toWeakETag(result.nextExpectedStreamVersion));
       sendCreated(response, shoppingCartId);
     },
   );
@@ -82,7 +82,7 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         { expectedStreamVersion: getExpectedStreamVersion(request) },
       );
 
-      setETag(response, toWeakETag(result!.nextExpectedStreamVersion));
+      setETag(response, toWeakETag(result.nextExpectedStreamVersion));
       response.sendStatus(204);
     },
   );
@@ -110,7 +110,7 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         { expectedStreamVersion: getExpectedStreamVersion(request) },
       );
 
-      setETag(response, toWeakETag(result!.nextExpectedStreamVersion));
+      setETag(response, toWeakETag(result.nextExpectedStreamVersion));
       response.sendStatus(204);
     },
   );
@@ -133,7 +133,7 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         { expectedStreamVersion: getExpectedStreamVersion(request) },
       );
 
-      setETag(response, toWeakETag(result!.nextExpectedStreamVersion));
+      setETag(response, toWeakETag(result.nextExpectedStreamVersion));
       response.sendStatus(204);
     },
   );
@@ -156,7 +156,7 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         { expectedStreamVersion: getExpectedStreamVersion(request) },
       );
 
-      setETag(response, toWeakETag(result!.nextExpectedStreamVersion));
+      setETag(response, toWeakETag(result.nextExpectedStreamVersion));
       response.sendStatus(204);
     },
   );
