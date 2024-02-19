@@ -42,21 +42,6 @@
       "internalConsoleOptions": "neverOpen",
       "cwd": "${workspaceFolder}",
       "sourceMaps": true
-    },
-    {
-      "name": "Jest current test",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/node_modules/jest/bin/jest",
-      "args": [
-        "${fileBasenameNoExtension}",
-        "--verbose",
-        "-i",
-        "--no-cache",
-        "--watchAll"
-      ],
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen"
     }
   ]
 }
