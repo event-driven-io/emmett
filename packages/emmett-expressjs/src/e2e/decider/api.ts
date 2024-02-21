@@ -10,8 +10,7 @@ import { type Request, type Router } from 'express';
 import {
   Created,
   NoContent,
-  getETagFromIfMatch,
-  getWeakETagValue,
+  getETagValueFromIfMatch,
   on,
   toWeakETag,
 } from '../../';
@@ -22,13 +21,6 @@ export const handle = DeciderCommandHandler(decider);
 
 const dummyPriceProvider = (_productId: string) => {
   return 100;
-};
-
-export const getExpectedStreamVersion = (request: Request): bigint => {
-  const eTag = getETagFromIfMatch(request);
-  const weakEtag = getWeakETagValue(eTag);
-
-  return assertUnsignedBigInt(weakEtag);
 };
 
 export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
@@ -78,7 +70,11 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
             productItem: { ...productItem, unitPrice },
           },
         },
-        { expectedStreamVersion: getExpectedStreamVersion(request) },
+        {
+          expectedStreamVersion: assertUnsignedBigInt(
+            getETagValueFromIfMatch(request),
+          ),
+        },
       );
 
       return NoContent({ eTag: toWeakETag(result.nextExpectedStreamVersion) });
@@ -105,7 +101,11 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
           type: 'RemoveProductItemFromShoppingCart',
           data: { shoppingCartId, productItem },
         },
-        { expectedStreamVersion: getExpectedStreamVersion(request) },
+        {
+          expectedStreamVersion: assertUnsignedBigInt(
+            getETagValueFromIfMatch(request),
+          ),
+        },
       );
 
       return NoContent({ eTag: toWeakETag(result.nextExpectedStreamVersion) });
@@ -127,7 +127,11 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
           type: 'ConfirmShoppingCart',
           data: { shoppingCartId, now: new Date() },
         },
-        { expectedStreamVersion: getExpectedStreamVersion(request) },
+        {
+          expectedStreamVersion: assertUnsignedBigInt(
+            getETagValueFromIfMatch(request),
+          ),
+        },
       );
 
       return NoContent({ eTag: toWeakETag(result.nextExpectedStreamVersion) });
@@ -149,7 +153,11 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
           type: 'CancelShoppingCart',
           data: { shoppingCartId, now: new Date() },
         },
-        { expectedStreamVersion: getExpectedStreamVersion(request) },
+        {
+          expectedStreamVersion: assertUnsignedBigInt(
+            getETagValueFromIfMatch(request),
+          ),
+        },
       );
 
       return NoContent({ eTag: toWeakETag(result.nextExpectedStreamVersion) });
