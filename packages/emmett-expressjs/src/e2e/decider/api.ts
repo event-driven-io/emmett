@@ -6,20 +6,20 @@ import {
   assertUnsignedBigInt,
   type EventStore,
 } from '@event-driven-io/emmett';
-import type { Request, Response, Router } from 'express';
-import { sendCreated } from '..';
+import { type Request, type Response, type Router } from 'express';
 import {
+  Created,
+  NoContent,
   getETagFromIfMatch,
   getWeakETagValue,
+  on,
   setETag,
   toWeakETag,
-} from '../etag';
+} from '../../';
 import { decider } from './businessLogic';
 import { type PricedProductItem, type ProductItem } from './shoppingCart';
 
-export const mapShoppingCartStreamId = (id: string) => `shopping_cart-${id}`;
-
-export const handle = DeciderCommandHandler(decider, mapShoppingCartStreamId);
+export const handle = DeciderCommandHandler(decider);
 
 const dummyPriceProvider = (_productId: string) => {
   return 100;
@@ -36,10 +36,8 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
   // Open Shopping cart
   router.post(
     '/clients/:clientId/shopping-carts/',
-    async (request: Request, response: Response) => {
+    on(async (request: Request) => {
       const clientId = assertNotEmptyString(request.params.clientId);
-      // We're using here clientId as a shopping cart id (instead a random uuid) to make it unique per client.
-      // What potential issue do you see in that?
       const shoppingCartId = clientId;
 
       const result = await handle(
@@ -52,14 +50,16 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
       );
 
-      setETag(response, toWeakETag(result.nextExpectedStreamVersion));
-      sendCreated(response, shoppingCartId);
-    },
+      return Created({
+        createdId: shoppingCartId,
+        eTag: toWeakETag(result.nextExpectedStreamVersion),
+      });
+    }),
   );
 
   router.post(
     '/clients/:clientId/shopping-carts/:shoppingCartId/product-items',
-    async (request: AddProductItemRequest, response: Response) => {
+    on(async (request: AddProductItemRequest) => {
       const shoppingCartId = assertNotEmptyString(
         request.params.shoppingCartId,
       );
@@ -82,15 +82,14 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         { expectedStreamVersion: getExpectedStreamVersion(request) },
       );
 
-      setETag(response, toWeakETag(result.nextExpectedStreamVersion));
-      response.sendStatus(204);
-    },
+      return NoContent({ eTag: toWeakETag(result.nextExpectedStreamVersion) });
+    }),
   );
 
   // Remove Product Item
   router.delete(
     '/clients/:clientId/shopping-carts/:shoppingCartId/product-items',
-    async (request: Request, response: Response) => {
+    on(async (request: Request) => {
       const shoppingCartId = assertNotEmptyString(
         request.params.shoppingCartId,
       );
@@ -110,9 +109,8 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         { expectedStreamVersion: getExpectedStreamVersion(request) },
       );
 
-      setETag(response, toWeakETag(result.nextExpectedStreamVersion));
-      response.sendStatus(204);
-    },
+      return NoContent({ eTag: toWeakETag(result.nextExpectedStreamVersion) });
+    }),
   );
 
   // Confirm Shopping Cart

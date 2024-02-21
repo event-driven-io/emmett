@@ -9,17 +9,17 @@ import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 import request from 'supertest';
 import { v4 as uuid } from 'uuid';
-import { getApplication } from '..';
-import { HeaderNames, toWeakETag } from '../etag';
-import { mapShoppingCartStreamId, shoppingCartApi } from './api';
-import { ShoppingCartErrors } from './businessLogic';
-import type { ShoppingCartEvent } from './shoppingCart';
+import { getApplication } from '../..';
+import { HeaderNames, toWeakETag } from '../../etag';
 import {
   expectNextRevisionInResponseEtag,
   runTwice,
   statuses,
   type TestResponse,
-} from './testing';
+} from '../testing';
+import { shoppingCartApi } from './api';
+import { ShoppingCartErrors } from './businessLogic';
+import type { ShoppingCartEvent } from './shoppingCart';
 
 describe('Application logic with optimistic concurrency', () => {
   let app: Application;
@@ -130,9 +130,8 @@ describe('Application logic with optimistic concurrency', () => {
         });
       });
 
-    const result = await eventStore.readStream<ShoppingCartEvent>(
-      mapShoppingCartStreamId(shoppingCartId),
-    );
+    const result =
+      await eventStore.readStream<ShoppingCartEvent>(shoppingCartId);
 
     assert.ok(result);
     assert.equal(result.events.length, Number(currentRevision));

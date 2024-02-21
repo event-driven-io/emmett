@@ -9,6 +9,10 @@ import express, {
 import 'express-async-errors';
 import http from 'http';
 import { ProblemDocument } from 'http-problem-details';
+import { setETag, type ETag } from './etag';
+
+export * from './etag';
+export * from './handler';
 
 export type ErrorToProblemDetailsMapping = (
   error: Error,
@@ -98,9 +102,7 @@ export const problemDetailsMiddleware =
     problemDetails =
       problemDetails ?? defaulErrorToProblemDetailsMapping(error);
 
-    response.statusCode = problemDetails.status;
-    response.setHeader('Content-Type', 'application/problem+json');
-    response.json(problemDetails);
+    sendProblem(response, problemDetails.status, { problem: problemDetails });
   };
 
 export const defaulErrorToProblemDetailsMapping = (
@@ -118,32 +120,84 @@ export const defaulErrorToProblemDetailsMapping = (
   });
 };
 
+export type HttpResponseOptions = {
+  body?: unknown;
+  location?: string;
+  eTag?: ETag;
+};
+
+export type HttpProblemResponseOptions = {
+  location?: string;
+  eTag?: ETag;
+} & Omit<HttpResponseOptions, 'body'> &
+  (
+    | {
+        problem: ProblemDocument;
+      }
+    | { problemDetails: string }
+  );
+
+export type CreatedHttpResponseOptions = {
+  createdId: string;
+  urlPrefix?: string;
+} & HttpResponseOptions;
+
 export const sendCreated = (
   response: Response,
-  createdId: string,
-  urlPrefix?: string,
+  { createdId, urlPrefix, eTag }: CreatedHttpResponseOptions,
 ): void =>
-  sendWithLocationHeader(
-    response,
-    201,
-    `${urlPrefix ?? response.req.url}/${createdId}`,
-    { id: createdId },
-  );
+  send(response, 201, {
+    location: `${urlPrefix ?? response.req.url}/${createdId}`,
+    body: { id: createdId },
+    eTag,
+  });
+
+export type AcceptedHttpResponseOptions = {
+  location: string;
+} & HttpResponseOptions;
 
 export const sendAccepted = (
   response: Response,
-  url: string,
-  body?: unknown,
-): void => sendWithLocationHeader(response, 202, url, body);
+  options: AcceptedHttpResponseOptions,
+): void => send(response, 202, options);
 
-export const sendWithLocationHeader = (
+export type NoContentHttpResponseOptions = Omit<HttpResponseOptions, 'body'>;
+
+export const send = (
   response: Response,
   statusCode: number,
-  url: string,
-  body?: unknown,
+  { location, body, eTag }: HttpResponseOptions,
 ): void => {
-  response.setHeader('Location', url);
-  response.status(statusCode);
+  // HEADERS
+  if (eTag) setETag(response, eTag);
+  if (location) response.setHeader('Location', location);
+
+  response.statusCode = statusCode;
 
   if (body) response.json(body);
+};
+
+export const sendProblem = (
+  response: Response,
+  statusCode: number,
+  options: HttpProblemResponseOptions,
+): void => {
+  const { location, eTag } = options;
+
+  const problemDetails =
+    'problem' in options
+      ? options.problem
+      : new ProblemDocument({
+          detail: options.problemDetails,
+          status: statusCode,
+        });
+
+  // HEADERS
+  if (eTag) setETag(response, eTag);
+  if (location) response.setHeader('Location', location);
+
+  response.setHeader('Content-Type', 'application/problem+json');
+
+  response.statusCode = statusCode;
+  response.json(problemDetails);
 };
