@@ -6,6 +6,7 @@ import { evolve, getInitialState } from './state';
 
 // #region getting-started-unit-tests
 import { DeciderSpecification } from '@event-driven-io/emmett';
+import type { PricedProductItem } from './events';
 
 const given = DeciderSpecification.for({
   decide,
@@ -99,10 +100,10 @@ describe('ShoppingCart', () => {
     });
   });
 
-  const getRandomProduct = () => {
+  const getRandomProduct = (): PricedProductItem => {
     return {
       productId: uuid(),
-      price: Math.random() * 10,
+      unitPrice: Math.random() * 10,
       quantity: Math.random() * 10,
     };
   };

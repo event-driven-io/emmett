@@ -47,6 +47,6 @@ export interface ProductItem {
 }
 
 export type PricedProductItem = ProductItem & {
-  price: number;
+  unitPrice: number;
 };
 // #endregion getting-started-events

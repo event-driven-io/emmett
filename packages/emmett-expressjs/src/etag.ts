@@ -5,11 +5,11 @@ import type { Request, Response } from 'express';
 /// ETAG
 //////////////////////////////////////
 
-export const enum HeaderNames {
-  IF_MATCH = 'if-match',
-  IF_NOT_MATCH = 'if-not-match',
-  ETag = 'etag',
-}
+export const HeaderNames = {
+  IF_MATCH: 'if-match',
+  IF_NOT_MATCH: 'if-not-match',
+  ETag: 'etag',
+};
 
 export type WeakETag = Brand<`W/${string}`, 'ETag'>;
 export type ETag = Brand<string, 'ETag'>;
