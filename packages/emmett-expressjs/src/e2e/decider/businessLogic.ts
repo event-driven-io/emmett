@@ -1,4 +1,8 @@
-import type { Decider } from '@event-driven-io/emmett';
+import {
+  EmmettError,
+  IllegalStateError,
+  type Decider,
+} from '@event-driven-io/emmett';
 
 import {
   ShoppingCartStatus,
@@ -84,7 +88,7 @@ export const assertProductItemExists = (
     )?.quantity ?? 0;
 
   if (currentQuantity < quantity) {
-    throw new Error(ShoppingCartErrors.PRODUCT_ITEM_NOT_FOUND);
+    throw new IllegalStateError(ShoppingCartErrors.PRODUCT_ITEM_NOT_FOUND);
   }
 };
 
@@ -95,7 +99,7 @@ export const decide = (
   switch (type) {
     case 'OpenShoppingCart': {
       if (shoppingCart.status !== ShoppingCartStatus.Empty) {
-        throw new Error(ShoppingCartErrors.CART_ALREADY_EXISTS);
+        throw new IllegalStateError(ShoppingCartErrors.CART_ALREADY_EXISTS);
       }
       return {
         type: 'ShoppingCartOpened',
@@ -109,7 +113,7 @@ export const decide = (
 
     case 'AddProductItemToShoppingCart': {
       if (shoppingCart.status !== ShoppingCartStatus.Pending) {
-        throw new Error(ShoppingCartErrors.CART_IS_ALREADY_CLOSED);
+        throw new IllegalStateError(ShoppingCartErrors.CART_IS_ALREADY_CLOSED);
       }
       return {
         type: 'ProductItemAddedToShoppingCart',
@@ -122,7 +126,7 @@ export const decide = (
 
     case 'RemoveProductItemFromShoppingCart': {
       if (shoppingCart.status !== ShoppingCartStatus.Pending) {
-        throw new Error(ShoppingCartErrors.CART_IS_ALREADY_CLOSED);
+        throw new IllegalStateError(ShoppingCartErrors.CART_IS_ALREADY_CLOSED);
       }
 
       assertProductItemExists(shoppingCart.productItems, command.productItem);
@@ -138,11 +142,11 @@ export const decide = (
 
     case 'ConfirmShoppingCart': {
       if (shoppingCart.status !== ShoppingCartStatus.Pending) {
-        throw new Error(ShoppingCartErrors.CART_IS_ALREADY_CLOSED);
+        throw new IllegalStateError(ShoppingCartErrors.CART_IS_ALREADY_CLOSED);
       }
 
       if (shoppingCart.productItems.length === 0) {
-        throw new Error(ShoppingCartErrors.CART_IS_EMPTY);
+        throw new IllegalStateError(ShoppingCartErrors.CART_IS_EMPTY);
       }
 
       return {
@@ -156,7 +160,7 @@ export const decide = (
 
     case 'CancelShoppingCart': {
       if (shoppingCart.status !== ShoppingCartStatus.Pending) {
-        throw new Error(ShoppingCartErrors.CART_IS_ALREADY_CLOSED);
+        throw new IllegalStateError(ShoppingCartErrors.CART_IS_ALREADY_CLOSED);
       }
 
       return {
@@ -169,7 +173,7 @@ export const decide = (
     }
     default: {
       const _: never = command;
-      throw new Error(ShoppingCartErrors.UNKNOWN_COMMAND_TYPE);
+      throw new EmmettError(ShoppingCartErrors.UNKNOWN_COMMAND_TYPE);
     }
   }
 };

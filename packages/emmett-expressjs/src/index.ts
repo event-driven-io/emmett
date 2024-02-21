@@ -1,8 +1,6 @@
-import { ExpectedVersionConflictError } from '@event-driven-io/emmett';
 import express, {
   Router,
   type Application,
-  type NextFunction,
   type Request,
   type Response,
 } from 'express';
@@ -10,6 +8,7 @@ import 'express-async-errors';
 import http from 'http';
 import { ProblemDocument } from 'http-problem-details';
 import { setETag, type ETag } from './etag';
+import { problemDetailsMiddleware } from './middlewares/problemDetailsMiddleware';
 
 export * from './etag';
 export * from './handler';
@@ -87,44 +86,12 @@ export const startAPI = (
   });
 };
 
-export const problemDetailsMiddleware =
-  (mapError?: ErrorToProblemDetailsMapping) =>
-  (
-    error: Error,
-    request: Request,
-    response: Response,
-    _next: NextFunction,
-  ): void => {
-    let problemDetails: ProblemDocument | undefined;
-
-    if (mapError) problemDetails = mapError(error, request);
-
-    problemDetails =
-      problemDetails ?? defaulErrorToProblemDetailsMapping(error);
-
-    sendProblem(response, problemDetails.status, { problem: problemDetails });
-  };
-
-export const defaulErrorToProblemDetailsMapping = (
-  error: Error,
-): ProblemDocument => {
-  let statusCode = 500;
-
-  if (error instanceof ExpectedVersionConflictError) {
-    statusCode = 412;
-  }
-
-  return new ProblemDocument({
-    detail: error.message,
-    status: statusCode,
-  });
-};
-
 export type HttpResponseOptions = {
   body?: unknown;
   location?: string;
   eTag?: ETag;
 };
+export const DefaultHttpResponseOptions: HttpResponseOptions = {};
 
 export type HttpProblemResponseOptions = {
   location?: string;
@@ -136,6 +103,9 @@ export type HttpProblemResponseOptions = {
       }
     | { problemDetails: string }
   );
+export const DefaultHttpProblemResponseOptions: HttpProblemResponseOptions = {
+  problemDetails: 'Error occured!',
+};
 
 export type CreatedHttpResponseOptions = {
   createdId: string;
@@ -149,6 +119,8 @@ export const sendCreated = (
   send(response, 201, {
     location: `${urlPrefix ?? response.req.url}/${createdId}`,
     body: { id: createdId },
+    // TODO: https://github.com/event-driven-io/emmett/issues/18
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     eTag,
   });
 
@@ -166,22 +138,32 @@ export type NoContentHttpResponseOptions = Omit<HttpResponseOptions, 'body'>;
 export const send = (
   response: Response,
   statusCode: number,
-  { location, body, eTag }: HttpResponseOptions,
+  options?: HttpResponseOptions,
 ): void => {
+  // TODO: https://github.com/event-driven-io/emmett/issues/18
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const { location, body, eTag } = options ?? DefaultHttpResponseOptions;
   // HEADERS
   if (eTag) setETag(response, eTag);
   if (location) response.setHeader('Location', location);
 
-  response.statusCode = statusCode;
-
-  if (body) response.json(body);
+  if (body) {
+    response.statusCode = statusCode;
+    response.send(body);
+  } else {
+    response.sendStatus(statusCode);
+  }
 };
 
 export const sendProblem = (
   response: Response,
   statusCode: number,
-  options: HttpProblemResponseOptions,
+  options?: HttpProblemResponseOptions,
 ): void => {
+  options = options ?? DefaultHttpProblemResponseOptions;
+
+  // TODO: https://github.com/event-driven-io/emmett/issues/18
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const { location, eTag } = options;
 
   const problemDetails =

@@ -30,7 +30,7 @@ export const on =
   };
 
 export const OK =
-  (options: HttpResponseOptions): HttpResponse =>
+  (options?: HttpResponseOptions): HttpResponse =>
   (response: Response) => {
     send(response, 200, options);
   };
@@ -48,11 +48,11 @@ export const Accepted =
   };
 
 export const NoContent = (
-  options: NoContentHttpResponseOptions,
+  options?: NoContentHttpResponseOptions,
 ): HttpResponse => HttpResponse(204, options);
 
 export const HttpResponse =
-  (statusCode: number, options: HttpResponseOptions): HttpResponse =>
+  (statusCode: number, options?: HttpResponseOptions): HttpResponse =>
   (response: Response) => {
     send(response, statusCode, options);
   };
@@ -78,7 +78,7 @@ export const PreconditionFailed = (
 ): HttpResponse => HttpProblem(412, options);
 
 export const HttpProblem =
-  (statusCode: number, options: HttpProblemResponseOptions): HttpResponse =>
+  (statusCode: number, options?: HttpProblemResponseOptions): HttpResponse =>
   (response: Response) => {
     sendProblem(response, statusCode, options);
   };

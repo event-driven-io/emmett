@@ -1,3 +1,4 @@
+import { ConcurrencyError } from '../errors';
 import type { Flavour } from '../typing';
 import type { DefaultStreamVersionType } from './eventStore';
 
@@ -49,14 +50,12 @@ export const assertExpectedVersionMatchesCurrent = <
 
 export class ExpectedVersionConflictError<
   VersionType = DefaultStreamVersionType,
-> extends Error {
+> extends ConcurrencyError {
   constructor(
-    public current: VersionType | undefined,
-    public expected: ExpectedStreamVersion<VersionType>,
+    current: VersionType | undefined,
+    expected: ExpectedStreamVersion<VersionType>,
   ) {
-    super(
-      `Expected version ${expected.toString()} does not match current ${current?.toString()}`,
-    );
+    super(current?.toString(), expected?.toString());
 
     // 👇️ because we are extending a built-in class
     Object.setPrototypeOf(this, ExpectedVersionConflictError.prototype);

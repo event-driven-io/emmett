@@ -14,14 +14,14 @@ import type {
 import type { ShoppingCart } from './state';
 
 // #region getting-started-business-logic
-import { sum } from '@event-driven-io/emmett';
+import { sum, ValidationError } from '@event-driven-io/emmett';
 
 const addProductItem = (
   command: AddProductItemToShoppingCart,
   state: ShoppingCart,
 ): ProductItemAddedToShoppingCart => {
   if (state.status === 'Closed')
-    throw new Error('Shopping Cart already closed');
+    throw new ValidationError('Shopping Cart already closed');
 
   const {
     data: { shoppingCartId, productItem },

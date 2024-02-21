@@ -6,14 +6,13 @@ import {
   assertUnsignedBigInt,
   type EventStore,
 } from '@event-driven-io/emmett';
-import { type Request, type Response, type Router } from 'express';
+import { type Request, type Router } from 'express';
 import {
   Created,
   NoContent,
   getETagFromIfMatch,
   getWeakETagValue,
   on,
-  setETag,
   toWeakETag,
 } from '../../';
 import { decider } from './businessLogic';
@@ -116,7 +115,7 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
   // Confirm Shopping Cart
   router.post(
     '/clients/:clientId/shopping-carts/:shoppingCartId/confirm',
-    async (request: Request, response: Response) => {
+    on(async (request: Request) => {
       const shoppingCartId = assertNotEmptyString(
         request.params.shoppingCartId,
       );
@@ -131,15 +130,14 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         { expectedStreamVersion: getExpectedStreamVersion(request) },
       );
 
-      setETag(response, toWeakETag(result.nextExpectedStreamVersion));
-      response.sendStatus(204);
-    },
+      return NoContent({ eTag: toWeakETag(result.nextExpectedStreamVersion) });
+    }),
   );
 
   // Cancel Shopping Cart
   router.delete(
     '/clients/:clientId/shopping-carts/:shoppingCartId',
-    async (request: Request, response: Response) => {
+    on(async (request: Request) => {
       const shoppingCartId = assertNotEmptyString(
         request.params.shoppingCartId,
       );
@@ -154,9 +152,8 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         { expectedStreamVersion: getExpectedStreamVersion(request) },
       );
 
-      setETag(response, toWeakETag(result.nextExpectedStreamVersion));
-      response.sendStatus(204);
-    },
+      return NoContent({ eTag: toWeakETag(result.nextExpectedStreamVersion) });
+    }),
   );
 };
 
