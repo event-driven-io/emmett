@@ -21,7 +21,6 @@ export type ConfirmShoppingCart = Command<
   'ConfirmShoppingCart',
   {
     shoppingCartId: string;
-    confirmedAt: Date;
   }
 >;
 
@@ -46,5 +45,5 @@ export interface ProductItem {
 }
 
 export type PricedProductItem = ProductItem & {
-  price: number;
+  unitPrice: number;
 };

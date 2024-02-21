@@ -10,11 +10,13 @@ import type {
   ProductItemRemovedFromShoppingCart,
   ShoppingCartCancelled,
   ShoppingCartConfirmed,
+  ShoppingCartEvent,
 } from './events';
-import type { ShoppingCart } from './state';
+import { evolve, type ShoppingCart } from './state';
 
 // #region getting-started-business-logic
-import { sum, ValidationError } from '@event-driven-io/emmett';
+import { sum, ValidationError, type Decider } from '@event-driven-io/emmett';
+import { emptyShoppingCart } from './webApi/shoppingCart';
 
 const addProductItem = (
   command: AddProductItemToShoppingCart,
@@ -133,3 +135,16 @@ export const decide = (command: ShoppingCartCommand, state: ShoppingCart) => {
 };
 
 // #endregion getting-started-business-logic-decide
+
+// #endregion getting-started-business-logic-decider
+export const decider: Decider<
+  ShoppingCart,
+  ShoppingCartCommand,
+  ShoppingCartEvent
+> = {
+  decide,
+  evolve,
+  getInitialState: () => emptyShoppingCart,
+};
+
+// #endregion getting-started-business-logic-decider
