@@ -15,7 +15,12 @@ import type {
 import { evolve, type ShoppingCart } from './state';
 
 // #region getting-started-business-logic
-import { sum, ValidationError, type Decider } from '@event-driven-io/emmett';
+import {
+  EmmettError,
+  IllegalStateError,
+  sum,
+  type Decider,
+} from '@event-driven-io/emmett';
 import { emptyShoppingCart } from './webApi/shoppingCart';
 
 const addProductItem = (
@@ -23,7 +28,7 @@ const addProductItem = (
   state: ShoppingCart,
 ): ProductItemAddedToShoppingCart => {
   if (state.status === 'Closed')
-    throw new ValidationError('Shopping Cart already closed');
+    throw new IllegalStateError('Shopping Cart already closed');
 
   const {
     data: { shoppingCartId, productItem },
@@ -44,7 +49,8 @@ const removeProductItem = (
   command: RemoveProductItemFromShoppingCart,
   state: ShoppingCart,
 ): ProductItemRemovedFromShoppingCart => {
-  if (state.status !== 'Opened') throw new Error('Shopping Cart is not opened');
+  if (state.status !== 'Opened')
+    throw new IllegalStateError('Shopping Cart is not opened');
 
   const {
     data: { shoppingCartId, productItem },
@@ -54,7 +60,7 @@ const removeProductItem = (
   const currentQuantity = state.productItems.get(productItem.productId) ?? 0;
 
   if (currentQuantity < productItem.quantity)
-    throw new Error('Not enough products');
+    throw new IllegalStateError('Not enough products');
 
   return {
     type: 'ProductItemRemovedFromShoppingCart',
@@ -70,12 +76,13 @@ const confirm = (
   command: ConfirmShoppingCart,
   state: ShoppingCart,
 ): ShoppingCartConfirmed => {
-  if (state.status !== 'Opened') throw new Error('Shopping Cart is not opened');
+  if (state.status !== 'Opened')
+    throw new IllegalStateError('Shopping Cart is not opened');
 
   const totalQuantityOfAllProductItems = sum(state.productItems.values());
 
   if (totalQuantityOfAllProductItems <= 0)
-    throw new Error('Shopping Cart is empty');
+    throw new IllegalStateError('Shopping Cart is empty');
 
   const {
     data: { shoppingCartId },
@@ -95,7 +102,8 @@ const cancel = (
   command: CancelShoppingCart,
   state: ShoppingCart,
 ): ShoppingCartCancelled => {
-  if (state.status !== 'Opened') throw new Error('Shopping Cart is not opened');
+  if (state.status !== 'Opened')
+    throw new IllegalStateError('Shopping Cart is not opened');
 
   const {
     data: { shoppingCartId },
@@ -129,7 +137,7 @@ export const decide = (command: ShoppingCartCommand, state: ShoppingCart) => {
       return cancel(command, state);
     default: {
       const _notExistingCommandType: never = type;
-      throw new Error(`Unknown command type`);
+      throw new EmmettError(`Unknown command type`);
     }
   }
 };

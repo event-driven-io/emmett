@@ -49,7 +49,7 @@ export const getInMemoryEventStore = (): EventStore => {
       const events = result?.events ?? [];
 
       return {
-        currentStreamVersion: BigInt(evolve.length),
+        currentStreamVersion: BigInt(events.length),
         state: events.reduce(evolve, getInitialState()),
       };
     },
