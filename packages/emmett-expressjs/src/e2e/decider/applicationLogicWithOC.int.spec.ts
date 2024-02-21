@@ -124,7 +124,7 @@ describe('Application logic with optimistic concurrency', () => {
       .delete(`/clients/${clientId}/shopping-carts/${shoppingCartId}`)
       .set(HeaderNames.IF_MATCH, toWeakETag(currentRevision))
       .expect((response) => {
-        assert.equal(response.statusCode, 500);
+        assert.equal(response.statusCode, 403);
         assertMatches(response.body, {
           detail: ShoppingCartErrors.CART_IS_ALREADY_CLOSED,
         });
