@@ -1,4 +1,4 @@
-import type { Brand } from '@event-driven-io/emmett';
+import { type Brand } from '@event-driven-io/emmett';
 import type { Request, Response } from 'express';
 
 //////////////////////////////////////
@@ -60,4 +60,14 @@ export const getETagFromIfNotMatch = (request: Request): ETag => {
 
 export const setETag = (response: Response, etag: ETag): void => {
   response.setHeader(HeaderNames.ETag, etag as string);
+};
+
+export const getETagValueFromIfMatch = (request: Request): string => {
+  // TODO: https://github.com/event-driven-io/emmett/issues/18
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const eTagValue: ETag = getETagFromIfMatch(request);
+
+  return isWeakETag(eTagValue)
+    ? getWeakETagValue(eTagValue)
+    : (eTagValue as string);
 };
