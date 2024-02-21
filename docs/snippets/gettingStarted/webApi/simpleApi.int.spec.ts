@@ -11,8 +11,8 @@ import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 import request from 'supertest';
 import { v4 as uuid } from 'uuid';
-import type { ShoppingCartEvent } from './shoppingCart';
 import { getShoppingCartId, shoppingCartApi } from './simpleApi';
+import type { ShoppingCartEvent } from '../events';
 
 describe('Simple Api from getting started', () => {
   let app: Application;

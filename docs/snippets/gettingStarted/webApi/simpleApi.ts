@@ -4,22 +4,28 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import {
-  DeciderCommandHandler,
   assertNotEmptyString,
   assertPositiveNumber,
+  CommandHandler,
   type EventStore,
 } from '@event-driven-io/emmett';
 import { NoContent, on } from '@event-driven-io/emmett-expressjs';
 import { type Request, type Router } from 'express';
-import { decider } from '../businessLogic';
+import {
+  addProductItem,
+  cancel,
+  confirm,
+  removeProductItem,
+} from '../businessLogic';
 import type {
   AddProductItemToShoppingCart,
   CancelShoppingCart,
   ConfirmShoppingCart,
   RemoveProductItemFromShoppingCart,
 } from '../commands';
+import { evolve, getInitialState } from '../state';
 
-export const handle = DeciderCommandHandler(decider);
+export const handle = CommandHandler(evolve, getInitialState);
 
 export const getShoppingCartId = (clientId: string) =>
   `shopping_cart:${assertNotEmptyString(clientId)}:current`;
@@ -49,7 +55,9 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         },
       };
 
-      await handle(eventStore, shoppingCartId, command);
+      await handle(eventStore, shoppingCartId, (state) =>
+        addProductItem(command, state),
+      );
 
       return NoContent();
     }),
@@ -75,7 +83,9 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         },
       };
 
-      await handle(eventStore, shoppingCartId, command);
+      await handle(eventStore, shoppingCartId, (state) =>
+        removeProductItem(command, state),
+      );
 
       return NoContent();
     }),
@@ -94,7 +104,9 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         data: { shoppingCartId },
       };
 
-      await handle(eventStore, shoppingCartId, command);
+      await handle(eventStore, shoppingCartId, (state) =>
+        confirm(command, state),
+      );
 
       return NoContent();
     }),
@@ -113,7 +125,9 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
         data: { shoppingCartId },
       };
 
-      await handle(eventStore, shoppingCartId, command);
+      await handle(eventStore, shoppingCartId, (state) =>
+        cancel(command, state),
+      );
 
       return NoContent();
     }),
