@@ -127,3 +127,35 @@ One of the mentioned benefits is testing, which Emmett helps to do out of the bo
 Tests for our Shopping Cart business logic can look like this:
 
 <<< @/snippets/gettingStarted/businessLogic.unit.spec.ts#getting-started-unit-tests
+
+## Application Logic and WebApi
+
+Seems like we have our business rules modelled, business logic reflected in code, and even tested. Isn't that cool? That's nice, but we need to build real applications, which nowadays typically mean a Web Application. Let's try to do it as well.
+
+Node.js is a great, lightweight environment that doesn't require much ceremony. Some tools try to bring, but we want to keep it simple in Emmett. What could be simpler than building an Express.js application?
+
+Let's add some flavour to the classical Express.js app by installing the `emmett-expressjs` package:
+
+::: code-group
+
+```sh [npm]
+$ npm add @event-driven-io/emmett-expressjs
+```
+
+```sh [pnpm]
+$ pnpm add @event-driven-io/emmett
+```
+
+```sh [yarn]
+$ yarn add @event-driven-io/emmett
+```
+
+```sh [bun]
+$ bun add @event-driven-io/emmett
+```
+
+:::
+
+We don't want to replace your favourite frameworks but get synergy with them. We want to help you cut the boilerplate by providing safe defaults to the configuration and simple wrappers. The example?
+
+<<< @/snippets/gettingStarted/webApi/start.ts#getting-started-webApi-startApi

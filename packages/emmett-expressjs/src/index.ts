@@ -79,11 +79,11 @@ export const startAPI = (
   const { port } = options;
   const server = http.createServer(app);
 
-  server.listen(port);
-
   server.on('listening', () => {
     console.info('server up listening');
   });
+
+  return server.listen(port);
 };
 
 export type HttpResponseOptions = {
