@@ -66,56 +66,38 @@ Read more about how event stores are built in the [article](https://event-driven
 
 ## Command Handler
 
-Emmett provides the composition around the business logic.
+**Event Sourcing brings a repeatable pattern for handling business logic.** We can expand that to application logic.
 
-Using simple functions:
+::: info Command Handling can be described by the following steps:
 
-<<< @./../packages/emmett/src/commandHandling/handleCommand.ts#command-handler
+1. **Read events from the stream and build the state from them** (in other words _aggregate stream_). Get also the current version of the stream.
+2. **Run the business logic using the command and the state.** Use the default (_initial_) state if the stream does not exist.
+3. **Append the result of the business logic (so events) at the end of the stream** from which you've read events. Use the read version (or the one provided by the user) for an [optimistic concurrency check](https://event-driven.io/en/optimistic_concurrency_for_pessimistic_times/).
 
-Using decider:
+:::
 
-<<< @./../packages/emmett/src/commandHandling/handleCommandWithDecider.ts#command-handler
+In pseudo-code, this could look as follows:
 
-You can define it for you code as:
-
-```typescript
-const handleCommand = CommandHandler<
-  ShoppingCart,
-  ShoppingCartCommand,
-  ShoppingCartEvent
->(getEventStore, toShoppingCartStreamId, decider);
-```
-
-And call it as (using [Express.js](https://expressjs.com/) api):
-
-```typescript
-router.post(
-  '/clients/:clientId/shopping-carts/:shoppingCartId/product-items',
-  on(async (request: AddProductItemToShoppingCartRequest, handle) => {
-    const shoppingCartId = assertNotEmptyString(request.params.shoppingCartId);
-
-    const productId = assertNotEmptyString(request.body.productId);
-    const quantity = assertPositiveNumber(request.body.quantity);
-
-    const price = await getProductPrice(productId);
-
-    return handle(shoppingCartId, {
-      type: 'AddProductItemToShoppingCart',
-      data: {
-        shoppingCartId,
-        productItem: {
-          productId,
-          quantity,
-          price,
-        },
-      },
-    });
-  }),
+```ts
+const { state, expectedStreamVersion } = await eventStore.aggregateStream(
+  streamName,
+  {
+    evolve,
+    getInitialState,
+  },
 );
 
-type AddProductItemToShoppingCartRequest = Request<
-  Partial<{ shoppingCartId: string }>,
-  unknown,
-  Partial<{ productId: number; quantity: number }>
->;
+const events = handle(command, state);
+
+await eventStore.appendToStream(streamName, result, { expectedStreamVersion });
 ```
+
+That looks quite simple, but generalising it and making it robust requires some experience. But that's why you have Emmett, the intention is to cut the learning curve for you and help you with basic abstractions.
+
+You can use the `CommandHandler` method to set up a command handler for you:
+
+<<< @/snippets/gettingStarted/commandHandler.ts#command-handler
+
+Such handlers should be defined per stream type (e.g., one for Shopping Cart, the other for Orders, etc.). It can be used later in the application code as:
+
+<<< @/snippets/gettingStarted/commandHandling.ts#command-handling

@@ -18,7 +18,7 @@ import type {
   ConfirmShoppingCart,
   RemoveProductItemFromShoppingCart,
 } from '../commands';
-import { evolve, getInitialState } from '../state';
+import { evolve, getInitialState } from '../shoppingCart';
 
 export const handle = CommandHandler(evolve, getInitialState);
 

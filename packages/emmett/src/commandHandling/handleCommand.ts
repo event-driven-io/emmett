@@ -24,6 +24,7 @@ export const CommandHandler =
   ) => {
     const streamName = mapToStreamId(id);
 
+    // 1. Aggregate the stream
     const aggregationResult = await eventStore.aggregateStream<
       State,
       StreamEvent
@@ -38,9 +39,11 @@ export const CommandHandler =
       },
     });
 
+    // 2. Use the aggregate state or the initial one (when e.g. stream does not exist)
     const state = aggregationResult?.state ?? getInitialState();
     const currentStreamVersion = aggregationResult?.currentStreamVersion;
 
+    // 3. Run business logic
     const result = handle(state);
 
     // Either use:
@@ -52,6 +55,7 @@ export const CommandHandler =
       currentStreamVersion ??
       STREAM_DOES_NOT_EXIST;
 
+    // 4. Append result to the stream
     return eventStore.appendToStream(
       streamName,
       Array.isArray(result) ? result : [result],

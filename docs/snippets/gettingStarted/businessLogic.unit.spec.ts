@@ -2,7 +2,7 @@
 import { describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import { decide } from './businessLogic';
-import { evolve, getInitialState } from './state';
+import { evolve, getInitialState } from './shoppingCart';
 
 // #region getting-started-unit-tests
 import { DeciderSpecification } from '@event-driven-io/emmett';

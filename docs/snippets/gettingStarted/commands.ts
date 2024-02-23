@@ -1,5 +1,6 @@
 // #region getting-started-commands
 import type { Command } from '@event-driven-io/emmett';
+import type { PricedProductItem } from './events';
 
 export type AddProductItemToShoppingCart = Command<
   'AddProductItemToShoppingCart',
@@ -38,12 +39,3 @@ export type ShoppingCartCommand =
   | CancelShoppingCart;
 
 // #endregion getting-started-commands
-
-export interface ProductItem {
-  productId: string;
-  quantity: number;
-}
-
-export type PricedProductItem = ProductItem & {
-  unitPrice: number;
-};

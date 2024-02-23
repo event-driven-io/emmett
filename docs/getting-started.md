@@ -72,7 +72,7 @@ Knowing what may happen (events) and our business intentions (commands), we can 
 
 To evaluate business rules, it'd be helpful if we had the current state in which we could make our decisions. It could look as follows:
 
-<<< @/snippets/gettingStarted/state.ts#getting-started-state
+<<< @/snippets/gettingStarted/shoppingCart.ts#getting-started-state
 
 Simple as that. No additional classes are needed. Our shopping cart can be either _Empty_ (initial state), _Opened_ (we added or removed items) or _Closed_ (confirmed or cancelled). Based on the above rules, it's enough to keep product items as a simple map with product id and the record with price and quantity.
 
@@ -102,17 +102,17 @@ Each event recorded due to the business logic is appended to the event stream. A
 
 The state aggregation can be coded as:
 
-```typescript
+```ts
 const currentState = events.reduce<State>(evolve, getInitialState());
 ```
 
 For our case initial state can look like:
 
-<<< @/snippets/gettingStarted/state.ts#getting-started-state-default
+<<< @/snippets/gettingStarted/shoppingCart.ts#getting-started-state-default
 
 Now let's define the `evolve` function that will evolve our state based on events:
 
-<<< @/snippets/gettingStarted/state.ts#getting-started-state-evolve
+<<< @/snippets/gettingStarted/shoppingCart.ts#getting-started-state-evolve
 
 Read also more in article [How to get the current entity state from events?]() and follow up on [Should you throw an exception when rebuilding the state from events?](https://event-driven.io/en/should_you_throw_exception_when_rebuilding_state_from_events/).
 
@@ -152,9 +152,49 @@ It brings you three most important methods:
 
 Read more about how event stores are built in the [article](https://event-driven.io/en/lets_build_event_store_in_one_hour/).
 
-## Application Logic and WebApi
+## Command Handling
 
-Seems like we have our business rules modelled, business logic reflected in code, and even tested. Isn't that cool? That's nice, but we need to build real applications, which nowadays typically mean a Web Application. Let's try to do it as well.
+**As you saw in [the unit tests example](#testing), Event Sourcing brings a repeatable pattern for handling business logic.** We can expand that to application logic.
+
+::: info Command Handling can be described by the following steps:
+
+1. **Read events from the stream and build the state from them** (in other words _aggregate stream_). Get also the current version of the stream.
+2. **Run the business logic using the command and the state.** Use the default (_initial_) state if the stream does not exist.
+3. **Append the result of the business logic (so events) at the end of the stream** from which you've read events. Use the read version (or the one provided by the user) for an [optimistic concurrency check](https://event-driven.io/en/optimistic_concurrency_for_pessimistic_times/).
+
+:::
+
+In pseudo-code, this could look as follows:
+
+```ts
+const { state, expectedStreamVersion } = await eventStore.aggregateStream(
+  streamName,
+  {
+    evolve,
+    getInitialState,
+  },
+);
+
+const events = handle(command, state);
+
+await eventStore.appendToStream(streamName, result, { expectedStreamVersion });
+```
+
+That looks quite simple, but generalising it and making it robust requires some experience. But that's why you have Emmett, the intention is to cut the learning curve for you and help you with basic abstractions.
+
+You can use the `CommandHandler` method to set up a command handler for you:
+
+<<< @/snippets/gettingStarted/commandHandler.ts#command-handler
+
+Such handlers should be defined per stream type (e.g., one for Shopping Cart, the other for Orders, etc.). It can be used later in the application code as:
+
+<<< @/snippets/gettingStarted/commandHandling.ts#command-handling
+
+You could put such code, e.g. in your WebApi endpoint. Let's go to the next step and use that in practice in the real web application.
+
+## WebApi
+
+Seems like we have our business rules modelled, business logic reflected in code, and even tested. You also know how to write application code for handling commands. Isn't that cool? That's nice, but we need to build real applications, which nowadays typically mean a Web Application. Let's try to do it as well.
 
 Node.js is a great, lightweight environment that doesn't require much ceremony. Some tools try to bring, but we want to keep it simple in Emmett. What could be simpler than building an Express.js application?
 
