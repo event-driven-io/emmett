@@ -12,7 +12,7 @@ import type {
   ShoppingCartConfirmed,
   ShoppingCartEvent,
 } from './events';
-import { evolve, getInitialState, type ShoppingCart } from './state';
+import { evolve, getInitialState, type ShoppingCart } from './shoppingCart';
 
 // #region getting-started-business-logic
 import {
