@@ -4,7 +4,9 @@
 
 ## Event Sourcing
 
-**Event Sourcing keeps all the facts that happened in our system, and that's powerful!** Facts are stored as events that can be used to make decisions, fine-tune read models, integrate our systems, and enhance our analytics and tracking. All in one package, wash and go!
+**Event Sourcing is architecting for tomorrow's questions. Which is essential as today's decisions are tomorrow's context.** We keep all the facts that happened in our system. Facts are stored as events that can be used to make decisions, fine-tune read models, integrate our systems, and enhance our analytics and tracking. All in one package, wash and go!
+
+This simple pattern allows easier integration, building applications from smaller building blocks, keeping the cognitive load and coupling on a leash.
 
 Yet, some say that's complex and complicated; Emmett aims to prove that it doesn't have to be like that. We cut the boilerplate and layered madness, letting you focus on delivery. We're opinionated but focus on composition, not magic. Let me show you how.
 
@@ -76,7 +78,7 @@ Simple as that. No additional classes are needed. Our shopping cart can be eithe
 
 ::: tip Keep your state slimmed down
 
-It's essential to keep our state focused on decision-making. We should trim it to only contain data used in our business rules evaluation.
+It's essential to keep our state focused on decision-making. We should trim it to only contain data used in our business rules evaluation. Read more in the [article](https://event-driven.io/en/slim_your_entities_with_event_sourcing/)
 
 :::
 
@@ -112,6 +114,8 @@ Now let's define the `evolve` function that will evolve our state based on event
 
 <<< @/snippets/gettingStarted/state.ts#getting-started-state-evolve
 
+Read also more in article [How to get the current entity state from events?]() and follow up on [Should you throw an exception when rebuilding the state from events?](https://event-driven.io/en/should_you_throw_exception_when_rebuilding_state_from_events/).
+
 ## Testing
 
 One of the mentioned benefits is testing, which Emmett helps to do out of the box.
@@ -127,6 +131,26 @@ One of the mentioned benefits is testing, which Emmett helps to do out of the bo
 Tests for our Shopping Cart business logic can look like this:
 
 <<< @/snippets/gettingStarted/businessLogic.unit.spec.ts#getting-started-unit-tests
+
+## Event store
+
+**Emmett is an Event Sourcing framework, so we need an event store to store events, aye?** [Event stores are key-value databases](https://event-driven.io/en/event_stores_are_key_value_stores/). The key is a record id, and the value is an ordered list of events. Such a sequence of events is called _Event Stream_. One stream keeps all events recorded for a particular business process or entity.
+
+The essential difference between Event Sourcing and Event Streaming is that in Event Sourcing, events are the state. There's no other state. We use recorded events to get the state and make the next decisions, resulting in more events. Plus, as you'd expect from the database, we get strong consistency on writes and reads. Read more in [article](https://event-driven.io/en/event_streaming_is_not_event_sourcing/).
+
+**Emmett provides a lightweight abstraction for event stores.** We don't intend to provide the lowest common denominator but streamline the typical usage patterns. It's OK if you use your preferred event store or client for the cases where those parts do not suffice your needs. Still, what's there should take you far enough.
+
+Here is the general definition of it:
+
+<<< @./../packages/emmett/src/eventStore/eventStore.ts#event-store
+
+It brings you three most important methods:
+
+- `readStream` - reads events for the specific stream. By default, it reads all events, but through options, you can specify the event range you want to get (`from`, `to`, `maxCount`). You can also specify the expected stream version.
+- `appendToStream` - appends new events at the end of the stream. All events should be appended as an atomic operation. You can specify the expected stream version for an [optimistic concurrency check](https://event-driven.io/en/optimistic_concurrency_for_pessimistic_times/). We're also getting the next stream version as a result.
+- `aggregateStream` - builds the current state from events. Internally, event store implementation should read all events in the stream based on the passed initial state and the `evolve` function. It also supports all the same options as the `readStream` method.
+
+Read more about how event stores are built in the [article](https://event-driven.io/en/lets_build_event_store_in_one_hour/).
 
 ## Application Logic and WebApi
 
@@ -159,3 +183,7 @@ $ bun add @event-driven-io/emmett
 We don't want to replace your favourite frameworks but get synergy with them. We want to help you cut the boilerplate by providing safe defaults to the configuration and simple wrappers. The example?
 
 <<< @/snippets/gettingStarted/webApi/start.ts#getting-started-webApi-startApi
+
+Those are just a few lines, but there are a few things to discuss here. Let's tackle them one by one.
+
+We'll use the simplest option for this guide: an in-memory event store. For a real application, you'd need to use another, e.g. EventStoreDB implementation.
