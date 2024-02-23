@@ -10,7 +10,8 @@
       "@event-driven-io/emmett-expressjs": ["./packages/emmett-expressjs/src"],
       "@event-driven-io/emmett-eventstoredb": [
         "./packages/emmett-eventstoredb/src"
-      ]
+      ],
+      "@event-driven-io/emmett-fastify": ["./packages/emmett-fastify/src"],
     }
   },
   "references": [
@@ -25,6 +26,9 @@
     },
     {
       "path": "./packages/emmett-testcontainers/"
+    },
+    {
+      "path": "./packages/emmett-fastify/"
     }
   ]
 }
