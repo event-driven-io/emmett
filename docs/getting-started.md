@@ -192,7 +192,7 @@ Such handlers should be defined per stream type (e.g., one for Shopping Cart, th
 
 You could put such code, e.g. in your WebApi endpoint. Let's go to the next step and use that in practice in the real web application.
 
-## Web Application
+## Application Setup
 
 Seems like we have our business rules modelled, business logic reflected in code, and even tested. You also know how to write application code for handling commands. Isn't that cool? That's nice, but we need to build real applications, which nowadays typically mean a Web Application. Let's try to do it as well.
 
@@ -255,9 +255,14 @@ To configure API, we need to provide router configuration. We can do it via the 
 
 <<< @./../packages/emmett-expressjs/src/index.ts#web-api-setup
 
-We recommend providing different web app configurations for different logical groups. It's also worth injecting all needed dependencies from the top, as that will make integration testing easier.
+We recommend providing different web app configurations for different endpoints' logical groupings. It's also worth injecting all needed dependencies from the top, as that will make integration testing easier.
 
-That's what we did in our case. We've set up our Shopping Carts API and injected the event store. That clearly explains what dependencies this API needs, and by reading the file, you can understand what your application technology needs. That should cut the onboarding time for new people grasping our system setup.
+That's what we did in our case. We've set up our Shopping Carts API and injected external dependencies:
+
+- event store to store and retrieve events,
+- The `getUnitPrice` method represents a call to an external service to get the price of a product added to the shopping cart.
+
+That clearly explains what dependencies this API needs, and by reading the file, you can understand what your application technology needs. That should cut the onboarding time for new people grasping our system setup.
 
 <<< @/snippets/gettingStarted/webApi/apiSetup.ts#getting-started-api-setup
 
@@ -266,3 +271,21 @@ We're using the simplest option for this guide: an in-memory event store. For a 
 Sounds like we have all the building blocks to define our API; let's do it!
 
 ## WebAPI definition
+
+Let's define our Shopping Cart WebApi. As mentioned before, we'll need two external dependencies: event store and query for product price:
+
+<<< @/snippets/gettingStarted/webApi/shoppingCartApiSetup.ts#getting-started-api-setup
+
+The API definition is a function taking external dependencies and returning the Web API setup. We're also setting up [Command Handler (as explained in the previous section)](#command-handling). Let's not keep it empty for too long and define our first endpoint!
+
+We'll start with adding product items to the shopping cart and _vanilla_ Express.js syntax.
+
+<<< @/snippets/gettingStarted/webApi/shoppingCartEndpointVanilla.ts#getting-started-vanilla-router
+
+::: info Web Api Command Handling can be described by the following steps:
+
+1. **Translate and request params to the command.** This is also a place to run necessary validation. Thanks to that, once we created our command, we can trust that it's validated and semantically correct. We don't need to repeat that in the business logic. That reduces the number of IFs and, eventually, the number of unit tests.
+2. **Run command handler on top of business logic.** As you see, we keep things explicit; you can still run _Go to definition_ in your IDE and understand what's being run. So we're keeping things that should be explicit, explicit and hiding boilerplate that can be implicit.
+3. **Return the proper HTTP response.**
+
+:::
