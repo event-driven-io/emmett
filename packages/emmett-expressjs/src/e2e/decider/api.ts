@@ -25,6 +25,7 @@ const dummyPriceProvider = (_productId: string) => {
 
 export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
   // Open Shopping cart
+  // #region created-example
   router.post(
     '/clients/:clientId/shopping-carts/',
     on(async (request: Request) => {
@@ -47,6 +48,7 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
       });
     }),
   );
+  // #endregion created-example
 
   router.post(
     '/clients/:clientId/shopping-carts/:shoppingCartId/product-items',

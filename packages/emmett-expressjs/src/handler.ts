@@ -11,6 +11,7 @@ import {
   type NoContentHttpResponseOptions,
 } from '.';
 
+// #region httpresponse-on
 export type HttpResponse = (response: Response) => void;
 
 export type HttpHandler<RequestType extends Request> = (
@@ -28,6 +29,7 @@ export const on =
 
     return setResponse(response);
   };
+// #endregion httpresponse-on
 
 export const OK =
   (options?: HttpResponseOptions): HttpResponse =>
