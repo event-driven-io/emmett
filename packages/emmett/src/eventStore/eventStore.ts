@@ -14,7 +14,7 @@ export interface EventStore<StreamVersion = DefaultStreamVersionType> {
   ): Promise<ReadStreamResult<EventType, StreamVersion>>;
 
   appendToStream<EventType extends Event>(
-    streamId: string,
+    streamName: string,
     events: EventType[],
     options?: AppendToStreamOptions<StreamVersion>,
   ): Promise<AppendToStreamResult<StreamVersion>>;
