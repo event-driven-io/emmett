@@ -18,8 +18,12 @@ export type ErrorToProblemDetailsMapping = (
   request: Request,
 ) => ProblemDocument | undefined;
 
+// #region web-api-setup
+export type WebApiSetup = (router: Router) => void;
+// #endregion web-api-setup
+
 export type ApplicationOptions = {
-  apis: ((router: Router) => void)[];
+  apis: WebApiSetup[];
   mapError?: ErrorToProblemDetailsMapping;
   enableDefaultExpressEtag?: boolean;
   disableJsonMiddleware?: boolean;
@@ -74,7 +78,7 @@ export type StartApiOptions = {
 
 export const startAPI = (
   app: Application,
-  options: StartApiOptions = { port: 5000 },
+  options: StartApiOptions = { port: 3000 },
 ) => {
   const { port } = options;
   const server = http.createServer(app);
