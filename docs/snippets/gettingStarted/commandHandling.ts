@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { v4 as uuid } from 'uuid';
 import { addProductItem } from './businessLogic';
 import type { AddProductItemToShoppingCart } from './commands';
@@ -32,5 +33,3 @@ const { nextExpectedStreamVersion } = await handle(
 );
 
 // #endregion command-handling
-
-console.log(nextExpectedStreamVersion);

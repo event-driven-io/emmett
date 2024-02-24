@@ -116,7 +116,7 @@ Now let's define the `evolve` function that will evolve our state based on event
 
 Read also more in article [How to get the current entity state from events?]() and follow up on [Should you throw an exception when rebuilding the state from events?](https://event-driven.io/en/should_you_throw_exception_when_rebuilding_state_from_events/).
 
-## Testing
+## Unit Testing
 
 One of the mentioned benefits is testing, which Emmett helps to do out of the box.
 
@@ -192,7 +192,7 @@ Such handlers should be defined per stream type (e.g., one for Shopping Cart, th
 
 You could put such code, e.g. in your WebApi endpoint. Let's go to the next step and use that in practice in the real web application.
 
-## WebApi
+## Web Application
 
 Seems like we have our business rules modelled, business logic reflected in code, and even tested. You also know how to write application code for handling commands. Isn't that cool? That's nice, but we need to build real applications, which nowadays typically mean a Web Application. Let's try to do it as well.
 
@@ -226,4 +226,43 @@ We don't want to replace your favourite frameworks but get synergy with them. We
 
 Those are just a few lines, but there are a few things to discuss here. Let's tackle them one by one.
 
-We'll use the simplest option for this guide: an in-memory event store. For a real application, you'd need to use another, e.g. EventStoreDB implementation.
+### Application setup
+
+Emmett provides the _getApplication_ method that sets up the recommended configuration of the Express.js application. By calling it, you'll get:
+
+1. **JSON and Url Encoding middlewares** set up needed for WebApi request processing,
+2. **Problem details middleware.** Why reinvent the wheel if there's now an industry standard for handling error responses? See [RFC 9457 - Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457.html)) - we're implementing it for you out of the box. We've also set up a basic error-to-status mapping convention. For instance, for Emmett built-in error types:
+
+   - `ValidationError` to `400`,
+   - `IllegalStateError` to `403`,
+   - `NotFoundError` to `404`,
+   - `ConcurrencyError` to `412`.
+
+   You can also customise that and provide your custom mapping.
+
+3. Default setup for [using ETag headers for optimistic concurrency](https://event-driven.io/en/how_to_use_etag_header_for_optimistic_concurrency/).
+4. Unified way of setting up WebApis via providing a set of router configurations.
+
+Of course, you can disable all of that or use your current setup. All of that is optional for Emmett to work. We just want to make things easier for you and help you speed up your development using industry standards. We prefer composition over replacement.
+
+### Starting Application
+
+The `startAPI` method encapsulates the default startup options like the default port (in Emmett's case, it's `3000`). A separate `startAPI` method allows you to customise the default application setup and makes it easier to run integration tests, as you'll see in a moment.
+
+### Router configuration
+
+To configure API, we need to provide router configuration. We can do it via the `apis` property of the `getApplication` options. WebApi setup is a simple function that takes the router and defines needed routings on it.
+
+<<< @./../packages/emmett-expressjs/src/index.ts#web-api-setup
+
+We recommend providing different web app configurations for different logical groups. It's also worth injecting all needed dependencies from the top, as that will make integration testing easier.
+
+That's what we did in our case. We've set up our Shopping Carts API and injected the event store. That clearly explains what dependencies this API needs, and by reading the file, you can understand what your application technology needs. That should cut the onboarding time for new people grasping our system setup.
+
+<<< @/snippets/gettingStarted/webApi/apiSetup.ts#getting-started-api-setup
+
+We're using the simplest option for this guide: an in-memory event store. For a real application, you'd need to use another, e.g. EventStoreDB implementation.
+
+Sounds like we have all the building blocks to define our API; let's do it!
+
+## WebAPI definition
