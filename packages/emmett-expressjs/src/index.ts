@@ -12,6 +12,7 @@ import { problemDetailsMiddleware } from './middlewares/problemDetailsMiddleware
 
 export * from './etag';
 export * from './handler';
+export * from './testing';
 
 export type ErrorToProblemDetailsMapping = (
   error: Error,
