@@ -289,3 +289,38 @@ We'll start with adding product items to the shopping cart and _vanilla_ Express
 3. **Return the proper HTTP response.**
 
 :::
+
+As you see, it's just a regular Express.js syntax. Still, in the longer term, it's better to have a way to make it a more scalable approach and unify intended usage patterns. That's what we're here for, right?
+
+In Emmett, you can define it also like that:
+
+<<< @/snippets/gettingStarted/webApi/shoppingCartEndpointWithOn.ts#getting-started-on-router
+
+`on` is a simple wrapper:
+
+<<< @./../packages/emmett-expressjs/src/handler.ts#httpresponse-on
+
+But this simplicity is powerful as:
+
+- it makes code more explicit on what we have as input and what is output. Emmett also defines the explicit signatures for the most common
+- unifies request processing, which should enable better handling of telemetry, logging, OpenApi, etc.
+- enables keeping endpoint handlers even in different files, so enables organisation,
+- you could even unit test it without running the whole application.
+
+If you still don't buy that, check a more advanced scenario showing a different flow, where shopping cart opening should happen explicitly:
+
+<<< @./../packages/emmett-expressjs/src/e2e/decider/api.ts#created-example
+
+**Yes, Emmett provides more built-in response helpers together with the explicit options.** Created will generate the location header. If you're returning the error status (e.g. `404 Not Found`), you can add problem details, information, etc.
+
+**What's also sweet is that you can use Emmett's Express.js helpers even without an Event Sourcing code; Bon Appétit!**
+
+Still, we're here for the Event Sourcing, so let's see the whole API:
+
+<<< @/snippets/gettingStarted/webApi/simpleApi.ts#complete-api
+
+Of course, we could make it even crisper and automagically do the request mapping, more conventional-based status resolution, decorators, and fire-command-and-forget, but we won't. Why?
+
+**Emmett prefers composability over magical glue.** We believe that a healthy amount of copy-paste won't harm you. We target removability and segregation of the code and making things explicit that should be explicit.
+
+**Still, Emmett won't tell you how to live!** If you want to add more, feel free to do it. We want to give you basic building blocks and recommendations so you can build on top of that!

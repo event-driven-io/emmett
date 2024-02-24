@@ -35,6 +35,8 @@ export const shoppingCartApi =
     getUnitPrice: (_productId: string) => Promise<number>,
   ): WebApiSetup =>
   (router: Router) => {
+    // #region complete-api
+    // Add Product Item
     router.post(
       '/clients/:clientId/shopping-carts/current/product-items',
       on(async (request: AddProductItemRequest) => {
@@ -132,6 +134,7 @@ export const shoppingCartApi =
         return NoContent();
       }),
     );
+    // #endregion complete-api
   };
 
 // Add Product Item
