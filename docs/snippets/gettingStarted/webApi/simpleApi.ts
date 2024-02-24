@@ -4,7 +4,11 @@ import {
   CommandHandler,
   type EventStore,
 } from '@event-driven-io/emmett';
-import { NoContent, on } from '@event-driven-io/emmett-expressjs';
+import {
+  NoContent,
+  on,
+  type WebApiSetup,
+} from '@event-driven-io/emmett-expressjs';
 import { type Request, type Router } from 'express';
 import {
   addProductItem,
@@ -25,109 +29,110 @@ export const handle = CommandHandler(evolve, getInitialState);
 export const getShoppingCartId = (clientId: string) =>
   `shopping_cart:${assertNotEmptyString(clientId)}:current`;
 
-const getUnitPrice = (_productId: string) => {
-  return Promise.resolve(100);
-};
+export const shoppingCartApi =
+  (
+    eventStore: EventStore,
+    getUnitPrice: (_productId: string) => Promise<number>,
+  ): WebApiSetup =>
+  (router: Router) => {
+    router.post(
+      '/clients/:clientId/shopping-carts/current/product-items',
+      on(async (request: AddProductItemRequest) => {
+        const shoppingCartId = getShoppingCartId(
+          assertNotEmptyString(request.params.clientId),
+        );
+        const productId = assertNotEmptyString(request.body.productId);
 
-export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
-  router.post(
-    '/clients/:clientId/shopping-carts/current/product-items',
-    on(async (request: AddProductItemRequest) => {
-      const shoppingCartId = getShoppingCartId(
-        assertNotEmptyString(request.params.clientId),
-      );
-      const productId = assertNotEmptyString(request.body.productId);
-
-      const command: AddProductItemToShoppingCart = {
-        type: 'AddProductItemToShoppingCart',
-        data: {
-          shoppingCartId,
-          productItem: {
-            productId,
-            quantity: assertPositiveNumber(request.body.quantity),
-            unitPrice: await getUnitPrice(productId),
+        const command: AddProductItemToShoppingCart = {
+          type: 'AddProductItemToShoppingCart',
+          data: {
+            shoppingCartId,
+            productItem: {
+              productId,
+              quantity: assertPositiveNumber(request.body.quantity),
+              unitPrice: await getUnitPrice(productId),
+            },
           },
-        },
-      };
+        };
 
-      await handle(eventStore, shoppingCartId, (state) =>
-        addProductItem(command, state),
-      );
+        await handle(eventStore, shoppingCartId, (state) =>
+          addProductItem(command, state),
+        );
 
-      return NoContent();
-    }),
-  );
+        return NoContent();
+      }),
+    );
 
-  // Remove Product Item
-  router.delete(
-    '/clients/:clientId/shopping-carts/current/product-items',
-    on(async (request: Request) => {
-      const shoppingCartId = getShoppingCartId(
-        assertNotEmptyString(request.params.clientId),
-      );
+    // Remove Product Item
+    router.delete(
+      '/clients/:clientId/shopping-carts/current/product-items',
+      on(async (request: Request) => {
+        const shoppingCartId = getShoppingCartId(
+          assertNotEmptyString(request.params.clientId),
+        );
 
-      const command: RemoveProductItemFromShoppingCart = {
-        type: 'RemoveProductItemFromShoppingCart',
-        data: {
-          shoppingCartId,
-          productItem: {
-            productId: assertNotEmptyString(request.query.productId),
-            quantity: assertPositiveNumber(Number(request.query.quantity)),
-            unitPrice: assertPositiveNumber(Number(request.query.unitPrice)),
+        const command: RemoveProductItemFromShoppingCart = {
+          type: 'RemoveProductItemFromShoppingCart',
+          data: {
+            shoppingCartId,
+            productItem: {
+              productId: assertNotEmptyString(request.query.productId),
+              quantity: assertPositiveNumber(Number(request.query.quantity)),
+              unitPrice: assertPositiveNumber(Number(request.query.unitPrice)),
+            },
           },
-        },
-      };
+        };
 
-      await handle(eventStore, shoppingCartId, (state) =>
-        removeProductItem(command, state),
-      );
+        await handle(eventStore, shoppingCartId, (state) =>
+          removeProductItem(command, state),
+        );
 
-      return NoContent();
-    }),
-  );
+        return NoContent();
+      }),
+    );
 
-  // Confirm Shopping Cart
-  router.post(
-    '/clients/:clientId/shopping-carts/current/confirm',
-    on(async (request: Request) => {
-      const shoppingCartId = getShoppingCartId(
-        assertNotEmptyString(request.params.clientId),
-      );
+    // Confirm Shopping Cart
+    router.post(
+      '/clients/:clientId/shopping-carts/current/confirm',
+      on(async (request: Request) => {
+        const shoppingCartId = getShoppingCartId(
+          assertNotEmptyString(request.params.clientId),
+        );
 
-      const command: ConfirmShoppingCart = {
-        type: 'ConfirmShoppingCart',
-        data: { shoppingCartId },
-      };
+        const command: ConfirmShoppingCart = {
+          type: 'ConfirmShoppingCart',
+          data: { shoppingCartId },
+        };
 
-      await handle(eventStore, shoppingCartId, (state) =>
-        confirm(command, state),
-      );
+        await handle(eventStore, shoppingCartId, (state) =>
+          confirm(command, state),
+        );
 
-      return NoContent();
-    }),
-  );
+        return NoContent();
+      }),
+    );
 
-  // Cancel Shopping Cart
-  router.delete(
-    '/clients/:clientId/shopping-carts/current',
-    on(async (request: Request) => {
-      const shoppingCartId = getShoppingCartId(
-        assertNotEmptyString(request.params.clientId),
-      );
+    // Cancel Shopping Cart
+    router.delete(
+      '/clients/:clientId/shopping-carts/current',
+      on(async (request: Request) => {
+        const shoppingCartId = getShoppingCartId(
+          assertNotEmptyString(request.params.clientId),
+        );
 
-      const command: CancelShoppingCart = {
-        type: 'CancelShoppingCart',
-        data: { shoppingCartId },
-      };
+        const command: CancelShoppingCart = {
+          type: 'CancelShoppingCart',
+          data: { shoppingCartId },
+        };
 
-      await handle(eventStore, shoppingCartId, (state) =>
-        cancel(command, state),
-      );
+        await handle(eventStore, shoppingCartId, (state) =>
+          cancel(command, state),
+        );
 
-      return NoContent();
-    }),
-  );
-};
+        return NoContent();
+      }),
+    );
+  };
 
 // Add Product Item
 type AddProductItemRequest = Request<

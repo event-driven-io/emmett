@@ -11,8 +11,12 @@ import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 import request from 'supertest';
 import { v4 as uuid } from 'uuid';
-import { getShoppingCartId, shoppingCartApi } from './simpleApi';
 import type { ShoppingCartEvent } from '../events';
+import { getShoppingCartId, shoppingCartApi } from './simpleApi';
+
+const getUnitPrice = (_productId: string) => {
+  return Promise.resolve(100);
+};
 
 describe('Simple Api from getting started', () => {
   let app: Application;
@@ -20,7 +24,7 @@ describe('Simple Api from getting started', () => {
 
   beforeEach(() => {
     eventStore = getInMemoryEventStore();
-    app = getApplication({ apis: [shoppingCartApi(eventStore)] });
+    app = getApplication({ apis: [shoppingCartApi(eventStore, getUnitPrice)] });
   });
 
   it('Should handle requests correctly', async () => {
