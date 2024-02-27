@@ -13,7 +13,11 @@ import type { Server } from 'http';
 
 const eventStore = getInMemoryEventStore();
 
-const shoppingCarts = shoppingCartApi(eventStore, getUnitPrice);
+const shoppingCarts = shoppingCartApi(
+  eventStore,
+  getUnitPrice,
+  () => new Date(),
+);
 
 const application: Application = getApplication({
   apis: [shoppingCarts],

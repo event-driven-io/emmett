@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import {
   assertNotEmptyString,
   assertPositiveNumber,
@@ -33,6 +36,7 @@ export const shoppingCartApi =
   (
     eventStore: EventStore,
     getUnitPrice: (_productId: string) => Promise<number>,
+    getCurrentTime: () => Date,
   ): WebApiSetup =>
   (router: Router) => {
     // #region complete-api
@@ -55,6 +59,7 @@ export const shoppingCartApi =
               unitPrice: await getUnitPrice(productId),
             },
           },
+          metadata: { now: getCurrentTime() },
         };
 
         await handle(eventStore, shoppingCartId, (state) =>
@@ -83,6 +88,7 @@ export const shoppingCartApi =
               unitPrice: assertPositiveNumber(Number(request.query.unitPrice)),
             },
           },
+          metadata: { now: getCurrentTime() },
         };
 
         await handle(eventStore, shoppingCartId, (state) =>
@@ -104,6 +110,7 @@ export const shoppingCartApi =
         const command: ConfirmShoppingCart = {
           type: 'ConfirmShoppingCart',
           data: { shoppingCartId },
+          metadata: { now: getCurrentTime() },
         };
 
         await handle(eventStore, shoppingCartId, (state) =>
@@ -125,6 +132,7 @@ export const shoppingCartApi =
         const command: CancelShoppingCart = {
           type: 'CancelShoppingCart',
           data: { shoppingCartId },
+          metadata: { now: getCurrentTime() },
         };
 
         await handle(eventStore, shoppingCartId, (state) =>

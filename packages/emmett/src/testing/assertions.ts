@@ -13,9 +13,9 @@ export const isSubset = (superObj: unknown, subObj: unknown): boolean => {
   });
 };
 
-export const assertMatches = (superObj: unknown, subObj: unknown) => {
-  if (!isSubset(superObj, subObj))
+export const assertMatches = (actual: unknown, expected: unknown) => {
+  if (!isSubset(actual, expected))
     throw Error(
-      `subObj:\n${JSON.stringify(subObj)}\nis not subset of\n${JSON.stringify(superObj)}`,
+      `subObj:\n${JSON.stringify(expected)}\nis not subset of\n${JSON.stringify(actual)}`,
     );
 };
