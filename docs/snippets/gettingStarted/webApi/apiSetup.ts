@@ -11,5 +11,9 @@ import { getInMemoryEventStore } from '@event-driven-io/emmett';
 
 const eventStore = getInMemoryEventStore();
 
-const shoppingCarts = shoppingCartApi(eventStore, getUnitPrice);
+const shoppingCarts = shoppingCartApi(
+  eventStore,
+  getUnitPrice,
+  () => new Date(),
+);
 // #endregion getting-started-api-setup

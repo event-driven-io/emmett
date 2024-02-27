@@ -24,7 +24,9 @@ describe('Simple Api from getting started', () => {
 
   beforeEach(() => {
     eventStore = getInMemoryEventStore();
-    app = getApplication({ apis: [shoppingCartApi(eventStore, getUnitPrice)] });
+    app = getApplication({
+      apis: [shoppingCartApi(eventStore, getUnitPrice, () => new Date())],
+    });
   });
 
   it('Should handle requests correctly', async () => {
