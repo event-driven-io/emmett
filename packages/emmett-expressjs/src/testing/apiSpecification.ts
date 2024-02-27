@@ -21,8 +21,22 @@ export type TestEventStream<EventType extends Event = Event> = [
   EventType[],
 ];
 
+export const existingStream = <EventType extends Event = Event>(
+  streamId: string,
+  events: EventType[],
+): TestEventStream<EventType> => {
+  return [streamId, events];
+};
+
+export const expectNewEvents = <EventType extends Event = Event>(
+  streamId: string,
+  events: EventType[],
+): TestEventStream<EventType> => {
+  return [streamId, events];
+};
+
 export type ApiSpecification<EventType extends Event = Event> = (
-  givenStreams: TestEventStream<EventType>[],
+  ...givenStreams: TestEventStream<EventType>[]
 ) => {
   when: (setupRequest: (request: TestAgent<supertest.Test>) => Test) => {
     then: (verify: ApiSpecificationAssert<EventType>) => Promise<void>;
@@ -46,7 +60,7 @@ export const ApiSpecification = {
     getApplication: (eventStore: EventStore<StreamVersion>) => Application,
   ): ApiSpecification<EventType> => {
     {
-      return (givenStreams: TestEventStream<EventType>[]) => {
+      return (...givenStreams: TestEventStream<EventType>[]) => {
         const eventStore = WrapEventStore(getEventStore());
         const application = getApplication(eventStore);
 

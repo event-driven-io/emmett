@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import {
   getInMemoryEventStore,
@@ -5,6 +7,8 @@ import {
 } from '@event-driven-io/emmett';
 import {
   ApiSpecification,
+  existingStream,
+  expectNewEvents,
   getApplication,
 } from '@event-driven-io/emmett-expressjs';
 import { beforeEach, describe, it } from 'node:test';
@@ -23,7 +27,7 @@ describe('ShoppingCart', () => {
   });
   describe('When empty', () => {
     it('should add product item', () => {
-      return given([])
+      return given()
         .when((request) =>
           request
             .post(`/clients/${clientId}/shopping-carts/current/product-items`)
@@ -31,84 +35,71 @@ describe('ShoppingCart', () => {
             .expect(204),
         )
         .then([
-          [
-            shoppingCartId,
-            [
-              {
-                type: 'ProductItemAddedToShoppingCart',
-                data: {
-                  shoppingCartId,
-                  productItem,
-                  addedAt: now,
-                },
-              },
-            ],
-          ],
-        ]);
-    });
-  });
-
-  describe('When opened', () => {
-    it('should confirm', () => {
-      return given([
-        [
-          shoppingCartId,
-          [
+          expectNewEvents(shoppingCartId, [
             {
               type: 'ProductItemAddedToShoppingCart',
               data: {
                 shoppingCartId,
                 productItem,
-                addedAt: oldTime,
+                addedAt: now,
               },
             },
-          ],
-        ],
-      ])
+          ]),
+        ]);
+    });
+  });
+
+  describe('When opened with product item', () => {
+    it('should confirm', () => {
+      return given(
+        existingStream(shoppingCartId, [
+          {
+            type: 'ProductItemAddedToShoppingCart',
+            data: {
+              shoppingCartId,
+              productItem,
+              addedAt: oldTime,
+            },
+          },
+        ]),
+      )
         .when((request) =>
           request
             .post(`/clients/${clientId}/shopping-carts/current/confirm`)
-            .send(productItem)
             .expect(204),
         )
         .then([
-          [
-            shoppingCartId,
-            [
-              {
-                type: 'ShoppingCartConfirmed',
-                data: {
-                  shoppingCartId,
-                  confirmedAt: now,
-                },
+          expectNewEvents(shoppingCartId, [
+            {
+              type: 'ShoppingCartConfirmed',
+              data: {
+                shoppingCartId,
+                confirmedAt: now,
               },
-            ],
-          ],
+            },
+          ]),
         ]);
     });
   });
 
   describe('When confirmed', () => {
     it('should not add products', () => {
-      return given([
-        [
-          shoppingCartId,
-          [
-            {
-              type: 'ProductItemAddedToShoppingCart',
-              data: {
-                shoppingCartId,
-                productItem,
-                addedAt: oldTime,
-              },
+      return given(
+        existingStream(shoppingCartId, [
+          {
+            type: 'ProductItemAddedToShoppingCart',
+            data: {
+              shoppingCartId,
+              productItem,
+              addedAt: oldTime,
             },
-            {
-              type: 'ShoppingCartConfirmed',
-              data: { shoppingCartId, confirmedAt: oldTime },
-            },
-          ],
-        ],
-      ])
+          },
+          {
+            type: 'ShoppingCartConfirmed',
+            data: { shoppingCartId, confirmedAt: oldTime },
+          },
+        ]),
+      )
         .when((request) =>
           request
             .post(`/clients/${clientId}/shopping-carts/current/product-items`)
