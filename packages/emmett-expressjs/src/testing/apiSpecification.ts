@@ -11,10 +11,15 @@ import {
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
 import { type Application } from 'express';
+import type { ProblemDocument } from 'http-problem-details';
 import assert from 'node:assert/strict';
 import type { Response, Test } from 'supertest';
 import supertest from 'supertest';
 import type TestAgent from 'supertest/lib/agent';
+
+////////////////////////////////
+/////////// Setup
+////////////////////////////////
 
 export type TestEventStream<EventType extends Event = Event> = [
   string,
@@ -28,12 +33,56 @@ export const existingStream = <EventType extends Event = Event>(
   return [streamId, events];
 };
 
+////////////////////////////////
+/////////// Asserts
+////////////////////////////////
+
+export type ApiSpecificationAssert<EventType extends Event = Event> =
+  | TestEventStream<EventType>[]
+  | ((response: Response) => boolean | void)
+  | {
+      events: TestEventStream<EventType>[];
+      responseMatches: (response: Response) => boolean;
+    };
+
+export const expect = <EventType extends Event = Event>(
+  streamId: string,
+  events: EventType[],
+): TestEventStream<EventType> => {
+  return [streamId, events];
+};
+
 export const expectNewEvents = <EventType extends Event = Event>(
   streamId: string,
   events: EventType[],
 ): TestEventStream<EventType> => {
   return [streamId, events];
 };
+
+export const expectResponse =
+  (
+    statusCode: number,
+    options?: { body?: unknown; headers?: { [index: string]: string } },
+  ) =>
+  (response: Response): void => {
+    const { body, headers } = options ?? {};
+    assert.equal(response.statusCode, statusCode);
+    if (body) assertMatches(response.body, body);
+    if (headers) assertMatches(response.headers, headers);
+  };
+
+export const expectError = (
+  errorCode: number,
+  problemDetails?: ProblemDocument,
+) =>
+  expectResponse(
+    errorCode,
+    problemDetails ? { body: problemDetails } : undefined,
+  );
+
+////////////////////////////////
+/////////// Api Specification
+////////////////////////////////
 
 export type ApiSpecification<EventType extends Event = Event> = (
   ...givenStreams: TestEventStream<EventType>[]
@@ -42,14 +91,6 @@ export type ApiSpecification<EventType extends Event = Event> = (
     then: (verify: ApiSpecificationAssert<EventType>) => Promise<void>;
   };
 };
-
-export type ApiSpecificationAssert<EventType extends Event = Event> =
-  | TestEventStream<EventType>[]
-  | ((response: Response) => boolean)
-  | {
-      events: TestEventStream<EventType>[];
-      responseMatches: (response: Response) => boolean;
-    };
 
 export const ApiSpecification = {
   for: <
@@ -83,7 +124,9 @@ export const ApiSpecification = {
                 const response = await handle();
 
                 if (typeof verify === 'function') {
-                  assert.ok(verify(response));
+                  const succeded = verify(response);
+
+                  if (succeded === false) assert.fail();
                 } else if (Array.isArray(verify)) {
                   assertMatches(
                     Array.from(eventStore.appendedEvents.values()),
