@@ -8,6 +8,7 @@ import {
 import {
   ApiSpecification,
   existingStream,
+  expectError,
   expectNewEvents,
   getApplication,
 } from '@event-driven-io/emmett-expressjs';
@@ -31,8 +32,7 @@ describe('ShoppingCart', () => {
         .when((request) =>
           request
             .post(`/clients/${clientId}/shopping-carts/current/product-items`)
-            .send(productItem)
-            .expect(204),
+            .send(productItem),
         )
         .then([
           expectNewEvents(shoppingCartId, [
@@ -64,9 +64,7 @@ describe('ShoppingCart', () => {
         ]),
       )
         .when((request) =>
-          request
-            .post(`/clients/${clientId}/shopping-carts/current/confirm`)
-            .expect(204),
+          request.post(`/clients/${clientId}/shopping-carts/current/confirm`),
         )
         .then([
           expectNewEvents(shoppingCartId, [
@@ -103,10 +101,16 @@ describe('ShoppingCart', () => {
         .when((request) =>
           request
             .post(`/clients/${clientId}/shopping-carts/current/product-items`)
-            .send(productItem)
-            .expect(403),
+            .send(productItem),
         )
-        .then([]);
+        .then(
+          expectError(403, {
+            detail: 'Shopping Cart already closed',
+            status: 403,
+            title: 'Forbidden',
+            type: 'about:blank',
+          }),
+        );
     });
   });
 

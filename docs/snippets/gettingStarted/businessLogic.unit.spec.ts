@@ -50,20 +50,18 @@ describe('ShoppingCart', () => {
         },
       })
         .when({
-          type: 'AddProductItemToShoppingCart',
+          type: 'ConfirmShoppingCart',
           data: {
             shoppingCartId,
-            productItem,
           },
           metadata: { now },
         })
         .then([
           {
-            type: 'ProductItemAddedToShoppingCart',
+            type: 'ShoppingCartConfirmed',
             data: {
               shoppingCartId,
-              productItem,
-              addedAt: now,
+              confirmedAt: now,
             },
           },
         ]);
