@@ -37,13 +37,12 @@ export const existingStream = <EventType extends Event = Event>(
 /////////// Asserts
 ////////////////////////////////
 
+export type ResponseAssert = (response: Response) => boolean | void;
+
 export type ApiSpecificationAssert<EventType extends Event = Event> =
   | TestEventStream<EventType>[]
-  | ((response: Response) => boolean | void)
-  | {
-      events: TestEventStream<EventType>[];
-      responseMatches: (response: Response) => boolean;
-    };
+  | ResponseAssert
+  | [ResponseAssert, ...TestEventStream<EventType>[]];
 
 export const expect = <EventType extends Event = Event>(
   streamId: string,
@@ -128,17 +127,20 @@ export const ApiSpecification = {
 
                   if (succeded === false) assert.fail();
                 } else if (Array.isArray(verify)) {
+                  const [first, ...rest] = verify;
+
+                  if (typeof first === 'function') {
+                    const succeded = first(response);
+
+                    if (succeded === false) assert.fail();
+                  }
+
+                  const events = typeof first === 'function' ? rest : verify;
+
                   assertMatches(
                     Array.from(eventStore.appendedEvents.values()),
-                    verify,
+                    events,
                   );
-                } else {
-                  assert.ok(verify.responseMatches(response));
-                  assertMatches(
-                    Array.from(eventStore.appendedEvents.values()),
-                    givenStreams,
-                  );
-                  return;
                 }
               },
             };

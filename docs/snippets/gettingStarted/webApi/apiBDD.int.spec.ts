@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import {
   getInMemoryEventStore,
@@ -10,6 +8,7 @@ import {
   existingStream,
   expectError,
   expectNewEvents,
+  expectResponse,
   getApplication,
 } from '@event-driven-io/emmett-expressjs';
 import { beforeEach, describe, it } from 'node:test';
@@ -22,10 +21,13 @@ const getUnitPrice = (_productId: string) => {
 };
 
 describe('ShoppingCart', () => {
+  let clientId: string;
+  let shoppingCartId: string;
   beforeEach(() => {
     clientId = uuid();
     shoppingCartId = `shopping_cart:${clientId}:current`;
   });
+
   describe('When empty', () => {
     it('should add product item', () => {
       return given()
@@ -67,6 +69,7 @@ describe('ShoppingCart', () => {
           request.post(`/clients/${clientId}/shopping-carts/current/confirm`),
         )
         .then([
+          expectResponse(204),
           expectNewEvents(shoppingCartId, [
             {
               type: 'ShoppingCartConfirmed',
@@ -114,20 +117,7 @@ describe('ShoppingCart', () => {
     });
   });
 
-  let clientId: string;
-  let shoppingCartId: string;
-
-  const getRandomProduct = (): PricedProductItem => {
-    return {
-      productId: uuid(),
-      unitPrice: 100,
-      quantity: Math.random() * 10,
-    };
-  };
   const oldTime = new Date();
-
-  const productItem = getRandomProduct();
-
   const now = new Date();
 
   const given = ApiSpecification.for<ShoppingCartEvent>(
@@ -137,4 +127,14 @@ describe('ShoppingCart', () => {
         apis: [shoppingCartApi(eventStore, getUnitPrice, () => now)],
       }),
   );
+
+  const getRandomProduct = (): PricedProductItem => {
+    return {
+      productId: uuid(),
+      unitPrice: 100,
+      quantity: Math.random() * 10,
+    };
+  };
+
+  const productItem = getRandomProduct();
 });
