@@ -260,7 +260,8 @@ We recommend providing different web app configurations for different endpoints'
 That's what we did in our case. We've set up our Shopping Carts API and injected external dependencies:
 
 - event store to store and retrieve events,
-- The `getUnitPrice` method represents a call to an external service to get the price of a product added to the shopping cart.
+- The `getUnitPrice` method represents a call to an external service to get the price of a product added to the shopping cart,
+- We're also passing the current date generator. Embracing this non-deterministic dependency will be helpful for integration testing later on.
 
 That clearly explains what dependencies this API needs, and by reading the file, you can understand what your application technology needs. That should cut the onboarding time for new people grasping our system setup.
 
