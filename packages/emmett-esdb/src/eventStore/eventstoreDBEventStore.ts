@@ -25,72 +25,6 @@ import {
   type ReadStreamOptions as ESDBReadStreamOptions,
 } from '@eventstore/db-client';
 
-export type EventMetadata = Readonly<{
-  eventId: string;
-  streamPosition: number;
-  logPosition: bigint;
-}>;
-
-export type EventEnvelope<E extends Event = Event> = {
-  event: E;
-  metadata: EventMetadata;
-};
-
-export type EventHandler<E extends Event = Event> = (
-  eventEnvelope: EventEnvelope<E>,
-) => void;
-
-export const toExpectedRevision = (
-  expected: ExpectedStreamVersion | undefined,
-): AppendExpectedRevision => {
-  if (expected === undefined) return ANY;
-
-  if (expected === NO_CONCURRENCY_CHECK) return ANY;
-
-  if (expected == STREAM_DOES_NOT_EXIST) return NO_STREAM;
-
-  if (expected == STREAM_EXISTS) return ESDB_STREAM_EXISTS;
-
-  return expected as bigint;
-};
-
-export const toExpectedVersion = (
-  expected: AppendExpectedRevision | undefined,
-): ExpectedStreamVersion => {
-  if (expected === undefined) return NO_CONCURRENCY_CHECK;
-
-  if (expected === ANY) return NO_CONCURRENCY_CHECK;
-
-  if (expected == NO_STREAM) return STREAM_DOES_NOT_EXIST;
-
-  if (expected == ESDB_STREAM_EXISTS) return STREAM_EXISTS;
-
-  return expected;
-};
-
-export const matchesExpectedVersion = (
-  current: bigint | undefined,
-  expected: ExpectedStreamVersion,
-): boolean => {
-  if (expected === NO_CONCURRENCY_CHECK) return true;
-
-  if (expected == STREAM_DOES_NOT_EXIST) return current === undefined;
-
-  if (expected == STREAM_EXISTS) return current !== undefined;
-
-  return current === expected;
-};
-
-export const assertExpectedVersionMatchesCurrent = (
-  current: bigint | undefined,
-  expected: ExpectedStreamVersion | undefined,
-): void => {
-  expected ??= NO_CONCURRENCY_CHECK;
-
-  if (!matchesExpectedVersion(current, expected))
-    throw new ExpectedVersionConflictError(current, expected);
-};
-
 export const getEventStoreDBEventStore = (
   eventStore: EventStoreDBClient,
 ): EventStore => {
@@ -214,4 +148,55 @@ export const getEventStoreDBEventStore = (
       }
     },
   };
+};
+
+const toExpectedRevision = (
+  expected: ExpectedStreamVersion | undefined,
+): AppendExpectedRevision => {
+  if (expected === undefined) return ANY;
+
+  if (expected === NO_CONCURRENCY_CHECK) return ANY;
+
+  if (expected == STREAM_DOES_NOT_EXIST) return NO_STREAM;
+
+  if (expected == STREAM_EXISTS) return ESDB_STREAM_EXISTS;
+
+  return expected as bigint;
+};
+
+const toExpectedVersion = (
+  expected: AppendExpectedRevision | undefined,
+): ExpectedStreamVersion => {
+  if (expected === undefined) return NO_CONCURRENCY_CHECK;
+
+  if (expected === ANY) return NO_CONCURRENCY_CHECK;
+
+  if (expected == NO_STREAM) return STREAM_DOES_NOT_EXIST;
+
+  if (expected == ESDB_STREAM_EXISTS) return STREAM_EXISTS;
+
+  return expected;
+};
+
+const matchesExpectedVersion = (
+  current: bigint | undefined,
+  expected: ExpectedStreamVersion,
+): boolean => {
+  if (expected === NO_CONCURRENCY_CHECK) return true;
+
+  if (expected == STREAM_DOES_NOT_EXIST) return current === undefined;
+
+  if (expected == STREAM_EXISTS) return current !== undefined;
+
+  return current === expected;
+};
+
+const assertExpectedVersionMatchesCurrent = (
+  current: bigint | undefined,
+  expected: ExpectedStreamVersion | undefined,
+): void => {
+  expected ??= NO_CONCURRENCY_CHECK;
+
+  if (!matchesExpectedVersion(current, expected))
+    throw new ExpectedVersionConflictError(current, expected);
 };
