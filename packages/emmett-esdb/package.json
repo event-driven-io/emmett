@@ -42,5 +42,7 @@
   "dependencies": {
     "@event-driven-io/emmett": "0.3.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@eventstore/db-client": "^6.1.0"
+  }
 }

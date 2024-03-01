@@ -12,7 +12,6 @@ export default defineConfig({
     logo: '/logo.png',
     // https://vitepress.dev/reference/default-theme-config
     nav: [
-      { text: 'Home', link: '/' },
       { text: 'Getting Started', link: '/getting-started' },
       { text: '🧑‍💻 Join Discord Server', link: 'https://discord.gg/fTpqUTMmVa' },
     ],
