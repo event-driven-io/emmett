@@ -1,1 +1,1 @@
-export type Nullo = { test: 'string' };
+export * from './eventStore';
