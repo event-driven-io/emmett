@@ -14,6 +14,10 @@ export default defineConfig({
     nav: [
       { text: 'Getting Started', link: '/getting-started' },
       { text: '🧑‍💻 Join Discord Server', link: 'https://discord.gg/fTpqUTMmVa' },
+      {
+        text: 'Release Notes',
+        link: 'https://github.com/event-driven-io/emmett/releases',
+      },
     ],
 
     sidebar: [
