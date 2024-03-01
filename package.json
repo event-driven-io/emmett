@@ -68,6 +68,7 @@
   "workspaces": [
     "packages/emmett",
     "packages/emmett-esdb",
-    "packages/emmett-expressjs"
+    "packages/emmett-expressjs",
+    "packages/emmett-testcontainers"
   ]
 }

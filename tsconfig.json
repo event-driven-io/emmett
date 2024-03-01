@@ -22,6 +22,9 @@
     },
     {
       "path": "./packages/emmett-expressjs/"
+    },
+    {
+      "path": "./packages/emmett-testcontainers/"
     }
   ]
 }

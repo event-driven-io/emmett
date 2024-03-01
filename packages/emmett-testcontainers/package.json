@@ -1,7 +1,7 @@
 {
-  "name": "@event-driven-io/emmett-esdb",
+  "name": "@event-driven-io/emmett-testcontainers",
   "version": "0.3.0",
-  "description": "Emmett - EventStoreDB - Event Sourcing development made simple",
+  "description": "Emmett - TestContainers - Event Sourcing development made simple",
   "scripts": {
     "build": "tsup",
     "build:ts": "tsc",
@@ -40,7 +40,8 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/emmett": "0.3.0"
+    "@event-driven-io/emmett": "0.3.0",
+    "testcontainers": "^10.7.2"
   },
   "devDependencies": {
     "@eventstore/db-client": "^6.1.0"
