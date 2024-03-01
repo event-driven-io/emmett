@@ -16,6 +16,9 @@ hero:
     - theme: alt
       text: API Docs
       link: /api-docs
+    - theme: alt
+      text: 🧑‍💻 Join Discord Server
+      link: https://discord.gg/fTpqUTMmVa
 
 features:
   - title: DevExperience as prime goal

@@ -14,6 +14,7 @@ export default defineConfig({
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Getting Started', link: '/getting-started' },
+      { text: '🧑‍💻 Join Discord Server', link: 'https://discord.gg/fTpqUTMmVa' },
     ],
 
     sidebar: [
@@ -38,6 +39,7 @@ export default defineConfig({
 
     socialLinks: [
       { icon: 'github', link: 'https://github.com/event-driven-io/emmett' },
+      { icon: 'discord', link: 'https://discord.gg/fTpqUTMmVa' },
     ],
     footer: {
       copyright: 'Copyright © Oskar Dudycz and contributors.',
