@@ -44,7 +44,6 @@ describe('Application logic with optimistic concurrency', () => {
 
     if (!current.id) {
       assert.fail();
-      return;
     }
     assert.ok(current.id);
 

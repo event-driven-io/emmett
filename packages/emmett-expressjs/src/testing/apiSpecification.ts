@@ -44,6 +44,8 @@ export type ApiSpecificationAssert<EventType extends Event = Event> =
   | ResponseAssert
   | [ResponseAssert, ...TestEventStream<EventType>[]];
 
+export type ApiE2ESpecificationAssert = [ResponseAssert];
+
 export const expect = <EventType extends Event = Event>(
   streamId: string,
   events: EventType[],
@@ -59,9 +61,9 @@ export const expectNewEvents = <EventType extends Event = Event>(
 };
 
 export const expectResponse =
-  (
+  <Body = unknown>(
     statusCode: number,
-    options?: { body?: unknown; headers?: { [index: string]: string } },
+    options?: { body?: Body; headers?: { [index: string]: string } },
   ) =>
   (response: Response): void => {
     const { body, headers } = options ?? {};
@@ -88,6 +90,14 @@ export type ApiSpecification<EventType extends Event = Event> = (
 ) => {
   when: (setupRequest: (request: TestAgent<supertest.Test>) => Test) => {
     then: (verify: ApiSpecificationAssert<EventType>) => Promise<void>;
+  };
+};
+
+export type ApiE2ESpecification = (
+  ...givenRequests: ((request: TestAgent<supertest.Test>) => Test)[]
+) => {
+  when: (setupRequest: (request: TestAgent<supertest.Test>) => Test) => {
+    then: (verify: ApiE2ESpecificationAssert) => Promise<void>;
   };
 };
 
@@ -142,6 +152,50 @@ export const ApiSpecification = {
                     events,
                   );
                 }
+              },
+            };
+          },
+        };
+      };
+    }
+  },
+};
+
+export const ApiE2ESpecification = {
+  for: <StreamVersion = DefaultStreamVersionType>(
+    getEventStore: () => EventStore<StreamVersion>,
+    getApplication: (eventStore: EventStore<StreamVersion>) => Application,
+  ): ApiE2ESpecification => {
+    {
+      return (
+        ...givenRequests: ((request: TestAgent<supertest.Test>) => Test)[]
+      ) => {
+        const eventStore = WrapEventStore(getEventStore());
+        const application = getApplication(eventStore);
+
+        return {
+          when: (
+            setupRequest: (request: TestAgent<supertest.Test>) => Test,
+          ) => {
+            const handle = async () => {
+              for (const requestFn of givenRequests) {
+                await requestFn(supertest(application));
+              }
+
+              return setupRequest(supertest(application));
+            };
+
+            return {
+              then: async (
+                verify: ApiE2ESpecificationAssert,
+              ): Promise<void> => {
+                const response = await handle();
+
+                verify.forEach((assertion) => {
+                  const succeded = assertion(response);
+
+                  if (succeded === false) assert.fail();
+                });
               },
             };
           },
