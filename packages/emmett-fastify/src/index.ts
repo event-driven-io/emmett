@@ -2,14 +2,17 @@ import Compress from '@fastify/compress';
 import Etag from '@fastify/etag';
 import Form from '@fastify/formbody';
 import closeWithGrace from 'close-with-grace';
-import Fastify, { type FastifyInstance, type FastifyRequest, type FastifyReply } from 'fastify';
+import Fastify, {
+  type FastifyInstance,
+  type FastifyReply,
+  type FastifyRequest,
+} from 'fastify';
 
 const defaultPlugins = [
   { plugin: Etag, options: {} },
   { plugin: Compress, options: { global: false } },
   { plugin: Form, options: {} },
 ];
-
 
 const defaultPostMiddlewares = (app: FastifyInstance) => {
   app.all('*', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -41,11 +44,7 @@ export const getApplication = async (options: ApplicationOptions) => {
     },
   } = options;
 
-  const app: FastifyInstance = extendApp(
-    Fastify({
-      logger: serverOptions.logger,
-    }),
-  );
+  const app: FastifyInstance = extendApp(Fastify(serverOptions));
 
   await Promise.all(
     activeDefaultPlugins.map(async ({ plugin, options }) => {
