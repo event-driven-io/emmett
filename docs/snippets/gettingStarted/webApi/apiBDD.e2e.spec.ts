@@ -1,15 +1,17 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
-import {
-  getInMemoryEventStore,
-  type EventStore,
-} from '@event-driven-io/emmett';
+import { type EventStore } from '@event-driven-io/emmett';
+import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import {
   ApiE2ESpecification,
   expectResponse,
   getApplication,
 } from '@event-driven-io/emmett-expressjs';
+import {
+  EventStoreDBContainer,
+  StartedEventStoreDBContainer,
+} from '@event-driven-io/emmett-testcontainers';
 import { randomUUID } from 'node:crypto';
-import { beforeEach, describe, it } from 'node:test';
+import { after, before, beforeEach, describe, it } from 'node:test';
 import type { PricedProductItem } from '../events';
 import { ShoppingCartStatus } from './shoppingCart';
 import { shoppingCartApi } from './simpleApi';
@@ -21,10 +23,28 @@ const getUnitPrice = () => {
 describe('ShoppingCart E2E', () => {
   let clientId: string;
   let shoppingCartId: string;
+  let esdbContainer: StartedEventStoreDBContainer;
+  let given: ApiE2ESpecification;
+
+  before(async () => {
+    esdbContainer = await new EventStoreDBContainer().start();
+
+    given = ApiE2ESpecification.for(
+      (): EventStore => getEventStoreDBEventStore(esdbContainer.getClient()),
+      (eventStore: EventStore) =>
+        getApplication({
+          apis: [shoppingCartApi(eventStore, getUnitPrice, () => now)],
+        }),
+    );
+  });
 
   beforeEach(() => {
     clientId = randomUUID();
     shoppingCartId = `shopping_cart:${clientId}:current`;
+  });
+
+  after(() => {
+    return esdbContainer.stop();
   });
 
   describe('When empty', () => {
@@ -56,14 +76,6 @@ describe('ShoppingCart E2E', () => {
   });
 
   const now = new Date();
-
-  const given = ApiE2ESpecification.for(
-    (): EventStore => getInMemoryEventStore(),
-    (eventStore: EventStore) =>
-      getApplication({
-        apis: [shoppingCartApi(eventStore, getUnitPrice, () => now)],
-      }),
-  );
 
   const getRandomProduct = (): PricedProductItem => {
     return {

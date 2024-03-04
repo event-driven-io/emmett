@@ -6,6 +6,7 @@ import {
 } from '@event-driven-io/emmett';
 import {
   NoContent,
+  NotFound,
   OK,
   on,
   type WebApiSetup,
@@ -157,6 +158,8 @@ export const shoppingCartApi =
           evolve,
           getInitialState,
         });
+
+        if (result === null) return NotFound();
 
         const productItems: ProductItem[] = Array.from(
           result.state.productItems,

@@ -63,16 +63,17 @@ export const HttpResponse =
 // ERRORS
 /////////////////////
 
-export const BadRequest = (options: HttpProblemResponseOptions): HttpResponse =>
-  HttpProblem(400, options);
+export const BadRequest = (
+  options?: HttpProblemResponseOptions,
+): HttpResponse => HttpProblem(400, options);
 
-export const Forbidden = (options: HttpProblemResponseOptions): HttpResponse =>
+export const Forbidden = (options?: HttpProblemResponseOptions): HttpResponse =>
   HttpProblem(403, options);
 
-export const NotFound = (options: HttpProblemResponseOptions): HttpResponse =>
+export const NotFound = (options?: HttpProblemResponseOptions): HttpResponse =>
   HttpProblem(404, options);
 
-export const Conflict = (options: HttpProblemResponseOptions): HttpResponse =>
+export const Conflict = (options?: HttpProblemResponseOptions): HttpResponse =>
   HttpProblem(409, options);
 
 export const PreconditionFailed = (
