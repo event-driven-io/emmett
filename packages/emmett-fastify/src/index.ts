@@ -4,8 +4,6 @@ import Form from '@fastify/formbody';
 import closeWithGrace from 'close-with-grace';
 import Fastify, {
   type FastifyInstance,
-  type FastifyReply,
-  type FastifyRequest,
 } from 'fastify';
 
 const defaultPlugins = [
@@ -14,18 +12,9 @@ const defaultPlugins = [
   { plugin: Form, options: {} },
 ];
 
-const defaultPostMiddlewares = (app: FastifyInstance) => {
-  app.all('*', async (request: FastifyRequest, reply: FastifyReply) => {
-    return reply.status(404).send();
-  });
-};
-
 export interface ApplicationOptions {
   serverOptions?: { logger: boolean };
   registerRoutes?: (app: FastifyInstance) => void;
-  registerPreMiddlewares?: (app: FastifyInstance) => void;
-  registerPostMiddlewares?: (app: FastifyInstance) => void;
-  extendApp?: (app: FastifyInstance) => FastifyInstance;
   activeDefaultPlugins?: Array<{
     plugin: unknown;
     options: Record<string, unknown>;
@@ -34,17 +23,14 @@ export interface ApplicationOptions {
 
 export const getApplication = async (options: ApplicationOptions) => {
   const {
-    registerPreMiddlewares,
     registerRoutes,
-    registerPostMiddlewares = defaultPostMiddlewares,
-    extendApp = (app) => app,
     activeDefaultPlugins = defaultPlugins,
     serverOptions = {
       logger: true,
     },
   } = options;
 
-  const app: FastifyInstance = extendApp(Fastify(serverOptions));
+  const app: FastifyInstance = Fastify(serverOptions);
 
   await Promise.all(
     activeDefaultPlugins.map(async ({ plugin, options }) => {
@@ -52,16 +38,8 @@ export const getApplication = async (options: ApplicationOptions) => {
     }),
   );
 
-  if (registerPreMiddlewares) {
-    registerPreMiddlewares(app);
-  }
-
   if (registerRoutes) {
     registerRoutes(app);
-  }
-
-  if (registerPostMiddlewares) {
-    registerPostMiddlewares(app);
   }
 
   const closeListeners = closeWithGrace({ delay: 500 }, async (opts) => {

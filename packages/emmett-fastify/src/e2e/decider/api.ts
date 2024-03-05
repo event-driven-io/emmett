@@ -1,10 +1,8 @@
 import {
   assertNotEmptyString,
-  STREAM_DOES_NOT_EXIST,
   DeciderCommandHandler,
   type EventStore,
   assertPositiveNumber,
-  assertUnsignedBigInt,
 } from '@event-driven-io/emmett';
 import {
   type FastifyInstance,
