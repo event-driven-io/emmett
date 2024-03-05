@@ -6,6 +6,8 @@ import {
 } from '@event-driven-io/emmett';
 import {
   NoContent,
+  NotFound,
+  OK,
   on,
   type WebApiSetup,
 } from '@event-driven-io/emmett-expressjs';
@@ -22,7 +24,8 @@ import type {
   ConfirmShoppingCart,
   RemoveProductItemFromShoppingCart,
 } from '../commands';
-import { evolve, getInitialState } from '../shoppingCart';
+import type { ProductItem, ShoppingCartEvent } from '../events';
+import { evolve, getInitialState, type ShoppingCart } from '../shoppingCart';
 
 export const handle = CommandHandler(evolve, getInitialState);
 
@@ -140,6 +143,42 @@ export const shoppingCartApi =
       }),
     );
     // #endregion complete-api
+
+    // Get Shopping Cart
+    router.get(
+      '/clients/:clientId/shopping-carts/current',
+      on(async (request: GetShoppingCartRequest) => {
+        const shoppingCartId = getShoppingCartId(
+          assertNotEmptyString(request.params.clientId),
+        );
+
+        const result = await eventStore.aggregateStream<
+          ShoppingCart,
+          ShoppingCartEvent
+        >(shoppingCartId, {
+          evolve,
+          getInitialState,
+        });
+
+        if (result === null) return NotFound();
+
+        const productItems: ProductItem[] = Array.from(
+          result.state.productItems,
+        ).map(([productId, quantity]) => ({
+          productId,
+          quantity,
+        }));
+
+        return OK({
+          body: {
+            clientId: assertNotEmptyString(request.params.clientId),
+            id: shoppingCartId,
+            productItems,
+            status: result?.state.status,
+          },
+        });
+      }),
+    );
   };
 
 // Add Product Item
@@ -147,4 +186,10 @@ type AddProductItemRequest = Request<
   Partial<{ clientId: string; shoppingCartId: string }>,
   unknown,
   Partial<{ productId: number; quantity: number }>
+>;
+
+type GetShoppingCartRequest = Request<
+  Partial<{ clientId: string }>,
+  unknown,
+  unknown
 >;
