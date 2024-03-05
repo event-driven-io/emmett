@@ -34,8 +34,6 @@ export type ApiSpecificationAssert<EventType extends Event = Event> =
   | ResponseAssert
   | [ResponseAssert, ...TestEventStream<EventType>[]];
 
-export type ApiE2ESpecificationAssert = [ResponseAssert];
-
 export const expect = <EventType extends Event = Event>(
   streamId: string,
   events: EventType[],
