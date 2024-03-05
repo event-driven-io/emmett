@@ -4,6 +4,8 @@ import {
   StartedEventStoreDBContainer,
 } from './eventStoreDBContainer';
 
+export * from './eventStoreDBContainer';
+
 let esdbContainer: StartedEventStoreDBContainer;
 
 export const getEventStoreDBTestClient = async (

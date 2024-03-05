@@ -160,15 +160,7 @@ export const shoppingCartApi =
           getInitialState,
         });
 
-        if (result === null) {
-          return NotFound({
-            problem: {
-              status: 404,
-              title: 'Shopping Cart Not Found',
-            },
-            problemDetails: 'Shopping Cart Not Found',
-          });
-        }
+        if (result === null) return NotFound();
 
         const productItems: ProductItem[] = Array.from(
           result.state.productItems,

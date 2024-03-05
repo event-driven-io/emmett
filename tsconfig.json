@@ -8,9 +8,7 @@
     "paths": {
       "@event-driven-io/emmett": ["./packages/emmett/src"],
       "@event-driven-io/emmett-expressjs": ["./packages/emmett-expressjs/src"],
-      "@event-driven-io/emmett-eventstoredb": [
-        "./packages/emmett-eventstoredb/src"
-      ]
+      "@event-driven-io/emmett-esdb": ["./packages/emmett-esdb/src"]
     }
   },
   "references": [
