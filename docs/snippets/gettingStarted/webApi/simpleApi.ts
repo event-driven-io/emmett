@@ -6,6 +6,7 @@ import {
 } from '@event-driven-io/emmett';
 import {
   NoContent,
+  NotFound,
   OK,
   on,
   type WebApiSetup,
@@ -141,6 +142,7 @@ export const shoppingCartApi =
         return NoContent();
       }),
     );
+    // #endregion complete-api
 
     // Get Shopping Cart
     router.get(
@@ -157,6 +159,16 @@ export const shoppingCartApi =
           evolve,
           getInitialState,
         });
+
+        if (result === null) {
+          return NotFound({
+            problem: {
+              status: 404,
+              title: 'Shopping Cart Not Found',
+            },
+            problemDetails: 'Shopping Cart Not Found',
+          });
+        }
 
         const productItems: ProductItem[] = Array.from(
           result.state.productItems,
@@ -175,7 +187,6 @@ export const shoppingCartApi =
         });
       }),
     );
-    // #endregion complete-api
   };
 
 // Add Product Item
