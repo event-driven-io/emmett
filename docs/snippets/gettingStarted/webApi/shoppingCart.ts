@@ -52,6 +52,7 @@ export enum ShoppingCartStatus {
   Pending = 'Pending',
   Confirmed = 'Confirmed',
   Canceled = 'Canceled',
+  Opened = 'Opened',
 }
 
 export type Empty = { status: ShoppingCartStatus.Empty };

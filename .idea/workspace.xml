@@ -5,13 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6f86b7b4-a847-4330-ae3e-eb23876d7578" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/packages/emmett-fastify/package.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/packages/emmett-fastify/src/index.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/packages/emmett-fastify/tsconfig.build.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/packages/emmett-fastify/tsconfig.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/packages/emmett-fastify/tsup.config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tsconfig.json" beforeDir="false" afterPath="$PROJECT_DIR$/tsconfig.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/emmett-fastify/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/packages/emmett-fastify/package.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -56,7 +52,7 @@
       <option name="presentableId" value="Default" />
       <updated>1709677145533</updated>
       <workItem from="1709677147252" duration="1356000" />
-      <workItem from="1709678797113" duration="66000" />
+      <workItem from="1709678797113" duration="157000" />
     </task>
     <servers />
   </component>
