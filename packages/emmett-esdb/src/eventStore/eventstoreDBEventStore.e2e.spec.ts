@@ -42,7 +42,7 @@ const evolve = (
     case 'DiscountApplied':
       return {
         ...state,
-        totalAmount: state.totalAmount * (1 - data.percent),
+        totalAmount: state.totalAmount * (1 - data.percent / 100),
       };
   }
 };
@@ -111,20 +111,19 @@ describe('EventStoreDBEventStore', () => {
       assert.equal(resultAt1.currentStreamVersion, 0);
       assert.deepEqual(resultAt1.state, {
         productItems: [productItem],
-        totalAmount: productItem.price * productItem.quantity,
+        totalAmount: 30,
       });
 
       assert.equal(resultAt2.currentStreamVersion, 1);
       assert.deepEqual(resultAt2.state, {
         productItems: [productItem, productItem],
-        totalAmount: productItem.price * productItem.quantity * 2,
+        totalAmount: 60,
       });
 
       assert.equal(resultAt3.currentStreamVersion, 2);
       assert.deepEqual(resultAt3.state, {
         productItems: [productItem, productItem],
-        totalAmount:
-          productItem.price * productItem.quantity * 2 * (1 - discount),
+        totalAmount: 54,
       });
     });
   });
