@@ -14,10 +14,10 @@
   },
   "references": [
     {
-      "path": "../emmett/"
+      "path": "../packages/emmett/"
     },
     {
-      "path": "../emmett-testcontainers/"
+      "path": "../packages/emmett-testcontainers/"
     }
   ]
 }

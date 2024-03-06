@@ -14,6 +14,6 @@ export default defineConfig({
   watch: env === 'development',
   target: 'esnext',
   outDir: 'dist', //env === 'production' ? 'dist' : 'lib',
-  entry: ['src/**/*.ts'], //include all files under src
+  entry: ['src/**/*.ts', '!src/**/*.spec.ts'], //include all files under src but not specs
   sourcemap: true,
 });
