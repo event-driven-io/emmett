@@ -119,3 +119,5 @@ dist
 docs/.vitepress/dist
 docs/.vitepress/cache
 lib
+
+.DS_Store

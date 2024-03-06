@@ -8,7 +8,8 @@
     "paths": {
       "@event-driven-io/emmett": ["./packages/emmett/src"],
       "@event-driven-io/emmett-expressjs": ["./packages/emmett-expressjs/src"],
-      "@event-driven-io/emmett-esdb": ["./packages/emmett-esdb/src"]
+      "@event-driven-io/emmett-esdb": ["./packages/emmett-esdb/src"],
+      "@event-driven-io/emmett-fastify": ["./packages/emmett-fastify/src"]
     }
   },
   "references": [
@@ -23,6 +24,9 @@
     },
     {
       "path": "./packages/emmett-testcontainers/"
+    },
+    {
+      "path": "./packages/emmett-fastify/"
     }
   ]
 }
