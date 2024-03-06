@@ -1,6 +1,7 @@
 import {
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
+  type AppendToStreamResult,
   type DefaultStreamVersionType,
   type EventStore,
   type ExpectedStreamVersion,
@@ -8,6 +9,11 @@ import {
 import type { Event } from '../typing';
 
 // #region command-handler
+export type CommandHandlerResult<
+  State,
+  StreamVersion = DefaultStreamVersionType,
+> = AppendToStreamResult<StreamVersion> & { newState: State };
+
 export const CommandHandler =
   <State, StreamEvent extends Event, StreamVersion = DefaultStreamVersionType>(
     evolve: (state: State, event: StreamEvent) => State,
@@ -21,7 +27,7 @@ export const CommandHandler =
     options?: {
       expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
     },
-  ) => {
+  ): Promise<CommandHandlerResult<State, StreamVersion>> => {
     const streamName = mapToStreamId(id);
 
     // 1. Aggregate the stream
@@ -46,6 +52,8 @@ export const CommandHandler =
     // 3. Run business logic
     const result = handle(state);
 
+    const newEvents = Array.isArray(result) ? result : [result];
+
     // Either use:
     // - provided expected stream version,
     // - current stream version got from stream aggregation,
@@ -56,12 +64,15 @@ export const CommandHandler =
       STREAM_DOES_NOT_EXIST;
 
     // 4. Append result to the stream
-    return eventStore.appendToStream(
+    const appendResult = await eventStore.appendToStream(
       streamName,
-      Array.isArray(result) ? result : [result],
+      newEvents,
       {
         expectedStreamVersion,
       },
     );
+
+    // 5. Return result with updated state
+    return { ...appendResult, newState: newEvents.reduce(evolve, state) };
   };
 // #endregion command-handler
