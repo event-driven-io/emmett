@@ -66,15 +66,6 @@ export const getInMemoryEventStore = (): EventStore => {
         options?.expectedStreamVersion,
       );
 
-      //   | {
-      //     from: StreamVersion;
-      //   }
-      // | { to: StreamVersion }
-      // | { from: StreamVersion; maxCount?: bigint }
-      // | {
-      //     expectedStreamVersion: ExpectedStreamVersion<StreamVersion>;
-      //   }
-
       const from = Number(options && 'from' in options ? options.from : 0);
       const to = Number(
         options && 'to' in options

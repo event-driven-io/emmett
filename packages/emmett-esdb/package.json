@@ -40,9 +40,10 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/emmett": "0.3.0"
+    "@event-driven-io/emmett": "0.4.0",
+    "@eventstore/db-client": "^6.1.0"
   },
   "devDependencies": {
-    "@eventstore/db-client": "^6.1.0"
+    "@event-driven-io/emmett-testcontainers": "^0.4.0"
   }
 }
