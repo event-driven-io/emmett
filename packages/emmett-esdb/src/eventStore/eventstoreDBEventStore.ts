@@ -25,6 +25,22 @@ import {
   type ReadStreamOptions as ESDBReadStreamOptions,
 } from '@eventstore/db-client';
 
+const toEventStoreDBReadOptions = (
+  options: ReadStreamOptions | undefined,
+): ESDBReadStreamOptions | undefined => {
+  return options
+    ? {
+        fromRevision: 'from' in options ? options.from : undefined,
+        maxCount:
+          'maxCount' in options
+            ? options.maxCount
+            : 'to' in options
+              ? options.to
+              : undefined,
+      }
+    : undefined;
+};
+
 export const getEventStoreDBEventStore = (
   eventStore: EventStoreDBClient,
 ): EventStore => {
@@ -41,7 +57,10 @@ export const getEventStoreDBEventStore = (
         let state = getInitialState();
         let currentStreamVersion: bigint | undefined = undefined;
 
-        for await (const { event } of eventStore.readStream(streamName)) {
+        for await (const { event } of eventStore.readStream(
+          streamName,
+          toEventStoreDBReadOptions(options.read),
+        )) {
           if (!event) continue;
 
           state = evolve(state, <EventType>{
@@ -75,23 +94,12 @@ export const getEventStoreDBEventStore = (
     ): Promise<ReadStreamResult<EventType>> => {
       const events: EventType[] = [];
 
-      const readOptions: ESDBReadStreamOptions | undefined = options
-        ? {
-            fromRevision: 'from' in options ? options.from : undefined,
-            maxCount:
-              'maxCount' in options
-                ? options.maxCount
-                : 'to' in options
-                  ? options.to
-                  : undefined,
-          }
-        : undefined;
       let currentStreamVersion: bigint | undefined = undefined;
 
       try {
         for await (const { event } of eventStore.readStream(
           streamName,
-          readOptions,
+          toEventStoreDBReadOptions(options),
         )) {
           if (!event) continue;
           events.push(<EventType>{

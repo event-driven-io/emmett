@@ -66,11 +66,34 @@ export const getInMemoryEventStore = (): EventStore => {
         options?.expectedStreamVersion,
       );
 
+      //   | {
+      //     from: StreamVersion;
+      //   }
+      // | { to: StreamVersion }
+      // | { from: StreamVersion; maxCount?: bigint }
+      // | {
+      //     expectedStreamVersion: ExpectedStreamVersion<StreamVersion>;
+      //   }
+
+      const from = Number(options && 'from' in options ? options.from : 0);
+      const to = Number(
+        options && 'to' in options
+          ? options.to
+          : options && 'maxCount' in options && options.maxCount
+            ? options.from + options.maxCount
+            : events?.length ?? 1,
+      );
+
+      const resultEvents =
+        events && events.length > 0
+          ? events.map((e) => e.event as EventType).slice(from, to)
+          : [];
+
       const result: ReadStreamResult<EventType> =
         events && events.length > 0
           ? {
               currentStreamVersion: currentStreamVersion!,
-              events: events.map((e) => e.event as EventType),
+              events: resultEvents,
             }
           : null;
 
