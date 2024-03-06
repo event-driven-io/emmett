@@ -40,7 +40,7 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/emmett": "0.3.0",
+    "@event-driven-io/emmett": "0.4.0",
     "testcontainers": "^10.7.2"
   },
   "devDependencies": {

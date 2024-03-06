@@ -17,13 +17,13 @@
       "path": "./packages/emmett/"
     },
     {
+      "path": "./packages/emmett-testcontainers/"
+    },
+    {
       "path": "./packages/emmett-esdb/"
     },
     {
       "path": "./packages/emmett-expressjs/"
-    },
-    {
-      "path": "./packages/emmett-testcontainers/"
     },
     {
       "path": "./packages/emmett-fastify/"
