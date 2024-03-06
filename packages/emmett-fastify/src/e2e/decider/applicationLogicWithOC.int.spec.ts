@@ -1,9 +1,13 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
+import {
+  assertMatches,
+  getInMemoryEventStore,
+  type EventStore,
+} from '@event-driven-io/emmett';
+import { type FastifyInstance } from 'fastify';
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
-import { type FastifyInstance } from 'fastify';
-import { getInMemoryEventStore, type EventStore, assertMatches } from '@event-driven-io/emmett';
 import { getApplication } from '../..';
 import { RegisterRoutes } from './api';
 import { ShoppingCartErrors } from './businessLogic';
@@ -13,7 +17,6 @@ describe('Application logic with optimistic concurrency using Fastify', () => {
   let app: FastifyInstance;
   let eventStore: EventStore;
   beforeEach(async () => {
-
     eventStore = getInMemoryEventStore();
     const registerRoutes = RegisterRoutes(eventStore);
     app = await getApplication({ registerRoutes });
@@ -30,13 +33,13 @@ describe('Application logic with optimistic concurrency using Fastify', () => {
       url: `/clients/${clientId}/shopping-carts`,
     });
 
-    const current = createResponse.json();
-    if (!current?.clientId) {
+    const current = createResponse.json<{ id: string }>();
+    if (!current?.id) {
       assert.fail();
     }
-    assert.ok(current.clientId);
+    assert.ok(current.id);
 
-    const shoppingCartId = current.clientId;
+    const shoppingCartId = current.id;
     ///////////////////////////////////////////////////
     // 2. Add Two Pair of Shoes
     ///////////////////////////////////////////////////
@@ -65,7 +68,6 @@ describe('Application logic with optimistic concurrency using Fastify', () => {
       body: tShirt,
     });
 
-
     assert.equal(response.statusCode, 204);
 
     ///////////////////////////////////////////////////
@@ -93,7 +95,6 @@ describe('Application logic with optimistic concurrency using Fastify', () => {
     });
 
     assert.equal(response.statusCode, 204);
-
 
     ///////////////////////////////////////////////////
     // 6. Try Cancel Cart

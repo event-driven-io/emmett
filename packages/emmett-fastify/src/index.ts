@@ -1,24 +1,30 @@
-import Compress from '@fastify/compress';
-import Etag from '@fastify/etag';
-import Form from '@fastify/formbody';
+import Compress, { type FastifyCompressOptions } from '@fastify/compress';
+import Etag, { type FastifyEtagOptions } from '@fastify/etag';
+import Form, { type FastifyFormbodyOptions } from '@fastify/formbody';
 import closeWithGrace from 'close-with-grace';
 import Fastify, {
   type FastifyInstance,
+  type FastifyPluginAsync,
+  type FastifyPluginCallback,
+  type FastifyPluginOptions,
 } from 'fastify';
 
-const defaultPlugins = [
-  { plugin: Etag, options: {} },
-  { plugin: Compress, options: { global: false } },
-  { plugin: Form, options: {} },
+// TODO: THIS WILL NEED TO BE BETTER TYPED
+type Plugin = {
+  plugin: FastifyPluginAsync | FastifyPluginCallback;
+  options: FastifyPluginOptions;
+};
+
+const defaultPlugins: Plugin[] = [
+  { plugin: Etag, options: {} as FastifyEtagOptions },
+  { plugin: Compress, options: { global: false } as FastifyCompressOptions },
+  { plugin: Form, options: {} as FastifyFormbodyOptions },
 ];
 
 export interface ApplicationOptions {
   serverOptions?: { logger: boolean };
   registerRoutes?: (app: FastifyInstance) => void;
-  activeDefaultPlugins?: Array<{
-    plugin: unknown;
-    options: Record<string, unknown>;
-  }>;
+  activeDefaultPlugins?: Plugin[];
 }
 
 export const getApplication = async (options: ApplicationOptions) => {
