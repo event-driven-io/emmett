@@ -65,7 +65,7 @@ describe('EventStoreDBEventStore', () => {
   });
 
   describe('aggregateStream', () => {
-    it('When called with `to` allows time travelling', async () => {
+    it('When called with `to` allows time traveling', async () => {
       // Given
       const productItem: PricedProductItem = {
         productId: '123',
