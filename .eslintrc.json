@@ -11,7 +11,7 @@
     "plugin:@typescript-eslint/recommended-requiring-type-checking",
     "plugin:prettier/recommended"
   ],
-  "ignorePatterns": ["dist/", "lib/"],
+  "ignorePatterns": ["**/dist/", "**/lib/"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "ecmaVersion": 2023,
