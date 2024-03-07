@@ -35,11 +35,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Build TS
+        run: npm run build:ts
 
       - name: Run linting (ESlint and Prettier)
         run: npm run lint
+
+      - name: Build
+        run: npm run build
 
       - name: Test
         run: npm run test
