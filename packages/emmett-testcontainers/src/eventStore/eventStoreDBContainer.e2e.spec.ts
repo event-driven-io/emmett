@@ -2,11 +2,11 @@
 import { jsonEvent } from '@eventstore/db-client';
 import assert from 'node:assert/strict';
 import { after, beforeEach, describe, it } from 'node:test';
-import { v4 as uuid } from 'uuid';
 import {
   EventStoreDBContainer,
   StartedEventStoreDBContainer,
 } from './eventStoreDBContainer';
+import { randomUUID } from 'node:crypto';
 
 describe('EventStoreDBContainer', () => {
   let container: StartedEventStoreDBContainer;
@@ -19,7 +19,7 @@ describe('EventStoreDBContainer', () => {
     const client = container.getClient();
 
     const result = await client.appendToStream(
-      `test-${uuid()}`,
+      `test-${randomUUID()}`,
       jsonEvent({ type: 'test-event', data: { test: 'test' } }),
     );
 

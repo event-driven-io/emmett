@@ -11,8 +11,8 @@ import {
   expectResponse,
   getApplication,
 } from '@event-driven-io/emmett-expressjs';
+import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it } from 'node:test';
-import { v4 as uuid } from 'uuid';
 import type { PricedProductItem, ShoppingCartEvent } from '../events';
 import { shoppingCartApi } from './simpleApi';
 
@@ -24,7 +24,7 @@ describe('ShoppingCart', () => {
   let clientId: string;
   let shoppingCartId: string;
   beforeEach(() => {
-    clientId = uuid();
+    clientId = randomUUID();
     shoppingCartId = `shopping_cart:${clientId}:current`;
   });
 
@@ -130,7 +130,7 @@ describe('ShoppingCart', () => {
 
   const getRandomProduct = (): PricedProductItem => {
     return {
-      productId: uuid(),
+      productId: randomUUID(),
       unitPrice: 100,
       quantity: Math.random() * 10,
     };

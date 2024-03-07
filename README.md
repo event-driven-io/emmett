@@ -36,14 +36,14 @@ Essential building blocks for designing and running business and application log
 
 - typings around events, commands, Deciders, Workflows, etc.
 - command handling wrappers for application layer,
-- basic, in-memory event store implementation.
-- building blocks for the Web Apis with Event Sourcing and CQRS,
+- implementation of event store using EventStoreDB and basic, in-memory version,
+- building blocks for the Web Apis with Event Sourcing and CQRS.
 
 ### **What features will it have?**
 
 We'll see, but for sure, I'd like to have the following:
 
-- implementation of event store using EventStoreDB, PostgreSQL, SQLite, etc.
+- implementation of event store using PostgreSQL, SQLite, etc.
 - abstractions for building read models,
 - building blocks for integration and running distributed processes,
 - GraphQL API for event stores,

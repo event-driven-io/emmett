@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { v4 as uuid } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { addProductItem } from './businessLogic';
 import type { AddProductItemToShoppingCart } from './commands';
 import type { PricedProductItem } from './events';
 import { handle } from './webApi/simpleApi';
 
-const shoppingCartId = uuid();
+const shoppingCartId = randomUUID();
 const productItem: PricedProductItem = {
-  productId: uuid(),
+  productId: randomUUID(),
   quantity: 1,
   unitPrice: 100,
 };

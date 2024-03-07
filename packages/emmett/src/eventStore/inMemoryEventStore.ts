@@ -1,4 +1,4 @@
-import { v4 as uuid } from 'uuid';
+import { randomUUID } from 'crypto';
 import type { Event } from '../typing';
 import {
   type AggregateStreamOptions,
@@ -109,7 +109,7 @@ export const getInMemoryEventStore = (): EventStore => {
         return {
           event,
           metadata: {
-            eventId: uuid(),
+            eventId: randomUUID(),
             streamPosition: currentEvents.length + index + 1,
             logPosition: BigInt(getAllEventsCount() + index + 1),
           },
