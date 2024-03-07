@@ -8,11 +8,11 @@ import { getApplication } from '@event-driven-io/emmett-expressjs';
 
 import { type Application } from 'express';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it } from 'node:test';
 import request from 'supertest';
 import type { ShoppingCartEvent } from '../events';
 import { getShoppingCartId, shoppingCartApi } from './simpleApi';
-import { randomUUID } from 'node:crypto';
 
 const getUnitPrice = (_productId: string) => {
   return Promise.resolve(100);

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
   assertNotEmptyString,
   assertPositiveNumber,
@@ -163,19 +162,21 @@ export const shoppingCartApi =
 
         if (result === null) return NotFound();
 
-        const productItems: ProductItem[] = Array.from(
-          result.state.productItems,
-        ).map(([productId, quantity]) => ({
-          productId,
-          quantity,
-        }));
+        if (result.state.status !== 'Opened') return NotFound();
+
+        const productItems: ProductItem[] = [...result.state.productItems].map(
+          ([productId, quantity]) => ({
+            productId,
+            quantity,
+          }),
+        );
 
         return OK({
           body: {
             clientId: assertNotEmptyString(request.params.clientId),
             id: shoppingCartId,
             productItems,
-            status: result?.state.status,
+            status: result.state.status,
           },
         });
       }),
