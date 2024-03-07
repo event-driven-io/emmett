@@ -5,6 +5,7 @@
   "engines": {
     "node": ">=20.11.1"
   },
+  "private": true,
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
     "build": "npm run build:ts && npm run build --ws",
