@@ -124,8 +124,6 @@ export const sendCreated = (
   send(response, 201, {
     location: `${urlPrefix ?? response.req.url}/${createdId}`,
     body: { id: createdId },
-    // TODO: https://github.com/event-driven-io/emmett/issues/18
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     eTag,
   });
 
@@ -145,8 +143,6 @@ export const send = (
   statusCode: number,
   options?: HttpResponseOptions,
 ): void => {
-  // TODO: https://github.com/event-driven-io/emmett/issues/18
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const { location, body, eTag } = options ?? DefaultHttpResponseOptions;
   // HEADERS
   if (eTag) setETag(response, eTag);
@@ -167,8 +163,6 @@ export const sendProblem = (
 ): void => {
   options = options ?? DefaultHttpProblemResponseOptions;
 
-  // TODO: https://github.com/event-driven-io/emmett/issues/18
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const { location, eTag } = options;
 
   const problemDetails =
