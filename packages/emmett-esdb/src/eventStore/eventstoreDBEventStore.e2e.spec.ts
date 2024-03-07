@@ -7,7 +7,7 @@ import {
 import assert from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
-import { getEventStoreDBEventStore } from '.';
+import { getEventStoreDBEventStore } from './eventstoreDBEventStore';
 
 // Events & Entity
 
