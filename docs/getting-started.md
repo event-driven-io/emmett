@@ -253,7 +253,7 @@ The `startAPI` method encapsulates the default startup options like the default 
 
 To configure API, we need to provide router configuration. We can do it via the `apis` property of the `getApplication` options. WebApi setup is a simple function that takes the router and defines needed routings on it.
 
-<<< @./../packages/emmett-expressjs/src/index.ts#web-api-setup
+<<< @./../packages/emmett-expressjs/src/application.ts#web-api-setup
 
 We recommend providing different web app configurations for different endpoints' logical groupings. It's also worth injecting all needed dependencies from the top, as that will make integration testing easier.
 
