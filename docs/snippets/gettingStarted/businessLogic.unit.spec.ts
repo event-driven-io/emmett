@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import { describe, it } from 'node:test';
-import { v4 as uuid } from 'uuid';
 import { decide } from './businessLogic';
 import { evolve, getInitialState } from './shoppingCart';
 
 // #region getting-started-unit-tests
 import { DeciderSpecification } from '@event-driven-io/emmett';
+import { randomUUID } from 'node:crypto';
 import type { PricedProductItem } from './events';
 
 const given = DeciderSpecification.for({
@@ -100,14 +100,14 @@ describe('ShoppingCart', () => {
 
   const getRandomProduct = (): PricedProductItem => {
     return {
-      productId: uuid(),
+      productId: randomUUID(),
       unitPrice: Math.random() * 10,
       quantity: Math.random() * 10,
     };
   };
   const oldTime = new Date();
   const now = new Date();
-  const shoppingCartId = uuid();
+  const shoppingCartId = randomUUID();
 
   const productItem = getRandomProduct();
 });

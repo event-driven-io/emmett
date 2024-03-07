@@ -8,7 +8,6 @@ import { type Application } from 'express';
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 import request from 'supertest';
-import { v4 as uuid } from 'uuid';
 import { getApplication } from '../..';
 import { HeaderNames, toWeakETag } from '../../etag';
 import {
@@ -20,6 +19,7 @@ import {
 import { shoppingCartApi } from './api';
 import { ShoppingCartErrors } from './businessLogic';
 import type { ShoppingCartEvent } from './shoppingCart';
+import { randomUUID } from 'node:crypto';
 
 describe('Application logic with optimistic concurrency', () => {
   let app: Application;
@@ -31,7 +31,7 @@ describe('Application logic with optimistic concurrency', () => {
   });
 
   it('Should handle requests correctly', async () => {
-    const clientId = uuid();
+    const clientId = randomUUID();
     ///////////////////////////////////////////////////
     // 1. Open Shopping Cart
     ///////////////////////////////////////////////////

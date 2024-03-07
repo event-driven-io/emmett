@@ -6,8 +6,8 @@ import {
 } from '@event-driven-io/emmett';
 import { type FastifyInstance } from 'fastify';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it } from 'node:test';
-import { v4 as uuid } from 'uuid';
 import { getApplication } from '../..';
 import { RegisterRoutes } from './api';
 import { ShoppingCartErrors } from './businessLogic';
@@ -23,7 +23,7 @@ describe('Application logic with optimistic concurrency using Fastify', () => {
   });
 
   it('Should handle requests correctly', async () => {
-    const clientId = uuid();
+    const clientId = randomUUID();
     ///////////////////////////////////////////////////
     // 1. Open Shopping Cart
     ///////////////////////////////////////////////////
