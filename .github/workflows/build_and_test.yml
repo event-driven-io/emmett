@@ -36,7 +36,7 @@ jobs:
         run: npm ci
 
       - name: Run linting (ESlint and Prettier)
-        run: npm run lint --ws
+        run: npm run lint
 
       - name: Build
         run: npm run build -ws
