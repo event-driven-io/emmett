@@ -1,32 +1,9 @@
 {
   "extends": "./tsconfig.shared.json",
-  "include": ["docs/**/*.ts", "./tsup.config.ts"],
+  "include": ["./packages/**/*.ts", "./docs/**/*.ts", "./tsup.config.ts"],
   "exclude": ["node_modules", "tmp"],
   "files": [],
   "compilerOptions": {
-    "noEmit": true /* Do not emit outputs. */,
-    "paths": {
-      "@event-driven-io/emmett": ["./packages/emmett/src"],
-      "@event-driven-io/emmett-expressjs": ["./packages/emmett-expressjs/src"],
-      "@event-driven-io/emmett-esdb": ["./packages/emmett-esdb/src"],
-      "@event-driven-io/emmett-fastify": ["./packages/emmett-fastify/src"]
-    }
-  },
-  "references": [
-    {
-      "path": "./packages/emmett/"
-    },
-    {
-      "path": "./packages/emmett-testcontainers/"
-    },
-    {
-      "path": "./packages/emmett-esdb/"
-    },
-    {
-      "path": "./packages/emmett-expressjs/"
-    },
-    {
-      "path": "./packages/emmett-fastify/"
-    }
-  ]
+    "noEmit": true /* Do not emit outputs. */
+  }
 }

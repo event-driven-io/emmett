@@ -63,8 +63,6 @@ export const setETag = (response: Response, etag: ETag): void => {
 };
 
 export const getETagValueFromIfMatch = (request: Request): string => {
-  // TODO: https://github.com/event-driven-io/emmett/issues/18
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const eTagValue: ETag = getETagFromIfMatch(request);
 
   return isWeakETag(eTagValue)
