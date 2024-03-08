@@ -6,13 +6,13 @@ import {
   type Decider,
 } from '@event-driven-io/emmett';
 import {
-  PricedProductItem,
-  ProductItemAddedToShoppingCart,
-  ProductItemRemovedFromShoppingCart,
-  ShoppingCart,
-  ShoppingCartCancelled,
-  ShoppingCartConfirmed,
-  ShoppingCartEvent,
+  type PricedProductItem,
+  type ProductItemAddedToShoppingCart,
+  type ProductItemRemovedFromShoppingCart,
+  type ShoppingCart,
+  type ShoppingCartCancelled,
+  type ShoppingCartConfirmed,
+  type ShoppingCartEvent,
   evolve,
   getInitialState,
 } from './shoppingCart';
