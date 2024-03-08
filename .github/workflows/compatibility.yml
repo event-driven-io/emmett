@@ -1,4 +1,4 @@
-name: Build and test
+name: Test Compatibility with ESM
 
 on:
   # run it on push to the default repository branch
