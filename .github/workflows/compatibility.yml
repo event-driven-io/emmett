@@ -33,16 +33,27 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        working-directory: ./e2e/esmCompatibility
         run: npm ci
+
+      - name: Build
+        run: npm run build
 
       - name: Pack Emmett locally
         shell: bash
         run: echo "PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq -r '.[] | .filename')" >> $GITHUB_ENV
 
-      - name: Test
-        run: echo ${{ env.PACKAGE_FILENAME }}
+      - name: Install tar file
+        working-directory: ./e2e/esmCompatibility
+        run: npm install ${{ env.PACKAGE_FILENAME }}
+
+      - name: Install
+        working-directory: ./e2e/esmCompatibility
+        run: npm install
+
+      - name: Build 1
+        working-directory: ./e2e/esmCompatibility
+        run: npm run generate
 
       - name: Build
         working-directory: ./e2e/esmCompatibility
-        run: npm run generate 2> tmp.txt && cat tmp.txt | grep -vqz ERROR & exit 1
+        run: npm run generate 2> tmp.txt && cat tmp.txt |  grep -q "\[ERROR\]" && (echo "::error ::[ERROR] found, failing the step." && false) || echo "No errors found, proceeding..."
