@@ -15,3 +15,5 @@ lib/*
 /src/types/
 
 !.eslintrc.js
+
+e2e/*
