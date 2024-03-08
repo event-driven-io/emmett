@@ -1,0 +1,47 @@
+name: Build and test
+
+on:
+  # run it on push to the default repository branch
+  push:
+    branches: [main]
+  # run it during pull request
+  pull_request:
+
+jobs:
+  build-and-test-compatibility:
+    name: Build application code
+    # use system defined below in the tests matrix
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # define the test matrix
+      matrix:
+        # selected operation systems to run CI
+        os: [ubuntu-latest] #, windows-latest, macos-latest]
+        # selected node version to run CI
+        node-version: [20.11.1]
+
+    steps:
+      - name: Check Out Repo
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          # use the node version defined in matrix above
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Pack Emmett locally
+        run: echo "npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq '.[] | .filename" >> $PACKAGE_FILENAME
+
+      - name: Test
+        run: echo $PACKAGE_FILENAME
+
+      - name: Install dependencies
+        working-directory: ./e2e/esmCompatibility
+        run: npm ci
+
+      - name: Build TS
+        working-directory: ./e2e/esmCompatibility
+        run: npm run build
