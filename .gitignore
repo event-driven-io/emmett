@@ -121,3 +121,5 @@ docs/.vitepress/cache
 lib
 
 .DS_Store
+*/.output
+e2e/esmCompatibility/.output

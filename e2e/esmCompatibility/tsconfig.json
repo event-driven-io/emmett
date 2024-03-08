@@ -1,22 +1,4 @@
 {
-  "compilerOptions": {
-    "forceConsistentCasingInFileNames": true,
-    "jsx": "preserve",
-    "jsxImportSource": "vue",
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "skipLibCheck": true,
-    "isolatedModules": true,
-    "useDefineForClassFields": true,
-    "strict": true,
-    "noImplicitThis": true,
-    "esModuleInterop": true,
-    "types": ["node"],
-    "verbatimModuleSyntax": true,
-    "allowJs": true,
-    "noEmit": true,
-    "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true
-  }
+  // https://v3.nuxtjs.org/concepts/typescript
+  "extends": "./.nuxt/tsconfig.json"
 }

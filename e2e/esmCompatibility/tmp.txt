@@ -1,0 +1,32 @@
+
+[90m[[90m1:08:05 PM[90m][39m [41m[30m ERROR [39m[49m [nuxt] [request error] [unhandled] [500] Named export 'CommandHandler' not found. The requested module 'file:///home/oskar/Repos/emmett/e2e/esmCompatibility/node_modules/@event-driven-io/emmett/dist/index.js' is a CommonJS module, which may not support all module.exports as named exports.
+CommonJS modules can always be imported via the default export, for example using:
+
+import pkg from 'file:///home/oskar/Repos/emmett/e2e/esmCompatibility/node_modules/@event-driven-io/emmett/dist/index.js';
+const { CommandHandler, getInMemoryEventStore } = pkg;
+
+  at ModuleJob._instantiate (node:internal/modules/esm/module_job:132:21)  
+  at async ModuleJob.run (node:internal/modules/esm/module_job:214:5)  
+  at async ModuleLoader.import (node:internal/modules/esm/loader:329:24)  
+  at async Object.handler (./node_modules/h3/dist/index.mjs:1962:19)  
+  at async toNodeHandle (./node_modules/h3/dist/index.mjs:2249:7)  
+  at async ufetch (./node_modules/unenv/runtime/fetch/index.mjs:9:17)  
+  at async $fetchRaw2 (./node_modules/ofetch/dist/shared/ofetch.00501375.mjs:219:26)  
+  at async $fetch2 (./node_modules/ofetch/dist/shared/ofetch.00501375.mjs:261:15)
+
+
+[90m[[90m1:08:05 PM[90m][39m [41m[30m ERROR [39m[49m [nuxt] [request error] [unhandled] [500] Named export 'CommandHandler' not found. The requested module 'file:///home/oskar/Repos/emmett/e2e/esmCompatibility/node_modules/@event-driven-io/emmett/dist/index.js' is a CommonJS module, which may not support all module.exports as named exports.
+CommonJS modules can always be imported via the default export, for example using:
+
+import pkg from 'file:///home/oskar/Repos/emmett/e2e/esmCompatibility/node_modules/@event-driven-io/emmett/dist/index.js';
+const { CommandHandler, getInMemoryEventStore } = pkg;
+
+  at ModuleJob._instantiate (node:internal/modules/esm/module_job:132:21)  
+  at async ModuleJob.run (node:internal/modules/esm/module_job:214:5)  
+  at async ModuleLoader.import (node:internal/modules/esm/loader:329:24)  
+  at async Object.handler (./node_modules/h3/dist/index.mjs:1962:19)  
+  at async toNodeHandle (./node_modules/h3/dist/index.mjs:2249:7)  
+  at async ufetch (./node_modules/unenv/runtime/fetch/index.mjs:9:17)  
+  at async $fetchRaw2 (./node_modules/ofetch/dist/shared/ofetch.00501375.mjs:219:26)  
+  at async $fetch2 (./node_modules/ofetch/dist/shared/ofetch.00501375.mjs:261:15)
+

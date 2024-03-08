@@ -1,19 +1,16 @@
 {
-  "name": "esmcompatibility",
-  "version": "1.0.0",
-  "description": "Testing Emmett Compatibility",
-  "main": "index.js",
-  "scripts": {
-    "build": "tsc -b"
-  },
-  "author": "",
-  "license": "ISC",
+  "private": true,
   "type": "module",
-  "devDependencies": {
-    "@types/node": "^20.11.25",
-    "typescript": "^5.4.2"
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "HOST=0.0.0.0 nuxt dev",
+    "generate": "nuxt generate --fail-on-error",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
   },
   "dependencies": {
-    "@event-driven-io/emmett": "0.5.0"
+    "@event-driven-io/emmett": "^0.5.1",
+    "nuxt": "^3.10.3",
+    "ts-pattern": "^5.0.8"
   }
 }

@@ -32,6 +32,10 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
+      - name: Install dependencies
+        working-directory: ./e2e/esmCompatibility
+        run: npm ci
+
       - name: Pack Emmett locally
         shell: bash
         run: echo "PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq -r '.[] | .filename')" >> $GITHUB_ENV
@@ -39,10 +43,6 @@ jobs:
       - name: Test
         run: echo ${{ env.PACKAGE_FILENAME }}
 
-      - name: Install dependencies
+      - name: Build
         working-directory: ./e2e/esmCompatibility
-        run: npm ci
-
-      - name: Build TS
-        working-directory: ./e2e/esmCompatibility
-        run: npm run build
+        run: npm run generate 2> tmp.txt && cat tmp.txt | grep -vqz ERROR & exit 1
