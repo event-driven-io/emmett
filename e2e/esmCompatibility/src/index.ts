@@ -1,7 +1,7 @@
 import { CommandHandler, getInMemoryEventStore } from '@event-driven-io/emmett';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import {
-  AddProductItemToShoppingCart,
+  type AddProductItemToShoppingCart,
   addProductItem,
 } from './shoppingCart/businessLogic';
 import { evolve, getInitialState } from './shoppingCart/shoppingCart';

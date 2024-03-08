@@ -4,7 +4,7 @@
   "description": "Testing Emmett Compatibility",
   "main": "index.js",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc -b"
   },
   "author": "",
   "license": "ISC",
