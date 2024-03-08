@@ -46,3 +46,29 @@ jobs:
 
       - name: Test
         run: npm run test
+
+      - name: Pack Emmett locally to tar file
+        shell: bash
+        run: echo "PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq -r '.[] | .filename')" >> $GITHUB_ENV
+
+      - name: Use it in the compatibility test project
+        working-directory: ./e2e/esmCompatibility
+        run: npm install ${{ env.PACKAGE_FILENAME }}
+
+      - name: Install packages in the compatibility test project
+        working-directory: ./e2e/esmCompatibility
+        run: npm install
+
+      - name: Build the compatibility test project
+        working-directory: ./e2e/esmCompatibility
+        run: npm run generate
+
+      - name: Build the compatibility test project final
+        working-directory: ./e2e/esmCompatibility
+        shell: bash
+        run: |
+          if npm run generate 2> tmp.txt && cat tmp.txt | grep -iqF '[request error]'; then
+            echo "Errors found, failing the step." && exit 1
+          else
+            echo "No errors found, proceeding..."
+          fi
