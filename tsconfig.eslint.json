@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.shared.json",
   "include": ["./packages/**/*.ts", "./docs/**/*.ts", "./tsup.config.ts"],
-  "exclude": ["node_modules", "tmp"],
+  "exclude": ["node_modules", "tmp", "e2e"],
   "files": [],
   "compilerOptions": {
     "noEmit": true /* Do not emit outputs. */
