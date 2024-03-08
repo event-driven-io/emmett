@@ -59,10 +59,6 @@ jobs:
         working-directory: ./e2e/esmCompatibility
         run: npm install
 
-      - name: Build the compatibility test project
-        working-directory: ./e2e/esmCompatibility
-        run: npm run generate
-
       - name: Build the compatibility test project final
         working-directory: ./e2e/esmCompatibility
         shell: bash
