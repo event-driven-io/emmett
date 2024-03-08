@@ -33,10 +33,11 @@ jobs:
           cache: 'npm'
 
       - name: Pack Emmett locally
-        run: echo "npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq '.[] | .filename" >> $PACKAGE_FILENAME
+        shell: bash
+        run: echo "PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq -r '.[] | .filename')" >> $GITHUB_ENV
 
       - name: Test
-        run: echo $PACKAGE_FILENAME
+        run: echo ${{ env.PACKAGE_FILENAME }}
 
       - name: Install dependencies
         working-directory: ./e2e/esmCompatibility
