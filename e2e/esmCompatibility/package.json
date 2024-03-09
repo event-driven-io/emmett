@@ -9,7 +9,7 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
-    "@event-driven-io/emmett": "file:event-driven-io-emmett-0.5.1.tgz",
+    "@event-driven-io/emmett": "0.5.1",
     "nuxt": "^3.10.3",
     "ts-pattern": "^5.0.8"
   }
