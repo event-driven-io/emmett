@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: |
           if npm run generate 2>&1 | grep -iF '[request error]'; then
-            echo "Errors found, failing the step."
+            echo "Errors found, failing the step." && exit 1
           else
             echo "No errors found, proceeding..."
           fi
