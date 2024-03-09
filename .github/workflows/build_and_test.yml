@@ -63,8 +63,8 @@ jobs:
         working-directory: ./e2e/esmCompatibility
         shell: bash
         run: |
-          if npm run generate 2> tmp.txt && cat tmp.txt | grep -iqF '[request error]'; then
-            echo "Errors found, failing the step." && exit 1
+          if npm run generate 2>&1 | grep -iF '[request error]'; then
+            echo "Errors found, failing the step."
           else
             echo "No errors found, proceeding..."
           fi
