@@ -67,3 +67,11 @@ Because I'm unsure how this will end, and I don't want to expose it as an MIT li
 💖 If you'd like this initiative or want to use it potentially. Feel invited you **join** the group of my 👉 [Github Sponsors](https://github.com/sponsors/oskardudycz).
 
 GitHub ⭐'s won't pay the bills, so any help is more than welcome!
+
+## Contributing
+
+Feel invited to contribute to Emmett. Check details in [contributing guide](CONTRIBUTING.md).
+
+## Code of Conduct
+
+This project has adopted the code of conduct defined by the [Contributor Covenant](http://contributor-covenant.org/) to clarify expected behavior in our community.
