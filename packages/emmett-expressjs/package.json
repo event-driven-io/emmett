@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/emmett-expressjs",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "build": "tsup",
@@ -49,7 +49,7 @@
   "devDependencies": {},
   "peerDependencies": {
     "express": "4.18.2",
-    "@event-driven-io/emmett": "0.5.3",
+    "@event-driven-io/emmett": "0.5.4",
     "@types/supertest": "6.0.2",
     "express-async-errors": "3.1.1",
     "http-problem-details": "0.1.5",
