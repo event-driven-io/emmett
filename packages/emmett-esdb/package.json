@@ -45,11 +45,12 @@
   "files": [
     "dist"
   ],
-  "dependencies": {
-    "@event-driven-io/emmett": "0.5.0",
-    "@eventstore/db-client": "^6.1.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@event-driven-io/emmett-testcontainers": "^0.5.0"
+  },
+  "peerDependencies": {
+    "@event-driven-io/emmett": "0.5.3",
+    "@eventstore/db-client": "^6.1.0"
   }
 }
