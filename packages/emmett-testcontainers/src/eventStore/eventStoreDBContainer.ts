@@ -65,9 +65,7 @@ export class StartedEventStoreDBContainer extends AbstractStartedContainer {
   }
 
   getConnectionString(): string {
-    return `esdb://${this.getHost()}:${this.getMappedPort(
-      2113,
-    )}?tls=false&throwOnAppendFailure=false`;
+    return `esdb://${this.getHost()}:${this.getMappedPort(2113)}?tls=false`;
   }
 
   getClient(): EventStoreDBClient {
