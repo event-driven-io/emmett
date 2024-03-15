@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/core",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Emmett - Event Sourcing development made simple",
   "engines": {
     "node": ">=20.11.1"
@@ -61,9 +61,7 @@
   ],
   "devDependencies": {
     "@faker-js/faker": "8.4.1",
-    "@types/express": "4.17.21",
     "@types/node": "20.11.17",
-    "@types/supertest": "6.0.2",
     "@typescript-eslint/eslint-plugin": "6.21.0",
     "@typescript-eslint/parser": "6.21.0",
     "eslint": "8.56.0",
@@ -72,13 +70,17 @@
     "glob": "10.3.10",
     "npm-run-all2": "6.1.2",
     "prettier": "3.2.5",
-    "supertest": "6.3.4",
     "ts-node": "10.9.2",
     "tsconfig-paths": "4.2.0",
     "tsup": "8.0.2",
     "tsx": "4.7.1",
     "typescript": "5.3.3",
     "vitepress": "1.0.0-rc.42"
+  },
+  "peerDependencies": {
+    "@types/express": "4.17.21",
+    "@types/supertest": "6.0.2",
+    "supertest": "6.3.4"
   },
   "workspaces": [
     "packages/emmett",
