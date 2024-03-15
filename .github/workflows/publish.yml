@@ -11,14 +11,15 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: lts
+          node-version: 20.11.1
+          registry-url: 'https://registry.npmjs.org'
           cache: npm # or pnpm / ya
 
       - name: Install dependencies
         run: npm ci
 
       - name: Build
-        run: npm run build -ws
+        run: npm run build
         env:
           NODE_ENV: production
 
@@ -26,7 +27,7 @@ jobs:
         run: npm config set access public
 
       - name: Publish package on NPM 📦
-        run: npm publish
+        run: npm publish --ws
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_ENV: production
