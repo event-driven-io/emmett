@@ -4,8 +4,16 @@ on:
   # run it on push to the default repository branch
   push:
     branches: [main]
+    paths:
+      - "src/**"
+      - "!src/docs/**"
+      - "!src/.vscode/**"
   # run it during pull request
   pull_request:
+    paths:
+      - "src/**"
+      - "!src/docs/**"
+      - "!src/.vscode/**"
 
 defaults:
   run:
