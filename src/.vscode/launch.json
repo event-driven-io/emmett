@@ -13,7 +13,7 @@
     Path to tsx binary
     Assuming locally installed
     */
-      "runtimeExecutable": "${workspaceFolder}/src/node_modules/.bin/tsx",
+      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
 
       /*
     Open terminal when debugging starts (Optional)
@@ -28,7 +28,7 @@
         "<node_internals>/**",
 
         // Ignore all dependencies (optional)
-        "${workspaceFolder}/src/node_modules/**"
+        "${workspaceFolder}/node_modules/**"
       ]
     },
     {
@@ -40,7 +40,7 @@
       "runtimeArgs": ["run-script", "test", "--inspect-brk=9229"], // Use --inspect-brk for debugging
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
-      "cwd": "${workspaceFolder}/src/",
+      "cwd": "${workspaceFolder}",
       "sourceMaps": true
     }
   ]
