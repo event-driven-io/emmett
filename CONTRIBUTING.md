@@ -44,13 +44,45 @@ Available [here](https://docs.docker.com/engine/install/).
 
 You are now ready to contribute to Emmett.
 
-### 3. Build project
+### 3. Setup dev environment
+
+You can streamling setup by running setup script:
+
+- For Linux and MacOS
+
+```shell
+./setup.sh
+```
+
+- For Windows
+
+```shell
+.\buildScript.ps1
+```
+
+Or perform manual steps
+
+### 3.1. Go to source codes
+
+Source codes are located under [./src/](./src/) folder.
+
+```shell
+cd src
+```
+
+### 3.2. Install packages
+
+```shell
+npm install
+```
+
+### 3.3 Build project
 
 ```shell
 npm run build
 ```
 
-### 4. Run tests
+### 3.4. Run tests
 
 ```shell
 npm run test
@@ -60,17 +92,19 @@ If any of those steps didn't work for you, please contact us on [Discord channel
 
 ## Project structure
 
-Emmett is using [NPM Workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces). Projects are located under [packages](./packages) folder.
+Emmett is using [NPM Workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces).
 
-For documentation Emmett is using [Vitepress](https://vitepress.dev). Documentation is located under [docs](./docs/) folder.
+The source codes are located in [src](./src/) folder. Packages are nested under [./src/packages](./src/packages) folder.
 
-To build documentation locally, run:
+For documentation Emmett is using [Vitepress](https://vitepress.dev). Documentation is located under [./src/docs](./src/docs/) folder.
+
+To build documentation locally, run in `src` folder:
 
 ```shell
 npm run docs:dev
 ```
 
-See also other helpful scripts in [package.json](./package.json).
+See also other helpful scripts in [./src/package.json](./src/package.json).
 
 ## Working with the Git
 
@@ -82,7 +116,7 @@ See also other helpful scripts in [package.json](./package.json).
 
 ## Code style
 
-Emmett is using the recommended [TypeScript](tsconfig.shared.json), [ESLint](.eslintrc.json) and [Prettier](.prettierrc.json) coding style configurations. They should be supported by all popular IDE (eg. Visual Studio Code, WebStorm) so if you didn't disabled it manually they should be automatically applied after opening the solution. We also recommend turning automatic formatting on saving to have all the rules applied.
+Emmett is using the recommended [TypeScript](./src/tsconfig.shared.json), [ESLint](./src/.eslintrc.json) and [Prettier](./src/.prettierrc.json) coding style configurations. They should be supported by all popular IDE (eg. Visual Studio Code, WebStorm) so if you didn't disabled it manually they should be automatically applied after opening the solution. We also recommend turning automatic formatting on saving to have all the rules applied.
 
 ## Licensing and legal rights
 

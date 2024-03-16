@@ -1,6 +1,10 @@
 name: Publish to NPM
 on: [workflow_dispatch]
 
+defaults:
+  run:
+    working-directory: src
+
 jobs:
   build:
     runs-on: ubuntu-latest

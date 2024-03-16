@@ -7,6 +7,10 @@ on:
   # run it during pull request
   pull_request:
 
+defaults:
+  run:
+    working-directory: src
+
 jobs:
   build-and-test-code:
     name: Build application code
