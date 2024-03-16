@@ -40,9 +40,9 @@ jobs:
       # - uses: oven-sh/setup-bun@v1 # Uncomment this if you're using Bun
       - name: Setup Node
         uses: actions/setup-node@v4
-        with:
-          node-version: 20.11.1
-          cache: npm # or pnpm / yarn
+          node-version-file: ./src/.nvmrc
+          cache: "npm"
+          cache-dependency-path: "./src/package-lock.json"
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Install dependencies
