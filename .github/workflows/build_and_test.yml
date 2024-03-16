@@ -8,12 +8,16 @@ on:
       - "src/**"
       - "!src/docs/**"
       - "!src/.vscode/**"
+
   # run it during pull request
   pull_request:
     paths:
       - "src/**"
       - "!src/docs/**"
       - "!src/.vscode/**"
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
 
 defaults:
   run:
