@@ -124,3 +124,4 @@ lib
 .DS_Store
 */.output
 e2e/esmCompatibility/.output
+src/e2e/esmCompatibility/.output
