@@ -9,32 +9,25 @@ on:
 
 defaults:
   run:
-    working-directory: src
+    working-directory: ./src
 
 jobs:
   build-and-test-code:
     name: Build application code
     # use system defined below in the tests matrix
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      # define the test matrix
-      matrix:
-        # selected operation systems to run CI
-        os: [ubuntu-latest] #, windows-latest, macos-latest]
-        # selected node version to run CI
-        node-version: [20.11.1]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Check Out Repo
         uses: actions/checkout@v4
 
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Use Node.js
         uses: actions/setup-node@v4
         with:
           # use the node version defined in matrix above
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          node-version-file: ./src/.nvmrc
+          cache: "npm"
+          cache-dependency-path: "./src/package-lock.json"
 
       - name: Install dependencies
         run: npm ci
