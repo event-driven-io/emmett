@@ -49,15 +49,15 @@ jobs:
         run: echo "PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq -r '.[] | .filename')" >> $GITHUB_ENV
 
       - name: Use it in the compatibility test project
-        working-directory: ./e2e/esmCompatibility
+        working-directory: ./src/e2e/esmCompatibility
         run: npm install ${{ env.PACKAGE_FILENAME }}
 
       - name: Install packages in the compatibility test project
-        working-directory: ./e2e/esmCompatibility
+        working-directory: ./src/e2e/esmCompatibility
         run: npm install
 
       - name: Build the compatibility test project final
-        working-directory: ./e2e/esmCompatibility
+        working-directory: ./src/e2e/esmCompatibility
         shell: bash
         run: |
           if npm run generate 2>&1 | grep -iF '[request error]'; then
