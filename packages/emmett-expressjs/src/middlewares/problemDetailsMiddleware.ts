@@ -1,4 +1,4 @@
-import { EmmettError } from '@event-driven-io/emmett';
+import { isNumber } from '@event-driven-io/emmett';
 import type { NextFunction, Request, Response } from 'express';
 import { ProblemDocument } from 'http-problem-details';
 import { sendProblem, type ErrorToProblemDetailsMapping } from '..';
@@ -26,7 +26,12 @@ export const defaulErrorToProblemDetailsMapping = (
 ): ProblemDocument => {
   let statusCode = 500;
 
-  if (error instanceof EmmettError) {
+  if (
+    'errorCode' in error &&
+    isNumber(error.errorCode) &&
+    error.errorCode >= 100 &&
+    error.errorCode < 600
+  ) {
     statusCode = error.errorCode;
   }
 
