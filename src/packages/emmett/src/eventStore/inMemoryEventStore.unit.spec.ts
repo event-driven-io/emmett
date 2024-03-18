@@ -7,5 +7,5 @@ import { testAggregateStream } from '../testing';
 
 describe('InMemoryEventStore', () => {
   const eventStore = getInMemoryEventStore();
-  testAggregateStream(eventStore);
+  testAggregateStream(() => Promise.resolve(eventStore));
 });

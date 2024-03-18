@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import assert from 'node:assert';
 import { randomUUID } from 'node:crypto';
-import { describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import type { EventStore } from '../eventStore';
 import {
   evolve,
@@ -12,20 +12,29 @@ import {
 
 type TestOptions = {
   getInitialIndex: () => bigint;
+  teardownHook?: () => Promise<void>;
 };
 
-export type EventStoreFactory = () => Promise<{
-  eventStore: EventStore<bigint>;
-  tearDown?: () => Promise<void>;
-}>;
+export type EventStoreFactory = () => Promise<EventStore<bigint>>;
 
 export async function testAggregateStream(
-  eventStore: EventStore,
+  eventStoreFactory: EventStoreFactory,
   options: TestOptions = {
     getInitialIndex: () => 1n,
   },
 ) {
   return describe('aggregateStream', () => {
+    let eventStore: EventStore<bigint>;
+
+    before(async () => {
+      eventStore = await eventStoreFactory();
+    });
+
+    after(async () => {
+      const teardownHook = options.teardownHook;
+      if (teardownHook) await teardownHook();
+    });
+
     it('When called with `to` allows time traveling', async () => {
       // Given
       const productItem: PricedProductItem = {
