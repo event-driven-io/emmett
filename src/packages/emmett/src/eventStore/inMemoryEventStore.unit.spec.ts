@@ -3,55 +3,20 @@ import assert from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
 import { getInMemoryEventStore } from '../eventStore';
-import { type Event } from '../typing';
+import {
+  evolve,
+  getInitialState,
+  type PricedProductItem,
+  type ShoppingCartEvent,
+} from '../testing/shoppingCart.domain';
 
 // Events & Entity
-
-type PricedProductItem = { productId: string; quantity: number; price: number };
-
-type ShoppingCart = {
-  productItems: PricedProductItem[];
-  totalAmount: number;
-};
-
-type ProductItemAdded = Event<
-  'ProductItemAdded',
-  { productItem: PricedProductItem }
->;
-type DiscountApplied = Event<'DiscountApplied', { percent: number }>;
-
-type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
-
-const evolve = (
-  state: ShoppingCart,
-  { type, data }: ShoppingCartEvent,
-): ShoppingCart => {
-  switch (type) {
-    case 'ProductItemAdded': {
-      const productItem = data.productItem;
-      return {
-        productItems: [...state.productItems, productItem],
-        totalAmount:
-          state.totalAmount + productItem.price * productItem.quantity,
-      };
-    }
-    case 'DiscountApplied':
-      return {
-        ...state,
-        totalAmount: state.totalAmount * (1 - data.percent / 100),
-      };
-  }
-};
-
-const getInitialState = (): ShoppingCart => {
-  return { productItems: [], totalAmount: 0 };
-};
 
 describe('InMemoryEventStore', () => {
   const eventStore = getInMemoryEventStore();
 
   describe('aggregateStream', () => {
-    it('When called with `to` allows time travelling', async () => {
+    it('When called with `to` allows time traveling', async () => {
       // Given
       const productItem: PricedProductItem = {
         productId: '123',

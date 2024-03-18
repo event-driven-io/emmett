@@ -88,7 +88,7 @@ const handleCommand = CommandHandler<ShoppingCart, ShoppingCartEvent>(
 describe('Command Handler', () => {
   const eventStore = getInMemoryEventStore();
 
-  it('When called successfuly returns new state for a single returned event', async () => {
+  it('When called successfully returns new state for a single returned event', async () => {
     const productItem: PricedProductItem = {
       productId: '123',
       quantity: 10,
