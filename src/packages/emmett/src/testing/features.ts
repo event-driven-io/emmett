@@ -59,17 +59,17 @@ export async function testAggregateStream(
       const resultAt1 = await eventStore.aggregateStream(shoppingCartId, {
         evolve,
         getInitialState,
-        read: { to: options.getInitialIndex() },
+        read: { to: 1n },
       });
       const resultAt2 = await eventStore.aggregateStream(shoppingCartId, {
         evolve,
         getInitialState,
-        read: { to: options.getInitialIndex() + 1n },
+        read: { to: 2n },
       });
       const resultAt3 = await eventStore.aggregateStream(shoppingCartId, {
         evolve,
         getInitialState,
-        read: { to: options.getInitialIndex() + 2n },
+        read: { to: 3n },
       });
 
       // then
@@ -77,19 +77,25 @@ export async function testAggregateStream(
       assert.ok(resultAt2);
       assert.ok(resultAt3);
 
-      assert.equal(resultAt1.currentStreamVersion, 1);
+      assert.equal(resultAt1.currentStreamVersion, options.getInitialIndex());
       assert.deepEqual(resultAt1.state, {
         productItems: [productItem],
         totalAmount: 30,
       });
 
-      assert.equal(resultAt2.currentStreamVersion, 2);
+      assert.equal(
+        resultAt2.currentStreamVersion,
+        options.getInitialIndex() + 1n,
+      );
       assert.deepEqual(resultAt2.state, {
         productItems: [productItem, productItem],
         totalAmount: 60,
       });
 
-      assert.equal(resultAt3.currentStreamVersion, 3);
+      assert.equal(
+        resultAt3.currentStreamVersion,
+        options.getInitialIndex() + 2n,
+      );
       assert.deepEqual(resultAt3.state, {
         productItems: [productItem, productItem],
         totalAmount: 54,
