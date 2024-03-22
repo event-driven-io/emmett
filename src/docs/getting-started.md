@@ -348,11 +348,11 @@ Our application layer is thin; it's a vertical slice to which the entry point (p
 
 **Our slice has 3 ports that one can plug in:**
 
-1. WebApi endpoint, where the user can send a request (which will be translated to a command).
-2. `getUnitPrice` function that gets the product price. Depending on our design, it may represent a call to an external service (e.g. with HTTP), calling a database (e.g. read model) or just running some computation. We're also using it as an input to the command.
-3. Event store, from which we load events and store new facts.
+1. **WebApi endpoint**, where the user can send a request (which will be translated to a command).
+2. **`getUnitPrice` function** that gets the product price. Depending on our design, it may represent a call to an external service (e.g. with HTTP), calling a database (e.g. read model) or just running some computation. We're also using it as an input to the command.
+3. **Event store**, from which we load events and store new facts.
 
-We already made those dependencies explicit, allowing us to replace the real ones inside the tests. Also, as we know that we're doing Event Sourcing then, why not take advantage of that and write our tests in the following style:
+We already made those dependencies explicit, allowing us to replace the real ones in the tests. Also, as we know that we're doing Event Sourcing then, why not take advantage of that and write our tests in the following style:
 
 ::: tip
 
@@ -402,7 +402,7 @@ You may say:
 
 And we answer: sure, why not! We also give you help with that.
 
-Let's start by adding some flavour and use [EventStoreDB](https://developers.eventstore.com/) this time. We need to install two more packages. One for adding implementation of the EventStoreDB event store:
+Let's start by adding some flavour and use [EventStoreDB](https://developers.eventstore.com/) this time. We need to install two more packages. One for adding implementation of the [EventStoreDB](https://developers.eventstore.com/) event store:
 
 ::: code-group
 
@@ -424,9 +424,15 @@ $ bun add @event-driven-io/@event-driven-io/emmett-esdb
 
 :::
 
-As EventStoreDB is a real database, we need to set it up for our tests. The simplest option is to use a Docker container. You can do it in multiple ways, but the fastest can be using [TestContainers](https://node.testcontainers.org/). The library allows us to easily set up containers for our tests. It automatically randomise ports, helps in teardown etc.
+Now, we need to switch the in-memory implementation to [EventStoreDB](https://developers.eventstore.com/) in WebApi setup. Updated will look as follows:
 
-Emmett provides the package with additional test containers like the one for EventStoreDB. You need to install:
+<<< @/snippets/gettingStarted/webApi/apiSetupWithESDB.ts#getting-started-api-setup
+
+It's as simple as that; we're injecting just a different implementation.
+
+As [EventStoreDB](https://developers.eventstore.com/) is a real database, we need to set it up for our tests. The simplest option is to use a Docker container. You can do it in multiple ways, but the fastest can be using [TestContainers](https://node.testcontainers.org/). The library allows us to easily set up containers for our tests. It automatically randomise ports, helps in teardown etc.
+
+Emmett provides the package with additional test containers like the one for [EventStoreDB](https://developers.eventstore.com/). You need to install:
 
 ::: code-group
 
@@ -450,6 +456,8 @@ $ bun add @event-driven-io/@event-driven-io/emmett-testcontainers
 
 Having that, we can set our test container with:
 
+<<< @/snippets/gettingStarted/webApi/apiBDDE2EGiven.ts#test-container
+
 And create our test specification using the `ApiE2ESpecification` type:
 
 <<< @/snippets/gettingStarted/webApi/apiBDDE2EGiven.ts#given
@@ -461,3 +469,5 @@ The test will look [accordingly to the integration tests](#integration-testing),
 Complete tests will look like this:
 
 <<< @/snippets/gettingStarted/webApi/apiBDD.e2e.spec.ts#getting-started-e2e-tests
+
+Check also the [full sample in Emmett repository](https://github.com/event-driven-io/emmett/tree/main/samples/webApi/expressjs-with-esdb).
