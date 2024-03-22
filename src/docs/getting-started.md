@@ -267,7 +267,7 @@ That clearly explains what dependencies this API needs, and by reading the file,
 
 <<< @/snippets/gettingStarted/webApi/apiSetup.ts#getting-started-api-setup
 
-We're using the simplest option for this guide: an in-memory event store. For a real application, you'd need to use another, e.g. EventStoreDB implementation.
+We're using the simplest option for this guide: an in-memory event store. For a real application, you'd need to use another, e.g. [EventStoreDB](https://developers.eventstore.com/) implementation.
 
 Sounds like we have all the building blocks to define our API; let's do it!
 
@@ -384,7 +384,7 @@ Complete tests will look like this:
 
 You can use those tests as complementary to the business logic (e.g., testing the most important scenarios), or you may even replace unit tests with them. As they're in memory, they're fast enough to be run continuously.
 
-You can also replace the in-memory store with the real one (e.g. EventStoreDB) and test your module in isolation from other modules. The choice is yours!
+You can also replace the in-memory store with the real one (e.g. [EventStoreDB](https://developers.eventstore.com/)) and test your module in isolation from other modules. The choice is yours!
 
 Again, in Emmett, we don't want to force you to anything but give you options and the recommended safe path.
 
@@ -393,3 +393,71 @@ Again, in Emmett, we don't want to force you to anything but give you options an
 We encourage you to watch Martin Thwaites' talk ["Building Operable Software with TDD (but not the way you think)"](https://www.youtube.com/watch?v=prLRI3VEVq4). It nicely explains why we can now shift the balance from unit testing to integration testing.
 
 :::
+
+## End-to-End Testing
+
+You may say:
+
+> _Those tests are cool, but I'd like to either test business logic with unit tests or run my end-to-end tests treating the WebApi as a black box._
+
+And we answer: sure, why not! We also give you help with that.
+
+Let's start by adding some flavour and use [EventStoreDB](https://developers.eventstore.com/) this time. We need to install two more packages. One for adding implementation of the EventStoreDB event store:
+
+::: code-group
+
+```sh [npm]
+$ npm add @event-driven-io/@event-driven-io/emmett-esdb
+```
+
+```sh [pnpm]
+$ pnpm add @event-driven-io/@event-driven-io/emmett-esdb
+```
+
+```sh [yarn]
+$ yarn add @event-driven-io/@event-driven-io/emmett-esdb
+```
+
+```sh [bun]
+$ bun add @event-driven-io/@event-driven-io/emmett-esdb
+```
+
+:::
+
+As EventStoreDB is a real database, we need to set it up for our tests. The simplest option is to use a Docker container. You can do it in multiple ways, but the fastest can be using [TestContainers](). The library allows us to easily set up containers for our tests. It automatically randomise ports, helps in teardown etc.
+
+Emmett provides the package with additional test containers like the one for EventStoreDB. You need to install:
+
+::: code-group
+
+```sh [npm]
+$ npm add @event-driven-io/@event-driven-io/emmett-esdb
+```
+
+```sh [pnpm]
+$ pnpm add @event-driven-io/@event-driven-io/emmett-esdb
+```
+
+```sh [yarn]
+$ yarn add @event-driven-io/@event-driven-io/emmett-esdb
+```
+
+```sh [bun]
+$ bun add @event-driven-io/@event-driven-io/emmett-esdb
+```
+
+:::
+
+Having that, we can set our test container with:
+
+And create our test specification using the `ApiE2ESpecification` type:
+
+<<< @/snippets/gettingStarted/webApi/apiBDDE2EGiven.ts#given
+
+The test will look accordingly to the [integration one](#integration-testing), with the distinction that we also use HTTP requests for the setup. We're also checking only responses; we treat the WebApi as a black box.
+
+<<< @/snippets/gettingStarted/webApi/apiBDDE2ETest.ts#test
+
+Complete tests will look like this:
+
+<<< @/snippets/gettingStarted/webApi/apiBDD.e2e.spec.ts#getting-started-e2e-tests

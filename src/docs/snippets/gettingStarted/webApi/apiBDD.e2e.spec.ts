@@ -1,4 +1,10 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
+import { after, before, beforeEach, describe, it } from 'node:test';
+import type { PricedProductItem } from '../events';
+import { ShoppingCartStatus } from './shoppingCart';
+import { shoppingCartApi } from './simpleApi';
+
+// #region getting-started-e2e-tests
 import { type EventStore } from '@event-driven-io/emmett';
 import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import {
@@ -11,16 +17,9 @@ import {
   StartedEventStoreDBContainer,
 } from '@event-driven-io/emmett-testcontainers';
 import { randomUUID } from 'node:crypto';
-import { after, before, beforeEach, describe, it } from 'node:test';
-import type { PricedProductItem } from '../events';
-import { ShoppingCartStatus } from './shoppingCart';
-import { shoppingCartApi } from './simpleApi';
-
-const getUnitPrice = () => {
-  return Promise.resolve(100);
-};
 
 describe('ShoppingCart E2E', () => {
+  const unitPrice = 100;
   let clientId: string;
   let shoppingCartId: string;
   let esdbContainer: StartedEventStoreDBContainer;
@@ -33,7 +32,13 @@ describe('ShoppingCart E2E', () => {
       (): EventStore => getEventStoreDBEventStore(esdbContainer.getClient()),
       (eventStore: EventStore) =>
         getApplication({
-          apis: [shoppingCartApi(eventStore, getUnitPrice, () => now)],
+          apis: [
+            shoppingCartApi(
+              eventStore,
+              () => Promise.resolve(unitPrice),
+              () => now,
+            ),
+          ],
         }),
     );
   });
@@ -47,8 +52,20 @@ describe('ShoppingCart E2E', () => {
     return esdbContainer.stop();
   });
 
-  describe('When empty', () => {
-    it('should add product item', () => {
+  describe('When opened with product item', () => {
+    it('should confirm', () => {
+      return given((request) =>
+        request
+          .post(`/clients/${clientId}/shopping-carts/current/product-items`)
+          .send(productItem),
+      )
+        .when((request) =>
+          request.post(`/clients/${clientId}/shopping-carts/current/confirm`),
+        )
+        .then([expectResponse(204)]);
+    });
+
+    it('should return details', () => {
       return given((request) =>
         request
           .post(`/clients/${clientId}/shopping-carts/current/product-items`)
@@ -80,10 +97,12 @@ describe('ShoppingCart E2E', () => {
   const getRandomProduct = (): PricedProductItem => {
     return {
       productId: randomUUID(),
-      unitPrice: 100,
+      unitPrice: unitPrice,
       quantity: Math.random() * 10,
     };
   };
 
   const productItem = getRandomProduct();
 });
+
+// #endregion getting-started-e2e-tests
