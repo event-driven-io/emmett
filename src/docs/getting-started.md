@@ -325,3 +325,71 @@ Of course, we could make it even crisper and automagically do the request mappin
 **Emmett prefers composability over magical glue.** We believe that a healthy amount of copy-paste won't harm you. We target removability and segregation of the code and making things explicit that should be explicit.
 
 **Still, Emmett won't tell you how to live!** If you want to add more, feel free to do it. We want to give you basic building blocks and recommendations so you can build on top of that!
+
+## Integration Testing
+
+Cool, we now have API up and running. We even tested our [domain logic with unit tests](#unit-testing). That's great, but as you know, a lot can happen in the meantime. The request mapping or validation may fail; middlewares (like auth one) can say no. It'd be great to test it.
+
+There are many different shapes of Testing: [Pyramids](https://martinfowler.com/articles/practical-test-pyramid.html), [Honeycombs](https://engineering.atspotify.com/2018/01/testing-of-microservices/), [Thropies](https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications) etc. All of them share the goal of having them reliable and fast. However, agreeing on where the compromise is and where to put the biggest effort is, of course, challenging to agree.
+
+No matter what your preference is, Emmett has got you covered.
+
+**Let's say that you're a fan of [Hexagonal/Ports & Adapters Architecture](https://jmgarridopaz.github.io/content/hexagonalarchitecture.html) and you'd like to test the whole flow being able to replace dependencies (adapters) with in-memory implementations to have your tests running in-memory.** Such approaches have tradeoffs. The pros are that they run smoothly, allow a fast feedback loop, and run tests continuously. The downside is that they don't validate all integration scenarios with real tools. Don't worry, we'll cover that later!
+
+I heard that one picture could speak more than a thousand words, so let's look at this one:
+
+![hexagon](hexagon.png)
+
+**The picture shows the boundaries between the business logic and our application layer.**
+
+Our application layer is thin; it's a vertical slice to which the entry point (port) is the WebApi endpoint. Inside it, we can do additional stuff like getting product prices and mapping requests with additional data added to the command. We handle commands in the business logic that return event(s). We're storing them in the event store. This looks like that in the already known adding product to shopping cart code:
+
+<<< @/snippets/gettingStarted/webApi/addProductVerticalSlice.ts#vertical-slice
+
+**Our slice has 3 ports that one can plug in:**
+
+1. WebApi endpoint, where the user can send a request (which will be translated to a command).
+2. `getUnitPrice` function that gets the product price. Depending on our design, it may represent a call to an external service (e.g. with HTTP), calling a database (e.g. read model) or just running some computation. We're also using it as an input to the command.
+3. Event store, from which we load events and store new facts.
+
+We already made those dependencies explicit, allowing us to replace the real ones inside the tests. Also, as we know that we're doing Event Sourcing then, why not take advantage of that and write our tests in the following style:
+
+::: tip
+
+- **GIVEN** set of events recorded for the entity,
+- **WHEN** we run the web API request,
+- **THEN** we’re getting new event(s) as a result of business logic. Or the error status is returned with Problem Details.
+
+:::
+
+Let's start with defining our WebApi specification. We're using `ApiSpecification` class from `@event-driven-io/emmett-expressjs`.
+
+<<< @/snippets/gettingStarted/webApi/apiBDDIntGiven.ts#given
+
+We're also using the same [`getApplication` known from the previous steps](#application-setup). The only difference is that we replaced real dependencies with the in-memory ones. `ApiSpecification` uses internally [SuperTest package](https://www.npmjs.com/package/supertest). It allows straightforward testing of Express.js, e.g. it ensures that server starts in a random port and provides the helpers for building test requests, which we'll use in our tests.
+
+Having it, we can define our tests as:
+
+<<< @/snippets/gettingStarted/webApi/apiBDDIntTest.ts#test
+
+The test follows the similar Given/When/Then pattern as our unit tests but uses HTTP request to trigger the command handling and uses additional helpers to set up and verify data:
+
+- `exisitingStream` - allows you to specify the stream id and events existing in the stream. You can set more than one stream if your command handling logic requires that,
+- `expectResponse` - verifies the HTTP response with expected criteria like status code. You can also check the response body, headers, etc. For expected errors you can use `expectError` accordingly.
+- `expectEvents` - ensures that new events are appended to the specific streams in the event store.
+
+Complete tests will look like this:
+
+<<< @/snippets/gettingStarted/webApi/apiBDD.int.spec.ts#getting-started-integration-tests
+
+You can use those tests as complementary to the business logic (e.g., testing the most important scenarios), or you may even replace unit tests with them. As they're in memory, they're fast enough to be run continuously.
+
+You can also replace the in-memory store with the real one (e.g. EventStoreDB) and test your module in isolation from other modules. The choice is yours!
+
+Again, in Emmett, we don't want to force you to anything but give you options and the recommended safe path.
+
+::: tip
+
+We encourage you to watch Martin Thwaites' talk ["Building Operable Software with TDD (but not the way you think)"](https://www.youtube.com/watch?v=prLRI3VEVq4). It nicely explains why we can now shift the balance from unit testing to integration testing.
+
+:::
