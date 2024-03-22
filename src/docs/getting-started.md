@@ -338,7 +338,7 @@ No matter what your preference is, Emmett has got you covered.
 
 I heard that one picture could speak more than a thousand words, so let's look at this one:
 
-![hexagon](hexagon.png)
+![hexagon](/hexagon.png)
 
 **The picture shows the boundaries between the business logic and our application layer.**
 
@@ -424,26 +424,26 @@ $ bun add @event-driven-io/@event-driven-io/emmett-esdb
 
 :::
 
-As EventStoreDB is a real database, we need to set it up for our tests. The simplest option is to use a Docker container. You can do it in multiple ways, but the fastest can be using [TestContainers](). The library allows us to easily set up containers for our tests. It automatically randomise ports, helps in teardown etc.
+As EventStoreDB is a real database, we need to set it up for our tests. The simplest option is to use a Docker container. You can do it in multiple ways, but the fastest can be using [TestContainers](https://node.testcontainers.org/). The library allows us to easily set up containers for our tests. It automatically randomise ports, helps in teardown etc.
 
 Emmett provides the package with additional test containers like the one for EventStoreDB. You need to install:
 
 ::: code-group
 
 ```sh [npm]
-$ npm add @event-driven-io/@event-driven-io/emmett-esdb
+$ npm add @event-driven-io/@event-driven-io/emmett-testcontainers
 ```
 
 ```sh [pnpm]
-$ pnpm add @event-driven-io/@event-driven-io/emmett-esdb
+$ pnpm add @event-driven-io/@event-driven-io/emmett-testcontainers
 ```
 
 ```sh [yarn]
-$ yarn add @event-driven-io/@event-driven-io/emmett-esdb
+$ yarn add @event-driven-io/@event-driven-io/emmett-testcontainers
 ```
 
 ```sh [bun]
-$ bun add @event-driven-io/@event-driven-io/emmett-esdb
+$ bun add @event-driven-io/@event-driven-io/emmett-testcontainers
 ```
 
 :::
@@ -454,7 +454,7 @@ And create our test specification using the `ApiE2ESpecification` type:
 
 <<< @/snippets/gettingStarted/webApi/apiBDDE2EGiven.ts#given
 
-The test will look accordingly to the [integration one](#integration-testing), with the distinction that we also use HTTP requests for the setup. We're also checking only responses; we treat the WebApi as a black box.
+The test will look [accordingly to the integration tests](#integration-testing), with the distinction that we also use HTTP requests for the setup. We're also checking only responses; we treat the WebApi as a black box.
 
 <<< @/snippets/gettingStarted/webApi/apiBDDE2ETest.ts#test
 
