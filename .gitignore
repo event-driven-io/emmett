@@ -117,8 +117,8 @@ dist
 .pnp.*
 
 # vitepress
-docs/.vitepress/dist
-docs/.vitepress/cache
+src/docs/.vitepress/dist
+src/docs/.vitepress/cache
 lib
 
 .DS_Store

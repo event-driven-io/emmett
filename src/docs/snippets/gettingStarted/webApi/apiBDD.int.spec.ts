@@ -1,4 +1,8 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
+import { beforeEach, describe, it } from 'node:test';
+import type { PricedProductItem, ShoppingCartEvent } from '../events';
+import { shoppingCartApi } from './simpleApi';
+// #region getting-started-integration-tests
 import {
   getInMemoryEventStore,
   type EventStore,
@@ -12,17 +16,11 @@ import {
   getApplication,
 } from '@event-driven-io/emmett-expressjs';
 import { randomUUID } from 'node:crypto';
-import { beforeEach, describe, it } from 'node:test';
-import type { PricedProductItem, ShoppingCartEvent } from '../events';
-import { shoppingCartApi } from './simpleApi';
-
-const getUnitPrice = (_productId: string) => {
-  return Promise.resolve(100);
-};
 
 describe('ShoppingCart', () => {
   let clientId: string;
   let shoppingCartId: string;
+
   beforeEach(() => {
     clientId = randomUUID();
     shoppingCartId = `shopping_cart:${clientId}:current`;
@@ -119,22 +117,31 @@ describe('ShoppingCart', () => {
 
   const oldTime = new Date();
   const now = new Date();
+  const unitPrice = Math.random() * 10;
 
   const given = ApiSpecification.for<ShoppingCartEvent>(
     (): EventStore => getInMemoryEventStore(),
     (eventStore: EventStore) =>
       getApplication({
-        apis: [shoppingCartApi(eventStore, getUnitPrice, () => now)],
+        apis: [
+          shoppingCartApi(
+            eventStore,
+            () => Promise.resolve(unitPrice),
+            () => now,
+          ),
+        ],
       }),
   );
 
   const getRandomProduct = (): PricedProductItem => {
     return {
       productId: randomUUID(),
-      unitPrice: 100,
+      unitPrice,
       quantity: Math.random() * 10,
     };
   };
 
   const productItem = getRandomProduct();
 });
+
+// #endregion getting-started-integration-tests
