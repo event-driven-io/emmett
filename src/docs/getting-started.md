@@ -207,15 +207,15 @@ $ npm add @event-driven-io/emmett-expressjs
 ```
 
 ```sh [pnpm]
-$ pnpm add @event-driven-io/emmett
+$ pnpm add @event-driven-io/emmett-expressjs
 ```
 
 ```sh [yarn]
-$ yarn add @event-driven-io/emmett
+$ yarn add @event-driven-io/emmett-expressjs
 ```
 
 ```sh [bun]
-$ bun add @event-driven-io/emmett
+$ bun add @event-driven-io/emmett-expressjs
 ```
 
 :::
