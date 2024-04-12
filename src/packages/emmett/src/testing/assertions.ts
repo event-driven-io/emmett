@@ -1,13 +1,12 @@
+import type { DefaultRecord } from '../typing';
+
 export const isSubset = (superObj: unknown, subObj: unknown): boolean => {
-  const sup = superObj as Record<string, unknown>;
-  const sub = subObj as Record<string, unknown>;
+  const sup = superObj as DefaultRecord;
+  const sub = subObj as DefaultRecord;
 
   return Object.keys(sub).every((ele: string) => {
     if (typeof sub[ele] == 'object') {
-      return isSubset(
-        sup[ele] as Record<string, unknown>,
-        sub[ele] as Record<string, unknown>,
-      );
+      return isSubset(sup[ele], sub[ele]);
     }
     return sub[ele] === sup[ele];
   });
