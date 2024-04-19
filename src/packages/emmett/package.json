@@ -45,5 +45,7 @@
   "files": [
     "dist"
   ],
-  "devDependencies": {}
+  "dependencies": {
+    "test": "^3.3.0"
+  }
 }
