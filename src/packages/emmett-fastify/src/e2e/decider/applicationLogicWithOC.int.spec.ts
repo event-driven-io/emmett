@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import {
   assertMatches,
   getInMemoryEventStore,
@@ -13,7 +12,7 @@ import { RegisterRoutes } from './api';
 import { ShoppingCartErrors } from './businessLogic';
 import type { ShoppingCartEvent } from './shoppingCart';
 
-describe('Application logic with optimistic concurrency using Fastify', () => {
+void describe('Application logic with optimistic concurrency using Fastify', () => {
   let app: FastifyInstance;
   let eventStore: EventStore;
   beforeEach(async () => {
@@ -22,7 +21,7 @@ describe('Application logic with optimistic concurrency using Fastify', () => {
     app = await getApplication({ registerRoutes });
   });
 
-  it('Should handle requests correctly', async () => {
+  void it('Should handle requests correctly', async () => {
     const clientId = randomUUID();
     ///////////////////////////////////////////////////
     // 1. Open Shopping Cart

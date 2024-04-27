@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import { after, before, beforeEach, describe, it } from 'node:test';
 import type { PricedProductItem } from '../events';
 import { ShoppingCartStatus } from './shoppingCart';
@@ -18,7 +17,7 @@ import {
 } from '@event-driven-io/emmett-testcontainers';
 import { randomUUID } from 'node:crypto';
 
-describe('ShoppingCart E2E', () => {
+void describe('ShoppingCart E2E', () => {
   const unitPrice = 100;
   let clientId: string;
   let shoppingCartId: string;
@@ -52,8 +51,8 @@ describe('ShoppingCart E2E', () => {
     return esdbContainer.stop();
   });
 
-  describe('When opened with product item', () => {
-    it('should confirm', () => {
+  void describe('When opened with product item', () => {
+    void it('should confirm', () => {
       return given((request) =>
         request
           .post(`/clients/${clientId}/shopping-carts/current/product-items`)
@@ -65,7 +64,7 @@ describe('ShoppingCart E2E', () => {
         .then([expectResponse(204)]);
     });
 
-    it('should return details', () => {
+    void it('should return details', () => {
       return given((request) =>
         request
           .post(`/clients/${clientId}/shopping-carts/current/product-items`)

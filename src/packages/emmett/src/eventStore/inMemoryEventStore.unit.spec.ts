@@ -1,11 +1,10 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import { describe } from 'node:test';
 import { getInMemoryEventStore } from '../eventStore';
-import { testAggregateStream } from '../testing';
+import { testAggregateStream } from '../testing/features';
 
 // Events & Entity
 
-describe('InMemoryEventStore', () => {
+void describe('InMemoryEventStore', () => {
   const eventStore = getInMemoryEventStore();
-  testAggregateStream(() => Promise.resolve(eventStore));
+  void testAggregateStream(() => Promise.resolve(eventStore));
 });

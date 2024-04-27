@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import {
   getInMemoryEventStore,
   type EventStore,
@@ -49,8 +48,8 @@ import {
   expectResponse,
 } from '@event-driven-io/emmett-expressjs';
 
-describe('When opened with product item', () => {
-  it('should confirm', () => {
+void describe('When opened with product item', () => {
+  void it('should confirm', () => {
     return given(
       existingStream(shoppingCartId, [
         {

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import {
   assertMatches,
   getInMemoryEventStore,
@@ -18,7 +17,7 @@ const getUnitPrice = (_productId: string) => {
   return Promise.resolve(100);
 };
 
-describe('Simple Api from getting started', () => {
+void describe('Simple Api from getting started', () => {
   let app: Application;
   let eventStore: EventStore;
 
@@ -29,7 +28,7 @@ describe('Simple Api from getting started', () => {
     });
   });
 
-  it('Should handle requests correctly', async () => {
+  void it('Should handle requests correctly', async () => {
     const clientId = randomUUID();
     ///////////////////////////////////////////////////
     // 1. Add Two Pair of Shoes
