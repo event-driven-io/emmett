@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import assert from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
@@ -85,10 +84,10 @@ const handleCommand = CommandHandler<ShoppingCart, ShoppingCartEvent>(
   getInitialState,
 );
 
-describe('Command Handler', () => {
+void describe('Command Handler', () => {
   const eventStore = getInMemoryEventStore();
 
-  it('When called successfully returns new state for a single returned event', async () => {
+  void it('When called successfully returns new state for a single returned event', async () => {
     const productItem: PricedProductItem = {
       productId: '123',
       quantity: 10,
@@ -114,7 +113,7 @@ describe('Command Handler', () => {
     assert.equal(nextExpectedStreamVersion, 1);
   });
 
-  it('When called successfuly returns new state for multiple returned events', async () => {
+  void it('When called successfuly returns new state for multiple returned events', async () => {
     const productItem: PricedProductItem = {
       productId: '123',
       quantity: 10,

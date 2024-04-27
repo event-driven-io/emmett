@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import {
   assertMatches,
   getInMemoryEventStore,
@@ -6,6 +5,7 @@ import {
 } from '@event-driven-io/emmett';
 import { type Application } from 'express';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it } from 'node:test';
 import request from 'supertest';
 import { getApplication } from '../..';
@@ -19,9 +19,8 @@ import {
 import { shoppingCartApi } from './api';
 import { ShoppingCartErrors } from './businessLogic';
 import type { ShoppingCartEvent } from './shoppingCart';
-import { randomUUID } from 'node:crypto';
 
-describe('Application logic with optimistic concurrency', () => {
+void describe('Application logic with optimistic concurrency', () => {
   let app: Application;
   let eventStore: EventStore;
 
@@ -30,7 +29,7 @@ describe('Application logic with optimistic concurrency', () => {
     app = getApplication({ apis: [shoppingCartApi(eventStore)] });
   });
 
-  it('Should handle requests correctly', async () => {
+  void it('Should handle requests correctly', async () => {
     const clientId = randomUUID();
     ///////////////////////////////////////////////////
     // 1. Open Shopping Cart

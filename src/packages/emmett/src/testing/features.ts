@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import assert from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
@@ -35,7 +34,7 @@ export async function testAggregateStream(
       if (teardownHook) await teardownHook();
     });
 
-    it('When called with `to` allows time traveling', async () => {
+    void it('When called with `to` allows time traveling', async () => {
       // Given
       const productItem: PricedProductItem = {
         productId: '123',

@@ -1,16 +1,15 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
-import {
-  testAggregateStream,
-  type EventStoreFactory,
-} from '@event-driven-io/emmett';
 import {
   EventStoreDBContainer,
   StartedEventStoreDBContainer,
 } from '@event-driven-io/emmett-testcontainers';
 import { describe } from 'node:test';
+import {
+  testAggregateStream,
+  type EventStoreFactory,
+} from '../../../emmett/src/testing/features';
 import { getEventStoreDBEventStore } from './eventstoreDBEventStore';
 
-describe('EventStoreDBEventStore', async () => {
+void describe('EventStoreDBEventStore', async () => {
   let esdbContainer: StartedEventStoreDBContainer;
 
   const eventStoreFactory: EventStoreFactory = async () => {

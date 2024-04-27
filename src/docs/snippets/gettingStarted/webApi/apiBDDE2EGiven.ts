@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { after, before, describe } from 'node:test';
 import { shoppingCartApi } from './simpleApi';
@@ -13,7 +12,7 @@ import {
 } from '@event-driven-io/emmett-testcontainers';
 
 let esdbContainer: StartedEventStoreDBContainer;
-describe('ShoppingCart E2E', () => {
+void describe('ShoppingCart E2E', () => {
   // Set up a container before all tests
   before(async () => {
     esdbContainer = await new EventStoreDBContainer().start();

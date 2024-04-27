@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import { type EventStore } from '@event-driven-io/emmett';
 import {
   ApiE2ESpecification,
@@ -43,8 +42,8 @@ import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import { expectResponse } from '@event-driven-io/emmett-expressjs';
 import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 
-describe('When opened with product item', () => {
-  it('should confirm', () => {
+void describe('When opened with product item', () => {
+  void it('should confirm', () => {
     return given((request) =>
       request
         .post(`/clients/${clientId}/shopping-carts/current/product-items`)

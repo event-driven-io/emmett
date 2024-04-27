@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/core",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Emmett - Event Sourcing development made simple",
   "engines": {
     "node": ">=20.11.1"
@@ -61,7 +61,6 @@
   ],
   "devDependencies": {
     "@faker-js/faker": "8.4.1",
-    "@types/node": "20.11.30",
     "@typescript-eslint/eslint-plugin": "7.4.0",
     "@typescript-eslint/parser": "7.4.0",
     "eslint": "8.57.0",
@@ -78,6 +77,7 @@
     "vitepress": "1.0.1"
   },
   "peerDependencies": {
+    "@types/node": "20.11.30",
     "@types/express": "4.17.21",
     "@types/supertest": "6.0.2",
     "supertest": "6.3.4"

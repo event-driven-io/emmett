@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
@@ -8,8 +7,8 @@ import {
   matchesExpectedVersion,
 } from './expectedVersion';
 
-describe('matchesExpectedVersion', () => {
-  it('When NO_CONCURRENCY_CHECK provided returns `true` for any current version', () => {
+void describe('matchesExpectedVersion', () => {
+  void it('When NO_CONCURRENCY_CHECK provided returns `true` for any current version', () => {
     const allCurrentVersions = [undefined, 0, -1, 1, 100, 'random', ''];
 
     for (const currentStreamVersion of allCurrentVersions) {
@@ -19,11 +18,11 @@ describe('matchesExpectedVersion', () => {
     }
   });
 
-  it('When STREAM_DOES_NOT_EXIST provided returns `true` for current equals `undefined`', () => {
+  void it('When STREAM_DOES_NOT_EXIST provided returns `true` for current equals `undefined`', () => {
     assert.ok(matchesExpectedVersion(undefined, STREAM_DOES_NOT_EXIST));
   });
 
-  it('When STREAM_DOES_NOT_EXIST provided returns `false` for current different than `undefined`', () => {
+  void it('When STREAM_DOES_NOT_EXIST provided returns `false` for current different than `undefined`', () => {
     const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
 
     for (const currentStreamVersion of definedStreamVersion) {
@@ -34,7 +33,7 @@ describe('matchesExpectedVersion', () => {
     }
   });
 
-  it('When STREAM_EXISTS provided returns `true` for current different than `undefined`', () => {
+  void it('When STREAM_EXISTS provided returns `true` for current different than `undefined`', () => {
     const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
 
     for (const currentStreamVersion of definedStreamVersion) {
@@ -42,11 +41,11 @@ describe('matchesExpectedVersion', () => {
     }
   });
 
-  it('When STREAM_EXISTS provided returns `false` for current equals `undefined`', () => {
+  void it('When STREAM_EXISTS provided returns `false` for current equals `undefined`', () => {
     assert.equal(matchesExpectedVersion(undefined, STREAM_EXISTS), false);
   });
 
-  it('When value provided returns `true` for current matching expected value', () => {
+  void it('When value provided returns `true` for current matching expected value', () => {
     const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
 
     for (const streamVersion of definedStreamVersion) {
@@ -54,7 +53,7 @@ describe('matchesExpectedVersion', () => {
     }
   });
 
-  it('When value provided returns `false` for current notmatching expected value', () => {
+  void it('When value provided returns `false` for current notmatching expected value', () => {
     const definedStreamVersion = [
       { current: 100, expected: 0 },
       { current: 0, expected: -1 },
