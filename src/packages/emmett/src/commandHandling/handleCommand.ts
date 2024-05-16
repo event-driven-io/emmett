@@ -20,11 +20,11 @@ export const CommandHandler =
     getInitialState: () => State,
     mapToStreamId: (id: string) => string = (id) => id,
   ) =>
-  async (
-    eventStore: EventStore<StreamVersion>,
+  async <Store extends EventStore<StreamVersion>>(
+    eventStore: Store,
     id: string,
     handle: (state: State) => StreamEvent | StreamEvent[],
-    options?: {
+    options?: Parameters<Store['appendToStream']>[2] & {
       expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
     },
   ): Promise<CommandHandlerResult<State, StreamVersion>> => {
@@ -68,6 +68,7 @@ export const CommandHandler =
       streamName,
       newEvents,
       {
+        ...options,
         expectedStreamVersion,
       },
     );
