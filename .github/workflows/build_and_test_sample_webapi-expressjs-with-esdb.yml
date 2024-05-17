@@ -52,3 +52,18 @@ jobs:
 
       - name: Test
         run: npm run test
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker
+        id: docker_build
+        uses: docker/build-push-action@v4
+        with:
+          context: "./samples/webApi/expressjs-with-esdb"
+          push: false
+          tags: oskardudycz/emmett.esdb.sample:latest
+
+      - name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}
