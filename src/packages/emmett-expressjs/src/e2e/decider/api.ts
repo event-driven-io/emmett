@@ -171,5 +171,5 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
 type AddProductItemRequest = Request<
   Partial<{ shoppingCartId: string }>,
   unknown,
-  Partial<{ productId: number; quantity: number }>
+  Partial<{ productId: string; quantity: number }>
 >;

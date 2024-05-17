@@ -44,7 +44,7 @@ import { type Request } from 'express';
 type AddProductItemRequest = Request<
   Partial<{ clientId: string; shoppingCartId: string }>,
   unknown,
-  Partial<{ productId: number; quantity: number }>
+  Partial<{ productId: string; quantity: number }>
 >;
 
 router.post(

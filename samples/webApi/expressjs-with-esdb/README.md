@@ -5,3 +5,49 @@
 # Emmett - Sample showing event-sourced WebApi with Express.js and EventStoreDB
 
 Read more in [Emmett getting started guide](https://event-driven-io.github.io/emmett/getting-started.html).
+
+## Prerequisities
+
+Sample require EventStoreDB, you can start it by running
+
+```bash
+docker-compose up
+```
+
+You need to install packages with
+
+```bash
+npm install
+```
+
+## Running
+
+Just run
+
+```bash
+npm run start
+```
+
+## Running inside Docker
+
+To build application:
+
+```bash
+docker-compose --profile app build
+```
+
+To run application:
+
+```bash
+docker-compose --profile app up
+```
+
+### Testing
+
+You can either run tests with
+
+```
+npm run test
+```
+
+Or manually with prepared [.http](.http) file

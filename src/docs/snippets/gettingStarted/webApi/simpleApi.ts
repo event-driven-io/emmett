@@ -187,7 +187,7 @@ export const shoppingCartApi =
 type AddProductItemRequest = Request<
   Partial<{ clientId: string; shoppingCartId: string }>,
   unknown,
-  Partial<{ productId: number; quantity: number }>
+  Partial<{ productId: string; quantity: number }>
 >;
 
 type GetShoppingCartRequest = Request<

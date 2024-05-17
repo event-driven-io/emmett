@@ -5,9 +5,9 @@
   "description": "Samples WebApi using Event Sourcing using Emmett, Express.js and EventStoreDB ",
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
-    "build": "run-s lint build:ts",
-    "build:ts": "tsc -b",
-    "build:ts:watch": "tsc -b --watch",
+    "build": "tsup",
+    "build:ts": "tsc",
+    "build:ts:watch": "tsc  --watch",
     "start": "tsx ./src/index.ts",
     "lint": "npm run lint:eslint && npm run lint:prettier",
     "lint:prettier": "prettier --check \"**/**/!(*.d).{ts,json,md}\"",
@@ -38,12 +38,12 @@
   },
   "homepage": "https://github.com/oskardudycz/EventSourcing.NodeJS#readme",
   "dependencies": {
-    "@event-driven-io/emmett-esdb": "0.5.5",
-    "@event-driven-io/emmett-expressjs": "0.5.5",
-    "@event-driven-io/emmett-testcontainers": "0.5.5"
+    "@event-driven-io/emmett-esdb": "0.9.0",
+    "@event-driven-io/emmett-expressjs": "0.9.0",
+    "@event-driven-io/emmett-testcontainers": "0.9.0"
   },
   "devDependencies": {
-    "@types/node": "20.11.28",
+    "@types/node": "20.11.30",
     "@typescript-eslint/eslint-plugin": "6.21.0",
     "@typescript-eslint/parser": "6.21.0",
     "eslint": "8.56.0",
@@ -54,6 +54,13 @@
     "prettier": "3.2.5",
     "tsconfig-paths": "4.2.0",
     "tsx": "4.7.1",
-    "typescript": "5.3.3"
-  }
+    "typescript": "5.3.3",
+    "tsup": "8.0.2"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ]
 }

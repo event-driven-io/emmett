@@ -1,6 +1,20 @@
-version: '3'
+version: '3.5'
 
 services:
+  app:
+    build:
+      # use local image
+      dockerfile: Dockerfile
+      context: .
+    container_name: emmett_api
+    profiles: [app]
+    environment:
+      - ESDB_CONNECTION_STRING=esdb://eventstoredb:2113?tls=false
+    networks:
+      - esdb_network
+    ports:
+      - '3000:3000'
+
   #######################################################
   #  EventStoreDB
   #######################################################
@@ -8,6 +22,7 @@ services:
     image: eventstore/eventstore:23.10.0-bookworm-slim
     # use this image if you're running ARM-based proc like Apple M1
     # image: eventstore/eventstore:23.10.0-alpha-arm64v8
+    container_name: eventstoredb
     environment:
       - EVENTSTORE_CLUSTER_SIZE=1
       - EVENTSTORE_RUN_PROJECTIONS=All

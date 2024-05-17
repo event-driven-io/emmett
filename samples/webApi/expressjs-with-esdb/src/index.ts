@@ -5,7 +5,7 @@ import type { Application } from 'express';
 import { shoppingCartApi } from './shoppingCarts/api';
 
 const eventStoreDBClient = EventStoreDBClient.connectionString(
-  `esdb://localhost:2113?tls=false`,
+  process.env.ESDB_CONNECTION_STRING ?? `esdb://localhost:2113?tls=false`,
 );
 const eventStore = getEventStoreDBEventStore(eventStoreDBClient);
 
