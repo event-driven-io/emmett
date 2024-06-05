@@ -47,7 +47,8 @@
   ],
   "peerDependencies": {
     "@types/node": "^20.11.30",
-    "@types/uuid": "9.0.8",
-    "uuid": "9.0.1"
+    "@types/uuid": "^9.0.8",
+    "uuid": "^9.0.1",
+    "web-streams-polyfill": "^4.0.0"
   }
 }
