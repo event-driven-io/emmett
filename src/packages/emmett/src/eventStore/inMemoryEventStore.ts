@@ -127,6 +127,7 @@ export const getInMemoryEventStore = (): EventStore<
         return {
           ...event,
           metadata: {
+            ...(event.metadata ?? {}),
             streamName,
             eventId: randomUUID(),
             streamPosition: BigInt(currentEvents.length + index + 1),

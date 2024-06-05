@@ -9,6 +9,7 @@ import {
   type AppendToStreamResult,
   type DefaultStreamVersionType,
   type Event,
+  type EventMetaDataOf,
   type EventStore,
   type ExpectedStreamVersion,
   type ReadEvent,
@@ -75,6 +76,8 @@ export const getEventStoreDBEventStore = (
             type: event.type,
             data: event.data,
             metadata: {
+              ...((event.metadata as EventMetaDataOf<EventType> | undefined) ??
+                {}),
               eventId: event.id,
               streamName: event.streamId,
               streamPosition: event.revision,
