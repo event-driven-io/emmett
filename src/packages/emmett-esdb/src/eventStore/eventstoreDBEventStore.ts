@@ -7,9 +7,12 @@ import {
   type AggregateStreamResult,
   type AppendToStreamOptions,
   type AppendToStreamResult,
+  type DefaultStreamVersionType,
   type Event,
   type EventStore,
   type ExpectedStreamVersion,
+  type ReadEvent,
+  type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
@@ -43,7 +46,10 @@ const toEventStoreDBReadOptions = (
 
 export const getEventStoreDBEventStore = (
   eventStore: EventStoreDBClient,
-): EventStore => {
+): EventStore<
+  DefaultStreamVersionType,
+  ReadEventMetadataWithGlobalPosition
+> => {
   return {
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
@@ -63,9 +69,17 @@ export const getEventStoreDBEventStore = (
         )) {
           if (!event) continue;
 
-          state = evolve(state, <EventType>{
+          state = evolve(state, <
+            ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>
+          >{
             type: event.type,
             data: event.data,
+            metadata: {
+              eventId: event.id,
+              streamName: event.streamId,
+              streamPosition: event.revision,
+              globalPosition: event.position!.commit,
+            },
           });
           currentStreamVersion = event.revision;
         }
@@ -91,8 +105,17 @@ export const getEventStoreDBEventStore = (
     readStream: async <EventType extends Event>(
       streamName: string,
       options?: ReadStreamOptions,
-    ): Promise<ReadStreamResult<EventType>> => {
-      const events: EventType[] = [];
+    ): Promise<
+      ReadStreamResult<
+        EventType,
+        DefaultStreamVersionType,
+        ReadEventMetadataWithGlobalPosition
+      >
+    > => {
+      const events: ReadEvent<
+        EventType,
+        ReadEventMetadataWithGlobalPosition
+      >[] = [];
 
       let currentStreamVersion: bigint | undefined = undefined;
 
@@ -102,9 +125,17 @@ export const getEventStoreDBEventStore = (
           toEventStoreDBReadOptions(options),
         )) {
           if (!event) continue;
-          events.push(<EventType>{
+          events.push(<
+            ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>
+          >{
             type: event.type,
             data: event.data,
+            metadata: {
+              eventId: event.id,
+              streamName: event.streamId,
+              streamPosition: event.revision,
+              globalPosition: event.position!.commit,
+            },
           });
           currentStreamVersion = event.revision;
         }

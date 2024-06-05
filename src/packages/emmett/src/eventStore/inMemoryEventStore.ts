@@ -1,36 +1,33 @@
 import { v4 as randomUUID } from 'uuid';
-import type { Event } from '../typing';
+import type {
+  Event,
+  ReadEvent,
+  ReadEventMetadataWithGlobalPosition,
+} from '../typing';
 import {
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
   type AppendToStreamResult,
+  type DefaultStreamVersionType,
   type EventStore,
   type ReadStreamOptions,
   type ReadStreamResult,
 } from './eventStore';
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
 
-export type EventMetadata = Readonly<{
-  eventId: string;
-  streamPosition: number;
-  logPosition: bigint;
-}>;
-
-export type EventEnvelope<E extends Event = Event> = {
-  event: E;
-  metadata: EventMetadata;
-};
-
 export type EventHandler<E extends Event = Event> = (
-  eventEnvelope: EventEnvelope<E>,
+  eventEnvelope: ReadEvent<E>,
 ) => void;
 
-export const getInMemoryEventStore = (): EventStore => {
-  const streams = new Map<string, EventEnvelope[]>();
+export const getInMemoryEventStore = (): EventStore<
+  DefaultStreamVersionType,
+  ReadEventMetadataWithGlobalPosition
+> => {
+  const streams = new Map<string, ReadEvent[]>();
 
   const getAllEventsCount = () => {
-    return Array.from<EventEnvelope[]>(streams.values())
+    return Array.from<ReadEvent[]>(streams.values())
       .map((s) => s.length)
       .reduce((p, c) => p + c, 0);
   };
@@ -57,7 +54,13 @@ export const getInMemoryEventStore = (): EventStore => {
     readStream: <EventType extends Event>(
       streamName: string,
       options?: ReadStreamOptions,
-    ): Promise<ReadStreamResult<EventType>> => {
+    ): Promise<
+      ReadStreamResult<
+        EventType,
+        DefaultStreamVersionType,
+        ReadEventMetadataWithGlobalPosition
+      >
+    > => {
       const events = streams.get(streamName);
       const currentStreamVersion = events ? BigInt(events.length) : undefined;
 
@@ -77,10 +80,22 @@ export const getInMemoryEventStore = (): EventStore => {
 
       const resultEvents =
         events && events.length > 0
-          ? events.map((e) => e.event as EventType).slice(from, to)
+          ? events
+              .map(
+                (e) =>
+                  e as ReadEvent<
+                    EventType,
+                    ReadEventMetadataWithGlobalPosition
+                  >,
+              )
+              .slice(from, to)
           : [];
 
-      const result: ReadStreamResult<EventType> =
+      const result: ReadStreamResult<
+        EventType,
+        DefaultStreamVersionType,
+        ReadEventMetadataWithGlobalPosition
+      > =
         events && events.length > 0
           ? {
               currentStreamVersion: currentStreamVersion!,
@@ -105,13 +120,17 @@ export const getInMemoryEventStore = (): EventStore => {
         options?.expectedStreamVersion,
       );
 
-      const eventEnvelopes: EventEnvelope[] = events.map((event, index) => {
+      const eventEnvelopes: ReadEvent<
+        EventType,
+        ReadEventMetadataWithGlobalPosition
+      >[] = events.map((event, index) => {
         return {
-          event,
+          ...event,
           metadata: {
+            streamName,
             eventId: randomUUID(),
-            streamPosition: currentEvents.length + index + 1,
-            logPosition: BigInt(getAllEventsCount() + index + 1),
+            streamPosition: BigInt(currentEvents.length + index + 1),
+            globalPosition: BigInt(getAllEventsCount() + index + 1),
           },
         };
       });
