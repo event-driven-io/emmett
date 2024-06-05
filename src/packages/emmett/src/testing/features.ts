@@ -70,12 +70,12 @@ export async function testAggregateStream(
           read: { to: 1n },
         });
         const resultAt2 = await eventStore.aggregateStream(shoppingCartId, {
-          evolve,
+          evolve: testCase.evolve,
           getInitialState,
           read: { to: 2n },
         });
         const resultAt3 = await eventStore.aggregateStream(shoppingCartId, {
-          evolve,
+          evolve: testCase.evolve,
           getInitialState,
           read: { to: 3n },
         });
