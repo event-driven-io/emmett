@@ -1,17 +1,25 @@
-import type { Event } from '../typing';
+import type { Event, ReadEvent, ReadEventMetadata } from '../typing';
 import type { ExpectedStreamVersion } from './expectedVersion';
 
 // #region event-store
-export interface EventStore<StreamVersion = DefaultStreamVersionType> {
+export interface EventStore<
+  StreamVersion = DefaultStreamVersionType,
+  ReadEventMetadataType extends ReadEventMetadata = ReadEventMetadata,
+> {
   aggregateStream<State, EventType extends Event>(
     streamName: string,
-    options: AggregateStreamOptions<State, EventType, StreamVersion>,
+    options: AggregateStreamOptions<
+      State,
+      EventType,
+      StreamVersion,
+      ReadEventMetadataType
+    >,
   ): Promise<AggregateStreamResult<State, StreamVersion> | null>;
 
   readStream<EventType extends Event>(
     streamName: string,
     options?: ReadStreamOptions<StreamVersion>,
-  ): Promise<ReadStreamResult<EventType, StreamVersion>>;
+  ): Promise<ReadStreamResult<EventType, StreamVersion, ReadEventMetadataType>>;
 
   appendToStream<EventType extends Event>(
     streamName: string,
@@ -41,23 +49,37 @@ export type ReadStreamOptions<StreamVersion = DefaultStreamVersionType> = (
 };
 
 export type ReadStreamResult<
-  E extends Event,
+  EventType extends Event,
   StreamVersion = DefaultStreamVersionType,
+  ReadEventMetadataType extends ReadEventMetadata = ReadEventMetadata,
 > = {
   currentStreamVersion: StreamVersion;
-  events: E[];
+  events: ReadEvent<EventType, ReadEventMetadataType>[];
 } | null;
 
 ////////////////////////////////////////////////////////////////////
 /// AggregateStream types
 ////////////////////////////////////////////////////////////////////
 
+type Evolve<
+  State,
+  EventType extends Event,
+  ReadEventMetadataType extends ReadEventMetadata = ReadEventMetadata,
+> =
+  | ((currentState: State, event: EventType) => State)
+  | ((
+      currentState: State,
+      event: ReadEvent<EventType, ReadEventMetadataType>,
+    ) => State)
+  | ((currentState: State, event: ReadEvent<EventType>) => State);
+
 export type AggregateStreamOptions<
   State,
-  E extends Event,
+  EventType extends Event,
   StreamVersion = DefaultStreamVersionType,
+  ReadEventMetadataType extends ReadEventMetadata = ReadEventMetadata,
 > = {
-  evolve: (currentState: State, event: E) => State;
+  evolve: Evolve<State, EventType, ReadEventMetadataType>;
   getInitialState: () => State;
   read?: ReadStreamOptions<StreamVersion>;
 };

@@ -42,3 +42,24 @@ export const event = <EventType extends Event>(
     metadata,
   };
 };
+
+export type ReadEvent<
+  EventType extends Event = Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+> = CreateEventType<
+  EventTypeOf<EventType>,
+  EventDataOf<EventType>,
+  EventMetaDataType
+> &
+  EventType & { metadata: EventMetaDataType };
+
+export type ReadEventMetadata = Readonly<{
+  eventId: string;
+  streamPosition: bigint;
+  streamName: string;
+}>;
+
+export type ReadEventMetadataWithGlobalPosition = ReadEventMetadata & {
+  globalPosition: bigint;
+};
