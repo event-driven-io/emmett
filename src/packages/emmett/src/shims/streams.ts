@@ -1,6 +1,6 @@
 import streamsPolyfill from 'web-streams-polyfill';
 
-let streams = streamsPolyfill;
+let streams: typeof streamsPolyfill;
 
 if (
   globalThis &&
@@ -12,14 +12,18 @@ if (
   globalThis.TransformStream
 ) {
   // @ts-expect-error global object check
-  streams = globalThis;
+  streams = globalThis as typeof streamsPolyfill;
 } else {
   try {
     // @ts-expect-error global object check
-    streams = await import('node:stream/web');
+    streams = (await import('node:stream/web')) as typeof streamsPolyfill;
   } catch {
-    // just falling back to the default pollyfill
+    // Just falling back to the default polyfill
+    streams = streamsPolyfill;
   }
 }
 
 export default streams;
+
+// Use a type-only import/export to re-export all types
+export type * from 'web-streams-polyfill';
