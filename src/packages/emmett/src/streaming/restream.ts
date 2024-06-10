@@ -22,13 +22,7 @@ export const restream = <
   new TransformStream<Source, Transformed>({
     start(controller) {
       retry(
-        () =>
-          onRestream<StreamType, Source, Transformed>(
-            createSourceStream,
-            controller,
-            transform,
-            decoder,
-          ),
+        () => onRestream(createSourceStream, controller, transform, decoder),
         retryOptions,
       ).catch((error) => {
         controller.error(error);
@@ -67,11 +61,7 @@ const restreamChunk = async <StreamType, Source, Transformed = Source>(
 
   if (!isDone && !decoder.hasCompleteMessage()) return false;
 
-  decodeAndTransform<StreamType, Source, Transformed>(
-    decoder,
-    transform,
-    controller,
-  );
+  decodeAndTransform(decoder, transform, controller);
 
   if (isDone) {
     controller.terminate();
