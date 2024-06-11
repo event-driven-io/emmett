@@ -1,11 +1,25 @@
-import assert from 'assert';
+import assert, { AssertionError } from 'assert';
+import { isErrorConstructor, type ErrorConstructor } from '../errors';
+
+type ErrorCheck<ErrorType> = (error: ErrorType) => boolean;
+
+export type ThenThrows<ErrorType extends Error> =
+  | (() => void)
+  | ((errorConstructor: ErrorConstructor<ErrorType>) => void)
+  | ((errorCheck: ErrorCheck<ErrorType>) => void)
+  | ((
+      errorConstructor: ErrorConstructor<ErrorType>,
+      errorCheck?: ErrorCheck<ErrorType>,
+    ) => void);
 
 export type DeciderSpecfication<Command, Event> = (
   givenEvents: Event | Event[],
 ) => {
   when: (command: Command) => {
     then: (expectedEvents: Event | Event[]) => void;
-    thenThrows: <Error>(assert: (error: Error) => boolean) => void;
+    thenThrows: <ErrorType extends Error = Error>(
+      ...args: Parameters<ThenThrows<ErrorType>>
+    ) => void;
   };
 };
 
@@ -46,12 +60,36 @@ export const DeciderSpecification = {
 
                 assert.deepEqual(resultEventsArray, expectedEventsArray);
               },
-              thenThrows: <Error>(check?: (error: Error) => boolean): void => {
+              thenThrows: <ErrorType extends Error>(
+                ...args: Parameters<ThenThrows<ErrorType>>
+              ): void => {
                 try {
                   handle();
                   assert.fail('Handler did not fail as expected');
                 } catch (error) {
-                  if (check) assert.ok(check(error as Error));
+                  if (error instanceof AssertionError) throw error;
+
+                  if (args.length === 0) return;
+
+                  if (!isErrorConstructor(args[0])) {
+                    assert.ok(
+                      args[0](error as ErrorType),
+                      `Error didn't match the error condition: ${error?.toString()}`,
+                    );
+                    return;
+                  }
+
+                  assert.ok(
+                    error instanceof args[0],
+                    `Caught error is not an instance of the expected type: ${error?.toString()}`,
+                  );
+
+                  if (args[1]) {
+                    assert.ok(
+                      args[1](error),
+                      `Error didn't match the error condition: ${error?.toString()}`,
+                    );
+                  }
                 }
               },
             };
