@@ -62,7 +62,7 @@ export const expectResponse =
 
 export const expectError = (
   errorCode: number,
-  problemDetails?: ProblemDocument,
+  problemDetails?: Partial<ProblemDocument>,
 ) =>
   expectResponse(
     errorCode,
