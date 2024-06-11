@@ -11,7 +11,7 @@ import { DefaultDecoder } from './decoders/composite';
 export const restream = <
   Source = unknown,
   Transformed = Source,
-  StreamType = object,
+  StreamType = Source,
 >(
   createSourceStream: () => ReadableStream<StreamType>,
   transform: (input: Source) => Transformed = (source) =>
