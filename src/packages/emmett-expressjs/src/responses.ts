@@ -28,18 +28,27 @@ export const DefaultHttpProblemResponseOptions: HttpProblemResponseOptions = {
   problemDetails: 'Error occured!',
 };
 
-export type CreatedHttpResponseOptions = {
-  createdId: string;
-  urlPrefix?: string;
-} & HttpResponseOptions;
+export type CreatedHttpResponseOptions = (
+  | {
+      createdId: string;
+    }
+  | {
+      createdId?: string;
+      url: string;
+    }
+) &
+  HttpResponseOptions;
 
 export const sendCreated = (
   response: Response,
-  { createdId, urlPrefix, eTag }: CreatedHttpResponseOptions,
+  { eTag, ...options }: CreatedHttpResponseOptions,
 ): void =>
   send(response, 201, {
-    location: `${urlPrefix ?? response.req.url}/${createdId}`,
-    body: { id: createdId },
+    location:
+      'url' in options
+        ? options.url
+        : `${response.req.url}/${options.createdId}`,
+    body: 'createdId' in options ? { id: options.createdId } : undefined,
     eTag,
   });
 
