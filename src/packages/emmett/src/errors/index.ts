@@ -1,5 +1,24 @@
 import { isNumber, isString } from '../validation';
 
+export type ErrorConstructor<ErrorType extends Error> = new (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ...args: any[]
+) => ErrorType;
+
+export const isErrorConstructor = <ErrorType extends Error>(
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  expect: Function,
+): expect is ErrorConstructor<ErrorType> => {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return (
+    typeof expect === 'function' &&
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    expect.prototype &&
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    expect.prototype.constructor === expect
+  );
+};
+
 export class EmmettError extends Error {
   public errorCode: number;
 
