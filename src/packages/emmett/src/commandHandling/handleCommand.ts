@@ -11,8 +11,12 @@ import type { Event } from '../typing';
 // #region command-handler
 export type CommandHandlerResult<
   State,
+  StreamEvent extends Event,
   StreamVersion = DefaultStreamVersionType,
-> = AppendToStreamResult<StreamVersion> & { newState: State };
+> = AppendToStreamResult<StreamVersion> & {
+  newState: State;
+  newEvents: StreamEvent[];
+};
 
 export const CommandHandler =
   <State, StreamEvent extends Event, StreamVersion = DefaultStreamVersionType>(
@@ -27,7 +31,7 @@ export const CommandHandler =
     options?: Parameters<Store['appendToStream']>[2] & {
       expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
     },
-  ): Promise<CommandHandlerResult<State, StreamVersion>> => {
+  ): Promise<CommandHandlerResult<State, StreamEvent, StreamVersion>> => {
     const streamName = mapToStreamId(id);
 
     // 1. Aggregate the stream
@@ -74,6 +78,10 @@ export const CommandHandler =
     );
 
     // 5. Return result with updated state
-    return { ...appendResult, newState: newEvents.reduce(evolve, state) };
+    return {
+      ...appendResult,
+      newEvents,
+      newState: newEvents.reduce(evolve, state),
+    };
   };
 // #endregion command-handler
