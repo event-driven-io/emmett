@@ -1,4 +1,6 @@
+import type { ReadableStream } from '../shims/streams';
 import type { Event, ReadEvent, ReadEventMetadata } from '../typing';
+import type { GlobalSubscriptionEvent } from './events';
 import type { ExpectedStreamVersion } from './expectedVersion';
 
 // #region event-store
@@ -26,6 +28,10 @@ export interface EventStore<
     events: EventType[],
     options?: AppendToStreamOptions<StreamVersion>,
   ): Promise<AppendToStreamResult<StreamVersion>>;
+
+  subscribe(): ReadableStream<
+    ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent
+  >;
 }
 
 export type EventStoreSession<
