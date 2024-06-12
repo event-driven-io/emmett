@@ -16,6 +16,8 @@ import { WrapEventStore, type TestEventStream } from './utils';
 /////////// Setup
 ////////////////////////////////
 
+export type TestRequest = (request: TestAgent<supertest.Test>) => Test;
+
 export const existingStream = <EventType extends Event = Event>(
   streamId: string,
   events: EventType[],
@@ -76,7 +78,7 @@ export const expectError = (
 export type ApiSpecification<EventType extends Event = Event> = (
   ...givenStreams: TestEventStream<EventType>[]
 ) => {
-  when: (setupRequest: (request: TestAgent<supertest.Test>) => Test) => {
+  when: (setupRequest: TestRequest) => {
     then: (verify: ApiSpecificationAssert<EventType>) => Promise<void>;
   };
 };
@@ -95,9 +97,7 @@ export const ApiSpecification = {
         const application = getApplication(eventStore);
 
         return {
-          when: (
-            setupRequest: (request: TestAgent<supertest.Test>) => Test,
-          ) => {
+          when: (setupRequest: TestRequest) => {
             const handle = async () => {
               for (const [streamName, events] of givenStreams) {
                 await eventStore.setup(streamName, events);
