@@ -2,6 +2,7 @@ import { type EventStore } from '@event-driven-io/emmett';
 import {
   ApiE2ESpecification,
   getApplication,
+  type TestRequest,
 } from '@event-driven-io/emmett-expressjs';
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
@@ -43,12 +44,13 @@ import { expectResponse } from '@event-driven-io/emmett-expressjs';
 import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('When opened with product item', () => {
+  const openedShoppingCartWithProduct: TestRequest = (request) =>
+    request
+      .post(`/clients/${clientId}/shopping-carts/current/product-items`)
+      .send(productItem);
+
   void it('should confirm', () => {
-    return given((request) =>
-      request
-        .post(`/clients/${clientId}/shopping-carts/current/product-items`)
-        .send(productItem),
-    )
+    return given(openedShoppingCartWithProduct)
       .when((request) =>
         request.post(`/clients/${clientId}/shopping-carts/current/confirm`),
       )

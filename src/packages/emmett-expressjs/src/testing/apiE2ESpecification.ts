@@ -1,6 +1,4 @@
-import type { Test } from 'supertest';
 import supertest, { type Response } from 'supertest';
-import type TestAgent from 'supertest/lib/agent';
 
 import type {
   DefaultStreamVersionType,
@@ -9,15 +7,14 @@ import type {
 import assert from 'assert';
 import type { Application } from 'express';
 import { WrapEventStore } from './utils';
+import type { TestRequest } from './apiSpecification';
 
 export type E2EResponseAssert = (response: Response) => boolean | void;
 
 export type ApiE2ESpecificationAssert = [E2EResponseAssert];
 
-export type ApiE2ESpecification = (
-  ...givenRequests: ((request: TestAgent<supertest.Test>) => Test)[]
-) => {
-  when: (setupRequest: (request: TestAgent<supertest.Test>) => Test) => {
+export type ApiE2ESpecification = (...givenRequests: TestRequest[]) => {
+  when: (setupRequest: TestRequest) => {
     then: (verify: ApiE2ESpecificationAssert) => Promise<void>;
   };
 };
@@ -28,16 +25,12 @@ export const ApiE2ESpecification = {
     getApplication: (eventStore: EventStore<StreamVersion>) => Application,
   ): ApiE2ESpecification => {
     {
-      return (
-        ...givenRequests: ((request: TestAgent<supertest.Test>) => Test)[]
-      ) => {
+      return (...givenRequests: TestRequest[]) => {
         const eventStore = WrapEventStore(getEventStore());
         const application = getApplication(eventStore);
 
         return {
-          when: (
-            setupRequest: (request: TestAgent<supertest.Test>) => Test,
-          ) => {
+          when: (setupRequest: TestRequest) => {
             const handle = async () => {
               for (const requestFn of givenRequests) {
                 await requestFn(supertest(application));

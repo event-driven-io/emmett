@@ -10,6 +10,7 @@ import {
   ApiE2ESpecification,
   expectResponse,
   getApplication,
+  type TestRequest,
 } from '@event-driven-io/emmett-expressjs';
 import {
   EventStoreDBContainer,
@@ -52,24 +53,20 @@ void describe('ShoppingCart E2E', () => {
   });
 
   void describe('When opened with product item', () => {
-    void it('should confirm', () => {
-      return given((request) =>
-        request
-          .post(`/clients/${clientId}/shopping-carts/current/product-items`)
-          .send(productItem),
-      )
+    const openedShoppingCartWithProduct: TestRequest = (request) =>
+      request
+        .post(`/clients/${clientId}/shopping-carts/current/product-items`)
+        .send(productItem);
+
+    void it('should confirm', () =>
+      given(openedShoppingCartWithProduct)
         .when((request) =>
           request.post(`/clients/${clientId}/shopping-carts/current/confirm`),
         )
-        .then([expectResponse(204)]);
-    });
+        .then([expectResponse(204)]));
 
-    void it('should return details', () => {
-      return given((request) =>
-        request
-          .post(`/clients/${clientId}/shopping-carts/current/product-items`)
-          .send(productItem),
-      )
+    void it('should return details', () =>
+      given(openedShoppingCartWithProduct)
         .when((request) =>
           request.get(`/clients/${clientId}/shopping-carts/current`).send(),
         )
@@ -87,8 +84,7 @@ void describe('ShoppingCart E2E', () => {
               status: ShoppingCartStatus.Opened,
             },
           }),
-        ]);
-    });
+        ]));
   });
 
   const now = new Date();
