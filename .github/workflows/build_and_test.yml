@@ -53,6 +53,25 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Copy packed Emmett bundle to browser compatibility tests folder
+        run: cp -r packages/emmett/dist /e2e/browserCompatibility/
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright tests
+        run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 1
+
+      - name: Run browser compatibility test
+        run: npm run test:compatibility:browser
+
       - name: Pack Emmett locally to tar file
         shell: bash
         run: echo "PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq -r '.[] | .filename')" >> $GITHUB_ENV
