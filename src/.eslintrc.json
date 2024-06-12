@@ -30,7 +30,7 @@
       "error",
       {
         "paths": ["**.spec.ts"],
-        "patterns": ["node:*"]
+        "patterns": ["node:*", "assert"]
       }
     ]
   },

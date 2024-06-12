@@ -1,0 +1,30 @@
+<!-- public/test.html -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test tsup Bundle</title>
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
+  </head>
+  <body>
+    <script type="module">
+      import { v4 as uuidv4 } from 'https://jspm.dev/uuid';
+      console.log(uuidv4()); // ⇨ '1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed'
+    </script>
+    <script type="module" src="./dist/index.mjs"></script>
+    <!-- Add another module script to interact with the bundle -->
+    <script type="module">
+      import { getInMemoryEventStore } from './dist/index.mjs';
+      console.log(
+        'Bundle loaded:',
+        typeof getInMemoryEventStore !== 'undefined',
+      );
+      window.eventStore = getInMemoryEventStore();
+      console.log(
+        'InMemoryEventStore seems to be created',
+        window.eventStore !== undefined,
+      );
+    </script>
+  </body>
+</html>
