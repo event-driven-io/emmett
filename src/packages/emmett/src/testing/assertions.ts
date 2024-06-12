@@ -18,25 +18,41 @@ export const isSubset = (superObj: unknown, subObj: unknown): boolean => {
   });
 };
 
+export const assertFails = () => {
+  throw new AssertionError('That should not ever happened, right?');
+};
+
+export const assertThrows = (
+  fun: () => void,
+  errorCheck?: (error: Error) => boolean,
+) => {
+  try {
+    fun();
+    throw new AssertionError("Function didn't throw expected error");
+  } catch (error) {
+    if (errorCheck) assertTrue(errorCheck(error as Error));
+  }
+};
+
 export const assertMatches = (
   actual: unknown,
   expected: unknown,
   message?: string,
 ) => {
   if (!isSubset(actual, expected))
-    throw Error(
+    throw new AssertionError(
       message ??
         `subObj:\n${JSON.stringify(expected)}\nis not subset of\n${JSON.stringify(actual)}`,
     );
 };
 
-export const assertDeepEquals = (
+export const assertDeepEqual = (
   actual: unknown,
   expected: unknown,
   message?: string,
 ) => {
   if (!deepEquals(actual, expected))
-    throw Error(
+    throw new AssertionError(
       message ??
         `subObj:\n${JSON.stringify(expected)}\nis equals to\n${JSON.stringify(actual)}`,
     );
@@ -52,21 +68,21 @@ export function assertFalse(
   condition: boolean,
   message?: string,
 ): asserts condition is false {
-  if (condition) throw Error(message ?? `Condition is false`);
+  if (condition) throw new AssertionError(message ?? `Condition is false`);
 }
 
 export function assertTrue(
   condition: boolean,
   message?: string,
 ): asserts condition is true {
-  if (!condition) throw Error(message ?? `Condition is false`);
+  if (!condition) throw new AssertionError(message ?? `Condition is false`);
 }
 
-export function assertOk<T extends object>(
+export function assertOk<T>(
   obj: T | null | undefined,
   message?: string,
 ): asserts obj is T {
-  if (!obj) throw Error(message ?? `Condition is not truthy`);
+  if (!obj) throw new AssertionError(message ?? `Condition is not truthy`);
 }
 
 export function assertEqual<T>(
@@ -75,7 +91,7 @@ export function assertEqual<T>(
   message?: string,
 ): void {
   if (!obj || !other || obj != other)
-    throw Error(message ?? `Objects are not equal`);
+    throw new AssertionError(message ?? `Objects are not equal`);
 }
 
 export function assertNotEqual<T>(
@@ -83,7 +99,7 @@ export function assertNotEqual<T>(
   other: T | null | undefined,
   message?: string,
 ): void {
-  if (obj === other) throw Error(message ?? `Objects are equal`);
+  if (obj === other) throw new AssertionError(message ?? `Objects are equal`);
 }
 
 export function assertIsNotNull<T extends object>(

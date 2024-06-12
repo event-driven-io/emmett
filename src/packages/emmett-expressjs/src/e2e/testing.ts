@@ -1,5 +1,8 @@
-import { assertUnsignedBigInt } from '@event-driven-io/emmett';
-import assert from 'node:assert/strict';
+import {
+  assertMatches,
+  assertOk,
+  assertUnsignedBigInt,
+} from '@event-driven-io/emmett';
 import { Test, type Response } from 'supertest';
 import { getWeakETagValue, type ETag } from '../etag';
 
@@ -15,8 +18,8 @@ export const expectNextRevisionInResponseEtag = <RequestBody>(
   response: TestResponse<RequestBody>,
 ) => {
   const eTagValue = response.headers['etag'];
-  assert.ok(eTagValue);
-  assert.match(eTagValue, /W\/"\d+.*"/);
+  assertOk(eTagValue);
+  assertMatches(eTagValue, /W\/"\d+.*"/);
 
   const eTag = getWeakETagValue(eTagValue as ETag);
 

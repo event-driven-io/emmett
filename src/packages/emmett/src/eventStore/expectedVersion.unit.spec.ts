@@ -1,5 +1,5 @@
-import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { assertEqual, assertOk } from '../testing';
 import {
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
@@ -12,21 +12,21 @@ void describe('matchesExpectedVersion', () => {
     const allCurrentVersions = [undefined, 0, -1, 1, 100, 'random', ''];
 
     for (const currentStreamVersion of allCurrentVersions) {
-      assert.ok(
+      assertOk(
         matchesExpectedVersion(currentStreamVersion, NO_CONCURRENCY_CHECK),
       );
     }
   });
 
   void it('When STREAM_DOES_NOT_EXIST provided returns `true` for current equals `undefined`', () => {
-    assert.ok(matchesExpectedVersion(undefined, STREAM_DOES_NOT_EXIST));
+    assertOk(matchesExpectedVersion(undefined, STREAM_DOES_NOT_EXIST));
   });
 
   void it('When STREAM_DOES_NOT_EXIST provided returns `false` for current different than `undefined`', () => {
     const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
 
     for (const currentStreamVersion of definedStreamVersion) {
-      assert.equal(
+      assertEqual(
         matchesExpectedVersion(currentStreamVersion, STREAM_DOES_NOT_EXIST),
         false,
       );
@@ -37,19 +37,19 @@ void describe('matchesExpectedVersion', () => {
     const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
 
     for (const currentStreamVersion of definedStreamVersion) {
-      assert.ok(matchesExpectedVersion(currentStreamVersion, STREAM_EXISTS));
+      assertOk(matchesExpectedVersion(currentStreamVersion, STREAM_EXISTS));
     }
   });
 
   void it('When STREAM_EXISTS provided returns `false` for current equals `undefined`', () => {
-    assert.equal(matchesExpectedVersion(undefined, STREAM_EXISTS), false);
+    assertEqual(matchesExpectedVersion(undefined, STREAM_EXISTS), false);
   });
 
   void it('When value provided returns `true` for current matching expected value', () => {
     const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
 
     for (const streamVersion of definedStreamVersion) {
-      assert.ok(matchesExpectedVersion(streamVersion, streamVersion));
+      assertOk(matchesExpectedVersion(streamVersion, streamVersion));
     }
   });
 
@@ -64,7 +64,7 @@ void describe('matchesExpectedVersion', () => {
     ];
 
     for (const streamVersion of definedStreamVersion) {
-      assert.equal(
+      assertEqual(
         matchesExpectedVersion(streamVersion.current, streamVersion.expected),
         false,
       );

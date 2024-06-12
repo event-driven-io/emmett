@@ -65,7 +65,7 @@ export const DeciderSpecification = {
               ): void => {
                 try {
                   handle();
-                  throw new Error('Handler did not fail as expected');
+                  throw new AssertionError('Handler did not fail as expected');
                 } catch (error) {
                   if (error instanceof AssertionError) throw error;
 

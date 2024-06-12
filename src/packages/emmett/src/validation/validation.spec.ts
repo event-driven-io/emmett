@@ -1,6 +1,6 @@
-import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { assertNotEmptyString } from './index';
+import { assertThrows } from '../testing';
 
 void describe('Validation', () => {
   void describe('assertNotEmptyString', () => {
@@ -12,7 +12,7 @@ void describe('Validation', () => {
       const invalidAction = () => assertNotEmptyString(value);
 
       // Assert
-      assert.throws(invalidAction);
+      assertThrows(invalidAction);
     });
   });
 });

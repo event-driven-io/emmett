@@ -1,7 +1,7 @@
-import assert from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
 import { getInMemoryEventStore } from '../eventStore';
+import { assertDeepEqual, assertEqual } from '../testing';
 import { type Event } from '../typing';
 import { CommandHandler } from './handleCommand';
 
@@ -106,11 +106,11 @@ void describe('Command Handler', () => {
       (state) => addProductItem(command, state),
     );
 
-    assert.deepEqual(newState, {
+    assertDeepEqual(newState, {
       productItems: [productItem],
       totalAmount: productItem.price * productItem.quantity,
     });
-    assert.equal(nextExpectedStreamVersion, 1);
+    assertEqual(nextExpectedStreamVersion, 1n);
   });
 
   void it('When called successfuly returns new state for multiple returned events', async () => {
@@ -132,11 +132,11 @@ void describe('Command Handler', () => {
       (state) => addProductItemWithDiscount(command, state),
     );
 
-    assert.deepEqual(newState, {
+    assertDeepEqual(newState, {
       productItems: [productItem],
       totalAmount:
         productItem.price * productItem.quantity * (1 - defaultDiscount),
     });
-    assert.equal(nextExpectedStreamVersion, 2);
+    assertEqual(nextExpectedStreamVersion, 2n);
   });
 });
