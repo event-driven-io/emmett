@@ -103,7 +103,7 @@ Each event recorded due to the business logic is appended to the event stream. A
 The state aggregation can be coded as:
 
 ```ts
-const currentState = events.reduce<State>(evolve, getInitialState());
+const currentState = events.reduce<State>(evolve, initialState());
 ```
 
 For our case initial state can look like:
@@ -171,7 +171,7 @@ const { state, expectedStreamVersion } = await eventStore.aggregateStream(
   streamName,
   {
     evolve,
-    getInitialState,
+    initialState,
   },
 );
 

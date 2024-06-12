@@ -57,11 +57,11 @@ export const getEventStoreDBEventStore = (
       options: AggregateStreamOptions<State, EventType>,
     ): Promise<AggregateStreamResult<State> | null> {
       try {
-        const { evolve, getInitialState, read } = options;
+        const { evolve, initialState, read } = options;
 
         const expectedStreamVersion = read?.expectedStreamVersion;
 
-        let state = getInitialState();
+        let state = initialState();
         let currentStreamVersion: bigint | undefined = undefined;
 
         for await (const { event } of eventStore.readStream(

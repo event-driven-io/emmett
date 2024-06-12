@@ -14,10 +14,10 @@ import { getShoppingCartId } from './simpleApi';
 // #region getting-started-api-setup
 import { type WebApiSetup } from '@event-driven-io/emmett-expressjs';
 import { Router } from 'express';
-import { evolve, getInitialState } from '../shoppingCart';
+import { evolve, initialState } from '../shoppingCart';
 
 // Let's setup the command handler, we'll use it in endpoints
-const handle = CommandHandler(evolve, getInitialState);
+const handle = CommandHandler(evolve, initialState);
 
 export const shoppingCartApi =
   (

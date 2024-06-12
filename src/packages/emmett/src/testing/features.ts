@@ -5,7 +5,7 @@ import { assertDeepEqual, assertEqual, assertOk } from './assertions';
 import {
   evolve,
   evolveWithMetadata,
-  getInitialState,
+  initialState,
   type PricedProductItem,
   type ShoppingCartEvent,
 } from './shoppingCart.domain';
@@ -66,17 +66,17 @@ export async function testAggregateStream(
         // when
         const resultAt1 = await eventStore.aggregateStream(shoppingCartId, {
           evolve: testCase.evolve,
-          getInitialState,
+          initialState,
           read: { to: 1n },
         });
         const resultAt2 = await eventStore.aggregateStream(shoppingCartId, {
           evolve: testCase.evolve,
-          getInitialState,
+          initialState,
           read: { to: 2n },
         });
         const resultAt3 = await eventStore.aggregateStream(shoppingCartId, {
           evolve: testCase.evolve,
-          getInitialState,
+          initialState,
           read: { to: 3n },
         });
 

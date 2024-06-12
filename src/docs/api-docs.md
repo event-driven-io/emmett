@@ -83,7 +83,7 @@ const { state, expectedStreamVersion } = await eventStore.aggregateStream(
   streamName,
   {
     evolve,
-    getInitialState,
+    initialState,
   },
 );
 

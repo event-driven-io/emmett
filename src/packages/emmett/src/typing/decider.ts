@@ -7,5 +7,5 @@ export type Decider<
 > = {
   decide: (command: CommandType, state: State) => StreamEvent | StreamEvent[];
   evolve: (currentState: State, event: StreamEvent) => State;
-  getInitialState: () => State;
+  initialState: () => State;
 };

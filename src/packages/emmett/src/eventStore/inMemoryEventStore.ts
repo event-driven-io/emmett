@@ -37,7 +37,7 @@ export const getInMemoryEventStore = (): EventStore<
       streamName: string,
       options: AggregateStreamOptions<State, EventType>,
     ): Promise<AggregateStreamResult<State> | null> {
-      const { evolve, getInitialState, read } = options;
+      const { evolve, initialState, read } = options;
 
       const result = await this.readStream<EventType>(streamName, read);
 
@@ -47,7 +47,7 @@ export const getInMemoryEventStore = (): EventStore<
 
       return {
         currentStreamVersion: BigInt(events.length),
-        state: events.reduce(evolve, getInitialState()),
+        state: events.reduce(evolve, initialState()),
       };
     },
 

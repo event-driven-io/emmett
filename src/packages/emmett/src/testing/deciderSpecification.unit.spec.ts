@@ -17,7 +17,7 @@ const decide = (
   return { type: 'Did', data: { something } };
 };
 
-const getInitialState = (): Entity => ({ something: 'Meh' });
+const initialState = (): Entity => ({ something: 'Meh' });
 
 const evolve = (_entity: Entity, _event: SomethingHappened): Entity => ({
   something: 'Nothing',
@@ -26,7 +26,7 @@ const evolve = (_entity: Entity, _event: SomethingHappened): Entity => ({
 const given = DeciderSpecification.for({
   decide: decide,
   evolve,
-  initialState: getInitialState,
+  initialState: initialState,
 });
 
 void describe('DeciderSpecification', () => {

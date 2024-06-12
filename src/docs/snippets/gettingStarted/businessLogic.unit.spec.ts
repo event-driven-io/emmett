@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import { decide } from './businessLogic';
-import { evolve, getInitialState } from './shoppingCart';
+import { evolve, initialState } from './shoppingCart';
 
 // #region getting-started-unit-tests
 import { DeciderSpecification } from '@event-driven-io/emmett';
@@ -10,7 +10,7 @@ import type { PricedProductItem } from './events';
 const given = DeciderSpecification.for({
   decide,
   evolve,
-  initialState: getInitialState,
+  initialState: initialState,
 });
 
 void describe('ShoppingCart', () => {

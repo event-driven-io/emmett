@@ -15,12 +15,12 @@ import {
 import { Router, type Request } from 'express';
 import type { ProductItemAddedToShoppingCart } from '../events';
 import { type PricedProductItem } from '../events';
-import { evolve, getInitialState, type ShoppingCart } from '../shoppingCart';
+import { evolve, initialState, type ShoppingCart } from '../shoppingCart';
 import { getShoppingCartId } from './simpleApi';
 
 // #region vertical-slice
 
-const handle = CommandHandler(evolve, getInitialState);
+const handle = CommandHandler(evolve, initialState);
 
 type AddProductItemRequest = Request<
   Partial<{ clientId: string; shoppingCartId: string }>,
