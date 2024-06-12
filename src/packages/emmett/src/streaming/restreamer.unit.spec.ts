@@ -1,4 +1,3 @@
-import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { ReadableStream } from 'web-streams-polyfill';
 import type { DefaultRecord } from '../typing';
@@ -6,6 +5,8 @@ import { collectStream } from './collect';
 import { DefaultDecoder } from './decoders/composite';
 import { JsonDecoder } from './decoders/json';
 import { restream } from './restream';
+import assert from 'node:assert';
+import { assertEqual } from '../testing';
 
 type TransformedObject = DefaultRecord & { transformed: true };
 
@@ -92,9 +93,9 @@ void describe('restreamer', () => {
 
     const results = await collectStream(restreamer);
 
-    assert.strictEqual(results.length, 2);
-    assert.strictEqual(results[0]!.transformed, true);
-    assert.strictEqual(results[1]!.transformed, true);
+    assertEqual(results.length, 2);
+    assertEqual(results[0]!.transformed, true);
+    assertEqual(results[1]!.transformed, true);
   });
 
   void it('basic transformation with binary stream', async () => {
@@ -112,9 +113,9 @@ void describe('restreamer', () => {
 
     const results = await collectStream(restreamer);
 
-    assert.strictEqual(results.length, 2);
-    assert.strictEqual(results[0]!.transformed, true);
-    assert.strictEqual(results[1]!.transformed, true);
+    assertEqual(results.length, 2);
+    assertEqual(results[0]!.transformed, true);
+    assertEqual(results[1]!.transformed, true);
   });
 
   void it('basic transformation with object mode stream', async () => {
@@ -131,9 +132,9 @@ void describe('restreamer', () => {
     );
     const results = await collectStream(restreamer);
 
-    assert.strictEqual(results.length, 2);
-    assert.strictEqual(results[0]!.transformed, true);
-    assert.strictEqual(results[1]!.transformed, true);
+    assertEqual(results.length, 2);
+    assertEqual(results[0]!.transformed, true);
+    assertEqual(results[1]!.transformed, true);
   });
 
   void it('handles empty stream', async () => {
@@ -147,7 +148,7 @@ void describe('restreamer', () => {
     );
     const results = await collectStream(restreamer);
 
-    assert.strictEqual(results.length, 0);
+    assertEqual(results.length, 0);
   });
 
   void it('handles error in the source stream', async () => {
@@ -184,7 +185,7 @@ void describe('restreamer', () => {
       await collectStream(restreamer);
       assert.fail('Expected an error during stream processing');
     } catch (error) {
-      assert.strictEqual((error as Error).message, 'Source stream error');
+      assertEqual((error as Error).message, 'Source stream error');
     }
   });
 
@@ -221,9 +222,9 @@ void describe('restreamer', () => {
     const results = await collectStream(restreamer);
 
     // Should only have 2 transformed objects
-    assert.strictEqual(results.length, 2);
-    assert.strictEqual(results[0]!.transformed, true);
-    assert.strictEqual(results[1]!.transformed, true);
+    assertEqual(results.length, 2);
+    assertEqual(results[0]!.transformed, true);
+    assertEqual(results[1]!.transformed, true);
   });
 
   void it('recovers from transient error in source stream', async () => {
@@ -263,9 +264,9 @@ void describe('restreamer', () => {
     const results = await collectStream(restreamer);
 
     // Should successfully recover and process all objects after retries
-    assert.strictEqual(results.length, 2);
-    assert.strictEqual(results[0]!.transformed, true);
-    assert.strictEqual(results[1]!.transformed, true);
+    assertEqual(results.length, 2);
+    assertEqual(results[0]!.transformed, true);
+    assertEqual(results[1]!.transformed, true);
   });
 
   void it('handles minTimeouted stream closure', async () => {
@@ -298,9 +299,9 @@ void describe('restreamer', () => {
     const results = await collectStream(restreamer);
 
     // Should handle minTimeouted closure correctly
-    assert.strictEqual(results.length, 2);
-    assert.strictEqual(results[0]!.transformed, true);
-    assert.strictEqual(results[1]!.transformed, true);
+    assertEqual(results.length, 2);
+    assertEqual(results[0]!.transformed, true);
+    assertEqual(results[1]!.transformed, true);
   });
 
   void it('handles rapid stream closure after enqueuing', async () => {
@@ -331,9 +332,9 @@ void describe('restreamer', () => {
     const results = await collectStream(restreamer);
 
     // Should handle rapid closure correctly
-    assert.strictEqual(results.length, 2);
-    assert.strictEqual(results[0]!.transformed, true);
-    assert.strictEqual(results[1]!.transformed, true);
+    assertEqual(results.length, 2);
+    assertEqual(results[0]!.transformed, true);
+    assertEqual(results[1]!.transformed, true);
   });
 
   void it('handles rapid stream closure after enqueuing', async () => {
@@ -364,9 +365,9 @@ void describe('restreamer', () => {
     const results = await collectStream(restreamer);
 
     // Should handle rapid closure correctly
-    assert.strictEqual(results.length, 2);
-    assert.strictEqual(results[0]!.transformed, true);
-    assert.strictEqual(results[1]!.transformed, true);
+    assertEqual(results.length, 2);
+    assertEqual(results[0]!.transformed, true);
+    assertEqual(results[1]!.transformed, true);
   });
 
   void it('handles rapid stream closure after enqueuing', async () => {
@@ -397,9 +398,9 @@ void describe('restreamer', () => {
     const results = await collectStream(restreamer);
 
     // Should handle rapid closure correctly
-    assert.strictEqual(results.length, 2);
-    assert.strictEqual(results[0]!.transformed, true);
-    assert.strictEqual(results[1]!.transformed, true);
+    assertEqual(results.length, 2);
+    assertEqual(results[0]!.transformed, true);
+    assertEqual(results[1]!.transformed, true);
   });
 
   void it('handles rapid stream closure after enqueuing', async () => {
@@ -430,9 +431,9 @@ void describe('restreamer', () => {
     const results = await collectStream(restreamer);
 
     // Should handle rapid closure correctly
-    assert.strictEqual(results.length, 2);
-    assert.strictEqual(results[0]!.transformed, true);
-    assert.strictEqual(results[1]!.transformed, true);
+    assertEqual(results.length, 2);
+    assertEqual(results[0]!.transformed, true);
+    assertEqual(results[1]!.transformed, true);
   });
 
   void it('handles rapid stream closure after enqueuing', async () => {
@@ -463,9 +464,9 @@ void describe('restreamer', () => {
     const results = await collectStream(restreamer);
 
     // Should handle rapid closure correctly
-    assert.strictEqual(results.length, 2);
-    assert.strictEqual(results[0]!.transformed, true);
-    assert.strictEqual(results[1]!.transformed, true);
+    assertEqual(results.length, 2);
+    assertEqual(results[0]!.transformed, true);
+    assertEqual(results[1]!.transformed, true);
   });
 
   void describe('additional edge cases', () => {
@@ -484,9 +485,9 @@ void describe('restreamer', () => {
       );
       const results = await collectStream(restreamer);
 
-      assert.strictEqual(results.length, 1);
-      assert.strictEqual(results[0]!.transformed, true);
-      assert.strictEqual(results[0]!.data, 'G'.repeat(5000));
+      assertEqual(results.length, 1);
+      assertEqual(results[0]!.transformed, true);
+      assertEqual(results[0]!.data, 'G'.repeat(5000));
     });
 
     void it('handles incomplete final chunk', async () => {
@@ -565,11 +566,11 @@ void describe('restreamer', () => {
       const results = await collectStream(restreamer);
 
       // Ensure that the mixed data types are processed correctly
-      assert.strictEqual(results.length, 4);
-      assert.strictEqual(results[0]!.transformed, true);
-      assert.strictEqual(results[1]!.transformed, true);
-      assert.strictEqual(results[2]!.transformed, true);
-      assert.strictEqual(results[3]!.transformed, true);
+      assertEqual(results.length, 4);
+      assertEqual(results[0]!.transformed, true);
+      assertEqual(results[1]!.transformed, true);
+      assertEqual(results[2]!.transformed, true);
+      assertEqual(results[3]!.transformed, true);
     });
 
     void it('handles frequent transient errors in source stream', async () => {
@@ -608,9 +609,9 @@ void describe('restreamer', () => {
       );
       const results = await collectStream(restreamer);
 
-      assert.strictEqual(results.length, 2);
-      assert.strictEqual(results[0]!.transformed, true);
-      assert.strictEqual(results[1]!.transformed, true);
+      assertEqual(results.length, 2);
+      assertEqual(results[0]!.transformed, true);
+      assertEqual(results[1]!.transformed, true);
     });
 
     void it('handles data arrival after a significant minTimeout', async () => {
@@ -645,9 +646,9 @@ void describe('restreamer', () => {
       );
       const results = await collectStream(restreamer);
 
-      assert.strictEqual(results.length, 2);
-      assert.strictEqual(results[0]!.transformed, true);
-      assert.strictEqual(results[1]!.transformed, true);
+      assertEqual(results.length, 2);
+      assertEqual(results[0]!.transformed, true);
+      assertEqual(results[1]!.transformed, true);
     });
 
     void it('handles unrecoverable errors in source stream', async () => {
@@ -675,10 +676,7 @@ void describe('restreamer', () => {
         await collectStream(restreamer);
         assert.fail('Expected an unrecoverable error');
       } catch (error) {
-        assert.strictEqual(
-          (error as Error).message,
-          'Unrecoverable stream error',
-        );
+        assertEqual((error as Error).message, 'Unrecoverable stream error');
       }
     });
 
@@ -711,9 +709,9 @@ void describe('restreamer', () => {
       );
       const results = await collectStream(restreamer);
 
-      assert.strictEqual(results.length, 2);
-      assert.strictEqual(results[0]!.transformed, true);
-      assert.strictEqual(results[1]!.transformed, true);
+      assertEqual(results.length, 2);
+      assertEqual(results[0]!.transformed, true);
+      assertEqual(results[1]!.transformed, true);
     });
 
     void it('handles a large number of small items', async () => {
@@ -733,7 +731,7 @@ void describe('restreamer', () => {
       );
       const results = await collectStream(restreamer);
 
-      assert.strictEqual(results.length, 10000);
+      assertEqual(results.length, 10000);
       assert(results.every((item) => item.transformed === true));
     });
 
@@ -752,10 +750,10 @@ void describe('restreamer', () => {
       );
       const results = await collectStream(restreamer);
 
-      assert.strictEqual(results.length, 3);
-      assert.strictEqual(results[0]!.transformed, true);
-      assert.strictEqual(results[1]!.transformed, true);
-      assert.strictEqual(results[2]!.transformed, true);
+      assertEqual(results.length, 3);
+      assertEqual(results[0]!.transformed, true);
+      assertEqual(results[1]!.transformed, true);
+      assertEqual(results[2]!.transformed, true);
     });
 
     void it('handles very large single objects', async () => {
@@ -772,8 +770,8 @@ void describe('restreamer', () => {
       );
       const results = await collectStream(restreamer);
 
-      assert.strictEqual(results.length, 1);
-      assert.strictEqual(results[0]!.transformed, true);
+      assertEqual(results.length, 1);
+      assertEqual(results[0]!.transformed, true);
     });
     void it('handles sparse data', async () => {
       const objects: (DefaultRecord | null)[] = [
@@ -804,9 +802,9 @@ void describe('restreamer', () => {
       );
       const results = await collectStream(restreamer);
 
-      assert.strictEqual(results.length, 2); // Only two valid objects
-      assert.strictEqual(results[0]!.transformed, true);
-      assert.strictEqual(results[1]!.transformed, true);
+      assertEqual(results.length, 2); // Only two valid objects
+      assertEqual(results[0]!.transformed, true);
+      assertEqual(results[1]!.transformed, true);
     });
     void it('handles rapid successive chunks', async () => {
       const objects: DefaultRecord[] = [
@@ -835,9 +833,9 @@ void describe('restreamer', () => {
       );
       const results = await collectStream(restreamer);
 
-      assert.strictEqual(results.length, 2);
-      assert.strictEqual(results[0]!.transformed, true);
-      assert.strictEqual(results[1]!.transformed, true);
+      assertEqual(results.length, 2);
+      assertEqual(results[0]!.transformed, true);
+      assertEqual(results[1]!.transformed, true);
     });
 
     void it('handles slow data arrival', async () => {
@@ -869,9 +867,9 @@ void describe('restreamer', () => {
       );
       const results = await collectStream(restreamer);
 
-      assert.strictEqual(results.length, 2);
-      assert.strictEqual(results[0]!.transformed, true);
-      assert.strictEqual(results[1]!.transformed, true);
+      assertEqual(results.length, 2);
+      assertEqual(results[0]!.transformed, true);
+      assertEqual(results[1]!.transformed, true);
     });
   });
 });

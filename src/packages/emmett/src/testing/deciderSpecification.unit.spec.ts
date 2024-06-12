@@ -1,7 +1,6 @@
 import { describe, it } from 'node:test';
-
-import assert, { AssertionError } from 'node:assert';
 import { IllegalStateError, ValidationError } from '../errors';
+import { AssertionError, assertThrows } from '../testing/assertions';
 import { type Command, type Event } from '../typing';
 import { DeciderSpecification } from './deciderSpecification';
 
@@ -77,7 +76,7 @@ void describe('DeciderSpecification', () => {
     });
 
     void it('fails if no error was thrown', () => {
-      assert.throws(
+      assertThrows(
         () => {
           given([])
             .when({
@@ -95,7 +94,7 @@ void describe('DeciderSpecification', () => {
     });
 
     void it('fails if wrong error type', () => {
-      assert.throws(
+      assertThrows(
         () => {
           given([])
             .when({
@@ -115,7 +114,7 @@ void describe('DeciderSpecification', () => {
     });
 
     void it('fails if wrong error type and correct condition', () => {
-      assert.throws(
+      assertThrows(
         () => {
           given([])
             .when({
@@ -135,7 +134,7 @@ void describe('DeciderSpecification', () => {
     });
 
     void it('fails if correct error type but wrong correct condition', () => {
-      assert.throws(
+      assertThrows(
         () => {
           given([])
             .when({

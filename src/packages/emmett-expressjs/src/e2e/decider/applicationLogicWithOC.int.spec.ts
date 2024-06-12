@@ -1,10 +1,12 @@
 import {
+  assertEqual,
+  assertFails,
   assertMatches,
+  assertOk,
   getInMemoryEventStore,
   type EventStore,
 } from '@event-driven-io/emmett';
 import { type Application } from 'express';
-import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it } from 'node:test';
 import request from 'supertest';
@@ -42,9 +44,9 @@ void describe('Application logic with optimistic concurrency', () => {
     const current = createResponse.body;
 
     if (!current.id) {
-      assert.fail();
+      assertFails();
     }
-    assert.ok(current.id);
+    assertOk(current.id);
 
     const shoppingCartId = current.id;
 
@@ -122,7 +124,7 @@ void describe('Application logic with optimistic concurrency', () => {
       .delete(`/clients/${clientId}/shopping-carts/${shoppingCartId}`)
       .set(HeaderNames.IF_MATCH, toWeakETag(currentRevision))
       .expect((response) => {
-        assert.equal(response.statusCode, 403);
+        assertEqual(response.statusCode, 403);
         assertMatches(response.body, {
           detail: ShoppingCartErrors.CART_IS_ALREADY_CLOSED,
         });
@@ -131,8 +133,8 @@ void describe('Application logic with optimistic concurrency', () => {
     const result =
       await eventStore.readStream<ShoppingCartEvent>(shoppingCartId);
 
-    assert.ok(result);
-    assert.equal(result.events.length, Number(currentRevision));
+    assertOk(result);
+    assertEqual(result.events.length, Number(currentRevision));
 
     assertMatches(result?.events, [
       {

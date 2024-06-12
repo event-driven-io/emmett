@@ -1,11 +1,11 @@
 import { jsonEvent } from '@eventstore/db-client';
-import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, beforeEach, describe, it } from 'node:test';
 import {
   EventStoreDBContainer,
   StartedEventStoreDBContainer,
 } from './eventStoreDBContainer';
+import { assertOk } from '@event-driven-io/emmett';
 
 void describe('EventStoreDBContainer', () => {
   let container: StartedEventStoreDBContainer;
@@ -22,7 +22,7 @@ void describe('EventStoreDBContainer', () => {
       jsonEvent({ type: 'test-event', data: { test: 'test' } }),
     );
 
-    assert.ok(result.success);
+    assertOk(result.success);
   });
 
   after(async () => {

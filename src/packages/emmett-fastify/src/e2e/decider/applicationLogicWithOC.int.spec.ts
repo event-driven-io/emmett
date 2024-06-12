@@ -1,10 +1,12 @@
 import {
+  assertEqual,
+  assertFails,
   assertMatches,
+  assertOk,
   getInMemoryEventStore,
   type EventStore,
 } from '@event-driven-io/emmett';
 import { type FastifyInstance } from 'fastify';
-import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it } from 'node:test';
 import { getApplication } from '../..';
@@ -34,9 +36,9 @@ void describe('Application logic with optimistic concurrency using Fastify', () 
 
     const current = createResponse.json<{ id: string }>();
     if (!current?.id) {
-      assert.fail();
+      assertFails();
     }
-    assert.ok(current.id);
+    assertOk(current.id);
 
     const shoppingCartId = current.id;
     ///////////////////////////////////////////////////
@@ -51,7 +53,7 @@ void describe('Application logic with optimistic concurrency using Fastify', () 
       url: `/clients/${clientId}/shopping-carts/${shoppingCartId}/product-items`,
       body: twoPairsOfShoes,
     });
-    assert.equal(response.statusCode, 204);
+    assertEqual(response.statusCode, 204);
 
     ///////////////////////////////////////////////////
     // 3. Add T-Shirt
@@ -67,7 +69,7 @@ void describe('Application logic with optimistic concurrency using Fastify', () 
       body: tShirt,
     });
 
-    assert.equal(response.statusCode, 204);
+    assertEqual(response.statusCode, 204);
 
     ///////////////////////////////////////////////////
     // 4. Remove pair of shoes
@@ -82,7 +84,7 @@ void describe('Application logic with optimistic concurrency using Fastify', () 
       method: 'DELETE',
       url: `/clients/${clientId}/shopping-carts/${shoppingCartId}/product-items?productId=${pairOfShoes.productId}&quantity=${pairOfShoes.quantity}&unitPrice=${pairOfShoes.unitPrice}`,
     });
-    assert.equal(response.statusCode, 204);
+    assertEqual(response.statusCode, 204);
 
     ///////////////////////////////////////////////////
     // 5. Confirm cart
@@ -93,7 +95,7 @@ void describe('Application logic with optimistic concurrency using Fastify', () 
       url: `/clients/${clientId}/shopping-carts/${shoppingCartId}/confirm`,
     });
 
-    assert.equal(response.statusCode, 204);
+    assertEqual(response.statusCode, 204);
 
     ///////////////////////////////////////////////////
     // 6. Try Cancel Cart
@@ -103,15 +105,15 @@ void describe('Application logic with optimistic concurrency using Fastify', () 
       url: `/clients/${clientId}/shopping-carts/${shoppingCartId}`,
     });
 
-    assert.equal(response.statusCode, 403);
+    assertEqual(response.statusCode, 403);
     assertMatches(response.json(), {
       detail: ShoppingCartErrors.CART_IS_ALREADY_CLOSED,
     });
     const result =
       await eventStore.readStream<ShoppingCartEvent>(shoppingCartId);
 
-    assert.ok(result);
-    assert.equal(result.events.length, Number(5));
+    assertOk(result);
+    assertEqual(result.events.length, Number(5));
 
     assertMatches(result?.events, [
       {

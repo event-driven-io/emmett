@@ -1,4 +1,6 @@
 import {
+  assertEqual,
+  assertFails,
   assertMatches,
   type DefaultStreamVersionType,
   type Event,
@@ -6,7 +8,6 @@ import {
 } from '@event-driven-io/emmett';
 import { type Application } from 'express';
 import type { ProblemDocument } from 'http-problem-details';
-import assert from 'node:assert/strict';
 import type { Response, Test } from 'supertest';
 import supertest from 'supertest';
 import type TestAgent from 'supertest/lib/agent';
@@ -57,7 +58,7 @@ export const expectResponse =
   ) =>
   (response: Response): void => {
     const { body, headers } = options ?? {};
-    assert.equal(response.statusCode, statusCode);
+    assertEqual(response.statusCode, statusCode);
     if (body) assertMatches(response.body, body);
     if (headers) assertMatches(response.headers, headers);
   };
@@ -115,14 +116,14 @@ export const ApiSpecification = {
                 if (typeof verify === 'function') {
                   const succeeded = verify(response);
 
-                  if (succeeded === false) assert.fail();
+                  if (succeeded === false) assertFails();
                 } else if (Array.isArray(verify)) {
                   const [first, ...rest] = verify;
 
                   if (typeof first === 'function') {
                     const succeeded = first(response);
 
-                    if (succeeded === false) assert.fail();
+                    if (succeeded === false) assertFails();
                   }
 
                   const events = typeof first === 'function' ? rest : verify;

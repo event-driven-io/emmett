@@ -1,12 +1,12 @@
 import {
+  assertEqual,
   assertMatches,
+  assertOk,
   getInMemoryEventStore,
   type EventStore,
 } from '@event-driven-io/emmett';
 import { getApplication } from '@event-driven-io/emmett-expressjs';
-
 import { type Application } from 'express';
-import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it } from 'node:test';
 import request from 'supertest';
@@ -78,7 +78,7 @@ void describe('Simple Api from getting started', () => {
     await request(app)
       .delete(`/clients/${clientId}/shopping-carts/current`)
       .expect((response) => {
-        assert.equal(response.statusCode, 403);
+        assertEqual(response.statusCode, 403);
       });
 
     const shoppingCartId = getShoppingCartId(clientId);
@@ -87,8 +87,8 @@ void describe('Simple Api from getting started', () => {
       getShoppingCartId(clientId),
     );
 
-    assert.ok(result);
-    assert.equal(result.events.length, 4);
+    assertOk(result);
+    assertEqual(result.events.length, 4);
 
     assertMatches(result?.events, [
       {

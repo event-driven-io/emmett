@@ -1,5 +1,5 @@
+import { assertMatches, assertOk } from '@event-driven-io/emmett';
 import type { Response } from 'light-my-request';
-import assert from 'node:assert/strict';
 import type { Test } from 'supertest';
 
 export type TestResponse<RequestBody> = Omit<
@@ -14,8 +14,8 @@ export const expectNextRevisionInResponseEtag = <RequestBody>(
   response: TestResponse<RequestBody>,
 ) => {
   const eTagValue = response.headers['etag'];
-  assert.ok(eTagValue);
-  assert.match(eTagValue, /W\/"\d+.*"/);
+  assertOk(eTagValue);
+  assertMatches(eTagValue, /W\/"\d+.*"/);
 };
 
 export const runTwice = (test: () => Promise<Response>) => {

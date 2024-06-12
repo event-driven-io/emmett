@@ -1,7 +1,7 @@
-import assert from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 import type { EventStore } from '../eventStore';
+import { assertDeepEqual, assertEqual, assertOk } from './assertions';
 import {
   evolve,
   evolveWithMetadata,
@@ -81,30 +81,30 @@ export async function testAggregateStream(
         });
 
         // then
-        assert.ok(resultAt1);
-        assert.ok(resultAt2);
-        assert.ok(resultAt3);
+        assertOk(resultAt1);
+        assertOk(resultAt2);
+        assertOk(resultAt3);
 
-        assert.equal(resultAt1.currentStreamVersion, options.getInitialIndex());
-        assert.deepEqual(resultAt1.state, {
+        assertEqual(resultAt1.currentStreamVersion, options.getInitialIndex());
+        assertDeepEqual(resultAt1.state, {
           productItems: [productItem],
           totalAmount: 30,
         });
 
-        assert.equal(
+        assertEqual(
           resultAt2.currentStreamVersion,
           options.getInitialIndex() + 1n,
         );
-        assert.deepEqual(resultAt2.state, {
+        assertDeepEqual(resultAt2.state, {
           productItems: [productItem, productItem],
           totalAmount: 60,
         });
 
-        assert.equal(
+        assertEqual(
           resultAt3.currentStreamVersion,
           options.getInitialIndex() + 2n,
         );
-        assert.deepEqual(resultAt3.state, {
+        assertDeepEqual(resultAt3.state, {
           productItems: [productItem, productItem],
           totalAmount: 54,
         });
