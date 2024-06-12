@@ -1,5 +1,5 @@
-import assert, { AssertionError } from 'assert';
 import { isErrorConstructor, type ErrorConstructor } from '../errors';
+import { AssertionError, assertMatches, assertTrue } from './assertions';
 
 type ErrorCheck<ErrorType> = (error: ErrorType) => boolean;
 
@@ -58,35 +58,35 @@ export const DeciderSpecification = {
                   ? expectedEvents
                   : [expectedEvents];
 
-                assert.deepEqual(resultEventsArray, expectedEventsArray);
+                assertMatches(resultEventsArray, expectedEventsArray);
               },
               thenThrows: <ErrorType extends Error>(
                 ...args: Parameters<ThenThrows<ErrorType>>
               ): void => {
                 try {
                   handle();
-                  assert.fail('Handler did not fail as expected');
+                  throw new Error('Handler did not fail as expected');
                 } catch (error) {
                   if (error instanceof AssertionError) throw error;
 
                   if (args.length === 0) return;
 
                   if (!isErrorConstructor(args[0])) {
-                    assert.ok(
+                    assertTrue(
                       args[0](error as ErrorType),
                       `Error didn't match the error condition: ${error?.toString()}`,
                     );
                     return;
                   }
 
-                  assert.ok(
+                  assertTrue(
                     error instanceof args[0],
                     `Caught error is not an instance of the expected type: ${error?.toString()}`,
                   );
 
                   if (args[1]) {
-                    assert.ok(
-                      args[1](error),
+                    assertTrue(
+                      args[1](error as ErrorType),
                       `Error didn't match the error condition: ${error?.toString()}`,
                     );
                   }
