@@ -90,8 +90,11 @@ export function assertEqual<T>(
   other: T | null | undefined,
   message?: string,
 ): void {
-  if (!obj || !other || obj != other)
-    throw new AssertionError(message ?? `Objects are not equal`);
+  if (obj !== other)
+    throw new AssertionError(
+      message ??
+        `Objects are not equal:\n ${JSON.stringify(obj)}\ncompared:\n${JSON.stringify(other)}`,
+    );
 }
 
 export function assertNotEqual<T>(
@@ -99,7 +102,10 @@ export function assertNotEqual<T>(
   other: T | null | undefined,
   message?: string,
 ): void {
-  if (obj === other) throw new AssertionError(message ?? `Objects are equal`);
+  if (obj === other)
+    throw new AssertionError(
+      message ?? `Objects are equal: ${JSON.stringify(obj)}`,
+    );
 }
 
 export function assertIsNotNull<T extends object>(
