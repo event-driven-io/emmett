@@ -1,4 +1,4 @@
-import type { ReadableStream } from '../shims/streams';
+import type { ReadableStream } from 'web-streams-polyfill';
 
 export const collectStream = async <T>(
   reader: ReadableStream<T>,
