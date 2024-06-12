@@ -15,11 +15,7 @@ export const DeciderCommandHandler =
     StreamEvent extends Event,
     StreamVersion = DefaultStreamVersionType,
   >(
-    {
-      decide,
-      evolve,
-      getInitialState,
-    }: Decider<State, CommandType, StreamEvent>,
+    { decide, evolve, initialState }: Decider<State, CommandType, StreamEvent>,
     mapToStreamId: (id: string) => string = (id) => id,
   ) =>
   async (
@@ -32,7 +28,7 @@ export const DeciderCommandHandler =
   ) =>
     CommandHandler<State, StreamEvent, StreamVersion>(
       evolve,
-      getInitialState,
+      initialState,
       mapToStreamId,
     )(eventStore, id, (state) => decide(command, state), options);
 // #endregion command-handler

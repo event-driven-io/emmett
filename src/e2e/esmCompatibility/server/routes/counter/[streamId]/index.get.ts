@@ -1,4 +1,4 @@
-import { evolve, getInitialState } from '~/app/counter';
+import { evolve, initialState } from '~/app/counter';
 import { eventStore } from '~/app/event-store';
 
 export default eventHandler(async (event) => {
@@ -9,7 +9,7 @@ export default eventHandler(async (event) => {
   }
   const state = await eventStore.aggregateStream(streamId, {
     evolve,
-    getInitialState,
+    initialState,
   });
 
   return state;

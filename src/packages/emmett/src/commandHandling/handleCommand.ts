@@ -21,7 +21,7 @@ export type CommandHandlerResult<
 export const CommandHandler =
   <State, StreamEvent extends Event, StreamVersion = DefaultStreamVersionType>(
     evolve: (state: State, event: StreamEvent) => State,
-    getInitialState: () => State,
+    initialState: () => State,
     mapToStreamId: (id: string) => string = (id) => id,
   ) =>
   async <Store extends EventStore<StreamVersion>>(
@@ -40,7 +40,7 @@ export const CommandHandler =
       StreamEvent
     >(streamName, {
       evolve,
-      getInitialState,
+      initialState,
       read: {
         // expected stream version is passed to fail fast
         // if stream is in the wrong state
@@ -50,7 +50,7 @@ export const CommandHandler =
     });
 
     // 2. Use the aggregate state or the initial one (when e.g. stream does not exist)
-    const state = aggregationResult?.state ?? getInitialState();
+    const state = aggregationResult?.state ?? initialState();
     const currentStreamVersion = aggregationResult?.currentStreamVersion;
 
     // 3. Run business logic

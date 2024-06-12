@@ -25,9 +25,9 @@ import type {
   RemoveProductItemFromShoppingCart,
 } from '../commands';
 import type { ProductItem, ShoppingCartEvent } from '../events';
-import { evolve, getInitialState, type ShoppingCart } from '../shoppingCart';
+import { evolve, initialState, type ShoppingCart } from '../shoppingCart';
 
-export const handle = CommandHandler(evolve, getInitialState);
+export const handle = CommandHandler(evolve, initialState);
 
 export const getShoppingCartId = (clientId: string) =>
   `shopping_cart:${assertNotEmptyString(clientId)}:current`;
@@ -157,7 +157,7 @@ export const shoppingCartApi =
           ShoppingCartEvent
         >(shoppingCartId, {
           evolve,
-          getInitialState,
+          initialState,
         });
 
         if (result === null) return NotFound();

@@ -9,10 +9,10 @@ import { NoContent, on } from '@event-driven-io/emmett-expressjs';
 import { Router, type Request } from 'express';
 import { addProductItem } from '../businessLogic';
 import type { AddProductItemToShoppingCart } from '../commands';
-import { evolve, getInitialState } from '../shoppingCart';
+import { evolve, initialState } from '../shoppingCart';
 import { getShoppingCartId } from './simpleApi';
 
-const handle = CommandHandler(evolve, getInitialState);
+const handle = CommandHandler(evolve, initialState);
 const router: Router = Router();
 
 const getUnitPrice = (_productId: string) => {

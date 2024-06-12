@@ -83,7 +83,7 @@ export const decide = (rawCommand: CounterCommand, state: Counter) => {
     .exhaustive();
 };
 
-export const getInitialState = () => {
+export const initialState = () => {
   return {
     status: 'opened',
     value: 0,
@@ -113,4 +113,4 @@ export const evolve = (state: Counter, event: CounterEvent) => {
     .exhaustive();
 };
 
-export const handle = CommandHandler(evolve, getInitialState);
+export const handle = CommandHandler(evolve, initialState);

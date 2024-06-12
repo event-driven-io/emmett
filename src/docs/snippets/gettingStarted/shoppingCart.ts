@@ -24,7 +24,7 @@ export type ProductItems = Map<string, number>;
 // #endregion getting-started-state
 
 // #region getting-started-state-default
-export const getInitialState = (): ShoppingCart => {
+export const initialState = (): ShoppingCart => {
   return {
     status: 'Empty',
   };

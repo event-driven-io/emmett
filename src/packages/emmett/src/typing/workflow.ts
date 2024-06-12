@@ -10,7 +10,7 @@ export type Workflow<
 > = {
   decide: (command: Input, state: State) => WorkflowOutput<Output>[];
   evolve: (currentState: State, event: WorkflowEvent<Output>) => State;
-  getInitialState: () => State;
+  initialState: () => State;
 };
 
 export type WorkflowEvent<Output extends Command | Event> = Extract<

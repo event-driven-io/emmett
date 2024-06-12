@@ -185,5 +185,5 @@ export const decider: Decider<
 > = {
   decide,
   evolve,
-  getInitialState: () => emptyShoppingCart,
+  initialState: () => emptyShoppingCart,
 };

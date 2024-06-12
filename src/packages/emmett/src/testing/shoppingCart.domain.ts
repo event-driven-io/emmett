@@ -61,6 +61,6 @@ export const evolveWithMetadata = (
   }
 };
 
-export const getInitialState = (): ShoppingCart => {
+export const initialState = (): ShoppingCart => {
   return { productItems: [], totalAmount: 0 };
 };

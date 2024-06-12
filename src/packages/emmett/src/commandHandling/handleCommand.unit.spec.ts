@@ -43,7 +43,7 @@ const evolve = (
   }
 };
 
-const getInitialState = (): ShoppingCart => {
+const initialState = (): ShoppingCart => {
   return { productItems: [], totalAmount: 0 };
 };
 
@@ -81,7 +81,7 @@ const addProductItemWithDiscount = (
 
 const handleCommand = CommandHandler<ShoppingCart, ShoppingCartEvent>(
   evolve,
-  getInitialState,
+  initialState,
 );
 
 void describe('Command Handler', () => {

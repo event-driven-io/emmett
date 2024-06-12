@@ -80,7 +80,7 @@ export type AggregateStreamOptions<
   ReadEventMetadataType extends ReadEventMetadata = ReadEventMetadata,
 > = {
   evolve: Evolve<State, EventType, ReadEventMetadataType>;
-  getInitialState: () => State;
+  initialState: () => State;
   read?: ReadStreamOptions<StreamVersion>;
 };
 

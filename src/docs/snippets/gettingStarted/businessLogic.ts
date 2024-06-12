@@ -12,7 +12,7 @@ import type {
   ShoppingCartConfirmed,
   ShoppingCartEvent,
 } from './events';
-import { evolve, getInitialState, type ShoppingCart } from './shoppingCart';
+import { evolve, initialState, type ShoppingCart } from './shoppingCart';
 
 // #region getting-started-business-logic
 import { EmmettError, IllegalStateError, sum } from '@event-driven-io/emmett';
@@ -148,6 +148,6 @@ export const decider: Decider<
 > = {
   decide,
   evolve,
-  getInitialState,
+  initialState,
 };
 // #endregion getting-started-business-logic-decider
