@@ -1,17 +1,18 @@
 import {
+  WrapEventStore,
   assertEqual,
   assertFails,
   assertMatches,
   type DefaultStreamVersionType,
   type Event,
   type EventStore,
+  type TestEventStream,
 } from '@event-driven-io/emmett';
 import { type Application } from 'express';
 import type { ProblemDocument } from 'http-problem-details';
 import type { Response, Test } from 'supertest';
 import supertest from 'supertest';
 import type TestAgent from 'supertest/lib/agent';
-import { WrapEventStore, type TestEventStream } from './utils';
 
 ////////////////////////////////
 /////////// Setup

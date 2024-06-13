@@ -4,9 +4,9 @@ import type {
   DefaultStreamVersionType,
   EventStore,
 } from '@event-driven-io/emmett';
+import { WrapEventStore } from '@event-driven-io/emmett';
 import assert from 'assert';
 import type { Application } from 'express';
-import { WrapEventStore } from './utils';
 import type { TestRequest } from './apiSpecification';
 
 export type E2EResponseAssert = (response: Response) => boolean | void;

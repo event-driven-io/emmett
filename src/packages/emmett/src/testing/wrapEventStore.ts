@@ -4,11 +4,11 @@ import type {
   AppendToStreamOptions,
   AppendToStreamResult,
   DefaultStreamVersionType,
-  Event,
   EventStore,
   ReadStreamOptions,
   ReadStreamResult,
-} from '@event-driven-io/emmett';
+} from '../eventStore';
+import { type Event } from '../typing';
 
 export type TestEventStream<EventType extends Event = Event> = [
   string,
