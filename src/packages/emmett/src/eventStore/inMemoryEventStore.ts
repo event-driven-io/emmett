@@ -1,4 +1,4 @@
-import { v4 as randomUUID } from 'uuid';
+import { v4 as uuid } from 'uuid';
 import {
   TransformStream,
   TransformStreamDefaultController,
@@ -33,7 +33,7 @@ export const getInMemoryEventStore = (): EventStore<
     string,
     ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[]
   >();
-  const subscriptions = SubscriptionsCoordinator();
+  const streamingCoordinator = StreamingCoordinator();
 
   const getAllEventsCount = () => {
     return Array.from<ReadEvent[]>(streams.values())
@@ -138,7 +138,7 @@ export const getInMemoryEventStore = (): EventStore<
           metadata: {
             ...(event.metadata ?? {}),
             streamName,
-            eventId: randomUUID(),
+            eventId: uuid(),
             streamPosition: BigInt(currentEvents.length + index + 1),
             globalPosition: BigInt(getAllEventsCount() + index + 1),
           },
@@ -150,7 +150,7 @@ export const getInMemoryEventStore = (): EventStore<
       );
 
       streams.set(streamName, [...currentEvents, ...newEvents]);
-      await subscriptions.notify(newEvents);
+      await streamingCoordinator.notify(newEvents);
 
       const result: AppendToStreamResult = {
         nextExpectedStreamVersion: positionOfLastEventInTheStream,
@@ -159,13 +159,13 @@ export const getInMemoryEventStore = (): EventStore<
       return result;
     },
 
-    subscribe: subscriptions.subscribe,
+    streamEvents: streamingCoordinator.stream,
   };
 };
 
-export const SubscriptionsCoordinator = () => {
+export const StreamingCoordinator = () => {
   const allEvents: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[] = [];
-  const subscribers = new Set<CaughtUpTransformStream>();
+  const listeners = new Map<string, CaughtUpTransformStream>();
 
   return {
     notify: async (
@@ -173,23 +173,23 @@ export const SubscriptionsCoordinator = () => {
     ) => {
       allEvents.push(...events);
 
-      for (const subscriber of subscribers) {
-        const writableStream = subscriber.writable;
+      for (const listener of listeners.values()) {
+        const writableStream = listener.writable;
         const writer = writableStream.getWriter();
         for (const event of events) await writer.write(event);
       }
     },
 
-    subscribe: () => {
-      const transformStream = new CaughtUpTransformStream(
-        allEvents,
-        (subscription) => {
-          subscribers.delete(subscription);
-        },
-      );
+    stream: () => {
+      const streamId = uuid();
+      const transformStream = new CaughtUpTransformStream(allEvents);
 
-      subscribers.add(transformStream);
-      return transformStream.readable;
+      listeners.set(streamId, transformStream);
+      return transformStream.readable.pipeThrough(
+        new ActiveReadersTrackingStream((stream) => {
+          listeners.delete(stream.streamId);
+        }, streamId),
+      );
     },
   };
 };
@@ -201,12 +201,8 @@ export class CaughtUpTransformStream extends TransformStream<
 > {
   private currentGlobalPosition: bigint;
   private highestGlobalPosition: bigint;
-  private checkInterval: NodeJS.Timeout | null = null;
 
-  constructor(
-    events: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[],
-    private onNoActiveReaderCallback: (stream: CaughtUpTransformStream) => void,
-  ) {
+  constructor(events: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[]) {
     super({
       start: (controller) => {
         let globalPosition = 0n;
@@ -229,17 +225,54 @@ export class CaughtUpTransformStream extends TransformStream<
           this.highestGlobalPosition,
         );
       },
-      cancel: (reason) => {
-        console.log('Stream was canceled. Reason:', reason);
-        this.stopChecking();
-        this.checkNoActiveReader();
-      },
     });
 
     this.currentGlobalPosition = this.highestGlobalPosition =
       events.length > 0
         ? events[events.length - 1]!.metadata.globalPosition
         : 0n;
+  }
+
+  private static enqueueCaughtUpEvent(
+    controller: TransformStreamDefaultController<
+      | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
+      | GlobalSubscriptionEvent
+    >,
+    currentGlobalPosition: bigint,
+    highestGlobalPosition: bigint,
+  ) {
+    if (currentGlobalPosition < highestGlobalPosition) return;
+
+    const caughtUp: GlobalStreamCaughtUp = {
+      type: '__emt:GlobalStreamCaughtUp',
+      data: {
+        globalPosition: highestGlobalPosition,
+      },
+    };
+    controller.enqueue(caughtUp);
+  }
+}
+
+export class ActiveReadersTrackingStream extends TransformStream<
+  ReadEvent<Event, ReadEventMetadataWithGlobalPosition>,
+  | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
+  | GlobalSubscriptionEvent
+> {
+  private checkInterval: NodeJS.Timeout | null = null;
+
+  constructor(
+    private onNoActiveReaderCallback: (
+      stream: ActiveReadersTrackingStream,
+    ) => void,
+    public streamId: string,
+  ) {
+    super({
+      cancel: (reason) => {
+        console.log('Stream was canceled. Reason:', reason);
+        this.stopChecking();
+        this.checkNoActiveReader();
+      },
+    });
 
     this.onNoActiveReaderCallback = onNoActiveReaderCallback;
 
@@ -266,24 +299,5 @@ export class CaughtUpTransformStream extends TransformStream<
       this.stopChecking();
       this.onNoActiveReaderCallback(this);
     }
-  }
-
-  private static enqueueCaughtUpEvent(
-    controller: TransformStreamDefaultController<
-      | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
-      | GlobalSubscriptionEvent
-    >,
-    currentGlobalPosition: bigint,
-    highestGlobalPosition: bigint,
-  ) {
-    if (currentGlobalPosition < highestGlobalPosition) return;
-
-    const caughtUp: GlobalStreamCaughtUp = {
-      type: '__emt:GlobalStreamCaughtUp',
-      data: {
-        globalPosition: highestGlobalPosition,
-      },
-    };
-    controller.enqueue(caughtUp);
   }
 }
