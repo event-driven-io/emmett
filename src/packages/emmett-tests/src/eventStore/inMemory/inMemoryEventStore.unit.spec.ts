@@ -1,42 +1,37 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import {
-  SubscriptionsCoordinator,
+  StreamingCoordinator,
   getInMemoryEventStore,
   isGlobalStreamCaughtUp,
-  type GlobalStreamCaughtUp,
 } from '../eventStore';
 import { collectStream, stopOn } from '../streaming';
-import {
-  type Event,
-  type ReadEvent,
-  type ReadEventMetadataWithGlobalPosition,
-} from '../typing';
+import { type Event } from '../typing';
 
 type MockEvent = Event<'Mocked', { mocked: true }>;
 
-const createMockEvent = (position: bigint) => ({
-  type: 'Mocked',
-  data: { mocked: true },
-  metadata: {
-    streamName: 'testStream',
-    eventId: `event-${position}`,
-    streamPosition: position,
-    globalPosition: position,
-  },
-});
+// const createMockEvent = (position: bigint) => ({
+//   type: 'Mocked',
+//   data: { mocked: true },
+//   metadata: {
+//     streamName: 'testStream',
+//     eventId: `event-${position}`,
+//     streamPosition: position,
+//     globalPosition: position,
+//   },
+// });
 
-type SubscriptionDomainEvent = ReadEvent<
-  Event,
-  ReadEventMetadataWithGlobalPosition
->;
+// type SubscriptionDomainEvent = ReadEvent<
+//   Event,
+//   ReadEventMetadataWithGlobalPosition
+// >;
 
-type SubscriptionEvent = SubscriptionDomainEvent | GlobalStreamCaughtUp;
+// type SubscriptionEvent = SubscriptionDomainEvent | GlobalStreamCaughtUp;
 
-const createCaughtUpEvent = (position: bigint): GlobalStreamCaughtUp => ({
-  type: '__emt:GlobalStreamCaughtUp',
-  data: { globalPosition: position },
-});
+// const createCaughtUpEvent = (position: bigint): GlobalStreamCaughtUp => ({
+//   type: '__emt:GlobalStreamCaughtUp',
+//   data: { globalPosition: position },
+// });
 
 void describe('InMemoryEventStore', () => {
   const eventStore = getInMemoryEventStore();
@@ -54,7 +49,7 @@ void describe('InMemoryEventStore', () => {
 
     // Subscribe to the stream and process events
     const readableStream = eventStore
-      .subscribe()
+      .streamEvents()
       .pipeThrough(stopOn(isGlobalStreamCaughtUp));
 
     const receivedEvents = await collectStream(readableStream);
@@ -66,16 +61,16 @@ void describe('InMemoryEventStore', () => {
 void describe('SubscriptionsCoordinator', () => {
   // Test the SubscriptionsCoordinator
   void it('should add and remove subscribers correctly', () => {
-    const coordinator = SubscriptionsCoordinator();
+    const coordinator = StreamingCoordinator();
 
     // Initially, no subscribers
     assert.strictEqual(
-      coordinator.subscribe().locked,
+      coordinator.stream().locked,
       false,
       'Stream should not be locked initially',
     );
 
-    const stream = coordinator.subscribe();
+    const stream = coordinator.stream();
     assert.strictEqual(
       stream.locked,
       false,

@@ -78,11 +78,11 @@ export const WrapEventStore = <
       return eventStore.appendToStream(streamName, events);
     },
 
-    subscribe: (): ReadableStream<
+    streamEvents: (): ReadableStream<
       // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
       ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent
     > => {
-      return eventStore.subscribe();
+      return eventStore.streamEvents();
     },
   };
 };

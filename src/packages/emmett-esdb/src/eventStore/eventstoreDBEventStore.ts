@@ -175,7 +175,7 @@ export const getEventStoreDBEventStore = (
       }
     },
 
-    subscribe: subscribe(eventStore),
+    streamEvents: streamEvents(eventStore),
   };
 };
 
@@ -260,7 +260,7 @@ const convertToWebReadableStream = (
   ) as ReadableStream<AllStreamResolvedEvent>;
 };
 
-const subscribe = (eventStore: EventStoreDBClient) => () => {
+const streamEvents = (eventStore: EventStoreDBClient) => () => {
   return restream<
     AllStreamResolvedEvent,
     | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>

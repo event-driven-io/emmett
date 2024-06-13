@@ -29,7 +29,7 @@ export interface EventStore<
     options?: AppendToStreamOptions<StreamVersion>,
   ): Promise<AppendToStreamResult<StreamVersion>>;
 
-  subscribe(): ReadableStream<
+  streamEvents(): ReadableStream<
     ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent
   >;
 }
