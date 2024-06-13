@@ -10,6 +10,9 @@ export const isSubset = (superObj: unknown, subObj: unknown): boolean => {
   const sup = superObj as DefaultRecord;
   const sub = subObj as DefaultRecord;
 
+  assertOk(sup);
+  assertOk(sub);
+
   return Object.keys(sub).every((ele: string) => {
     if (typeof sub[ele] == 'object') {
       return isSubset(sup[ele], sub[ele]);
