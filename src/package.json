@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/core",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Emmett - Event Sourcing development made simple",
   "engines": {
     "node": ">=20.11.1"
