@@ -33,20 +33,14 @@ const handleChunk =
   (
     readResult: ReadableStreamDefaultReadResult<StreamType>,
     controller: TransformStreamDefaultController<Transformed>,
-  ): boolean => {
+  ): void => {
     const { done: isDone, value } = readResult;
 
     if (value) decoder.addToBuffer(value);
 
-    if (!isDone && !decoder.hasCompleteMessage()) return false;
+    if (!isDone && !decoder.hasCompleteMessage()) return;
 
     decodeAndTransform(decoder, transform, controller);
-
-    if (isDone) {
-      controller.terminate();
-    }
-
-    return isDone;
   };
 
 const decodeAndTransform = <StreamType, Source, Transformed = Source>(
