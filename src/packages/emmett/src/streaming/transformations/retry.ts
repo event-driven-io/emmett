@@ -15,7 +15,7 @@ export const retry = <
   handleChunk: (
     readResult: ReadableStreamDefaultReadResult<StreamType>,
     controller: TransformStreamDefaultController<Transformed>,
-  ) => Promise<boolean> | boolean,
+  ) => Promise<void> | void,
   retryOptions: asyncRetry.Options = { forever: true, minTimeout: 25 },
 ): TransformStream<Source, Transformed> =>
   new TransformStream<Source, Transformed>({
@@ -34,7 +34,7 @@ const onRestream = async <StreamType, Source, Transformed = Source>(
   handleChunk: (
     readResult: ReadableStreamDefaultReadResult<StreamType>,
     controller: TransformStreamDefaultController<Transformed>,
-  ) => Promise<boolean> | boolean,
+  ) => Promise<void> | void,
   controller: TransformStreamDefaultController<Transformed>,
 ): Promise<void> => {
   const sourceStream = createSourceStream();
@@ -45,7 +45,13 @@ const onRestream = async <StreamType, Source, Transformed = Source>(
 
     do {
       const result = await reader.read();
-      done = await handleChunk(result, controller);
+      done = result.done;
+
+      await handleChunk(result, controller);
+
+      if (done) {
+        controller.terminate();
+      }
     } while (!done);
   } finally {
     reader.releaseLock();
