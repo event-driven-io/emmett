@@ -5,8 +5,10 @@ import {
   getInMemoryEventStore,
   isGlobalStreamCaughtUp,
 } from '../eventStore';
-import { collectStream, stopOn } from '../streaming';
+import { collectStream, streamTransformations } from '../streaming';
 import { type Event } from '../typing';
+
+const { stopOn } = streamTransformations;
 
 type MockEvent = Event<'Mocked', { mocked: true }>;
 

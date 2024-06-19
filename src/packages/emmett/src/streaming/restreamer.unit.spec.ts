@@ -1,12 +1,12 @@
+import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { ReadableStream } from 'web-streams-polyfill';
+import { assertEqual } from '../testing';
 import type { DefaultRecord } from '../typing';
 import { collectStream } from './collect';
 import { DefaultDecoder } from './decoders/composite';
 import { JsonDecoder } from './decoders/json';
 import { restream } from './restream';
-import assert from 'node:assert';
-import { assertEqual } from '../testing';
 
 type TransformedObject = DefaultRecord & { transformed: true };
 
