@@ -50,7 +50,7 @@ const decodeAndTransform = <StreamType, Source, Transformed = Source>(
 ) => {
   try {
     const decoded = decoder.decode();
-    if (!decoded) return;
+    if (!decoded) return; // TODO: Add a proper handling of decode errors
 
     const transformed = transform(decoded);
     controller.enqueue(transformed);

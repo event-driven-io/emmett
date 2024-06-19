@@ -7,19 +7,19 @@ import {
 } from 'web-streams-polyfill';
 import { retry } from './retry';
 
-const createMockStream = (data: any[]): ReadableStream<any> => {
+const createMockStream = (data: number[]): ReadableStream<number> => {
   return new ReadableStream({
-    async pull(controller) {
+    pull(controller) {
       data.forEach((item) => controller.enqueue(item));
       controller.close();
     },
   });
 };
 
-describe('retry', () => {
-  it('processes the stream successfully and terminate when done', async () => {
+void describe('retry', () => {
+  void it('processes the stream successfully and terminate when done', async () => {
     const data = [1, 2, 3];
-    const handleChunk = async (
+    const handleChunk = (
       readResult: ReadableStreamDefaultReadResult<number>,
       controller: TransformStreamDefaultController<number>,
     ) => {
@@ -44,10 +44,10 @@ describe('retry', () => {
     assert.deepEqual(result, [2, 4, 6]);
   });
 
-  it('retrieses on transient failure and process successfully after retries', async () => {
+  void it('retrieses on transient failure and process successfully after retries', async () => {
     let attempt = 0;
     const data = [1, 2, 3];
-    const handleChunk = async (
+    const handleChunk = (
       readResult: ReadableStreamDefaultReadResult<number>,
       controller: TransformStreamDefaultController<number>,
     ) => {
@@ -75,8 +75,8 @@ describe('retry', () => {
     assert.deepEqual(result, [2, 4, 6]);
   });
 
-  it('handle persistent stream errors and propagate them', async () => {
-    const handleChunk = async () => {
+  void it('handle persistent stream errors and propagate them', async () => {
+    const handleChunk = () => {
       throw new Error('Chunk processing failed');
     };
 

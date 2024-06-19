@@ -3,6 +3,7 @@ import {
   TransformStream,
   TransformStreamDefaultController,
 } from 'web-streams-polyfill';
+import { notifyAboutNoActiveReadersStream } from '../streaming/transformations/notifyAboutNoActiveReaders';
 import type {
   Event,
   ReadEvent,
@@ -186,9 +187,12 @@ export const StreamingCoordinator = () => {
 
       listeners.set(streamId, transformStream);
       return transformStream.readable.pipeThrough(
-        new ActiveReadersTrackingStream((stream) => {
-          listeners.delete(stream.streamId);
-        }, streamId),
+        notifyAboutNoActiveReadersStream(
+          (stream) => {
+            listeners.delete(stream.streamId);
+          },
+          { streamId },
+        ),
       );
     },
   };
@@ -250,54 +254,5 @@ export class CaughtUpTransformStream extends TransformStream<
       },
     };
     controller.enqueue(caughtUp);
-  }
-}
-
-export class ActiveReadersTrackingStream extends TransformStream<
-  ReadEvent<Event, ReadEventMetadataWithGlobalPosition>,
-  | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
-  | GlobalSubscriptionEvent
-> {
-  private checkInterval: NodeJS.Timeout | null = null;
-
-  constructor(
-    private onNoActiveReaderCallback: (
-      stream: ActiveReadersTrackingStream,
-    ) => void,
-    public streamId: string,
-  ) {
-    super({
-      cancel: (reason) => {
-        console.log('Stream was canceled. Reason:', reason);
-        this.stopChecking();
-        this.checkNoActiveReader();
-      },
-    });
-
-    this.onNoActiveReaderCallback = onNoActiveReaderCallback;
-
-    // Start checking for no active readers
-    this.startChecking();
-  }
-
-  private startChecking() {
-    this.checkInterval = setInterval(() => {
-      this.checkNoActiveReader();
-    }, 20); // Adjust the interval as needed
-  }
-
-  private stopChecking() {
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-      this.checkInterval = null;
-    }
-  }
-
-  private checkNoActiveReader() {
-    // Check if the readable stream has no active reader
-    if (!this.readable.locked) {
-      this.stopChecking();
-      this.onNoActiveReaderCallback(this);
-    }
   }
 }
