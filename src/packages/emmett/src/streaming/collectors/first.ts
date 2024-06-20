@@ -5,12 +5,10 @@ export const first = async <T>(stream: ReadableStream<T>): Promise<T> => {
   const reader = stream.getReader();
 
   try {
-    const { done, value } = await reader.read();
+    const { value } = await reader.read();
 
-    if (!value && done)
+    if (value === undefined)
       throw new EmmettError('Cannot read first item as stream was empty!');
-
-    if (value === undefined) throw new EmmettError('Value was undefined!');
 
     return value;
   } finally {
