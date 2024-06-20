@@ -1,7 +1,7 @@
-// ReduceTransformStream.test.ts
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { ReadableStream } from 'web-streams-polyfill';
+import { assertEqual } from '../../testing';
 import { reduce } from './reduce'; // Adjust the import path
 
 void describe('ReduceTransformStream', () => {
@@ -23,7 +23,7 @@ void describe('ReduceTransformStream', () => {
     const reader = sourceStream.pipeThrough(reduceStream).getReader();
     const { value } = await reader.read();
 
-    assert.strictEqual(value, 15);
+    assertEqual(value, 15);
   });
 
   void it('handles string concatenation', async () => {
@@ -44,7 +44,7 @@ void describe('ReduceTransformStream', () => {
     const reader = sourceStream.pipeThrough(reduceStream).getReader();
     const { value } = await reader.read();
 
-    assert.strictEqual(value, 'abcd');
+    assertEqual(value, 'abcd');
   });
 
   void it('works with complex objects', async () => {
@@ -71,7 +71,7 @@ void describe('ReduceTransformStream', () => {
     assert.deepStrictEqual(value, { count: 6 });
   });
 
-  void it('should handle an empty stream', async () => {
+  void it('handles an empty stream', async () => {
     const reducer = (acc: number, chunk: number) => acc + chunk;
     const initialValue = 12;
     const reduceStream = reduce<number, number>(reducer, initialValue);
@@ -85,10 +85,10 @@ void describe('ReduceTransformStream', () => {
     const reader = sourceStream.pipeThrough(reduceStream).getReader();
     const { value } = await reader.read();
 
-    assert.strictEqual(value, 12);
+    assertEqual(value, 12);
   });
 
-  void it('should handle a stream with a single chunk', async () => {
+  void it('handles a stream with a single chunk', async () => {
     // Arrange
     const reducer = (acc: number, chunk: number) => acc + chunk;
     const initialValue = 12;
@@ -104,6 +104,6 @@ void describe('ReduceTransformStream', () => {
     const reader = sourceStream.pipeThrough(reduceStream).getReader();
     const { value } = await reader.read();
 
-    assert.strictEqual(value, 54);
+    assertEqual(value, 54);
   });
 });

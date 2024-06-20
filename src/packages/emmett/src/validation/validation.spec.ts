@@ -1,10 +1,10 @@
 import { describe, it } from 'node:test';
-import { assertNotEmptyString } from './index';
 import { assertThrows } from '../testing';
+import { assertNotEmptyString } from './index';
 
 void describe('Validation', () => {
   void describe('assertNotEmptyString', () => {
-    void it('should throw an error if the value is an empty string', () => {
+    void it('throws an error if the value is an empty string', () => {
       // Arrange
       const value = '';
 

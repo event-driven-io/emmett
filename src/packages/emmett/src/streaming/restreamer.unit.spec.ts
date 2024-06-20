@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { ReadableStream } from 'web-streams-polyfill';
 import { assertEqual } from '../testing';
 import type { DefaultRecord } from '../typing';
-import { collectStream } from './collect';
+import { collect } from './collectors/collect';
 import { DefaultDecoder } from './decoders/composite';
 import { JsonDecoder } from './decoders/json';
 import { restream } from './restream';
@@ -91,7 +91,7 @@ void describe('restreamer', () => {
       { retries: 3, minTimeout: 25 },
     );
 
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     assertEqual(results.length, 2);
     assertEqual(results[0]!.transformed, true);
@@ -111,7 +111,7 @@ void describe('restreamer', () => {
       { retries: 3, minTimeout: 25 },
     );
 
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     assertEqual(results.length, 2);
     assertEqual(results[0]!.transformed, true);
@@ -130,7 +130,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Reduced minTimeout for faster testing
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     assertEqual(results.length, 2);
     assertEqual(results[0]!.transformed, true);
@@ -146,7 +146,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 },
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     assertEqual(results.length, 0);
   });
@@ -182,7 +182,7 @@ void describe('restreamer', () => {
     );
 
     try {
-      await collectStream(restreamer);
+      await collect(restreamer);
       assert.fail('Expected an error during stream processing');
     } catch (error) {
       assertEqual((error as Error).message, 'Source stream error');
@@ -219,7 +219,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should only have 2 transformed objects
     assertEqual(results.length, 2);
@@ -261,7 +261,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 5, minTimeout: 25 }, // Retry options to handle transient errors
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should successfully recover and process all objects after retries
     assertEqual(results.length, 2);
@@ -296,7 +296,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should handle minTimeouted closure correctly
     assertEqual(results.length, 2);
@@ -329,7 +329,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should handle rapid closure correctly
     assertEqual(results.length, 2);
@@ -362,7 +362,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should handle rapid closure correctly
     assertEqual(results.length, 2);
@@ -395,7 +395,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should handle rapid closure correctly
     assertEqual(results.length, 2);
@@ -428,7 +428,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should handle rapid closure correctly
     assertEqual(results.length, 2);
@@ -461,7 +461,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should handle rapid closure correctly
     assertEqual(results.length, 2);
@@ -483,7 +483,7 @@ void describe('restreamer', () => {
           minTimeout: 25,
         },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 1);
       assertEqual(results[0]!.transformed, true);
@@ -516,7 +516,7 @@ void describe('restreamer', () => {
       );
 
       try {
-        await collectStream(restreamer);
+        await collect(restreamer);
         assert.fail('Expected an error due to incomplete final chunk');
       } catch (error) {
         // Adjust the expected error message to match the actual error thrown
@@ -563,7 +563,7 @@ void describe('restreamer', () => {
         { retries: 3, minTimeout: 25 },
         new DefaultDecoder(), // Use the default strategy to handle mixed data types
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       // Ensure that the mixed data types are processed correctly
       assertEqual(results.length, 4);
@@ -607,7 +607,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 5, minTimeout: 25 }, // More retries to handle frequent errors
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 2);
       assertEqual(results[0]!.transformed, true);
@@ -644,7 +644,7 @@ void describe('restreamer', () => {
           minTimeout: 25,
         },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 2);
       assertEqual(results[0]!.transformed, true);
@@ -673,7 +673,7 @@ void describe('restreamer', () => {
       );
 
       try {
-        await collectStream(restreamer);
+        await collect(restreamer);
         assert.fail('Expected an unrecoverable error');
       } catch (error) {
         assertEqual((error as Error).message, 'Unrecoverable stream error');
@@ -707,7 +707,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 2);
       assertEqual(results[0]!.transformed, true);
@@ -729,7 +729,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 10000);
       assert(results.every((item) => item.transformed === true));
@@ -748,7 +748,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 3);
       assertEqual(results[0]!.transformed, true);
@@ -768,7 +768,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 1);
       assertEqual(results[0]!.transformed, true);
@@ -800,7 +800,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 2); // Only two valid objects
       assertEqual(results[0]!.transformed, true);
@@ -831,7 +831,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 2);
       assertEqual(results[0]!.transformed, true);
@@ -865,7 +865,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 2);
       assertEqual(results[0]!.transformed, true);
