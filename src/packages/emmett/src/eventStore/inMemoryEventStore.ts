@@ -203,8 +203,8 @@ export class CaughtUpTransformStream extends TransformStream<
   | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
   | GlobalSubscriptionEvent
 > {
-  private currentGlobalPosition: bigint;
-  private highestGlobalPosition: bigint;
+  private currentPosition: bigint;
+  private highestPosition: bigint;
 
   constructor(events: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[]) {
     super({
@@ -221,17 +221,17 @@ export class CaughtUpTransformStream extends TransformStream<
         );
       },
       transform: (event, controller) => {
-        this.currentGlobalPosition = event.metadata.globalPosition;
+        this.currentPosition = event.metadata.globalPosition;
         controller.enqueue(event);
         CaughtUpTransformStream.enqueueCaughtUpEvent(
           controller,
-          this.currentGlobalPosition,
-          this.highestGlobalPosition,
+          this.currentPosition,
+          this.highestPosition,
         );
       },
     });
 
-    this.currentGlobalPosition = this.highestGlobalPosition =
+    this.currentPosition = this.highestPosition =
       events.length > 0
         ? events[events.length - 1]!.metadata.globalPosition
         : 0n;
