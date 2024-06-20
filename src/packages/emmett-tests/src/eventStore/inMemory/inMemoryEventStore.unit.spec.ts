@@ -5,7 +5,7 @@ import {
   getInMemoryEventStore,
   isGlobalStreamCaughtUp,
 } from '../eventStore';
-import { collectStream, streamTransformations } from '../streaming';
+import { collect, streamTransformations } from '../streaming';
 import { type Event } from '../typing';
 
 const { stopOn } = streamTransformations;
@@ -54,7 +54,7 @@ void describe('InMemoryEventStore', () => {
       .streamEvents()
       .pipeThrough(stopOn(isGlobalStreamCaughtUp));
 
-    const receivedEvents = await collectStream(readableStream);
+    const receivedEvents = await collect(readableStream);
 
     assert.strictEqual(receivedEvents.length, events.length);
   });
@@ -225,7 +225,7 @@ void describe('SubscriptionsCoordinator', () => {
   //   reader.releaseLock();
   // });
 
-  // test('CaughtUpTransformStream should handle multiple subscriptions with pipeThrough', async (t) => {
+  // test('CaughtUpTransformStream handles multiple subscriptions with pipeThrough', async (t) => {
   //   const coordinator = SubscriptionsCoordinator();
 
   //   const stream1 = coordinator

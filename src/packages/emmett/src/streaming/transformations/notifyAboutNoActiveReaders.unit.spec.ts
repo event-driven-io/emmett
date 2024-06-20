@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import { ReadableStream, TransformStream } from 'web-streams-polyfill';
 import { assertEqual, assertFalse, assertOk, assertTrue } from '../../testing';
-import { collectStream } from '../collect';
+import { collect } from '../collectors/collect';
 import {
   NotifyAboutNoActiveReadersStream,
   notifyAboutNoActiveReadersStream,
@@ -79,7 +79,7 @@ void describe('NotifyAboutNoActiveReadersStream', () => {
     const pipedStream = sourceStream.pipeThrough(stream);
 
     // Read all data from the pipedStream to simulate full consumption
-    const chunks = await collectStream(pipedStream);
+    const chunks = await collect(pipedStream);
     assertEqual(chunks.length, 5);
 
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -124,7 +124,7 @@ void describe('NotifyAboutNoActiveReadersStream', () => {
       .pipeThrough(anotherTransform);
 
     // Read all data from the pipedStream to simulate full consumption
-    const chunks = await collectStream(pipedStream);
+    const chunks = await collect(pipedStream);
     assertEqual(chunks.length, 5);
 
     await new Promise((resolve) => setTimeout(resolve, 20));

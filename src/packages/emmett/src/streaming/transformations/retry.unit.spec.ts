@@ -1,4 +1,3 @@
-import { strict as assert } from 'assert';
 import { describe, it } from 'node:test';
 import {
   ReadableStream,
@@ -6,6 +5,7 @@ import {
   type ReadableStreamDefaultReadResult,
 } from 'web-streams-polyfill';
 import { retry } from './retry';
+import { assertDeepEqual, assertEqual } from '../../testing';
 
 const createMockStream = (data: number[]): ReadableStream<number> => {
   return new ReadableStream({
@@ -41,7 +41,7 @@ void describe('retry', () => {
       result.push(readResult.value);
     }
 
-    assert.deepEqual(result, [2, 4, 6]);
+    assertDeepEqual(result, [2, 4, 6]);
   });
 
   void it('retrieses on transient failure and process successfully after retries', async () => {
@@ -72,7 +72,7 @@ void describe('retry', () => {
       result.push(readResult.value);
     }
 
-    assert.deepEqual(result, [2, 4, 6]);
+    assertDeepEqual(result, [2, 4, 6]);
   });
 
   void it('handle persistent stream errors and propagate them', async () => {
@@ -95,6 +95,6 @@ void describe('retry', () => {
       errorCaught = true;
     }
 
-    assert.equal(errorCaught, true);
+    assertEqual(errorCaught, true);
   });
 });
