@@ -36,7 +36,7 @@ export interface MessageBus extends CommandBus, EventBus {
   ): void;
 }
 
-export type CommandHandler<CommandType extends Command = Command> = (
+type CommandHandler<CommandType extends Command = Command> = (
   command: CommandType,
 ) => Promise<void> | void;
 
@@ -47,7 +47,7 @@ export interface CommandProcessor {
   ): void;
 }
 
-export type EventHandler<EventType extends Event = Event> = (
+type EventHandler<EventType extends Event = Event> = (
   event: EventType,
 ) => Promise<void> | void;
 

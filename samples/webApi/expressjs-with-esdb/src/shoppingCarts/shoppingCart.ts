@@ -78,7 +78,7 @@ export type ShoppingCart =
 
 export type ProductItems = Map<string, number>;
 
-export const getInitialState = (): ShoppingCart => {
+export const initialState = (): ShoppingCart => {
   return {
     status: 'Empty',
   };

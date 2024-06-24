@@ -38,9 +38,9 @@
   },
   "homepage": "https://github.com/oskardudycz/EventSourcing.NodeJS#readme",
   "dependencies": {
-    "@event-driven-io/emmett-esdb": "0.9.0",
-    "@event-driven-io/emmett-expressjs": "0.9.0",
-    "@event-driven-io/emmett-testcontainers": "0.9.0"
+    "@event-driven-io/emmett-esdb": "0.11.0",
+    "@event-driven-io/emmett-expressjs": "0.11.0",
+    "@event-driven-io/emmett-testcontainers": "0.11.0"
   },
   "devDependencies": {
     "@types/node": "20.11.30",

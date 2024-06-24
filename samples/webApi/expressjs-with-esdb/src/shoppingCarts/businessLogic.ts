@@ -7,7 +7,7 @@ import {
 } from '@event-driven-io/emmett';
 import {
   evolve,
-  getInitialState,
+  initialState,
   type PricedProductItem,
   type ProductItemAddedToShoppingCart,
   type ProductItemRemovedFromShoppingCart,
@@ -183,5 +183,5 @@ export const decider: Decider<
 > = {
   decide,
   evolve,
-  getInitialState,
+  initialState,
 };

@@ -24,13 +24,13 @@ import {
 } from './businessLogic';
 import {
   evolve,
-  getInitialState,
+  initialState,
   type ProductItem,
   type ShoppingCart,
   type ShoppingCartEvent,
 } from './shoppingCart';
 
-export const handle = CommandHandler(evolve, getInitialState);
+export const handle = CommandHandler(evolve, initialState);
 
 export const getShoppingCartId = (clientId: string) =>
   `shopping_cart:${assertNotEmptyString(clientId)}:current`;
@@ -158,7 +158,7 @@ export const shoppingCartApi =
           ShoppingCartEvent
         >(shoppingCartId, {
           evolve,
-          getInitialState,
+          initialState,
         });
 
         if (result === null) return NotFound();
