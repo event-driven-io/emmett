@@ -72,7 +72,8 @@ export type MessageHandler = CommandHandler | EventHandler;
 export type MessageProcessor = EventProcessor | CommandProcessor;
 
 export const getInMemoryMessageBus = (): MessageBus &
-  MessageProcessor &
+  EventProcessor &
+  CommandProcessor &
   ScheduledMessageProcessor => {
   const allHandlers = new Map<string, MessageHandler[]>();
   let pendingMessages: ScheduledMessage[] = [];
