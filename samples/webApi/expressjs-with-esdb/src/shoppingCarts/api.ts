@@ -1,8 +1,9 @@
 import {
+  CommandHandler,
   assertNotEmptyString,
   assertPositiveNumber,
-  CommandHandler,
   type EventStore,
+  type EventsPublisher,
 } from '@event-driven-io/emmett';
 import {
   NoContent,
@@ -38,6 +39,7 @@ export const getShoppingCartId = (clientId: string) =>
 export const shoppingCartApi =
   (
     eventStore: EventStore,
+    eventPublisher: EventsPublisher,
     getUnitPrice: (_productId: string) => Promise<number>,
     getCurrentTime: () => Date,
   ): WebApiSetup =>
@@ -115,9 +117,15 @@ export const shoppingCartApi =
           metadata: { now: getCurrentTime() },
         };
 
-        await handle(eventStore, shoppingCartId, (state) =>
+        const {
+          newEvents: [confirmed, ..._rest],
+        } = await handle(eventStore, shoppingCartId, (state) =>
           confirm(command, state),
         );
+
+        // This is just example, it'll run in-proc
+        // so don't do that if you care about delivery guarantees
+        await eventPublisher.publish(confirmed);
 
         return NoContent();
       }),

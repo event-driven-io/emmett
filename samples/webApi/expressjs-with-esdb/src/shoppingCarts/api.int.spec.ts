@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import {
   getInMemoryEventStore,
+  getInMemoryMessageBus,
   type EventStore,
 } from '@event-driven-io/emmett';
 import {
@@ -20,7 +20,7 @@ const getUnitPrice = (_productId: string) => {
   return Promise.resolve(100);
 };
 
-describe('ShoppingCart', () => {
+void describe('ShoppingCart', () => {
   let clientId: string;
   let shoppingCartId: string;
   beforeEach(() => {
@@ -28,8 +28,8 @@ describe('ShoppingCart', () => {
     shoppingCartId = `shopping_cart:${clientId}:current`;
   });
 
-  describe('When empty', () => {
-    it('should add product item', () => {
+  void describe('When empty', () => {
+    void it('should add product item', () => {
       return given()
         .when((request) =>
           request
@@ -51,8 +51,8 @@ describe('ShoppingCart', () => {
     });
   });
 
-  describe('When opened with product item', () => {
-    it('should confirm', () => {
+  void describe('When opened with product item', () => {
+    void it('should confirm', () => {
       return given(
         existingStream(shoppingCartId, [
           {
@@ -83,8 +83,8 @@ describe('ShoppingCart', () => {
     });
   });
 
-  describe('When confirmed', () => {
-    it('should not add products', () => {
+  void describe('When confirmed', () => {
+    void it('should not add products', () => {
       return given(
         existingStream(shoppingCartId, [
           {
@@ -124,7 +124,14 @@ describe('ShoppingCart', () => {
     (): EventStore => getInMemoryEventStore(),
     (eventStore: EventStore) =>
       getApplication({
-        apis: [shoppingCartApi(eventStore, getUnitPrice, () => now)],
+        apis: [
+          shoppingCartApi(
+            eventStore,
+            getInMemoryMessageBus(),
+            getUnitPrice,
+            () => now,
+          ),
+        ],
       }),
   );
 
