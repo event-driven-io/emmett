@@ -1,5 +1,7 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
-import { type EventStore } from '@event-driven-io/emmett';
+import {
+  getInMemoryMessageBus,
+  type EventStore,
+} from '@event-driven-io/emmett';
 import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import {
   ApiE2ESpecification,
@@ -19,7 +21,7 @@ const getUnitPrice = () => {
   return Promise.resolve(100);
 };
 
-describe('ShoppingCart E2E', () => {
+void describe('ShoppingCart E2E', () => {
   let clientId: string;
   let shoppingCartId: string;
   let esdbContainer: StartedEventStoreDBContainer;
@@ -27,12 +29,20 @@ describe('ShoppingCart E2E', () => {
 
   before(async () => {
     esdbContainer = await new EventStoreDBContainer().start();
+    const inMemoryMessageBus = getInMemoryMessageBus();
 
     given = ApiE2ESpecification.for(
       (): EventStore => getEventStoreDBEventStore(esdbContainer.getClient()),
       (eventStore: EventStore) =>
         getApplication({
-          apis: [shoppingCartApi(eventStore, getUnitPrice, () => now)],
+          apis: [
+            shoppingCartApi(
+              eventStore,
+              inMemoryMessageBus,
+              getUnitPrice,
+              () => now,
+            ),
+          ],
         }),
     );
   });
@@ -46,8 +56,8 @@ describe('ShoppingCart E2E', () => {
     return esdbContainer.stop();
   });
 
-  describe('When empty', () => {
-    it('should add product item', () => {
+  void describe('When empty', () => {
+    void it('should add product item', () => {
       return given((request) =>
         request
           .post(`/clients/${clientId}/shopping-carts/current/product-items`)

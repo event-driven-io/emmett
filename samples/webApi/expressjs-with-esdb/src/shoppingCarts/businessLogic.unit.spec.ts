@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import { DeciderSpecification } from '@event-driven-io/emmett';
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
@@ -11,9 +10,9 @@ const given = DeciderSpecification.for({
   initialState: initialState,
 });
 
-describe('ShoppingCart', () => {
-  describe('When empty', () => {
-    it('should add product item', () => {
+void describe('ShoppingCart', () => {
+  void describe('When empty', () => {
+    void it('should add product item', () => {
       given([])
         .when({
           type: 'AddProductItemToShoppingCart',
@@ -36,8 +35,8 @@ describe('ShoppingCart', () => {
     });
   });
 
-  describe('When opened', () => {
-    it('should confirm', () => {
+  void describe('When opened', () => {
+    void it('should confirm', () => {
       given({
         type: 'ProductItemAddedToShoppingCart',
         data: {
@@ -65,8 +64,8 @@ describe('ShoppingCart', () => {
     });
   });
 
-  describe('When confirmed', () => {
-    it('should not add products', () => {
+  void describe('When confirmed', () => {
+    void it('should not add products', () => {
       given([
         {
           type: 'ProductItemAddedToShoppingCart',
