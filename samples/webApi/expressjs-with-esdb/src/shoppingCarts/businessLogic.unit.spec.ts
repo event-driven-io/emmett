@@ -3,16 +3,12 @@ import { DeciderSpecification } from '@event-driven-io/emmett';
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
 import { decide } from './businessLogic';
-import {
-  evolve,
-  getInitialState,
-  type PricedProductItem,
-} from './shoppingCart';
+import { evolve, initialState, type PricedProductItem } from './shoppingCart';
 
 const given = DeciderSpecification.for({
   decide,
   evolve,
-  initialState: getInitialState,
+  initialState: initialState,
 });
 
 describe('ShoppingCart', () => {
