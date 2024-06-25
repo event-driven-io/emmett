@@ -1,4 +1,5 @@
 import { filter } from './filter';
+import { map } from './map';
 import {
   notifyAboutNoActiveReadersStream,
   NotifyAboutNoActiveReadersStream,
@@ -16,6 +17,7 @@ export const streamTransformations = {
   TakeTransformStream,
   skip,
   SkipTransformStream,
+  map,
   notifyAboutNoActiveReadersStream,
   NotifyAboutNoActiveReadersStream,
   reduce,
