@@ -1,20 +1,11 @@
 import { describe, it } from 'node:test';
 import {
-  ReadableStream,
   TransformStreamDefaultController,
   type ReadableStreamDefaultReadResult,
 } from 'web-streams-polyfill';
-import { retry } from './retry';
 import { assertDeepEqual, assertEqual } from '../../testing';
-
-const createMockStream = (data: number[]): ReadableStream<number> => {
-  return new ReadableStream({
-    pull(controller) {
-      data.forEach((item) => controller.enqueue(item));
-      controller.close();
-    },
-  });
-};
+import { fromArray } from '../generators/fromArray';
+import { retry } from './retry';
 
 void describe('retry', () => {
   void it('processes the stream successfully and terminate when done', async () => {
@@ -28,7 +19,7 @@ void describe('retry', () => {
       controller.enqueue(readResult.value * 2);
     };
 
-    const transformStream = retry(() => createMockStream(data), handleChunk, {
+    const transformStream = retry(() => fromArray(data), handleChunk, {
       retries: 3,
       minTimeout: 10,
     });
@@ -59,7 +50,7 @@ void describe('retry', () => {
       controller.enqueue(readResult.value * 2);
     };
 
-    const transformStream = retry(() => createMockStream(data), handleChunk, {
+    const transformStream = retry(() => fromArray(data), handleChunk, {
       retries: 3,
       minTimeout: 10,
     });
@@ -82,11 +73,10 @@ void describe('retry', () => {
 
     let errorCaught = false;
 
-    const transformStream = retry(
-      () => createMockStream([1, 2, 3]),
-      handleChunk,
-      { retries: 1, minTimeout: 10 },
-    );
+    const transformStream = retry(() => fromArray([1, 2, 3]), handleChunk, {
+      retries: 1,
+      minTimeout: 10,
+    });
 
     const reader = transformStream.readable.getReader();
     try {
