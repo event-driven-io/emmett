@@ -1,9 +1,4 @@
 import { v4 as uuid } from 'uuid';
-import {
-  TransformStream,
-  TransformStreamDefaultController,
-} from 'web-streams-polyfill';
-import { notifyAboutNoActiveReadersStream } from '../streaming/transformations/notifyAboutNoActiveReaders';
 import type {
   Event,
   ReadEvent,
@@ -19,8 +14,8 @@ import {
   type ReadStreamOptions,
   type ReadStreamResult,
 } from './eventStore';
-import type { GlobalStreamCaughtUp, GlobalSubscriptionEvent } from './events';
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
+import { StreamingCoordinator } from './subscriptions';
 
 export type EventHandler<E extends Event = Event> = (
   eventEnvelope: ReadEvent<E>,
@@ -163,96 +158,3 @@ export const getInMemoryEventStore = (): EventStore<
     streamEvents: streamingCoordinator.stream,
   };
 };
-
-export const StreamingCoordinator = () => {
-  const allEvents: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[] = [];
-  const listeners = new Map<string, CaughtUpTransformStream>();
-
-  return {
-    notify: async (
-      events: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[],
-    ) => {
-      allEvents.push(...events);
-
-      for (const listener of listeners.values()) {
-        const writableStream = listener.writable;
-        const writer = writableStream.getWriter();
-        for (const event of events) await writer.write(event);
-      }
-    },
-
-    stream: () => {
-      const streamId = uuid();
-      const transformStream = new CaughtUpTransformStream(allEvents);
-
-      listeners.set(streamId, transformStream);
-      return transformStream.readable.pipeThrough(
-        notifyAboutNoActiveReadersStream(
-          (stream) => {
-            listeners.delete(stream.streamId);
-          },
-          { streamId },
-        ),
-      );
-    },
-  };
-};
-
-export class CaughtUpTransformStream extends TransformStream<
-  ReadEvent<Event, ReadEventMetadataWithGlobalPosition>,
-  | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
-  | GlobalSubscriptionEvent
-> {
-  private currentPosition: bigint;
-  private highestPosition: bigint;
-
-  constructor(events: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[]) {
-    super({
-      start: (controller) => {
-        let globalPosition = 0n;
-        for (const event of events) {
-          controller.enqueue(event);
-          globalPosition = event.metadata.globalPosition;
-        }
-        CaughtUpTransformStream.enqueueCaughtUpEvent(
-          controller,
-          globalPosition,
-          globalPosition,
-        );
-      },
-      transform: (event, controller) => {
-        this.currentPosition = event.metadata.globalPosition;
-        controller.enqueue(event);
-        CaughtUpTransformStream.enqueueCaughtUpEvent(
-          controller,
-          this.currentPosition,
-          this.highestPosition,
-        );
-      },
-    });
-
-    this.currentPosition = this.highestPosition =
-      events.length > 0
-        ? events[events.length - 1]!.metadata.globalPosition
-        : 0n;
-  }
-
-  private static enqueueCaughtUpEvent(
-    controller: TransformStreamDefaultController<
-      | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
-      | GlobalSubscriptionEvent
-    >,
-    currentGlobalPosition: bigint,
-    highestGlobalPosition: bigint,
-  ) {
-    if (currentGlobalPosition < highestGlobalPosition) return;
-
-    const caughtUp: GlobalStreamCaughtUp = {
-      type: '__emt:GlobalStreamCaughtUp',
-      data: {
-        globalPosition: highestGlobalPosition,
-      },
-    };
-    controller.enqueue(caughtUp);
-  }
-}

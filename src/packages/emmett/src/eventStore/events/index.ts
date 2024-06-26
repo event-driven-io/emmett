@@ -1,4 +1,6 @@
-import { type Event } from '../../typing';
+import { event, type Event, type EventDataOf } from '../../typing';
+
+export const GlobalStreamCaughtUpType = '__emt:GlobalStreamCaughtUp';
 
 export type GlobalStreamCaughtUp = Event<
   '__emt:GlobalStreamCaughtUp',
@@ -7,13 +9,18 @@ export type GlobalStreamCaughtUp = Event<
 
 export const isGlobalStreamCaughtUp = (
   event: Event,
-): event is GlobalStreamCaughtUp => event.type === '__emt:GlobalStreamCaughtUp';
+): event is GlobalStreamCaughtUp => event.type === GlobalStreamCaughtUpType;
+
+export const globalStreamCaughtUp = (
+  data: EventDataOf<GlobalStreamCaughtUp>,
+): GlobalStreamCaughtUp =>
+  event<GlobalStreamCaughtUp>(GlobalStreamCaughtUpType, data);
 
 export const isSubscriptionEvent = (
   event: Event,
 ): event is GlobalSubscriptionEvent => isGlobalStreamCaughtUp(event);
 
-export const isNotSubscriptionEvent = (event: Event): boolean =>
+export const isNotInternalEvent = (event: Event): boolean =>
   !isGlobalStreamCaughtUp(event);
 
 export type GlobalSubscriptionEvent = GlobalStreamCaughtUp;
