@@ -1,4 +1,4 @@
-import type { ReadableStream } from '../shims/streams';
+import type { ReadableStream } from 'web-streams-polyfill';
 import type { Event, ReadEvent, ReadEventMetadata } from '../typing';
 import type { GlobalSubscriptionEvent } from './events';
 import type { ExpectedStreamVersion } from './expectedVersion';
