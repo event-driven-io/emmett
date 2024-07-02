@@ -4,6 +4,7 @@ import {
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
   restream,
+  streamTransformations,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
@@ -36,7 +37,9 @@ import {
   type JSONRecordedEvent,
 } from '@eventstore/db-client';
 import { Readable } from 'stream';
-import type { ReadableStream } from 'web-streams-polyfill';
+import { type ReadableStream } from 'web-streams-polyfill';
+
+const { map } = streamTransformations;
 
 const toEventStoreDBReadOptions = (
   options: ReadStreamOptions | undefined,
@@ -254,10 +257,24 @@ const convertToWebReadableStream = (
     throw new Error('Provided stream is not a Node.js Readable stream.');
   }
 
-  // Convert Node.js Readable stream to Web ReadableStream
-  return Readable.toWeb(
+  let globalPosition = 0n;
+
+  const stream = Readable.toWeb(
     allStreamSubscription,
   ) as ReadableStream<AllStreamResolvedEvent>;
+
+  allStreamSubscription.on('caughtUp', () => {
+    console.log(globalPosition);
+  });
+
+  return stream.pipeThrough(
+    map((event) => {
+      if (event.event?.position.commit)
+        globalPosition = event.event?.position.commit;
+
+      return event;
+    }),
+  );
 };
 
 const streamEvents = (eventStore: EventStoreDBClient) => () => {
