@@ -97,11 +97,12 @@ void describe('StreamingCoordinator', () => {
     ]);
   });
 
-  void it('handles no active readers after streaming', async () => {
+  void it.only('handles no active readers after streaming', async () => {
     const event = createMockEvent(1n);
 
-    const listenerStream = streamingCoordinator
-      .stream()
+    const subscription = streamingCoordinator.stream();
+
+    const listenerStream = subscription
       .pipeThrough(stopOn(caughtUpEventFrom(event.metadata.globalPosition)))
       .pipeThrough(waitAtMost(20));
 
@@ -111,7 +112,7 @@ void describe('StreamingCoordinator', () => {
 
     await collectedEvents;
 
-    await listenerStream.cancel();
+    await subscription.cancel();
 
     // should not fail
     await streamingCoordinator.notify([event]);

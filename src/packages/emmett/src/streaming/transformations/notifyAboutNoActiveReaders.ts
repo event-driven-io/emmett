@@ -1,4 +1,4 @@
-import { TransformStream } from '@event-driven-io/emmett-shims';
+import streams from '@event-driven-io/emmett-shims';
 import { v4 as uuid } from 'uuid';
 
 export const notifyAboutNoActiveReadersStream = <Item>(
@@ -8,10 +8,9 @@ export const notifyAboutNoActiveReadersStream = <Item>(
   options: { streamId?: string; intervalCheckInMs?: number } = {},
 ) => new NotifyAboutNoActiveReadersStream(onNoActiveReaderCallback, options);
 
-export class NotifyAboutNoActiveReadersStream<Item> extends TransformStream<
+export class NotifyAboutNoActiveReadersStream<
   Item,
-  Item
-> {
+> extends streams.TransformStream<Item, Item> {
   private checkInterval: NodeJS.Timeout | null = null;
   public readonly streamId: string;
   private _isStopped: boolean = false;
@@ -47,9 +46,9 @@ export class NotifyAboutNoActiveReadersStream<Item> extends TransformStream<
   private stopChecking() {
     if (!this.checkInterval) return;
 
-    this._isStopped = true;
     clearInterval(this.checkInterval);
     this.checkInterval = null;
+    this._isStopped = true;
     this.onNoActiveReaderCallback(this);
   }
 

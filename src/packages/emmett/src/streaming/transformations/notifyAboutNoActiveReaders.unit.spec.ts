@@ -1,4 +1,4 @@
-import { ReadableStream, TransformStream } from '@event-driven-io/emmett-shims';
+import streams from '@event-driven-io/emmett-shims';
 import { describe, it } from 'node:test';
 import { assertEqual, assertFalse, assertOk, assertTrue } from '../../testing';
 import { collect } from '../collectors/collect';
@@ -61,7 +61,7 @@ void describe('NotifyAboutNoActiveReadersStream', () => {
     };
 
     // Create a source stream that generates some data
-    const sourceStream = new ReadableStream({
+    const sourceStream = new streams.ReadableStream({
       start(controller) {
         for (let i = 0; i < chunksCount; i++) {
           controller.enqueue(i);
@@ -98,7 +98,7 @@ void describe('NotifyAboutNoActiveReadersStream', () => {
     };
 
     // Create a source stream that generates some data
-    const sourceStream = new ReadableStream({
+    const sourceStream = new streams.ReadableStream({
       start(controller) {
         for (let i = 0; i < chunksCount; i++) {
           controller.enqueue(i);
@@ -107,7 +107,7 @@ void describe('NotifyAboutNoActiveReadersStream', () => {
       },
     });
 
-    const anotherTransform = new TransformStream({
+    const anotherTransform = new streams.TransformStream({
       transform(chunk, controller) {
         controller.enqueue(chunk);
       },

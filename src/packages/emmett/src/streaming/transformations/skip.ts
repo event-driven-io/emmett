@@ -1,8 +1,8 @@
-import { TransformStream } from '@event-driven-io/emmett-shims';
+import streams from '@event-driven-io/emmett-shims';
 
 export const skip = <T>(limit: number) => new SkipTransformStream<T>(limit);
 
-export class SkipTransformStream<T> extends TransformStream<T, T> {
+export class SkipTransformStream<T> extends streams.TransformStream<T, T> {
   private count = 0;
   private skip: number;
 

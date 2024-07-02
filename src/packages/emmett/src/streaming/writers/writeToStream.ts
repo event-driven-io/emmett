@@ -8,6 +8,8 @@ export const writeToStream = async <In, Out>(
   stream: TransformStream<In, Out>,
   items: In[],
 ): Promise<boolean> => {
+  if (stream.writable.locked) return false;
+
   const writer = stream.writable.getWriter();
   await writer.ready;
 

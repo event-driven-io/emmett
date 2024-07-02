@@ -1,11 +1,11 @@
-import { TransformStream } from '@event-driven-io/emmett-shims';
+import streams from '@event-driven-io/emmett-shims';
 
 export const reduce = <I, O>(
   reducer: (accumulator: O, chunk: I) => O,
   initialValue: O,
 ) => new ReduceTransformStream<I, O>(reducer, initialValue);
 
-export class ReduceTransformStream<I, O> extends TransformStream<I, O> {
+export class ReduceTransformStream<I, O> extends streams.TransformStream<I, O> {
   private accumulator: O;
   private reducer: (accumulator: O, chunk: I) => O;
 
