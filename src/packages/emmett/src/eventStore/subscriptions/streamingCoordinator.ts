@@ -18,6 +18,8 @@ export const StreamingCoordinator = () => {
     notify: async (
       events: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[],
     ) => {
+      if (events.length === 0) return;
+
       allEvents.push(...events);
 
       for (const listener of listeners.values()) {
@@ -27,7 +29,9 @@ export const StreamingCoordinator = () => {
         listener.logPosition =
           events[events.length - 1]!.metadata.globalPosition;
 
-        for (const event of events) await writer.write(event);
+        for (const event of events) {
+          await writer.write(event);
+        }
       }
     },
 
