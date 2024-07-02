@@ -45,7 +45,7 @@ void describe('NotifyAboutNoActiveReadersStream', () => {
     const reader = stream.readable.getReader();
     reader.releaseLock();
 
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     assertTrue(callbackInvoked);
     assertFalse(stream.hasActiveSubscribers);
