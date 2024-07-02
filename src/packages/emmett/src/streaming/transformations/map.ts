@@ -1,4 +1,4 @@
-import { TransformStream } from 'web-streams-polyfill';
+import { TransformStream } from '@event-driven-io/emmett-shims';
 
 export const map = <From, To>(map: (item: From) => To) =>
   new TransformStream<From, To>({

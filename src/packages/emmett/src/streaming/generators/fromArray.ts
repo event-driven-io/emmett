@@ -1,4 +1,4 @@
-import { ReadableStream } from 'web-streams-polyfill';
+import { ReadableStream } from '@event-driven-io/emmett-shims';
 
 export const fromArray = <T>(chunks: T[]) =>
   new ReadableStream<T>({

@@ -1,5 +1,5 @@
+import { TransformStream } from '@event-driven-io/emmett-shims';
 import { v4 as uuid } from 'uuid';
-import { TransformStream } from 'web-streams-polyfill';
 
 export const notifyAboutNoActiveReadersStream = <Item>(
   onNoActiveReaderCallback: (

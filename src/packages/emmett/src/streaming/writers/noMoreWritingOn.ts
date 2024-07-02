@@ -1,4 +1,4 @@
-import type { TransformStream } from 'web-streams-polyfill';
+import type { TransformStream } from '@event-driven-io/emmett-shims';
 
 export const noMoreWritingOn = async <In, Out>(
   stream: TransformStream<In, Out>,

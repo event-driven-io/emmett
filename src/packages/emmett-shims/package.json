@@ -1,9 +1,8 @@
 {
-  "name": "@event-driven-io/emmett-esdb",
+  "name": "@event-driven-io/emmett-shims",
+  "version": "0.11.2",
   "type": "module",
-  "version": "0.19.1",
-  "description": "Emmett - EventStoreDB - Event Sourcing development made simple",
-  "type": "module",
+  "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "build": "tsup",
     "build:ts": "tsc",
@@ -43,17 +42,14 @@
   },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./dist/index.d.cts",
   "files": [
     "dist"
   ],
-  "dependencies": {},
-  "devDependencies": {
-    "@event-driven-io/emmett-testcontainers": "0.19.1"
-  },
   "peerDependencies": {
-    "@event-driven-io/emmett": "0.19.1",
-    "@eventstore/db-client": "^6.2.1",
     "web-streams-polyfill": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30"
   }
 }

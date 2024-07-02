@@ -11,7 +11,6 @@ import {
   type AppendToStreamResult,
   type DefaultStreamVersionType,
   type Event,
-  type EventMetaDataOf,
   type EventStore,
   type ExpectedStreamVersion,
   type GlobalSubscriptionEvent,
@@ -20,6 +19,7 @@ import {
   type ReadStreamOptions,
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
+import { type ReadableStream } from '@event-driven-io/emmett-shims';
 import {
   ANY,
   STREAM_EXISTS as ESDB_STREAM_EXISTS,
@@ -37,7 +37,6 @@ import {
   type JSONRecordedEvent,
 } from '@eventstore/db-client';
 import { Readable } from 'stream';
-import { type ReadableStream } from 'web-streams-polyfill';
 
 const { map } = streamTransformations;
 
@@ -189,7 +188,8 @@ const mapFromESDBEvent = <EventType extends Event = Event>(
     type: event.type,
     data: event.data,
     metadata: {
-      ...((event.metadata as EventMetaDataOf<EventType> | undefined) ?? {}),
+      ...((event.metadata as ReadEventMetadataWithGlobalPosition) ??
+        ({} as ReadEventMetadataWithGlobalPosition)),
       eventId: event.id,
       streamName: event.streamId,
       streamPosition: event.revision,

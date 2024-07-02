@@ -1,10 +1,10 @@
-import asyncRetry from 'async-retry';
 import {
   ReadableStream,
   TransformStream,
   TransformStreamDefaultController,
   type ReadableStreamDefaultReadResult,
-} from 'web-streams-polyfill';
+} from '@event-driven-io/emmett-shims';
+import asyncRetry from 'async-retry';
 
 export const retry = <
   Source = unknown,

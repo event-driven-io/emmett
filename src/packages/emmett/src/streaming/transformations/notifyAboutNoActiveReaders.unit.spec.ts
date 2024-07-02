@@ -1,5 +1,5 @@
+import { ReadableStream, TransformStream } from '@event-driven-io/emmett-shims';
 import { describe, it } from 'node:test';
-import { ReadableStream, TransformStream } from 'web-streams-polyfill';
 import { assertEqual, assertFalse, assertOk, assertTrue } from '../../testing';
 import { collect } from '../collectors/collect';
 import {

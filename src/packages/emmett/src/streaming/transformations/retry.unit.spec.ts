@@ -1,8 +1,8 @@
-import { describe, it } from 'node:test';
 import {
   TransformStreamDefaultController,
   type ReadableStreamDefaultReadResult,
-} from 'web-streams-polyfill';
+} from '@event-driven-io/emmett-shims';
+import { describe, it } from 'node:test';
 import { assertDeepEqual, assertEqual } from '../../testing';
 import { fromArray } from '../generators/fromArray';
 import { retry } from './retry';

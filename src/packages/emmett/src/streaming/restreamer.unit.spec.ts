@@ -1,6 +1,6 @@
+import { ReadableStream } from '@event-driven-io/emmett-shims';
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
-import { ReadableStream } from 'web-streams-polyfill';
 import { assertEqual } from '../testing';
 import type { DefaultRecord } from '../typing';
 import { collect } from './collectors/collect';
