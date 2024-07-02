@@ -3,6 +3,8 @@ import {
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
+  restream,
+  streamTransformations,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
@@ -12,6 +14,7 @@ import {
   type EventMetaDataOf,
   type EventStore,
   type ExpectedStreamVersion,
+  type GlobalSubscriptionEvent,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
@@ -22,12 +25,21 @@ import {
   STREAM_EXISTS as ESDB_STREAM_EXISTS,
   EventStoreDBClient,
   NO_STREAM,
+  START,
   StreamNotFoundError,
   WrongExpectedVersionError,
+  excludeSystemEvents,
   jsonEvent,
+  type AllStreamResolvedEvent,
+  type AllStreamSubscription,
   type AppendExpectedRevision,
   type ReadStreamOptions as ESDBReadStreamOptions,
+  type JSONRecordedEvent,
 } from '@eventstore/db-client';
+import { Readable } from 'stream';
+import { type ReadableStream } from 'web-streams-polyfill';
+
+const { map } = streamTransformations;
 
 const toEventStoreDBReadOptions = (
   options: ReadStreamOptions | undefined,
@@ -64,26 +76,13 @@ export const getEventStoreDBEventStore = (
         let state = initialState();
         let currentStreamVersion: bigint | undefined = undefined;
 
-        for await (const { event } of eventStore.readStream(
+        for await (const { event } of eventStore.readStream<EventType>(
           streamName,
           toEventStoreDBReadOptions(options.read),
         )) {
           if (!event) continue;
 
-          state = evolve(state, <
-            ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>
-          >{
-            type: event.type,
-            data: event.data,
-            metadata: {
-              ...((event.metadata as EventMetaDataOf<EventType> | undefined) ??
-                {}),
-              eventId: event.id,
-              streamName: event.streamId,
-              streamPosition: event.revision,
-              globalPosition: event.position!.commit,
-            },
-          });
+          state = evolve(state, mapFromESDBEvent<EventType>(event));
           currentStreamVersion = event.revision;
         }
 
@@ -123,23 +122,12 @@ export const getEventStoreDBEventStore = (
       let currentStreamVersion: bigint | undefined = undefined;
 
       try {
-        for await (const { event } of eventStore.readStream(
+        for await (const { event } of eventStore.readStream<EventType>(
           streamName,
           toEventStoreDBReadOptions(options),
         )) {
           if (!event) continue;
-          events.push(<
-            ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>
-          >{
-            type: event.type,
-            data: event.data,
-            metadata: {
-              eventId: event.id,
-              streamName: event.streamId,
-              streamPosition: event.revision,
-              globalPosition: event.position!.commit,
-            },
-          });
+          events.push(mapFromESDBEvent(event));
           currentStreamVersion = event.revision;
         }
         return currentStreamVersion
@@ -188,6 +176,24 @@ export const getEventStoreDBEventStore = (
 
         throw error;
       }
+    },
+
+    streamEvents: streamEvents(eventStore),
+  };
+};
+
+const mapFromESDBEvent = <EventType extends Event = Event>(
+  event: JSONRecordedEvent<EventType>,
+): ReadEvent<EventType, ReadEventMetadataWithGlobalPosition> => {
+  return <ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>>{
+    type: event.type,
+    data: event.data,
+    metadata: {
+      ...((event.metadata as EventMetaDataOf<EventType> | undefined) ?? {}),
+      eventId: event.id,
+      streamName: event.streamId,
+      streamPosition: event.revision,
+      globalPosition: event.position!.commit,
     },
   };
 };
@@ -241,4 +247,53 @@ const assertExpectedVersionMatchesCurrent = (
 
   if (!matchesExpectedVersion(current, expected))
     throw new ExpectedVersionConflictError(current, expected);
+};
+
+const convertToWebReadableStream = (
+  allStreamSubscription: AllStreamSubscription,
+): ReadableStream<AllStreamResolvedEvent> => {
+  // Validate the input type
+  if (!(allStreamSubscription instanceof Readable)) {
+    throw new Error('Provided stream is not a Node.js Readable stream.');
+  }
+
+  let globalPosition = 0n;
+
+  const stream = Readable.toWeb(
+    allStreamSubscription,
+  ) as ReadableStream<AllStreamResolvedEvent>;
+
+  allStreamSubscription.on('caughtUp', () => {
+    console.log(globalPosition);
+  });
+
+  return stream.pipeThrough(
+    map((event) => {
+      if (event.event?.position.commit)
+        globalPosition = event.event?.position.commit;
+
+      return event;
+    }),
+  );
+};
+
+const streamEvents = (eventStore: EventStoreDBClient) => () => {
+  return restream<
+    AllStreamResolvedEvent,
+    | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
+    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+    | GlobalSubscriptionEvent
+  >(
+    (): ReadableStream<AllStreamResolvedEvent> =>
+      convertToWebReadableStream(
+        eventStore.subscribeToAll({
+          fromPosition: START,
+          filter: excludeSystemEvents(),
+        }),
+      ),
+    (
+      resolvedEvent: AllStreamResolvedEvent,
+    ): ReadEvent<Event, ReadEventMetadataWithGlobalPosition> =>
+      mapFromESDBEvent(resolvedEvent.event as JSONRecordedEvent<Event>),
+  );
 };

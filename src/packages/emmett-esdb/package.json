@@ -51,6 +51,7 @@
   },
   "peerDependencies": {
     "@event-driven-io/emmett": "0.11.2",
-    "@eventstore/db-client": "^6.1.0"
+    "@eventstore/db-client": "^6.1.0",
+    "web-streams-polyfill": "^4.0.0"
   }
 }
