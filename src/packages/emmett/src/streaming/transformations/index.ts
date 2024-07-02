@@ -10,6 +10,7 @@ import { skip, SkipTransformStream } from './skip';
 import { stopAfter } from './stopAfter';
 import { stopOn } from './stopOn';
 import { take, TakeTransformStream } from './take';
+import { waitAtMost } from './waitAtMost';
 
 export const streamTransformations = {
   filter,
@@ -25,4 +26,5 @@ export const streamTransformations = {
   retry,
   stopAfter,
   stopOn,
+  waitAtMost,
 };
