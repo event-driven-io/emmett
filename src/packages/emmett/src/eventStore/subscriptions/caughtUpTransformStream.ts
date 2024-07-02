@@ -1,5 +1,4 @@
-/* eslint-disable no-restricted-imports */
-import { TransformStream } from 'web-streams-polyfill';
+import { TransformStream } from '@event-driven-io/emmett-shims';
 import type {
   Event,
   ReadEvent,

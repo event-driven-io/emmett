@@ -1,4 +1,4 @@
-import { TransformStream } from 'web-streams-polyfill';
+import { TransformStream } from '@event-driven-io/emmett-shims';
 
 export const take = <T>(limit: number) => new TakeTransformStream<T>(limit);
 

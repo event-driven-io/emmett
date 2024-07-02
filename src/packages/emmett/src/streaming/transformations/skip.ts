@@ -1,4 +1,4 @@
-import { TransformStream } from 'web-streams-polyfill';
+import { TransformStream } from '@event-driven-io/emmett-shims';
 
 export const skip = <T>(limit: number) => new SkipTransformStream<T>(limit);
 

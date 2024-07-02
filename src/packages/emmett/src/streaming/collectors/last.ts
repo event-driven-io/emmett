@@ -1,4 +1,4 @@
-import type { ReadableStream } from 'web-streams-polyfill';
+import type { ReadableStream } from '@event-driven-io/emmett-shims';
 import { EmmettError } from '../../errors';
 import { reduce } from '../transformations/reduce';
 

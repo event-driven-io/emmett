@@ -1,4 +1,4 @@
-import { TransformStream } from 'web-streams-polyfill';
+import { TransformStream } from '@event-driven-io/emmett-shims';
 
 export const reduce = <I, O>(
   reducer: (accumulator: O, chunk: I) => O,

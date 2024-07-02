@@ -1,9 +1,9 @@
-import asyncRetry from 'async-retry';
 import {
   ReadableStream,
   TransformStreamDefaultController,
   type ReadableStreamDefaultReadResult,
-} from 'web-streams-polyfill';
+} from '@event-driven-io/emmett-shims';
+import asyncRetry from 'async-retry';
 import type { Decoder } from './decoders';
 import { DefaultDecoder } from './decoders/composite';
 import { streamTransformations } from './transformations';
