@@ -2,19 +2,18 @@ import { describe, it } from 'node:test';
 import { getInMemoryEventStore, isGlobalStreamCaughtUp } from '../eventStore';
 import { collect, streamTransformations } from '../streaming';
 import { assertEqual } from '../testing';
-import { type Event } from '../typing';
 import { testAggregateStream } from '../testing/features';
+import { type Event } from '../typing';
 
 const { stopOn } = streamTransformations;
 
 type MockEvent = Event<'Mocked', { mocked: true }>;
 
 void describe('InMemoryEventStore', () => {
-  const eventStore = getInMemoryEventStore();
-
-  void testAggregateStream(() => Promise.resolve(eventStore));
+  void testAggregateStream(() => Promise.resolve(getInMemoryEventStore()));
 
   void it('Successful subscription and processing of events', async () => {
+    const eventStore = getInMemoryEventStore();
     const streamName = 'test-stream';
 
     const events: MockEvent[] = [

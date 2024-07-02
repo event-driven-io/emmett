@@ -1,7 +1,7 @@
-import { TransformStream } from '@event-driven-io/emmett-shims';
+import streams from '@event-driven-io/emmett-shims';
 
 export const stopOn = <Item>(stopCondition: (item: Item) => boolean) =>
-  new TransformStream<Item, Item>({
+  new streams.TransformStream<Item, Item>({
     async transform(chunk, controller) {
       if (!stopCondition(chunk)) {
         controller.enqueue(chunk);

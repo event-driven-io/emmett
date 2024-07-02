@@ -1,4 +1,4 @@
-import { TransformStream } from '@event-driven-io/emmett-shims';
+import streams from '@event-driven-io/emmett-shims';
 import type {
   Event,
   ReadEvent,
@@ -10,7 +10,7 @@ export const streamTrackingGlobalPosition = (
   currentEvents: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[],
 ) => new CaughtUpTransformStream(currentEvents);
 
-export class CaughtUpTransformStream extends TransformStream<
+export class CaughtUpTransformStream extends streams.TransformStream<
   ReadEvent<Event, ReadEventMetadataWithGlobalPosition>,
   | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
   | GlobalSubscriptionEvent

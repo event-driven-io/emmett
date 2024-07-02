@@ -1,7 +1,7 @@
-import { TransformStream } from '@event-driven-io/emmett-shims';
+import streams from '@event-driven-io/emmett-shims';
 
 export const waitAtMost = <Item>(waitTimeInMs: number) =>
-  new TransformStream<Item, Item>({
+  new streams.TransformStream<Item, Item>({
     start(controller) {
       const timeoutId = setTimeout(() => {
         controller.terminate();

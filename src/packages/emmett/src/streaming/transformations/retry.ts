@@ -1,4 +1,4 @@
-import {
+import streams, {
   ReadableStream,
   TransformStream,
   TransformStreamDefaultController,
@@ -18,7 +18,7 @@ export const retry = <
   ) => Promise<void> | void,
   retryOptions: asyncRetry.Options = { forever: true, minTimeout: 25 },
 ): TransformStream<Source, Transformed> =>
-  new TransformStream<Source, Transformed>({
+  new streams.TransformStream<Source, Transformed>({
     start(controller) {
       asyncRetry(
         () => onRestream(createSourceStream, handleChunk, controller),

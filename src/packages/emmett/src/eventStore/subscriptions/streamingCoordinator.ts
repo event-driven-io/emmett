@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import { notifyAboutNoActiveReadersStream } from '../../streaming/transformations/notifyAboutNoActiveReaders';
+import { writeToStream } from '../../streaming/writers';
 import type {
   Event,
   ReadEvent,
@@ -23,15 +24,10 @@ export const StreamingCoordinator = () => {
       allEvents.push(...events);
 
       for (const listener of listeners.values()) {
-        const writableStream = listener.writable;
-        const writer = writableStream.getWriter();
-
         listener.logPosition =
           events[events.length - 1]!.metadata.globalPosition;
 
-        for (const event of events) {
-          await writer.write(event);
-        }
+        await writeToStream(listener, events);
       }
     },
 
@@ -43,7 +39,8 @@ export const StreamingCoordinator = () => {
       return transformStream.readable.pipeThrough(
         notifyAboutNoActiveReadersStream(
           (stream) => {
-            listeners.delete(stream.streamId);
+            if (listeners.has(stream.streamId))
+              listeners.delete(stream.streamId);
           },
           { streamId },
         ),
