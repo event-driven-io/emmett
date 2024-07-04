@@ -19,6 +19,9 @@
   },
   "references": [
     {
+      "path": "./packages/emmett-shims/"
+    },
+    {
       "path": "./packages/emmett/"
     },
     {

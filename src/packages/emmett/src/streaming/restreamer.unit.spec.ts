@@ -1,4 +1,4 @@
-import streams, { ReadableStream } from '@event-driven-io/emmett-shims';
+import streams, { type ReadableStream } from '@event-driven-io/emmett-shims';
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { assertEqual } from '../testing';
