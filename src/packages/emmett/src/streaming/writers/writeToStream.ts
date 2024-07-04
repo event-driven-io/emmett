@@ -4,7 +4,7 @@ import type {
 } from '@event-driven-io/emmett-shims';
 import { noMoreWritingOn } from './noMoreWritingOn';
 
-export const writeToStream = async <In, Out>(
+export const writeToStream = async <In, Out = In>(
   stream: TransformStream<In, Out>,
   items: In[],
 ): Promise<boolean> => {

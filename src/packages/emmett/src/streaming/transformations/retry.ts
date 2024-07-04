@@ -1,8 +1,8 @@
 import streams, {
-  ReadableStream,
-  TransformStream,
-  TransformStreamDefaultController,
+  type ReadableStream,
   type ReadableStreamDefaultReadResult,
+  type TransformStream,
+  type TransformStreamDefaultController,
 } from '@event-driven-io/emmett-shims';
 import asyncRetry from 'async-retry';
 

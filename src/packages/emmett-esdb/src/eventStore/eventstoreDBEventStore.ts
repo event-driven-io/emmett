@@ -3,6 +3,7 @@ import {
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
+  globalStreamCaughtUp,
   restream,
   streamTransformations,
   type AggregateStreamOptions,
@@ -13,13 +14,13 @@ import {
   type Event,
   type EventStore,
   type ExpectedStreamVersion,
+  type GlobalStreamCaughtUp,
   type GlobalSubscriptionEvent,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
-import { type ReadableStream } from '@event-driven-io/emmett-shims';
 import {
   ANY,
   STREAM_EXISTS as ESDB_STREAM_EXISTS,
@@ -36,6 +37,7 @@ import {
   type ReadStreamOptions as ESDBReadStreamOptions,
   type JSONRecordedEvent,
 } from '@eventstore/db-client';
+import { WritableStream, type ReadableStream } from 'node:stream/web';
 import { Readable } from 'stream';
 
 const { map } = streamTransformations;
@@ -251,7 +253,7 @@ const assertExpectedVersionMatchesCurrent = (
 
 const convertToWebReadableStream = (
   allStreamSubscription: AllStreamSubscription,
-): ReadableStream<AllStreamResolvedEvent> => {
+): ReadableStream<AllStreamResolvedEvent | GlobalStreamCaughtUp> => {
   // Validate the input type
   if (!(allStreamSubscription instanceof Readable)) {
     throw new Error('Provided stream is not a Node.js Readable stream.');
@@ -263,28 +265,38 @@ const convertToWebReadableStream = (
     allStreamSubscription,
   ) as ReadableStream<AllStreamResolvedEvent>;
 
-  allStreamSubscription.on('caughtUp', () => {
+  const writable = new WritableStream<
+    AllStreamResolvedEvent | GlobalStreamCaughtUp
+  >();
+
+  allStreamSubscription.on('caughtUp', async () => {
     console.log(globalPosition);
+    await writable.getWriter().write(globalStreamCaughtUp({ globalPosition }));
   });
 
-  return stream.pipeThrough(
-    map((event) => {
-      if (event.event?.position.commit)
-        globalPosition = event.event?.position.commit;
+  const transform = map<
+    AllStreamResolvedEvent,
+    AllStreamResolvedEvent | GlobalStreamCaughtUp
+  >((event) => {
+    if (event?.event?.position.commit)
+      globalPosition = event.event?.position.commit;
 
-      return event;
-    }),
+    return event;
+  });
+
+  return stream.pipeThrough<AllStreamResolvedEvent | GlobalStreamCaughtUp>(
+    transform,
   );
 };
 
 const streamEvents = (eventStore: EventStoreDBClient) => () => {
   return restream<
-    AllStreamResolvedEvent,
+    AllStreamResolvedEvent | GlobalSubscriptionEvent,
     | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
     // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
     | GlobalSubscriptionEvent
   >(
-    (): ReadableStream<AllStreamResolvedEvent> =>
+    (): ReadableStream<AllStreamResolvedEvent | GlobalSubscriptionEvent> =>
       convertToWebReadableStream(
         eventStore.subscribeToAll({
           fromPosition: START,
@@ -292,7 +304,7 @@ const streamEvents = (eventStore: EventStoreDBClient) => () => {
         }),
       ),
     (
-      resolvedEvent: AllStreamResolvedEvent,
+      resolvedEvent: AllStreamResolvedEvent | GlobalSubscriptionEvent,
     ): ReadEvent<Event, ReadEventMetadataWithGlobalPosition> =>
       mapFromESDBEvent(resolvedEvent.event as JSONRecordedEvent<Event>),
   );

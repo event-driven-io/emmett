@@ -1,6 +1,6 @@
 import {
-  TransformStreamDefaultController,
   type ReadableStreamDefaultReadResult,
+  type TransformStreamDefaultController,
 } from '@event-driven-io/emmett-shims';
 import { describe, it } from 'node:test';
 import { assertDeepEqual, assertEqual } from '../../testing';
