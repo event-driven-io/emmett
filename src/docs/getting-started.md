@@ -114,7 +114,7 @@ Now let's define the `evolve` function that will evolve our state based on event
 
 <<< @/snippets/gettingStarted/shoppingCart.ts#getting-started-state-evolve
 
-Read also more in article [How to get the current entity state from events?]() and follow up on [Should you throw an exception when rebuilding the state from events?](https://event-driven.io/en/should_you_throw_exception_when_rebuilding_state_from_events/).
+Read also more in article [How to get the current entity state from events?](https://event-driven.io/en/how_to_get_the_current_entity_state_in_event_sourcing/) and follow up on [Should you throw an exception when rebuilding the state from events?](https://event-driven.io/en/should_you_throw_exception_when_rebuilding_state_from_events/).
 
 ## Unit Testing
 
