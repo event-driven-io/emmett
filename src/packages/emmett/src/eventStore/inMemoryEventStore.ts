@@ -1,4 +1,4 @@
-import { v4 as randomUUID } from 'uuid';
+import { v4 as uuid } from 'uuid';
 import type {
   Event,
   ReadEvent,
@@ -15,6 +15,7 @@ import {
   type ReadStreamResult,
 } from './eventStore';
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
+import { StreamingCoordinator } from './subscriptions';
 
 export type EventHandler<E extends Event = Event> = (
   eventEnvelope: ReadEvent<E>,
@@ -24,7 +25,11 @@ export const getInMemoryEventStore = (): EventStore<
   DefaultStreamVersionType,
   ReadEventMetadataWithGlobalPosition
 > => {
-  const streams = new Map<string, ReadEvent[]>();
+  const streams = new Map<
+    string,
+    ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[]
+  >();
+  const streamingCoordinator = StreamingCoordinator();
 
   const getAllEventsCount = () => {
     return Array.from<ReadEvent[]>(streams.values())
@@ -106,7 +111,7 @@ export const getInMemoryEventStore = (): EventStore<
       return Promise.resolve(result);
     },
 
-    appendToStream: <EventType extends Event>(
+    appendToStream: async <EventType extends Event>(
       streamName: string,
       events: EventType[],
       options?: AppendToStreamOptions,
@@ -120,7 +125,7 @@ export const getInMemoryEventStore = (): EventStore<
         options?.expectedStreamVersion,
       );
 
-      const eventEnvelopes: ReadEvent<
+      const newEvents: ReadEvent<
         EventType,
         ReadEventMetadataWithGlobalPosition
       >[] = events.map((event, index) => {
@@ -129,7 +134,7 @@ export const getInMemoryEventStore = (): EventStore<
           metadata: {
             ...(event.metadata ?? {}),
             streamName,
-            eventId: randomUUID(),
+            eventId: uuid(),
             streamPosition: BigInt(currentEvents.length + index + 1),
             globalPosition: BigInt(getAllEventsCount() + index + 1),
           },
@@ -137,16 +142,19 @@ export const getInMemoryEventStore = (): EventStore<
       });
 
       const positionOfLastEventInTheStream = BigInt(
-        eventEnvelopes.slice(-1)[0]!.metadata.streamPosition,
+        newEvents.slice(-1)[0]!.metadata.streamPosition,
       );
 
-      streams.set(streamName, [...currentEvents, ...eventEnvelopes]);
+      streams.set(streamName, [...currentEvents, ...newEvents]);
+      await streamingCoordinator.notify(newEvents);
 
       const result: AppendToStreamResult = {
         nextExpectedStreamVersion: positionOfLastEventInTheStream,
       };
 
-      return Promise.resolve(result);
+      return result;
     },
+
+    streamEvents: streamingCoordinator.stream,
   };
 };
