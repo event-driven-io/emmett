@@ -40,6 +40,7 @@
         "**.spec.ts",
         "packages/**/src/testing/**",
         "docs/**",
+        "packages/emmett-postgresql/**",
         "packages/emmett-esdb/**",
         "packages/emmett-expressjs/**",
         "packages/emmett-fastify/**",

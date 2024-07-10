@@ -26,7 +26,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/oskardudycz/EventSourcing.NodeJS.git"
+    "url": "git+https://github.com/event-driven-io/emmett.git"
   },
   "keywords": [
     "Event Sourcing"
@@ -34,9 +34,9 @@
   "author": "Oskar Dudycz",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/oskardudycz/EventSourcing.NodeJS/issues"
+    "url": "https://github.com/event-driven-io/emmett/issues"
   },
-  "homepage": "https://github.com/oskardudycz/EventSourcing.NodeJS#readme",
+  "homepage": "https://github.com/event-driven-io/emmett#readme",
   "dependencies": {
     "@event-driven-io/emmett-esdb": "0.11.2",
     "@event-driven-io/emmett-expressjs": "0.11.2",
