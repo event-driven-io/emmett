@@ -62,11 +62,11 @@
   ],
   "devDependencies": {
     "@faker-js/faker": "8.4.1",
+    "@types/pg": "^8.11.6",
+    "@types/pg-format": "^1.0.5",
     "@types/uuid": "9.0.8",
     "@typescript-eslint/eslint-plugin": "7.9.0",
     "@typescript-eslint/parser": "7.9.0",
-    "@types/pg": "^8.11.6",
-    "@types/pg-format": "^1.0.5",
     "eslint": "8.57.0",
     "eslint-config-prettier": "9.1.0",
     "eslint-plugin-prettier": "5.1.3",
@@ -96,5 +96,8 @@
     "packages/emmett-expressjs",
     "packages/emmett-testcontainers",
     "packages/emmett-fastify"
-  ]
+  ],
+  "dependencies": {
+    "@testcontainers/postgresql": "^10.10.3"
+  }
 }

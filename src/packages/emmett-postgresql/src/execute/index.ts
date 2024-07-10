@@ -16,7 +16,7 @@ export const execute = async <Result = void>(
 export const executeInTransaction = async <Result = void>(
   pool: pg.Pool,
   handle: (client: pg.PoolClient) => Promise<Result>,
-) =>
+): Promise<Result> =>
   execute(pool, async (client) => {
     try {
       await client.query('BEGIN');
@@ -44,8 +44,17 @@ export const executeSQLInTransaction = async <
   Result extends pg.QueryResultRow = pg.QueryResultRow,
 >(
   pool: pg.Pool,
+  sql: SQL,
+) => executeInTransaction(pool, (client) => client.query<Result>(sql));
+
+export const executeSQLBatchInTransaction = async <
+  Result extends pg.QueryResultRow = pg.QueryResultRow,
+>(
+  pool: pg.Pool,
   ...sqls: SQL[]
 ) =>
   executeInTransaction(pool, async (client) => {
-    for (const sql of sqls) await client.query<Result>(sql);
+    for (const sql of sqls) {
+      await client.query<Result>(sql);
+    }
   });
