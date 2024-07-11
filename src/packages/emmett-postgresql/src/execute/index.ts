@@ -16,15 +16,18 @@ export const execute = async <Result = void>(
 
 export const executeInTransaction = async <Result = void>(
   pool: pg.Pool,
-  handle: (client: pg.PoolClient) => Promise<Result>,
+  handle: (
+    client: pg.PoolClient,
+  ) => Promise<{ success: boolean; result: Result }>,
 ): Promise<Result> =>
   execute(pool, async (client) => {
     try {
       await client.query('BEGIN');
 
-      const result = handle(client);
+      const { success, result } = await handle(client);
 
-      await client.query('COMMIT');
+      if (success) await client.query('COMMIT');
+      else await client.query('ROLLBACK');
 
       return result;
     } catch (e) {
@@ -36,10 +39,12 @@ export const executeInTransaction = async <Result = void>(
 export const executeSQL = async <
   Result extends pg.QueryResultRow = pg.QueryResultRow,
 >(
-  pool: pg.Pool,
+  poolOrClient: pg.Pool | pg.PoolClient,
   sql: SQL,
 ): Promise<pg.QueryResult<Result>> =>
-  execute(pool, (client) => client.query<Result>(sql));
+  'totalCount' in poolOrClient
+    ? execute(poolOrClient, (client) => client.query<Result>(sql))
+    : poolOrClient.query<Result>(sql);
 
 export const executeSQLInTransaction = async <
   Result extends pg.QueryResultRow = pg.QueryResultRow,
@@ -48,7 +53,10 @@ export const executeSQLInTransaction = async <
   sql: SQL,
 ) => {
   console.log(sql);
-  return executeInTransaction(pool, (client) => client.query<Result>(sql));
+  return executeInTransaction(pool, async (client) => ({
+    success: true,
+    result: await client.query<Result>(sql),
+  }));
 };
 
 export const executeSQLBatchInTransaction = async <
@@ -61,6 +69,8 @@ export const executeSQLBatchInTransaction = async <
     for (const sql of sqls) {
       await client.query<Result>(sql);
     }
+
+    return { success: true, result: undefined };
   });
 
 export const firstOrNull = async <

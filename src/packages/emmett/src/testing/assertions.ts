@@ -22,22 +22,37 @@ export const isSubset = (superObj: unknown, subObj: unknown): boolean => {
   });
 };
 
-export const assertFails = () => {
-  throw new AssertionError('That should not ever happened, right?');
+export const assertFails = (message?: string) => {
+  throw new AssertionError(message ?? 'That should not ever happened, right?');
 };
 
-export const assertThrows = (
+export const assertThrowsAsync = async <TError extends Error>(
+  fun: () => Promise<void>,
+  errorCheck?: (error: Error) => boolean,
+): Promise<TError> => {
+  try {
+    await fun();
+    throw new AssertionError("Function didn't throw expected error");
+  } catch (error) {
+    const typedError = error as TError;
+    if (errorCheck) assertTrue(errorCheck(typedError));
+    return typedError;
+  }
+};
+
+export const assertThrows = <TError extends Error>(
   fun: () => void,
   errorCheck?: (error: Error) => boolean,
-) => {
+): TError => {
   try {
     fun();
     throw new AssertionError("Function didn't throw expected error");
   } catch (error) {
-    if (errorCheck) assertTrue(errorCheck(error as Error));
+    const typedError = error as TError;
+    if (errorCheck) assertTrue(errorCheck(typedError));
+    return typedError;
   }
 };
-
 export const assertMatches = (
   actual: unknown,
   expected: unknown,
@@ -90,14 +105,14 @@ export function assertOk<T>(
 }
 
 export function assertEqual<T>(
-  obj: T | null | undefined,
-  other: T | null | undefined,
+  expected: T | null | undefined,
+  actual: T | null | undefined,
   message?: string,
 ): void {
-  if (obj !== other)
+  if (expected !== actual)
     throw new AssertionError(
       message ??
-        `Objects are not equal:\n ${JSONParser.stringify(obj)}\ncompared:\n${JSONParser.stringify(other)}`,
+        `Objects are not equal:\nExpected: ${JSONParser.stringify(expected)}\nActual:${JSONParser.stringify(actual)}`,
     );
 }
 
