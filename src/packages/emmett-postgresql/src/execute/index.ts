@@ -46,7 +46,10 @@ export const executeSQLInTransaction = async <
 >(
   pool: pg.Pool,
   sql: SQL,
-) => executeInTransaction(pool, (client) => client.query<Result>(sql));
+) => {
+  console.log(sql);
+  return executeInTransaction(pool, (client) => client.query<Result>(sql));
+};
 
 export const executeSQLBatchInTransaction = async <
   Result extends pg.QueryResultRow = pg.QueryResultRow,

@@ -35,6 +35,9 @@ export const JSONParser = {
   ) => {
     return JSON.stringify(
       options?.map ? options.map(value as MapperArgs<From, To>) : value,
+      //TODO: Consider adding support to DateTime and adding specific format to mark that's a bigint
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      (_, v) => (typeof v === 'bigint' ? v.toString() : v),
     );
   },
   parse: <From, To = From>(
