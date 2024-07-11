@@ -30,54 +30,56 @@ void describe('createEventStoreSchema', () => {
     }
   });
 
-  void it('creates the event store schema', async () => {
-    const resFunctions = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM pg_proc 
-        WHERE 
-        proname = 'add_events_partitions' 
-        OR proname = 'add_module' 
-        OR proname = 'add_tenant' 
-        OR proname = 'add_module_for_all_tenants' 
-        OR proname = 'add_tenant_for_all_modules' 
-        OR proname = 'append_event'
-      ) AS exists;
-    `);
+  void describe('creates tables', () => {
+    void it('creates the streams table', async () => {
+      assert.ok(await tableExists(pool, 'emt_streams'));
+    });
 
-    assert.strictEqual(
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      resFunctions.rows[0].exists,
-      true,
-      'Functions were not created',
-    );
+    void it('creates the events table', async () => {
+      assert.ok(await tableExists(pool, 'emt_events'));
+    });
+
+    void it('creates the subscriptions table', async () => {
+      assert.ok(await tableExists(pool, 'emt_subscriptions'));
+    });
+
+    void it('creates the events default partition', async () => {
+      assert.ok(await tableExists(pool, 'emt_events_emt_default'));
+    });
+
+    void it('creates the events secondary level active partition', async () => {
+      assert.ok(await tableExists(pool, 'emt_events_emt_default_active'));
+    });
+
+    void it('creates the events secondary level archived partition', async () => {
+      assert.ok(await tableExists(pool, 'emt_events_emt_default_archived'));
+    });
   });
 
-  void it('creates the streams table', async () => {
-    assert.ok(await tableExists(pool, 'emt_streams'));
-  });
+  void describe('creates functions', () => {
+    void it('creates the append_event function', async () => {
+      assert.ok(await functionExists(pool, 'append_event'));
+    });
 
-  void it('creates the events table', async () => {
-    assert.ok(await tableExists(pool, 'emt_events'));
-  });
+    void it('creates the add_events_partitions function', async () => {
+      assert.ok(await functionExists(pool, 'add_events_partitions'));
+    });
 
-  void it('creates the subscriptions table', async () => {
-    assert.ok(await tableExists(pool, 'emt_subscriptions'));
-  });
+    void it('creates the add_module function', async () => {
+      assert.ok(await functionExists(pool, 'add_module'));
+    });
 
-  void it('creates the events default partition', async () => {
-    assert.ok(await tableExists(pool, 'emt_events_emt_default'));
-  });
+    void it('creates the add_tenant function', async () => {
+      assert.ok(await functionExists(pool, 'add_tenant'));
+    });
 
-  void it('creates the events secondary level active partition', async () => {
-    assert.ok(await tableExists(pool, 'emt_events_emt_default_active'));
-  });
+    void it('creates the add_module_for_all_tenants function', async () => {
+      assert.ok(await functionExists(pool, 'add_module_for_all_tenants'));
+    });
 
-  void it('creates the events secondary level archived partition', async () => {
-    assert.ok(await tableExists(pool, 'emt_events_emt_default_archived'));
-  });
-
-  void it('creates the add events partitions function', async () => {
-    assert.ok(await functionExists(pool, 'add_events_partitions'));
+    void it('creates the add_tenant_for_all_modules function', async () => {
+      assert.ok(await functionExists(pool, 'add_tenant_for_all_modules'));
+    });
   });
 
   void it('allows adding a module', async () => {
