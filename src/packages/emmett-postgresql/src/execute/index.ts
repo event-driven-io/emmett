@@ -1,5 +1,6 @@
+import { EmmettError } from '@event-driven-io/emmett';
 import type pg from 'pg';
-import { type SQL } from '../sql';
+import type { SQL } from '../sql';
 
 export const execute = async <Result = void>(
   pool: pg.Pool,
@@ -58,3 +59,75 @@ export const executeSQLBatchInTransaction = async <
       await client.query<Result>(sql);
     }
   });
+
+export const firstOrNull = async <
+  Result extends pg.QueryResultRow = pg.QueryResultRow,
+>(
+  getResult: Promise<pg.QueryResult<Result>>,
+): Promise<Result | null> => {
+  const result = await getResult;
+
+  return result.rows.length > 0 ? result.rows[0] ?? null : null;
+};
+
+export const first = async <
+  Result extends pg.QueryResultRow = pg.QueryResultRow,
+>(
+  getResult: Promise<pg.QueryResult<Result>>,
+): Promise<Result> => {
+  const result = await getResult;
+
+  if (result.rows.length === 0)
+    throw new EmmettError("Query didn't return any result");
+
+  return result.rows[0]!;
+};
+
+export const singleOrNull = async <
+  Result extends pg.QueryResultRow = pg.QueryResultRow,
+>(
+  getResult: Promise<pg.QueryResult<Result>>,
+): Promise<Result | null> => {
+  const result = await getResult;
+
+  if (result.rows.length > 1)
+    throw new EmmettError('Query had more than one result');
+
+  return result.rows.length > 0 ? result.rows[0] ?? null : null;
+};
+
+export const single = async <
+  Result extends pg.QueryResultRow = pg.QueryResultRow,
+>(
+  getResult: Promise<pg.QueryResult<Result>>,
+): Promise<Result> => {
+  const result = await getResult;
+
+  if (result.rows.length === 0)
+    throw new EmmettError("Query didn't return any result");
+
+  if (result.rows.length > 1)
+    throw new EmmettError('Query had more than one result');
+
+  return result.rows[0]!;
+};
+
+export const mapRow = async <
+  Result extends pg.QueryResultRow = pg.QueryResultRow,
+  Mapped = unknown,
+>(
+  getResult: Promise<pg.QueryResult<Result>>,
+  map: (row: Result) => Mapped,
+): Promise<Mapped[]> => {
+  const result = await getResult;
+
+  return result.rows.map(map);
+};
+
+export type ExistsSQLQueryResult = { exists: boolean };
+
+export const exists = async (pool: pg.Pool, sql: SQL): Promise<boolean> => {
+  const result = await single(executeSQL<ExistsSQLQueryResult>(pool, sql));
+
+  return result.exists === true;
+};

@@ -6,7 +6,8 @@ import {
 import assert from 'assert';
 import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
-import { createEventStoreSchema, globalTag } from '../schema';
+import { functionExists, tableExists } from '../../sql';
+import { createEventStoreSchema } from '../schema';
 
 let postgres: StartedPostgreSqlContainer;
 let pool: pg.Pool;
@@ -29,32 +30,13 @@ void describe('createEventStoreSchema', () => {
     }
   });
 
-  void it('should create the event store schema correctly', async () => {
-    const resStreams = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'emt_streams'
-      ) AS exists;
-    `);
-
-    const resEvents = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'emt_events'
-      ) AS exists;
-    `);
-
-    const resSubscriptions = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'emt_subscriptions'
-      ) AS exists;
-    `);
-
+  void it('creates the event store schema', async () => {
     const resFunctions = await pool.query(`
       SELECT EXISTS (
         SELECT FROM pg_proc 
-        WHERE proname = 'add_module' 
+        WHERE 
+        proname = 'add_events_partitions' 
+        OR proname = 'add_module' 
         OR proname = 'add_tenant' 
         OR proname = 'add_module_for_all_tenants' 
         OR proname = 'add_tenant_for_all_modules' 
@@ -64,47 +46,41 @@ void describe('createEventStoreSchema', () => {
 
     assert.strictEqual(
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      resStreams.rows[0].exists,
-      true,
-      'Streams table was not created',
-    );
-    assert.strictEqual(
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      resEvents.rows[0].exists,
-      true,
-      'Events table was not created',
-    );
-    assert.strictEqual(
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      resSubscriptions.rows[0].exists,
-      true,
-      'Subscriptions table was not created',
-    );
-    assert.strictEqual(
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       resFunctions.rows[0].exists,
       true,
       'Functions were not created',
     );
   });
 
-  void it('should create the global partitions correctly', async () => {
-    const resModulePartition = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM pg_tables
-        WHERE tablename = 'emt_events_${globalTag}__${globalTag}'
-      ) AS exists;
-    `);
-
-    assert.strictEqual(
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      resModulePartition.rows[0].exists,
-      true,
-      'Default module and tenat partition was not created',
-    );
+  void it('creates the streams table', async () => {
+    assert.ok(await tableExists(pool, 'emt_streams'));
   });
 
-  void it('should allow adding a module', async () => {
+  void it('creates the events table', async () => {
+    assert.ok(await tableExists(pool, 'emt_events'));
+  });
+
+  void it('creates the subscriptions table', async () => {
+    assert.ok(await tableExists(pool, 'emt_subscriptions'));
+  });
+
+  void it('creates the events default partition', async () => {
+    assert.ok(await tableExists(pool, 'emt_events_emt_default'));
+  });
+
+  void it('creates the events secondary level active partition', async () => {
+    assert.ok(await tableExists(pool, 'emt_events_emt_default_active'));
+  });
+
+  void it('creates the events secondary level archived partition', async () => {
+    assert.ok(await tableExists(pool, 'emt_events_emt_default_archived'));
+  });
+
+  void it('creates the add events partitions function', async () => {
+    assert.ok(await functionExists(pool, 'add_events_partitions'));
+  });
+
+  void it('allows adding a module', async () => {
     await pool.query(`SELECT add_module('test_module')`);
 
     const res = await pool.query(`
