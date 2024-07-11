@@ -1,3 +1,4 @@
+import { JSONParser } from '../serialization';
 import type { DefaultRecord } from '../typing';
 import { deepEquals } from '../utils';
 
@@ -45,7 +46,7 @@ export const assertMatches = (
   if (!isSubset(actual, expected))
     throw new AssertionError(
       message ??
-        `subObj:\n${JSON.stringify(expected)}\nis not subset of\n${JSON.stringify(actual)}`,
+        `subObj:\n${JSONParser.stringify(expected)}\nis not subset of\n${JSONParser.stringify(actual)}`,
     );
 };
 
@@ -57,7 +58,7 @@ export const assertDeepEqual = (
   if (!deepEquals(actual, expected))
     throw new AssertionError(
       message ??
-        `subObj:\n${JSON.stringify(expected)}\nis equals to\n${JSON.stringify(actual)}`,
+        `subObj:\n${JSONParser.stringify(expected)}\nis equals to\n${JSONParser.stringify(actual)}`,
     );
 };
 
@@ -96,7 +97,7 @@ export function assertEqual<T>(
   if (obj !== other)
     throw new AssertionError(
       message ??
-        `Objects are not equal:\n ${JSON.stringify(obj)}\ncompared:\n${JSON.stringify(other)}`,
+        `Objects are not equal:\n ${JSONParser.stringify(obj)}\ncompared:\n${JSONParser.stringify(other)}`,
     );
 }
 
@@ -107,11 +108,11 @@ export function assertNotEqual<T>(
 ): void {
   if (obj === other)
     throw new AssertionError(
-      message ?? `Objects are equal: ${JSON.stringify(obj)}`,
+      message ?? `Objects are equal: ${JSONParser.stringify(obj)}`,
     );
 }
 
-export function assertIsNotNull<T extends object>(
+export function assertIsNotNull<T extends object | bigint>(
   result: T | null,
 ): asserts result is T {
   assertNotEqual(result, null);
