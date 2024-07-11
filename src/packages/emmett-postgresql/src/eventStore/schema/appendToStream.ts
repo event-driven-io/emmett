@@ -1,7 +1,11 @@
 import {
   JSONParser,
+  NO_CONCURRENCY_CHECK,
+  STREAM_DOES_NOT_EXIST,
+  STREAM_EXISTS,
   type AppendToStreamOptions,
   type Event,
+  type ExpectedStreamVersion,
 } from '@event-driven-io/emmett';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
@@ -125,7 +129,11 @@ export const appendToStream = (
         streamName,
         streamType,
         events,
-        options,
+        {
+          expectedStreamVersion: toExpectedVersion(
+            options?.expectedStreamVersion,
+          ),
+        },
       );
     } catch (error) {
       if (!isOptimisticConcurrencyError(error)) throw error;
@@ -162,6 +170,22 @@ export const appendToStream = (
     };
   });
 
+const toExpectedVersion = (
+  expected: ExpectedStreamVersion | undefined,
+): bigint | null => {
+  if (expected === undefined) return null;
+
+  if (expected === NO_CONCURRENCY_CHECK) return null;
+
+  // TODO: this needs to be fixed
+  if (expected == STREAM_DOES_NOT_EXIST) return null;
+
+  // TODO: this needs to be fixed
+  if (expected == STREAM_EXISTS) return null;
+
+  return expected as bigint;
+};
+
 const isOptimisticConcurrencyError = (error: unknown): boolean =>
   error instanceof Error && 'code' in error && error.code === '23505';
 
@@ -177,7 +201,8 @@ const appendEventsRaw = (
   streamId: string,
   streamType: string,
   events: Event[],
-  options?: AppendToStreamOptions & {
+  options?: {
+    expectedStreamVersion: bigint | null;
     partition?: string;
   },
 ): Promise<AppendEventSqlResult> =>
