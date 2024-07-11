@@ -1,4 +1,8 @@
-import { JSONParser, type Event } from '@event-driven-io/emmett';
+import {
+  JSONParser,
+  type AppendToStreamOptions,
+  type Event,
+} from '@event-driven-io/emmett';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { executeInTransaction, executeSQL, single } from '../../execute';
@@ -100,20 +104,12 @@ type AppendEventResult =
     }
   | { success: false };
 
-type AppendEventSqlResult = {
-  success: boolean;
-  next_stream_position: string | null;
-  last_global_position: string | null;
-  transaction_id: string | null | undefined;
-};
-
-export const appendEvents = (
+export const appendToStream = (
   pool: pg.Pool,
-  streamId: string,
+  streamName: string,
   streamType: string,
   events: Event[],
-  options?: {
-    expectedStreamVersion?: bigint;
+  options?: AppendToStreamOptions & {
     partition?: string;
   },
 ): Promise<AppendEventResult> =>
@@ -126,7 +122,7 @@ export const appendEvents = (
     try {
       appendResult = await appendEventsRaw(
         client,
-        streamId,
+        streamName,
         streamType,
         events,
         options,
@@ -169,13 +165,19 @@ export const appendEvents = (
 const isOptimisticConcurrencyError = (error: unknown): boolean =>
   error instanceof Error && 'code' in error && error.code === '23505';
 
+type AppendEventSqlResult = {
+  success: boolean;
+  next_stream_position: string | null;
+  last_global_position: string | null;
+  transaction_id: string | null | undefined;
+};
+
 const appendEventsRaw = (
   client: pg.PoolClient,
   streamId: string,
   streamType: string,
   events: Event[],
-  options?: {
-    expectedStreamVersion?: bigint;
+  options?: AppendToStreamOptions & {
     partition?: string;
   },
 ): Promise<AppendEventSqlResult> =>
