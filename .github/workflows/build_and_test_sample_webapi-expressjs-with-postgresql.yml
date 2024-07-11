@@ -1,4 +1,4 @@
-name: Build and test Sample - WebApi with Express.js and EventStoreDB
+name: Build and test Sample - WebApi with Express.js and PostgreSQL
 
 on:
   # run it on push to the default repository branch
