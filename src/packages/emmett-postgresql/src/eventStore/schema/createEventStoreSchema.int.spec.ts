@@ -1,4 +1,3 @@
-// tests/createEventStoreSchema.test.ts
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -9,10 +8,10 @@ import pg from 'pg';
 import { functionExists, tableExists } from '../../sql';
 import { createEventStoreSchema } from '../schema';
 
-let postgres: StartedPostgreSqlContainer;
-let pool: pg.Pool;
-
 void describe('createEventStoreSchema', () => {
+  let postgres: StartedPostgreSqlContainer;
+  let pool: pg.Pool;
+
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
     pool = new pg.Pool({

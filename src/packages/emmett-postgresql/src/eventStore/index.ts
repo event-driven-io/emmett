@@ -1,2 +1,2 @@
-export * from './eventstoreDBEventStore';
+export * from './postgreSQLEventStore';
 export * from './schema';

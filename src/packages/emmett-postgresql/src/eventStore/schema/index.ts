@@ -1,7 +1,7 @@
 import pg from 'pg';
 import { executeSQLBatchInTransaction } from '../../execute';
 import { type SQL } from '../../sql';
-import { appendEventsSQL } from './appendEvents';
+import { appendEventsSQL } from './appendToStream';
 import {
   addDefaultPartition,
   addEventsPartitions,
@@ -16,7 +16,8 @@ import {
   subscriptionsTableSQL,
 } from './tables';
 
-export * from './appendEvents';
+export * from './appendToStream';
+export * from './readStream';
 export * from './tables';
 export * from './typing';
 

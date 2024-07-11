@@ -1,4 +1,3 @@
-// tests/appendEvent.test.ts
 import {
   assertEqual,
   assertFalse,
@@ -14,10 +13,10 @@ import {
 import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
+import { createEventStoreSchema } from '.';
 import { executeSQL } from '../../execute';
 import { sql } from '../../sql';
-import { createEventStoreSchema } from '../schema';
-import { appendEvents } from './appendEvents';
+import { appendToStream } from './appendToStream';
 
 export type PricedProductItem = {
   productId: string;
@@ -74,7 +73,7 @@ void describe('appendEvent', () => {
   ];
 
   void it('should append events correctly using appendEvent function', async () => {
-    const result = await appendEvents(pool, uuid(), 'shopping_cart', events, {
+    const result = await appendToStream(pool, uuid(), 'shopping_cart', events, {
       expectedStreamVersion: 0n,
     });
 
@@ -86,7 +85,7 @@ void describe('appendEvent', () => {
   });
 
   void it('should append events correctly without expected stream position', async () => {
-    const result = await appendEvents(
+    const result = await appendToStream(
       pool,
       uuid(),
       'shopping_cart',
@@ -105,7 +104,7 @@ void describe('appendEvent', () => {
     // Given
     const streamId = uuid();
 
-    const firstResult = await appendEvents(
+    const firstResult = await appendToStream(
       pool,
       streamId,
       'shopping_cart',
@@ -117,7 +116,7 @@ void describe('appendEvent', () => {
     assertTrue(firstResult.success);
 
     // When
-    const secondResult = await appendEvents(
+    const secondResult = await appendToStream(
       pool,
       streamId,
       'shopping_cart',
@@ -142,7 +141,7 @@ void describe('appendEvent', () => {
     // Given
     const streamId = uuid();
 
-    const creationResult = await appendEvents(
+    const creationResult = await appendToStream(
       pool,
       streamId,
       'shopping_cart',
@@ -151,7 +150,7 @@ void describe('appendEvent', () => {
     assertTrue(creationResult.success);
     const expectedStreamVersion = creationResult.nextStreamPosition;
 
-    const firstResult = await appendEvents(
+    const firstResult = await appendToStream(
       pool,
       streamId,
       'shopping_cart',
@@ -163,7 +162,7 @@ void describe('appendEvent', () => {
     assertTrue(firstResult.success);
 
     // When
-    const secondResult = await appendEvents(
+    const secondResult = await appendToStream(
       pool,
       streamId,
       'shopping_cart',
@@ -189,7 +188,7 @@ void describe('appendEvent', () => {
     const streamId = uuid();
     const expectedStreamVersion = 0n;
 
-    const firstResult = await appendEvents(
+    const firstResult = await appendToStream(
       pool,
       streamId,
       'shopping_cart',
@@ -201,7 +200,7 @@ void describe('appendEvent', () => {
     assertTrue(firstResult.success);
 
     // When
-    const secondResult = await appendEvents(
+    const secondResult = await appendToStream(
       pool,
       streamId,
       'shopping_cart',
@@ -223,7 +222,7 @@ void describe('appendEvent', () => {
   });
 
   void it('should handle appending an empty events array gracefully', async () => {
-    const result = await appendEvents(pool, uuid(), 'shopping_cart', []);
+    const result = await appendToStream(pool, uuid(), 'shopping_cart', []);
 
     assertFalse(result.success);
   });
