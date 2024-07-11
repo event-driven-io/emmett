@@ -11,6 +11,7 @@ import { rawSQL, sql, type SQL } from '../../sql';
 export const emmettPrefix = 'emt';
 
 export const globalTag = 'global';
+export const defaultTag = 'emt:default';
 
 export const globalNames = {
   module: `${emmettPrefix}:module:${globalTag}`,
@@ -59,7 +60,7 @@ const eventsTableSQL = rawSQL(
   CREATE TABLE IF NOT EXISTS ${eventsTable.name}(
       stream_id              TEXT                      NOT NULL,
       stream_position        BIGINT                    NOT NULL,
-      partition              TEXT                      NOT NULL DEFAULT '${globalTag}__${globalTag}',
+      partition              TEXT                      NOT NULL DEFAULT '${globalTag}',
       event_data             JSONB                     NOT NULL,
       event_metadata         JSONB                     NOT NULL,
       event_schema_version   TEXT                      NOT NULL,
@@ -92,6 +93,39 @@ const sanitizeNameSQL = rawSQL(
         RETURN REGEXP_REPLACE(input_name, '[^a-zA-Z0-9_]', '_', 'g');
     END;
     $$ LANGUAGE plpgsql;`,
+);
+
+const addEventsPartitions = rawSQL(
+  `
+  CREATE OR REPLACE FUNCTION add_events_partitions(partition_name TEXT) RETURNS void AS $$
+  DECLARE
+    v_main_partiton_name     TEXT;
+    v_active_partiton_name   TEXT;
+    v_archived_partiton_name TEXT;
+  BEGIN                
+      v_main_partiton_name     := emt_sanitize_name('${eventsTable.name}_' || partition_name);
+      v_active_partiton_name   := emt_sanitize_name(v_main_partiton_name   || '_active');
+      v_archived_partiton_name := emt_sanitize_name(v_main_partiton_name   || '_archived');
+
+      EXECUTE format('
+          CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
+          FOR VALUES IN (%L) PARTITION BY LIST (is_archived);',
+          v_main_partiton_name, '${eventsTable.name}', partition_name
+      );
+  
+      EXECUTE format('
+          CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
+          FOR VALUES IN (FALSE);',
+          v_active_partiton_name, v_main_partiton_name
+      );
+  
+      EXECUTE format('
+          CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
+          FOR VALUES IN (TRUE);',
+          v_archived_partiton_name, v_main_partiton_name
+      );
+  END;
+  $$ LANGUAGE plpgsql;`,
 );
 
 const addModuleSQL = rawSQL(
@@ -290,8 +324,8 @@ const addTenantForAllModulesSQL = rawSQL(
   `,
 );
 
-const addGlobalModuleAndTenantSQL = rawSQL(
-  `SELECT add_module('${globalTag}');`,
+const addDefaultPartition = rawSQL(
+  `SELECT add_events_partitions('${defaultTag}');`,
 );
 
 const appendEventsSQL = rawSQL(
@@ -386,12 +420,13 @@ export const schemaSQL: SQL[] = [
   eventsTableSQL,
   subscriptionsTableSQL,
   sanitizeNameSQL,
+  addEventsPartitions,
   addModuleSQL,
   addTenantSQL,
   addModuleForAllTenantsSQL,
   addTenantForAllModulesSQL,
   appendEventsSQL,
-  addGlobalModuleAndTenantSQL,
+  addDefaultPartition,
 ];
 
 export const createEventStoreSchema = (pool: pg.Pool) =>
