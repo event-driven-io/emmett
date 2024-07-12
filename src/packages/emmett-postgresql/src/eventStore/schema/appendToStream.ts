@@ -13,6 +13,7 @@ import {
   type AppendToStreamOptions,
   type Event,
   type ExpectedStreamVersion,
+  type ReadEvent,
 } from '@event-driven-io/emmett';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
@@ -120,6 +121,10 @@ export const appendToStream = (
   events: Event[],
   options?: AppendToStreamOptions & {
     partition?: string;
+    preCommitHook?: (
+      client: pg.PoolClient,
+      events: ReadEvent[],
+    ) => Promise<void>;
   },
 ): Promise<AppendEventResult> =>
   executeInTransaction<AppendEventResult>(pool, async (client) => {
@@ -129,17 +134,33 @@ export const appendToStream = (
     let appendResult: AppendEventSqlResult;
 
     try {
+      const expectedStreamVersion = toExpectedVersion(
+        options?.expectedStreamVersion,
+      );
+
+      const eventsToAppend: ReadEvent[] = events.map((e, i) => ({
+        ...e,
+        metadata: {
+          streamName,
+          eventId: uuid(),
+          streamPosition: BigInt(i),
+          ...e.metadata,
+        },
+      }));
+
+      // TODO: return global positions from append raw and other generated data
       appendResult = await appendEventsRaw(
         client,
         streamName,
         streamType,
-        events,
+        eventsToAppend,
         {
-          expectedStreamVersion: toExpectedVersion(
-            options?.expectedStreamVersion,
-          ),
+          expectedStreamVersion,
         },
       );
+
+      if (options?.preCommitHook)
+        await options.preCommitHook(client, eventsToAppend);
     } catch (error) {
       if (!isOptimisticConcurrencyError(error)) throw error;
 
@@ -205,7 +226,7 @@ const appendEventsRaw = (
   client: pg.PoolClient,
   streamId: string,
   streamType: string,
-  events: Event[],
+  events: ReadEvent[],
   options?: {
     expectedStreamVersion: bigint | null;
     partition?: string;
@@ -226,7 +247,7 @@ const appendEventsRaw = (
                   %s::bigint,
                   %L::text
               )`,
-        events.map(() => sql('%L', uuid())).join(','),
+        events.map((e) => sql('%L', e.metadata.eventId)).join(','),
         events.map((e) => sql('%L', JSONParser.stringify(e.data))).join(','),
         events
           .map((e) => sql('%L', JSONParser.stringify(e.metadata ?? {})))
