@@ -1,3 +1,4 @@
+import { functionExists, tableExists } from '@event-driven-io/dumbo';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -5,7 +6,6 @@ import {
 import assert from 'assert';
 import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
-import { functionExists, tableExists } from '../../sql';
 import { createEventStoreSchema } from '../schema';
 
 void describe('createEventStoreSchema', () => {

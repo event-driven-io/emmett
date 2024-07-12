@@ -1,7 +1,7 @@
-import { rawSQL } from '../../sql';
+import { rawSql } from '@event-driven-io/dumbo';
 import { defaultTag, eventsTable, globalTag, streamsTable } from './typing';
 
-export const streamsTableSQL = rawSQL(
+export const streamsTableSQL = rawSql(
   `CREATE TABLE IF NOT EXISTS ${streamsTable.name}(
       stream_id         TEXT                      NOT NULL,
       stream_position   BIGINT                    NOT NULL,
@@ -14,7 +14,7 @@ export const streamsTableSQL = rawSQL(
   ) PARTITION BY LIST (partition);`,
 );
 
-export const eventsTableSQL = rawSQL(
+export const eventsTableSQL = rawSql(
   `
   CREATE SEQUENCE IF NOT EXISTS emt_global_event_position;
 
@@ -35,7 +35,7 @@ export const eventsTableSQL = rawSQL(
   ) PARTITION BY LIST (partition);`,
 );
 
-export const subscriptionsTableSQL = rawSQL(
+export const subscriptionsTableSQL = rawSql(
   `
   CREATE TABLE IF NOT EXISTS emt_subscriptions(
       subscription_id                 TEXT                   NOT NULL PRIMARY KEY,
@@ -48,7 +48,7 @@ export const subscriptionsTableSQL = rawSQL(
 `,
 );
 
-export const sanitizeNameSQL = rawSQL(
+export const sanitizeNameSQL = rawSql(
   `CREATE OR REPLACE FUNCTION emt_sanitize_name(input_name TEXT) RETURNS TEXT AS $$
     BEGIN
         RETURN REGEXP_REPLACE(input_name, '[^a-zA-Z0-9_]', '_', 'g');
@@ -56,7 +56,7 @@ export const sanitizeNameSQL = rawSQL(
     $$ LANGUAGE plpgsql;`,
 );
 
-export const addTablePartitions = rawSQL(
+export const addTablePartitions = rawSql(
   `
   CREATE OR REPLACE FUNCTION emt_add_table_partition(tableName TEXT, partition_name TEXT) RETURNS void AS $$
   DECLARE
@@ -97,7 +97,7 @@ export const addTablePartitions = rawSQL(
   $$ LANGUAGE plpgsql;`,
 );
 
-export const addEventsPartitions = rawSQL(
+export const addEventsPartitions = rawSql(
   `
   CREATE OR REPLACE FUNCTION emt_add_partition(partition_name TEXT) RETURNS void AS $$
   BEGIN                
@@ -107,7 +107,7 @@ export const addEventsPartitions = rawSQL(
   $$ LANGUAGE plpgsql;`,
 );
 
-export const addModuleSQL = rawSQL(
+export const addModuleSQL = rawSql(
   `
       CREATE OR REPLACE FUNCTION add_module(new_module TEXT) RETURNS void AS $$
       BEGIN
@@ -153,7 +153,7 @@ export const addModuleSQL = rawSQL(
     `,
 );
 
-export const addTenantSQL = rawSQL(
+export const addTenantSQL = rawSql(
   `
     CREATE OR REPLACE FUNCTION add_tenant(new_module TEXT, new_tenant TEXT) RETURNS void AS $$
     BEGIN
@@ -199,7 +199,7 @@ export const addTenantSQL = rawSQL(
   `,
 );
 
-export const addModuleForAllTenantsSQL = rawSQL(
+export const addModuleForAllTenantsSQL = rawSql(
   `
     CREATE OR REPLACE FUNCTION add_module_for_all_tenants(new_module TEXT) RETURNS void AS $$
     DECLARE
@@ -252,7 +252,7 @@ export const addModuleForAllTenantsSQL = rawSQL(
   `,
 );
 
-export const addTenantForAllModulesSQL = rawSQL(
+export const addTenantForAllModulesSQL = rawSql(
   `
     CREATE OR REPLACE FUNCTION add_tenant_for_all_modules(new_tenant TEXT) RETURNS void AS $$
     DECLARE
@@ -303,6 +303,6 @@ export const addTenantForAllModulesSQL = rawSQL(
   `,
 );
 
-export const addDefaultPartition = rawSQL(
+export const addDefaultPartition = rawSql(
   `SELECT emt_add_partition('${defaultTag}');`,
 );
