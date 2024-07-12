@@ -36,14 +36,12 @@ export type PostgresEventStoreOptions = {
 };
 export const getPostgreSQLEventStore = (
   connectionString: string,
-  configure: (
-    options: PostgresEventStoreOptions,
-  ) => PostgresEventStoreOptions = (options) => options,
+  options: PostgresEventStoreOptions = defaultProjectionOptions,
 ): PostgresEventStore => {
   const pool = getPool(connectionString);
   const ensureSchemaExists = createEventStoreSchema(pool);
 
-  const { projections } = configure(defaultProjectionOptions);
+  const { projections } = options;
 
   return {
     async aggregateStream<State, EventType extends Event>(

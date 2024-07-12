@@ -1,7 +1,7 @@
 import {
   type Event,
   type EventTypeOf,
-  type ReadEvent
+  type ReadEvent,
 } from '@event-driven-io/emmett';
 import pg from 'pg';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';

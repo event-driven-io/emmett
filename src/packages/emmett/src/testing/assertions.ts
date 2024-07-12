@@ -65,9 +65,9 @@ export const assertMatches = (
     );
 };
 
-export const assertDeepEqual = (
-  actual: unknown,
-  expected: unknown,
+export const assertDeepEqual = <T = unknown>(
+  actual: T,
+  expected: T,
   message?: string,
 ) => {
   if (!deepEquals(actual, expected))
