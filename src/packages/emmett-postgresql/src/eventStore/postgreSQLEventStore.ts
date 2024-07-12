@@ -1,3 +1,4 @@
+import { endPool, getPool } from '@event-driven-io/dumbo';
 import {
   ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
@@ -15,16 +16,35 @@ import {
   type ReadStreamOptions,
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
-import pg from 'pg';
+import {
+  defaultProjectionOptions,
+  handleProjections,
+  type ProjectionDefintion,
+} from './projections';
 import { appendToStream, createEventStoreSchema, readStream } from './schema';
 
+export interface PostgresEventStore
+  extends EventStore<
+    DefaultStreamVersionType,
+    ReadEventMetadataWithGlobalPosition
+  > {
+  close(): Promise<void>;
+}
+
+export type PostgresEventStoreOptions = {
+  projections: ProjectionDefintion[];
+};
 export const getPostgreSQLEventStore = (
-  pool: pg.Pool,
-): EventStore<
-  DefaultStreamVersionType,
-  ReadEventMetadataWithGlobalPosition
-> => {
+  connectionString: string,
+  configure: (
+    options: PostgresEventStoreOptions,
+  ) => PostgresEventStoreOptions = (options) => options,
+): PostgresEventStore => {
+  const pool = getPool(connectionString);
   const ensureSchemaExists = createEventStoreSchema(pool);
+
+  const { projections } = configure(defaultProjectionOptions);
+
   return {
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
@@ -91,7 +111,11 @@ export const getPostgreSQLEventStore = (
         streamName,
         streamType,
         events,
-        options,
+        {
+          ...options,
+          preCommitHook: (client, events) =>
+            handleProjections(projections, connectionString, client, events),
+        },
       );
 
       if (!appendResult.success)
@@ -102,6 +126,7 @@ export const getPostgreSQLEventStore = (
 
       return { nextExpectedStreamVersion: appendResult.nextStreamPosition };
     },
+    close: () => endPool({ connectionString }),
   };
 };
 
