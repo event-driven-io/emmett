@@ -1,3 +1,4 @@
+import { executeSQL, sql } from '@event-driven-io/dumbo';
 import {
   assertEqual,
   assertFalse,
@@ -14,8 +15,6 @@ import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { createEventStoreSchema } from '.';
-import { executeSQL } from '../../execute';
-import { sql } from '../../sql';
 import { appendToStream } from './appendToStream';
 
 export type PricedProductItem = {

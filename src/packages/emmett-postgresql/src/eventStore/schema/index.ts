@@ -1,6 +1,5 @@
+import { executeSQLBatchInTransaction, type SQL } from '@event-driven-io/dumbo';
 import pg from 'pg';
-import { executeSQLBatchInTransaction } from '../../execute';
-import { type SQL } from '../../sql';
 import { appendEventsSQL } from './appendToStream';
 import {
   addDefaultPartition,

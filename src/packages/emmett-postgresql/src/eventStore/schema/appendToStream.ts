@@ -1,4 +1,11 @@
 import {
+  executeInTransaction,
+  executeSQL,
+  rawSql,
+  single,
+  sql,
+} from '@event-driven-io/dumbo';
+import {
   JSONParser,
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
@@ -9,11 +16,9 @@ import {
 } from '@event-driven-io/emmett';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-import { executeInTransaction, executeSQL, single } from '../../execute';
-import { rawSQL, sql } from '../../sql';
 import { defaultTag, eventsTable, streamsTable } from './typing';
 
-export const appendEventsSQL = rawSQL(
+export const appendEventsSQL = rawSql(
   `CREATE OR REPLACE FUNCTION emt_append_event(
       v_event_ids text[],
       v_events_data jsonb[],

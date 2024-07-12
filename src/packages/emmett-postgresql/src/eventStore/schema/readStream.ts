@@ -1,3 +1,4 @@
+import { executeSQL, mapRows, sql } from '@event-driven-io/dumbo';
 import {
   event,
   type DefaultStreamVersionType,
@@ -11,8 +12,6 @@ import {
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
 import pg from 'pg';
-import { executeSQL, mapRow } from '../../execute';
-import { sql } from '../../sql';
 import { defaultTag, eventsTable } from './typing';
 
 type ReadStreamSqlResult<EventType extends Event> = {
@@ -54,7 +53,7 @@ export const readStream = async <EventType extends Event>(
   const toCondition = !isNaN(to) ? `AND stream_position <= ${to}` : '';
 
   const events: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
-    await mapRow(
+    await mapRows(
       executeSQL<ReadStreamSqlResult<EventType>>(
         pool,
         sql(

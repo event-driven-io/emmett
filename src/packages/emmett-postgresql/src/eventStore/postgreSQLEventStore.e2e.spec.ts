@@ -1,3 +1,4 @@
+import { getPool } from '@event-driven-io/dumbo';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -8,7 +9,6 @@ import {
   testAggregateStream,
   type EventStoreFactory,
 } from '../../../emmett/src/testing/features';
-import { getPool } from '../connections';
 import { getPostgreSQLEventStore } from './postgreSQLEventStore';
 
 void describe('EventStoreDBEventStore', async () => {
