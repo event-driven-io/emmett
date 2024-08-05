@@ -27,7 +27,13 @@ export const CommandHandler =
   async <Store extends EventStore<StreamVersion>>(
     eventStore: Store,
     id: string,
-    handle: (state: State) => StreamEvent | StreamEvent[] | Promise<StreamEvent> | Promise<StreamEvent[]>,
+    handle: (
+      state: State,
+    ) =>
+      | StreamEvent
+      | StreamEvent[]
+      | Promise<StreamEvent>
+      | Promise<StreamEvent[]>,
     options?: Parameters<Store['appendToStream']>[2] & {
       expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
     },
