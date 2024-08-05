@@ -9,7 +9,7 @@ import {
   type PongoDocument,
 } from '@event-driven-io/pongo';
 import pg from 'pg';
-import { type ProjectionDefintion } from './';
+import { inlineProjection, type ProjectionDefintion } from './';
 
 export type PongoProjectionOptions<EventType extends Event> = {
   documentId: (event: ReadEvent<EventType>) => string;
@@ -41,18 +41,14 @@ export const pongoProjection = <EventType extends Event>(
   handle: (pongo: PongoClient, events: ReadEvent<EventType>[]) => Promise<void>,
   ...canHandle: EventTypeOf<EventType>[]
 ): ProjectionDefintion =>
-  ({
-    type: 'inline',
+  inlineProjection<EventType>({
     canHandle,
-    handle: async (
-      connectionString: string,
-      client: pg.PoolClient,
-      events: ReadEvent<EventType>[],
-    ) => {
+    handle: async (events, context) => {
+      const { connectionString, client } = context;
       const pongo = pongoClient(connectionString, { client });
       await handle(pongo, events);
     },
-  }) as unknown as ProjectionDefintion;
+  });
 
 export const pongoMultiStreamProjection = <
   Document extends PongoDocument,
