@@ -51,3 +51,5 @@ export const projection = <EventType extends Event>(
 export const inlineProjection = <EventType extends Event>(
   definition: Omit<ProjectionDefintion<EventType>, 'type'>,
 ): ProjectionDefintion => projection({ type: 'inline', ...definition });
+
+export * from './pongo';
