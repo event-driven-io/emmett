@@ -27,7 +27,7 @@ export const CommandHandler =
   async <Store extends EventStore<StreamVersion>>(
     eventStore: Store,
     id: string,
-    handle: (state: State) => StreamEvent | StreamEvent[],
+    handle: (state: State) => StreamEvent | StreamEvent[] | Promise<StreamEvent> | Promise<StreamEvent[]>,
     options?: Parameters<Store['appendToStream']>[2] & {
       expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
     },
@@ -54,7 +54,7 @@ export const CommandHandler =
     const currentStreamVersion = aggregationResult?.currentStreamVersion;
 
     // 3. Run business logic
-    const result = handle(state);
+    const result = await handle(state);
 
     const newEvents = Array.isArray(result) ? result : [result];
 
