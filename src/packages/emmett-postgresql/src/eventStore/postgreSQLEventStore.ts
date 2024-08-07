@@ -1,7 +1,9 @@
 import {
   dumbo,
   endPool,
-  type PostgresPoolOptions,
+  type NodePostgresClientConnection,
+  type NodePostgresConnector,
+  type NodePostgresPoolClientConnection,
 } from '@event-driven-io/dumbo';
 import {
   ExpectedVersionConflictError,
@@ -20,6 +22,7 @@ import {
   type ReadStreamOptions,
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
+import pg from 'pg';
 import {
   defaultProjectionOptions,
   handleProjections,
@@ -35,9 +38,69 @@ export interface PostgresEventStore
   close(): Promise<void>;
 }
 
+type PostgresEventStorePooledOptions =
+  | {
+      connector?: NodePostgresConnector;
+      connectionString?: string;
+      database?: string;
+      pooled: true;
+      pool: pg.Pool;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      connectionString?: string;
+      database?: string;
+      pool: pg.Pool;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      connectionString?: string;
+      database?: string;
+      pooled: true;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      connectionString?: string;
+      database?: string;
+    };
+
+type PostgresEventStoreNotPooledOptions =
+  | {
+      connector?: NodePostgresConnector;
+      connectionString?: string;
+      database?: string;
+      pooled: false;
+      client: pg.Client;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      connectionString?: string;
+      database?: string;
+      client: pg.Client;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      connectionString?: string;
+      database?: string;
+      pooled: false;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      connectionString?: string;
+      database?: string;
+      connection:
+        | NodePostgresPoolClientConnection
+        | NodePostgresClientConnection;
+      pooled?: false;
+    };
+
+export type PostgresEventStoreConnectionOptions =
+  | PostgresEventStorePooledOptions
+  | PostgresEventStoreNotPooledOptions;
+
 export type PostgresEventStoreOptions = {
   projections: ProjectionDefintion[];
-  connectionOptions?: Omit<PostgresPoolOptions, 'connectionString'>;
+  connectionOptions?: PostgresEventStoreConnectionOptions;
 };
 export const getPostgreSQLEventStore = (
   connectionString: string,
