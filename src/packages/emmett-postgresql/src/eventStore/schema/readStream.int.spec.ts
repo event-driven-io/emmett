@@ -1,3 +1,4 @@
+import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import {
   assertEqual,
   assertIsNotNull,
@@ -10,7 +11,6 @@ import {
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
-import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { createEventStoreSchema } from '.';
 import { appendToStream } from './appendToStream';
@@ -37,11 +37,11 @@ export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
 void describe('appendEvent', () => {
   let postgres: StartedPostgreSqlContainer;
-  let pool: pg.Pool;
+  let pool: Dumbo;
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
-    pool = new pg.Pool({
+    pool = dumbo({
       connectionString: postgres.getConnectionUri(),
     });
 
@@ -50,7 +50,7 @@ void describe('appendEvent', () => {
 
   after(async () => {
     try {
-      await pool.end();
+      await pool.close();
       await postgres.stop();
     } catch (error) {
       console.log(error);
@@ -76,7 +76,7 @@ void describe('appendEvent', () => {
     await appendToStream(pool, streamId, 'shopping_cart', events);
 
     // When
-    const result = await readStream(pool, streamId);
+    const result = await readStream(pool.execute, streamId);
 
     // Then
     assertIsNotNull(result);
@@ -98,7 +98,7 @@ void describe('appendEvent', () => {
     const nonExistingStreamId = uuid();
 
     // When
-    const result = await readStream(pool, nonExistingStreamId);
+    const result = await readStream(pool.execute, nonExistingStreamId);
 
     // Then
     assertIsNull(result);

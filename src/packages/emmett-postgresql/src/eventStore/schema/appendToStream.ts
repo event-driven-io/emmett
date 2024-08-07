@@ -1,9 +1,10 @@
 import {
-  executeInTransaction,
-  executeSQL,
   rawSql,
   single,
   sql,
+  type NodePostgresPool,
+  type NodePostgresTransaction,
+  type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import {
   JSONParser,
@@ -15,7 +16,6 @@ import {
   type ExpectedStreamVersion,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { defaultTag, eventsTable, streamsTable } from './typing';
 
@@ -115,19 +115,21 @@ type AppendEventResult =
   | { success: false };
 
 export const appendToStream = (
-  pool: pg.Pool,
+  pool: NodePostgresPool,
   streamName: string,
   streamType: string,
   events: Event[],
   options?: AppendToStreamOptions & {
     partition?: string;
     preCommitHook?: (
-      client: pg.PoolClient,
+      transaction: NodePostgresTransaction,
       events: ReadEvent[],
     ) => Promise<void>;
   },
 ): Promise<AppendEventResult> =>
-  executeInTransaction<AppendEventResult>(pool, async (client) => {
+  pool.withTransaction<AppendEventResult>(async (transaction) => {
+    const { execute } = transaction;
+
     if (events.length === 0)
       return { success: false, result: { success: false } };
 
@@ -150,7 +152,7 @@ export const appendToStream = (
 
       // TODO: return global positions from append raw and other generated data
       appendResult = await appendEventsRaw(
-        client,
+        execute,
         streamName,
         streamType,
         eventsToAppend,
@@ -160,7 +162,7 @@ export const appendToStream = (
       );
 
       if (options?.preCommitHook)
-        await options.preCommitHook(client, eventsToAppend);
+        await options.preCommitHook(transaction, eventsToAppend);
     } catch (error) {
       if (!isOptimisticConcurrencyError(error)) throw error;
 
@@ -223,7 +225,7 @@ type AppendEventSqlResult = {
 };
 
 const appendEventsRaw = (
-  client: pg.PoolClient,
+  execute: SQLExecutor,
   streamId: string,
   streamType: string,
   events: ReadEvent[],
@@ -233,8 +235,7 @@ const appendEventsRaw = (
   },
 ): Promise<AppendEventSqlResult> =>
   single(
-    executeSQL<AppendEventSqlResult>(
-      client,
+    execute.command<AppendEventSqlResult>(
       sql(
         `SELECT * FROM emt_append_event(
                   ARRAY[%s]::text[],

@@ -1,5 +1,4 @@
-import { executeSQLBatchInTransaction, type SQL } from '@event-driven-io/dumbo';
-import pg from 'pg';
+import { type NodePostgresPool, type SQL } from '@event-driven-io/dumbo';
 import { appendEventsSQL } from './appendToStream';
 import {
   addDefaultPartition,
@@ -35,5 +34,5 @@ export const schemaSQL: SQL[] = [
   addDefaultPartition,
 ];
 
-export const createEventStoreSchema = (pool: pg.Pool) =>
-  executeSQLBatchInTransaction(pool, ...schemaSQL);
+export const createEventStoreSchema = (pool: NodePostgresPool) =>
+  pool.withTransaction(({ execute }) => execute.batchCommand(schemaSQL));

@@ -1,4 +1,8 @@
-import { endPool, getPool } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  endPool,
+  type PostgresPoolOptions,
+} from '@event-driven-io/dumbo';
 import {
   ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
@@ -33,12 +37,16 @@ export interface PostgresEventStore
 
 export type PostgresEventStoreOptions = {
   projections: ProjectionDefintion[];
+  connectionOptions?: Omit<PostgresPoolOptions, 'connectionString'>;
 };
 export const getPostgreSQLEventStore = (
   connectionString: string,
   options: PostgresEventStoreOptions = defaultProjectionOptions,
 ): PostgresEventStore => {
-  const pool = getPool(connectionString);
+  const pool = dumbo({
+    connectionString,
+    ...(options.connectionOptions ? options.connectionOptions : {}),
+  });
   const ensureSchemaExists = createEventStoreSchema(pool);
 
   const { projections } = options;
@@ -89,7 +97,7 @@ export const getPostgreSQLEventStore = (
       >
     > => {
       await ensureSchemaExists;
-      return readStream<EventType>(pool, streamName, options);
+      return readStream<EventType>(pool.execute, streamName, options);
     },
 
     appendToStream: async <EventType extends Event>(
