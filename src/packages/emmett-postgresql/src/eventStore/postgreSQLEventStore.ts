@@ -24,9 +24,9 @@ import {
 } from '@event-driven-io/emmett';
 import pg from 'pg';
 import {
-  defaultProjectionOptions,
+  defaultPostgreSQLProjectionOptions,
   handleProjections,
-  type ProjectionDefintion,
+  type PostgreSQLProjectionDefintion,
 } from './projections';
 import { appendToStream, createEventStoreSchema, readStream } from './schema';
 
@@ -99,12 +99,12 @@ export type PostgresEventStoreConnectionOptions =
   | PostgresEventStoreNotPooledOptions;
 
 export type PostgresEventStoreOptions = {
-  projections: ProjectionDefintion[];
+  projections: PostgreSQLProjectionDefintion[];
   connectionOptions?: PostgresEventStoreConnectionOptions;
 };
 export const getPostgreSQLEventStore = (
   connectionString: string,
-  options: PostgresEventStoreOptions = defaultProjectionOptions,
+  options: PostgresEventStoreOptions = defaultPostgreSQLProjectionOptions,
 ): PostgresEventStore => {
   const pool = dumbo({
     connectionString,

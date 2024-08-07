@@ -9,7 +9,10 @@ import {
   type PongoDocument,
 } from '@event-driven-io/pongo';
 import pg from 'pg';
-import { inlineProjection, type ProjectionDefintion } from './';
+import {
+  postgreSQLInlineProjection,
+  type PostgreSQLProjectionDefintion,
+} from './';
 
 export type PongoProjectionOptions<EventType extends Event> = {
   documentId: (event: ReadEvent<EventType>) => string;
@@ -40,8 +43,8 @@ export type PongoDocumentEvolve<
 export const pongoProjection = <EventType extends Event>(
   handle: (pongo: PongoClient, events: ReadEvent<EventType>[]) => Promise<void>,
   ...canHandle: EventTypeOf<EventType>[]
-): ProjectionDefintion =>
-  inlineProjection<EventType>({
+): PostgreSQLProjectionDefintion =>
+  postgreSQLInlineProjection<EventType>({
     canHandle,
     handle: async (events, context) => {
       const { connectionString, client } = context;
@@ -58,7 +61,7 @@ export const pongoMultiStreamProjection = <
   getDocumentId: (event: ReadEvent<EventType>) => string,
   evolve: PongoDocumentEvolve<Document, EventType>,
   ...canHandle: EventTypeOf<EventType>[]
-): ProjectionDefintion =>
+): PostgreSQLProjectionDefintion =>
   pongoProjection(
     async (pongo, events) => {
       const collection = pongo.db().collection<Document>(collectionName);
@@ -79,7 +82,7 @@ export const pongoSingleProjection = <
   collectionName: string,
   evolve: PongoDocumentEvolve<Document, EventType>,
   ...canHandle: EventTypeOf<EventType>[]
-): ProjectionDefintion =>
+): PostgreSQLProjectionDefintion =>
   pongoMultiStreamProjection(
     collectionName,
     (event) => event.metadata.streamName,
