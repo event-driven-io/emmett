@@ -2,6 +2,7 @@ import {
   assertDeepEqual,
   assertEqual,
   assertIsNotNull,
+  projections,
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
@@ -25,7 +26,7 @@ import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from './postgreSQLEventStore';
-import { inlineProjection } from './projections';
+import { postgreSQLProjection } from './projections';
 import { pongoSingleProjection } from './projections/pongo';
 
 void describe('EventStoreDBEventStore', async () => {
@@ -38,7 +39,10 @@ void describe('EventStoreDBEventStore', async () => {
     postgres = await new PostgreSqlContainer().start();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString, {
-      projections: [shoppingCartShortInfoProjection, customProjection],
+      projections: projections.inline([
+        shoppingCartShortInfoProjection,
+        customProjection,
+      ]),
     });
     pongo = pongoClient(connectionString);
     return eventStore;
@@ -138,7 +142,7 @@ const shoppingCartShortInfoProjection = pongoSingleProjection(
 
 let handledEventsInCustomProjection: ReadEvent<ShoppingCartEvent>[] = [];
 
-const customProjection = inlineProjection<ShoppingCartEvent>({
+const customProjection = postgreSQLProjection<ShoppingCartEvent>({
   name: 'customProjection',
   canHandle: ['ProductItemAdded', 'DiscountApplied'],
   handle: (events) => {
