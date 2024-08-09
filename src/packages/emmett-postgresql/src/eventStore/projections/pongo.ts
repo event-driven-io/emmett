@@ -8,24 +8,16 @@ import {
   type PongoClient,
   type PongoDocument,
 } from '@event-driven-io/pongo';
-import pg from 'pg';
 import {
-  postgreSQLInlineProjection,
+  postgreSQLProjection,
   type PostgreSQLProjectionDefintion,
+  type PostgreSQLProjectionHandlerContext,
 } from './';
 
-export type PongoProjectionOptions<EventType extends Event> = {
-  documentId: (event: ReadEvent<EventType>) => string;
-  eventHandler: PongoProjectionHandler<EventType>;
-  eventTypes: EventTypeOf<EventType>[];
-};
-
-export type PongoProjectionHandler<EventType extends Event = Event> = (
-  documentId: (event: ReadEvent<EventType>) => string,
-  connectionString: string,
-  client: pg.PoolClient,
-  events: ReadEvent<EventType>[],
-) => Promise<void> | void;
+export type PongoProjectionHandlerContext =
+  PostgreSQLProjectionHandlerContext & {
+    pongo: PongoClient;
+  };
 
 export type PongoDocumentEvolve<
   Document extends PongoDocument,
@@ -40,16 +32,24 @@ export type PongoDocumentEvolve<
       event: ReadEvent<EventType>,
     ) => Promise<Document | null>);
 
-export const pongoProjection = <EventType extends Event>(
-  handle: (pongo: PongoClient, events: ReadEvent<EventType>[]) => Promise<void>,
-  ...canHandle: EventTypeOf<EventType>[]
-): PostgreSQLProjectionDefintion =>
-  postgreSQLInlineProjection<EventType>({
+export type PongoProjectionOptions<EventType extends Event> = {
+  handle: (
+    events: ReadEvent<EventType>[],
+    context: PongoProjectionHandlerContext,
+  ) => Promise<void>;
+  canHandle: EventTypeOf<EventType>[];
+};
+
+export const pongoProjection = <EventType extends Event>({
+  handle,
+  canHandle,
+}: PongoProjectionOptions<EventType>): PostgreSQLProjectionDefintion =>
+  postgreSQLProjection<EventType>({
     canHandle,
     handle: async (events, context) => {
       const { connectionString, client } = context;
       const pongo = pongoClient(connectionString, { client });
-      await handle(pongo, events);
+      await handle(events, { ...context, pongo });
     },
   });
 
@@ -62,8 +62,8 @@ export const pongoMultiStreamProjection = <
   evolve: PongoDocumentEvolve<Document, EventType>,
   ...canHandle: EventTypeOf<EventType>[]
 ): PostgreSQLProjectionDefintion =>
-  pongoProjection(
-    async (pongo, events) => {
+  pongoProjection({
+    handle: async (events, { pongo }) => {
       const collection = pongo.db().collection<Document>(collectionName);
 
       for (const event of events) {
@@ -72,8 +72,8 @@ export const pongoMultiStreamProjection = <
         });
       }
     },
-    ...canHandle,
-  );
+    canHandle,
+  });
 
 export const pongoSingleProjection = <
   Document extends PongoDocument,
