@@ -27,7 +27,7 @@ import {
   type PostgresEventStore,
 } from './postgreSQLEventStore';
 import { postgreSQLProjection } from './projections';
-import { pongoSingleStreamProjection } from './projections/pongo';
+import { pongoSingleStreamProjection } from './projections/pongo/projections';
 
 void describe('EventStoreDBEventStore', async () => {
   let postgres: StartedPostgreSqlContainer;

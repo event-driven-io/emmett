@@ -73,6 +73,18 @@ export const assertDeepEqual = <T = unknown>(
   if (!deepEquals(actual, expected))
     throw new AssertionError(
       message ??
+        `subObj:\n${JSONParser.stringify(expected)}\nis not equal to\n${JSONParser.stringify(actual)}`,
+    );
+};
+
+export const assertNotDeepEqual = <T = unknown>(
+  actual: T,
+  expected: T,
+  message?: string,
+) => {
+  if (deepEquals(actual, expected))
+    throw new AssertionError(
+      message ??
         `subObj:\n${JSONParser.stringify(expected)}\nis equals to\n${JSONParser.stringify(actual)}`,
     );
 };
@@ -221,6 +233,7 @@ export function verifyThat(fn: MockedFunction) {
 export const assertThatArray = <T>(array: T[]) => {
   return {
     isEmpty: () => assertEqual(array.length, 0),
+    isNotEmpty: () => assertNotEqual(array.length, 0),
     hasSize: (length: number) => assertEqual(array.length, length),
     containsElements: (...other: T[]) => {
       assertTrue(other.every((ts) => other.some((o) => deepEquals(ts, o))));
