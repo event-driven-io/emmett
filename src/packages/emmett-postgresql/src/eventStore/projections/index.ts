@@ -103,3 +103,4 @@ export const postgreSQLRawSQLProjection = <EventType extends Event>(
   );
 
 export * from './pongo';
+export * from './postgresProjectionSpec';
