@@ -27,7 +27,7 @@ import {
   type PostgresEventStore,
 } from './postgreSQLEventStore';
 import { postgreSQLProjection } from './projections';
-import { pongoSingleProjection } from './projections/pongo';
+import { pongoSingleStreamProjection } from './projections/pongo';
 
 void describe('EventStoreDBEventStore', async () => {
   let postgres: StartedPostgreSqlContainer;
@@ -133,7 +133,7 @@ const evolve = (
   }
 };
 
-const shoppingCartShortInfoProjection = pongoSingleProjection({
+const shoppingCartShortInfoProjection = pongoSingleStreamProjection({
   collectionName: shoppingCartShortInfoCollectionName,
   evolve,
   canHandle: ['ProductItemAdded', 'DiscountApplied'],
