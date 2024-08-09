@@ -12,7 +12,7 @@ import {
   postgreSQLProjection,
   type PostgreSQLProjectionDefinition,
   type PostgreSQLProjectionHandlerContext,
-} from './';
+} from '..';
 
 export type PongoProjectionHandlerContext =
   PostgreSQLProjectionHandlerContext & {
