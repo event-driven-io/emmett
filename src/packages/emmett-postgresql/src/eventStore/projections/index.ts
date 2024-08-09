@@ -5,11 +5,12 @@ import {
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import {
+  projection,
   type Event,
   type EventTypeOf,
   type ProjectionHandler,
   type ReadEvent,
-  type TypedProjectionDefintion,
+  type TypedProjectionDefinition,
 } from '@event-driven-io/emmett';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 
@@ -23,8 +24,8 @@ export type PostgreSQLProjectionHandlerContext = {
 export type PostgreSQLProjectionHandler<EventType extends Event = Event> =
   ProjectionHandler<EventType, PostgreSQLProjectionHandlerContext>;
 
-export interface PostgreSQLProjectionDefintion<EventType extends Event = Event>
-  extends TypedProjectionDefintion<
+export interface PostgreSQLProjectionDefinition<EventType extends Event = Event>
+  extends TypedProjectionDefinition<
     EventType,
     PostgreSQLProjectionHandlerContext
   > {}
@@ -34,7 +35,7 @@ export const defaultPostgreSQLProjectionOptions: PostgresEventStoreOptions = {
 };
 
 export const handleProjections = async <EventType extends Event = Event>(
-  allProjections: PostgreSQLProjectionDefintion<EventType>[],
+  allProjections: PostgreSQLProjectionDefinition<EventType>[],
   connectionString: string,
   transaction: NodePostgresTransaction,
   events: ReadEvent<EventType>[],
@@ -58,11 +59,13 @@ export const handleProjections = async <EventType extends Event = Event>(
 };
 
 export const postgreSQLProjection = <EventType extends Event>(
-  definition: PostgreSQLProjectionDefintion<EventType>,
-): PostgreSQLProjectionDefintion<EventType> => definition;
-
-/** @deprecated use postgreSQLProjection instead */
-export const projection = postgreSQLProjection;
+  definition: PostgreSQLProjectionDefinition<EventType>,
+): PostgreSQLProjectionDefinition =>
+  projection<
+    EventType,
+    PostgreSQLProjectionHandlerContext,
+    PostgreSQLProjectionDefinition<EventType>
+  >(definition) as PostgreSQLProjectionDefinition;
 
 export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
   handle: (
@@ -70,7 +73,7 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
     context: PostgreSQLProjectionHandlerContext,
   ) => Promise<SQL[]> | SQL[],
   ...canHandle: EventTypeOf<EventType>[]
-): PostgreSQLProjectionDefintion =>
+): PostgreSQLProjectionDefinition =>
   postgreSQLProjection<EventType>({
     canHandle,
     handle: async (events, context) => {
@@ -86,7 +89,7 @@ export const postgreSQLRawSQLProjection = <EventType extends Event>(
     context: PostgreSQLProjectionHandlerContext,
   ) => Promise<SQL> | SQL,
   ...canHandle: EventTypeOf<EventType>[]
-): PostgreSQLProjectionDefintion =>
+): PostgreSQLProjectionDefinition =>
   postgreSQLRawBatchSQLProjection<EventType>(
     async (events, context) => {
       const sqls: SQL[] = [];

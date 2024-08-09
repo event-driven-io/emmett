@@ -18,7 +18,7 @@ export interface ProjectionDefinition<
   handle: ProjectionHandler<Event, ProjectionHandlerContext>;
 }
 
-export interface TypedProjectionDefintion<
+export interface TypedProjectionDefinition<
   EventType extends Event = Event,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > {
@@ -34,6 +34,17 @@ export type ProjectionRegistration<
   type: HandlingType;
   projection: ProjectionDefinition<ProjectionHandlerContext>;
 };
+
+export const projection = <
+  EventType extends Event = Event,
+  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+  ProjectionDefintionType extends TypedProjectionDefinition<
+    EventType,
+    ProjectionHandlerContext
+  > = ProjectionDefinition<ProjectionHandlerContext>,
+>(
+  definition: ProjectionDefintionType,
+): ProjectionDefintionType => definition;
 
 export const inlineProjections = <
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,

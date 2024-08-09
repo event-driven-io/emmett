@@ -133,12 +133,11 @@ const evolve = (
   }
 };
 
-const shoppingCartShortInfoProjection = pongoSingleProjection(
-  shoppingCartShortInfoCollectionName,
+const shoppingCartShortInfoProjection = pongoSingleProjection({
+  collectionName: shoppingCartShortInfoCollectionName,
   evolve,
-  'ProductItemAdded',
-  'DiscountApplied',
-);
+  canHandle: ['ProductItemAdded', 'DiscountApplied'],
+});
 
 let handledEventsInCustomProjection: ReadEvent<ShoppingCartEvent>[] = [];
 

@@ -10,7 +10,7 @@ import {
 } from '@event-driven-io/pongo';
 import {
   postgreSQLProjection,
-  type PostgreSQLProjectionDefintion,
+  type PostgreSQLProjectionDefinition,
   type PostgreSQLProjectionHandlerContext,
 } from './';
 
@@ -43,7 +43,7 @@ export type PongoProjectionOptions<EventType extends Event> = {
 export const pongoProjection = <EventType extends Event>({
   handle,
   canHandle,
-}: PongoProjectionOptions<EventType>): PostgreSQLProjectionDefintion =>
+}: PongoProjectionOptions<EventType>): PostgreSQLProjectionDefinition =>
   postgreSQLProjection<EventType>({
     canHandle,
     handle: async (events, context) => {
@@ -53,15 +53,28 @@ export const pongoProjection = <EventType extends Event>({
     },
   });
 
+export type PongoMultiStreamProjectionOptions<
+  Document extends PongoDocument,
+  EventType extends Event,
+> = {
+  collectionName: string;
+  getDocumentId: (event: ReadEvent<EventType>) => string;
+  evolve: PongoDocumentEvolve<Document, EventType>;
+  canHandle: EventTypeOf<EventType>[];
+};
+
 export const pongoMultiStreamProjection = <
   Document extends PongoDocument,
   EventType extends Event,
->(
-  collectionName: string,
-  getDocumentId: (event: ReadEvent<EventType>) => string,
-  evolve: PongoDocumentEvolve<Document, EventType>,
-  ...canHandle: EventTypeOf<EventType>[]
-): PostgreSQLProjectionDefintion =>
+>({
+  collectionName,
+  getDocumentId,
+  evolve,
+  canHandle,
+}: PongoMultiStreamProjectionOptions<
+  Document,
+  EventType
+>): PostgreSQLProjectionDefinition =>
   pongoProjection({
     handle: async (events, { pongo }) => {
       const collection = pongo.db().collection<Document>(collectionName);
@@ -75,17 +88,29 @@ export const pongoMultiStreamProjection = <
     canHandle,
   });
 
+export type PongoSingleStreamProjectionOptions<
+  Document extends PongoDocument,
+  EventType extends Event,
+> = {
+  collectionName: string;
+  evolve: PongoDocumentEvolve<Document, EventType>;
+  canHandle: EventTypeOf<EventType>[];
+};
+
 export const pongoSingleProjection = <
   Document extends PongoDocument,
   EventType extends Event,
->(
-  collectionName: string,
-  evolve: PongoDocumentEvolve<Document, EventType>,
-  ...canHandle: EventTypeOf<EventType>[]
-): PostgreSQLProjectionDefintion =>
-  pongoMultiStreamProjection(
+>({
+  collectionName,
+  evolve,
+  canHandle,
+}: PongoSingleStreamProjectionOptions<
+  Document,
+  EventType
+>): PostgreSQLProjectionDefinition =>
+  pongoMultiStreamProjection({
     collectionName,
-    (event) => event.metadata.streamName,
+    getDocumentId: (event) => event.metadata.streamName,
     evolve,
-    ...canHandle,
-  );
+    canHandle,
+  });
