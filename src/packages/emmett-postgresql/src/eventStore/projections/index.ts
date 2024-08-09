@@ -6,8 +6,8 @@ import {
 } from '@event-driven-io/dumbo';
 import {
   projection,
+  type CanHandle,
   type Event,
-  type EventTypeOf,
   type ProjectionHandler,
   type ReadEvent,
   type TypedProjectionDefinition,
@@ -72,7 +72,7 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
     events: EventType[],
     context: PostgreSQLProjectionHandlerContext,
   ) => Promise<SQL[]> | SQL[],
-  ...canHandle: EventTypeOf<EventType>[]
+  ...canHandle: CanHandle<EventType>
 ): PostgreSQLProjectionDefinition =>
   postgreSQLProjection<EventType>({
     canHandle,
@@ -88,7 +88,7 @@ export const postgreSQLRawSQLProjection = <EventType extends Event>(
     event: EventType,
     context: PostgreSQLProjectionHandlerContext,
   ) => Promise<SQL> | SQL,
-  ...canHandle: EventTypeOf<EventType>[]
+  ...canHandle: CanHandle<EventType>
 ): PostgreSQLProjectionDefinition =>
   postgreSQLRawBatchSQLProjection<EventType>(
     async (events, context) => {

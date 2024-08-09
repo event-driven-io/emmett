@@ -1,6 +1,6 @@
 import {
+  type CanHandle,
   type Event,
-  type EventTypeOf,
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import {
@@ -37,7 +37,7 @@ export type PongoProjectionOptions<EventType extends Event> = {
     events: ReadEvent<EventType>[],
     context: PongoProjectionHandlerContext,
   ) => Promise<void>;
-  canHandle: EventTypeOf<EventType>[];
+  canHandle: CanHandle<EventType>;
 };
 
 export const pongoProjection = <EventType extends Event>({
@@ -60,7 +60,7 @@ export type PongoMultiStreamProjectionOptions<
   collectionName: string;
   getDocumentId: (event: ReadEvent<EventType>) => string;
   evolve: PongoDocumentEvolve<Document, EventType>;
-  canHandle: EventTypeOf<EventType>[];
+  canHandle: CanHandle<EventType>;
 };
 
 export const pongoMultiStreamProjection = <
@@ -94,7 +94,7 @@ export type PongoSingleStreamProjectionOptions<
 > = {
   collectionName: string;
   evolve: PongoDocumentEvolve<Document, EventType>;
-  canHandle: EventTypeOf<EventType>[];
+  canHandle: CanHandle<EventType>;
 };
 
 export const pongoSingleProjection = <

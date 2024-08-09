@@ -17,6 +17,8 @@ export type EventTypeOf<T extends Event> = T['type'];
 export type EventDataOf<T extends Event> = T['data'];
 export type EventMetaDataOf<T extends Event> = T['metadata'];
 
+export type CanHandle<T extends Event> = EventTypeOf<T>[];
+
 export type CreateEventType<
   EventType extends string,
   EventData extends DefaultRecord,
