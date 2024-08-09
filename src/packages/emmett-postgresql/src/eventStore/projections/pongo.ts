@@ -97,7 +97,7 @@ export type PongoSingleStreamProjectionOptions<
   canHandle: CanHandle<EventType>;
 };
 
-export const pongoSingleProjection = <
+export const pongoSingleStreamProjection = <
   Document extends PongoDocument,
   EventType extends Event,
 >({
