@@ -1,4 +1,4 @@
-import type { DefaultRecord, Event, EventTypeOf, ReadEvent } from '../typing';
+import type { CanHandle, DefaultRecord, Event, ReadEvent } from '../typing';
 
 export type ProjectionHandlingType = 'inline' | 'async';
 
@@ -14,7 +14,7 @@ export interface ProjectionDefinition<
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > {
   name?: string;
-  canHandle: EventTypeOf<Event>[];
+  canHandle: CanHandle<Event>;
   handle: ProjectionHandler<Event, ProjectionHandlerContext>;
 }
 
@@ -23,7 +23,7 @@ export interface TypedProjectionDefinition<
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > {
   name?: string;
-  canHandle: EventTypeOf<EventType>[];
+  canHandle: CanHandle<EventType>;
   handle: ProjectionHandler<EventType, ProjectionHandlerContext>;
 }
 
