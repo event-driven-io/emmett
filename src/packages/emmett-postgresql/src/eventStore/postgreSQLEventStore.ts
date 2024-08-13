@@ -188,13 +188,15 @@ export const getPostgreSQLEventStore = (
         events,
         {
           ...options,
-          preCommitHook: (client, events) =>
-            handleProjections(
-              inlineProjections,
-              connectionString,
-              client,
+          preCommitHook: (events, { transaction }) =>
+            handleProjections({
+              projections: inlineProjections,
+              connection: {
+                connectionString,
+                transaction,
+              },
               events,
-            ),
+            }),
         },
       );
 

@@ -22,28 +22,6 @@ import { handleProjections, type PostgreSQLProjectionDefinition } from '.';
 export type PostgreSQLProjectionSpecEvent<EventType extends Event> =
   EventType & { metadata?: Partial<ReadEventMetadataWithGlobalPosition> };
 
-export const eventInStream = <EventType extends Event = Event>(
-  streamName: string,
-  event: PostgreSQLProjectionSpecEvent<EventType>,
-): PostgreSQLProjectionSpecEvent<EventType> => {
-  return {
-    ...event,
-    metadata: {
-      ...(event.metadata ?? {}),
-      streamName: event.metadata?.streamName ?? streamName,
-    },
-  };
-};
-
-export const eventsInStream = <EventType extends Event = Event>(
-  streamName: string,
-  events: PostgreSQLProjectionSpecEvent<EventType>[],
-): PostgreSQLProjectionSpecEvent<EventType>[] => {
-  return events.map((e) => eventInStream(streamName, e));
-};
-
-export const newEventsInStream = eventsInStream;
-
 export type PostgreSQLProjectionSpec<EventType extends Event> = (
   givenEvents: PostgreSQLProjectionSpecEvent<EventType>[],
 ) => {
@@ -85,33 +63,31 @@ export const PostgreSQLProjectionSpec = {
 
             const run = async (pool: Dumbo) => {
               let globalPosition = 0n;
-              const streamName = 'defaultStreamName';
 
               for (const event of [...givenEvents, ...events]) {
-                const eventId = uuid();
                 allEvents.push({
                   ...event,
                   metadata: {
                     ...{
-                      globalPosition,
+                      globalPosition: ++globalPosition,
                       streamPosition: globalPosition,
-                      streamName,
-                      eventId,
+                      streamName: `test-${uuid()}`,
+                      eventId: uuid(),
                     },
                     ...(event.metadata ?? {}),
                   },
                 });
-
-                globalPosition++;
               }
 
               await pool.withTransaction((transaction) =>
-                handleProjections(
-                  [projection],
-                  connectionString,
-                  transaction,
-                  allEvents,
-                ),
+                handleProjections({
+                  projections: [projection],
+                  connection: {
+                    connectionString,
+                    transaction,
+                  },
+                  events: allEvents,
+                }),
               );
             };
 
@@ -177,6 +153,28 @@ export const PostgreSQLProjectionSpec = {
     }
   },
 };
+
+export const eventInStream = <EventType extends Event = Event>(
+  streamName: string,
+  event: PostgreSQLProjectionSpecEvent<EventType>,
+): PostgreSQLProjectionSpecEvent<EventType> => {
+  return {
+    ...event,
+    metadata: {
+      ...(event.metadata ?? {}),
+      streamName: event.metadata?.streamName ?? streamName,
+    },
+  };
+};
+
+export const eventsInStream = <EventType extends Event = Event>(
+  streamName: string,
+  events: PostgreSQLProjectionSpecEvent<EventType>[],
+): PostgreSQLProjectionSpecEvent<EventType>[] => {
+  return events.map((e) => eventInStream(streamName, e));
+};
+
+export const newEventsInStream = eventsInStream;
 
 export const assertSQLQueryResultMatches =
   <T extends QueryResultRow>(sql: SQL, rows: T[]): PostgreSQLProjectionAssert =>

@@ -8,8 +8,10 @@ import {
   projection,
   type CanHandle,
   type Event,
+  type EventMetaDataOf,
   type ProjectionHandler,
   type ReadEvent,
+  type ReadEventMetadata,
   type TypedProjectionDefinition,
 } from '@event-driven-io/emmett';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
@@ -34,12 +36,32 @@ export const defaultPostgreSQLProjectionOptions: PostgresEventStoreOptions = {
   projections: [],
 };
 
-export const handleProjections = async <EventType extends Event = Event>(
-  allProjections: PostgreSQLProjectionDefinition<EventType>[],
-  connectionString: string,
-  transaction: NodePostgresTransaction,
-  events: ReadEvent<EventType>[],
+export type ProjectionHandlerOptions<
+  EventType extends Event = Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+> = {
+  events: ReadEvent<EventType, EventMetaDataType>[];
+  projections: PostgreSQLProjectionDefinition<EventType>[];
+  connection: {
+    connectionString: string;
+    transaction: NodePostgresTransaction;
+  };
+};
+
+export const handleProjections = async <
+  EventType extends Event = Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+>(
+  options: ProjectionHandlerOptions<EventType, EventMetaDataType>,
 ): Promise<void> => {
+  const {
+    projections: allProjections,
+    events,
+    connection: { transaction, connectionString },
+  } = options;
+
   const eventTypes = events.map((e) => e.type);
 
   const projections = allProjections.filter((p) =>
