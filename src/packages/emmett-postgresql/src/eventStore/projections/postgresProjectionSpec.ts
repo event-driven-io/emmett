@@ -12,6 +12,7 @@ import {
   assertTrue,
   isErrorConstructor,
   type Event,
+  type EventMetaDataOf,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
   type ThenThrows,
@@ -19,8 +20,14 @@ import {
 import { v4 as uuid } from 'uuid';
 import { handleProjections, type PostgreSQLProjectionDefinition } from '.';
 
-export type PostgreSQLProjectionSpecEvent<EventType extends Event> =
-  EventType & { metadata?: Partial<ReadEventMetadataWithGlobalPosition> };
+export type PostgreSQLProjectionSpecEvent<
+  EventType extends Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition,
+> = EventType & {
+  metadata?: Partial<EventMetaDataType>;
+};
 
 export type PostgreSQLProjectionSpecWhenOptions = { numberOfTimes: number };
 
@@ -166,23 +173,33 @@ export const PostgreSQLProjectionSpec = {
   },
 };
 
-export const eventInStream = <EventType extends Event = Event>(
+export const eventInStream = <
+  EventType extends Event = Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition,
+>(
   streamName: string,
-  event: PostgreSQLProjectionSpecEvent<EventType>,
-): PostgreSQLProjectionSpecEvent<EventType> => {
+  event: PostgreSQLProjectionSpecEvent<EventType, EventMetaDataType>,
+): PostgreSQLProjectionSpecEvent<EventType, EventMetaDataType> => {
   return {
     ...event,
     metadata: {
       ...(event.metadata ?? {}),
       streamName: event.metadata?.streamName ?? streamName,
-    },
+    } as Partial<EventMetaDataType>,
   };
 };
 
-export const eventsInStream = <EventType extends Event = Event>(
+export const eventsInStream = <
+  EventType extends Event = Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition,
+>(
   streamName: string,
-  events: PostgreSQLProjectionSpecEvent<EventType>[],
-): PostgreSQLProjectionSpecEvent<EventType>[] => {
+  events: PostgreSQLProjectionSpecEvent<EventType, EventMetaDataType>[],
+): PostgreSQLProjectionSpecEvent<EventType, EventMetaDataType>[] => {
   return events.map((e) => eventInStream(streamName, e));
 };
 
