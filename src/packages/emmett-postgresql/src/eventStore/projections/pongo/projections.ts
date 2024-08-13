@@ -3,7 +3,7 @@ import {
   type Event,
   type EventMetaDataOf,
   type ReadEvent,
-  type ReadEventMetadata,
+  type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import {
   pongoClient,
@@ -25,7 +25,8 @@ export type PongoWithNotNullDocumentEvolve<
   Document extends PongoDocument,
   EventType extends Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition,
 > =
   | ((
       document: Document,
@@ -40,7 +41,8 @@ export type PongoWithNullableDocumentEvolve<
   Document extends PongoDocument,
   EventType extends Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition,
 > =
   | ((
       document: Document | null,
@@ -55,7 +57,8 @@ export type PongoDocumentEvolve<
   Document extends PongoDocument,
   EventType extends Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition,
 > =
   | PongoWithNotNullDocumentEvolve<Document, EventType, EventMetaDataType>
   | PongoWithNullableDocumentEvolve<Document, EventType, EventMetaDataType>;
@@ -63,7 +66,8 @@ export type PongoDocumentEvolve<
 export type PongoProjectionOptions<
   EventType extends Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition,
 > = {
   handle: (
     events: ReadEvent<EventType, EventMetaDataType>[],
@@ -75,7 +79,8 @@ export type PongoProjectionOptions<
 export const pongoProjection = <
   EventType extends Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition,
 >({
   handle,
   canHandle,
@@ -99,7 +104,8 @@ export type PongoMultiStreamProjectionOptions<
   Document extends PongoDocument,
   EventType extends Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition,
 > = {
   canHandle: CanHandle<EventType>;
 
@@ -127,7 +133,8 @@ export const pongoMultiStreamProjection = <
   Document extends PongoDocument,
   EventType extends Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition,
 >(
   options: PongoMultiStreamProjectionOptions<
     Document,
@@ -163,7 +170,8 @@ export type PongoSingleStreamProjectionOptions<
   Document extends PongoDocument,
   EventType extends Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition,
 > = {
   canHandle: CanHandle<EventType>;
 
@@ -190,7 +198,8 @@ export const pongoSingleStreamProjection = <
   Document extends PongoDocument,
   EventType extends Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
+    ReadEventMetadataWithGlobalPosition,
 >(
   options: PongoSingleStreamProjectionOptions<
     Document,
