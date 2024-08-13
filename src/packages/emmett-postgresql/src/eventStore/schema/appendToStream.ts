@@ -122,8 +122,10 @@ export const appendToStream = (
   options?: AppendToStreamOptions & {
     partition?: string;
     preCommitHook?: (
-      transaction: NodePostgresTransaction,
       events: ReadEvent[],
+      context: {
+        transaction: NodePostgresTransaction;
+      },
     ) => Promise<void>;
   },
 ): Promise<AppendEventResult> =>
@@ -162,7 +164,7 @@ export const appendToStream = (
       );
 
       if (options?.preCommitHook)
-        await options.preCommitHook(transaction, eventsToAppend);
+        await options.preCommitHook(eventsToAppend, { transaction });
     } catch (error) {
       if (!isOptimisticConcurrencyError(error)) throw error;
 
