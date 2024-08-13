@@ -8,6 +8,7 @@ export type ProductItemAddedToShoppingCart = Event<
   'ProductItemAddedToShoppingCart',
   {
     shoppingCartId: string;
+    clientId: string;
     productItem: PricedProductItem;
     addedAt: Date;
   }
@@ -34,7 +35,7 @@ export type ShoppingCartCancelled = Event<
   'ShoppingCartCancelled',
   {
     shoppingCartId: string;
-    canceledAt: Date;
+    cancelledAt: Date;
   }
 >;
 

@@ -48,15 +48,15 @@ export const shoppingCartApi =
     router.post(
       '/clients/:clientId/shopping-carts/current/product-items',
       on(async (request: AddProductItemRequest) => {
-        const shoppingCartId = getShoppingCartId(
-          assertNotEmptyString(request.params.clientId),
-        );
+        const clientId = assertNotEmptyString(request.params.clientId);
+        const shoppingCartId = getShoppingCartId(clientId);
         const productId = assertNotEmptyString(request.body.productId);
 
         const command: AddProductItemToShoppingCart = {
           type: 'AddProductItemToShoppingCart',
           data: {
             shoppingCartId,
+            clientId,
             productItem: {
               productId,
               quantity: assertPositiveNumber(request.body.quantity),

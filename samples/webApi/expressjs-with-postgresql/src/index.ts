@@ -1,4 +1,4 @@
-import { getInMemoryMessageBus } from '@event-driven-io/emmett';
+import { getInMemoryMessageBus, projections } from '@event-driven-io/emmett';
 import { getApplication, startAPI } from '@event-driven-io/emmett-expressjs';
 import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
 import type { Application } from 'express';
@@ -8,7 +8,7 @@ const connectionString =
   'postgresql://dbuser:secretpassword@database.server.com:3211/mydb';
 
 const eventStore = getPostgreSQLEventStore(connectionString, {
-  projections: [...shoppingCarts.projections],
+  projections: projections.inline(shoppingCarts.projections),
 });
 
 const inMemoryMessageBus = getInMemoryMessageBus();

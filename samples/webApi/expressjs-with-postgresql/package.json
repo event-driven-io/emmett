@@ -38,9 +38,8 @@
   },
   "homepage": "https://github.com/event-driven-io/emmett#readme",
   "dependencies": {
-    "@event-driven-io/emmett-expressjs": "0.14.1",
-    "@event-driven-io/emmett-postgresql": "0.14.1",
-    "@event-driven-io/emmett-testcontainers": "0.14.1"
+    "@event-driven-io/emmett-expressjs": "0.17.0",
+    "@event-driven-io/emmett-postgresql": "0.17.0"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "^10.10.3",

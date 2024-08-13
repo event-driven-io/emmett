@@ -42,6 +42,7 @@ void describe('ShoppingCart', () => {
               type: 'ProductItemAddedToShoppingCart',
               data: {
                 shoppingCartId,
+                clientId,
                 productItem,
                 addedAt: now,
               },
@@ -59,6 +60,7 @@ void describe('ShoppingCart', () => {
             type: 'ProductItemAddedToShoppingCart',
             data: {
               shoppingCartId,
+              clientId,
               productItem,
               addedAt: oldTime,
             },
@@ -91,6 +93,7 @@ void describe('ShoppingCart', () => {
             type: 'ProductItemAddedToShoppingCart',
             data: {
               shoppingCartId,
+              clientId,
               productItem,
               addedAt: oldTime,
             },
