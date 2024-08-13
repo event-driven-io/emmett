@@ -181,13 +181,13 @@ export const documentDoesNotExist =
     );
 
 export const expectPongoDocuments = {
-  fromCollection: (collectionName: string) => {
+  fromCollection: <Doc extends PongoDocument | WithId<PongoDocument>>(
+    collectionName: string,
+  ) => {
     return {
       withId: (id: string) => {
         return {
-          toBeEqual: <Doc extends PongoDocument | WithId<PongoDocument>>(
-            document: Doc,
-          ) =>
+          toBeEqual: (document: Doc) =>
             documentExists(document, {
               withId: id,
               inCollection: collectionName,

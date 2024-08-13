@@ -22,10 +22,15 @@ import { handleProjections, type PostgreSQLProjectionDefinition } from '.';
 export type PostgreSQLProjectionSpecEvent<EventType extends Event> =
   EventType & { metadata?: Partial<ReadEventMetadataWithGlobalPosition> };
 
+export type PostgreSQLProjectionSpecWhenOptions = { numberOfTimes: number };
+
 export type PostgreSQLProjectionSpec<EventType extends Event> = (
   givenEvents: PostgreSQLProjectionSpecEvent<EventType>[],
 ) => {
-  when: (events: PostgreSQLProjectionSpecEvent<EventType>[]) => {
+  when: (
+    events: PostgreSQLProjectionSpecEvent<EventType>[],
+    options?: PostgreSQLProjectionSpecWhenOptions,
+  ) => {
     then: (
       assert: PostgreSQLProjectionAssert,
       message?: string,
@@ -55,7 +60,10 @@ export const PostgreSQLProjectionSpec = {
 
       return (givenEvents: PostgreSQLProjectionSpecEvent<EventType>[]) => {
         return {
-          when: (events: PostgreSQLProjectionSpecEvent<EventType>[]) => {
+          when: (
+            events: PostgreSQLProjectionSpecEvent<EventType>[],
+            options?: PostgreSQLProjectionSpecWhenOptions,
+          ) => {
             const allEvents: ReadEvent<
               EventType,
               ReadEventMetadataWithGlobalPosition
@@ -63,8 +71,12 @@ export const PostgreSQLProjectionSpec = {
 
             const run = async (pool: Dumbo) => {
               let globalPosition = 0n;
+              const numberOfTimes = options?.numberOfTimes ?? 1;
 
-              for (const event of [...givenEvents, ...events]) {
+              for (const event of [
+                ...givenEvents,
+                ...Array.from({ length: numberOfTimes }).flatMap(() => events),
+              ]) {
                 allEvents.push({
                   ...event,
                   metadata: {
@@ -81,12 +93,12 @@ export const PostgreSQLProjectionSpec = {
 
               await pool.withTransaction((transaction) =>
                 handleProjections({
+                  events: allEvents,
                   projections: [projection],
                   connection: {
                     connectionString,
                     transaction,
                   },
-                  events: allEvents,
                 }),
               );
             };

@@ -62,6 +62,7 @@ void describe('EventStoreDBEventStore', () => {
           {
             productItemsCount: 100,
             totalAmount: 10000,
+            appliedDiscounts: [],
           },
           {
             inCollection: shoppingCartShortInfoCollectionName,
@@ -82,15 +83,20 @@ void describe('EventStoreDBEventStore', () => {
       ])
       .then(
         expectPongoDocuments
-          .fromCollection(shoppingCartShortInfoCollectionName)
+          .fromCollection<ShoppingCartShortInfo>(
+            shoppingCartShortInfoCollectionName,
+          )
           .withId(shoppingCartId)
           .toBeEqual({
             productItemsCount: 100,
             totalAmount: 10000,
+            appliedDiscounts: [],
           }),
       ));
 
-  void it('with empty given and when eventsInStream', async () => {
+  void it('with empty given and when eventsInStream', () => {
+    const couponId = uuid();
+
     return given(
       eventsInStream<ProductItemAdded>(shoppingCartId, [
         {
@@ -105,17 +111,56 @@ void describe('EventStoreDBEventStore', () => {
         newEventsInStream(shoppingCartId, [
           {
             type: 'DiscountApplied',
-            data: { percent: 10 },
+            data: { percent: 10, couponId },
           },
         ]),
       )
       .then(
         expectPongoDocuments
-          .fromCollection(shoppingCartShortInfoCollectionName)
+          .fromCollection<ShoppingCartShortInfo>(
+            shoppingCartShortInfoCollectionName,
+          )
           .withId(shoppingCartId)
           .toBeEqual({
             productItemsCount: 100,
             totalAmount: 9000,
+            appliedDiscounts: [couponId],
+          }),
+      );
+  });
+
+  void it('with idempotency check', () => {
+    const couponId = uuid();
+
+    return given(
+      eventsInStream<ProductItemAdded>(shoppingCartId, [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { price: 100, productId: 'shoes', quantity: 100 },
+          },
+        },
+      ]),
+    )
+      .when(
+        newEventsInStream(shoppingCartId, [
+          {
+            type: 'DiscountApplied',
+            data: { percent: 10, couponId },
+          },
+        ]),
+        { numberOfTimes: 2 },
+      )
+      .then(
+        expectPongoDocuments
+          .fromCollection<ShoppingCartShortInfo>(
+            shoppingCartShortInfoCollectionName,
+          )
+          .withId(shoppingCartId)
+          .toBeEqual({
+            productItemsCount: 100,
+            totalAmount: 9000,
+            appliedDiscounts: [couponId],
           }),
       );
   });
@@ -124,19 +169,19 @@ void describe('EventStoreDBEventStore', () => {
 type ShoppingCartShortInfo = {
   productItemsCount: number;
   totalAmount: number;
+  appliedDiscounts: string[];
 };
 
 const shoppingCartShortInfoCollectionName = 'shoppingCartShortInfo';
 
 const evolve = (
-  document: ShoppingCartShortInfo | null,
+  document: ShoppingCartShortInfo,
   { type, data: event }: ProductItemAdded | DiscountApplied,
 ): ShoppingCartShortInfo => {
-  document = document ?? { productItemsCount: 0, totalAmount: 0 };
-
   switch (type) {
     case 'ProductItemAdded':
       return {
+        ...document,
         totalAmount:
           document.totalAmount +
           event.productItem.price * event.productItem.quantity,
@@ -144,9 +189,13 @@ const evolve = (
           document.productItemsCount + event.productItem.quantity,
       };
     case 'DiscountApplied':
+      // idempotence check
+      if (document.appliedDiscounts.includes(event.couponId)) return document;
+
       return {
         ...document,
         totalAmount: (document.totalAmount * (100 - event.percent)) / 100,
+        appliedDiscounts: [...document.appliedDiscounts, event.couponId],
       };
   }
 };
@@ -155,4 +204,9 @@ const shoppingCartShortInfoProjection = pongoSingleStreamProjection({
   collectionName: shoppingCartShortInfoCollectionName,
   evolve,
   canHandle: ['ProductItemAdded', 'DiscountApplied'],
+  initialState: () => ({
+    productItemsCount: 0,
+    totalAmount: 0,
+    appliedDiscounts: [],
+  }),
 });

@@ -79,7 +79,10 @@ void describe('EventStoreDBEventStore', async () => {
       { type: 'ProductItemAdded', data: { productItem } },
     ]);
     await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
-      { type: 'DiscountApplied', data: { percent: discount } },
+      {
+        type: 'DiscountApplied',
+        data: { percent: discount, couponId: uuid() },
+      },
     ]);
 
     const shoppingCartShortInfo = pongo

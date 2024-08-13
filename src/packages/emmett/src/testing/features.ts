@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
+import { v4 as uuid } from 'uuid';
 import type { EventStore } from '../eventStore';
 import { assertDeepEqual, assertEqual, assertOk } from './assertions';
 import {
@@ -51,7 +51,7 @@ export async function testAggregateStream(
           price: 3,
         };
         const discount = 10;
-        const shoppingCartId = randomUUID();
+        const shoppingCartId = uuid();
 
         await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
           { type: 'ProductItemAdded', data: { productItem } },
@@ -60,7 +60,10 @@ export async function testAggregateStream(
           { type: 'ProductItemAdded', data: { productItem } },
         ]);
         await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
-          { type: 'DiscountApplied', data: { percent: discount } },
+          {
+            type: 'DiscountApplied',
+            data: { percent: discount, couponId: uuid() },
+          },
         ]);
 
         // when

@@ -1,12 +1,21 @@
-import type { CanHandle, DefaultRecord, Event, ReadEvent } from '../typing';
+import type {
+  CanHandle,
+  DefaultRecord,
+  Event,
+  EventMetaDataOf,
+  ReadEvent,
+  ReadEventMetadata,
+} from '../typing';
 
 export type ProjectionHandlingType = 'inline' | 'async';
 
 export type ProjectionHandler<
   EventType extends Event = Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > = (
-  events: ReadEvent<EventType>[],
+  events: ReadEvent<EventType, EventMetaDataType>[],
   context: ProjectionHandlerContext,
 ) => Promise<void> | void;
 
@@ -15,16 +24,22 @@ export interface ProjectionDefinition<
 > {
   name?: string;
   canHandle: CanHandle<Event>;
-  handle: ProjectionHandler<Event, ProjectionHandlerContext>;
+  handle: ProjectionHandler<Event, ReadEventMetadata, ProjectionHandlerContext>;
 }
 
 export interface TypedProjectionDefinition<
   EventType extends Event = Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > {
   name?: string;
   canHandle: CanHandle<EventType>;
-  handle: ProjectionHandler<EventType, ProjectionHandlerContext>;
+  handle: ProjectionHandler<
+    EventType,
+    EventMetaDataType,
+    ProjectionHandlerContext
+  >;
 }
 
 export type ProjectionRegistration<
@@ -37,9 +52,12 @@ export type ProjectionRegistration<
 
 export const projection = <
   EventType extends Event = Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
   ProjectionDefintionType extends TypedProjectionDefinition<
     EventType,
+    EventMetaDataType,
     ProjectionHandlerContext
   > = ProjectionDefinition<ProjectionHandlerContext>,
 >(
