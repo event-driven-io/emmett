@@ -1,7 +1,9 @@
 import {
   type CanHandle,
   type Event,
+  type EventMetaDataOf,
   type ReadEvent,
+  type ReadEventMetadata,
 } from '@event-driven-io/emmett';
 import {
   pongoClient,
@@ -19,98 +21,185 @@ export type PongoProjectionHandlerContext =
     pongo: PongoClient;
   };
 
-export type PongoDocumentEvolve<
+export type PongoWithNotNullDocumentEvolve<
   Document extends PongoDocument,
   EventType extends Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+> =
+  | ((
+      document: Document,
+      event: ReadEvent<EventType, EventMetaDataType>,
+    ) => Document | null)
+  | ((
+      document: Document,
+      event: ReadEvent<EventType>,
+    ) => Promise<Document | null>);
+
+export type PongoWithNullableDocumentEvolve<
+  Document extends PongoDocument,
+  EventType extends Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
 > =
   | ((
       document: Document | null,
-      event: ReadEvent<EventType>,
+      event: ReadEvent<EventType, EventMetaDataType>,
     ) => Document | null)
   | ((
       document: Document | null,
       event: ReadEvent<EventType>,
     ) => Promise<Document | null>);
 
-export type PongoProjectionOptions<EventType extends Event> = {
+export type PongoDocumentEvolve<
+  Document extends PongoDocument,
+  EventType extends Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+> =
+  | PongoWithNotNullDocumentEvolve<Document, EventType, EventMetaDataType>
+  | PongoWithNullableDocumentEvolve<Document, EventType, EventMetaDataType>;
+
+export type PongoProjectionOptions<
+  EventType extends Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+> = {
   handle: (
-    events: ReadEvent<EventType>[],
+    events: ReadEvent<EventType, EventMetaDataType>[],
     context: PongoProjectionHandlerContext,
   ) => Promise<void>;
   canHandle: CanHandle<EventType>;
 };
 
-export const pongoProjection = <EventType extends Event>({
+export const pongoProjection = <
+  EventType extends Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+>({
   handle,
   canHandle,
-}: PongoProjectionOptions<EventType>): PostgreSQLProjectionDefinition =>
-  postgreSQLProjection<EventType>({
+}: PongoProjectionOptions<
+  EventType,
+  EventMetaDataType
+>): PostgreSQLProjectionDefinition =>
+  postgreSQLProjection<EventType, EventMetaDataType>({
     canHandle,
     handle: async (events, context) => {
       const { connectionString, client } = context;
       const pongo = pongoClient(connectionString, { client });
-      await handle(events, { ...context, pongo });
+      await handle(events as ReadEvent<EventType, EventMetaDataType>[], {
+        ...context,
+        pongo,
+      });
     },
   });
 
 export type PongoMultiStreamProjectionOptions<
   Document extends PongoDocument,
   EventType extends Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
 > = {
+  canHandle: CanHandle<EventType>;
+
   collectionName: string;
   getDocumentId: (event: ReadEvent<EventType>) => string;
-  evolve: PongoDocumentEvolve<Document, EventType>;
-  canHandle: CanHandle<EventType>;
-};
+} & (
+  | {
+      evolve: PongoWithNullableDocumentEvolve<
+        Document,
+        EventType,
+        EventMetaDataType
+      >;
+    }
+  | {
+      evolve: PongoWithNotNullDocumentEvolve<
+        Document,
+        EventType,
+        EventMetaDataType
+      >;
+      initialState: () => Document;
+    }
+);
 
 export const pongoMultiStreamProjection = <
   Document extends PongoDocument,
   EventType extends Event,
->({
-  collectionName,
-  getDocumentId,
-  evolve,
-  canHandle,
-}: PongoMultiStreamProjectionOptions<
-  Document,
-  EventType
->): PostgreSQLProjectionDefinition =>
-  pongoProjection({
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+>(
+  options: PongoMultiStreamProjectionOptions<
+    Document,
+    EventType,
+    EventMetaDataType
+  >,
+): PostgreSQLProjectionDefinition => {
+  const { collectionName, getDocumentId, canHandle } = options;
+
+  return pongoProjection({
     handle: async (events, { pongo }) => {
       const collection = pongo.db().collection<Document>(collectionName);
 
       for (const event of events) {
         await collection.handle(getDocumentId(event), async (document) => {
-          return await evolve(document, event);
+          return 'initialState' in options
+            ? await options.evolve(
+                document ?? options.initialState(),
+                event as ReadEvent<EventType, EventMetaDataType>,
+              )
+            : await options.evolve(
+                document,
+                event as ReadEvent<EventType, EventMetaDataType>,
+              );
         });
       }
     },
     canHandle,
   });
+};
 
 export type PongoSingleStreamProjectionOptions<
   Document extends PongoDocument,
   EventType extends Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
 > = {
-  collectionName: string;
-  evolve: PongoDocumentEvolve<Document, EventType>;
   canHandle: CanHandle<EventType>;
-};
+
+  collectionName: string;
+} & (
+  | {
+      evolve: PongoWithNullableDocumentEvolve<
+        Document,
+        EventType,
+        EventMetaDataType
+      >;
+    }
+  | {
+      evolve: PongoWithNotNullDocumentEvolve<
+        Document,
+        EventType,
+        EventMetaDataType
+      >;
+      initialState: () => Document;
+    }
+);
 
 export const pongoSingleStreamProjection = <
   Document extends PongoDocument,
   EventType extends Event,
->({
-  collectionName,
-  evolve,
-  canHandle,
-}: PongoSingleStreamProjectionOptions<
-  Document,
-  EventType
->): PostgreSQLProjectionDefinition =>
-  pongoMultiStreamProjection({
-    collectionName,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+>(
+  options: PongoSingleStreamProjectionOptions<
+    Document,
+    EventType,
+    EventMetaDataType
+  >,
+): PostgreSQLProjectionDefinition => {
+  return pongoMultiStreamProjection<Document, EventType, EventMetaDataType>({
+    ...options,
     getDocumentId: (event) => event.metadata.streamName,
-    evolve,
-    canHandle,
   });
+};

@@ -23,12 +23,23 @@ export type PostgreSQLProjectionHandlerContext = {
   transaction: NodePostgresTransaction;
 };
 
-export type PostgreSQLProjectionHandler<EventType extends Event = Event> =
-  ProjectionHandler<EventType, PostgreSQLProjectionHandlerContext>;
+export type PostgreSQLProjectionHandler<
+  EventType extends Event = Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+> = ProjectionHandler<
+  EventType,
+  EventMetaDataType,
+  PostgreSQLProjectionHandlerContext
+>;
 
-export interface PostgreSQLProjectionDefinition<EventType extends Event = Event>
-  extends TypedProjectionDefinition<
+export interface PostgreSQLProjectionDefinition<
+  EventType extends Event = Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+> extends TypedProjectionDefinition<
     EventType,
+    EventMetaDataType,
     PostgreSQLProjectionHandlerContext
   > {}
 
@@ -80,11 +91,16 @@ export const handleProjections = async <
   }
 };
 
-export const postgreSQLProjection = <EventType extends Event>(
+export const postgreSQLProjection = <
+  EventType extends Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+>(
   definition: PostgreSQLProjectionDefinition<EventType>,
 ): PostgreSQLProjectionDefinition =>
   projection<
     EventType,
+    EventMetaDataType,
     PostgreSQLProjectionHandlerContext,
     PostgreSQLProjectionDefinition<EventType>
   >(definition) as PostgreSQLProjectionDefinition;
