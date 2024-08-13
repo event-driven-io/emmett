@@ -18,6 +18,7 @@ void describe('ShoppingCart', () => {
           type: 'AddProductItemToShoppingCart',
           data: {
             shoppingCartId,
+            clientId,
             productItem,
           },
           metadata: { now },
@@ -27,6 +28,7 @@ void describe('ShoppingCart', () => {
             type: 'ProductItemAddedToShoppingCart',
             data: {
               shoppingCartId,
+              clientId,
               productItem,
               addedAt: now,
             },
@@ -41,6 +43,7 @@ void describe('ShoppingCart', () => {
         type: 'ProductItemAddedToShoppingCart',
         data: {
           shoppingCartId,
+          clientId,
           productItem,
           addedAt: oldTime,
         },
@@ -71,6 +74,7 @@ void describe('ShoppingCart', () => {
           type: 'ProductItemAddedToShoppingCart',
           data: {
             shoppingCartId,
+            clientId,
             productItem,
             addedAt: oldTime,
           },
@@ -84,6 +88,7 @@ void describe('ShoppingCart', () => {
           type: 'AddProductItemToShoppingCart',
           data: {
             shoppingCartId,
+            clientId,
             productItem,
           },
           metadata: { now },
@@ -104,6 +109,7 @@ void describe('ShoppingCart', () => {
   const oldTime = new Date();
   const now = new Date();
   const shoppingCartId = randomUUID();
+  const clientId = randomUUID();
 
   const productItem = getRandomProduct();
 });

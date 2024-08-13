@@ -24,6 +24,7 @@ import {
 export type AddProductItemToShoppingCart = Command<
   'AddProductItemToShoppingCart',
   {
+    clientId: string;
     shoppingCartId: string;
     productItem: PricedProductItem;
   }
@@ -69,7 +70,7 @@ export const addProductItem = (
     throw new IllegalStateError('Shopping Cart already closed');
 
   const {
-    data: { shoppingCartId, productItem },
+    data: { shoppingCartId, clientId, productItem },
     metadata,
   } = command;
 
@@ -77,6 +78,7 @@ export const addProductItem = (
     type: 'ProductItemAddedToShoppingCart',
     data: {
       shoppingCartId,
+      clientId,
       productItem,
       addedAt: metadata?.now ?? new Date(),
     },
@@ -152,7 +154,7 @@ export const cancel = (
     type: 'ShoppingCartCancelled',
     data: {
       shoppingCartId,
-      canceledAt: metadata?.now ?? new Date(),
+      cancelledAt: metadata?.now ?? new Date(),
     },
   };
 };
