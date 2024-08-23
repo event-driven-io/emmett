@@ -18,6 +18,9 @@ const connectionOptions: PostgresEventStoreConnectionOptions | undefined =
         pooled: false,
       };
 
+const generateSchemaUpfront =
+  process.env.BENCHMARK_GENERATE_SCHEMA_UPFRONT === 'true';
+
 const eventStore = getPostgreSQLEventStore(connectionString, {
   connectionOptions: connectionOptions,
 });
@@ -33,11 +36,16 @@ const appendEvents = () => {
   ]);
 };
 
-const readEvents = () => eventStore.readStream(ids[0]!);
+const readEvents = () => eventStore.readStream(ids[0] ?? 'not-existing');
 
 // eslint-disable-next-line @typescript-eslint/require-await
 async function runBenchmark() {
   const suite = new Benchmark.Suite();
+
+  if (generateSchemaUpfront) {
+    // this will trigger generating schema
+    await readEvents();
+  }
 
   return (
     suite
