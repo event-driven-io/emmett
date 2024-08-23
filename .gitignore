@@ -72,6 +72,7 @@ web_modules/
 # dotenv environment variables file
 .env
 .env.test
+*/.env
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -125,3 +126,4 @@ lib
 */.output
 e2e/esmCompatibility/.output
 src/e2e/esmCompatibility/.output
+**/0x
