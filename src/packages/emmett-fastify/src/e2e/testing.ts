@@ -1,5 +1,4 @@
 import { assertMatches, assertOk } from '@event-driven-io/emmett';
-import type { Response } from 'light-my-request';
 import type { Test } from 'supertest';
 
 export type TestResponse<RequestBody> = Omit<
