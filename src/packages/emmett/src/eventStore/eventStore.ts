@@ -28,8 +28,51 @@ export interface EventStore<
   ): Promise<AppendToStreamResult<StreamVersion>>;
 }
 
+export type EventStoreSession<
+  EventStoreType extends EventStore<StreamVersion>,
+  StreamVersion = DefaultStreamVersionType,
+> = {
+  eventStore: EventStoreType;
+  close: () => Promise<void>;
+};
+
+export interface EventStoreSessionFactory<
+  EventStoreType extends EventStore<StreamVersion>,
+  StreamVersion = DefaultStreamVersionType,
+> {
+  withSession<T = unknown>(
+    callback: (
+      session: EventStoreSession<EventStoreType, StreamVersion>,
+    ) => Promise<T>,
+  ): Promise<T>;
+}
+
 export type DefaultStreamVersionType = bigint;
 // #endregion event-store
+
+export const canCreateEventStoreSession = <
+  Store extends EventStore<StreamVersion>,
+  StreamVersion = DefaultStreamVersionType,
+>(
+  eventStore: Store | EventStoreSessionFactory<Store, StreamVersion>,
+): eventStore is EventStoreSessionFactory<Store, StreamVersion> =>
+  'withSession' in eventStore;
+
+export const nulloSessionFactory = <
+  EventStoreType extends EventStore<StreamVersion>,
+  StreamVersion = DefaultStreamVersionType,
+>(
+  eventStore: EventStoreType,
+): EventStoreSessionFactory<EventStoreType, StreamVersion> => ({
+  withSession: (callback) => {
+    const nulloSession: EventStoreSession<EventStoreType, StreamVersion> = {
+      eventStore,
+      close: () => Promise.resolve(),
+    };
+
+    return callback(nulloSession);
+  },
+});
 
 ////////////////////////////////////////////////////////////////////
 /// ReadStream types

@@ -17,6 +17,8 @@ import {
   type DefaultStreamVersionType,
   type Event,
   type EventStore,
+  type EventStoreSession,
+  type EventStoreSessionFactory,
   type ExpectedStreamVersion,
   type ProjectionRegistration,
   type ReadEventMetadataWithGlobalPosition,
@@ -38,9 +40,10 @@ import {
 
 export interface PostgresEventStore
   extends EventStore<
-    DefaultStreamVersionType,
-    ReadEventMetadataWithGlobalPosition
-  > {
+      DefaultStreamVersionType,
+      ReadEventMetadataWithGlobalPosition
+    >,
+    EventStoreSessionFactory<PostgresEventStore, DefaultStreamVersionType> {
   close(): Promise<void>;
 }
 
@@ -115,10 +118,11 @@ export const getPostgreSQLEventStore = (
   connectionString: string,
   options: PostgresEventStoreOptions = defaultPostgreSQLProjectionOptions,
 ): PostgresEventStore => {
-  const pool = dumbo({
+  const poolOptions = {
     connectionString,
     ...(options.connectionOptions ? options.connectionOptions : {}),
-  });
+  };
+  const pool = dumbo(poolOptions);
   const ensureSchemaExists = createEventStoreSchema(pool);
 
   const inlineProjections = (options.projections ?? [])
@@ -219,6 +223,36 @@ export const getPostgreSQLEventStore = (
       return { nextExpectedStreamVersion: appendResult.nextStreamPosition };
     },
     close: () => endPool({ connectionString }),
+
+    async withSession<T = unknown>(
+      callback: (
+        session: EventStoreSession<
+          PostgresEventStore,
+          DefaultStreamVersionType
+        >,
+      ) => Promise<T>,
+    ): Promise<T> {
+      const connection = await pool.connection();
+
+      try {
+        const storeOptions: PostgresEventStoreOptions = {
+          connectionOptions: {
+            connection: connection as NodePostgresClientConnection,
+          },
+        };
+
+        const eventStore = getPostgreSQLEventStore(
+          connectionString,
+          storeOptions,
+        );
+
+        const session = { eventStore, close: () => connection.close() };
+
+        return await callback(session);
+      } finally {
+        await connection.close();
+      }
+    },
   };
 };
 
