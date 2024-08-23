@@ -80,10 +80,10 @@
     "vitepress": "1.0.1"
   },
   "peerDependencies": {
+    "@event-driven-io/pongo": "0.12.5",
     "@types/express": "4.17.21",
     "@types/node": "20.11.30",
     "@types/supertest": "6.0.2",
-    "@event-driven-io/pongo": "0.12.5",
     "supertest": "6.3.4"
   },
   "workspaces": [
@@ -95,6 +95,10 @@
     "packages/emmett-fastify"
   ],
   "dependencies": {
-    "@testcontainers/postgresql": "^10.10.3"
+    "@testcontainers/postgresql": "^10.10.3",
+    "@types/benchmark": "^2.1.5",
+    "0x": "^5.7.0",
+    "benchmark": "^2.1.4",
+    "dotenv": "^16.4.5"
   }
 }

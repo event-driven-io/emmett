@@ -114,6 +114,13 @@ type AppendEventResult =
     }
   | { success: false };
 
+export type AppendToStreamPreCommitHook = (
+  events: ReadEvent[],
+  context: {
+    transaction: NodePostgresTransaction;
+  },
+) => Promise<void>;
+
 export const appendToStream = (
   pool: NodePostgresPool,
   streamName: string,
@@ -121,12 +128,7 @@ export const appendToStream = (
   events: Event[],
   options?: AppendToStreamOptions & {
     partition?: string;
-    preCommitHook?: (
-      events: ReadEvent[],
-      context: {
-        transaction: NodePostgresTransaction;
-      },
-    ) => Promise<void>;
+    preCommitHook?: AppendToStreamPreCommitHook;
   },
 ): Promise<AppendEventResult> =>
   pool.withTransaction<AppendEventResult>(async (transaction) => {

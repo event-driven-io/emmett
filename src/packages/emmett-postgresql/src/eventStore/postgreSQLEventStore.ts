@@ -29,7 +29,12 @@ import {
   handleProjections,
   type PostgreSQLProjectionHandlerContext,
 } from './projections';
-import { appendToStream, createEventStoreSchema, readStream } from './schema';
+import {
+  appendToStream,
+  createEventStoreSchema,
+  readStream,
+  type AppendToStreamPreCommitHook,
+} from './schema';
 
 export interface PostgresEventStore
   extends EventStore<
@@ -100,7 +105,7 @@ export type PostgresEventStoreConnectionOptions =
   | PostgresEventStoreNotPooledOptions;
 
 export type PostgresEventStoreOptions = {
-  projections: ProjectionRegistration<
+  projections?: ProjectionRegistration<
     'inline',
     PostgreSQLProjectionHandlerContext
   >[];
@@ -116,9 +121,22 @@ export const getPostgreSQLEventStore = (
   });
   const ensureSchemaExists = createEventStoreSchema(pool);
 
-  const inlineProjections = options.projections
+  const inlineProjections = (options.projections ?? [])
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
+
+  const preCommitHook: AppendToStreamPreCommitHook | undefined =
+    inlineProjections.length > 0
+      ? (events, { transaction }) =>
+          handleProjections({
+            projections: inlineProjections,
+            connection: {
+              connectionString,
+              transaction,
+            },
+            events,
+          })
+      : undefined;
 
   return {
     async aggregateStream<State, EventType extends Event>(
@@ -188,15 +206,7 @@ export const getPostgreSQLEventStore = (
         events,
         {
           ...options,
-          preCommitHook: (events, { transaction }) =>
-            handleProjections({
-              projections: inlineProjections,
-              connection: {
-                connectionString,
-                transaction,
-              },
-              events,
-            }),
+          preCommitHook,
         },
       );
 
