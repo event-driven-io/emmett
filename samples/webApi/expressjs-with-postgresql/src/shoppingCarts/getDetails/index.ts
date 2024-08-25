@@ -97,7 +97,7 @@ const evolve = (
   }
 };
 
-const shoppingCartDetailsCollectionName = 'shoppingCartDetails';
+export const shoppingCartDetailsCollectionName = 'shoppingCartDetails';
 
 export const getDetailsById = (
   db: PongoDb,

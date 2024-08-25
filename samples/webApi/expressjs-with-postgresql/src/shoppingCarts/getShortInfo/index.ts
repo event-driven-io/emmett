@@ -37,7 +37,7 @@ const evolve = (
   }
 };
 
-const shoppingCartShortInfoCollectionName = 'shoppingCartShortInfo';
+export const shoppingCartShortInfoCollectionName = 'shoppingCartShortInfo';
 
 export const getShortInfoById = (
   db: PongoDb,

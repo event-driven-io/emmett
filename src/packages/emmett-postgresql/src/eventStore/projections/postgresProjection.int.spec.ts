@@ -18,7 +18,7 @@ import {
   type ProductItemAdded,
 } from '../../../../emmett/src/testing/shoppingCart.domain';
 
-void describe('EventStoreDBEventStore', () => {
+void describe('Postgres Projections', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
   let given: PostgreSQLProjectionSpec<ProductItemAdded | DiscountApplied>;

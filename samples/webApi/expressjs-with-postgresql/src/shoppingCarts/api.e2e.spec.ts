@@ -7,6 +7,7 @@ import {
   ApiE2ESpecification,
   expectResponse,
   getApplication,
+  type TestRequest,
 } from '@event-driven-io/emmett-expressjs';
 import {
   getPostgreSQLEventStore,
@@ -74,11 +75,24 @@ void describe('ShoppingCart E2E', () => {
 
   void describe('When empty', () => {
     void it('should add product item', () => {
-      return given((request) =>
-        request
-          .post(`/clients/${clientId}/shopping-carts/current/product-items`)
-          .send(productItem),
-      )
+      return given()
+        .when((request) =>
+          request
+            .post(`/clients/${clientId}/shopping-carts/current/product-items`)
+            .send(productItem),
+        )
+        .then([expectResponse(204)]);
+    });
+  });
+
+  void describe('When open', () => {
+    const openedShoppingCart: TestRequest = (request) =>
+      request
+        .post(`/clients/${clientId}/shopping-carts/current/product-items`)
+        .send(productItem);
+
+    void it('gets shopping cart details', () => {
+      return given(openedShoppingCart)
         .when((request) =>
           request.get(`/clients/${clientId}/shopping-carts/current`).send(),
         )
@@ -91,6 +105,35 @@ void describe('ShoppingCart E2E', () => {
               productItemsCount: productItem.quantity,
               totalAmount: unitPrice * productItem.quantity,
               status: 'Opened',
+            },
+          }),
+        ]);
+    });
+
+    void it('gets shopping cart summary', () => {
+      return given(openedShoppingCart)
+        .when((request) =>
+          request.get(`/clients/${clientId}/shopping-carts/summary`).send(),
+        )
+        .then([
+          expectResponse(200, {
+            body: {
+              clientId,
+              pending: {
+                cartId: shoppingCartId,
+                productItemsCount: productItem.quantity,
+                totalAmount: unitPrice * productItem.quantity,
+              },
+              confirmed: {
+                cartsCount: 0,
+                productItemsCount: 0,
+                totalAmount: 0,
+              },
+              cancelled: {
+                cartsCount: 0,
+                productItemsCount: 0,
+                totalAmount: 0,
+              },
             },
           }),
         ]);
