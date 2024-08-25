@@ -4,6 +4,7 @@ import {
   sum,
   type Command,
   type Decider,
+  type DefaultCommandMetadata,
 } from '@event-driven-io/emmett';
 import {
   evolve,
@@ -21,13 +22,18 @@ import {
 ////////// Commands
 /////////////////////////////////////////
 
+export type ShoppingCartCommandMetadata = DefaultCommandMetadata & {
+  clientId: string;
+};
+
 export type AddProductItemToShoppingCart = Command<
   'AddProductItemToShoppingCart',
   {
     clientId: string;
     shoppingCartId: string;
     productItem: PricedProductItem;
-  }
+  },
+  ShoppingCartCommandMetadata
 >;
 
 export type RemoveProductItemFromShoppingCart = Command<
@@ -35,21 +41,24 @@ export type RemoveProductItemFromShoppingCart = Command<
   {
     shoppingCartId: string;
     productItem: PricedProductItem;
-  }
+  },
+  ShoppingCartCommandMetadata
 >;
 
 export type ConfirmShoppingCart = Command<
   'ConfirmShoppingCart',
   {
     shoppingCartId: string;
-  }
+  },
+  ShoppingCartCommandMetadata
 >;
 
 export type CancelShoppingCart = Command<
   'CancelShoppingCart',
   {
     shoppingCartId: string;
-  }
+  },
+  ShoppingCartCommandMetadata
 >;
 
 export type ShoppingCartCommand =
@@ -82,6 +91,7 @@ export const addProductItem = (
       productItem,
       addedAt: metadata?.now ?? new Date(),
     },
+    metadata: { clientId: metadata!.clientId },
   };
 };
 
@@ -109,6 +119,7 @@ export const removeProductItem = (
       productItem,
       removedAt: metadata?.now ?? new Date(),
     },
+    metadata: { clientId: metadata!.clientId },
   };
 };
 
@@ -135,6 +146,7 @@ export const confirm = (
       shoppingCartId,
       confirmedAt: metadata?.now ?? new Date(),
     },
+    metadata: { clientId: metadata!.clientId },
   };
 };
 
@@ -156,6 +168,7 @@ export const cancel = (
       shoppingCartId,
       cancelledAt: metadata?.now ?? new Date(),
     },
+    metadata: { clientId: metadata!.clientId },
   };
 };
 

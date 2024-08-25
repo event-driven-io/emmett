@@ -123,8 +123,7 @@ export function assertEqual<T>(
 ): void {
   if (expected !== actual)
     throw new AssertionError(
-      message ??
-        `Objects are not equal:\nExpected: ${JSONParser.stringify(expected)}\nActual:${JSONParser.stringify(actual)}`,
+      `${message ?? 'Objects are not equal'}:\nExpected: ${JSONParser.stringify(expected)}\nActual:${JSONParser.stringify(actual)}`,
     );
 }
 

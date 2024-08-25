@@ -21,7 +21,7 @@ void describe('ShoppingCart', () => {
             clientId,
             productItem,
           },
-          metadata: { now },
+          metadata: { clientId, now },
         })
         .then([
           {
@@ -32,6 +32,7 @@ void describe('ShoppingCart', () => {
               productItem,
               addedAt: now,
             },
+            metadata: { clientId },
           },
         ]);
     });
@@ -47,13 +48,14 @@ void describe('ShoppingCart', () => {
           productItem,
           addedAt: oldTime,
         },
+        metadata: { clientId },
       })
         .when({
           type: 'ConfirmShoppingCart',
           data: {
             shoppingCartId,
           },
-          metadata: { now },
+          metadata: { clientId, now },
         })
         .then([
           {
@@ -62,6 +64,7 @@ void describe('ShoppingCart', () => {
               shoppingCartId,
               confirmedAt: now,
             },
+            metadata: { clientId },
           },
         ]);
     });
@@ -78,10 +81,12 @@ void describe('ShoppingCart', () => {
             productItem,
             addedAt: oldTime,
           },
+          metadata: { clientId },
         },
         {
           type: 'ShoppingCartConfirmed',
           data: { shoppingCartId, confirmedAt: oldTime },
+          metadata: { clientId },
         },
       ])
         .when({
@@ -91,7 +96,7 @@ void describe('ShoppingCart', () => {
             clientId,
             productItem,
           },
-          metadata: { now },
+          metadata: { clientId, now },
         })
         .thenThrows(
           (error: Error) => error.message === 'Shopping Cart already closed',

@@ -1,5 +1,6 @@
 import {
   getInMemoryMessageBus,
+  projections,
   type EventStore,
 } from '@event-driven-io/emmett';
 import {
@@ -11,14 +12,15 @@ import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from '@event-driven-io/emmett-postgresql';
+import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { randomUUID } from 'node:crypto';
 import { after, before, beforeEach, describe, it } from 'node:test';
+import shoppingCarts, { type ProductItem } from './';
 import { shoppingCartApi } from './api';
-import { type PricedProductItem } from './shoppingCart';
 
 const getUnitPrice = () => {
   return Promise.resolve(100);
@@ -29,12 +31,19 @@ void describe('ShoppingCart E2E', () => {
   let shoppingCartId: string;
   let postgres: StartedPostgreSqlContainer;
   let eventStore: PostgresEventStore;
+  let readStore: PongoClient;
   let given: ApiE2ESpecification;
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
+    const connectionString = postgres.getConnectionUri();
+
+    eventStore = getPostgreSQLEventStore(connectionString, {
+      projections: projections.inline(shoppingCarts.projections),
+    });
+    readStore = pongoClient(connectionString);
+
     const inMemoryMessageBus = getInMemoryMessageBus();
-    eventStore = getPostgreSQLEventStore(postgres.getConnectionUri());
 
     given = ApiE2ESpecification.for(
       () => eventStore,
@@ -43,6 +52,7 @@ void describe('ShoppingCart E2E', () => {
           apis: [
             shoppingCartApi(
               eventStore,
+              readStore.db(),
               inMemoryMessageBus,
               getUnitPrice,
               () => now,
@@ -57,7 +67,10 @@ void describe('ShoppingCart E2E', () => {
     shoppingCartId = `shopping_cart:${clientId}:current`;
   });
 
-  after(() => eventStore.close());
+  after(async () => {
+    await readStore.close();
+    await eventStore.close();
+  });
 
   void describe('When empty', () => {
     void it('should add product item', () => {
@@ -73,13 +86,10 @@ void describe('ShoppingCart E2E', () => {
           expectResponse(200, {
             body: {
               clientId,
-              id: shoppingCartId,
-              productItems: [
-                {
-                  quantity: productItem.quantity,
-                  productId: productItem.productId,
-                },
-              ],
+              _id: shoppingCartId,
+              productItems: [{ ...productItem, unitPrice }],
+              productItemsCount: productItem.quantity,
+              totalAmount: unitPrice * productItem.quantity,
               status: 'Opened',
             },
           }),
@@ -88,12 +98,12 @@ void describe('ShoppingCart E2E', () => {
   });
 
   const now = new Date();
+  const unitPrice = 100;
 
-  const getRandomProduct = (): PricedProductItem => {
+  const getRandomProduct = (): ProductItem => {
     return {
       productId: randomUUID(),
-      unitPrice: 100,
-      quantity: Math.random() * 10,
+      quantity: Math.floor(Math.random() * 10),
     };
   };
 
