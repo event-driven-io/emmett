@@ -26,6 +26,12 @@ export type CancelledSummary = ShoppingSummary & {
   cartsCount: number;
 };
 
+const initialSummary = {
+  cartsCount: 0,
+  productItemsCount: 0,
+  totalAmount: 0,
+};
+
 const evolve = (
   document: ClientShoppingSummary | null,
   { type, data: event, metadata }: ShoppingCartEvent,
@@ -93,12 +99,6 @@ const evolve = (
   }
 };
 
-const initialSummary = {
-  cartsCount: 0,
-  productItemsCount: 0,
-  totalAmount: 0,
-};
-
 const withAdjustedTotals = (options: {
   summary: ShoppingSummary | undefined;
   with: PricedProductItem | ShoppingSummary;
@@ -125,18 +125,18 @@ const withAdjustedTotals = (options: {
   };
 };
 
-const clientShoppingSummaryCollectionName = 'ClientShoppingSummary';
+const ClientShoppingSummaryCollectionName = 'ClientShoppingSummary';
 
 export const getClientShoppingSummary = (
   db: PongoDb,
   clientId: string,
 ): Promise<ClientShoppingSummary | null> =>
   db
-    .collection<ClientShoppingSummary>(clientShoppingSummaryCollectionName)
+    .collection<ClientShoppingSummary>(ClientShoppingSummaryCollectionName)
     .findOne({ _id: clientId });
 
 export const clientShoppingSummaryProjection = pongoMultiStreamProjection({
-  collectionName: clientShoppingSummaryCollectionName,
+  collectionName: ClientShoppingSummaryCollectionName,
   getDocumentId: (event) => event.metadata.clientId,
   evolve,
   canHandle: [
