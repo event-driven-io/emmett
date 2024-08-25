@@ -12,6 +12,7 @@ import {
   on,
   type WebApiSetup,
 } from '@event-driven-io/emmett-expressjs';
+import { type PongoDb } from '@event-driven-io/pongo';
 import { type Request, type Router } from 'express';
 import {
   addProductItem,
@@ -23,13 +24,8 @@ import {
   type ConfirmShoppingCart,
   type RemoveProductItemFromShoppingCart,
 } from './businessLogic';
-import {
-  evolve,
-  initialState,
-  type ProductItem,
-  type ShoppingCart,
-  type ShoppingCartEvent,
-} from './shoppingCart';
+import { getDetailsById } from './getDetails';
+import { evolve, initialState } from './shoppingCart';
 
 export const handle = CommandHandler(evolve, initialState);
 
@@ -39,6 +35,7 @@ export const getShoppingCartId = (clientId: string) =>
 export const shoppingCartApi =
   (
     eventStore: EventStore,
+    readStore: PongoDb,
     eventPublisher: EventsPublisher,
     getUnitPrice: (_productId: string) => Promise<number>,
     getCurrentTime: () => Date,
@@ -63,7 +60,7 @@ export const shoppingCartApi =
               unitPrice: await getUnitPrice(productId),
             },
           },
-          metadata: { now: getCurrentTime() },
+          metadata: { clientId, now: getCurrentTime() },
         };
 
         await handle(eventStore, shoppingCartId, (state) =>
@@ -78,6 +75,7 @@ export const shoppingCartApi =
     router.delete(
       '/clients/:clientId/shopping-carts/current/product-items',
       on(async (request: Request) => {
+        const clientId = assertNotEmptyString(request.params.clientId);
         const shoppingCartId = getShoppingCartId(
           assertNotEmptyString(request.params.clientId),
         );
@@ -92,7 +90,7 @@ export const shoppingCartApi =
               unitPrice: assertPositiveNumber(Number(request.query.unitPrice)),
             },
           },
-          metadata: { now: getCurrentTime() },
+          metadata: { clientId, now: getCurrentTime() },
         };
 
         await handle(eventStore, shoppingCartId, (state) =>
@@ -107,6 +105,7 @@ export const shoppingCartApi =
     router.post(
       '/clients/:clientId/shopping-carts/current/confirm',
       on(async (request: Request) => {
+        const clientId = assertNotEmptyString(request.params.clientId);
         const shoppingCartId = getShoppingCartId(
           assertNotEmptyString(request.params.clientId),
         );
@@ -114,7 +113,7 @@ export const shoppingCartApi =
         const command: ConfirmShoppingCart = {
           type: 'ConfirmShoppingCart',
           data: { shoppingCartId },
-          metadata: { now: getCurrentTime() },
+          metadata: { clientId, now: getCurrentTime() },
         };
 
         const {
@@ -135,6 +134,7 @@ export const shoppingCartApi =
     router.delete(
       '/clients/:clientId/shopping-carts/current',
       on(async (request: Request) => {
+        const clientId = assertNotEmptyString(request.params.clientId);
         const shoppingCartId = getShoppingCartId(
           assertNotEmptyString(request.params.clientId),
         );
@@ -142,7 +142,7 @@ export const shoppingCartApi =
         const command: CancelShoppingCart = {
           type: 'CancelShoppingCart',
           data: { shoppingCartId },
-          metadata: { now: getCurrentTime() },
+          metadata: { clientId, now: getCurrentTime() },
         };
 
         await handle(eventStore, shoppingCartId, (state) =>
@@ -161,32 +161,14 @@ export const shoppingCartApi =
           assertNotEmptyString(request.params.clientId),
         );
 
-        const result = await eventStore.aggregateStream<
-          ShoppingCart,
-          ShoppingCartEvent
-        >(shoppingCartId, {
-          evolve,
-          initialState,
-        });
+        const result = await getDetailsById(readStore, shoppingCartId);
 
         if (result === null) return NotFound();
 
-        if (result.state.status !== 'Opened') return NotFound();
-
-        const productItems: ProductItem[] = [...result.state.productItems].map(
-          ([productId, quantity]) => ({
-            productId,
-            quantity,
-          }),
-        );
+        if (result.status !== 'Opened') return NotFound();
 
         return OK({
-          body: {
-            clientId: assertNotEmptyString(request.params.clientId),
-            id: shoppingCartId,
-            productItems,
-            status: result.state.status,
-          },
+          body: result,
         });
       }),
     );

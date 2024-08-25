@@ -130,6 +130,7 @@ void describe('ShoppingCart', () => {
         apis: [
           shoppingCartApi(
             eventStore,
+            undefined!, //TODO: define recommendation how to use gets here
             getInMemoryMessageBus(),
             getUnitPrice,
             () => now,

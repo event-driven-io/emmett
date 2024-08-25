@@ -59,7 +59,7 @@ export const expectResponse =
   ) =>
   (response: Response): void => {
     const { body, headers } = options ?? {};
-    assertEqual(response.statusCode, statusCode);
+    assertEqual(statusCode, response.statusCode, "Response code doesn't match");
     if (body) assertMatches(response.body, body);
     if (headers) assertMatches(response.headers, headers);
   };
