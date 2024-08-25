@@ -24,6 +24,7 @@ import {
   type ConfirmShoppingCart,
   type RemoveProductItemFromShoppingCart,
 } from './businessLogic';
+import { getClientShoppingSummary } from './getClientShoppingSummary';
 import { getDetailsById } from './getDetails';
 import { evolve, initialState } from './shoppingCart';
 
@@ -166,6 +167,22 @@ export const shoppingCartApi =
         if (result === null) return NotFound();
 
         if (result.status !== 'Opened') return NotFound();
+
+        return OK({
+          body: result,
+        });
+      }),
+    );
+
+    // Get Shopping Cart
+    router.get(
+      '/clients/:clientId/shopping-carts/summary',
+      on(async (request: GetShoppingCartRequest) => {
+        const clientId = assertNotEmptyString(request.params.clientId);
+
+        const result = await getClientShoppingSummary(readStore, clientId);
+
+        if (result === null) return NotFound();
 
         return OK({
           body: result,
