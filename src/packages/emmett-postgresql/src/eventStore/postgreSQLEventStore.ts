@@ -45,6 +45,9 @@ export interface PostgresEventStore
     >,
     EventStoreSessionFactory<PostgresEventStore, DefaultStreamVersionType> {
   close(): Promise<void>;
+  schema: {
+    migrate(): Promise<void>;
+  };
 }
 
 type PostgresEventStorePooledOptions =
@@ -143,6 +146,11 @@ export const getPostgreSQLEventStore = (
       : undefined;
 
   return {
+    schema: {
+      migrate: async () => {
+        await ensureSchemaExists;
+      },
+    },
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
       options: AggregateStreamOptions<State, EventType>,
@@ -236,8 +244,9 @@ export const getPostgreSQLEventStore = (
 
       try {
         const storeOptions: PostgresEventStoreOptions = {
+          ...options,
           connectionOptions: {
-            connection: connection as NodePostgresClientConnection,
+            connection,
           },
         };
 

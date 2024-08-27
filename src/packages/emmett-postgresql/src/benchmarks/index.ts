@@ -55,6 +55,12 @@ const appendEvents = () => {
 
 const readEvents = () => eventStore.readStream(ids[0] ?? 'not-existing');
 
+const aggregateStream = () =>
+  eventStore.aggregateStream(ids[0] ?? 'not-existing', {
+    evolve,
+    initialState,
+  });
+
 export const handle = CommandHandler(evolve, initialState);
 
 const handleCommand = () =>
@@ -72,7 +78,7 @@ async function runBenchmark() {
 
   if (generateSchemaUpfront) {
     // this will trigger generating schema
-    await readEvents();
+    await eventStore.ensureSchemaExists();
   }
 
   return (
@@ -88,6 +94,21 @@ async function runBenchmark() {
         defer: true,
         fn: async function (deferred: Benchmark.Deferred) {
           await readEvents();
+          deferred.resolve();
+        },
+      })
+      .add('Aggregating stream', {
+        defer: true,
+        fn: async function (deferred: Benchmark.Deferred) {
+          await aggregateStream();
+          deferred.resolve();
+        },
+      })
+      .add('Aggregating and Appending stream', {
+        defer: true,
+        fn: async function (deferred: Benchmark.Deferred) {
+          await aggregateStream();
+          await appendEvents();
           deferred.resolve();
         },
       })

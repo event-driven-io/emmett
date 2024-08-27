@@ -53,6 +53,6 @@
   },
   "peerDependencies": {
     "@event-driven-io/emmett": "0.17.0",
-    "@event-driven-io/pongo": "0.13.0"
+    "@event-driven-io/pongo": "0.13.1"
   }
 }
