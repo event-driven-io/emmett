@@ -2,6 +2,7 @@ import {
   assertDeepEqual,
   assertEqual,
   assertIsNotNull,
+  CommandHandler,
   projections,
   type ReadEvent,
 } from '@event-driven-io/emmett';
@@ -17,6 +18,8 @@ import {
   type EventStoreFactory,
 } from '../../../emmett/src/testing/features';
 import {
+  evolve,
+  initialState,
   type DiscountApplied,
   type PricedProductItem,
   type ProductItemAdded,
@@ -104,6 +107,53 @@ void describe('EventStoreDBEventStore', async () => {
 
     assertEqual(3, handledEventsInCustomProjection.length);
   });
+
+  void it('should handle command correctly', async () => {
+    const handle = CommandHandler(evolve, initialState);
+
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const discount = 10;
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    handledEventsInCustomProjection = [];
+
+    await handle(eventStore, shoppingCartId, () => ({
+      type: 'ProductItemAdded',
+      data: { productItem },
+    }));
+
+    // await handle(eventStore, shoppingCartId, () => ({
+    //   type: 'ProductItemAdded',
+    //   data: { productItem },
+    // }));
+
+    // await handle(eventStore, shoppingCartId, () => ({
+    //   type: 'DiscountApplied',
+    //   data: { percent: discount, couponId: uuid() },
+    // }));
+
+    const shoppingCartShortInfo = pongo
+      .db()
+      .collection<ShoppingCartShortInfo>(shoppingCartShortInfoCollectionName);
+
+    const document = await shoppingCartShortInfo.findOne({
+      _id: shoppingCartId,
+    });
+    assertIsNotNull(document);
+    assertDeepEqual(
+      { ...document, _id: shoppingCartId },
+      {
+        _id: shoppingCartId,
+        productItemsCount: 20,
+        totalAmount: 54,
+      },
+    );
+
+    assertEqual(3, handledEventsInCustomProjection.length);
+  });
 });
 
 type ShoppingCartShortInfo = {
@@ -113,7 +163,7 @@ type ShoppingCartShortInfo = {
 
 const shoppingCartShortInfoCollectionName = 'shoppingCartShortInfo';
 
-const evolve = (
+const projectionEvolve = (
   document: ShoppingCartShortInfo | null,
   { type, data: event }: ProductItemAdded | DiscountApplied,
 ): ShoppingCartShortInfo => {
@@ -138,7 +188,7 @@ const evolve = (
 
 const shoppingCartShortInfoProjection = pongoSingleStreamProjection({
   collectionName: shoppingCartShortInfoCollectionName,
-  evolve,
+  evolve: projectionEvolve,
   canHandle: ['ProductItemAdded', 'DiscountApplied'],
 });
 
