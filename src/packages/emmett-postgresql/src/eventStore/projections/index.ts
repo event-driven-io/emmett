@@ -14,7 +14,6 @@ import {
   type ReadEventMetadata,
   type TypedProjectionDefinition,
 } from '@event-driven-io/emmett';
-import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 
 export type PostgreSQLProjectionHandlerContext = {
   connectionString: string;
@@ -42,10 +41,6 @@ export type PostgreSQLProjectionDefinition<
   EventMetaDataType,
   PostgreSQLProjectionHandlerContext
 >;
-
-export const defaultPostgreSQLProjectionOptions: PostgresEventStoreOptions = {
-  projections: [],
-};
 
 export type ProjectionHandlerOptions<
   EventType extends Event = Event,

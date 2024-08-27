@@ -34,5 +34,8 @@ export const schemaSQL: SQL[] = [
   addDefaultPartition,
 ];
 
-export const createEventStoreSchema = (pool: NodePostgresPool) =>
-  pool.withTransaction(({ execute }) => execute.batchCommand(schemaSQL));
+export const createEventStoreSchema = async (
+  pool: NodePostgresPool,
+): Promise<void> => {
+  await pool.withTransaction(({ execute }) => execute.batchCommand(schemaSQL));
+};

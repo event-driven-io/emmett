@@ -1,8 +1,8 @@
 import {
   dumbo,
-  endPool,
   type NodePostgresClientConnection,
   type NodePostgresConnector,
+  type NodePostgresPool,
   type NodePostgresPoolClientConnection,
 } from '@event-driven-io/dumbo';
 import {
@@ -27,7 +27,6 @@ import {
 } from '@event-driven-io/emmett';
 import pg from 'pg';
 import {
-  defaultPostgreSQLProjectionOptions,
   handleProjections,
   type PostgreSQLProjectionHandlerContext,
 } from './projections';
@@ -35,6 +34,7 @@ import {
   appendToStream,
   createEventStoreSchema,
   readStream,
+  schemaSQL,
   type AppendToStreamPreCommitHook,
 } from './schema';
 
@@ -46,6 +46,8 @@ export interface PostgresEventStore
     EventStoreSessionFactory<PostgresEventStore, DefaultStreamVersionType> {
   close(): Promise<void>;
   schema: {
+    sql(): string;
+    print(): void;
     migrate(): Promise<void>;
   };
 }
@@ -104,7 +106,19 @@ type PostgresEventStoreNotPooledOptions =
         | NodePostgresPoolClientConnection
         | NodePostgresClientConnection;
       pooled?: false;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      connectionString?: string;
+      database?: string;
+      dumbo: NodePostgresPool;
+      pooled?: false;
     };
+
+export enum SchemaMigration {
+  None = 'None',
+  CreateOrUpdate = 'CreateOrUpdate',
+}
 
 export type PostgresEventStoreConnectionOptions =
   | PostgresEventStorePooledOptions
@@ -115,18 +129,38 @@ export type PostgresEventStoreOptions = {
     'inline',
     PostgreSQLProjectionHandlerContext
   >[];
+  schema?: { autoMigration?: SchemaMigration };
   connectionOptions?: PostgresEventStoreConnectionOptions;
 };
+
+export const defaultPostgreSQLOptions: PostgresEventStoreOptions = {
+  projections: [],
+  schema: { autoMigration: SchemaMigration.CreateOrUpdate },
+};
+
 export const getPostgreSQLEventStore = (
   connectionString: string,
-  options: PostgresEventStoreOptions = defaultPostgreSQLProjectionOptions,
+  options: PostgresEventStoreOptions = defaultPostgreSQLOptions,
 ): PostgresEventStore => {
   const poolOptions = {
     connectionString,
     ...(options.connectionOptions ? options.connectionOptions : {}),
   };
-  const pool = dumbo(poolOptions);
-  const ensureSchemaExists = createEventStoreSchema(pool);
+  const pool = 'dumbo' in poolOptions ? poolOptions.dumbo : dumbo(poolOptions);
+  let migrateSchema: Promise<void>;
+
+  const autoGenerateSchema =
+    options.schema?.autoMigration === undefined ||
+    options.schema?.autoMigration !== SchemaMigration.None;
+
+  const ensureSchemaExists = () => {
+    if (!autoGenerateSchema) return Promise.resolve();
+
+    if (!migrateSchema) {
+      migrateSchema = createEventStoreSchema(pool);
+    }
+    return migrateSchema;
+  };
 
   const inlineProjections = (options.projections ?? [])
     .filter(({ type }) => type === 'inline')
@@ -147,15 +181,16 @@ export const getPostgreSQLEventStore = (
 
   return {
     schema: {
+      sql: () => schemaSQL.join(''),
+      print: () => console.log(schemaSQL.join('')),
       migrate: async () => {
-        await ensureSchemaExists;
+        await (migrateSchema = createEventStoreSchema(pool));
       },
     },
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
       options: AggregateStreamOptions<State, EventType>,
     ): Promise<AggregateStreamResult<State> | null> {
-      await ensureSchemaExists;
       const { evolve, initialState, read } = options;
 
       const expectedStreamVersion = read?.expectedStreamVersion;
@@ -195,7 +230,7 @@ export const getPostgreSQLEventStore = (
         ReadEventMetadataWithGlobalPosition
       >
     > => {
-      await ensureSchemaExists;
+      await ensureSchemaExists();
       return readStream<EventType>(pool.execute, streamName, options);
     },
 
@@ -204,7 +239,7 @@ export const getPostgreSQLEventStore = (
       events: EventType[],
       options?: AppendToStreamOptions,
     ): Promise<AppendToStreamResult> => {
-      await ensureSchemaExists;
+      await ensureSchemaExists();
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
 
@@ -230,7 +265,7 @@ export const getPostgreSQLEventStore = (
 
       return { nextExpectedStreamVersion: appendResult.nextStreamPosition };
     },
-    close: () => endPool({ connectionString }),
+    close: () => pool.close(),
 
     async withSession<T = unknown>(
       callback: (
@@ -240,9 +275,7 @@ export const getPostgreSQLEventStore = (
         >,
       ) => Promise<T>,
     ): Promise<T> {
-      const connection = await pool.connection();
-
-      try {
+      return await pool.withConnection(async (connection) => {
         const storeOptions: PostgresEventStoreOptions = {
           ...options,
           connectionOptions: {
@@ -255,12 +288,11 @@ export const getPostgreSQLEventStore = (
           storeOptions,
         );
 
-        const session = { eventStore, close: () => connection.close() };
-
-        return await callback(session);
-      } finally {
-        await connection.close();
-      }
+        return callback({
+          eventStore,
+          close: () => Promise.resolve(),
+        });
+      });
     },
   };
 };
