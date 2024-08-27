@@ -1,5 +1,6 @@
 import 'dotenv/config';
 
+import { CommandHandler, type Event } from '@event-driven-io/emmett';
 import Benchmark from 'benchmark';
 import { randomUUID } from 'node:crypto';
 import {
@@ -25,6 +26,22 @@ const eventStore = getPostgreSQLEventStore(connectionString, {
   connectionOptions: connectionOptions,
 });
 
+// TYPING
+type DidSomething = Event<'DidSomething', { id: number; description: string }>;
+
+type WhatDidIDo =
+  | { id: number; description: string }
+  | { description: 'Nothing!' };
+
+const evolve = (_state: WhatDidIDo, event: DidSomething): WhatDidIDo =>
+  event.data;
+
+const initialState = (): WhatDidIDo => ({
+  description: 'Nothing!',
+});
+// TYPING
+
+// BENCHMARKS
 const ids: string[] = [];
 
 const appendEvents = () => {
@@ -37,6 +54,18 @@ const appendEvents = () => {
 };
 
 const readEvents = () => eventStore.readStream(ids[0] ?? 'not-existing');
+
+export const handle = CommandHandler(evolve, initialState);
+
+const handleCommand = () =>
+  handle(eventStore, ids[0]!, (state) => ({
+    type: 'DidSomething',
+    data: {
+      id: 'id' in state ? state.id + 1 : 1,
+      description: 'something weird',
+    },
+  }));
+// BENCHMARKS
 
 async function runBenchmark() {
   const suite = new Benchmark.Suite();
@@ -59,6 +88,13 @@ async function runBenchmark() {
         defer: true,
         fn: async function (deferred: Benchmark.Deferred) {
           await readEvents();
+          deferred.resolve();
+        },
+      })
+      .add('Command handling', {
+        defer: true,
+        fn: async function (deferred: Benchmark.Deferred) {
+          await handleCommand();
           deferred.resolve();
         },
       })
