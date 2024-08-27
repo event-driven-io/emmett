@@ -6,13 +6,12 @@ export type ErrorConstructor<ErrorType extends Error> = new (
 ) => ErrorType;
 
 export const isErrorConstructor = <ErrorType extends Error>(
-  // eslint-disable-next-line @typescript-eslint/ban-types
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   expect: Function,
 ): expect is ErrorConstructor<ErrorType> => {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return (
     typeof expect === 'function' &&
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     expect.prototype &&
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     expect.prototype.constructor === expect

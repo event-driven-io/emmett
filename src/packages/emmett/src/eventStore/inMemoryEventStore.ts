@@ -75,7 +75,7 @@ export const getInMemoryEventStore = (): EventStore<
           ? options.to
           : options && 'maxCount' in options && options.maxCount
             ? options.from + options.maxCount
-            : events?.length ?? 1,
+            : (events?.length ?? 1),
       );
 
       const resultEvents =

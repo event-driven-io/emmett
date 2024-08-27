@@ -33,15 +33,15 @@ export type PostgreSQLProjectionHandler<
   PostgreSQLProjectionHandlerContext
 >;
 
-export interface PostgreSQLProjectionDefinition<
+export type PostgreSQLProjectionDefinition<
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
     ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
-> extends TypedProjectionDefinition<
-    EventType,
-    EventMetaDataType,
-    PostgreSQLProjectionHandlerContext
-  > {}
+> = TypedProjectionDefinition<
+  EventType,
+  EventMetaDataType,
+  PostgreSQLProjectionHandlerContext
+>;
 
 export const defaultPostgreSQLProjectionOptions: PostgresEventStoreOptions = {
   projections: [],

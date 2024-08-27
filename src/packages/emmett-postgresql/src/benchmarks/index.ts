@@ -38,7 +38,6 @@ const appendEvents = () => {
 
 const readEvents = () => eventStore.readStream(ids[0] ?? 'not-existing');
 
-// eslint-disable-next-line @typescript-eslint/require-await
 async function runBenchmark() {
   const suite = new Benchmark.Suite();
 
