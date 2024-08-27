@@ -1,4 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 const isBrowser = (): boolean => {
   // @ts-expect-error global object check
   const globalWindow = window as { document: unknown };
@@ -26,7 +25,7 @@ const isWebWorker = (): boolean => {
 };
 
 // https://github.com/jsdom/jsdom/issues/1537#issuecomment-229405327
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
 const isJsDom = (): boolean => {
   // @ts-expect-error global object check
   const globalWindow = window as { name: string };

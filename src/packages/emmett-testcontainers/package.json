@@ -47,9 +47,9 @@
   ],
   "dependencies": {
     "@event-driven-io/emmett": "0.17.0",
-    "testcontainers": "^10.7.2"
+    "testcontainers": "^10.12.0"
   },
   "devDependencies": {
-    "@eventstore/db-client": "^6.1.0"
+    "@eventstore/db-client": "^6.2.1"
   }
 }
