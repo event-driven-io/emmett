@@ -28,18 +28,18 @@ export const CommandHandler =
     mapToStreamId: (id: string) => string = (id) => id,
   ) =>
   async <Store extends EventStore<StreamVersion>>(
-    eventStore: Store,
+    store: Store,
     id: string,
     handle: (state: State) => StreamEvent | StreamEvent[],
     options?: Parameters<Store['appendToStream']>[2] & {
       expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
     },
-  ): Promise<CommandHandlerResult<State, StreamEvent, StreamVersion>> =>
-    withSession<
+  ): Promise<CommandHandlerResult<State, StreamEvent, StreamVersion>> => {
+    const result = await withSession<
       Store,
       StreamVersion,
       CommandHandlerResult<State, StreamEvent, StreamVersion>
-    >(eventStore, async ({ eventStore }) => {
+    >(store, async ({ eventStore }) => {
       const streamName = mapToStreamId(id);
 
       // 1. Aggregate the stream
@@ -92,6 +92,9 @@ export const CommandHandler =
         newState: newEvents.reduce(evolve, state),
       };
     });
+
+    return result;
+  };
 // #endregion command-handler
 
 const withSession = <
