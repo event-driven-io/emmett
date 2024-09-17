@@ -5,7 +5,6 @@ import Benchmark from 'benchmark';
 import { randomUUID } from 'node:crypto';
 import {
   getPostgreSQLEventStore,
-  SchemaMigration,
   type PostgresEventStoreConnectionOptions,
 } from '..';
 
@@ -26,9 +25,7 @@ const generateSchemaUpfront =
 const eventStore = getPostgreSQLEventStore(connectionString, {
   connectionOptions: connectionOptions,
   schema: {
-    autoMigration: generateSchemaUpfront
-      ? SchemaMigration.None
-      : SchemaMigration.CreateOrUpdate,
+    autoMigration: generateSchemaUpfront ? 'None' : 'CreateOrUpdate',
   },
 });
 

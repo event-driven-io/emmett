@@ -15,7 +15,6 @@ import { v4 as uuid } from 'uuid';
 import {
   getPostgreSQLEventStore,
   pongoSingleStreamProjection,
-  SchemaMigration,
   type PostgresEventStore,
 } from '.';
 import {
@@ -38,7 +37,7 @@ void describe('Postgres Projections', () => {
     eventStore = getPostgreSQLEventStore(connectionString, {
       projections: projections.inline([shoppingCartShortInfoProjection]),
       schema: {
-        autoMigration: SchemaMigration.None,
+        autoMigration: 'None',
       },
     });
     await eventStore.schema.migrate();

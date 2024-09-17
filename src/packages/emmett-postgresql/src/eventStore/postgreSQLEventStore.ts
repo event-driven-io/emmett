@@ -1,5 +1,6 @@
 import {
   dumbo,
+  type MigrationStyle,
   type NodePostgresClientConnection,
   type NodePostgresConnector,
   type NodePostgresPool,
@@ -115,11 +116,6 @@ type PostgresEventStoreNotPooledOptions =
       pooled?: false;
     };
 
-export enum SchemaMigration {
-  None = 'None',
-  CreateOrUpdate = 'CreateOrUpdate',
-}
-
 export type PostgresEventStoreConnectionOptions =
   | PostgresEventStorePooledOptions
   | PostgresEventStoreNotPooledOptions;
@@ -129,13 +125,13 @@ export type PostgresEventStoreOptions = {
     'inline',
     PostgreSQLProjectionHandlerContext
   >[];
-  schema?: { autoMigration?: SchemaMigration };
+  schema?: { autoMigration?: MigrationStyle };
   connectionOptions?: PostgresEventStoreConnectionOptions;
 };
 
 export const defaultPostgreSQLOptions: PostgresEventStoreOptions = {
   projections: [],
-  schema: { autoMigration: SchemaMigration.CreateOrUpdate },
+  schema: { autoMigration: 'CreateOrUpdate' },
 };
 
 export const getPostgreSQLEventStore = (
@@ -151,7 +147,7 @@ export const getPostgreSQLEventStore = (
 
   const autoGenerateSchema =
     options.schema?.autoMigration === undefined ||
-    options.schema?.autoMigration !== SchemaMigration.None;
+    options.schema?.autoMigration !== 'None';
 
   const ensureSchemaExists = () => {
     if (!autoGenerateSchema) return Promise.resolve();
