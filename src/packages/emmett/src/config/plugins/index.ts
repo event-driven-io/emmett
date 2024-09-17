@@ -1,4 +1,4 @@
-import type { Command as CliCommand } from 'commander';
+import { Command as CliCommand } from 'commander';
 
 export type EmmettPluginConfig =
   | {
