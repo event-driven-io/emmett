@@ -1,4 +1,5 @@
 export * from './commandHandling';
+export * from './config';
 export * from './errors';
 export * from './eventStore';
 export * from './messageBus';
