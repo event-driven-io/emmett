@@ -100,6 +100,7 @@
     "@types/benchmark": "^2.1.5",
     "0x": "^4.1.4",
     "benchmark": "^2.1.4",
+    "commander": "^12.1.0",
     "dotenv": "^16.4.5"
   }
 }

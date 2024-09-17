@@ -1,4 +1,4 @@
-import type { Command as CliCommand } from 'commander';
+import { Command as CliCommand } from 'commander';
 import path from 'path';
 import {
   isPluginConfig,
@@ -9,19 +9,7 @@ import {
   type EmmettPluginType,
 } from '../config';
 import { EmmettError } from '../errors';
-
-const sampleConfig = (plugins: string[] = ['emmett-expressjs']) => {
-  const pluginsNames =
-    plugins.length > 0
-      ? `[\n${plugins.map((p) => `"${p}"`).join(',\n')}  \n]`
-      : '[]';
-
-  return `
-export default {
-  plugins: ${pluginsNames},
-};
-`;
-};
+import { sampleConfig } from './config';
 
 const PluginsConfigImportError = {
   missingDefaultExport: `Error: Config should contain default export, e.g.\n\n${sampleConfig()}`,
