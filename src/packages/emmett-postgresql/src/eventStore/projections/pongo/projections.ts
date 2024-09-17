@@ -92,7 +92,9 @@ export const pongoProjection = <
     canHandle,
     handle: async (events, context) => {
       const { connectionString, client } = context;
-      const pongo = pongoClient(connectionString, { client });
+      const pongo = pongoClient(connectionString, {
+        connectionOptions: { client },
+      });
       await handle(events as ReadEvent<EventType, EventMetaDataType>[], {
         ...context,
         pongo,
