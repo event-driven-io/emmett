@@ -133,6 +133,8 @@ const evolve = (
         ...document,
         totalAmount: (document.totalAmount * (100 - event.percent)) / 100,
       };
+    default:
+      return document;
   }
 };
 

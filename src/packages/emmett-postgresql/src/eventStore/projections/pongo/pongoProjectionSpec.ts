@@ -30,7 +30,7 @@ const withCollection = (
 
   return pool.withConnection(async (connection) => {
     const pongo = pongoClient(connectionString, {
-      connection,
+      connectionOptions: { connection },
     });
     try {
       const collection = pongo.db(inDatabase).collection(inCollection);

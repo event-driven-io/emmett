@@ -137,6 +137,8 @@ const projectionEvolve = (
         totalAmount: (document.totalAmount * (100 - event.percent)) / 100,
         appliedDiscounts: [...document.appliedDiscounts, event.couponId],
       };
+    default:
+      return document;
   }
 };
 
