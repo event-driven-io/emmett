@@ -98,6 +98,7 @@ export default [
       'packages/emmett-expressjs/**',
       'packages/emmett-fastify/**',
       'packages/emmett-testcontainers/**',
+      'packages/emmett-tests/**',
     ],
     rules: {
       'no-restricted-imports': 'off',

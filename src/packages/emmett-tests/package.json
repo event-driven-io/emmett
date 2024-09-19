@@ -1,7 +1,8 @@
 {
-  "name": "@event-driven-io/emmett-postgresql",
+  "name": "@event-driven-io/emmett-tests",
+  "private": true,
   "version": "0.18.0",
-  "description": "Emmett - PostgreSQL - Event Sourcing development made simple",
+  "description": "Emmett - Internal E2E Tests",
   "scripts": {
     "build": "tsup",
     "build:ts": "tsc",
@@ -39,25 +40,12 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
-    },
-    "./cli": {
-      "import": {
-        "types": "./dist/cli.d.ts",
-        "default": "./dist/cli.js"
-      },
-      "require": {
-        "types": "./dist/cli.d.cts",
-        "default": "./dist/cli.cjs"
-      }
     }
   },
   "typesVersions": {
     "*": {
       ".": [
         "./dist/index.d.ts"
-      ],
-      "cli": [
-        "./dist/cli.d.ts"
       ]
     }
   },
@@ -68,11 +56,10 @@
     "dist"
   ],
   "devDependencies": {
-    "@testcontainers/postgresql": "^10.12.0",
-    "@event-driven-io/emmett-testcontainers": "0.18.0"
-  },
-  "peerDependencies": {
     "@event-driven-io/emmett": "0.18.0",
-    "@event-driven-io/pongo": "0.14.4"
+    "@event-driven-io/emmett-esdb": "0.18.0",
+    "@event-driven-io/emmett-postgresql": "0.18.0",
+    "@event-driven-io/emmett-testcontainers": "0.18.0",
+    "@testcontainers/postgresql": "^10.12.0"
   }
 }

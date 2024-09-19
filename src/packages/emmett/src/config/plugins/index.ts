@@ -16,7 +16,7 @@ export type EmmettPluginRegistration = EmmettCliPluginRegistration;
 export type EmmettCliPlugin = {
   pluginType: 'cli';
   name: string;
-  registerCommands: (program: CliCommand) => Promise<void>;
+  registerCommands: (program: CliCommand) => Promise<void> | void;
 };
 
 export type EmmettPlugin = EmmettCliPlugin;
