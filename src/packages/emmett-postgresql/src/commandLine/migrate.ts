@@ -33,7 +33,10 @@ migrateCommand
   //   },
   //   [] as string[],
   // )
-  .option('-f, --config <path>', 'Path to configuration file with Pongo config')
+  .option(
+    '-f, --config <path>',
+    'Path to configuration file with Emmett config',
+  )
   .option('-dr, --dryRun', 'Perform dry run without commiting changes', false)
   .action((options: MigrateRunOptions) => {
     //const { collection, dryRun } = options;

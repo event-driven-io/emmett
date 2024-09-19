@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/emmett-esdb",
-  "version": "0.18.0",
+  "version": "0.19.0-alpha.1",
   "description": "Emmett - EventStoreDB - Event Sourcing development made simple",
   "scripts": {
     "build": "tsup",
@@ -47,10 +47,10 @@
   ],
   "dependencies": {},
   "devDependencies": {
-    "@event-driven-io/emmett-testcontainers": "0.18.0"
+    "@event-driven-io/emmett-testcontainers": "0.19.0-alpha.1"
   },
   "peerDependencies": {
-    "@event-driven-io/emmett": "0.18.0",
+    "@event-driven-io/emmett": "0.19.0-alpha.1",
     "@eventstore/db-client": "^6.2.1"
   }
 }
