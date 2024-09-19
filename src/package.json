@@ -93,7 +93,8 @@
     "packages/emmett-esdb",
     "packages/emmett-expressjs",
     "packages/emmett-testcontainers",
-    "packages/emmett-fastify"
+    "packages/emmett-fastify",
+    "packages/emmett-tests"
   ],
   "dependencies": {
     "@testcontainers/postgresql": "^10.10.3",

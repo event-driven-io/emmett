@@ -12,7 +12,8 @@
         "./packages/emmett-postgresql/src"
       ],
       "@event-driven-io/emmett-esdb": ["./packages/emmett-esdb/src"],
-      "@event-driven-io/emmett-fastify": ["./packages/emmett-fastify/src"]
+      "@event-driven-io/emmett-fastify": ["./packages/emmett-fastify/src"],
+      "@event-driven-io/emmett-tests": ["./packages/emmett-tests/src"]
     }
   },
   "references": [
@@ -33,6 +34,9 @@
     },
     {
       "path": "./packages/emmett-fastify/"
+    },
+    {
+      "path": "./packages/emmett-tests"
     }
   ]
 }
