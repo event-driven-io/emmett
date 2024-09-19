@@ -21,7 +21,7 @@ export const importPluginsConfig = async (options?: {
 }): Promise<EmmettPluginsConfig | EmmettError> => {
   const configPath = path.join(
     process.cwd(),
-    options?.configPath ?? 'emmett.config.ts',
+    options?.configPath ?? 'emmett.config.mts',
   );
 
   try {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import 'ts-node/register'; // Allows dynamic TypeScript imports
+import 'ts-node/esm'; // Allows dynamic TypeScript imports
 import { loadPlugins, registerCliPlugins } from './commandLine';
 
 const program = new Command();
@@ -40,3 +40,4 @@ initCLI().catch((err) => {
 });
 
 export default program;
+export * from './commandLine';

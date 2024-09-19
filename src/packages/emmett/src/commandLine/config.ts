@@ -49,7 +49,7 @@ configCommand
   .command('sample')
   .description('Generate or print sample configuration')
   .option(
-    '-p, --plugins <name>',
+    '-plg, --plugins <name>',
     'Specify the plugin name',
     (value: string, previous: string[]) => {
       // Accumulate plugins names into an array (explicitly typing `previous` as `string[]`)
