@@ -1,13 +1,10 @@
+import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import {
   EventStoreDBContainer,
   StartedEventStoreDBContainer,
 } from '@event-driven-io/emmett-testcontainers';
 import { describe } from 'node:test';
-import {
-  testAggregateStream,
-  type EventStoreFactory,
-} from '../../../emmett/src/testing/features';
-import { getEventStoreDBEventStore } from './eventstoreDBEventStore';
+import { testAggregateStream, type EventStoreFactory } from '..//features';
 
 void describe('EventStoreDBEventStore', async () => {
   let esdbContainer: StartedEventStoreDBContainer;

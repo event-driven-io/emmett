@@ -35,7 +35,7 @@ migrateCommand
   // )
   .option('-f, --config <path>', 'Path to configuration file with Pongo config')
   .option('-dr, --dryRun', 'Perform dry run without commiting changes', false)
-  .action(async (options: MigrateRunOptions) => {
+  .action((options: MigrateRunOptions) => {
     //const { collection, dryRun } = options;
     const connectionString =
       options.connectionString ?? process.env.DB_CONNECTION_STRING;

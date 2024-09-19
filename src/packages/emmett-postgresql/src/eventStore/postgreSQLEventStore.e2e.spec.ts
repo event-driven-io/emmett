@@ -10,18 +10,14 @@ import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
-import { after, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
-import {
-  testAggregateStream,
-  type EventStoreFactory,
-} from '../../../emmett/src/testing/features';
 import {
   type DiscountApplied,
   type PricedProductItem,
   type ProductItemAdded,
   type ShoppingCartEvent,
-} from '../../../emmett/src/testing/shoppingCart.domain';
+} from '../testing/shoppingCart.domain';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -29,13 +25,13 @@ import {
 import { postgreSQLProjection } from './projections';
 import { pongoSingleStreamProjection } from './projections/pongo/projections';
 
-void describe('EventStoreDBEventStore', async () => {
+void describe('EventStoreDBEventStore', () => {
   let postgres: StartedPostgreSqlContainer;
   let eventStore: PostgresEventStore;
   let connectionString: string;
   let pongo: PongoClient;
 
-  const eventStoreFactory: EventStoreFactory = async () => {
+  before(async () => {
     postgres = await new PostgreSqlContainer().start();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString, {
@@ -46,7 +42,7 @@ void describe('EventStoreDBEventStore', async () => {
     });
     pongo = pongoClient(connectionString);
     return eventStore;
-  };
+  });
 
   after(async () => {
     try {
@@ -56,10 +52,6 @@ void describe('EventStoreDBEventStore', async () => {
     } catch (error) {
       console.log(error);
     }
-  });
-
-  await testAggregateStream(eventStoreFactory, {
-    getInitialIndex: () => 1n,
   });
 
   void it('should append events correctly using appendEvent function', async () => {

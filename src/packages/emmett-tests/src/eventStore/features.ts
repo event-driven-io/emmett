@@ -1,7 +1,11 @@
+import {
+  assertDeepEqual,
+  assertEqual,
+  assertOk,
+  type EventStore,
+} from '@event-driven-io/emmett';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
-import type { EventStore } from '../eventStore';
-import { assertDeepEqual, assertEqual, assertOk } from './assertions';
 import {
   evolve,
   evolveWithMetadata,
