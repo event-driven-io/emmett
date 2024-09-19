@@ -1,6 +1,6 @@
+import { getInMemoryEventStore } from '@event-driven-io/emmett';
 import { describe } from 'node:test';
-import { getInMemoryEventStore } from '../eventStore';
-import { testAggregateStream } from '../testing/features';
+import { testAggregateStream } from '../features';
 
 // Events & Entity
 

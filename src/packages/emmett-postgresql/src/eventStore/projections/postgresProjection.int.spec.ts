@@ -16,7 +16,7 @@ import {
 import {
   type DiscountApplied,
   type ProductItemAdded,
-} from '../../../../emmett/src/testing/shoppingCart.domain';
+} from '../../testing/shoppingCart.domain';
 
 void describe('Postgres Projections', () => {
   let postgres: StartedPostgreSqlContainer;
