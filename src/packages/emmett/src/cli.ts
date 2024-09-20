@@ -7,16 +7,16 @@ const program = new Command();
 program
   .name('emmett')
   .description('CLI tool for Emmett')
-  .option(
-    '--config <path>',
-    'Path to the configuration file',
-    `./dist/emmett.config.js`,
-  );
+  .option('--config <path>', 'Path to the configuration file');
 
 // Load extensions and parse CLI arguments
 const initCLI = async () => {
-  const options = program.opts<{ config: string }>();
-  const configPath = options.config;
+  const configIndex = process.argv.indexOf('--config');
+
+  const configPath =
+    configIndex !== -1 && process.argv.length > configIndex + 1
+      ? process.argv[configIndex + 1]
+      : undefined;
 
   try {
     const plugins = await loadPlugins({
@@ -32,7 +32,7 @@ const initCLI = async () => {
   }
 };
 
-// Initialize CLI and handle errors
+//Initialize CLI and handle errors
 initCLI().catch((err) => {
   console.error(`CLI initialization failed:`);
   console.error(err);
