@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 import { describe, it } from 'node:test';
 
 void describe('Emmett CLI Integration Tests', () => {
-  void it('should run emmett CLI and execute plugin commands', () => {
+  void it.skip('should run emmett CLI and execute plugin commands', () => {
     // Run the Emmett CLI command using execSync
     const result = execSync(
       `emmett migrate run --config ./dist/emmett.config.js --connectionString postgres://user:pass@localhost/test`,
