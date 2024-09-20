@@ -21,7 +21,7 @@ export const importPluginsConfig = async (options?: {
 }): Promise<EmmettPluginsConfig | EmmettError> => {
   const configPath = path.join(
     process.cwd(),
-    options?.configPath ?? 'emmett.config.js',
+    options?.configPath ?? './dist/emmett.config.js',
   );
 
   console.log('IMPORTING' + configPath);
@@ -48,7 +48,7 @@ export const importPluginsConfig = async (options?: {
     return { plugins: imported.default.plugins };
   } catch (error) {
     if (!options?.configPath) {
-      console.warn('Didn`t find config file: ' + configPath);
+      console.warn('Didn`t find config file: ' + configPath, error);
       return { plugins: [] };
     }
     return new EmmettError(
@@ -81,11 +81,15 @@ export const loadPlugins = async (options?: {
     const pluginsPromises = pluginsToLoad.map(async (pluginConfig) => {
       const importPath = getImportPath(pluginConfig, options?.pluginType);
       try {
-        const plugin = (await import(importPath)) as EmmettPlugin;
+        const plugin = (await import(importPath)) as { default: EmmettPlugin };
 
         console.info(`Loaded plugin: ${importPath}`);
 
-        return plugin;
+        if (!plugin.default) {
+          throw new Error(`Plugin: ${importPath} is missing default export`);
+        }
+
+        return plugin.default;
       } catch (error) {
         console.error(`Failed to load extension "${importPath}":`, error);
         return undefined;
@@ -108,8 +112,10 @@ export const registerCliPlugins = async (
   const result: EmmettCliPlugin[] = [];
 
   for (const plugin of plugins) {
-    if ('registerCommands' in plugin) {
-      console.warn(`No registerCommands function found in ${plugin.name}`);
+    const pluginName = plugin.name;
+
+    if (!('registerCommands' in plugin)) {
+      console.warn(`No registerCommands function found in ${pluginName}`);
     }
     await plugin.registerCommands(program);
     console.log(`Loaded extension: ${plugin.name}`);

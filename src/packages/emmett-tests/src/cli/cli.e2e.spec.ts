@@ -6,9 +6,11 @@ void describe('Emmett CLI Integration Tests', () => {
   void it('should run emmett CLI and execute plugin commands', () => {
     // Run the Emmett CLI command using execSync
     const result = execSync(
-      `emmett migrate run --config --connectionString postgres://user:pass@localhost/test`,
+      `emmett migrate run --config ./dist/emmett.config.js --connectionString postgres://user:pass@localhost/test`,
       { encoding: 'utf-8' },
     );
+
+    console.log(result);
 
     // Assertions
     assert(
