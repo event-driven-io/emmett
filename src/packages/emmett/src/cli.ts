@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import 'ts-node/esm'; // Allows dynamic TypeScript imports
 import { loadPlugins, registerCliPlugins } from './commandLine';
 
 const program = new Command();
+
+export const test = () => console.log('ddd');
 
 program
   .name('emmett')
@@ -11,7 +12,7 @@ program
   .option(
     '--config <path>',
     'Path to the configuration file',
-    `emmett.config.ts`,
+    `./dist/emmett.config.js`,
   );
 
 // Load extensions and parse CLI arguments
