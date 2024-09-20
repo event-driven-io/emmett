@@ -1,7 +1,7 @@
 import { Command as CliCommand } from 'commander';
 // eslint-disable-next-line no-restricted-imports
-import fs from 'node:fs';
-import process from 'process';
+import { writeFileSync } from 'node:fs';
+import { exit } from 'process';
 
 export const sampleConfig = (plugins: string[] = ['emmett-expressjs']) => {
   const pluginsNames =
@@ -21,7 +21,7 @@ export const generateConfigFile = (
   collectionNames: string[],
 ): void => {
   try {
-    fs.writeFileSync(configPath, sampleConfig(collectionNames), 'utf8');
+    writeFileSync(configPath, sampleConfig(collectionNames), 'utf8');
     console.log(`Configuration file stored at: ${configPath}`);
   } catch (error) {
     console.error(`Error: Couldn't store config file: ${configPath}!`);
@@ -73,7 +73,7 @@ configCommand
       console.error(
         'Error: Please provide either:\n--print param to print sample config or\n--generate to generate sample config file',
       );
-      process.exit(1);
+      exit(1);
     }
 
     if ('print' in options) {
@@ -83,7 +83,7 @@ configCommand
         console.error(
           'Error: You need to provide a config file through a --file',
         );
-        process.exit(1);
+        exit(1);
       }
 
       generateConfigFile(options.file, plugins);

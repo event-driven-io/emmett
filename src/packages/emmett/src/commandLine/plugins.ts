@@ -67,7 +67,7 @@ export const loadPlugins = async (options?: {
     if (pluginsConfig instanceof EmmettError) throw pluginsConfig;
 
     if (pluginsConfig.plugins.length === 0) {
-      console.log('No extensions specified in emmett.config.ts.');
+      console.log(`No extensions specified in config ${options?.configPath}.`);
       return [];
     }
 
@@ -94,7 +94,7 @@ export const loadPlugins = async (options?: {
       (plugin) => plugin !== undefined,
     );
   } catch (error) {
-    console.error('Failed to load emmett.config.ts:', error);
+    console.error(`Failed to load config ${options?.configPath}:`, error);
     return [];
   }
 };
