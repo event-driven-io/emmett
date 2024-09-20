@@ -58,8 +58,8 @@
     "tsx": "4.7.1",
     "typescript": "5.3.3"
   },
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
     "dist"
