@@ -4,8 +4,6 @@ import { loadPlugins, registerCliPlugins } from './commandLine';
 
 const program = new Command();
 
-export const test = () => console.log('ddd');
-
 program
   .name('emmett')
   .description('CLI tool for Emmett')

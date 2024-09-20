@@ -21,8 +21,10 @@ export const importPluginsConfig = async (options?: {
 }): Promise<EmmettPluginsConfig | EmmettError> => {
   const configPath = path.join(
     process.cwd(),
-    options?.configPath ?? 'emmett.config.mts',
+    options?.configPath ?? 'emmett.config.js',
   );
+
+  console.log('IMPORTING' + configPath);
 
   try {
     const imported = (await import(configPath)) as {
