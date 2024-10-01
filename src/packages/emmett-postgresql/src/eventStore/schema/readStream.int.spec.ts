@@ -60,7 +60,7 @@ void describe('appendEvent', () => {
   const events: ShoppingCartEvent[] = [
     {
       type: 'ProductItemAdded',
-      data: { productItem: { productId: '1', quantity: 2, price: 30 } },
+      data: { productItem: { productId: 'p1', quantity: 2, price: 30 } },
       metadata: { meta: 'data1' },
     },
     {
@@ -88,6 +88,7 @@ void describe('appendEvent', () => {
         ...e.metadata,
         streamName: streamId,
         streamPosition: BigInt(index + 1),
+        globalPosition: BigInt(index + 1),
       },
     }));
     assertMatches(result.events, expected);

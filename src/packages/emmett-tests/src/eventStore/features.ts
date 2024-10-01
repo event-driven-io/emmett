@@ -50,7 +50,7 @@ export async function testAggregateStream(
       await it(`When called with 'to' allows time traveling using ${testCase.info}`, async () => {
         // Given
         const productItem: PricedProductItem = {
-          productId: '123',
+          productId: 'p123',
           quantity: 10,
           price: 3,
         };
