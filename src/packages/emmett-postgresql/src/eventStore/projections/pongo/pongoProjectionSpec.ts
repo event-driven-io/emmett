@@ -42,10 +42,10 @@ const withCollection = (
   });
 };
 
-const withoutId = <Doc extends PongoDocument | WithId<PongoDocument>>(
+const withoutIdAndVersion = <Doc extends PongoDocument | WithId<PongoDocument>>(
   doc: Doc,
 ) => {
-  const { _id, ...without } = doc;
+  const { _id, _version, ...without } = doc;
 
   return without;
 };
@@ -64,7 +64,10 @@ const assertDocumentsEqual = <
       `Document ids are not matching! Expected: ${expected._id}, actual: ${actual._id}`,
     );
 
-  return assertDeepEqual(withoutId(actual), withoutId(expected));
+  return assertDeepEqual(
+    withoutIdAndVersion(actual),
+    withoutIdAndVersion(expected),
+  );
 };
 
 type FilterOrId<Doc extends PongoDocument | WithId<PongoDocument>> =

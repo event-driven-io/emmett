@@ -61,7 +61,7 @@ void describe('EventStoreDBEventStore', async () => {
 
   void it('should append events correctly using appendEvent function', async () => {
     const productItem: PricedProductItem = {
-      productId: '123',
+      productId: 'p123',
       quantity: 10,
       price: 3,
     };
@@ -96,6 +96,7 @@ void describe('EventStoreDBEventStore', async () => {
         _id: shoppingCartId,
         productItemsCount: 20,
         totalAmount: 54,
+        _version: 3n,
       },
     );
 

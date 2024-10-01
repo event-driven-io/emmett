@@ -100,6 +100,7 @@ void describe('Postgres Projections', () => {
         productItemsCount: 20,
         totalAmount: 54,
         appliedDiscounts: [couponId],
+        _version: 3n,
       },
     );
   });

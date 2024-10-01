@@ -91,6 +91,7 @@ void describe('EventStoreDBEventStore', () => {
         _id: shoppingCartId,
         productItemsCount: 20,
         totalAmount: 54,
+        _version: 3n,
       },
     );
 
