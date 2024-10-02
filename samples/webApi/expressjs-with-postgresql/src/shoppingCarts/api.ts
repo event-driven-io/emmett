@@ -169,7 +169,7 @@ export const shoppingCartApi =
         if (result.status !== 'Opened') return NotFound();
 
         return OK({
-          body: result,
+          body: excludeKey(result, '_version'),
         });
       }),
     );
@@ -185,7 +185,7 @@ export const shoppingCartApi =
         if (result === null) return NotFound();
 
         return OK({
-          body: result,
+          body: excludeKey(result, '_version'),
         });
       }),
     );
@@ -203,3 +203,9 @@ type GetShoppingCartRequest = Request<
   unknown,
   unknown
 >;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const excludeKey = <T extends object, U extends keyof any>(obj: T, key: U) => {
+  const { [key]: _, ...newObj } = obj;
+  return newObj;
+};
