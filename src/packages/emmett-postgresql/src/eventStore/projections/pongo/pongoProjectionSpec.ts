@@ -118,7 +118,7 @@ export const documentsAreTheSame =
         );
 
         for (let i = 0; i < documents.length; i++) {
-          assertThatArray(result).contains(documents[i]!);
+          assertThatArray(result as Doc[]).contains(documents[i]!);
         }
       },
       { ...options, ...assertOptions },
