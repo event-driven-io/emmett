@@ -3,7 +3,6 @@
   "type": "module",
   "version": "0.19.1",
   "description": "Emmett - EventStoreDB - Event Sourcing development made simple",
-  "type": "module",
   "scripts": {
     "build": "tsup",
     "build:ts": "tsc",
@@ -53,7 +52,6 @@
   },
   "peerDependencies": {
     "@event-driven-io/emmett": "0.19.1",
-    "@eventstore/db-client": "^6.2.1",
-    "web-streams-polyfill": "^4.0.0"
+    "@eventstore/db-client": "^6.2.1"
   }
 }

@@ -1,4 +1,3 @@
-import type { ReadableStream } from '@event-driven-io/emmett-shims';
 import type {
   AggregateStreamOptions,
   AggregateStreamResult,
@@ -6,11 +5,10 @@ import type {
   AppendToStreamResult,
   DefaultStreamVersionType,
   EventStore,
-  GlobalSubscriptionEvent,
   ReadStreamOptions,
   ReadStreamResult,
 } from '../eventStore';
-import { type Event, type ReadEvent, type ReadEventMetadata } from '../typing';
+import { type Event, type ReadEventMetadata } from '../typing';
 
 export type TestEventStream<EventType extends Event = Event> = [
   string,
@@ -78,11 +76,11 @@ export const WrapEventStore = <
       return eventStore.appendToStream(streamName, events);
     },
 
-    streamEvents: (): ReadableStream<
-      // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-      ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent
-    > => {
-      return eventStore.streamEvents();
-    },
+    // streamEvents: (): ReadableStream<
+    //   // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+    //   ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent
+    // > => {
+    //   return eventStore.streamEvents();
+    // },
   };
 };

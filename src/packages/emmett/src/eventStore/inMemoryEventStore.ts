@@ -155,6 +155,6 @@ export const getInMemoryEventStore = (): EventStore<
       return result;
     },
 
-    streamEvents: streamingCoordinator.stream,
+    //streamEvents: streamingCoordinator.stream,
   };
 };

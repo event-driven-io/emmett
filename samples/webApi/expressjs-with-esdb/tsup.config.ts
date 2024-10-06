@@ -10,6 +10,8 @@ export default defineConfig({
   minify: true, //env === 'production',
   bundle: true, //env === 'production',
   skipNodeModulesBundle: true,
+  entryPoints: ['src/index.ts'],
+  watch: env === 'development',
   target: 'esnext',
   outDir: 'dist', //env === 'production' ? 'dist' : 'lib',
   entry: ['src/index.ts'],

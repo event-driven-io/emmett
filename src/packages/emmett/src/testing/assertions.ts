@@ -8,13 +8,6 @@ export class AssertionError extends Error {
   }
 }
 
-const stringify = (obj: unknown) =>
-  JSON.stringify(
-    obj,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    (_, value) => (typeof value === 'bigint' ? value.toString() : value),
-  );
-
 export const isSubset = (superObj: unknown, subObj: unknown): boolean => {
   const sup = superObj as DefaultRecord;
   const sub = subObj as DefaultRecord;

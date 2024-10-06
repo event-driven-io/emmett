@@ -4,7 +4,6 @@ import {
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
   globalStreamCaughtUp,
-  restream,
   streamTransformations,
   type AggregateStreamOptions,
   type AggregateStreamResult,
@@ -15,7 +14,6 @@ import {
   type EventStore,
   type ExpectedStreamVersion,
   type GlobalStreamCaughtUp,
-  type GlobalSubscriptionEvent,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
@@ -26,10 +24,8 @@ import {
   STREAM_EXISTS as ESDB_STREAM_EXISTS,
   EventStoreDBClient,
   NO_STREAM,
-  START,
   StreamNotFoundError,
   WrongExpectedVersionError,
-  excludeSystemEvents,
   jsonEvent,
   type AllStreamResolvedEvent,
   type AllStreamSubscription,
@@ -179,7 +175,7 @@ export const getEventStoreDBEventStore = (
       }
     },
 
-    streamEvents: streamEvents(eventStore),
+    //streamEvents: streamEvents(eventStore),
   };
 };
 
@@ -251,6 +247,7 @@ const assertExpectedVersionMatchesCurrent = (
     throw new ExpectedVersionConflictError(current, expected);
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const convertToWebReadableStream = (
   allStreamSubscription: AllStreamSubscription,
 ): ReadableStream<AllStreamResolvedEvent | GlobalStreamCaughtUp> => {
@@ -289,23 +286,22 @@ const convertToWebReadableStream = (
   );
 };
 
-const streamEvents = (eventStore: EventStoreDBClient) => () => {
-  return restream<
-    AllStreamResolvedEvent | GlobalSubscriptionEvent,
-    | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
-    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-    | GlobalSubscriptionEvent
-  >(
-    (): ReadableStream<AllStreamResolvedEvent | GlobalSubscriptionEvent> =>
-      convertToWebReadableStream(
-        eventStore.subscribeToAll({
-          fromPosition: START,
-          filter: excludeSystemEvents(),
-        }),
-      ),
-    (
-      resolvedEvent: AllStreamResolvedEvent | GlobalSubscriptionEvent,
-    ): ReadEvent<Event, ReadEventMetadataWithGlobalPosition> =>
-      mapFromESDBEvent(resolvedEvent.event as JSONRecordedEvent<Event>),
-  );
-};
+// const streamEvents = (eventStore: EventStoreDBClient) => () => {
+//   return restream<
+//     AllStreamResolvedEvent | GlobalSubscriptionEvent,
+//     | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
+//     | GlobalSubscriptionEvent
+//   >(
+//     (): ReadableStream<AllStreamResolvedEvent | GlobalSubscriptionEvent> =>
+//       convertToWebReadableStream(
+//         eventStore.subscribeToAll({
+//           fromPosition: START,
+//           filter: excludeSystemEvents(),
+//         }),
+//       ),
+//     (
+//       resolvedEvent: AllStreamResolvedEvent | GlobalSubscriptionEvent,
+//     ): ReadEvent<Event, ReadEventMetadataWithGlobalPosition> =>
+//       mapFromESDBEvent(resolvedEvent.event as JSONRecordedEvent<Event>),
+//   );
+// };

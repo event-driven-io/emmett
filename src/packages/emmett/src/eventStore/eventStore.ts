@@ -1,6 +1,6 @@
-import type { ReadableStream } from '@event-driven-io/emmett-shims';
+//import type { ReadableStream } from '@event-driven-io/emmett-shims';
 import type { Event, ReadEvent, ReadEventMetadata } from '../typing';
-import type { GlobalSubscriptionEvent } from './events';
+//import type { GlobalSubscriptionEvent } from './events';
 import type { ExpectedStreamVersion } from './expectedVersion';
 
 // #region event-store
@@ -29,9 +29,9 @@ export interface EventStore<
     options?: AppendToStreamOptions<StreamVersion>,
   ): Promise<AppendToStreamResult<StreamVersion>>;
 
-  streamEvents(): ReadableStream<
-    ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent
-  >;
+  // streamEvents(): ReadableStream<
+  //   ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent
+  // >;
 }
 
 export type EventStoreSession<

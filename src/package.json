@@ -3,7 +3,6 @@
   "type": "module",
   "version": "0.19.1",
   "description": "Emmett - Event Sourcing development made simple",
-  "type": "module",
   "engines": {
     "node": ">=20.11.1"
   },
