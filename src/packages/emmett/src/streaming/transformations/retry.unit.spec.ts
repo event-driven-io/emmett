@@ -81,7 +81,7 @@ void describe('retry', () => {
     const reader = transformStream.readable.getReader();
     try {
       await reader.read();
-    } catch (error) {
+    } catch {
       errorCaught = true;
     }
 

@@ -8,7 +8,11 @@ import {
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '../../typing';
-import { caughtUpEventFrom, globalStreamCaughtUp } from '../events';
+import {
+  caughtUpEventFrom,
+  globalStreamCaughtUp,
+  type GlobalStreamCaughtUp,
+} from '../events';
 import { StreamingCoordinator } from './streamingCoordinator';
 
 void describe('StreamingCoordinator', () => {
@@ -59,7 +63,10 @@ void describe('StreamingCoordinator', () => {
     const result = await collectedEvents;
 
     assertDeepEqual(result, [
-      globalStreamCaughtUp({ globalPosition: 0n }),
+      globalStreamCaughtUp({ globalPosition: 0n }) as ReadEvent<
+        GlobalStreamCaughtUp,
+        ReadEventMetadataWithGlobalPosition
+      >,
       event,
     ]);
   });
@@ -86,12 +93,18 @@ void describe('StreamingCoordinator', () => {
     const result2 = await collectedEvents2;
 
     assertDeepEqual(result1, [
-      globalStreamCaughtUp({ globalPosition: 0n }),
+      globalStreamCaughtUp({ globalPosition: 0n }) as ReadEvent<
+        GlobalStreamCaughtUp,
+        ReadEventMetadataWithGlobalPosition
+      >,
       event1,
       event2,
     ]);
     assertDeepEqual(result2, [
-      globalStreamCaughtUp({ globalPosition: 0n }),
+      globalStreamCaughtUp({ globalPosition: 0n }) as ReadEvent<
+        GlobalStreamCaughtUp,
+        ReadEventMetadataWithGlobalPosition
+      >,
       event1,
       event2,
     ]);

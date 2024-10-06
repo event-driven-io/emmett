@@ -189,22 +189,6 @@ export const shoppingCartApi =
         });
       }),
     );
-
-    // Get Shopping Cart
-    router.get(
-      '/clients/:clientId/shopping-carts/summary',
-      on(async (request: GetShoppingCartRequest) => {
-        const clientId = assertNotEmptyString(request.params.clientId);
-
-        const result = await getClientShoppingSummary(readStore, clientId);
-
-        if (result === null) return NotFound();
-
-        return OK({
-          body: result,
-        });
-      }),
-    );
   };
 
 // Add Product Item

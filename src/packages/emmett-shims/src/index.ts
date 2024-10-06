@@ -1,4 +1,10 @@
-import streamsPolyfill from 'web-streams-polyfill';
+import {
+  ReadableStream,
+  TransformStream,
+  WritableStream,
+} from 'web-streams-polyfill';
+
+const streamsPolyfill = { ReadableStream, WritableStream, TransformStream };
 
 // https://github.com/jsdom/jsdom/issues/1537#issuecomment-229405327
 
@@ -40,18 +46,13 @@ let streams: typeof streamsPolyfill;
 
 if (
   globalThis &&
-  // @ts-expect-error global object check
   globalThis.WritableStream &&
-  // @ts-expect-error global object check
   globalThis.ReadableStream &&
-  // @ts-expect-error global object check
   globalThis.TransformStream
 ) {
-  // @ts-expect-error global object check
   streams = globalThis as typeof streamsPolyfill;
 } else {
   try {
-    // @ts-expect-error global object check
     streams = (await import('node:stream/web')) as typeof streamsPolyfill;
   } catch {
     // Just falling back to the default polyfill
