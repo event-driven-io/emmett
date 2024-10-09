@@ -12,21 +12,28 @@ This project aims to experiment with an opinionated Event Sourcing framework bas
 
 **Take your event-driven applications back to the future!**
 
+## Documentation and Resources
+
+Read more in [documentation](https://event-driven-io.github.io/emmett/getting-started.html), join our [Discord Channel](https://discord.gg/fTpqUTMmVa) and ask any question.
+
+Check also my blog articles on Emmett:
+- [Announcing Emmett! Take your event-driven applications back to the future!](https://event-driven.io/en/introducing_emmett/)
+- [Testing Event Sourcing, Emmett edition](https://event-driven.io/en/testing_event_sourcing_emmett_edition/)
+- [Event Sourcing on PostgreSQL in Node.js just became possible with Emmett](https://event-driven.io/en/emmett_postgresql_event_store/)
+- [Writing and testing event-driven projections with Emmett, Pongo and PostgreSQL](https://event-driven.io/en/emmett_projections_testing/)
+- [Using event metadata in event-driven projections](https://event-driven.io/en/projections_and_event_metadata/)=
+
 ## FAQ
 
 ### **Is it production-ready?**
 
-Kinda. What is here is already usable, but you'll need to wait for the full production experience in all essential aspects.
-
-### **Will it be production-ready?**
-
-Hopefully.
+What's there is safe to use. I'd like to add more stuff to enhance the production experience, like OpenTelemetry, but users are already using Emmett in their systems.
 
 ### **Why Node.js?**
 
 I like its minimalistic approach and flexibility, plus TypeScript is an excellent language with its shapeshifter capabilities. Plus, I've been asked if I could deliver such a store for Node.js.
 
-### Why Emmett?
+### Why is it named Emmett?
 
 [Because](https://en.m.wikipedia.org/wiki/Emmett_Brown).
 
@@ -36,27 +43,27 @@ Essential building blocks for designing and running business and application log
 
 - typings around events, commands, Deciders, Workflows, etc.
 - command handling wrappers for application layer,
-- implementation of event store using EventStoreDB and basic, in-memory version,
-- building blocks for the Web Apis with Event Sourcing and CQRS.
+- implementation of event store using PostgreSQL, EventStoreDB and basic, in-memory version,
+- abstractions for building read models,
+- building blocks for the Web Apis with Event Sourcing and CQRS,
+- serverless-friendly runtime model,
 
 ### **What features will it have?**
 
 We'll see, but for sure, I'd like to have the following:
 
-- implementation of event store using PostgreSQL, SQLite, etc.
-- abstractions for building read models,
+- implementation of event store using other storage engines like SQLite, MongoDB, DynamoDB, CosmosDB etc.
 - building blocks for integration and running distributed processes,
 - GraphQL API for event stores,
 - Full stack development helpers with Next.js or HTMX,
 - built-in open telemetry,
-- running it serverless or on the web with SQLite,
 - streaming data through HTTP API (and enabling integration scenarios through it).
 - defining event transformations and projections with WebAssembly,
 - etc.
 
 ### **Would it be a competitor to other stores?**
 
-Probably not. For now, I'd like to have a safe playground to have fun, experiment and try out new ideas. Still, I expect what I deliver to be safe to use in production.
+It is hard to say; my intention is not to compete but to give more options to the community.
 
 ### **Why there's no license?**
 
