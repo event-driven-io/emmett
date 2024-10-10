@@ -5,7 +5,7 @@ import {
 import { describe, it } from 'node:test';
 import { assertDeepEqual, assertEqual } from '../../testing';
 import { fromArray } from '../generators/fromArray';
-import { retry } from './retry';
+import { retryStream } from './retry';
 
 void describe('retry', () => {
   void it('processes the stream successfully and terminate when done', async () => {
@@ -19,7 +19,7 @@ void describe('retry', () => {
       controller.enqueue(readResult.value * 2);
     };
 
-    const transformStream = retry(() => fromArray(data), handleChunk, {
+    const transformStream = retryStream(() => fromArray(data), handleChunk, {
       retries: 3,
       minTimeout: 10,
     });
@@ -50,7 +50,7 @@ void describe('retry', () => {
       controller.enqueue(readResult.value * 2);
     };
 
-    const transformStream = retry(() => fromArray(data), handleChunk, {
+    const transformStream = retryStream(() => fromArray(data), handleChunk, {
       retries: 3,
       minTimeout: 10,
     });
@@ -73,10 +73,14 @@ void describe('retry', () => {
 
     let errorCaught = false;
 
-    const transformStream = retry(() => fromArray([1, 2, 3]), handleChunk, {
-      retries: 1,
-      minTimeout: 10,
-    });
+    const transformStream = retryStream(
+      () => fromArray([1, 2, 3]),
+      handleChunk,
+      {
+        retries: 1,
+        minTimeout: 10,
+      },
+    );
 
     const reader = transformStream.readable.getReader();
     try {

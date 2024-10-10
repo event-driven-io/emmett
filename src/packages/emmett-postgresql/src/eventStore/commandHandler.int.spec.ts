@@ -74,6 +74,7 @@ void describe('Postgres Projections', () => {
     const couponId = uuid();
 
     assertEqual(1n, result.nextExpectedStreamVersion);
+    assertEqual(true, result.createdNewStream);
 
     await handle(eventStore, shoppingCartId, () => ({
       type: 'ProductItemAdded',

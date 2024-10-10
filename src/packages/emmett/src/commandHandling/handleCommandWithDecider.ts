@@ -5,7 +5,10 @@ import type {
 } from '../eventStore';
 import type { Command, Event } from '../typing';
 import type { Decider } from '../typing/decider';
-import { CommandHandler } from './handleCommand';
+import {
+  CommandHandler,
+  type CommandHandlerRetryOptions,
+} from './handleCommand';
 
 // #region command-handler
 export const DeciderCommandHandler =
@@ -22,9 +25,13 @@ export const DeciderCommandHandler =
     eventStore: EventStore<StreamVersion>,
     id: string,
     command: CommandType,
-    options?: {
-      expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
-    },
+    options?:
+      | {
+          expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
+        }
+      | {
+          retry?: CommandHandlerRetryOptions;
+        },
   ) =>
     CommandHandler<State, StreamEvent, StreamVersion>(
       evolve,

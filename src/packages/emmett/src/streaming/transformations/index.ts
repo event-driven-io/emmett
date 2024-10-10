@@ -5,7 +5,7 @@ import {
   NotifyAboutNoActiveReadersStream,
 } from './notifyAboutNoActiveReaders';
 import { reduce, ReduceTransformStream } from './reduce';
-import { retry } from './retry';
+import { retryStream } from './retry';
 import { skip, SkipTransformStream } from './skip';
 import { stopAfter } from './stopAfter';
 import { stopOn } from './stopOn';
@@ -23,7 +23,7 @@ export const streamTransformations = {
   NotifyAboutNoActiveReadersStream,
   reduce,
   ReduceTransformStream,
-  retry,
+  retry: retryStream,
   stopAfter,
   stopOn,
   waitAtMost,
