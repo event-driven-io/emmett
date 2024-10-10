@@ -153,4 +153,5 @@ export type AppendToStreamOptions<StreamVersion = DefaultStreamVersionType> = {
 
 export type AppendToStreamResult<StreamVersion = DefaultStreamVersionType> = {
   nextExpectedStreamVersion: StreamVersion;
+  createdNewStream: boolean;
 };

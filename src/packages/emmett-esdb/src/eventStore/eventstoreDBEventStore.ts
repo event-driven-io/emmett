@@ -176,7 +176,12 @@ export const getEventStoreDBEventStore = (
           },
         );
 
-        return { nextExpectedStreamVersion: appendResult.nextExpectedRevision };
+        return {
+          nextExpectedStreamVersion: appendResult.nextExpectedRevision,
+          createdNewStream:
+            appendResult.nextExpectedRevision >=
+            BigInt(serializedEvents.length),
+        };
       } catch (error) {
         if (error instanceof WrongExpectedVersionError) {
           throw new ExpectedVersionConflictError(

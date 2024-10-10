@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
 import { getInMemoryEventStore } from '../eventStore';
-import { assertDeepEqual, assertEqual } from '../testing';
+import {
+  assertDeepEqual,
+  assertEqual,
+  assertFalse,
+  assertThatArray,
+  assertTrue,
+} from '../testing';
 import { type Event } from '../typing';
 import { CommandHandler } from './handleCommand';
 
@@ -100,12 +106,13 @@ void describe('Command Handler', () => {
       data: { productItem },
     };
 
-    const { nextExpectedStreamVersion, newState } = await handleCommand(
-      eventStore,
-      shoppingCartId,
-      (state) => addProductItem(command, state),
-    );
+    const { nextExpectedStreamVersion, newState, newEvents, createdNewStream } =
+      await handleCommand(eventStore, shoppingCartId, (state) =>
+        addProductItem(command, state),
+      );
 
+    assertTrue(createdNewStream);
+    assertThatArray(newEvents).hasSize(1);
     assertDeepEqual(newState, {
       productItems: [productItem],
       totalAmount: productItem.price * productItem.quantity,
@@ -126,12 +133,13 @@ void describe('Command Handler', () => {
       data: { productItem },
     };
 
-    const { nextExpectedStreamVersion, newState } = await handleCommand(
-      eventStore,
-      shoppingCartId,
-      (state) => addProductItemWithDiscount(command, state),
-    );
+    const { nextExpectedStreamVersion, newState, newEvents, createdNewStream } =
+      await handleCommand(eventStore, shoppingCartId, (state) =>
+        addProductItemWithDiscount(command, state),
+      );
 
+    assertTrue(createdNewStream);
+    assertThatArray(newEvents).hasSize(2);
     assertDeepEqual(newState, {
       productItems: [productItem],
       totalAmount:
@@ -153,13 +161,14 @@ void describe('Command Handler', () => {
       data: { productItem },
     };
 
-    const { nextExpectedStreamVersion, newState, newEvents } =
+    const { nextExpectedStreamVersion, newState, newEvents, createdNewStream } =
       await handleCommand(eventStore, shoppingCartId, (state) =>
         command.data.productItem.price > 100
           ? addProductItemWithDiscount(command, state)
           : [],
       );
 
+    assertFalse(createdNewStream);
     assertEqual(nextExpectedStreamVersion, 0n);
     assertDeepEqual(newEvents, []);
     assertDeepEqual(newState, initialState());
