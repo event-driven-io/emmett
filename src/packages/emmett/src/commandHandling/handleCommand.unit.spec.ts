@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
-import { getInMemoryEventStore } from '../eventStore';
+import {
+  ExpectedVersionConflictError,
+  getInMemoryEventStore,
+} from '../eventStore';
 import {
   assertDeepEqual,
   assertEqual,
@@ -118,6 +121,85 @@ void describe('Command Handler', () => {
       totalAmount: productItem.price * productItem.quantity,
     });
     assertEqual(nextExpectedStreamVersion, 1n);
+  });
+
+  void it('When called with STREAM_DOES_NOT_EXIST returns new state for a single returned event', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = randomUUID();
+    const command: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem },
+    };
+
+    const { nextExpectedStreamVersion, newState, newEvents, createdNewStream } =
+      await handleCommand(
+        eventStore,
+        shoppingCartId,
+        (state) => addProductItem(command, state),
+        { expectedStreamVersion: 'STREAM_DOES_NOT_EXIST' },
+      );
+
+    assertTrue(createdNewStream);
+    assertThatArray(newEvents).hasSize(1);
+    assertDeepEqual(newState, {
+      productItems: [productItem],
+      totalAmount: productItem.price * productItem.quantity,
+    });
+    assertEqual(nextExpectedStreamVersion, 1n);
+  });
+
+  void it('retries handling for wrong version and succeeds if conditions are correct', async () => {
+    // Given
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = randomUUID();
+    const command: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem },
+    };
+
+    // Create the stream
+    await handleCommand(
+      eventStore,
+      shoppingCartId,
+      (state) => addProductItem(command, state),
+      { expectedStreamVersion: 'STREAM_DOES_NOT_EXIST' },
+    );
+
+    let tried = 0;
+
+    const { nextExpectedStreamVersion, newState, newEvents, createdNewStream } =
+      await handleCommand(
+        eventStore,
+        shoppingCartId,
+        (state) => {
+          // This should be thrown in parallel operations not in the business logic
+          // but for this test needs, that's the simplest way to do it
+          if (tried++ === 0) throw new ExpectedVersionConflictError(0, 1);
+          return addProductItem(command, state);
+        },
+        {
+          retry: { onVersionConflict: 10 },
+        },
+      );
+
+    assertEqual(2, tried);
+    assertFalse(createdNewStream);
+    assertThatArray(newEvents).hasSize(1);
+    assertDeepEqual(newState, {
+      productItems: [productItem, productItem],
+      totalAmount: productItem.price * productItem.quantity * 2,
+    });
+    assertEqual(nextExpectedStreamVersion, 2n);
   });
 
   void it('When called successfuly returns new state for multiple returned events', async () => {
