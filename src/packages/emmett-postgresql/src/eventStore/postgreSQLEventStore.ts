@@ -7,10 +7,9 @@ import {
   type NodePostgresPoolClientConnection,
 } from '@event-driven-io/dumbo';
 import {
+  assertExpectedVersionMatchesCurrent,
   ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
-  STREAM_DOES_NOT_EXIST,
-  STREAM_EXISTS,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
@@ -20,7 +19,6 @@ import {
   type EventStore,
   type EventStoreSession,
   type EventStoreSessionFactory,
-  type ExpectedStreamVersion,
   type ProjectionRegistration,
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
@@ -201,6 +199,7 @@ export const getPostgreSQLEventStore = (
       assertExpectedVersionMatchesCurrent(
         currentStreamVersion,
         expectedStreamVersion,
+        PostgreSQLEventStoreDefaultStreamVersion,
       );
 
       for (const event of result.events) {
@@ -291,27 +290,4 @@ export const getPostgreSQLEventStore = (
       });
     },
   };
-};
-
-const matchesExpectedVersion = (
-  current: bigint | undefined,
-  expected: ExpectedStreamVersion,
-): boolean => {
-  if (expected === NO_CONCURRENCY_CHECK) return true;
-
-  if (expected == STREAM_DOES_NOT_EXIST) return current === undefined;
-
-  if (expected == STREAM_EXISTS) return current !== undefined;
-
-  return current === expected;
-};
-
-const assertExpectedVersionMatchesCurrent = (
-  current: bigint | undefined,
-  expected: ExpectedStreamVersion | undefined,
-): void => {
-  expected ??= NO_CONCURRENCY_CHECK;
-
-  if (!matchesExpectedVersion(current, expected))
-    throw new ExpectedVersionConflictError(current, expected);
 };
