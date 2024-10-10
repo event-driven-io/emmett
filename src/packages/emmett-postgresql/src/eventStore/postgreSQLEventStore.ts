@@ -7,10 +7,9 @@ import {
   type NodePostgresPoolClientConnection,
 } from '@event-driven-io/dumbo';
 import {
+  assertExpectedVersionMatchesCurrent,
   ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
-  STREAM_DOES_NOT_EXIST,
-  STREAM_EXISTS,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
@@ -20,7 +19,6 @@ import {
   type EventStore,
   type EventStoreSession,
   type EventStoreSessionFactory,
-  type ExpectedStreamVersion,
   type ProjectionRegistration,
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
@@ -134,6 +132,8 @@ export const defaultPostgreSQLOptions: PostgresEventStoreOptions = {
   schema: { autoMigration: 'CreateOrUpdate' },
 };
 
+export const PostgreSQLEventStoreDefaultStreamVersion = 0n;
+
 export const getPostgreSQLEventStore = (
   connectionString: string,
   options: PostgresEventStoreOptions = defaultPostgreSQLOptions,
@@ -186,7 +186,7 @@ export const getPostgreSQLEventStore = (
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
       options: AggregateStreamOptions<State, EventType>,
-    ): Promise<AggregateStreamResult<State> | null> {
+    ): Promise<AggregateStreamResult<State>> {
       const { evolve, initialState, read } = options;
 
       const expectedStreamVersion = read?.expectedStreamVersion;
@@ -194,14 +194,12 @@ export const getPostgreSQLEventStore = (
       let state = initialState();
 
       const result = await this.readStream<EventType>(streamName, options.read);
-
-      if (result === null) return null;
-
       const currentStreamVersion = result.currentStreamVersion;
 
       assertExpectedVersionMatchesCurrent(
         currentStreamVersion,
         expectedStreamVersion,
+        PostgreSQLEventStoreDefaultStreamVersion,
       );
 
       for (const event of result.events) {
@@ -213,6 +211,7 @@ export const getPostgreSQLEventStore = (
       return {
         currentStreamVersion: currentStreamVersion,
         state,
+        streamExists: result.streamExists,
       };
     },
 
@@ -259,7 +258,11 @@ export const getPostgreSQLEventStore = (
           options?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
         );
 
-      return { nextExpectedStreamVersion: appendResult.nextStreamPosition };
+      return {
+        nextExpectedStreamVersion: appendResult.nextStreamPosition,
+        createdNewStream:
+          appendResult.nextStreamPosition >= BigInt(events.length),
+      };
     },
     close: () => pool.close(),
 
@@ -291,27 +294,4 @@ export const getPostgreSQLEventStore = (
       });
     },
   };
-};
-
-const matchesExpectedVersion = (
-  current: bigint | undefined,
-  expected: ExpectedStreamVersion,
-): boolean => {
-  if (expected === NO_CONCURRENCY_CHECK) return true;
-
-  if (expected == STREAM_DOES_NOT_EXIST) return current === undefined;
-
-  if (expected == STREAM_EXISTS) return current !== undefined;
-
-  return current === expected;
-};
-
-const assertExpectedVersionMatchesCurrent = (
-  current: bigint | undefined,
-  expected: ExpectedStreamVersion | undefined,
-): void => {
-  expected ??= NO_CONCURRENCY_CHECK;
-
-  if (!matchesExpectedVersion(current, expected))
-    throw new ExpectedVersionConflictError(current, expected);
 };

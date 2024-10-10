@@ -3,6 +3,7 @@ import {
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
+  assertExpectedVersionMatchesCurrent,
   globalStreamCaughtUp,
   streamTransformations,
   type AggregateStreamOptions,
@@ -54,6 +55,8 @@ const toEventStoreDBReadOptions = (
     : undefined;
 };
 
+export const EventStoreDBEventStoreDefaultStreamVersion = -1n;
+
 export const getEventStoreDBEventStore = (
   eventStore: EventStoreDBClient,
 ): EventStore<
@@ -64,15 +67,16 @@ export const getEventStoreDBEventStore = (
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
       options: AggregateStreamOptions<State, EventType>,
-    ): Promise<AggregateStreamResult<State> | null> {
+    ): Promise<AggregateStreamResult<State>> {
+      const { evolve, initialState, read } = options;
+
+      const expectedStreamVersion = read?.expectedStreamVersion;
+
+      let state = initialState();
+      let currentStreamVersion: bigint =
+        EventStoreDBEventStoreDefaultStreamVersion;
+
       try {
-        const { evolve, initialState, read } = options;
-
-        const expectedStreamVersion = read?.expectedStreamVersion;
-
-        let state = initialState();
-        let currentStreamVersion: bigint | undefined = undefined;
-
         for await (const { event } of eventStore.readStream<EventType>(
           streamName,
           toEventStoreDBReadOptions(options.read),
@@ -86,15 +90,21 @@ export const getEventStoreDBEventStore = (
         assertExpectedVersionMatchesCurrent(
           currentStreamVersion,
           expectedStreamVersion,
+          EventStoreDBEventStoreDefaultStreamVersion,
         );
 
         return {
-          currentStreamVersion: currentStreamVersion ?? 0n,
+          currentStreamVersion,
           state,
+          streamExists: true,
         };
       } catch (error) {
         if (error instanceof StreamNotFoundError) {
-          return null;
+          return {
+            currentStreamVersion,
+            state,
+            streamExists: false,
+          };
         }
 
         throw error;
@@ -116,7 +126,8 @@ export const getEventStoreDBEventStore = (
         ReadEventMetadataWithGlobalPosition
       >[] = [];
 
-      let currentStreamVersion: bigint | undefined = undefined;
+      let currentStreamVersion: bigint =
+        EventStoreDBEventStoreDefaultStreamVersion;
 
       try {
         for await (const { event } of eventStore.readStream<EventType>(
@@ -127,15 +138,18 @@ export const getEventStoreDBEventStore = (
           events.push(mapFromESDBEvent(event));
           currentStreamVersion = event.revision;
         }
-        return currentStreamVersion
-          ? {
-              currentStreamVersion,
-              events,
-            }
-          : null;
+        return {
+          currentStreamVersion,
+          events,
+          streamExists: true,
+        };
       } catch (error) {
         if (error instanceof StreamNotFoundError) {
-          return null;
+          return {
+            currentStreamVersion,
+            events: [],
+            streamExists: false,
+          };
         }
 
         throw error;
@@ -162,7 +176,12 @@ export const getEventStoreDBEventStore = (
           },
         );
 
-        return { nextExpectedStreamVersion: appendResult.nextExpectedRevision };
+        return {
+          nextExpectedStreamVersion: appendResult.nextExpectedRevision,
+          createdNewStream:
+            appendResult.nextExpectedRevision >=
+            BigInt(serializedEvents.length),
+        };
       } catch (error) {
         if (error instanceof WrongExpectedVersionError) {
           throw new ExpectedVersionConflictError(
@@ -222,29 +241,6 @@ const toExpectedVersion = (
   if (expected == ESDB_STREAM_EXISTS) return STREAM_EXISTS;
 
   return expected;
-};
-
-const matchesExpectedVersion = (
-  current: bigint | undefined,
-  expected: ExpectedStreamVersion,
-): boolean => {
-  if (expected === NO_CONCURRENCY_CHECK) return true;
-
-  if (expected == STREAM_DOES_NOT_EXIST) return current === undefined;
-
-  if (expected == STREAM_EXISTS) return current !== undefined;
-
-  return current === expected;
-};
-
-const assertExpectedVersionMatchesCurrent = (
-  current: bigint | undefined,
-  expected: ExpectedStreamVersion | undefined,
-): void => {
-  expected ??= NO_CONCURRENCY_CHECK;
-
-  if (!matchesExpectedVersion(current, expected))
-    throw new ExpectedVersionConflictError(current, expected);
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

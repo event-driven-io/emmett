@@ -66,8 +66,11 @@ export const shoppingCartApi =
           metadata: { now: getCurrentTime() },
         };
 
-        await handle(eventStore, shoppingCartId, (state) =>
-          addProductItem(command, state),
+        await handle(
+          eventStore,
+          shoppingCartId,
+          (state) => addProductItem(command, state),
+          { expectedStreamVersion: 'STREAM_DOES_NOT_EXIST' },
         );
 
         return NoContent();

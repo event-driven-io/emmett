@@ -3,10 +3,10 @@ import {
   type ReadableStreamDefaultReadResult,
   type TransformStreamDefaultController,
 } from '@event-driven-io/emmett-shims';
-import asyncRetry from 'async-retry';
 import type { Decoder } from './decoders';
 import { DefaultDecoder } from './decoders/composite';
 import { streamTransformations } from './transformations';
+import type { AsyncRetryOptions } from '../utils';
 
 const { retry } = streamTransformations;
 
@@ -18,7 +18,7 @@ export const restream = <
   createSourceStream: () => ReadableStream<StreamType>,
   transform: (input: Source) => Transformed = (source) =>
     source as unknown as Transformed,
-  retryOptions: asyncRetry.Options = { forever: true, minTimeout: 25 },
+  retryOptions: AsyncRetryOptions = { forever: true, minTimeout: 25 },
   decoder: Decoder<StreamType, Source> = new DefaultDecoder<Source>(),
 ): ReadableStream<Transformed> =>
   retry(createSourceStream, handleChunk(transform, decoder), retryOptions)
