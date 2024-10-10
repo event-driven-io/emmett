@@ -66,6 +66,14 @@ export const CommandHandler =
 
       const newEvents = Array.isArray(result) ? result : [result];
 
+      if (newEvents.length === 0) {
+        return {
+          newEvents: [],
+          newState: state,
+          nextExpectedStreamVersion: currentStreamVersion,
+        };
+      }
+
       // Either use:
       // - provided expected stream version,
       // - current stream version got from stream aggregation,

@@ -33,7 +33,7 @@ export const WrapEventStore = <
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
       options: AggregateStreamOptions<State, EventType, StreamVersion>,
-    ): Promise<AggregateStreamResult<State, StreamVersion> | null> {
+    ): Promise<AggregateStreamResult<State, StreamVersion>> {
       return eventStore.aggregateStream(streamName, options);
     },
 

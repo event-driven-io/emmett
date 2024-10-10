@@ -21,6 +21,8 @@ export type EventHandler<E extends Event = Event> = (
   eventEnvelope: ReadEvent<E>,
 ) => void;
 
+export const InMemoryEventStoreDefaultStreamVersion = 0n;
+
 export const getInMemoryEventStore = (): EventStore<
   DefaultStreamVersionType,
   ReadEventMetadataWithGlobalPosition
@@ -41,18 +43,25 @@ export const getInMemoryEventStore = (): EventStore<
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
       options: AggregateStreamOptions<State, EventType>,
-    ): Promise<AggregateStreamResult<State> | null> {
+    ): Promise<AggregateStreamResult<State>> {
       const { evolve, initialState, read } = options;
 
       const result = await this.readStream<EventType>(streamName, read);
 
-      if (!result) return null;
+      if (!result) {
+        return {
+          currentStreamVersion: InMemoryEventStoreDefaultStreamVersion,
+          state: initialState(),
+          streamExists: false,
+        };
+      }
 
       const events = result?.events ?? [];
 
       return {
         currentStreamVersion: BigInt(events.length),
         state: events.reduce(evolve, initialState()),
+        streamExists: true,
       };
     },
 
