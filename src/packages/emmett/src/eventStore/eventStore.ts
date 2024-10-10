@@ -16,7 +16,7 @@ export interface EventStore<
       StreamVersion,
       ReadEventMetadataType
     >,
-  ): Promise<AggregateStreamResult<State, StreamVersion> | null>;
+  ): Promise<AggregateStreamResult<State, StreamVersion>>;
 
   readStream<EventType extends Event>(
     streamName: string,
@@ -139,6 +139,7 @@ export type AggregateStreamResult<
 > = {
   currentStreamVersion: StreamVersion;
   state: State;
+  streamExists: boolean;
 };
 
 ////////////////////////////////////////////////////////////////////

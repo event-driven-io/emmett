@@ -54,6 +54,8 @@ const toEventStoreDBReadOptions = (
     : undefined;
 };
 
+export const EventStoreDBEventStoreDefaultStreamVersion = -1n;
+
 export const getEventStoreDBEventStore = (
   eventStore: EventStoreDBClient,
 ): EventStore<
@@ -64,15 +66,16 @@ export const getEventStoreDBEventStore = (
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
       options: AggregateStreamOptions<State, EventType>,
-    ): Promise<AggregateStreamResult<State> | null> {
+    ): Promise<AggregateStreamResult<State>> {
+      const { evolve, initialState, read } = options;
+
+      const expectedStreamVersion = read?.expectedStreamVersion;
+
+      let state = initialState();
+      let currentStreamVersion: bigint =
+        EventStoreDBEventStoreDefaultStreamVersion;
+
       try {
-        const { evolve, initialState, read } = options;
-
-        const expectedStreamVersion = read?.expectedStreamVersion;
-
-        let state = initialState();
-        let currentStreamVersion: bigint | undefined = undefined;
-
         for await (const { event } of eventStore.readStream<EventType>(
           streamName,
           toEventStoreDBReadOptions(options.read),
@@ -89,12 +92,17 @@ export const getEventStoreDBEventStore = (
         );
 
         return {
-          currentStreamVersion: currentStreamVersion ?? 0n,
+          currentStreamVersion,
           state,
+          streamExists: true,
         };
       } catch (error) {
         if (error instanceof StreamNotFoundError) {
-          return null;
+          return {
+            currentStreamVersion,
+            state,
+            streamExists: false,
+          };
         }
 
         throw error;

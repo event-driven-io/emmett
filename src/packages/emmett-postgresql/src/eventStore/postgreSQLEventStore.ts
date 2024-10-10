@@ -134,6 +134,8 @@ export const defaultPostgreSQLOptions: PostgresEventStoreOptions = {
   schema: { autoMigration: 'CreateOrUpdate' },
 };
 
+export const PostgreSQLEventStoreDefaultStreamVersion = 0n;
+
 export const getPostgreSQLEventStore = (
   connectionString: string,
   options: PostgresEventStoreOptions = defaultPostgreSQLOptions,
@@ -186,7 +188,7 @@ export const getPostgreSQLEventStore = (
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
       options: AggregateStreamOptions<State, EventType>,
-    ): Promise<AggregateStreamResult<State> | null> {
+    ): Promise<AggregateStreamResult<State>> {
       const { evolve, initialState, read } = options;
 
       const expectedStreamVersion = read?.expectedStreamVersion;
@@ -195,7 +197,12 @@ export const getPostgreSQLEventStore = (
 
       const result = await this.readStream<EventType>(streamName, options.read);
 
-      if (result === null) return null;
+      if (result === null)
+        return {
+          currentStreamVersion: PostgreSQLEventStoreDefaultStreamVersion,
+          state,
+          streamExists: false,
+        };
 
       const currentStreamVersion = result.currentStreamVersion;
 
@@ -213,6 +220,7 @@ export const getPostgreSQLEventStore = (
       return {
         currentStreamVersion: currentStreamVersion,
         state,
+        streamExists: true,
       };
     },
 
