@@ -139,4 +139,29 @@ void describe('Command Handler', () => {
     });
     assertEqual(nextExpectedStreamVersion, 2n);
   });
+
+  void it('When returning an empty array of events returns the same state', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = randomUUID();
+    const command: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem },
+    };
+
+    const { nextExpectedStreamVersion, newState, newEvents } =
+      await handleCommand(eventStore, shoppingCartId, (state) =>
+        command.data.productItem.price > 100
+          ? addProductItemWithDiscount(command, state)
+          : [],
+      );
+
+    assertEqual(nextExpectedStreamVersion, 0n);
+    assertDeepEqual(newEvents, []);
+    assertDeepEqual(newState, initialState());
+  });
 });

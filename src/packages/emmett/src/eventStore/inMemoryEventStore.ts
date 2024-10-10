@@ -75,6 +75,7 @@ export const getInMemoryEventStore = (): EventStore<
       assertExpectedVersionMatchesCurrent(
         currentStreamVersion,
         options?.expectedStreamVersion,
+        InMemoryEventStoreDefaultStreamVersion,
       );
 
       const from = Number(options && 'from' in options ? options.from : 0);
@@ -119,11 +120,14 @@ export const getInMemoryEventStore = (): EventStore<
     ): Promise<AppendToStreamResult> => {
       const currentEvents = streams.get(streamName) ?? [];
       const currentStreamVersion =
-        currentEvents.length > 0 ? BigInt(currentEvents.length) : undefined;
+        currentEvents.length > 0
+          ? BigInt(currentEvents.length)
+          : InMemoryEventStoreDefaultStreamVersion;
 
       assertExpectedVersionMatchesCurrent(
         currentStreamVersion,
         options?.expectedStreamVersion,
+        InMemoryEventStoreDefaultStreamVersion,
       );
 
       const newEvents: ReadEvent<
