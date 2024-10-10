@@ -1,9 +1,11 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import {
+  assertDeepEqual,
   assertEqual,
+  assertFalse,
   assertIsNotNull,
-  assertIsNull,
   assertMatches,
+  assertTrue,
   type Event,
 } from '@event-driven-io/emmett';
 import {
@@ -13,6 +15,7 @@ import {
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import { createEventStoreSchema } from '.';
+import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
 import { appendToStream } from './appendToStream';
 import { readStream } from './readStream';
 
@@ -92,9 +95,10 @@ void describe('appendEvent', () => {
       },
     }));
     assertMatches(result.events, expected);
+    assertTrue(result.streamExists);
   });
 
-  void it('returns null from non-existing stream', async () => {
+  void it('returns result with default information from non-existing stream', async () => {
     // Given
     const nonExistingStreamId = uuid();
 
@@ -102,6 +106,11 @@ void describe('appendEvent', () => {
     const result = await readStream(pool.execute, nonExistingStreamId);
 
     // Then
-    assertIsNull(result);
+    assertEqual(
+      PostgreSQLEventStoreDefaultStreamVersion,
+      result.currentStreamVersion,
+    );
+    assertDeepEqual([], result.events);
+    assertFalse(result.streamExists);
   });
 });

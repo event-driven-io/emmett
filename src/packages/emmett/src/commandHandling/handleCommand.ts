@@ -57,9 +57,9 @@ export const CommandHandler =
         },
       });
 
-      // 2. Use the aggregate state or the initial one (when e.g. stream does not exist)
-      const state = aggregationResult?.state ?? initialState();
-      const currentStreamVersion = aggregationResult?.currentStreamVersion;
+      // 2. Use the aggregate state
+      const state = aggregationResult.state;
+      const currentStreamVersion = aggregationResult.currentStreamVersion;
 
       // 3. Run business logic
       const result = handle(state);
@@ -80,8 +80,9 @@ export const CommandHandler =
       // - or expect stream not to exists otherwise.
       const expectedStreamVersion: ExpectedStreamVersion<StreamVersion> =
         options?.expectedStreamVersion ??
-        currentStreamVersion ??
-        STREAM_DOES_NOT_EXIST;
+        (aggregationResult.streamExists
+          ? (currentStreamVersion as ExpectedStreamVersion<StreamVersion>)
+          : STREAM_DOES_NOT_EXIST);
 
       // 4. Append result to the stream
       const appendResult = await eventStore.appendToStream(
