@@ -48,20 +48,12 @@ export const getInMemoryEventStore = (): EventStore<
 
       const result = await this.readStream<EventType>(streamName, read);
 
-      if (!result) {
-        return {
-          currentStreamVersion: InMemoryEventStoreDefaultStreamVersion,
-          state: initialState(),
-          streamExists: false,
-        };
-      }
-
       const events = result?.events ?? [];
 
       return {
         currentStreamVersion: BigInt(events.length),
         state: events.reduce(evolve, initialState()),
-        streamExists: true,
+        streamExists: result.streamExists,
       };
     },
 
@@ -76,7 +68,9 @@ export const getInMemoryEventStore = (): EventStore<
       >
     > => {
       const events = streams.get(streamName);
-      const currentStreamVersion = events ? BigInt(events.length) : undefined;
+      const currentStreamVersion = events
+        ? BigInt(events.length)
+        : InMemoryEventStoreDefaultStreamVersion;
 
       assertExpectedVersionMatchesCurrent(
         currentStreamVersion,
@@ -93,7 +87,7 @@ export const getInMemoryEventStore = (): EventStore<
       );
 
       const resultEvents =
-        events && events.length > 0
+        events !== undefined && events.length > 0
           ? events
               .map(
                 (e) =>
@@ -109,13 +103,11 @@ export const getInMemoryEventStore = (): EventStore<
         EventType,
         DefaultStreamVersionType,
         ReadEventMetadataWithGlobalPosition
-      > =
-        events && events.length > 0
-          ? {
-              currentStreamVersion: currentStreamVersion!,
-              events: resultEvents,
-            }
-          : null;
+      > = {
+        currentStreamVersion,
+        events: resultEvents,
+        streamExists: events !== undefined && events.length > 0,
+      };
 
       return Promise.resolve(result);
     },
