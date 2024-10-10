@@ -104,7 +104,8 @@ export type ReadStreamResult<
 > = {
   currentStreamVersion: StreamVersion;
   events: ReadEvent<EventType, ReadEventMetadataType>[];
-} | null;
+  streamExists: boolean;
+};
 
 ////////////////////////////////////////////////////////////////////
 /// AggregateStream types

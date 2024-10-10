@@ -124,7 +124,8 @@ export const getEventStoreDBEventStore = (
         ReadEventMetadataWithGlobalPosition
       >[] = [];
 
-      let currentStreamVersion: bigint | undefined = undefined;
+      let currentStreamVersion: bigint =
+        EventStoreDBEventStoreDefaultStreamVersion;
 
       try {
         for await (const { event } of eventStore.readStream<EventType>(
@@ -135,15 +136,18 @@ export const getEventStoreDBEventStore = (
           events.push(mapFromESDBEvent(event));
           currentStreamVersion = event.revision;
         }
-        return currentStreamVersion
-          ? {
-              currentStreamVersion,
-              events,
-            }
-          : null;
+        return {
+          currentStreamVersion,
+          events,
+          streamExists: true,
+        };
       } catch (error) {
         if (error instanceof StreamNotFoundError) {
-          return null;
+          return {
+            currentStreamVersion,
+            events: [],
+            streamExists: false,
+          };
         }
 
         throw error;

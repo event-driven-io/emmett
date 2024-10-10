@@ -12,6 +12,7 @@ import {
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
 import { defaultTag, eventsTable } from './typing';
+import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
 
 type ReadStreamSqlResult<EventType extends Event> = {
   stream_position: string;
@@ -87,6 +88,11 @@ export const readStream = async <EventType extends Event>(
         currentStreamVersion:
           events[events.length - 1]!.metadata.streamPosition,
         events,
+        streamExists: true,
       }
-    : null;
+    : {
+        currentStreamVersion: PostgreSQLEventStoreDefaultStreamVersion,
+        events: [],
+        streamExists: false,
+      };
 };

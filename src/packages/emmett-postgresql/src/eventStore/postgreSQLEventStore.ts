@@ -196,14 +196,6 @@ export const getPostgreSQLEventStore = (
       let state = initialState();
 
       const result = await this.readStream<EventType>(streamName, options.read);
-
-      if (result === null)
-        return {
-          currentStreamVersion: PostgreSQLEventStoreDefaultStreamVersion,
-          state,
-          streamExists: false,
-        };
-
       const currentStreamVersion = result.currentStreamVersion;
 
       assertExpectedVersionMatchesCurrent(
@@ -220,7 +212,7 @@ export const getPostgreSQLEventStore = (
       return {
         currentStreamVersion: currentStreamVersion,
         state,
-        streamExists: true,
+        streamExists: result.streamExists,
       };
     },
 
