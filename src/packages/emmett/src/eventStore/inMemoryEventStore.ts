@@ -155,6 +155,8 @@ export const getInMemoryEventStore = (): EventStore<
 
       const result: AppendToStreamResult = {
         nextExpectedStreamVersion: positionOfLastEventInTheStream,
+        createdNewStream:
+          currentStreamVersion === InMemoryEventStoreDefaultStreamVersion,
       };
 
       return result;

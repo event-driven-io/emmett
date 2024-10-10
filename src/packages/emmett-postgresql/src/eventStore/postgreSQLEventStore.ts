@@ -258,7 +258,11 @@ export const getPostgreSQLEventStore = (
           options?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
         );
 
-      return { nextExpectedStreamVersion: appendResult.nextStreamPosition };
+      return {
+        nextExpectedStreamVersion: appendResult.nextStreamPosition,
+        createdNewStream:
+          appendResult.nextStreamPosition >= BigInt(events.length),
+      };
     },
     close: () => pool.close(),
 

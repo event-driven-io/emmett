@@ -71,6 +71,7 @@ export const CommandHandler =
           newEvents: [],
           newState: state,
           nextExpectedStreamVersion: currentStreamVersion,
+          createdNewStream: false,
         };
       }
 
