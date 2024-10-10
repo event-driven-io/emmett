@@ -3,6 +3,7 @@ import {
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
+  assertExpectedVersionMatchesCurrent,
   globalStreamCaughtUp,
   streamTransformations,
   type AggregateStreamOptions,
@@ -89,6 +90,7 @@ export const getEventStoreDBEventStore = (
         assertExpectedVersionMatchesCurrent(
           currentStreamVersion,
           expectedStreamVersion,
+          EventStoreDBEventStoreDefaultStreamVersion,
         );
 
         return {
@@ -234,29 +236,6 @@ const toExpectedVersion = (
   if (expected == ESDB_STREAM_EXISTS) return STREAM_EXISTS;
 
   return expected;
-};
-
-const matchesExpectedVersion = (
-  current: bigint | undefined,
-  expected: ExpectedStreamVersion,
-): boolean => {
-  if (expected === NO_CONCURRENCY_CHECK) return true;
-
-  if (expected == STREAM_DOES_NOT_EXIST) return current === undefined;
-
-  if (expected == STREAM_EXISTS) return current !== undefined;
-
-  return current === expected;
-};
-
-const assertExpectedVersionMatchesCurrent = (
-  current: bigint | undefined,
-  expected: ExpectedStreamVersion | undefined,
-): void => {
-  expected ??= NO_CONCURRENCY_CHECK;
-
-  if (!matchesExpectedVersion(current, expected))
-    throw new ExpectedVersionConflictError(current, expected);
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
