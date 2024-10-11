@@ -64,7 +64,7 @@ const aggregateStream = () =>
     initialState,
   });
 
-export const handle = CommandHandler(evolve, initialState);
+export const handle = CommandHandler({ evolve, initialState });
 
 const handleCommand = () =>
   handle(eventStore, ids[0]!, (state) => ({

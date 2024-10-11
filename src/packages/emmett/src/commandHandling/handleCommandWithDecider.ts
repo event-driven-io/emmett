@@ -7,10 +7,19 @@ import type { Command, Event } from '../typing';
 import type { Decider } from '../typing/decider';
 import {
   CommandHandler,
+  type CommandHandlerOptions,
   type CommandHandlerRetryOptions,
 } from './handleCommand';
 
 // #region command-handler
+
+export type DeciderCommandHandlerOptions<
+  State,
+  CommandType extends Command,
+  StreamEvent extends Event,
+> = CommandHandlerOptions<State, StreamEvent> &
+  Decider<State, CommandType, StreamEvent>;
+
 export const DeciderCommandHandler =
   <
     State,
@@ -25,7 +34,7 @@ export const DeciderCommandHandler =
     eventStore: EventStore<StreamVersion>,
     id: string,
     command: CommandType,
-    options?:
+    handleOptions?:
       | {
           expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
         }
@@ -33,9 +42,9 @@ export const DeciderCommandHandler =
           retry?: CommandHandlerRetryOptions;
         },
   ) =>
-    CommandHandler<State, StreamEvent, StreamVersion>(
+    CommandHandler<State, StreamEvent, StreamVersion>({
       evolve,
       initialState,
       mapToStreamId,
-    )(eventStore, id, (state) => decide(command, state), options);
+    })(eventStore, id, (state) => decide(command, state), handleOptions);
 // #endregion command-handler

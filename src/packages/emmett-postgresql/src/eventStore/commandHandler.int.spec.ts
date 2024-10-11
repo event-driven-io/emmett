@@ -56,7 +56,7 @@ void describe('Postgres Projections', () => {
   });
 
   void it('should handle command correctly', async () => {
-    const handle = CommandHandler(evolve, initialState);
+    const handle = CommandHandler({ evolve, initialState });
 
     const productItem: PricedProductItem = {
       productId: '123',
