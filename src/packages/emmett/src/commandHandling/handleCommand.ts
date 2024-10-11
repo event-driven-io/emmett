@@ -1,6 +1,6 @@
 import {
   canCreateEventStoreSession,
-  ExpectedVersionConflictError,
+  isExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
   nulloSessionFactory,
   STREAM_DOES_NOT_EXIST,
@@ -16,7 +16,9 @@ import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
 export const CommandHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
   {
     retries: 3,
-    shouldRetryError: (error) => error instanceof ExpectedVersionConflictError,
+    minTimeout: 100,
+    factor: 1.5,
+    shouldRetryError: isExpectedVersionConflictError,
   };
 
 export type CommandHandlerRetryOptions =

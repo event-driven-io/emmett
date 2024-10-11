@@ -63,3 +63,8 @@ export class ExpectedVersionConflictError<
     Object.setPrototypeOf(this, ExpectedVersionConflictError.prototype);
   }
 }
+
+export const isExpectedVersionConflictError = (
+  error: unknown,
+): error is ExpectedVersionConflictError =>
+  error instanceof ExpectedVersionConflictError;
