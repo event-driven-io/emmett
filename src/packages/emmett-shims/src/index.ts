@@ -52,12 +52,7 @@ if (
 ) {
   streams = globalThis as typeof streamsPolyfill;
 } else {
-  try {
-    streams = (await import('node:stream/web')) as typeof streamsPolyfill;
-  } catch {
-    // Just falling back to the default polyfill
-    streams = streamsPolyfill;
-  }
+  streams = streamsPolyfill;
 }
 
 export default streams;
