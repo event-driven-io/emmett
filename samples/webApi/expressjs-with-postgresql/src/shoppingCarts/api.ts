@@ -28,7 +28,7 @@ import { getClientShoppingSummary } from './getClientShoppingSummary';
 import { getDetailsById } from './getDetails';
 import { evolve, initialState } from './shoppingCart';
 
-export const handle = CommandHandler(evolve, initialState);
+export const handle = CommandHandler({ evolve, initialState });
 
 export const getShoppingCartId = (clientId: string) =>
   `shopping_cart:${assertNotEmptyString(clientId)}:current`;
