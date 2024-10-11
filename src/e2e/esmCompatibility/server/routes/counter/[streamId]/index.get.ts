@@ -7,7 +7,7 @@ export default eventHandler(async (event) => {
     setResponseStatus(event, 400);
     return sendError(event, new Error('Stream id not provided!'));
   }
-  const state = await eventStore.aggregateStream(streamId, {
+  const { state } = await eventStore.aggregateStream(streamId, {
     evolve,
     initialState,
   });
