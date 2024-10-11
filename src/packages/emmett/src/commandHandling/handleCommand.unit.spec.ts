@@ -9,6 +9,7 @@ import {
   assertEqual,
   assertFalse,
   assertThatArray,
+  assertThrowsAsync,
   assertTrue,
 } from '../testing';
 import { type Event } from '../typing';
@@ -254,5 +255,162 @@ void describe('Command Handler', () => {
     assertEqual(nextExpectedStreamVersion, 0n);
     assertDeepEqual(newEvents, []);
     assertDeepEqual(newState, initialState());
+  });
+
+  void it('Fails after retrying multiple times due to version conflicts', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = randomUUID();
+    const command: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem },
+    };
+
+    // Create the stream
+    await handleCommand(
+      eventStore,
+      shoppingCartId,
+      (state) => addProductItem(command, state),
+      { expectedStreamVersion: 'STREAM_DOES_NOT_EXIST' },
+    );
+
+    let tried = 0;
+
+    await assertThrowsAsync(
+      async () => {
+        await handleCommand(
+          eventStore,
+          shoppingCartId,
+          () => {
+            tried++;
+            throw new ExpectedVersionConflictError(0, 1);
+          },
+          {
+            retry: { onVersionConflict: 2 },
+          },
+        );
+      },
+      (error) => error instanceof ExpectedVersionConflictError,
+    );
+
+    assertEqual(3, tried);
+  });
+
+  void it('Succeeds after retrying with custom retry options', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = randomUUID();
+    const command: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem },
+    };
+
+    // Create the stream
+    await handleCommand(
+      eventStore,
+      shoppingCartId,
+      (state) => addProductItem(command, state),
+      { expectedStreamVersion: 'STREAM_DOES_NOT_EXIST' },
+    );
+
+    let tried = 0;
+
+    const { newState, newEvents } = await handleCommand(
+      eventStore,
+      shoppingCartId,
+      (state) => {
+        if (tried++ < 3) throw new ExpectedVersionConflictError(0, 1);
+        return addProductItem(command, state);
+      },
+      {
+        retry: { onVersionConflict: { retries: 3, factor: 1, minTimeout: 10 } },
+      },
+    );
+
+    assertEqual(4, tried);
+    assertThatArray(newEvents).hasSize(1);
+    assertDeepEqual(newState, {
+      productItems: [productItem, productItem],
+      totalAmount: productItem.price * productItem.quantity * 2,
+    });
+  });
+
+  void it('Does not retry if version conflict error is not thrown', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = randomUUID();
+    const command: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem },
+    };
+
+    let tried = 0;
+
+    const { newState, newEvents } = await handleCommand(
+      eventStore,
+      shoppingCartId,
+      (state) => {
+        tried++;
+        return addProductItem(command, state);
+      },
+      {
+        retry: { onVersionConflict: 5 },
+      },
+    );
+
+    assertEqual(1, tried);
+    assertThatArray(newEvents).hasSize(1);
+    assertDeepEqual(newState, {
+      productItems: [productItem],
+      totalAmount: productItem.price * productItem.quantity,
+    });
+  });
+
+  void it('Correctly handles no retries on version conflict when retry is disabled', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = randomUUID();
+    const command: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem },
+    };
+
+    // Create the stream
+    await handleCommand(
+      eventStore,
+      shoppingCartId,
+      (state) => addProductItem(command, state),
+      { expectedStreamVersion: 'STREAM_DOES_NOT_EXIST' },
+    );
+
+    let tried = 0;
+
+    await assertThrowsAsync(
+      async () => {
+        await handleCommand(eventStore, shoppingCartId, () => {
+          tried++;
+          throw new ExpectedVersionConflictError(0, 1);
+        });
+      },
+      (error) => error instanceof ExpectedVersionConflictError,
+    );
+
+    assertEqual(1, tried);
   });
 });
