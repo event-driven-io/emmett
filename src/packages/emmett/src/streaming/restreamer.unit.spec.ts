@@ -1,6 +1,6 @@
-import streams, { type ReadableStream } from '@event-driven-io/emmett-shims';
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
+import { ReadableStream } from 'web-streams-polyfill';
 import { assertEqual } from '../testing';
 import type { DefaultRecord } from '../typing';
 import { collect } from './collectors/collect';
@@ -16,7 +16,7 @@ const MAX_CHUNK_SIZE = 1024; // Define a maximum chunk size for splitting
 function createChunkedJsonSourceStream(
   objects: DefaultRecord[],
 ): ReadableStream<string> {
-  return new streams.ReadableStream({
+  return new ReadableStream({
     start(controller) {
       try {
         for (const obj of objects) {
@@ -38,7 +38,7 @@ function createChunkedJsonSourceStream(
 function createChunkedBinarySourceStream(
   objects: DefaultRecord[],
 ): ReadableStream<Uint8Array> {
-  return new streams.ReadableStream({
+  return new ReadableStream({
     start(controller) {
       try {
         for (const obj of objects) {
@@ -60,7 +60,7 @@ function createChunkedBinarySourceStream(
 function createObjectModeSourceStream(
   objects: DefaultRecord[],
 ): ReadableStream<DefaultRecord> {
-  return new streams.ReadableStream({
+  return new ReadableStream({
     start(controller) {
       try {
         for (const obj of objects) {
@@ -159,7 +159,7 @@ void describe('restreamer', () => {
 
     // Stream factory to create a new stream for each retry
     const sourceStreamFactory = (): ReadableStream<DefaultRecord> => {
-      return new streams.ReadableStream<DefaultRecord>({
+      return new ReadableStream<DefaultRecord>({
         start(controller) {
           try {
             for (const obj of objects) {
@@ -196,7 +196,7 @@ void describe('restreamer', () => {
       { id: 3, data: 'C'.repeat(1000) }, // This will not be fully sent
     ];
 
-    const sourceStream = new streams.ReadableStream<DefaultRecord>({
+    const sourceStream = new ReadableStream<DefaultRecord>({
       start(controller) {
         try {
           for (let i = 0; i < objects.length; i++) {
@@ -236,7 +236,7 @@ void describe('restreamer', () => {
     let attempt = 0;
 
     const sourceStreamFactory = (): ReadableStream<DefaultRecord> => {
-      return new streams.ReadableStream<DefaultRecord>({
+      return new ReadableStream<DefaultRecord>({
         start(controller) {
           attempt++;
           try {
@@ -275,7 +275,7 @@ void describe('restreamer', () => {
       { id: 2, data: 'B'.repeat(500) },
     ];
 
-    const sourceStream = new streams.ReadableStream<DefaultRecord>({
+    const sourceStream = new ReadableStream<DefaultRecord>({
       start(controller) {
         let index = 0;
         function push() {
@@ -310,7 +310,7 @@ void describe('restreamer', () => {
       { id: 2, data: 'B'.repeat(500) },
     ];
 
-    const sourceStream = new streams.ReadableStream<DefaultRecord>({
+    const sourceStream = new ReadableStream<DefaultRecord>({
       start(controller) {
         try {
           for (const obj of objects) {
@@ -343,7 +343,7 @@ void describe('restreamer', () => {
       { id: 2, data: 'B'.repeat(500) },
     ];
 
-    const sourceStream = new streams.ReadableStream<DefaultRecord>({
+    const sourceStream = new ReadableStream<DefaultRecord>({
       start(controller) {
         try {
           for (const obj of objects) {
@@ -376,7 +376,7 @@ void describe('restreamer', () => {
       { id: 2, data: 'B'.repeat(500) },
     ];
 
-    const sourceStream = new streams.ReadableStream<DefaultRecord>({
+    const sourceStream = new ReadableStream<DefaultRecord>({
       start(controller) {
         try {
           for (const obj of objects) {
@@ -409,7 +409,7 @@ void describe('restreamer', () => {
       { id: 2, data: 'B'.repeat(500) },
     ];
 
-    const sourceStream = new streams.ReadableStream<DefaultRecord>({
+    const sourceStream = new ReadableStream<DefaultRecord>({
       start(controller) {
         try {
           for (const obj of objects) {
@@ -442,7 +442,7 @@ void describe('restreamer', () => {
       { id: 2, data: 'B'.repeat(500) },
     ];
 
-    const sourceStream = new streams.ReadableStream<DefaultRecord>({
+    const sourceStream = new ReadableStream<DefaultRecord>({
       start(controller) {
         try {
           for (const obj of objects) {
@@ -496,7 +496,7 @@ void describe('restreamer', () => {
         data: 'H'.repeat(3000),
       }).slice(0, 2000); // Incomplete JSON string
 
-      const sourceStream = new streams.ReadableStream<string>({
+      const sourceStream = new ReadableStream<string>({
         start(controller) {
           // Enqueue the incomplete chunk
           controller.enqueue(incompleteJsonString);
@@ -538,7 +538,7 @@ void describe('restreamer', () => {
         ]), // Binary encoded JSON with a newline: { "id": 2, "data": "Mixed data 2" }
       ];
 
-      const mixedSourceStream = new streams.ReadableStream<unknown>({
+      const mixedSourceStream = new ReadableStream<unknown>({
         start(controller) {
           try {
             for (const obj of objects) {
@@ -582,7 +582,7 @@ void describe('restreamer', () => {
       let attempt = 0;
 
       const sourceStreamFactory = (): ReadableStream<DefaultRecord> => {
-        return new streams.ReadableStream<DefaultRecord>({
+        return new ReadableStream<DefaultRecord>({
           start(controller) {
             attempt++;
             try {
@@ -620,7 +620,7 @@ void describe('restreamer', () => {
         { id: 12, data: 'L'.repeat(500) },
       ];
 
-      const sourceStream = new streams.ReadableStream<DefaultRecord>({
+      const sourceStream = new ReadableStream<DefaultRecord>({
         start(controller) {
           setTimeout(() => {
             try {
@@ -652,7 +652,7 @@ void describe('restreamer', () => {
     });
 
     void it('handles unrecoverable errors in source stream', async () => {
-      const sourceStream = new streams.ReadableStream<DefaultRecord>({
+      const sourceStream = new ReadableStream<DefaultRecord>({
         start(controller) {
           try {
             throw new Error('Unrecoverable stream error');
@@ -686,7 +686,7 @@ void describe('restreamer', () => {
         { id: 14, data: 'N'.repeat(500) },
       ];
 
-      const sourceStream = new streams.ReadableStream<DefaultRecord>({
+      const sourceStream = new ReadableStream<DefaultRecord>({
         start(controller) {
           try {
             for (const obj of objects) {
@@ -781,19 +781,18 @@ void describe('restreamer', () => {
         null,
       ];
 
-      const sparseSourceStream =
-        new streams.ReadableStream<DefaultRecord | null>({
-          start(controller) {
-            try {
-              for (const obj of objects) {
-                controller.enqueue(obj);
-              }
-              controller.close();
-            } catch (error) {
-              controller.error(error);
+      const sparseSourceStream = new ReadableStream<DefaultRecord | null>({
+        start(controller) {
+          try {
+            for (const obj of objects) {
+              controller.enqueue(obj);
             }
-          },
-        });
+            controller.close();
+          } catch (error) {
+            controller.error(error);
+          }
+        },
+      });
 
       const restreamer = restream(
         () => sparseSourceStream,
@@ -813,7 +812,7 @@ void describe('restreamer', () => {
         { id: 2, data: 'Quick data 2' },
       ];
 
-      const sourceStream = new streams.ReadableStream<DefaultRecord>({
+      const sourceStream = new ReadableStream<DefaultRecord>({
         start(controller) {
           try {
             for (const obj of objects) {
@@ -845,7 +844,7 @@ void describe('restreamer', () => {
         { id: 2, data: 'Slow data 2' },
       ];
 
-      const sourceStream = new streams.ReadableStream<DefaultRecord>({
+      const sourceStream = new ReadableStream<DefaultRecord>({
         start(controller) {
           let index = 0;
           function push() {

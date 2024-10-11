@@ -1,7 +1,4 @@
-import type {
-  ReadableStream,
-  TransformStream,
-} from '@event-driven-io/emmett-shims';
+import type { ReadableStream, TransformStream } from 'web-streams-polyfill';
 import { noMoreWritingOn } from './noMoreWritingOn';
 
 export const writeToStream = async <In, Out = In>(

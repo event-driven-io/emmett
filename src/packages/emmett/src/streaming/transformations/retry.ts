@@ -1,9 +1,9 @@
-import streams, {
+import {
   type ReadableStream,
   type ReadableStreamDefaultReadResult,
-  type TransformStream,
+  TransformStream,
   type TransformStreamDefaultController,
-} from '@event-driven-io/emmett-shims';
+} from 'web-streams-polyfill';
 import { type AsyncRetryOptions, asyncRetry } from '../../utils';
 
 export const retryStream = <
@@ -18,7 +18,7 @@ export const retryStream = <
   ) => Promise<void> | void,
   retryOptions: AsyncRetryOptions = { forever: true, minTimeout: 25 },
 ): TransformStream<Source, Transformed> =>
-  new streams.TransformStream<Source, Transformed>({
+  new TransformStream<Source, Transformed>({
     start(controller) {
       asyncRetry(
         () => onRestream(createSourceStream, handleChunk, controller),
