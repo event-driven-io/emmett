@@ -81,7 +81,13 @@ export const CommandHandler =
   async <Store extends EventStore<StreamVersion>>(
     store: Store,
     id: string,
-    handle: (state: State) => StreamEvent | StreamEvent[],
+    handle: (
+      state: State,
+    ) =>
+      | StreamEvent
+      | StreamEvent[]
+      | Promise<StreamEvent>
+      | Promise<StreamEvent[]>,
     handleOptions?: HandleOptions<StreamVersion, EventStore<StreamVersion>>,
   ): Promise<CommandHandlerResult<State, StreamEvent, StreamVersion>> =>
     asyncRetry(
@@ -116,7 +122,7 @@ export const CommandHandler =
           const currentStreamVersion = aggregationResult.currentStreamVersion;
 
           // 3. Run business logic
-          const result = handle(state);
+          const result = await handle(state);
 
           const newEvents = Array.isArray(result) ? result : [result];
 
