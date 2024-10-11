@@ -53,11 +53,19 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Pack Emmett Shims locally to tar file
+        shell: bash
+        run: echo "PACKAGE_FILENAME_SHIMS=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett-shims | jq -r '.[] | .filename')" >> $GITHUB_ENV
+
       - name: Pack Emmett locally to tar file
         shell: bash
         run: echo "PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq -r '.[] | .filename')" >> $GITHUB_ENV
 
-      - name: Use it in the compatibility test project
+      - name: Use Emmett shims in the compatibility test project
+        working-directory: ./src/e2e/esmCompatibility
+        run: npm install ${{ env.PACKAGE_FILENAME_SHIMS }}
+
+      - name: Use Emmett in the compatibility test project
         working-directory: ./src/e2e/esmCompatibility
         run: npm install ${{ env.PACKAGE_FILENAME }}
 
