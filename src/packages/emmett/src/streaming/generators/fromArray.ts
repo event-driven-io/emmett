@@ -1,7 +1,7 @@
-import streams from '@event-driven-io/emmett-shims';
+import { ReadableStream } from 'web-streams-polyfill';
 
 export const fromArray = <T>(chunks: T[]) =>
-  new streams.ReadableStream<T>({
+  new ReadableStream<T>({
     start(controller) {
       for (const chunk of chunks) controller.enqueue(chunk);
       controller.close();

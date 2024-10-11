@@ -1,8 +1,8 @@
-import streams from '@event-driven-io/emmett-shims';
+import { TransformStream } from 'web-streams-polyfill';
 
 export const take = <T>(limit: number) => new TakeTransformStream<T>(limit);
 
-export class TakeTransformStream<T> extends streams.TransformStream<T, T> {
+export class TakeTransformStream<T> extends TransformStream<T, T> {
   private count = 0;
   private limit: number;
 

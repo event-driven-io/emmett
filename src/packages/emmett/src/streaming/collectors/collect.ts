@@ -1,4 +1,4 @@
-import type { ReadableStream } from '@event-driven-io/emmett-shims';
+import type { ReadableStream } from 'web-streams-polyfill';
 
 export const collect = async <T>(stream: ReadableStream<T>): Promise<T[]> => {
   const results: T[] = [];
