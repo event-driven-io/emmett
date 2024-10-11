@@ -1,5 +1,5 @@
-import type { Event, Command } from '@event-driven-io/emmett';
-import { IllegalStateError, CommandHandler } from '@event-driven-io/emmett';
+import type { Command, Event } from '@event-driven-io/emmett';
+import { CommandHandler, IllegalStateError } from '@event-driven-io/emmett';
 import { match } from 'ts-pattern';
 
 export type CounterIncremented = Event<'CounterIncremented', { by: number }>;
@@ -113,4 +113,4 @@ export const evolve = (state: Counter, event: CounterEvent) => {
     .exhaustive();
 };
 
-export const handle = CommandHandler(evolve, initialState);
+export const handle = CommandHandler({ evolve, initialState });
