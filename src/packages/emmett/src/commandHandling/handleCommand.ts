@@ -56,7 +56,21 @@ export type CommandHandlerOptions<State, StreamEvent extends Event> = {
   evolve: (state: State, event: StreamEvent) => State;
   initialState: () => State;
   mapToStreamId?: (id: string) => string;
+  retry?: CommandHandlerRetryOptions;
 };
+
+export type HandleOptions<
+  StreamVersion,
+  Store extends EventStore<StreamVersion>,
+> = Parameters<Store['appendToStream']>[2] &
+  (
+    | {
+        expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
+      }
+    | {
+        retry?: CommandHandlerRetryOptions;
+      }
+  );
 
 export const CommandHandler =
   <State, StreamEvent extends Event, StreamVersion = DefaultStreamVersionType>(
@@ -66,15 +80,7 @@ export const CommandHandler =
     store: Store,
     id: string,
     handle: (state: State) => StreamEvent | StreamEvent[],
-    handleOptions?: Parameters<Store['appendToStream']>[2] &
-      (
-        | {
-            expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
-          }
-        | {
-            retry?: CommandHandlerRetryOptions;
-          }
-      ),
+    handleOptions?: HandleOptions<StreamVersion, EventStore<StreamVersion>>,
   ): Promise<CommandHandlerResult<State, StreamEvent, StreamVersion>> =>
     asyncRetry(
       async () => {
@@ -154,7 +160,7 @@ export const CommandHandler =
       fromCommandHandlerRetryOptions(
         handleOptions && 'retry' in handleOptions
           ? handleOptions.retry
-          : undefined,
+          : options.retry,
       ),
     );
 // #endregion command-handler
