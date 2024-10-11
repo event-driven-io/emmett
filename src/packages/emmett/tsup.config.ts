@@ -15,5 +15,8 @@ export default defineConfig({
   outDir: 'dist', //env === 'production' ? 'dist' : 'lib',
   entry: ['src/index.ts', 'src/cli.ts'],
   sourcemap: true,
-  tsconfig: 'tsconfig.build.json', // workaround for https://github.com/egoist/tsup/issues/571#issuecomment-1760052931
+  tsconfig: 'tsconfig.build.json', // workaround for https://github.com/egoist/tsup/issues/571#issuecomment-1760052931,
+  outExtension: ({ format }) => ({
+    js: format === 'esm' ? '.mjs' : '.js', // Use .mjs for ESM and .js for CJS
+  }),
 });

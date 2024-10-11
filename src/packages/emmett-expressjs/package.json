@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/emmett-expressjs",
-  "version": "0.20.0",
+  "version": "0.20.0-alpha.9",
   "type": "module",
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
@@ -31,17 +31,17 @@
   "exports": {
     ".": {
       "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
       },
       "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
       }
     }
   },
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "files": [
     "dist"
@@ -49,7 +49,7 @@
   "dependencies": {},
   "devDependencies": {},
   "peerDependencies": {
-    "@event-driven-io/emmett": "0.20.0",
+    "@event-driven-io/emmett": "0.20.0-alpha.9",
     "@types/express": "^4.17.21",
     "@types/supertest": "^6.0.2",
     "express": "^4.19.2",

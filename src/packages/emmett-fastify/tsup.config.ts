@@ -6,7 +6,7 @@ export default defineConfig({
   splitting: true,
   clean: true, // clean up the dist folder
   dts: true, // generate dts files
-  format: ['cjs', 'esm'], // generate cjs and esm files
+  format: ['esm', 'cjs'], // generate cjs and esm files
   minify: true, //env === 'production',
   bundle: true, //env === 'production',
   skipNodeModulesBundle: true,
@@ -16,4 +16,7 @@ export default defineConfig({
   entry: ['src/index.ts'],
   sourcemap: true,
   tsconfig: 'tsconfig.build.json', // workaround for https://github.com/egoist/tsup/issues/571#issuecomment-1760052931
+  outExtension: ({ format }) => ({
+    js: format === 'esm' ? '.mjs' : '.js', // Use .mjs for ESM and .js for CJS
+  }),
 });
