@@ -31,7 +31,7 @@ import {
   type ShoppingCartEvent,
 } from './shoppingCart';
 
-export const handle = CommandHandler(evolve, initialState);
+export const handle = CommandHandler({ evolve, initialState });
 
 export const getShoppingCartId = (clientId: string) =>
   `shopping_cart:${assertNotEmptyString(clientId)}:current`;
@@ -66,11 +66,8 @@ export const shoppingCartApi =
           metadata: { now: getCurrentTime() },
         };
 
-        await handle(
-          eventStore,
-          shoppingCartId,
-          (state) => addProductItem(command, state),
-          { expectedStreamVersion: 'STREAM_DOES_NOT_EXIST' },
+        await handle(eventStore, shoppingCartId, (state) =>
+          addProductItem(command, state),
         );
 
         return NoContent();
