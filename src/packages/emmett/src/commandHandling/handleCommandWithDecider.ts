@@ -1,14 +1,10 @@
-import type {
-  DefaultStreamVersionType,
-  EventStore,
-  ExpectedStreamVersion,
-} from '../eventStore';
+import type { DefaultStreamVersionType, EventStore } from '../eventStore';
 import type { Command, Event } from '../typing';
 import type { Decider } from '../typing/decider';
 import {
   CommandHandler,
   type CommandHandlerOptions,
-  type CommandHandlerRetryOptions,
+  type HandleOptions,
 } from './handleCommand';
 
 // #region command-handler
@@ -27,24 +23,21 @@ export const DeciderCommandHandler =
     StreamEvent extends Event,
     StreamVersion = DefaultStreamVersionType,
   >(
-    { decide, evolve, initialState }: Decider<State, CommandType, StreamEvent>,
-    mapToStreamId: (id: string) => string = (id) => id,
+    options: DeciderCommandHandlerOptions<State, CommandType, StreamEvent>,
   ) =>
   async (
     eventStore: EventStore<StreamVersion>,
     id: string,
     command: CommandType,
-    handleOptions?:
-      | {
-          expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
-        }
-      | {
-          retry?: CommandHandlerRetryOptions;
-        },
-  ) =>
-    CommandHandler<State, StreamEvent, StreamVersion>({
-      evolve,
-      initialState,
-      mapToStreamId,
-    })(eventStore, id, (state) => decide(command, state), handleOptions);
+    handleOptions?: HandleOptions<StreamVersion, EventStore<StreamVersion>>,
+  ) => {
+    const { decide, ...rest } = options;
+
+    return CommandHandler<State, StreamEvent, StreamVersion>(rest)(
+      eventStore,
+      id,
+      (state) => decide(command, state),
+      handleOptions,
+    );
+  };
 // #endregion command-handler
