@@ -88,10 +88,10 @@ const addProductItemWithDiscount = (
   ];
 };
 
-const handleCommand = CommandHandler<ShoppingCart, ShoppingCartEvent>(
+const handleCommand = CommandHandler<ShoppingCart, ShoppingCartEvent>({
   evolve,
   initialState,
-);
+});
 
 void describe('Command Handler', () => {
   const eventStore = getInMemoryEventStore();

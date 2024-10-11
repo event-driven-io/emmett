@@ -1,7 +1,7 @@
 import retry from 'async-retry';
 
 export type AsyncRetryOptions = retry.Options & {
-  shouldRetry?: (error: unknown) => boolean;
+  shouldRetryError?: (error: unknown) => boolean;
 };
 
 export const NoRetries: AsyncRetryOptions = { retries: 0 };
@@ -17,7 +17,7 @@ export const asyncRetry = async <T>(
       try {
         return await fn();
       } catch (error) {
-        if (opts?.shouldRetry && !opts.shouldRetry(error)) {
+        if (opts?.shouldRetryError && !opts.shouldRetryError(error)) {
           bail(error as Error);
         }
         throw error;

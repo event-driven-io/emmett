@@ -16,7 +16,7 @@ import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
 export const CommandHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
   {
     retries: 3,
-    shouldRetry: (error) => error instanceof ExpectedVersionConflictError,
+    shouldRetryError: (error) => error instanceof ExpectedVersionConflictError,
   };
 
 export type CommandHandlerRetryOptions =
@@ -52,17 +52,21 @@ export type CommandHandlerResult<
   newEvents: StreamEvent[];
 };
 
+export type CommandHandlerOptions<State, StreamEvent extends Event> = {
+  evolve: (state: State, event: StreamEvent) => State;
+  initialState: () => State;
+  mapToStreamId?: (id: string) => string;
+};
+
 export const CommandHandler =
   <State, StreamEvent extends Event, StreamVersion = DefaultStreamVersionType>(
-    evolve: (state: State, event: StreamEvent) => State,
-    initialState: () => State,
-    mapToStreamId: (id: string) => string = (id) => id,
+    options: CommandHandlerOptions<State, StreamEvent>,
   ) =>
   async <Store extends EventStore<StreamVersion>>(
     store: Store,
     id: string,
     handle: (state: State) => StreamEvent | StreamEvent[],
-    options?: Parameters<Store['appendToStream']>[2] &
+    handleOptions?: Parameters<Store['appendToStream']>[2] &
       (
         | {
             expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
@@ -79,6 +83,9 @@ export const CommandHandler =
           StreamVersion,
           CommandHandlerResult<State, StreamEvent, StreamVersion>
         >(store, async ({ eventStore }) => {
+          const { evolve, initialState } = options;
+          const mapToStreamId = options.mapToStreamId ?? ((id) => id);
+
           const streamName = mapToStreamId(id);
 
           // 1. Aggregate the stream
@@ -92,7 +99,7 @@ export const CommandHandler =
               // expected stream version is passed to fail fast
               // if stream is in the wrong state
               expectedStreamVersion:
-                options?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
+                handleOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
             },
           });
 
@@ -119,7 +126,7 @@ export const CommandHandler =
           // - current stream version got from stream aggregation,
           // - or expect stream not to exists otherwise.
           const expectedStreamVersion: ExpectedStreamVersion<StreamVersion> =
-            options?.expectedStreamVersion ??
+            handleOptions?.expectedStreamVersion ??
             (aggregationResult.streamExists
               ? (currentStreamVersion as ExpectedStreamVersion<StreamVersion>)
               : STREAM_DOES_NOT_EXIST);
@@ -129,7 +136,7 @@ export const CommandHandler =
             streamName,
             newEvents,
             {
-              ...options,
+              ...handleOptions,
               expectedStreamVersion,
             },
           );
@@ -145,7 +152,9 @@ export const CommandHandler =
         return result;
       },
       fromCommandHandlerRetryOptions(
-        options && 'retry' in options ? options.retry : undefined,
+        handleOptions && 'retry' in handleOptions
+          ? handleOptions.retry
+          : undefined,
       ),
     );
 // #endregion command-handler
