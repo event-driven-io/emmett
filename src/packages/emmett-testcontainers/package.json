@@ -1,6 +1,7 @@
 {
   "name": "@event-driven-io/emmett-testcontainers",
-  "version": "0.14.1",
+  "version": "0.20.0",
+  "type": "module",
   "description": "Emmett - TestContainers - Event Sourcing development made simple",
   "scripts": {
     "build": "tsup",
@@ -30,26 +31,26 @@
   "exports": {
     ".": {
       "import": {
-        "types": "./dist/index.d.mts",
-        "default": "./dist/index.mjs"
-      },
-      "require": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
       }
     }
   },
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/emmett": "0.14.1",
-    "testcontainers": "^10.7.2"
+    "@event-driven-io/emmett": "0.20.0",
+    "testcontainers": "^10.12.0"
   },
   "devDependencies": {
-    "@eventstore/db-client": "^6.1.0"
+    "@eventstore/db-client": "^6.2.1"
   }
 }

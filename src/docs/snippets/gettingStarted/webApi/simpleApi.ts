@@ -27,7 +27,7 @@ import type {
 import type { ProductItem, ShoppingCartEvent } from '../events';
 import { evolve, initialState, type ShoppingCart } from '../shoppingCart';
 
-export const handle = CommandHandler(evolve, initialState);
+export const handle = CommandHandler({ evolve, initialState });
 
 export const getShoppingCartId = (clientId: string) =>
   `shopping_cart:${assertNotEmptyString(clientId)}:current`;

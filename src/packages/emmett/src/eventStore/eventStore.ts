@@ -1,4 +1,6 @@
+//import type { ReadableStream } from '@event-driven-io/emmett-shims';
 import type { Event, ReadEvent, ReadEventMetadata } from '../typing';
+//import type { GlobalSubscriptionEvent } from './events';
 import type { ExpectedStreamVersion } from './expectedVersion';
 
 // #region event-store
@@ -14,7 +16,7 @@ export interface EventStore<
       StreamVersion,
       ReadEventMetadataType
     >,
-  ): Promise<AggregateStreamResult<State, StreamVersion> | null>;
+  ): Promise<AggregateStreamResult<State, StreamVersion>>;
 
   readStream<EventType extends Event>(
     streamName: string,
@@ -26,10 +28,57 @@ export interface EventStore<
     events: EventType[],
     options?: AppendToStreamOptions<StreamVersion>,
   ): Promise<AppendToStreamResult<StreamVersion>>;
+
+  // streamEvents(): ReadableStream<
+  //   ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent
+  // >;
+}
+
+export type EventStoreSession<
+  EventStoreType extends EventStore<StreamVersion>,
+  StreamVersion = DefaultStreamVersionType,
+> = {
+  eventStore: EventStoreType;
+  close: () => Promise<void>;
+};
+
+export interface EventStoreSessionFactory<
+  EventStoreType extends EventStore<StreamVersion>,
+  StreamVersion = DefaultStreamVersionType,
+> {
+  withSession<T = unknown>(
+    callback: (
+      session: EventStoreSession<EventStoreType, StreamVersion>,
+    ) => Promise<T>,
+  ): Promise<T>;
 }
 
 export type DefaultStreamVersionType = bigint;
 // #endregion event-store
+
+export const canCreateEventStoreSession = <
+  Store extends EventStore<StreamVersion>,
+  StreamVersion = DefaultStreamVersionType,
+>(
+  eventStore: Store | EventStoreSessionFactory<Store, StreamVersion>,
+): eventStore is EventStoreSessionFactory<Store, StreamVersion> =>
+  'withSession' in eventStore;
+
+export const nulloSessionFactory = <
+  EventStoreType extends EventStore<StreamVersion>,
+  StreamVersion = DefaultStreamVersionType,
+>(
+  eventStore: EventStoreType,
+): EventStoreSessionFactory<EventStoreType, StreamVersion> => ({
+  withSession: (callback) => {
+    const nulloSession: EventStoreSession<EventStoreType, StreamVersion> = {
+      eventStore,
+      close: () => Promise.resolve(),
+    };
+
+    return callback(nulloSession);
+  },
+});
 
 ////////////////////////////////////////////////////////////////////
 /// ReadStream types
@@ -55,7 +104,8 @@ export type ReadStreamResult<
 > = {
   currentStreamVersion: StreamVersion;
   events: ReadEvent<EventType, ReadEventMetadataType>[];
-} | null;
+  streamExists: boolean;
+};
 
 ////////////////////////////////////////////////////////////////////
 /// AggregateStream types
@@ -90,6 +140,7 @@ export type AggregateStreamResult<
 > = {
   currentStreamVersion: StreamVersion;
   state: State;
+  streamExists: boolean;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -102,4 +153,5 @@ export type AppendToStreamOptions<StreamVersion = DefaultStreamVersionType> = {
 
 export type AppendToStreamResult<StreamVersion = DefaultStreamVersionType> = {
   nextExpectedStreamVersion: StreamVersion;
+  createdNewStream: boolean;
 };

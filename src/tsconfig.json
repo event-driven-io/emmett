@@ -6,16 +6,21 @@
   "compilerOptions": {
     "noEmit": true /* Do not emit outputs. */,
     "paths": {
+      "@event-driven-io/emmett-shims": ["./packages/emmett-shims/src"],
       "@event-driven-io/emmett": ["./packages/emmett/src"],
       "@event-driven-io/emmett-expressjs": ["./packages/emmett-expressjs/src"],
       "@event-driven-io/emmett-postgresql": [
         "./packages/emmett-postgresql/src"
       ],
       "@event-driven-io/emmett-esdb": ["./packages/emmett-esdb/src"],
-      "@event-driven-io/emmett-fastify": ["./packages/emmett-fastify/src"]
+      "@event-driven-io/emmett-fastify": ["./packages/emmett-fastify/src"],
+      "@event-driven-io/emmett-tests": ["./packages/emmett-tests/src"]
     }
   },
   "references": [
+    {
+      "path": "./packages/emmett-shims/"
+    },
     {
       "path": "./packages/emmett/"
     },
@@ -33,6 +38,9 @@
     },
     {
       "path": "./packages/emmett-fastify/"
+    },
+    {
+      "path": "./packages/emmett-tests"
     }
   ]
 }

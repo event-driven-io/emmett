@@ -10,11 +10,10 @@ export default defineConfig({
   minify: true, //env === 'production',
   bundle: true, //env === 'production',
   skipNodeModulesBundle: true,
-  entryPoints: ['src/index.ts'],
   watch: env === 'development',
   target: 'esnext',
   outDir: 'dist', //env === 'production' ? 'dist' : 'lib',
-  entry: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/**/*.internal.ts'], //include all files under src but not specs
+  entry: ['src/index.ts'],
   sourcemap: true,
   tsconfig: 'tsconfig.build.json', // workaround for https://github.com/egoist/tsup/issues/571#issuecomment-1760052931
 });

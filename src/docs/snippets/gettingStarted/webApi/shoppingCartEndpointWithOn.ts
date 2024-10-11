@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   CommandHandler,
   assertNotEmptyString,
@@ -12,7 +11,7 @@ import type { AddProductItemToShoppingCart } from '../commands';
 import { evolve, initialState } from '../shoppingCart';
 import { getShoppingCartId } from './simpleApi';
 
-const handle = CommandHandler(evolve, initialState);
+const handle = CommandHandler({ evolve, initialState });
 const router: Router = Router();
 
 const getUnitPrice = (_productId: string) => {

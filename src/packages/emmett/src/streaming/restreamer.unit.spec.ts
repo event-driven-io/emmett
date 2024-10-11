@@ -1,12 +1,12 @@
+import streams, { type ReadableStream } from '@event-driven-io/emmett-shims';
+import assert from 'node:assert';
 import { describe, it } from 'node:test';
-import { ReadableStream } from 'web-streams-polyfill';
+import { assertEqual } from '../testing';
 import type { DefaultRecord } from '../typing';
-import { collectStream } from './collect';
+import { collect } from './collectors/collect';
 import { DefaultDecoder } from './decoders/composite';
 import { JsonDecoder } from './decoders/json';
 import { restream } from './restream';
-import assert from 'node:assert';
-import { assertEqual } from '../testing';
 
 type TransformedObject = DefaultRecord & { transformed: true };
 
@@ -16,7 +16,7 @@ const MAX_CHUNK_SIZE = 1024; // Define a maximum chunk size for splitting
 function createChunkedJsonSourceStream(
   objects: DefaultRecord[],
 ): ReadableStream<string> {
-  return new ReadableStream({
+  return new streams.ReadableStream({
     start(controller) {
       try {
         for (const obj of objects) {
@@ -38,7 +38,7 @@ function createChunkedJsonSourceStream(
 function createChunkedBinarySourceStream(
   objects: DefaultRecord[],
 ): ReadableStream<Uint8Array> {
-  return new ReadableStream({
+  return new streams.ReadableStream({
     start(controller) {
       try {
         for (const obj of objects) {
@@ -60,7 +60,7 @@ function createChunkedBinarySourceStream(
 function createObjectModeSourceStream(
   objects: DefaultRecord[],
 ): ReadableStream<DefaultRecord> {
-  return new ReadableStream({
+  return new streams.ReadableStream({
     start(controller) {
       try {
         for (const obj of objects) {
@@ -91,7 +91,7 @@ void describe('restreamer', () => {
       { retries: 3, minTimeout: 25 },
     );
 
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     assertEqual(results.length, 2);
     assertEqual(results[0]!.transformed, true);
@@ -111,7 +111,7 @@ void describe('restreamer', () => {
       { retries: 3, minTimeout: 25 },
     );
 
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     assertEqual(results.length, 2);
     assertEqual(results[0]!.transformed, true);
@@ -130,7 +130,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Reduced minTimeout for faster testing
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     assertEqual(results.length, 2);
     assertEqual(results[0]!.transformed, true);
@@ -146,7 +146,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 },
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     assertEqual(results.length, 0);
   });
@@ -159,7 +159,7 @@ void describe('restreamer', () => {
 
     // Stream factory to create a new stream for each retry
     const sourceStreamFactory = (): ReadableStream<DefaultRecord> => {
-      return new ReadableStream<DefaultRecord>({
+      return new streams.ReadableStream<DefaultRecord>({
         start(controller) {
           try {
             for (const obj of objects) {
@@ -182,7 +182,7 @@ void describe('restreamer', () => {
     );
 
     try {
-      await collectStream(restreamer);
+      await collect(restreamer);
       assert.fail('Expected an error during stream processing');
     } catch (error) {
       assertEqual((error as Error).message, 'Source stream error');
@@ -196,7 +196,7 @@ void describe('restreamer', () => {
       { id: 3, data: 'C'.repeat(1000) }, // This will not be fully sent
     ];
 
-    const sourceStream = new ReadableStream<DefaultRecord>({
+    const sourceStream = new streams.ReadableStream<DefaultRecord>({
       start(controller) {
         try {
           for (let i = 0; i < objects.length; i++) {
@@ -219,7 +219,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should only have 2 transformed objects
     assertEqual(results.length, 2);
@@ -236,7 +236,7 @@ void describe('restreamer', () => {
     let attempt = 0;
 
     const sourceStreamFactory = (): ReadableStream<DefaultRecord> => {
-      return new ReadableStream<DefaultRecord>({
+      return new streams.ReadableStream<DefaultRecord>({
         start(controller) {
           attempt++;
           try {
@@ -261,7 +261,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 5, minTimeout: 25 }, // Retry options to handle transient errors
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should successfully recover and process all objects after retries
     assertEqual(results.length, 2);
@@ -275,7 +275,7 @@ void describe('restreamer', () => {
       { id: 2, data: 'B'.repeat(500) },
     ];
 
-    const sourceStream = new ReadableStream<DefaultRecord>({
+    const sourceStream = new streams.ReadableStream<DefaultRecord>({
       start(controller) {
         let index = 0;
         function push() {
@@ -296,7 +296,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should handle minTimeouted closure correctly
     assertEqual(results.length, 2);
@@ -310,7 +310,7 @@ void describe('restreamer', () => {
       { id: 2, data: 'B'.repeat(500) },
     ];
 
-    const sourceStream = new ReadableStream<DefaultRecord>({
+    const sourceStream = new streams.ReadableStream<DefaultRecord>({
       start(controller) {
         try {
           for (const obj of objects) {
@@ -329,7 +329,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should handle rapid closure correctly
     assertEqual(results.length, 2);
@@ -343,7 +343,7 @@ void describe('restreamer', () => {
       { id: 2, data: 'B'.repeat(500) },
     ];
 
-    const sourceStream = new ReadableStream<DefaultRecord>({
+    const sourceStream = new streams.ReadableStream<DefaultRecord>({
       start(controller) {
         try {
           for (const obj of objects) {
@@ -362,7 +362,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should handle rapid closure correctly
     assertEqual(results.length, 2);
@@ -376,7 +376,7 @@ void describe('restreamer', () => {
       { id: 2, data: 'B'.repeat(500) },
     ];
 
-    const sourceStream = new ReadableStream<DefaultRecord>({
+    const sourceStream = new streams.ReadableStream<DefaultRecord>({
       start(controller) {
         try {
           for (const obj of objects) {
@@ -395,7 +395,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should handle rapid closure correctly
     assertEqual(results.length, 2);
@@ -409,7 +409,7 @@ void describe('restreamer', () => {
       { id: 2, data: 'B'.repeat(500) },
     ];
 
-    const sourceStream = new ReadableStream<DefaultRecord>({
+    const sourceStream = new streams.ReadableStream<DefaultRecord>({
       start(controller) {
         try {
           for (const obj of objects) {
@@ -428,7 +428,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should handle rapid closure correctly
     assertEqual(results.length, 2);
@@ -442,7 +442,7 @@ void describe('restreamer', () => {
       { id: 2, data: 'B'.repeat(500) },
     ];
 
-    const sourceStream = new ReadableStream<DefaultRecord>({
+    const sourceStream = new streams.ReadableStream<DefaultRecord>({
       start(controller) {
         try {
           for (const obj of objects) {
@@ -461,7 +461,7 @@ void describe('restreamer', () => {
         ({ ...input, transformed: true }) as TransformedObject,
       { retries: 3, minTimeout: 25 }, // Retry options
     );
-    const results = await collectStream(restreamer);
+    const results = await collect(restreamer);
 
     // Should handle rapid closure correctly
     assertEqual(results.length, 2);
@@ -483,7 +483,7 @@ void describe('restreamer', () => {
           minTimeout: 25,
         },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 1);
       assertEqual(results[0]!.transformed, true);
@@ -496,7 +496,7 @@ void describe('restreamer', () => {
         data: 'H'.repeat(3000),
       }).slice(0, 2000); // Incomplete JSON string
 
-      const sourceStream = new ReadableStream<string>({
+      const sourceStream = new streams.ReadableStream<string>({
         start(controller) {
           // Enqueue the incomplete chunk
           controller.enqueue(incompleteJsonString);
@@ -516,7 +516,7 @@ void describe('restreamer', () => {
       );
 
       try {
-        await collectStream(restreamer);
+        await collect(restreamer);
         assert.fail('Expected an error due to incomplete final chunk');
       } catch (error) {
         // Adjust the expected error message to match the actual error thrown
@@ -538,7 +538,7 @@ void describe('restreamer', () => {
         ]), // Binary encoded JSON with a newline: { "id": 2, "data": "Mixed data 2" }
       ];
 
-      const mixedSourceStream = new ReadableStream<unknown>({
+      const mixedSourceStream = new streams.ReadableStream<unknown>({
         start(controller) {
           try {
             for (const obj of objects) {
@@ -563,7 +563,7 @@ void describe('restreamer', () => {
         { retries: 3, minTimeout: 25 },
         new DefaultDecoder(), // Use the default strategy to handle mixed data types
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       // Ensure that the mixed data types are processed correctly
       assertEqual(results.length, 4);
@@ -582,7 +582,7 @@ void describe('restreamer', () => {
       let attempt = 0;
 
       const sourceStreamFactory = (): ReadableStream<DefaultRecord> => {
-        return new ReadableStream<DefaultRecord>({
+        return new streams.ReadableStream<DefaultRecord>({
           start(controller) {
             attempt++;
             try {
@@ -607,7 +607,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 5, minTimeout: 25 }, // More retries to handle frequent errors
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 2);
       assertEqual(results[0]!.transformed, true);
@@ -620,7 +620,7 @@ void describe('restreamer', () => {
         { id: 12, data: 'L'.repeat(500) },
       ];
 
-      const sourceStream = new ReadableStream<DefaultRecord>({
+      const sourceStream = new streams.ReadableStream<DefaultRecord>({
         start(controller) {
           setTimeout(() => {
             try {
@@ -644,7 +644,7 @@ void describe('restreamer', () => {
           minTimeout: 25,
         },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 2);
       assertEqual(results[0]!.transformed, true);
@@ -652,7 +652,7 @@ void describe('restreamer', () => {
     });
 
     void it('handles unrecoverable errors in source stream', async () => {
-      const sourceStream = new ReadableStream<DefaultRecord>({
+      const sourceStream = new streams.ReadableStream<DefaultRecord>({
         start(controller) {
           try {
             throw new Error('Unrecoverable stream error');
@@ -673,7 +673,7 @@ void describe('restreamer', () => {
       );
 
       try {
-        await collectStream(restreamer);
+        await collect(restreamer);
         assert.fail('Expected an unrecoverable error');
       } catch (error) {
         assertEqual((error as Error).message, 'Unrecoverable stream error');
@@ -686,7 +686,7 @@ void describe('restreamer', () => {
         { id: 14, data: 'N'.repeat(500) },
       ];
 
-      const sourceStream = new ReadableStream<DefaultRecord>({
+      const sourceStream = new streams.ReadableStream<DefaultRecord>({
         start(controller) {
           try {
             for (const obj of objects) {
@@ -707,7 +707,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 2);
       assertEqual(results[0]!.transformed, true);
@@ -729,7 +729,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 10000);
       assert(results.every((item) => item.transformed === true));
@@ -748,7 +748,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 3);
       assertEqual(results[0]!.transformed, true);
@@ -768,7 +768,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 1);
       assertEqual(results[0]!.transformed, true);
@@ -781,18 +781,19 @@ void describe('restreamer', () => {
         null,
       ];
 
-      const sparseSourceStream = new ReadableStream<DefaultRecord | null>({
-        start(controller) {
-          try {
-            for (const obj of objects) {
-              controller.enqueue(obj);
+      const sparseSourceStream =
+        new streams.ReadableStream<DefaultRecord | null>({
+          start(controller) {
+            try {
+              for (const obj of objects) {
+                controller.enqueue(obj);
+              }
+              controller.close();
+            } catch (error) {
+              controller.error(error);
             }
-            controller.close();
-          } catch (error) {
-            controller.error(error);
-          }
-        },
-      });
+          },
+        });
 
       const restreamer = restream(
         () => sparseSourceStream,
@@ -800,7 +801,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 2); // Only two valid objects
       assertEqual(results[0]!.transformed, true);
@@ -812,7 +813,7 @@ void describe('restreamer', () => {
         { id: 2, data: 'Quick data 2' },
       ];
 
-      const sourceStream = new ReadableStream<DefaultRecord>({
+      const sourceStream = new streams.ReadableStream<DefaultRecord>({
         start(controller) {
           try {
             for (const obj of objects) {
@@ -831,7 +832,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 2);
       assertEqual(results[0]!.transformed, true);
@@ -844,7 +845,7 @@ void describe('restreamer', () => {
         { id: 2, data: 'Slow data 2' },
       ];
 
-      const sourceStream = new ReadableStream<DefaultRecord>({
+      const sourceStream = new streams.ReadableStream<DefaultRecord>({
         start(controller) {
           let index = 0;
           function push() {
@@ -865,7 +866,7 @@ void describe('restreamer', () => {
           ({ ...input, transformed: true }) as TransformedObject,
         { retries: 3, minTimeout: 25 },
       );
-      const results = await collectStream(restreamer);
+      const results = await collect(restreamer);
 
       assertEqual(results.length, 2);
       assertEqual(results[0]!.transformed, true);

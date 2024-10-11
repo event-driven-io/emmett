@@ -18,18 +18,21 @@ void describe('ShoppingCart', () => {
           type: 'AddProductItemToShoppingCart',
           data: {
             shoppingCartId,
+            clientId,
             productItem,
           },
-          metadata: { now },
+          metadata: { clientId, now },
         })
         .then([
           {
             type: 'ProductItemAddedToShoppingCart',
             data: {
               shoppingCartId,
+              clientId,
               productItem,
               addedAt: now,
             },
+            metadata: { clientId },
           },
         ]);
     });
@@ -41,16 +44,18 @@ void describe('ShoppingCart', () => {
         type: 'ProductItemAddedToShoppingCart',
         data: {
           shoppingCartId,
+          clientId,
           productItem,
           addedAt: oldTime,
         },
+        metadata: { clientId },
       })
         .when({
           type: 'ConfirmShoppingCart',
           data: {
             shoppingCartId,
           },
-          metadata: { now },
+          metadata: { clientId, now },
         })
         .then([
           {
@@ -59,6 +64,7 @@ void describe('ShoppingCart', () => {
               shoppingCartId,
               confirmedAt: now,
             },
+            metadata: { clientId },
           },
         ]);
     });
@@ -71,22 +77,26 @@ void describe('ShoppingCart', () => {
           type: 'ProductItemAddedToShoppingCart',
           data: {
             shoppingCartId,
+            clientId,
             productItem,
             addedAt: oldTime,
           },
+          metadata: { clientId },
         },
         {
           type: 'ShoppingCartConfirmed',
           data: { shoppingCartId, confirmedAt: oldTime },
+          metadata: { clientId },
         },
       ])
         .when({
           type: 'AddProductItemToShoppingCart',
           data: {
             shoppingCartId,
+            clientId,
             productItem,
           },
-          metadata: { now },
+          metadata: { clientId, now },
         })
         .thenThrows(
           (error: Error) => error.message === 'Shopping Cart already closed',
@@ -104,6 +114,7 @@ void describe('ShoppingCart', () => {
   const oldTime = new Date();
   const now = new Date();
   const shoppingCartId = randomUUID();
+  const clientId = randomUUID();
 
   const productItem = getRandomProduct();
 });

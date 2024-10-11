@@ -1,8 +1,11 @@
+import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import {
+  assertDeepEqual,
   assertEqual,
+  assertFalse,
   assertIsNotNull,
-  assertIsNull,
   assertMatches,
+  assertTrue,
   type Event,
 } from '@event-driven-io/emmett';
 import {
@@ -10,9 +13,9 @@ import {
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
-import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { createEventStoreSchema } from '.';
+import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
 import { appendToStream } from './appendToStream';
 import { readStream } from './readStream';
 
@@ -37,11 +40,11 @@ export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
 void describe('appendEvent', () => {
   let postgres: StartedPostgreSqlContainer;
-  let pool: pg.Pool;
+  let pool: Dumbo;
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
-    pool = new pg.Pool({
+    pool = dumbo({
       connectionString: postgres.getConnectionUri(),
     });
 
@@ -50,7 +53,7 @@ void describe('appendEvent', () => {
 
   after(async () => {
     try {
-      await pool.end();
+      await pool.close();
       await postgres.stop();
     } catch (error) {
       console.log(error);
@@ -60,7 +63,7 @@ void describe('appendEvent', () => {
   const events: ShoppingCartEvent[] = [
     {
       type: 'ProductItemAdded',
-      data: { productItem: { productId: '1', quantity: 2, price: 30 } },
+      data: { productItem: { productId: 'p1', quantity: 2, price: 30 } },
       metadata: { meta: 'data1' },
     },
     {
@@ -76,7 +79,7 @@ void describe('appendEvent', () => {
     await appendToStream(pool, streamId, 'shopping_cart', events);
 
     // When
-    const result = await readStream(pool, streamId);
+    const result = await readStream(pool.execute, streamId);
 
     // Then
     assertIsNotNull(result);
@@ -88,19 +91,26 @@ void describe('appendEvent', () => {
         ...e.metadata,
         streamName: streamId,
         streamPosition: BigInt(index + 1),
+        globalPosition: BigInt(index + 1),
       },
     }));
     assertMatches(result.events, expected);
+    assertTrue(result.streamExists);
   });
 
-  void it('returns null from non-existing stream', async () => {
+  void it('returns result with default information from non-existing stream', async () => {
     // Given
     const nonExistingStreamId = uuid();
 
     // When
-    const result = await readStream(pool, nonExistingStreamId);
+    const result = await readStream(pool.execute, nonExistingStreamId);
 
     // Then
-    assertIsNull(result);
+    assertEqual(
+      PostgreSQLEventStoreDefaultStreamVersion,
+      result.currentStreamVersion,
+    );
+    assertDeepEqual([], result.events);
+    assertFalse(result.streamExists);
   });
 });

@@ -31,7 +31,7 @@ import {
   type ShoppingCartEvent,
 } from './shoppingCart';
 
-export const handle = CommandHandler(evolve, initialState);
+export const handle = CommandHandler({ evolve, initialState });
 
 export const getShoppingCartId = (clientId: string) =>
   `shopping_cart:${assertNotEmptyString(clientId)}:current`;

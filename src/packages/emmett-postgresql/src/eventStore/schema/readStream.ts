@@ -1,4 +1,4 @@
-import { executeSQL, mapRows, sql } from '@event-driven-io/dumbo';
+import { mapRows, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   event,
   type DefaultStreamVersionType,
@@ -11,8 +11,8 @@ import {
   type ReadStreamOptions,
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
-import pg from 'pg';
 import { defaultTag, eventsTable } from './typing';
+import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
 
 type ReadStreamSqlResult<EventType extends Event> = {
   stream_position: string;
@@ -27,7 +27,7 @@ type ReadStreamSqlResult<EventType extends Event> = {
 };
 
 export const readStream = async <EventType extends Event>(
-  pool: pg.Pool,
+  execute: SQLExecutor,
   streamId: string,
   options?: ReadStreamOptions & { partition?: string },
 ): Promise<
@@ -54,8 +54,7 @@ export const readStream = async <EventType extends Event>(
 
   const events: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
     await mapRows(
-      executeSQL<ReadStreamSqlResult<EventType>>(
-        pool,
+      execute.query<ReadStreamSqlResult<EventType>>(
         sql(
           `SELECT stream_id, stream_position, global_position, event_data, event_metadata, event_schema_version, event_type, event_id
            FROM ${eventsTable.name}
@@ -89,6 +88,11 @@ export const readStream = async <EventType extends Event>(
         currentStreamVersion:
           events[events.length - 1]!.metadata.streamPosition,
         events,
+        streamExists: true,
       }
-    : null;
+    : {
+        currentStreamVersion: PostgreSQLEventStoreDefaultStreamVersion,
+        events: [],
+        streamExists: false,
+      };
 };

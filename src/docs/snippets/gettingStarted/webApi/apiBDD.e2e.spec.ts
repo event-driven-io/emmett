@@ -65,7 +65,7 @@ void describe('ShoppingCart E2E', () => {
         )
         .then([expectResponse(204)]));
 
-    void it('should return details', () =>
+    void it('returns details', () =>
       given(openedShoppingCartWithProduct)
         .when((request) =>
           request.get(`/clients/${clientId}/shopping-carts/current`).send(),

@@ -2,6 +2,7 @@ import {
   assertDeepEqual,
   assertEqual,
   assertIsNotNull,
+  projections,
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
@@ -9,40 +10,39 @@ import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
-import { after, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
-import {
-  testAggregateStream,
-  type EventStoreFactory,
-} from '../../../emmett/src/testing/features';
 import {
   type DiscountApplied,
   type PricedProductItem,
   type ProductItemAdded,
   type ShoppingCartEvent,
-} from '../../../emmett/src/testing/shoppingCart.domain';
+} from '../testing/shoppingCart.domain';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from './postgreSQLEventStore';
-import { inlineProjection } from './projections';
-import { pongoSingleProjection } from './projections/pongo';
+import { postgreSQLProjection } from './projections';
+import { pongoSingleStreamProjection } from './projections/pongo/projections';
 
-void describe('EventStoreDBEventStore', async () => {
+void describe('EventStoreDBEventStore', () => {
   let postgres: StartedPostgreSqlContainer;
   let eventStore: PostgresEventStore;
   let connectionString: string;
   let pongo: PongoClient;
 
-  const eventStoreFactory: EventStoreFactory = async () => {
+  before(async () => {
     postgres = await new PostgreSqlContainer().start();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString, {
-      projections: [shoppingCartShortInfoProjection, customProjection],
+      projections: projections.inline([
+        shoppingCartShortInfoProjection,
+        customProjection,
+      ]),
     });
     pongo = pongoClient(connectionString);
     return eventStore;
-  };
+  });
 
   after(async () => {
     try {
@@ -52,10 +52,6 @@ void describe('EventStoreDBEventStore', async () => {
     } catch (error) {
       console.log(error);
     }
-  });
-
-  await testAggregateStream(eventStoreFactory, {
-    getInitialIndex: () => 1n,
   });
 
   void it('should append events correctly using appendEvent function', async () => {
@@ -75,7 +71,10 @@ void describe('EventStoreDBEventStore', async () => {
       { type: 'ProductItemAdded', data: { productItem } },
     ]);
     await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
-      { type: 'DiscountApplied', data: { percent: discount } },
+      {
+        type: 'DiscountApplied',
+        data: { percent: discount, couponId: uuid() },
+      },
     ]);
 
     const shoppingCartShortInfo = pongo
@@ -92,6 +91,7 @@ void describe('EventStoreDBEventStore', async () => {
         _id: shoppingCartId,
         productItemsCount: 20,
         totalAmount: 54,
+        _version: 3n,
       },
     );
 
@@ -126,19 +126,20 @@ const evolve = (
         ...document,
         totalAmount: (document.totalAmount * (100 - event.percent)) / 100,
       };
+    default:
+      return document;
   }
 };
 
-const shoppingCartShortInfoProjection = pongoSingleProjection(
-  shoppingCartShortInfoCollectionName,
+const shoppingCartShortInfoProjection = pongoSingleStreamProjection({
+  collectionName: shoppingCartShortInfoCollectionName,
   evolve,
-  'ProductItemAdded',
-  'DiscountApplied',
-);
+  canHandle: ['ProductItemAdded', 'DiscountApplied'],
+});
 
 let handledEventsInCustomProjection: ReadEvent<ShoppingCartEvent>[] = [];
 
-const customProjection = inlineProjection<ShoppingCartEvent>({
+const customProjection = postgreSQLProjection<ShoppingCartEvent>({
   name: 'customProjection',
   canHandle: ['ProductItemAdded', 'DiscountApplied'],
   handle: (events) => {

@@ -1,20 +1,27 @@
-import { functionExists, tableExists } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  exists,
+  functionExists,
+  rawSql,
+  tableExists,
+  type Dumbo,
+} from '@event-driven-io/dumbo';
+import { assertTrue } from '@event-driven-io/emmett';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import assert from 'assert';
 import { after, before, describe, it } from 'node:test';
-import pg from 'pg';
 import { createEventStoreSchema } from '../schema';
 
 void describe('createEventStoreSchema', () => {
   let postgres: StartedPostgreSqlContainer;
-  let pool: pg.Pool;
+  let pool: Dumbo;
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
-    pool = new pg.Pool({
+    pool = dumbo({
       connectionString: postgres.getConnectionUri(),
     });
     await createEventStoreSchema(pool);
@@ -22,7 +29,7 @@ void describe('createEventStoreSchema', () => {
 
   after(async () => {
     try {
-      await pool.end();
+      await pool.close();
       await postgres.stop();
     } catch (error) {
       console.log(error);
@@ -82,39 +89,38 @@ void describe('createEventStoreSchema', () => {
   });
 
   void it('allows adding a module', async () => {
-    await pool.query(`SELECT add_module('test_module')`);
+    await pool.execute.query(rawSql(`SELECT add_module('test_module')`));
 
-    const res = await pool.query(`
+    const res = await exists(
+      pool.execute.query(
+        rawSql(`
       SELECT EXISTS (
         SELECT FROM pg_tables
         WHERE tablename = 'emt_events_test_module__global'
       ) AS exists;
-    `);
-
-    assert.strictEqual(
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      res.rows[0].exists,
-      true,
-      'Module partition was not created',
+    `),
+      ),
     );
+
+    assertTrue(res, 'Module partition was not created');
   });
 
   void it('should allow adding a tenant', async () => {
-    await pool.query(`SELECT add_tenant('test_module', 'test_tenant')`);
-
-    const res = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM pg_tables
-        WHERE tablename = 'emt_events_test_module__test_tenant'
-      ) AS exists;
-    `);
-
-    assert.strictEqual(
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      res.rows[0].exists,
-      true,
-      'Tenant partition was not created',
+    await pool.execute.query(
+      rawSql(`SELECT add_tenant('test_module', 'test_tenant')`),
     );
+
+    const res = await exists(
+      pool.execute.query(
+        rawSql(`
+          SELECT EXISTS (
+            SELECT FROM pg_tables
+            WHERE tablename = 'emt_events_test_module__test_tenant'
+          ) AS exists;`),
+      ),
+    );
+
+    assertTrue(res, 'Tenant partition was not created');
   });
 
   // void it('should allow adding a module for all tenants', async () => {

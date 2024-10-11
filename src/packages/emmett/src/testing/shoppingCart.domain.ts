@@ -15,7 +15,10 @@ export type ProductItemAdded = Event<
   'ProductItemAdded',
   { productItem: PricedProductItem }
 >;
-export type DiscountApplied = Event<'DiscountApplied', { percent: number }>;
+export type DiscountApplied = Event<
+  'DiscountApplied',
+  { percent: number; couponId: string }
+>;
 
 export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 

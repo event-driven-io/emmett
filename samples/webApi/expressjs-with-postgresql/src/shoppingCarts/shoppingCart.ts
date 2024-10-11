@@ -4,13 +4,17 @@ import type { Event } from '@event-driven-io/emmett';
 ////////// Events
 /////////////////////////////////////////
 
+export type ShoppingCartEventMetadata = { clientId: string };
+
 export type ProductItemAddedToShoppingCart = Event<
   'ProductItemAddedToShoppingCart',
   {
     shoppingCartId: string;
+    clientId: string;
     productItem: PricedProductItem;
     addedAt: Date;
-  }
+  },
+  ShoppingCartEventMetadata
 >;
 
 export type ProductItemRemovedFromShoppingCart = Event<
@@ -19,7 +23,8 @@ export type ProductItemRemovedFromShoppingCart = Event<
     shoppingCartId: string;
     productItem: PricedProductItem;
     removedAt: Date;
-  }
+  },
+  ShoppingCartEventMetadata
 >;
 
 export type ShoppingCartConfirmed = Event<
@@ -27,15 +32,17 @@ export type ShoppingCartConfirmed = Event<
   {
     shoppingCartId: string;
     confirmedAt: Date;
-  }
+  },
+  ShoppingCartEventMetadata
 >;
 
 export type ShoppingCartCancelled = Event<
   'ShoppingCartCancelled',
   {
     shoppingCartId: string;
-    canceledAt: Date;
-  }
+    cancelledAt: Date;
+  },
+  ShoppingCartEventMetadata
 >;
 
 export type ShoppingCartEvent =

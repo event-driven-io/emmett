@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   CommandHandler,
   IllegalStateError,
@@ -20,7 +19,7 @@ import { getShoppingCartId } from './simpleApi';
 
 // #region vertical-slice
 
-const handle = CommandHandler(evolve, initialState);
+const handle = CommandHandler({ evolve, initialState });
 
 type AddProductItemRequest = Request<
   Partial<{ clientId: string; shoppingCartId: string }>,

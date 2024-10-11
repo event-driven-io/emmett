@@ -1,19 +1,18 @@
-import { getInMemoryMessageBus } from '@event-driven-io/emmett';
+import { getInMemoryMessageBus, projections } from '@event-driven-io/emmett';
 import { getApplication, startAPI } from '@event-driven-io/emmett-expressjs';
+import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
+import { pongoClient } from '@event-driven-io/pongo';
 import type { Application } from 'express';
-import { shoppingCartApi } from './shoppingCarts/api';
-import type { ShoppingCartConfirmed } from './shoppingCarts/shoppingCart';
-
-import {
-  getPool,
-  getPostgreSQLEventStore,
-} from '@event-driven-io/emmett-postgresql';
+import shoppingCarts, { type ShoppingCartConfirmed } from './shoppingCarts';
 
 const connectionString =
   'postgresql://dbuser:secretpassword@database.server.com:3211/mydb';
 
-const pool = getPool(connectionString);
-const eventStore = getPostgreSQLEventStore(pool);
+const eventStore = getPostgreSQLEventStore(connectionString, {
+  projections: projections.inline(shoppingCarts.projections),
+});
+
+const readStore = pongoClient(connectionString);
 
 const inMemoryMessageBus = getInMemoryMessageBus();
 
@@ -26,15 +25,16 @@ const getUnitPrice = (_productId: string) => {
   return Promise.resolve(100);
 };
 
-const shoppingCarts = shoppingCartApi(
-  eventStore,
-  inMemoryMessageBus,
-  getUnitPrice,
-  () => new Date(),
-);
-
 const application: Application = getApplication({
-  apis: [shoppingCarts],
+  apis: [
+    shoppingCarts.api(
+      eventStore,
+      readStore.db(),
+      inMemoryMessageBus,
+      getUnitPrice,
+      () => new Date(),
+    ),
+  ],
 });
 
 startAPI(application);

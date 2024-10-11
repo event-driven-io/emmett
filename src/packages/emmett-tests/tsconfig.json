@@ -1,0 +1,31 @@
+{
+  "extends": "../../tsconfig.shared.json",
+  "include": ["./src/**/*"],
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "./dist" /* Redirect output structure to the directory. */,
+    "rootDir": "./src",
+    "paths": {
+      "@event-driven-io/emmett": ["../packages/emmett"],
+      "@event-driven-io/emmett-esdb": ["../packages/emmett-esdb"],
+      "@event-driven-io/emmett-postgresql": ["../packages/emmett-postgresql"],
+      "@event-driven-io/emmett-testcontainers": [
+        "../packages/emmett-testcontainers"
+      ]
+    }
+  },
+  "references": [
+    {
+      "path": "../emmett/"
+    },
+    {
+      "path": "../emmett-esdb/"
+    },
+    {
+      "path": "../emmett-postgresql/"
+    },
+    {
+      "path": "../emmett-testcontainers/"
+    }
+  ]
+}

@@ -6,7 +6,7 @@ type Primitive =
   | number
   | bigint
   | symbol
-  // eslint-disable-next-line @typescript-eslint/ban-types
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   | Function;
 type ImmutableTypes = Date | RegExp;
 
@@ -36,7 +36,7 @@ export type Mutable<T> = T extends Primitive
       ? MutableMap<K, V> // Handle ReadonlyMap
       : T extends ReadonlySet<infer M>
         ? MutableSet<M> // Handle ReadonlySet
-        : // eslint-disable-next-line @typescript-eslint/ban-types
+        : // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
           T extends Function
           ? T // Functions are returned as-is
           : T extends object

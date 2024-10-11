@@ -1,74 +1,47 @@
-import retry from 'async-retry';
 import {
-  ReadableStream,
-  ReadableStreamDefaultReader,
-  TransformStream,
-  TransformStreamDefaultController,
-} from 'web-streams-polyfill';
+  type ReadableStream,
+  type ReadableStreamDefaultReadResult,
+  type TransformStreamDefaultController,
+} from '@event-driven-io/emmett-shims';
 import type { Decoder } from './decoders';
 import { DefaultDecoder } from './decoders/composite';
+import { streamTransformations } from './transformations';
+import type { AsyncRetryOptions } from '../utils';
+
+const { retry } = streamTransformations;
 
 export const restream = <
   Source = unknown,
   Transformed = Source,
-  StreamType = object,
+  StreamType = Source,
 >(
   createSourceStream: () => ReadableStream<StreamType>,
   transform: (input: Source) => Transformed = (source) =>
     source as unknown as Transformed,
-  retryOptions: retry.Options = { forever: true, minTimeout: 25 },
+  retryOptions: AsyncRetryOptions = { forever: true, minTimeout: 25 },
   decoder: Decoder<StreamType, Source> = new DefaultDecoder<Source>(),
 ): ReadableStream<Transformed> =>
-  new TransformStream<Source, Transformed>({
-    start(controller) {
-      retry(
-        () => onRestream(createSourceStream, controller, transform, decoder),
-        retryOptions,
-      ).catch((error) => {
-        controller.error(error);
-      });
-    },
-  }).readable;
+  retry(createSourceStream, handleChunk(transform, decoder), retryOptions)
+    .readable;
 
-const onRestream = async <StreamType, Source, Transformed = Source>(
-  createSourceStream: () => ReadableStream<StreamType>,
-  controller: TransformStreamDefaultController<Transformed>,
-  transform: (input: Source) => Transformed,
-  decoder: Decoder<StreamType, Source>,
-): Promise<void> => {
-  const sourceStream = createSourceStream();
-  const reader = sourceStream.getReader();
-  try {
-    let done: boolean;
+const handleChunk =
+  <Source = unknown, Transformed = Source, StreamType = Source>(
+    transform: (input: Source) => Transformed = (source) =>
+      source as unknown as Transformed,
+    decoder: Decoder<StreamType, Source> = new DefaultDecoder<Source>(),
+  ) =>
+  (
+    readResult: ReadableStreamDefaultReadResult<StreamType>,
+    controller: TransformStreamDefaultController<Transformed>,
+  ): void => {
+    const { done: isDone, value } = readResult;
 
-    do {
-      done = await restreamChunk(reader, controller, transform, decoder);
-    } while (!done);
-  } finally {
-    reader.releaseLock();
-  }
-};
+    if (value) decoder.addToBuffer(value);
 
-const restreamChunk = async <StreamType, Source, Transformed = Source>(
-  reader: ReadableStreamDefaultReader<StreamType>,
-  controller: TransformStreamDefaultController<Transformed>,
-  transform: (input: Source) => Transformed,
-  decoder: Decoder<StreamType, Source>,
-): Promise<boolean> => {
-  const { done: isDone, value } = await reader.read();
+    if (!isDone && !decoder.hasCompleteMessage()) return;
 
-  if (value) decoder.addToBuffer(value);
-
-  if (!isDone && !decoder.hasCompleteMessage()) return false;
-
-  decodeAndTransform(decoder, transform, controller);
-
-  if (isDone) {
-    controller.terminate();
-  }
-
-  return isDone;
-};
+    decodeAndTransform(decoder, transform, controller);
+  };
 
 const decodeAndTransform = <StreamType, Source, Transformed = Source>(
   decoder: Decoder<StreamType, Source>,
@@ -77,7 +50,7 @@ const decodeAndTransform = <StreamType, Source, Transformed = Source>(
 ) => {
   try {
     const decoded = decoder.decode();
-    if (!decoded) return;
+    if (!decoded) return; // TODO: Add a proper handling of decode errors
 
     const transformed = transform(decoded);
     controller.enqueue(transformed);

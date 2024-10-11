@@ -7,6 +7,7 @@ export class AssertionError extends Error {
     super(message);
   }
 }
+
 export const isSubset = (superObj: unknown, subObj: unknown): boolean => {
   const sup = superObj as DefaultRecord;
   const sub = subObj as DefaultRecord;
@@ -53,6 +54,22 @@ export const assertThrows = <TError extends Error>(
     return typedError;
   }
 };
+
+export const assertRejects = async <T, TError extends Error = Error>(
+  promise: Promise<T>,
+  errorCheck?: ((error: TError) => boolean) | TError,
+) => {
+  try {
+    await promise;
+    throw new AssertionError("Function didn't throw expected error");
+  } catch (error) {
+    if (!errorCheck) return;
+
+    if (errorCheck instanceof Error) assertDeepEqual(error, errorCheck);
+    else assertTrue(errorCheck(error as TError));
+  }
+};
+
 export const assertMatches = (
   actual: unknown,
   expected: unknown,
@@ -71,6 +88,18 @@ export const assertDeepEqual = <T = unknown>(
   message?: string,
 ) => {
   if (!deepEquals(actual, expected))
+    throw new AssertionError(
+      message ??
+        `subObj:\n${JSONParser.stringify(expected)}\nis not equal to\n${JSONParser.stringify(actual)}`,
+    );
+};
+
+export const assertNotDeepEqual = <T = unknown>(
+  actual: T,
+  expected: T,
+  message?: string,
+) => {
+  if (deepEquals(actual, expected))
     throw new AssertionError(
       message ??
         `subObj:\n${JSONParser.stringify(expected)}\nis equals to\n${JSONParser.stringify(actual)}`,
@@ -111,8 +140,7 @@ export function assertEqual<T>(
 ): void {
   if (expected !== actual)
     throw new AssertionError(
-      message ??
-        `Objects are not equal:\nExpected: ${JSONParser.stringify(expected)}\nActual:${JSONParser.stringify(actual)}`,
+      `${message ?? 'Objects are not equal'}:\nExpected: ${JSONParser.stringify(expected)}\nActual:${JSONParser.stringify(actual)}`,
     );
 }
 
@@ -159,7 +187,7 @@ export const argMatches =
   (arg) =>
     matches(arg as T);
 
-// eslint-disable-next-line @typescript-eslint/ban-types
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 export type MockedFunction = Function & { mock?: { calls: Call[] } };
 
 export function verifyThat(fn: MockedFunction) {
@@ -221,6 +249,7 @@ export function verifyThat(fn: MockedFunction) {
 export const assertThatArray = <T>(array: T[]) => {
   return {
     isEmpty: () => assertEqual(array.length, 0),
+    isNotEmpty: () => assertNotEqual(array.length, 0),
     hasSize: (length: number) => assertEqual(array.length, length),
     containsElements: (...other: T[]) => {
       assertTrue(other.every((ts) => other.some((o) => deepEquals(ts, o))));

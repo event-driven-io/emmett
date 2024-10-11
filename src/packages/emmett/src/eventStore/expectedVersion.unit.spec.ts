@@ -8,48 +8,74 @@ import {
 } from './expectedVersion';
 
 void describe('matchesExpectedVersion', () => {
+  const defaultVersion = -123;
   void it('When NO_CONCURRENCY_CHECK provided returns `true` for any current version', () => {
-    const allCurrentVersions = [undefined, 0, -1, 1, 100, 'random', ''];
+    const allCurrentVersions = [defaultVersion, 0, -1, 1, 100, 'random', ''];
 
     for (const currentStreamVersion of allCurrentVersions) {
       assertOk(
-        matchesExpectedVersion(currentStreamVersion, NO_CONCURRENCY_CHECK),
+        matchesExpectedVersion(
+          currentStreamVersion,
+          NO_CONCURRENCY_CHECK,
+          defaultVersion,
+        ),
       );
     }
   });
 
-  void it('When STREAM_DOES_NOT_EXIST provided returns `true` for current equals `undefined`', () => {
-    assertOk(matchesExpectedVersion(undefined, STREAM_DOES_NOT_EXIST));
+  void it('When STREAM_DOES_NOT_EXIST provided returns `true` for current equals default version', () => {
+    assertOk(
+      matchesExpectedVersion(
+        defaultVersion,
+        STREAM_DOES_NOT_EXIST,
+        defaultVersion,
+      ),
+    );
   });
 
-  void it('When STREAM_DOES_NOT_EXIST provided returns `false` for current different than `undefined`', () => {
+  void it('When STREAM_DOES_NOT_EXIST provided returns `false` for current different than default version', () => {
     const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
 
     for (const currentStreamVersion of definedStreamVersion) {
       assertEqual(
-        matchesExpectedVersion(currentStreamVersion, STREAM_DOES_NOT_EXIST),
+        matchesExpectedVersion(
+          currentStreamVersion,
+          STREAM_DOES_NOT_EXIST,
+          defaultVersion,
+        ),
         false,
       );
     }
   });
 
-  void it('When STREAM_EXISTS provided returns `true` for current different than `undefined`', () => {
+  void it('When STREAM_EXISTS provided returns `true` for current different than default version', () => {
     const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
 
     for (const currentStreamVersion of definedStreamVersion) {
-      assertOk(matchesExpectedVersion(currentStreamVersion, STREAM_EXISTS));
+      assertOk(
+        matchesExpectedVersion(
+          currentStreamVersion,
+          STREAM_EXISTS,
+          defaultVersion,
+        ),
+      );
     }
   });
 
-  void it('When STREAM_EXISTS provided returns `false` for current equals `undefined`', () => {
-    assertEqual(matchesExpectedVersion(undefined, STREAM_EXISTS), false);
+  void it('When STREAM_EXISTS provided returns `false` for current equals default version', () => {
+    assertEqual(
+      matchesExpectedVersion(defaultVersion, STREAM_EXISTS, defaultVersion),
+      false,
+    );
   });
 
   void it('When value provided returns `true` for current matching expected value', () => {
     const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
 
     for (const streamVersion of definedStreamVersion) {
-      assertOk(matchesExpectedVersion(streamVersion, streamVersion));
+      assertOk(
+        matchesExpectedVersion(streamVersion, streamVersion, defaultVersion),
+      );
     }
   });
 
@@ -65,7 +91,11 @@ void describe('matchesExpectedVersion', () => {
 
     for (const streamVersion of definedStreamVersion) {
       assertEqual(
-        matchesExpectedVersion(streamVersion.current, streamVersion.expected),
+        matchesExpectedVersion(
+          streamVersion.current,
+          streamVersion.expected,
+          defaultVersion,
+        ),
         false,
       );
     }

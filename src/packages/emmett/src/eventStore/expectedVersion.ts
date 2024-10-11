@@ -26,12 +26,13 @@ export const matchesExpectedVersion = <
 >(
   current: StreamVersion | undefined,
   expected: ExpectedStreamVersion<StreamVersion>,
+  defaultVersion: StreamVersion,
 ): boolean => {
   if (expected === NO_CONCURRENCY_CHECK) return true;
 
-  if (expected == STREAM_DOES_NOT_EXIST) return current === undefined;
+  if (expected == STREAM_DOES_NOT_EXIST) return current === defaultVersion;
 
-  if (expected == STREAM_EXISTS) return current !== undefined;
+  if (expected == STREAM_EXISTS) return current !== defaultVersion;
 
   return current === expected;
 };
@@ -39,12 +40,13 @@ export const matchesExpectedVersion = <
 export const assertExpectedVersionMatchesCurrent = <
   StreamVersion = DefaultStreamVersionType,
 >(
-  current: StreamVersion | undefined,
+  current: StreamVersion,
   expected: ExpectedStreamVersion<StreamVersion> | undefined,
+  defaultVersion: StreamVersion,
 ): void => {
   expected ??= NO_CONCURRENCY_CHECK;
 
-  if (!matchesExpectedVersion(current, expected))
+  if (!matchesExpectedVersion(current, expected, defaultVersion))
     throw new ExpectedVersionConflictError(current, expected);
 };
 
@@ -52,7 +54,7 @@ export class ExpectedVersionConflictError<
   VersionType = DefaultStreamVersionType,
 > extends ConcurrencyError {
   constructor(
-    current: VersionType | undefined,
+    current: VersionType,
     expected: ExpectedStreamVersion<VersionType>,
   ) {
     super(current?.toString(), expected?.toString());
@@ -61,3 +63,8 @@ export class ExpectedVersionConflictError<
     Object.setPrototypeOf(this, ExpectedVersionConflictError.prototype);
   }
 }
+
+export const isExpectedVersionConflictError = (
+  error: unknown,
+): error is ExpectedVersionConflictError =>
+  error instanceof ExpectedVersionConflictError;

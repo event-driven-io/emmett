@@ -17,7 +17,7 @@ import { Router } from 'express';
 import { evolve, initialState } from '../shoppingCart';
 
 // Let's setup the command handler, we'll use it in endpoints
-const handle = CommandHandler(evolve, initialState);
+const handle = CommandHandler({ evolve, initialState });
 
 export const shoppingCartApi =
   (

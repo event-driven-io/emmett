@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 import { shoppingCartApi } from './simpleApi';
 
 const getUnitPrice = (_productId: string) => {
