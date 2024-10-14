@@ -2,11 +2,11 @@ import {
   type ReadableStream,
   type ReadableStreamDefaultReadResult,
   type TransformStreamDefaultController,
-} from '@event-driven-io/emmett-shims';
+} from 'web-streams-polyfill';
+import type { AsyncRetryOptions } from '../utils';
 import type { Decoder } from './decoders';
 import { DefaultDecoder } from './decoders/composite';
 import { streamTransformations } from './transformations';
-import type { AsyncRetryOptions } from '../utils';
 
 const { retry } = streamTransformations;
 
