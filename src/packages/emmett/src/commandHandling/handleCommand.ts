@@ -88,7 +88,7 @@ export const CommandHandler =
       | StreamEvent[]
       | Promise<StreamEvent>
       | Promise<StreamEvent[]>,
-    handleOptions?: HandleOptions<StreamVersion, EventStore<StreamVersion>>,
+    handleOptions?: HandleOptions<StreamVersion, Store>,
   ): Promise<CommandHandlerResult<State, StreamEvent, StreamVersion>> =>
     asyncRetry(
       async () => {
