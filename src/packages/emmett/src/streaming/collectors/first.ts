@@ -1,4 +1,4 @@
-import type { ReadableStream } from '@event-driven-io/emmett-shims';
+import type { ReadableStream } from 'web-streams-polyfill';
 import { EmmettError } from '../../errors';
 
 export const first = async <T>(stream: ReadableStream<T>): Promise<T> => {

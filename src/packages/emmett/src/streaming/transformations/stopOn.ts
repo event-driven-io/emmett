@@ -1,7 +1,7 @@
-import streams from '@event-driven-io/emmett-shims';
+import { TransformStream } from 'web-streams-polyfill';
 
 export const stopOn = <Item>(stopCondition: (item: Item) => boolean) =>
-  new streams.TransformStream<Item, Item>({
+  new TransformStream<Item, Item>({
     async transform(chunk, controller) {
       if (!stopCondition(chunk)) {
         controller.enqueue(chunk);

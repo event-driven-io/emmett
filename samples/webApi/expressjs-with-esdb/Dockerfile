@@ -42,7 +42,6 @@ WORKDIR /app
 
 # Copy published in previous stage binaries
 # from the `builder` image
-COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 
@@ -51,4 +50,4 @@ EXPOSE 3000
 
 # sets entry point command to automatically
 # run application on `docker run`
-ENTRYPOINT ["node", "./dist/index.js"]
+ENTRYPOINT ["node", "./dist/index.cjs"]
