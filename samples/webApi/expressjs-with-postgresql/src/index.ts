@@ -6,7 +6,8 @@ import type { Application } from 'express';
 import shoppingCarts, { type ShoppingCartConfirmed } from './shoppingCarts';
 
 const connectionString =
-  'postgresql://dbuser:secretpassword@database.server.com:3211/mydb';
+  process.env.POSTGRESQL_CONNECTION_STRING ??
+  'postgresql://postgres:postgres@localhost:5432/postgres';
 
 const eventStore = getPostgreSQLEventStore(connectionString, {
   projections: projections.inline(shoppingCarts.projections),

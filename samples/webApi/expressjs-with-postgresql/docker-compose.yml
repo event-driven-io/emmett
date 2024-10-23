@@ -9,7 +9,7 @@ services:
     container_name: emmett_api
     profiles: [app]
     environment:
-      - ESDB_CONNECTION_STRING=esdb://eventstoredb:2113?tls=false
+      - POSTGRESQL_CONNECTION_STRING=postgresql://postgres@postgres:5432/postgres
     networks:
       - postgresql_network
     ports:
