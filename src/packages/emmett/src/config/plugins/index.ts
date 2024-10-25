@@ -1,5 +1,3 @@
-import { Command as CliCommand } from 'commander';
-
 export type EmmettPluginConfig =
   | {
       name: string;
@@ -13,10 +11,14 @@ export type EmmettCliPluginRegistration = { pluginType: 'cli'; path?: string };
 
 export type EmmettPluginRegistration = EmmettCliPluginRegistration;
 
+export type EmmettCliCommand = {
+  addCommand<CliCommand>(command: CliCommand): CliCommand;
+};
+
 export type EmmettCliPlugin = {
   pluginType: 'cli';
   name: string;
-  registerCommands: (program: CliCommand) => Promise<void> | void;
+  registerCommands: (program: EmmettCliCommand) => Promise<void> | void;
 };
 
 export type EmmettPlugin = EmmettCliPlugin;

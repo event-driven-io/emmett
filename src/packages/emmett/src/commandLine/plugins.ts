@@ -2,6 +2,7 @@ import { Command as CliCommand } from 'commander';
 import path from 'path';
 import {
   isPluginConfig,
+  type EmmettCliCommand,
   type EmmettCliPlugin,
   type EmmettPlugin,
   type EmmettPluginConfig,
@@ -117,7 +118,7 @@ export const registerCliPlugins = async (
     if (!('registerCommands' in plugin)) {
       console.warn(`No registerCommands function found in ${pluginName}`);
     }
-    await plugin.registerCommands(program);
+    await plugin.registerCommands(program as EmmettCliCommand);
     console.log(`Loaded extension: ${plugin.name}`);
     result.push(plugin);
   }

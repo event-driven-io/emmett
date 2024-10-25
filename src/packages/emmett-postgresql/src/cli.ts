@@ -1,10 +1,13 @@
-import type { EmmettCliPlugin } from '@event-driven-io/emmett';
+import type {
+  EmmettCliCommand,
+  EmmettCliPlugin,
+} from '@event-driven-io/emmett';
 import { migrateCommand } from './commandLine';
 
 const cli: EmmettCliPlugin = {
   pluginType: 'cli',
   name: 'emmett-postgresql',
-  registerCommands: (program) => {
+  registerCommands: (program: EmmettCliCommand) => {
     program.addCommand(migrateCommand);
   },
 };
