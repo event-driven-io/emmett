@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/emmett",
   "type": "module",
-  "version": "0.20.2-alpha.4",
+  "version": "0.20.2-alpha.5",
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "build": "tsup",
@@ -70,7 +70,7 @@
     "emmett": "./dist/cli.js"
   },
   "peerDependencies": {
-    "@event-driven-io/emmett-shims": "0.20.2-alpha.4",
+    "@event-driven-io/emmett-shims": "0.20.2-alpha.5",
     "@types/async-retry": "^1.4.8",
     "@types/uuid": "^10.0.0",
     "async-retry": "^1.3.3",
