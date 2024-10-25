@@ -9,7 +9,7 @@ export default defineConfig([
     dts: true,
     format: ['esm', 'cjs'],
     // TODO: For some reason minified code doesn't work for cjs
-    minify: false, //env === 'production',
+    minify: true, //env === 'production',
     bundle: true, //env === 'production',
     skipNodeModulesBundle: true,
     watch: env === 'development',
