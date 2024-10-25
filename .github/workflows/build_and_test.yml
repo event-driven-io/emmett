@@ -83,9 +83,9 @@ jobs:
             echo "No errors found, proceeding..."
           fi
 
-      - name: Use Emmett shims in the browser compatibility test project
-        working-directory: ./src/e2e/browser
-        run: npm install ../esmCompatibility/${{ env.PACKAGE_FILENAME_SHIMS }}
+      # - name: Use Emmett shims in the browser compatibility test project
+      #   working-directory: ./src/e2e/browser
+      #   run: npm install ../esmCompatibility/${{ env.PACKAGE_FILENAME_SHIMS }}
 
       - name: Use Emmett in the browser compatibility test project
         working-directory: ./src/e2e/browser

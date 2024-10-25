@@ -4,11 +4,12 @@ const env = process.env.NODE_ENV;
 
 export default defineConfig([
   {
+    format: ['cjs'],
     splitting: true,
-    clean: true, // clean up the dist folder
-    dts: true, // generate dts files
-    format: ['esm'], // generate cjs and esm files
-    minify: true, //env === 'production',
+    clean: true,
+    dts: true,
+    // TODO: For some reason minified code doesn't work for cjs
+    minify: false, //env === 'production',
     bundle: true, //env === 'production',
     skipNodeModulesBundle: true,
     watch: env === 'development',
@@ -19,11 +20,11 @@ export default defineConfig([
     tsconfig: 'tsconfig.build.json', // workaround for https://github.com/egoist/tsup/issues/571#issuecomment-1760052931
   },
   {
-    splitting: false,
-    clean: true, // clean up the dist folder
-    dts: true, // generate dts files
-    format: ['cjs'], // generate cjs and esm files
-    minify: false, //env === 'production',
+    format: ['esm'],
+    splitting: true,
+    clean: true,
+    dts: true,
+    minify: true, //env === 'production',
     bundle: true, //env === 'production',
     skipNodeModulesBundle: true,
     watch: env === 'development',
