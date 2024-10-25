@@ -1,0 +1,22 @@
+{
+  "private": true,
+  "name": "emmett-browser-compatibilty-test",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Emmett's browser compatibility test",
+  "main": "index.js",
+  "scripts": {
+    "serve": "http-server . -p 8080",
+    "test": "node test.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "express": "^4.21.1",
+    "playwright": "^1.48.1"
+  },
+  "dependencies": {
+    "@event-driven-io/emmett": "^0.20.1"
+  }
+}

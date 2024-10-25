@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Browser Compatibility Test</title>
+    <!-- Import map to remap "uuid" to a CDN URL -->
+    <script type="importmap">
+      {
+        "imports": {
+          "uuid": "https://cdn.skypack.dev/uuid",
+          "web-streams-polyfill": "https://unpkg.com/web-streams-polyfill/dist/ponyfill.mjs",
+          "async-retry": "https://esm.sh/async-retry",
+          "@event-driven-io/emmett": "./node_modules/@event-driven-io/emmett/dist/index.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <!-- Load the bundled file -->
+    <!-- <script src="./node_modules/@event-driven-io/emmett/dist/index.js"></script> -->
+
+    <!-- Test script -->
+    <script type="module">
+      import { getInMemoryEventStore } from '@event-driven-io/emmett';
+
+      window.eventStore = getInMemoryEventStore();
+    </script>
+  </body>
+</html>
