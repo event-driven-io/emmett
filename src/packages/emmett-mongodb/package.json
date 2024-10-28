@@ -47,7 +47,7 @@
     "dist"
   ],
   "dependencies": {
-    "mongoose": "^8.7.3"
+    "mongodb": "^6.10.0"
   },
   "devDependencies": {
     "@event-driven-io/emmett-testcontainers": "0.20.2"

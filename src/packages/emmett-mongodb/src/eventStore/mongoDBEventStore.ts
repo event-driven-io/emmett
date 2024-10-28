@@ -10,12 +10,20 @@ import {
   type AppendToStreamResult,
   type ReadStreamOptions,
   type ReadStreamResult,
+  type ReadEvent,
   type ReadEventMetadata,
   type ExpectedStreamVersion,
 } from '@event-driven-io/emmett';
-import mongoose from 'mongoose';
+import {
+  type WithId,
+  type Collection,
+  type Db,
+  MongoClient,
+  ObjectId,
+} from 'mongodb';
 
 export const MongoDBEventStoreDefaultStreamVersion = -1;
+export const MongoDBDefaultCollectionName = 'eventstreams';
 
 export type StreamType = string;
 export type StreamName<T extends StreamType = StreamType> = `${T}:${string}`;
@@ -34,10 +42,9 @@ export type StreamToProject<EventType extends Event> = {
 };
 
 export interface EventStream {
-  _id: mongoose.ObjectId;
   streamName: string;
   events: Array<{
-    _id: mongoose.ObjectId;
+    _id: ObjectId;
     type: string;
     data: string;
     metadata: string;
@@ -45,45 +52,26 @@ export interface EventStream {
   createdAt: Date;
   updatedAt: Date;
 }
+export type EventStreamEvent = EventStream['events'][number];
 
-const eventStreamSchema = new mongoose.Schema(
-  {
-    streamName: {
-      type: String,
-      required: true,
-    },
-    events: {
-      type: [
-        {
-          type: {
-            type: String,
-            required: true,
-            enum: [],
-          },
-          data: {
-            type: String,
-            required: true,
-          },
-          metadata: {
-            type: String,
-            required: true,
-          },
-        },
-      ],
-      required: true,
-      default: [],
-    },
-  },
-  { timestamps: true },
-);
-eventStreamSchema.index({ streamName: 1 }, { unique: true });
+export interface MongoDBConnectionOptions {
+  connectionString: string;
+  database: string;
+  collection?: string;
+}
 
 class EventStoreClass implements EventStore<number> {
-  private readonly Model: mongoose.Model<EventStream>;
-  constructor(modelName: string) {
-    this.Model =
-      mongoose.models[modelName] ??
-      mongoose.model<EventStream>(modelName, eventStreamSchema);
+  private readonly client: MongoClient;
+  private readonly db: Db;
+  private readonly collection: Collection<EventStream>;
+
+  constructor(options: MongoDBConnectionOptions) {
+    this.client = new MongoClient(options.connectionString);
+    this.db = this.client.db(options.database);
+    this.collection = this.db.collection<EventStream>(
+      options.collection ?? MongoDBDefaultCollectionName,
+    );
+    this.collection.createIndex({ streamName: 1 }, { unique: true });
   }
 
   async readStream<EventType extends Event>(
@@ -91,7 +79,7 @@ class EventStoreClass implements EventStore<number> {
     options?: ReadStreamOptions<number>,
   ): Promise<Exclude<ReadStreamResult<EventType, number>, null>> {
     const expectedStreamVersion = options?.expectedStreamVersion;
-    const stream = await this.Model.findOne({
+    const stream = await this.collection.findOne({
       streamName: { $eq: streamName },
     });
 
@@ -138,35 +126,42 @@ class EventStoreClass implements EventStore<number> {
     events: EventType[],
     options?: AppendToStreamOptions<number> & {
       /**
-       * This will be ran after a the events have been successfully appended to
-       * the stream. `appendToStream` will return after the project is completed.
+       * These will be ran after a the events have been successfully appended to
+       * the stream. `appendToStream` will return after every projection is completed.
        */
-      project?: (stream: StreamToProject<EventType>) => void | Promise<void>;
+      projections?: Array<
+        (stream: StreamToProject<EventType>) => void | Promise<void>
+      >;
       /**
-       * Same as `options.project` but this will run asynchronously.
+       * Same as `options.projections` but this will run asynchronously.
        */
-      projectAsync?: (
-        stream: StreamToProject<EventType>,
-      ) => void | Promise<void>;
+      asyncProjections?: Array<
+        (stream: StreamToProject<EventType>) => void | Promise<void>
+      >;
     },
   ): Promise<AppendToStreamResult<number>> {
     const eventCreateInputs = events.map(this.stringifyEvent);
 
-    let stream = await this.Model.findOne({
+    let stream: WithId<EventStream> | null = await this.collection.findOne({
       streamName: { $eq: streamName },
-    }).lean();
+    });
     let createdNewStream = false;
 
     if (!stream) {
-      // @ts-expect-error
-      stream = await this.Model.create({
+      const result = await this.collection.insertOne({
         streamName,
         events: [],
-      }).then((d) => d.toObject());
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      stream = await this.collection.findOne({
+        _id: result.insertedId,
+      });
       createdNewStream = true;
     }
 
-    // NOTE: should never happen, the `create` call will throw an error if it fails
+    // TODO: better error here, should rarely happen if ever
+    // if another error was not thrown before this
     if (!stream) throw new Error('Failed to create stream');
 
     assertExpectedVersionMatchesCurrent(
@@ -175,20 +170,20 @@ class EventStoreClass implements EventStore<number> {
       MongoDBEventStoreDefaultStreamVersion,
     );
 
-    const updatedStream = await this.Model.findOneAndUpdate(
+    const updatedStream = await this.collection.findOneAndUpdate(
       {
         streamName: { $eq: streamName },
         events: { $size: stream.events.length },
+        updatedAt: new Date(),
       },
       { $push: { events: { $each: eventCreateInputs } } },
-      { new: true },
-    ).lean();
+      { returnDocument: 'after' },
+    );
 
     if (!updatedStream) {
-      const currentStream = await this.Model.findOne(
-        { streamName: { $eq: streamName } },
-        { events: true },
-      ).lean();
+      const currentStream = await this.collection.findOne({
+        streamName: { $eq: streamName },
+      });
       throw new ExpectedVersionConflictError(
         currentStream?.events.length ?? -1,
         stream.events.length,
@@ -196,24 +191,31 @@ class EventStoreClass implements EventStore<number> {
     }
 
     const { streamType, entityId } = fromStreamName(streamName);
-    if (options?.project) {
-      await options.project({
-        streamName,
-        streamType,
-        entityId,
-        streamVersion: updatedStream.events.length,
-        events: updatedStream.events.map(this.parseEvent(streamName)),
-      });
+
+    if (options?.projections) {
+      await Promise.all(
+        options.projections.map((project) =>
+          project({
+            streamName,
+            streamType,
+            entityId,
+            streamVersion: updatedStream.events.length,
+            events: updatedStream.events.map(this.parseEvent(streamName)),
+          }),
+        ),
+      );
     }
 
-    if (options?.projectAsync) {
-      options.projectAsync({
-        streamName,
-        streamType,
-        entityId,
-        streamVersion: updatedStream.events.length,
-        events: updatedStream.events.map(this.parseEvent(streamName)),
-      });
+    if (options?.asyncProjections) {
+      for (const project of options.asyncProjections) {
+        project({
+          streamName,
+          streamType,
+          entityId,
+          streamVersion: updatedStream.events.length,
+          events: updatedStream.events.map(this.parseEvent(streamName)),
+        });
+      }
     }
 
     return {
@@ -228,21 +230,24 @@ class EventStoreClass implements EventStore<number> {
    */
   private parseEvent<EventType extends Event>(streamName: StreamName) {
     return (
-      event: EventStream['events'][number],
+      event: EventStreamEvent,
       index?: number,
-    ): EventType => {
+    ): ReadEvent<EventType, ReadEventMetadata> => {
       const metadata = {
         ...JSON.parse(event.metadata),
         eventId: event._id,
         streamName,
         streamPosition: BigInt(index ?? 0),
       } satisfies ReadEventMetadata;
+
+      // TODO: is this correct?
+      // @ts-expect-error
       return {
         __brand: 'Event',
         type: event.type,
         data: JSON.parse(event.data),
         metadata,
-      } as EventType;
+      };
     };
   }
 
@@ -252,8 +257,9 @@ class EventStoreClass implements EventStore<number> {
    */
   private stringifyEvent<EventType extends Event>(
     event: EventType,
-  ): Omit<EventStream['events'][number], '_id'> {
+  ): EventStreamEvent {
     return {
+      _id: new ObjectId(),
       type: event.type,
       data: JSON.stringify(event.data),
       metadata: JSON.stringify(
@@ -265,8 +271,8 @@ class EventStoreClass implements EventStore<number> {
   }
 }
 
-export const getMongoDBEventStore = (modelName: string) => {
-  const eventStore = new EventStoreClass(modelName);
+export const getMongoDBEventStore = (options: MongoDBConnectionOptions) => {
+  const eventStore = new EventStoreClass(options);
   return eventStore;
 };
 

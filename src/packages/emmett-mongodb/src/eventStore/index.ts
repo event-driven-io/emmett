@@ -1,1 +1,1 @@
-export * from './eventstoreDBEventStore';
+export * from './mongoDBEventStore';
