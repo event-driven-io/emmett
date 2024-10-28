@@ -213,7 +213,6 @@ export const getMongoDBEventStore = async (
 ) => {
   const client = new MongoClient(options.connectionString);
   const db = client.db(options.database);
-  db.createCollection;
   const collection = db.collection<EventStream<Event>>(
     options.collection ?? MongoDBDefaultCollectionName,
   );
