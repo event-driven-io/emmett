@@ -46,13 +46,11 @@
   "files": [
     "dist"
   ],
-  "dependencies": {
-    "mongodb": "^6.10.0"
-  },
   "devDependencies": {
     "@event-driven-io/emmett-testcontainers": "0.20.2"
   },
   "peerDependencies": {
-    "@event-driven-io/emmett": "0.20.2"
+    "@event-driven-io/emmett": "0.20.2",
+    "mongodb": "^6.10.0"
   }
 }
