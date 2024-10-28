@@ -14,13 +14,7 @@ import {
   type ReadEventMetadata,
   type ExpectedStreamVersion,
 } from '@event-driven-io/emmett';
-import {
-  type WithId,
-  type Collection,
-  type Db,
-  MongoClient,
-  ObjectId,
-} from 'mongodb';
+import { type Collection, MongoClient, ObjectId } from 'mongodb';
 
 export const MongoDBEventStoreDefaultStreamVersion = -1;
 export const MongoDBDefaultCollectionName = 'eventstreams';
@@ -61,17 +55,10 @@ export interface MongoDBConnectionOptions {
 }
 
 class EventStoreClass implements EventStore<number> {
-  private readonly client: MongoClient;
-  private readonly db: Db;
   private readonly collection: Collection<EventStream>;
 
-  constructor(options: MongoDBConnectionOptions) {
-    this.client = new MongoClient(options.connectionString);
-    this.db = this.client.db(options.database);
-    this.collection = this.db.collection<EventStream>(
-      options.collection ?? MongoDBDefaultCollectionName,
-    );
-    this.collection.createIndex({ streamName: 1 }, { unique: true });
+  constructor(collection: typeof this.collection) {
+    this.collection = collection;
   }
 
   async readStream<EventType extends Event>(
@@ -142,7 +129,7 @@ class EventStoreClass implements EventStore<number> {
   ): Promise<AppendToStreamResult<number>> {
     const eventCreateInputs = events.map(this.stringifyEvent);
 
-    let stream: WithId<EventStream> | null = await this.collection.findOne({
+    let stream = await this.collection.findOne({
       streamName: { $eq: streamName },
     });
     let createdNewStream = false;
@@ -271,8 +258,16 @@ class EventStoreClass implements EventStore<number> {
   }
 }
 
-export const getMongoDBEventStore = (options: MongoDBConnectionOptions) => {
-  const eventStore = new EventStoreClass(options);
+export const getMongoDBEventStore = async (
+  options: MongoDBConnectionOptions,
+) => {
+  const client = new MongoClient(options.connectionString);
+  const db = client.db(options.database);
+  const collection = db.collection<EventStream>(
+    options.collection ?? MongoDBDefaultCollectionName,
+  );
+  await collection.createIndex({ streamName: 1 }, { unique: true });
+  const eventStore = new EventStoreClass(collection);
   return eventStore;
 };
 
