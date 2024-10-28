@@ -36,6 +36,10 @@ export type StreamToProject<EventType extends Event> = {
   events: ReadEvent<EventType, ReadEventMetadata>[];
 };
 
+export type Projection<EventType extends Event> = (
+  stream: StreamToProject<EventType>,
+) => void | Promise<void>;
+
 export interface EventStream<EventType extends Event> {
   streamName: string;
   events: Array<ReadEvent<EventType, ReadEventMetadata>>;
@@ -112,15 +116,7 @@ class EventStoreClass implements EventStore<number> {
        * These will be ran after a the events have been successfully appended to
        * the stream. `appendToStream` will return after every projection is completed.
        */
-      projections?: Array<
-        (stream: StreamToProject<EventType>) => void | Promise<void>
-      >;
-      /**
-       * Same as `options.projections` but this will run asynchronously.
-       */
-      asyncProjections?: Array<
-        (stream: StreamToProject<EventType>) => void | Promise<void>
-      >;
+      projections?: Array<Projection<EventType>>;
     },
   ): Promise<AppendToStreamResult<number>> {
     let stream = await this.collection.findOne({
@@ -194,31 +190,16 @@ class EventStoreClass implements EventStore<number> {
 
     const { streamType, entityId } = fromStreamName(streamName);
 
-    if (options?.projections) {
-      await Promise.all(
-        options.projections.map((project) =>
-          project({
-            streamName,
-            streamType,
-            entityId,
-            streamVersion: updatedStream.events.length,
-            events: updatedStream.events,
-          }),
-        ),
-      );
-    }
-
-    if (options?.asyncProjections) {
-      for (const project of options.asyncProjections) {
-        project({
-          streamName,
-          streamType,
-          entityId,
-          streamVersion: updatedStream.events.length,
-          events: updatedStream.events,
-        });
-      }
-    }
+    await executeProjections(
+      {
+        streamName,
+        streamType,
+        entityId,
+        streamVersion: updatedStream.events.length,
+        events: updatedStream.events,
+      },
+      options?.projections,
+    );
 
     return {
       nextExpectedStreamVersion: updatedStream.events.length,
@@ -240,6 +221,13 @@ export const getMongoDBEventStore = async (
   const eventStore = new EventStoreClass(collection);
   return eventStore;
 };
+
+function executeProjections<EventType extends Event>(
+  params: StreamToProject<EventType>,
+  projections?: Array<Projection<EventType>>,
+) {
+  return Promise.all((projections ?? []).map((project) => project(params)));
+}
 
 function maxEventIndex(
   expectedStreamVersion?: ExpectedStreamVersion<number>,
