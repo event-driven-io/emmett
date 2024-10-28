@@ -64,11 +64,11 @@ class EventStoreClass implements EventStore<number> {
   ): Promise<Exclude<ReadStreamResult<EventType, number>, null>> {
     const expectedStreamVersion = options?.expectedStreamVersion;
 
-    // @ts-expect-error
-    const stream: WithId<EventStream<EventType>> | null =
-      await this.collection.findOne({
-        streamName: { $eq: streamName },
-      });
+    const stream = await this.collection.findOne<
+      WithId<EventStream<EventType>>
+    >({
+      streamName: { $eq: streamName },
+    });
 
     if (!stream) {
       return {
@@ -168,7 +168,9 @@ class EventStoreClass implements EventStore<number> {
       MongoDBEventStoreDefaultStreamVersion,
     );
 
-    // @ts-expect-error
+    // @ts-expect-error The actual `EventType` is different across each stream document,
+    // but the collection was instantiated as being `EventStream<Event>`. Unlike `findOne`,
+    // `findOneAndUpdate` does not allow a generic to override what the return type is.
     const updatedStream: WithId<EventStream<EventType>> | null =
       await this.collection.findOneAndUpdate(
         {
