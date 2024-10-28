@@ -249,11 +249,10 @@ class EventStoreClass implements EventStore<number> {
       _id: new ObjectId(),
       type: event.type,
       data: JSON.stringify(event.data),
-      metadata: JSON.stringify(
-        event.metadata ?? {
-          now: new Date(),
-        },
-      ),
+      metadata: JSON.stringify({
+        ...(event.metadata ?? {}),
+        now: event.metadata?.now ?? new Date(),
+      }),
     };
   }
 }
@@ -263,6 +262,7 @@ export const getMongoDBEventStore = async (
 ) => {
   const client = new MongoClient(options.connectionString);
   const db = client.db(options.database);
+  db.createCollection;
   const collection = db.collection<EventStream>(
     options.collection ?? MongoDBDefaultCollectionName,
   );
