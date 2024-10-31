@@ -47,7 +47,8 @@
     "dist"
   ],
   "devDependencies": {
-    "@event-driven-io/emmett-testcontainers": "0.20.2"
+    "@event-driven-io/emmett-testcontainers": "0.20.2",
+    "@testcontainers/mongodb": "^10.13.2"
   },
   "peerDependencies": {
     "@event-driven-io/emmett": "0.20.2",
