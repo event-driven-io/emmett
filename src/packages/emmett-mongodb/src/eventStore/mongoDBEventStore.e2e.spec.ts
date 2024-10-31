@@ -22,8 +22,6 @@ import {
 const DB_NAME = 'mongodbeventstore_testing';
 const SHOPPING_CARD_INFO_COLLECTION_NAME = 'shoppingCartShortInfo';
 
-process.env.TESTCONTAINERS_DEBUG = 'true';
-
 void describe('EventStoreDBEventStore', () => {
   let mongodb: StartedMongoDBContainer;
   let eventStore: MongoDBEventStore;
