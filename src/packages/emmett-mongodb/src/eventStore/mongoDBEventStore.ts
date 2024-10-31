@@ -25,13 +25,13 @@ export type StreamName<T extends StreamType = StreamType> = `${T}:${string}`;
 
 export type StreamNameParts<T extends StreamType = StreamType> = {
   streamType: T;
-  entityId: string;
+  streamId: string;
 };
 
 export type StreamToProject<EventType extends Event> = {
   streamName: StreamName;
   streamType: StreamType;
-  entityId: string;
+  streamId: string;
   streamVersion: number;
   events: ReadEvent<EventType, ReadEventMetadata>[];
 };
@@ -188,13 +188,13 @@ class EventStoreClass implements EventStore<number> {
       );
     }
 
-    const { streamType, entityId } = fromStreamName(streamName);
+    const { streamType, streamId } = fromStreamName(streamName);
 
     await executeProjections(
       {
         streamName,
         streamType,
-        entityId,
+        streamId,
         streamVersion: updatedStream.events.length,
         events: updatedStream.events,
       },
@@ -246,20 +246,20 @@ function maxEventIndex(
 }
 
 /**
- * Accepts a `streamType` (the type/category of the event stream) and an `entityId`
+ * Accepts a `streamType` (the type/category of the event stream) and an `streamId`
  * (the individual entity/object or aggregate ID) and combines them to a singular
  * `streamName` which can be used in `EventStore`.
  */
 export function toStreamName<T extends StreamType>(
   streamType: T,
-  entityId: string,
+  streamId: string,
 ): StreamName<T> {
-  return `${streamType}:${entityId}`;
+  return `${streamType}:${streamId}`;
 }
 
 /**
  * Accepts a fully formatted `streamName` and returns the broken down
- * `streamType` and `entityId`.
+ * `streamType` and `streamId`.
  */
 export function fromStreamName<T extends StreamType>(
   streamName: StreamName<T>,
@@ -267,6 +267,6 @@ export function fromStreamName<T extends StreamType>(
   const parts = streamName.split(':') as [T, string];
   return {
     streamType: parts[0],
-    entityId: parts[1],
+    streamId: parts[1],
   };
 }
