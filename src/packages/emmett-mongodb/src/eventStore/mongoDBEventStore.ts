@@ -14,11 +14,10 @@ import {
   type ReadEventMetadata,
   type ExpectedStreamVersion,
 } from '@event-driven-io/emmett';
-import { type Collection, MongoClient, type WithId } from 'mongodb';
+import { type Collection, type WithId } from 'mongodb';
 import { v4 as uuid } from 'uuid';
 
 export const MongoDBEventStoreDefaultStreamVersion = 0;
-export const MongoDBDefaultCollectionName = 'eventstreams';
 
 export type StreamType = string;
 export type StreamName<T extends StreamType = StreamType> = `${T}:${string}`;
@@ -40,11 +39,11 @@ export type Projection<EventType extends Event> = (
   stream: StreamToProject<EventType>,
 ) => void | Promise<void>;
 
-export interface EventStream<EventType extends Event> {
+export interface EventStream<EventType extends Event = Event> {
   streamName: string;
   events: Array<ReadEvent<EventType, ReadEventMetadata>>;
 }
-export type EventStreamEvent<EventType extends Event> =
+export type EventStreamEvent<EventType extends Event = Event> =
   EventStream<EventType>['events'][number];
 
 export interface MongoDBConnectionOptions {
@@ -53,8 +52,8 @@ export interface MongoDBConnectionOptions {
   collection?: string;
 }
 
-class EventStoreClass implements EventStore<number> {
-  private readonly collection: Collection<EventStream<Event>>;
+export class MongoDBEventStore implements EventStore<number> {
+  private readonly collection: Collection<EventStream>;
 
   constructor(collection: typeof this.collection) {
     this.collection = collection;
@@ -203,16 +202,8 @@ class EventStoreClass implements EventStore<number> {
   }
 }
 
-export const getMongoDBEventStore = async (
-  options: MongoDBConnectionOptions,
-) => {
-  const client = new MongoClient(options.connectionString);
-  const db = client.db(options.database);
-  const collection = db.collection<EventStream<Event>>(
-    options.collection ?? MongoDBDefaultCollectionName,
-  );
-  await collection.createIndex({ streamName: 1 }, { unique: true });
-  const eventStore = new EventStoreClass(collection);
+export const getMongoDBEventStore = (collection: Collection<EventStream>) => {
+  const eventStore = new MongoDBEventStore(collection);
   return eventStore;
 };
 
