@@ -28,9 +28,7 @@ void describe('EventStoreDBEventStore', () => {
   let client: MongoClient;
 
   before(async () => {
-    mongodb = await new MongoDBContainer()
-      .withName('mongodbeventstore_testing')
-      .start();
+    mongodb = await new MongoDBContainer().start();
     client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
     });
