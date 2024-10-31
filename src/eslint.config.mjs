@@ -94,6 +94,7 @@ export default [
       'packages/**/src/testing/**',
       'docs/**',
       'packages/emmett-postgresql/**',
+      'packages/emmett-mongodb/**',
       'packages/emmett-esdb/**',
       'packages/emmett-expressjs/**',
       'packages/emmett-fastify/**',

@@ -12,6 +12,9 @@
       "@event-driven-io/emmett-postgresql": [
         "./packages/emmett-postgresql/src"
       ],
+      "@event-driven-io/emmett-mongodb": [
+        "./packages/emmett-mongodb/src"
+      ],
       "@event-driven-io/emmett-esdb": ["./packages/emmett-esdb/src"],
       "@event-driven-io/emmett-fastify": ["./packages/emmett-fastify/src"],
       "@event-driven-io/emmett-tests": ["./packages/emmett-tests/src"]
@@ -29,6 +32,9 @@
     },
     {
       "path": "./packages/emmett-postgresql/"
+    },
+    {
+      "path": "./packages/emmett-mongodb/"
     },
     {
       "path": "./packages/emmett-esdb/"

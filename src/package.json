@@ -93,6 +93,7 @@
     "packages/emmett-shims",
     "packages/emmett",
     "packages/emmett-postgresql",
+    "packages/emmett-mongodb",
     "packages/emmett-esdb",
     "packages/emmett-expressjs",
     "packages/emmett-testcontainers",
@@ -101,6 +102,7 @@
   ],
   "dependencies": {
     "@testcontainers/postgresql": "^10.10.3",
+    "@testcontainers/mongodb": "^10.13.2",
     "@types/benchmark": "^2.1.5",
     "0x": "^4.1.4",
     "benchmark": "^2.1.4",
