@@ -22,22 +22,26 @@ import {
 const DB_NAME = 'mongodbeventstore_testing';
 const SHOPPING_CARD_INFO_COLLECTION_NAME = 'shoppingCartShortInfo';
 
+process.env.TESTCONTAINERS_DEBUG = 'true';
+
 void describe('EventStoreDBEventStore', () => {
   let mongodb: StartedMongoDBContainer;
   let eventStore: MongoDBEventStore;
   let client: MongoClient;
 
   before(async () => {
-    mongodb = await new MongoDBContainer().start();
-    client = new MongoClient(mongodb.getConnectionString());
-
+    mongodb = await new MongoDBContainer()
+      .withName('mongodbeventstore_testing')
+      .start();
+    client = new MongoClient(mongodb.getConnectionString(), {
+      directConnection: true,
+    });
+    await client.connect();
     const db = client.db(DB_NAME);
     const collection = db.collection<EventStream>(
       'mongodbeventstore_testing_eventstreams',
     );
-    await collection.createIndex({ streamName: 1 }, { unique: true });
     eventStore = getMongoDBEventStore(collection);
-
     return eventStore;
   });
 
@@ -57,10 +61,16 @@ void describe('EventStoreDBEventStore', () => {
       price: 3,
     };
     const discount = 10;
-    const shoppingCartId = toStreamName('shopping_cart', uuid());
+    const shoppingCartId = uuid();
+
+    const shoppingCartShortInfo = client
+      .db()
+      .collection<
+        ShoppingCartShortInfo & { streamId: string; version: number }
+      >(SHOPPING_CARD_INFO_COLLECTION_NAME);
 
     await eventStore.appendToStream<ShoppingCartEvent>(
-      shoppingCartId,
+      toStreamName('shopping_cart', shoppingCartId),
       [
         { type: 'ProductItemAdded', data: { productItem } },
         { type: 'ProductItemAdded', data: { productItem } },
@@ -71,36 +81,33 @@ void describe('EventStoreDBEventStore', () => {
       ],
       {
         projections: [
-          async ({ events }) => {
+          async ({ events, streamVersion, streamId }) => {
             const state = events.reduce(evolve, null);
             if (state === null) return;
-            await client
-              .db(DB_NAME)
-              .collection(SHOPPING_CARD_INFO_COLLECTION_NAME)
-              .insertOne({ shoppingCartId, ...state });
+            await shoppingCartShortInfo.insertOne({
+              streamId,
+              version: streamVersion,
+              ...state,
+            });
           },
         ],
       },
     );
 
-    const shoppingCartShortInfo = client
-      .db()
-      .collection<ShoppingCartShortInfo>(SHOPPING_CARD_INFO_COLLECTION_NAME);
-
     const doc = await shoppingCartShortInfo.findOne({
-      shoppingCartId,
+      streamId: shoppingCartId,
     });
 
     assertIsNotNull(doc);
-    assertDeepEqual(
-      { ...doc, shoppingCartId },
-      {
-        shoppingCartId,
-        productItemsCount: 20,
-        totalAmount: 54,
-        _version: 3n,
-      },
-    );
+
+    const { _id, ...docWithoutId } = doc;
+
+    assertDeepEqual(docWithoutId, {
+      streamId: shoppingCartId,
+      version: 3,
+      productItemsCount: 20,
+      totalAmount: 54,
+    });
   });
 });
 
