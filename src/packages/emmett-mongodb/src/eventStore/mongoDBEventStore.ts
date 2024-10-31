@@ -17,7 +17,7 @@ import {
 import { type Collection, MongoClient, type WithId } from 'mongodb';
 import { v4 as uuid } from 'uuid';
 
-export const MongoDBEventStoreDefaultStreamVersion = -1;
+export const MongoDBEventStoreDefaultStreamVersion = 0;
 export const MongoDBDefaultCollectionName = 'eventstreams';
 
 export type StreamType = string;
