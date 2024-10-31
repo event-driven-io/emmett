@@ -43,8 +43,6 @@ export type Projection<EventType extends Event> = (
 export interface EventStream<EventType extends Event> {
   streamName: string;
   events: Array<ReadEvent<EventType, ReadEventMetadata>>;
-  createdAt: Date;
-  updatedAt: Date;
 }
 export type EventStreamEvent<EventType extends Event> =
   EventStream<EventType>['events'][number];
@@ -129,8 +127,6 @@ class EventStoreClass implements EventStore<number> {
       const result = await this.collection.insertOne({
         streamName,
         events: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
       });
       stream = await this.collection.findOne({
         _id: result.insertedId,
@@ -172,7 +168,6 @@ class EventStoreClass implements EventStore<number> {
         {
           streamName: { $eq: streamName },
           events: { $size: stream.events.length },
-          updatedAt: new Date(),
         },
         { $push: { events: { $each: eventCreateInputs } } },
         { returnDocument: 'after' },
