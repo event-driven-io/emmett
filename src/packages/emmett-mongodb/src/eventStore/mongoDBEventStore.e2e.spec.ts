@@ -1,9 +1,13 @@
-import { assertDeepEqual, assertIsNotNull } from '@event-driven-io/emmett';
+import {
+  assertDeepEqual,
+  assertEqual,
+  assertIsNotNull,
+} from '@event-driven-io/emmett';
 import {
   MongoDBContainer,
   type StartedMongoDBContainer,
 } from '@testcontainers/mongodb';
-import { MongoClient } from 'mongodb';
+import { type Collection, MongoClient } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
@@ -15,29 +19,41 @@ import {
 import {
   getMongoDBEventStore,
   toStreamName,
+  shortInfoProjection,
   type EventStream,
   type MongoDBEventStore,
 } from './mongoDBEventStore';
 
 const DB_NAME = 'mongodbeventstore_testing';
-const SHOPPING_CARD_INFO_COLLECTION_NAME = 'shoppingCartShortInfo';
 
 void describe('EventStoreDBEventStore', () => {
   let mongodb: StartedMongoDBContainer;
   let eventStore: MongoDBEventStore;
   let client: MongoClient;
+  let collection: Collection<EventStream>;
 
   before(async () => {
     mongodb = await new MongoDBContainer().start();
     client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
     });
+
     await client.connect();
     const db = client.db(DB_NAME);
-    const collection = db.collection<EventStream>(
+    collection = db.collection<EventStream>(
       'mongodbeventstore_testing_eventstreams',
     );
-    eventStore = getMongoDBEventStore(collection);
+
+    eventStore = getMongoDBEventStore({
+      collection,
+      projections: [
+        shortInfoProjection({
+          name: 'shoppingCartShortInfo',
+          canHandle: ['ProductItemAdded', 'DiscountApplied'],
+          evolve,
+        }),
+      ],
+    });
     return eventStore;
   });
 
@@ -58,15 +74,10 @@ void describe('EventStoreDBEventStore', () => {
     };
     const discount = 10;
     const shoppingCartId = uuid();
-
-    const shoppingCartShortInfo = client
-      .db()
-      .collection<
-        ShoppingCartShortInfo & { streamId: string; version: number }
-      >(SHOPPING_CARD_INFO_COLLECTION_NAME);
+    const streamName = toStreamName('shopping_cart', shoppingCartId);
 
     await eventStore.appendToStream<ShoppingCartEvent>(
-      toStreamName('shopping_cart', shoppingCartId),
+      streamName,
       [
         { type: 'ProductItemAdded', data: { productItem } },
         { type: 'ProductItemAdded', data: { productItem } },
@@ -75,32 +86,13 @@ void describe('EventStoreDBEventStore', () => {
           data: { percent: discount, couponId: uuid() },
         },
       ],
-      {
-        projections: [
-          async ({ events, streamVersion, streamId }) => {
-            const state = events.reduce(evolve, null);
-            if (state === null) return;
-            await shoppingCartShortInfo.insertOne({
-              streamId,
-              version: streamVersion,
-              ...state,
-            });
-          },
-        ],
-      },
+      {},
     );
 
-    const doc = await shoppingCartShortInfo.findOne({
-      streamId: shoppingCartId,
-    });
-
-    assertIsNotNull(doc);
-
-    const { _id, ...docWithoutId } = doc;
-
-    assertDeepEqual(docWithoutId, {
-      streamId: shoppingCartId,
-      version: 3,
+    const stream = await collection.findOne({ streamName });
+    assertIsNotNull(stream);
+    assertEqual('3', stream.metadata.streamPosition.toString());
+    assertDeepEqual(stream.projection.short, {
       productItemsCount: 20,
       totalAmount: 54,
     });
