@@ -30,3 +30,7 @@ export const eventsTable = {
     isArchived: columns.isArchived,
   },
 };
+
+export const subscriptionsTable = {
+  name: `${emmettPrefix}_subscriptions`,
+};

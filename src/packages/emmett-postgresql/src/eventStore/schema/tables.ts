@@ -1,5 +1,11 @@
 import { rawSql } from '@event-driven-io/dumbo';
-import { defaultTag, eventsTable, globalTag, streamsTable } from './typing';
+import {
+  defaultTag,
+  eventsTable,
+  globalTag,
+  streamsTable,
+  subscriptionsTable,
+} from './typing';
 
 export const streamsTableSQL = rawSql(
   `CREATE TABLE IF NOT EXISTS ${streamsTable.name}(
@@ -37,14 +43,14 @@ export const eventsTableSQL = rawSql(
 
 export const subscriptionsTableSQL = rawSql(
   `
-  CREATE TABLE IF NOT EXISTS emt_subscriptions(
-      subscription_id                 TEXT                   NOT NULL PRIMARY KEY,
+  CREATE TABLE IF NOT EXISTS ${subscriptionsTable.name}(
+      subscription_id                 TEXT                   NOT NULL,
       version                         INT                    NOT NULL DEFAULT 1,
-      module                          TEXT                   NULL,
-      tenant                          TEXT                   NULL,
+      partition                       TEXT                   NOT NULL DEFAULT '${globalTag}__${globalTag}',
       last_processed_position         BIGINT                 NOT NULL,
-      last_processed_transaction_id   BIGINT                 NOT NULL
-  );
+      last_processed_transaction_id   XID8                   NOT NULL,
+      PRIMARY KEY (subscription_id, version)
+  ) PARTITION BY LIST (partition);
 `,
 );
 
