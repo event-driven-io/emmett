@@ -37,7 +37,6 @@ export interface EventStream<
 > {
   streamName: string;
   events: Array<ReadEvent<EventType, ReadEventMetadata>>;
-  // TODO: storing metadata,
   metadata: {
     streamId: string;
     streamType: StreamType;
@@ -53,9 +52,6 @@ export interface EventStream<
 export type EventStreamEvent<EventType extends Event = Event> =
   EventStream<EventType>['events'][number];
 
-/*
- *  TODO: context for connection
- */
 export type MongoDBProjectionDefinition<
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
@@ -148,7 +144,6 @@ export class MongoDBEventStore implements EventStore {
         streamPositionSerializer({
           streamName,
           events: [],
-          // TODO:
           metadata: {
             streamId,
             streamType,
@@ -183,8 +178,7 @@ export class MongoDBEventStore implements EventStore {
       });
     }
 
-    // TODO: better error here, should rarely happen if ever
-    // if another error was not thrown before this
+    // TODO: error handling / implement retries
     if (!stream) throw new Error('Failed to create stream');
 
     assertExpectedVersionMatchesCurrent(
@@ -329,7 +323,7 @@ function maxEventIndex(
     }
   }
 
-  // TODO: possibly dangerous for very long event streams. May need to perform DB level
+  // TODO: possibly dangerous for very long event streams (overflow)?. May need to perform DB level
   // selections on the events that we return
   return Number(expectedStreamVersion);
 }
