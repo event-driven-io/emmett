@@ -35,7 +35,16 @@ export const assertThrowsAsync = async <TError extends Error>(
     await fun();
   } catch (error) {
     const typedError = error as TError;
-    if (errorCheck) assertTrue(errorCheck(typedError));
+    if (!errorCheck) {
+      assertFalse(
+        typedError instanceof AssertionError,
+        "Function didn't throw expected error",
+      );
+      return typedError;
+    }
+
+    assertTrue(errorCheck(typedError));
+
     return typedError;
   }
   throw new AssertionError("Function didn't throw expected error");
@@ -49,7 +58,16 @@ export const assertThrows = <TError extends Error>(
     fun();
   } catch (error) {
     const typedError = error as TError;
-    if (errorCheck) assertTrue(errorCheck(typedError));
+    if (!errorCheck) {
+      assertFalse(
+        typedError instanceof AssertionError,
+        "Function didn't throw expected error",
+      );
+      return typedError;
+    }
+
+    assertTrue(errorCheck(typedError));
+
     return typedError;
   }
   throw new AssertionError("Function didn't throw expected error");
@@ -116,14 +134,16 @@ export function assertFalse(
   condition: boolean,
   message?: string,
 ): asserts condition is false {
-  if (condition) throw new AssertionError(message ?? `Condition is false`);
+  if (condition !== false)
+    throw new AssertionError(message ?? `Condition is true`);
 }
 
 export function assertTrue(
   condition: boolean,
   message?: string,
 ): asserts condition is true {
-  if (!condition) throw new AssertionError(message ?? `Condition is false`);
+  if (condition !== true)
+    throw new AssertionError(message ?? `Condition is false`);
 }
 
 export function assertOk<T>(

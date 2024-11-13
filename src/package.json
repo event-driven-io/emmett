@@ -27,6 +27,7 @@
     "test:int:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.int.spec.ts",
     "test:e2e:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts",
     "test:file": "node --preserve-symlinks --import tsx --test",
+    "test:file:watch": "node --preserve-symlinks --import tsx --test --watch",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
