@@ -80,10 +80,21 @@ export class MongoDBEventStore implements EventStore {
     options?: ReadStreamOptions,
   ): Promise<Exclude<ReadStreamResult<EventType>, null>> {
     const expectedStreamVersion = options?.expectedStreamVersion;
+    const maxIdx = maxEventIndex(expectedStreamVersion);
+    const eventsSlice = maxIdx !== undefined ? { $slice: [0, maxIdx] } : 1;
 
     const stream = await this.collection.findOne<
-      WithId<EventStream<EventType>>
-    >({ streamName: { $eq: streamName } }, { useBigInt64: true });
+      WithId<Pick<EventStream<EventType>, 'metadata' | 'events'>>
+    >(
+      { streamName: { $eq: streamName } },
+      {
+        useBigInt64: true,
+        projection: {
+          metadata: 1,
+          events: eventsSlice,
+        },
+      },
+    );
 
     if (!stream) {
       return {
@@ -101,7 +112,7 @@ export class MongoDBEventStore implements EventStore {
 
     return {
       // TODO: remove `.slice`?
-      events: stream.events.slice(0, maxEventIndex(expectedStreamVersion)),
+      events: stream.events,
       currentStreamVersion: stream.metadata.streamPosition,
       streamExists: true,
     };
