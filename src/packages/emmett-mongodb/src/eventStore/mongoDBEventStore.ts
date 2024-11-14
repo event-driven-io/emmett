@@ -111,8 +111,8 @@ export class MongoDBEventStore implements EventStore {
     );
 
     return {
-      // TODO: remove `.slice`?
       events: stream.events,
+      // TODO: if returning a slice, do we change this to be the expected stream version?
       currentStreamVersion: stream.metadata.streamPosition,
       streamExists: true,
     };
