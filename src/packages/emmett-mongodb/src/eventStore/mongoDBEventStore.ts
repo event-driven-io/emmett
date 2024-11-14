@@ -13,12 +13,11 @@ import {
   type ReadEvent,
   type ReadEventMetadata,
   type ExpectedStreamVersion,
-  type EventMetaDataOf,
-  type TypedProjectionDefinition,
   type DefaultRecord,
   type CanHandle,
+  type TypedProjectionDefinition,
 } from '@event-driven-io/emmett';
-import { type Collection, type WithId } from 'mongodb';
+import { type Collection, type UpdateFilter, type WithId } from 'mongodb';
 import { v4 as uuid } from 'uuid';
 
 export const MongoDBEventStoreDefaultStreamVersion = 0n;
@@ -31,6 +30,12 @@ export type StreamNameParts<T extends StreamType = StreamType> = {
   streamId: string;
 };
 
+export interface EventStreamProjection<
+  ShortInfoType extends DefaultRecord = DefaultRecord,
+> {
+  details: { name?: string };
+  short: ShortInfoType | null;
+}
 export interface EventStream<
   EventType extends Event = Event,
   ShortInfoType extends DefaultRecord = DefaultRecord,
@@ -44,35 +49,59 @@ export interface EventStream<
     createdAt: Date;
     updatedAt: Date;
   };
-  projections: Array<{
-    details: { name?: string };
-    short: ShortInfoType | null;
-  }>;
+  projections: Record<string, EventStreamProjection<ShortInfoType>>;
 }
 
-export type MongoDBProjectionDefinition<
+export type MongoDBProjectionHandlerContext = {
+  streamName: StreamName;
+  collection: Collection<EventStream>;
+};
+
+type MongoDBAsyncProjection<EventType extends Event = Event> = {
+  type: 'async';
+  projection: TypedProjectionDefinition<EventType>;
+};
+
+type MongoDBInlineProjection<
   EventType extends Event = Event,
-  EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
-> = TypedProjectionDefinition<
-  EventType,
-  EventMetaDataType,
-  {
-    streamName: StreamName;
-    collection: Collection<EventStream>;
-  }
->;
+  ShortInfoType extends DefaultRecord = DefaultRecord,
+> = {
+  type: 'inline';
+  projection: {
+    name: string;
+    canHandle: CanHandle<EventType>;
+    handle: (
+      ...args: Parameters<
+        TypedProjectionDefinition<
+          EventType,
+          ReadEventMetadata,
+          MongoDBProjectionHandlerContext
+        >['handle']
+      >
+    ) =>
+      | Promise<EventStreamProjection<ShortInfoType>>
+      | EventStreamProjection<ShortInfoType>;
+  };
+};
+
+type MongoDBProjection = MongoDBAsyncProjection | MongoDBInlineProjection;
 
 export class MongoDBEventStore implements EventStore {
   private readonly collection: Collection<EventStream>;
-  private readonly projections?: MongoDBProjectionDefinition[];
+  private readonly inlineProjections?: MongoDBInlineProjection[];
+  private readonly asyncProjections?: MongoDBAsyncProjection[];
 
   constructor(options: {
     collection: Collection<EventStream>;
-    projections?: MongoDBProjectionDefinition[];
+    projections?: MongoDBProjection[];
   }) {
     this.collection = options.collection;
-    this.projections = options.projections;
+    this.inlineProjections = options.projections?.filter(
+      (p) => p.type === 'inline',
+    );
+    this.asyncProjections = options.projections?.filter(
+      (p) => p.type === 'async',
+    );
   }
 
   async readStream<EventType extends Event>(
@@ -105,7 +134,7 @@ export class MongoDBEventStore implements EventStore {
     }
 
     assertExpectedVersionMatchesCurrent(
-      stream.metadata.streamPosition,
+      BigInt(stream.events.length),
       expectedStreamVersion,
       MongoDBEventStoreDefaultStreamVersion,
     );
@@ -156,7 +185,7 @@ export class MongoDBEventStore implements EventStore {
           createdAt: now,
           updatedAt: now,
         },
-        projections: [],
+        projections: {},
       });
       stream = await this.collection.findOne(
         { _id: result.insertedId },
@@ -190,14 +219,36 @@ export class MongoDBEventStore implements EventStore {
       MongoDBEventStoreDefaultStreamVersion,
     );
 
-    if (this.projections) {
-      // Pre-commit
-      await handleProjections({
+    const updates: UpdateFilter<EventStream> = {
+      $push: { events: { $each: eventCreateInputs } },
+      $set: {
+        'metadata.updatedAt': new Date(),
+        'metadata.streamPosition':
+          stream.metadata.streamPosition + BigInt(events.length),
+      },
+    };
+
+    if (this.asyncProjections) {
+      // Pre-commit handle async projections
+      await handleAsyncProjections({
         streamName,
         events: eventCreateInputs,
-        projections: this.projections,
+        projections: this.asyncProjections,
         collection: this.collection,
       });
+    }
+
+    if (this.inlineProjections) {
+      const projections = filterProjections(
+        this.inlineProjections,
+        eventCreateInputs,
+      );
+      for (const { name, handle } of projections) {
+        updates.$set![`projections.${name}`] = await handle(eventCreateInputs, {
+          streamName,
+          collection: this.collection,
+        });
+      }
     }
 
     // @ts-expect-error The actual `EventType` is different across each stream document,
@@ -207,19 +258,9 @@ export class MongoDBEventStore implements EventStore {
       await this.collection.findOneAndUpdate(
         {
           streamName: { $eq: streamName },
-          'metadata.streamPosition': {
-            $eq: stream.metadata.streamPosition.toString(),
-          },
+          'metadata.streamPosition': stream.metadata.streamPosition,
         },
-        {
-          $push: { events: { $each: eventCreateInputs } },
-          $set: {
-            'metadata.updatedAt': new Date(),
-            'metadata.streamPosition': (
-              stream.metadata.streamPosition + BigInt(events.length)
-            ).toString(),
-          },
-        },
+        updates,
         { returnDocument: 'after', useBigInt64: true },
       );
 
@@ -248,21 +289,15 @@ export const getMongoDBEventStore = (
   return eventStore;
 };
 
-async function handleProjections<
+async function handleAsyncProjections<
   EventType extends Event = Event,
-  EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
 >(options: {
   streamName: StreamName;
-  events: ReadEvent<EventType, EventMetaDataType>[];
-  projections: MongoDBProjectionDefinition<EventType>[];
+  events: ReadEvent<EventType, ReadEventMetadata>[];
+  projections: MongoDBAsyncProjection[];
   collection: Collection<EventStream>;
 }) {
-  const eventTypes = options.events.map((e) => e.type);
-  const projections = options.projections.filter((p) =>
-    p.canHandle.some((t) => eventTypes.includes(t)),
-  );
-
+  const projections = filterProjections(options.projections, options.events);
   for (const { handle } of projections) {
     await handle(options.events, {
       streamName: options.streamName,
@@ -271,35 +306,42 @@ async function handleProjections<
   }
 }
 
-export function shortInfoProjection<
+function filterProjections<
+  Projection extends MongoDBAsyncProjection | MongoDBInlineProjection,
+>(projections: Projection[], events: ReadEvent[]) {
+  const eventTypes = events.map((e) => e.type);
+  const filteredProjections = projections
+    .map((p) => p.projection)
+    .filter((p) => p.canHandle.some((t) => eventTypes.includes(t)));
+  return filteredProjections;
+}
+
+export function mongoDBInlineProjection<
   EventType extends Event,
   ShortInfoType extends DefaultRecord,
 >(options: {
-  name?: string;
+  name: string;
   canHandle: CanHandle<EventType>;
   evolve: (state: ShortInfoType, event: EventType) => ShortInfoType;
-}): MongoDBProjectionDefinition {
+}): MongoDBInlineProjection {
   return {
-    name: options.name,
-    canHandle: options.canHandle,
-    handle: async (events, { streamName, collection }) => {
-      const state = events.reduce(
-        // @ts-expect-error TS issues
-        options.evolve,
-        null,
-      );
-      await collection.updateOne(
-        {
-          streamName,
-          // 'metadata.streamPosition': stream.metadata.streamPosition,
-        },
-        {
-          $set: {
-            'projection.details.name': options.name,
-            'projection.short': state,
-          },
-        },
-      );
+    type: 'inline',
+    projection: {
+      name: options.name,
+      canHandle: options.canHandle,
+      handle: async (events, { streamName, collection }) => {
+        const stream = await collection.findOne({ streamName });
+        const initialState = stream?.projections[options.name] ?? null;
+        const state = events.reduce(
+          // @ts-expect-error TS issues
+          options.evolve,
+          initialState,
+        );
+        return {
+          details: { name: options.name },
+          short: state,
+        };
+      },
     },
   };
 }

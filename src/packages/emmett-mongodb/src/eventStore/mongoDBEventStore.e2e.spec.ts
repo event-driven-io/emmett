@@ -1,4 +1,5 @@
 import {
+  assertDeepEqual,
   assertEqual,
   assertIsNotNull,
   assertTrue,
@@ -20,12 +21,13 @@ import {
 import {
   getMongoDBEventStore,
   toStreamName,
-  shortInfoProjection,
+  mongoDBInlineProjection,
   type EventStream,
   type MongoDBEventStore,
 } from './mongoDBEventStore';
 
 const DB_NAME = 'mongodbeventstore_testing';
+const SHOPPING_CART_PROJECTION_NAME = 'shoppingCartShortInfo';
 
 void describe('EventStoreDBEventStore', () => {
   let mongodb: StartedMongoDBContainer;
@@ -48,8 +50,8 @@ void describe('EventStoreDBEventStore', () => {
     eventStore = getMongoDBEventStore({
       collection,
       projections: [
-        shortInfoProjection({
-          name: 'shoppingCartShortInfo',
+        mongoDBInlineProjection({
+          name: SHOPPING_CART_PROJECTION_NAME,
           canHandle: ['ProductItemAdded', 'DiscountApplied'],
           evolve,
         }),
@@ -93,11 +95,10 @@ void describe('EventStoreDBEventStore', () => {
     const stream = await collection.findOne({ streamName });
     assertIsNotNull(stream);
     assertEqual('3', stream.metadata.streamPosition.toString());
-    // TODO: re-implement
-    // assertDeepEqual(stream.projection.short, {
-    //   productItemsCount: 20,
-    //   totalAmount: 54,
-    // });
+    assertDeepEqual(stream.projections[SHOPPING_CART_PROJECTION_NAME]?.short, {
+      productItemsCount: 20,
+      totalAmount: 54,
+    });
   });
 
   void it('should only return a subset of stream events based on expectedStreamVersion', async () => {
