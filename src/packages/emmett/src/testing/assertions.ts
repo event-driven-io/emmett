@@ -271,10 +271,14 @@ export const assertThatArray = <T>(array: T[]) => {
     isEmpty: () => assertEqual(array.length, 0),
     isNotEmpty: () => assertNotEqual(array.length, 0),
     hasSize: (length: number) => assertEqual(array.length, length),
-    containsElements: (...other: T[]) => {
-      assertTrue(other.every((ts) => other.some((o) => deepEquals(ts, o))));
+    containsElements: (other: T[]) => {
+      assertTrue(other.every((ts) => array.some((o) => deepEquals(ts, o))));
     },
-    containsExactlyInAnyOrder: (...other: T[]) => {
+    containsElementsMatching: (other: T[]) => {
+      assertMatches(array, other);
+      assertTrue(other.every((ts) => array.some((o) => isSubset(o, ts))));
+    },
+    containsExactlyInAnyOrder: (other: T[]) => {
       assertEqual(array.length, other.length);
       assertTrue(array.every((ts) => other.some((o) => deepEquals(ts, o))));
     },
@@ -302,7 +306,7 @@ export const assertThatArray = <T>(array: T[]) => {
           .filter((a) => a === 1).length === other.length,
       );
     },
-    containsAnyOf: (...other: T[]) => {
+    containsAnyOf: (other: T[]) => {
       assertTrue(array.some((a) => other.some((o) => deepEquals(a, o))));
     },
     allMatch: (matches: (item: T) => boolean) => {

@@ -208,7 +208,7 @@ export const assertSQLQueryResultMatches =
   async ({ pool: { execute } }) => {
     const result = await execute.query<T>(sql);
 
-    assertThatArray(rows).containsExactlyInAnyOrder(...result.rows);
+    assertThatArray(rows).containsExactlyInAnyOrder(result.rows);
   };
 
 export const expectSQL = {

@@ -49,7 +49,7 @@ export const subscriptionsTableSQL = rawSql(
       partition                       TEXT                   NOT NULL DEFAULT '${globalTag}__${globalTag}',
       last_processed_position         BIGINT                 NOT NULL,
       last_processed_transaction_id   XID8                   NOT NULL,
-      PRIMARY KEY (subscription_id, version)
+      PRIMARY KEY (subscription_id, partition, version)
   ) PARTITION BY LIST (partition);
 `,
 );
