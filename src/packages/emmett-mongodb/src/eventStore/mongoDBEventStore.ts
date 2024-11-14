@@ -44,13 +44,11 @@ export interface EventStream<
     createdAt: Date;
     updatedAt: Date;
   };
-  projection: {
+  projections: Array<{
     details: { name?: string };
     short: ShortInfoType | null;
-  };
+  }>;
 }
-export type EventStreamEvent<EventType extends Event = Event> =
-  EventStream<EventType>['events'][number];
 
 export type MongoDBProjectionDefinition<
   EventType extends Event = Event,
@@ -83,11 +81,9 @@ export class MongoDBEventStore implements EventStore {
   ): Promise<Exclude<ReadStreamResult<EventType>, null>> {
     const expectedStreamVersion = options?.expectedStreamVersion;
 
-    const stream = streamPositionDeserializer(
-      await this.collection.findOne<WithId<EventStream<EventType>>>({
-        streamName: { $eq: streamName },
-      }),
-    );
+    const stream = await this.collection.findOne<
+      WithId<EventStream<EventType>>
+    >({ streamName: { $eq: streamName } }, { useBigInt64: true });
 
     if (!stream) {
       return {
@@ -129,10 +125,9 @@ export class MongoDBEventStore implements EventStore {
     events: EventType[],
     options?: AppendToStreamOptions,
   ): Promise<AppendToStreamResult> {
-    let stream = streamPositionDeserializer(
-      await this.collection.findOne({
-        streamName: { $eq: streamName },
-      }),
+    let stream = await this.collection.findOne(
+      { streamName: { $eq: streamName } },
+      { useBigInt64: true },
     );
     let currentStreamPosition = stream?.metadata?.streamPosition ?? 0n;
     let createdNewStream = false;
@@ -140,24 +135,21 @@ export class MongoDBEventStore implements EventStore {
     if (!stream) {
       const { streamId, streamType } = fromStreamName(streamName);
       const now = new Date();
-      const result = await this.collection.insertOne(
-        streamPositionSerializer({
-          streamName,
-          events: [],
-          metadata: {
-            streamId,
-            streamType,
-            streamPosition: MongoDBEventStoreDefaultStreamVersion,
-            createdAt: now,
-            updatedAt: now,
-          },
-          projection: { details: {}, short: null },
-        }),
-      );
-      stream = streamPositionDeserializer(
-        await this.collection.findOne({
-          _id: result.insertedId,
-        }),
+      const result = await this.collection.insertOne({
+        streamName,
+        events: [],
+        metadata: {
+          streamId,
+          streamType,
+          streamPosition: MongoDBEventStoreDefaultStreamVersion,
+          createdAt: now,
+          updatedAt: now,
+        },
+        projections: [],
+      });
+      stream = await this.collection.findOne(
+        { _id: result.insertedId },
+        { useBigInt64: true },
       );
       createdNewStream = true;
     }
@@ -201,32 +193,29 @@ export class MongoDBEventStore implements EventStore {
     // but the collection was instantiated as being `EventStream<Event>`. Unlike `findOne`,
     // `findOneAndUpdate` does not allow a generic to override what the return type is.
     const updatedStream: WithId<EventStream<EventType>> | null =
-      streamPositionDeserializer(
-        await this.collection.findOneAndUpdate(
-          {
-            streamName: { $eq: streamName },
-            'metadata.streamPosition': {
-              $eq: stream.metadata.streamPosition.toString(),
-            },
+      await this.collection.findOneAndUpdate(
+        {
+          streamName: { $eq: streamName },
+          'metadata.streamPosition': {
+            $eq: stream.metadata.streamPosition.toString(),
           },
-          {
-            $push: { events: { $each: eventCreateInputs } },
-            $set: {
-              'metadata.updatedAt': new Date(),
-              'metadata.streamPosition': (
-                stream.metadata.streamPosition + BigInt(events.length)
-              ).toString(),
-            },
+        },
+        {
+          $push: { events: { $each: eventCreateInputs } },
+          $set: {
+            'metadata.updatedAt': new Date(),
+            'metadata.streamPosition': (
+              stream.metadata.streamPosition + BigInt(events.length)
+            ).toString(),
           },
-          { returnDocument: 'after' },
-        ),
+        },
+        { returnDocument: 'after', useBigInt64: true },
       );
 
     if (!updatedStream) {
-      const currentStream = streamPositionDeserializer(
-        await this.collection.findOne({
-          streamName: { $eq: streamName },
-        }),
+      const currentStream = await this.collection.findOne(
+        { streamName: { $eq: streamName } },
+        { useBigInt64: true },
       );
       throw new ExpectedVersionConflictError(
         currentStream?.metadata?.streamPosition ?? 0n,
@@ -283,20 +272,15 @@ export function shortInfoProjection<
     name: options.name,
     canHandle: options.canHandle,
     handle: async (events, { streamName, collection }) => {
-      const stream = await collection.findOne<
-        EventStream<EventType, ShortInfoType>
-      >({ streamName });
-      // TODO: error handling
-      if (!stream) throw new Error();
       const state = events.reduce(
         // @ts-expect-error TS issues
         options.evolve,
-        stream.projection.short,
+        null,
       );
       await collection.updateOne(
         {
           streamName,
-          'metadata.streamPosition': stream.metadata.streamPosition,
+          // 'metadata.streamPosition': stream.metadata.streamPosition,
         },
         {
           $set: {
@@ -352,29 +336,4 @@ export function fromStreamName<T extends StreamType>(
     streamType: parts[0],
     streamId: parts[1],
   };
-}
-
-/**
- * Converts the `stream.metadata.streamPosition` of the given `stream`
- * to a `string` value to be stored in MongoDB
- */
-function streamPositionSerializer<Stream extends EventStream>(
-  stream: Stream,
-): Stream {
-  // @ts-expect-error serializing as a `string`
-  stream.metadata.streamPosition = stream.metadata.streamPosition.toString();
-  return stream;
-}
-
-/**
- * Converts the `stream.metadata.streamPosition` of the given `stream`
- * to a `bigint` value to be used in application
- */
-function streamPositionDeserializer<Stream extends EventStream | null>(
-  stream: Stream,
-): Stream {
-  if (!stream) return stream;
-  if (typeof stream.metadata.streamPosition === 'bigint') return stream;
-  stream.metadata.streamPosition = BigInt(stream.metadata.streamPosition);
-  return stream;
 }
