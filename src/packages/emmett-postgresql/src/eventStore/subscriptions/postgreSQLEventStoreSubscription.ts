@@ -5,6 +5,7 @@ import {
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
+import { setTimeout } from 'timers';
 import {
   readMessagesBatch,
   type ReadMessagesBatchOptions,
@@ -71,10 +72,15 @@ const messageBatchPooler = <EventType extends Event = Event>({
   let isRunning = false;
 
   let start: Promise<void>;
+
   const pollMessages = async () => {
     const options: ReadMessagesBatchOptions = { from: 0n, batchSize };
+
+    let waitTime = 100;
+
     do {
-      const { events } = await readMessagesBatch(executor, options);
+      const { events, currentGlobalPosition, areEventsLeft } =
+        await readMessagesBatch(executor, options);
 
       for (const message of events) {
         const result = await eachMessage(
@@ -89,7 +95,14 @@ const messageBatchPooler = <EventType extends Event = Event>({
           }
         }
       }
-      options.from += BigInt(events.length);
+      options.from = currentGlobalPosition;
+
+      if (!areEventsLeft) {
+        waitTime = Math.min(waitTime * 2, 5000);
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+      } else {
+        waitTime = 0;
+      }
     } while (isRunning);
   };
 
