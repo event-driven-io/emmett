@@ -1,4 +1,5 @@
 import {
+  assertFails,
   assertFalse,
   assertThrowsAsync,
   assertTrue,
@@ -9,6 +10,10 @@ import {
 } from '@testcontainers/postgresql';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import {
+  getPostgreSQLEventStore,
+  type PostgresEventStore,
+} from '../postgreSQLEventStore';
+import {
   postgreSQLEventStoreSubscription,
   type PostgreSQLEventStoreSubscription,
 } from './postgreSQLEventStoreSubscription';
@@ -16,14 +21,18 @@ import {
 void describe('PostgreSQL event store subscriptions', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
+  let eventStore: PostgresEventStore;
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
     connectionString = postgres.getConnectionUri();
+    eventStore = getPostgreSQLEventStore(connectionString);
+    await eventStore.schema.migrate();
   });
 
   after(async () => {
     try {
+      await eventStore.close();
       await postgres.stop();
     } catch (error) {
       console.log(error);
@@ -31,7 +40,10 @@ void describe('PostgreSQL event store subscriptions', () => {
   });
 
   void it('creates not-started subscription for the specified connection string', () => {
-    const subscription = postgreSQLEventStoreSubscription({ connectionString });
+    const subscription = postgreSQLEventStoreSubscription({
+      connectionString,
+      eachMessage: () => {},
+    });
 
     assertFalse(subscription.isRunning);
   });
@@ -41,6 +53,7 @@ void describe('PostgreSQL event store subscriptions', () => {
       'postgresql://postgres:postgres@not-existing-database:5432/postgres';
     const subscription = postgreSQLEventStoreSubscription({
       connectionString: connectionStringToNotExistingDB,
+      eachMessage: () => {},
     });
 
     assertFalse(subscription.isRunning);
@@ -50,12 +63,15 @@ void describe('PostgreSQL event store subscriptions', () => {
     let subscription: PostgreSQLEventStoreSubscription;
 
     beforeEach(() => {
-      subscription = postgreSQLEventStoreSubscription({ connectionString });
+      subscription = postgreSQLEventStoreSubscription({
+        connectionString,
+        eachMessage: () => {},
+      });
     });
     afterEach(() => subscription.stop());
 
-    void it('subscribes to exsiting event store', async () => {
-      await subscription.subscribe();
+    void it('subscribes to existing event store', () => {
+      subscription.subscribe().catch(() => assertFails());
 
       assertTrue(subscription.isRunning);
     });
@@ -65,6 +81,7 @@ void describe('PostgreSQL event store subscriptions', () => {
         'postgresql://postgres:postgres@not-existing-database:5432/postgres';
       const subscriptionToNotExistingServer = postgreSQLEventStoreSubscription({
         connectionString: connectionStringToNotExistingDB,
+        eachMessage: () => {},
       });
       await assertThrowsAsync(() =>
         subscriptionToNotExistingServer.subscribe(),
@@ -89,7 +106,10 @@ void describe('PostgreSQL event store subscriptions', () => {
     let subscription: PostgreSQLEventStoreSubscription;
 
     beforeEach(() => {
-      subscription = postgreSQLEventStoreSubscription({ connectionString });
+      subscription = postgreSQLEventStoreSubscription({
+        connectionString,
+        eachMessage: () => {},
+      });
     });
     afterEach(() => subscription.stop());
 
