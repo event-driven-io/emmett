@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/emmett-shims",
-  "version": "0.21.1",
+  "version": "0.21.1-alpha.1",
   "type": "module",
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
