@@ -34,7 +34,7 @@ void describe('Postgres Projections', () => {
     });
   });
 
-  beforeEach(() => (shoppingCartId = `shoppingCart-${uuid()}`));
+  beforeEach(() => (shoppingCartId = `shoppingCart:${uuid()}:${uuid()}`));
 
   after(async () => {
     try {
