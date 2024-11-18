@@ -1,0 +1,14 @@
+{
+  "name": "emmett-bun-compatibility",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@event-driven-io/emmett": "^0.21.0"
+  }
+}

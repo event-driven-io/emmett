@@ -75,6 +75,7 @@
     "async-retry": "^1.3.3",
     "commander": "^12.1.0",
     "uuid": "^10.0.0",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "web-streams-polyfill": "^4.0.0"
   }
 }

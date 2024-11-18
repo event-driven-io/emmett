@@ -102,3 +102,14 @@ jobs:
       - name: Run browser compatibility test project
         working-directory: ./src/e2e/browser
         run: npm test
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install packages in Bun compatibility test project
+        working-directory: ./src/e2e/bun
+        run: bun install
+
+      - name: Run Bun compatibility test project
+        working-directory: ./src/e2e/bun
+        run: bun run index.ts

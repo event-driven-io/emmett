@@ -4,14 +4,6 @@
   "compilerOptions": {
     "composite": true,
     "outDir": "./dist" /* Redirect output structure to the directory. */,
-    "rootDir": "./src",
-    "paths": {
-      "@event-driven-io/emmett-shims": ["../packages/emmett-shims"]
-    }
-  },
-  "references": [
-    {
-      "path": "../emmett-shims/"
-    }
-  ]
+    "rootDir": "./src"
+  }
 }
