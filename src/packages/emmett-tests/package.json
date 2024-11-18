@@ -2,7 +2,7 @@
   "name": "@event-driven-io/emmett-tests",
   "type": "module",
   "private": true,
-  "version": "0.21.1",
+  "version": "0.21.1-alpha.1",
   "description": "Emmett - Internal E2E Tests",
   "scripts": {
     "build": "tsup",
@@ -55,10 +55,10 @@
     "dist"
   ],
   "devDependencies": {
-    "@event-driven-io/emmett": "0.21.1",
-    "@event-driven-io/emmett-esdb": "0.21.1",
-    "@event-driven-io/emmett-postgresql": "0.21.1",
-    "@event-driven-io/emmett-testcontainers": "0.21.1",
+    "@event-driven-io/emmett": "0.21.1-alpha.1",
+    "@event-driven-io/emmett-esdb": "0.21.1-alpha.1",
+    "@event-driven-io/emmett-postgresql": "0.21.1-alpha.1",
+    "@event-driven-io/emmett-testcontainers": "0.21.1-alpha.1",
     "@testcontainers/postgresql": "^10.12.0"
   }
 }
