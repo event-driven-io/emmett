@@ -63,6 +63,13 @@ const assertDocumentsEqual = <
       // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
       `Document ids are not matching! Expected: ${expected._id}, actual: ${actual._id}`,
     );
+  if ('_version' in expected)
+    assertEqual(
+      expected._version,
+      actual._version,
+      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+      `Document versions are not matching! Expected: ${expected._version}, actual: ${actual._version}`,
+    );
 
   return assertDeepEqual(
     withoutIdAndVersion(actual),

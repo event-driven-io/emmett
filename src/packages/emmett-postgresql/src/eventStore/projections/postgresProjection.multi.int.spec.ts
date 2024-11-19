@@ -57,6 +57,7 @@ void describe('Postgres Projections', () => {
           type: 'ProductItemAdded',
           data: {
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
+            addedAt: new Date(),
           },
           metadata: {
             streamName: shoppingCartId,
@@ -83,6 +84,7 @@ void describe('Postgres Projections', () => {
           type: 'ProductItemAdded',
           data: {
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
+            addedAt: new Date(),
           },
         }),
       ])
@@ -107,6 +109,7 @@ void describe('Postgres Projections', () => {
           type: 'ProductItemAdded',
           data: {
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
+            addedAt: new Date(),
           },
         },
       ]),
@@ -117,6 +120,7 @@ void describe('Postgres Projections', () => {
             type: 'ProductItemAdded',
             data: {
               productItem: { price: 30, productId: 'shoes', quantity: 30 },
+              addedAt: new Date(),
             },
           },
         ]),
@@ -141,6 +145,7 @@ void describe('Postgres Projections', () => {
           type: 'ProductItemAdded',
           data: {
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
+            addedAt: new Date(),
           },
         },
       ]),
@@ -151,6 +156,7 @@ void describe('Postgres Projections', () => {
             type: 'ProductItemAdded',
             data: {
               productItem: { price: 100, productId: 'shoes', quantity: 100 },
+              addedAt: new Date(),
             },
           },
         ]),

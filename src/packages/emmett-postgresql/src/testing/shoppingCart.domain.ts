@@ -13,7 +13,7 @@ export type ShoppingCart = {
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
-  { productItem: PricedProductItem }
+  { productItem: PricedProductItem; addedAt: Date }
 >;
 export type DiscountApplied = Event<
   'DiscountApplied',
