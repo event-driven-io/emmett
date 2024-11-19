@@ -1,3 +1,5 @@
+import type { Event } from '@event-driven-io/emmett';
+import type { PongoDBCollectionOptions } from '@event-driven-io/pongo';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
@@ -22,6 +24,7 @@ void describe('Postgres Projections', () => {
   let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let given: PostgreSQLProjectionSpec<ProductItemAdded | DiscountApplied>;
+  let givenDatedDocument: PostgreSQLProjectionSpec<DocumentOpened>;
   let shoppingCartId: string;
 
   beforeAll(async () => {
@@ -30,6 +33,10 @@ void describe('Postgres Projections', () => {
 
     given = PostgreSQLProjectionSpec.for({
       projection: shoppingCartShortInfoProjection,
+      connectionString,
+    });
+    givenDatedDocument = PostgreSQLProjectionSpec.for({
+      projection: datedDocumentProjection,
       connectionString,
     });
   });
@@ -176,6 +183,52 @@ void describe('Postgres Projections', () => {
           }),
       );
   });
+
+  void it('upcasts dates before comparing documents', () => {
+    const openedAt = new Date();
+
+    return givenDatedDocument([])
+      .when([
+        {
+          type: 'DocumentOpened',
+          data: { openedAt },
+          metadata: { streamName: shoppingCartId },
+        },
+      ])
+      .then(
+        documentExists<DatedDocument, DatedDocumentPayload>(
+          { openedAt },
+          {
+            inCollection: datedDocumentCollectionName,
+            collectionOptions: datedDocumentCollectionOptions,
+            withId: shoppingCartId,
+          },
+        ),
+      );
+  });
+
+  void it('can normalize dates when comparing raw documents', () => {
+    const openedAt = new Date();
+
+    return givenDatedDocument([])
+      .when([
+        {
+          type: 'DocumentOpened',
+          data: { openedAt },
+          metadata: { streamName: shoppingCartId },
+        },
+      ])
+      .then(
+        documentExists<DatedDocument>(
+          { openedAt },
+          {
+            inCollection: datedDocumentCollectionName,
+            normalizeDates: true,
+            withId: shoppingCartId,
+          },
+        ),
+      );
+  });
 });
 
 type ShoppingCartShortInfo = {
@@ -223,4 +276,33 @@ const shoppingCartShortInfoProjection = pongoSingleStreamProjection({
     totalAmount: 0,
     appliedDiscounts: [],
   }),
+});
+
+type DocumentOpened = Event<'DocumentOpened', { openedAt: Date }>;
+type DatedDocument = { openedAt: Date };
+type DatedDocumentPayload = { openedAt: string };
+
+const datedDocumentCollectionName = 'datedDocument';
+const datedDocumentCollectionOptions = {
+  schema: {
+    versioning: {
+      upcast: ({ openedAt }: DatedDocumentPayload): DatedDocument => ({
+        openedAt: new Date(openedAt),
+      }),
+      downcast: ({ openedAt }: DatedDocument): DatedDocumentPayload => ({
+        openedAt: openedAt.toISOString(),
+      }),
+    },
+  },
+} satisfies PongoDBCollectionOptions<DatedDocument, DatedDocumentPayload>;
+
+const datedDocumentProjection = pongoSingleStreamProjection({
+  collectionName: datedDocumentCollectionName,
+  collectionOptions: datedDocumentCollectionOptions,
+  evolve: (
+    document: DatedDocument | null,
+    { type, data }: DocumentOpened,
+  ): DatedDocument | null =>
+    type === 'DocumentOpened' ? { openedAt: data.openedAt } : document,
+  canHandle: ['DocumentOpened'],
 });
