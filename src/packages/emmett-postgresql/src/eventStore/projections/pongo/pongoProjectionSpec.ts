@@ -9,6 +9,7 @@ import {
 import {
   pongoClient,
   type PongoCollection,
+  type PongoDBCollectionOptions,
   type PongoDocument,
   type PongoFilter,
   type WithId,
@@ -16,19 +17,32 @@ import {
 import { pgDriver } from '@event-driven-io/pongo/pg';
 import type { PostgreSQLProjectionAssert } from '..';
 
-export type PongoAssertOptions = {
+export type PongoAssertOptions<
+  Doc extends PongoDocument = PongoDocument,
+  DocumentPayload extends PongoDocument = Doc,
+> = {
   inCollection: string;
   inDatabase?: string;
+  collectionOptions?: PongoDBCollectionOptions<Doc, DocumentPayload>;
 };
 
-const withCollection = (
-  handle: (collection: PongoCollection<PongoDocument>) => Promise<void>,
+const withCollection = <
+  Doc extends PongoDocument,
+  DocumentPayload extends PongoDocument = Doc,
+>(
+  handle: (collection: PongoCollection<Doc>) => Promise<void>,
   options: {
     pool: Dumbo;
     connectionString: string;
-  } & PongoAssertOptions,
+  } & PongoAssertOptions<Doc, DocumentPayload>,
 ) => {
-  const { pool, connectionString, inDatabase, inCollection } = options;
+  const {
+    pool,
+    connectionString,
+    inDatabase,
+    inCollection,
+    collectionOptions,
+  } = options;
 
   return pool.withConnection(async (connection) => {
     const pongo = pongoClient({
@@ -42,13 +56,35 @@ const withCollection = (
       driver: pgDriver,
     });
     try {
-      const collection = pongo.db(inDatabase).collection(inCollection);
+      const collection = pongo
+        .db(inDatabase)
+        .collection<Doc, DocumentPayload>(inCollection, collectionOptions);
 
       return handle(collection);
     } finally {
       await pongo.close();
     }
   });
+};
+
+export type PongoDocumentComparisonOptions = {
+  normalizeDates?: boolean;
+};
+
+const normalizeDateValues = (value: unknown): unknown => {
+  if (value instanceof Date) return value.toISOString();
+
+  if (Array.isArray(value)) return value.map(normalizeDateValues);
+
+  if (value !== null && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        key,
+        normalizeDateValues(nestedValue),
+      ]),
+    );
+
+  return value;
 };
 
 const withoutIdAndVersion = <Doc extends PongoDocument | WithId<PongoDocument>>(
@@ -64,6 +100,7 @@ const assertDocumentsEqual = <
 >(
   actual: PongoDocument,
   expected: Doc,
+  options?: PongoDocumentComparisonOptions,
 ) => {
   if ('_id' in expected)
     assertEqual(
@@ -72,10 +109,24 @@ const assertDocumentsEqual = <
       // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
       `Document ids are not matching! Expected: ${expected._id}, Actual: ${actual._id}`,
     );
+  if ('_version' in expected)
+    assertEqual(
+      expected._version,
+      actual._version,
+      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+      `Document versions are not matching! Expected: ${expected._version}, Actual: ${actual._version}`,
+    );
+
+  const actualDocument = withoutIdAndVersion(actual);
+  const expectedDocument = withoutIdAndVersion(expected);
 
   return assertDeepEqual(
-    withoutIdAndVersion(actual),
-    withoutIdAndVersion(expected),
+    options?.normalizeDates
+      ? normalizeDateValues(actualDocument)
+      : actualDocument,
+    options?.normalizeDates
+      ? normalizeDateValues(expectedDocument)
+      : expectedDocument,
   );
 };
 
@@ -86,12 +137,17 @@ type FilterOrId<Doc extends PongoDocument | WithId<PongoDocument>> =
     };
 
 export const documentExists =
-  <Doc extends PongoDocument | WithId<PongoDocument>>(
+  <
+    Doc extends PongoDocument | WithId<PongoDocument>,
+    DocumentPayload extends PongoDocument = Doc,
+  >(
     document: Doc,
-    options: PongoAssertOptions & FilterOrId<Doc>,
+    options: PongoAssertOptions<Doc, DocumentPayload> &
+      FilterOrId<Doc> &
+      PongoDocumentComparisonOptions,
   ): PostgreSQLProjectionAssert =>
   (assertOptions) =>
-    withCollection(
+    withCollection<Doc, DocumentPayload>(
       async (collection) => {
         const result = await collection.findOne(
           'withId' in options
@@ -101,18 +157,21 @@ export const documentExists =
 
         assertIsNotNull(result);
 
-        assertDocumentsEqual(result, document);
+        assertDocumentsEqual(result, document, options);
       },
       { ...options, ...assertOptions },
     );
 
 export const documentsAreTheSame =
-  <Doc extends PongoDocument | WithId<PongoDocument>>(
+  <
+    Doc extends PongoDocument | WithId<PongoDocument>,
+    DocumentPayload extends PongoDocument = Doc,
+  >(
     documents: Doc[],
-    options: PongoAssertOptions & FilterOrId<Doc>,
+    options: PongoAssertOptions<Doc, DocumentPayload> & FilterOrId<Doc>,
   ): PostgreSQLProjectionAssert =>
   (assertOptions) =>
-    withCollection(
+    withCollection<Doc, DocumentPayload>(
       async (collection) => {
         const result = await collection.find(
           'withId' in options
@@ -134,12 +193,15 @@ export const documentsAreTheSame =
     );
 
 export const documentsMatchingHaveCount =
-  <Doc extends PongoDocument | WithId<PongoDocument>>(
+  <
+    Doc extends PongoDocument | WithId<PongoDocument>,
+    DocumentPayload extends PongoDocument = Doc,
+  >(
     expectedCount: number,
-    options: PongoAssertOptions & FilterOrId<Doc>,
+    options: PongoAssertOptions<Doc, DocumentPayload> & FilterOrId<Doc>,
   ): PostgreSQLProjectionAssert =>
   (assertOptions) =>
-    withCollection(
+    withCollection<Doc, DocumentPayload>(
       async (collection) => {
         const result = await collection.find(
           'withId' in options
@@ -157,11 +219,14 @@ export const documentsMatchingHaveCount =
     );
 
 export const documentMatchingExists =
-  <Doc extends PongoDocument | WithId<PongoDocument>>(
-    options: PongoAssertOptions & FilterOrId<Doc>,
+  <
+    Doc extends PongoDocument | WithId<PongoDocument>,
+    DocumentPayload extends PongoDocument = Doc,
+  >(
+    options: PongoAssertOptions<Doc, DocumentPayload> & FilterOrId<Doc>,
   ): PostgreSQLProjectionAssert =>
   (assertOptions) =>
-    withCollection(
+    withCollection<Doc, DocumentPayload>(
       async (collection) => {
         const result = await collection.find(
           'withId' in options
@@ -175,11 +240,14 @@ export const documentMatchingExists =
     );
 
 export const documentDoesNotExist =
-  <Doc extends PongoDocument | WithId<PongoDocument>>(
-    options: PongoAssertOptions & FilterOrId<Doc>,
+  <
+    Doc extends PongoDocument | WithId<PongoDocument>,
+    DocumentPayload extends PongoDocument = Doc,
+  >(
+    options: PongoAssertOptions<Doc, DocumentPayload> & FilterOrId<Doc>,
   ): PostgreSQLProjectionAssert =>
   (assertOptions) =>
-    withCollection(
+    withCollection<Doc, DocumentPayload>(
       async (collection) => {
         const result = await collection.findOne(
           'withId' in options
@@ -193,52 +261,65 @@ export const documentDoesNotExist =
     );
 
 export const expectPongoDocuments = {
-  fromCollection: <Doc extends PongoDocument | WithId<PongoDocument>>(
+  fromCollection: <
+    Doc extends PongoDocument | WithId<PongoDocument>,
+    DocumentPayload extends PongoDocument = Doc,
+  >(
     collectionName: string,
+    collectionOptions?: PongoDBCollectionOptions<Doc, DocumentPayload>,
   ) => {
     return {
       withId: (id: string) => {
         return {
-          toBeEqual: (document: Doc) =>
-            documentExists(document, {
+          toBeEqual: (
+            document: Doc,
+            comparisonOptions?: PongoDocumentComparisonOptions,
+          ) =>
+            documentExists<Doc, DocumentPayload>(document, {
               withId: id,
               inCollection: collectionName,
+              collectionOptions,
+              ...comparisonOptions,
             }),
           toExist: () =>
             documentMatchingExists({
               withId: id,
               inCollection: collectionName,
+              collectionOptions,
             }),
           notToExist: () =>
             documentDoesNotExist({
               withId: id,
               inCollection: collectionName,
+              collectionOptions,
             }),
         };
       },
-      matching: <Doc extends PongoDocument | WithId<PongoDocument>>(
-        filter: PongoFilter<Doc>,
-      ) => {
+      matching: (filter: PongoFilter<Doc>) => {
         return {
           toBeTheSame: (documents: Doc[]) =>
-            documentsAreTheSame<Doc>(documents, {
+            documentsAreTheSame<Doc, DocumentPayload>(documents, {
               matchingFilter: filter,
               inCollection: collectionName,
+              collectionOptions,
             }),
           toHaveCount: (expectedCount: number) =>
             documentsMatchingHaveCount(expectedCount, {
               matchingFilter: filter,
               inCollection: collectionName,
+              collectionOptions,
             }),
           toExist: () =>
             documentMatchingExists({
               matchingFilter: filter,
               inCollection: collectionName,
+              collectionOptions,
             }),
           notToExist: () =>
             documentDoesNotExist({
               matchingFilter: filter,
               inCollection: collectionName,
+              collectionOptions,
             }),
         };
       },

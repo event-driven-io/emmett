@@ -236,12 +236,14 @@ export const pongoMultiStreamProjection = <
   EventMetaDataType extends PostgresReadEventMetadata =
     PostgresReadEventMetadata,
   EventPayloadType extends Event = EventType,
+  DocumentPayload extends PongoDocument = Document,
 >(
   options: PongoMultiStreamProjectionOptions<
     Document,
     EventType,
     EventMetaDataType,
-    EventPayloadType
+    EventPayloadType,
+    DocumentPayload
   >,
 ): PostgreSQLProjectionDefinition<EventType, EventPayloadType> => {
   const { collectionName, getDocumentId, getDocumentIds, canHandle } = options;
@@ -258,7 +260,7 @@ export const pongoMultiStreamProjection = <
     handle: async (events, { pongo }) => {
       const collection = pongo
         .db()
-        .collection<Document>(
+        .collection<Document, DocumentPayload>(
           collectionNameWithVersion,
           options.collectionOptions,
         );
@@ -318,7 +320,7 @@ export const pongoMultiStreamProjection = <
       try {
         await pongo
           .db()
-          .collection<Document>(
+          .collection<Document, DocumentPayload>(
             collectionNameWithVersion,
             options.collectionOptions,
           )
@@ -330,7 +332,7 @@ export const pongoMultiStreamProjection = <
     init: async (context) => {
       await context.pongo
         .db()
-        .collection<Document>(
+        .collection<Document, DocumentPayload>(
           collectionNameWithVersion,
           options.collectionOptions,
         )
@@ -393,6 +395,7 @@ export const pongoSingleStreamProjection = <
   EventMetaDataType extends PostgresReadEventMetadata =
     PostgresReadEventMetadata,
   EventPayloadType extends Event = EventType,
+  DocumentPayload extends PongoDocument = Document,
 >({
   getDocumentId,
   getDocumentIds,
@@ -401,13 +404,15 @@ export const pongoSingleStreamProjection = <
   Document,
   EventType,
   EventMetaDataType,
-  EventPayloadType
+  EventPayloadType,
+  DocumentPayload
 >): PostgreSQLProjectionDefinition<EventType, EventPayloadType> => {
   return pongoMultiStreamProjection<
     Document,
     EventType,
     EventMetaDataType,
-    EventPayloadType
+    EventPayloadType,
+    DocumentPayload
   >({
     kind: 'emt:projections:postgresql:pongo:single_stream',
     ...options,
