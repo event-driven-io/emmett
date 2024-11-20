@@ -1,4 +1,4 @@
-import type { DefaultStreamVersionType, EventStore } from '../eventStore';
+import type { EventStore } from '../eventStore';
 import type { Command, Event } from '../typing';
 import type { Decider } from '../typing/decider';
 import {
@@ -17,23 +17,18 @@ export type DeciderCommandHandlerOptions<
   Decider<State, CommandType, StreamEvent>;
 
 export const DeciderCommandHandler =
-  <
-    State,
-    CommandType extends Command,
-    StreamEvent extends Event,
-    StreamVersion = DefaultStreamVersionType,
-  >(
+  <State, CommandType extends Command, StreamEvent extends Event>(
     options: DeciderCommandHandlerOptions<State, CommandType, StreamEvent>,
   ) =>
-  async (
-    eventStore: EventStore<StreamVersion>,
+  async <Store extends EventStore>(
+    eventStore: Store,
     id: string,
     command: CommandType,
-    handleOptions?: HandleOptions<StreamVersion, EventStore<StreamVersion>>,
+    handleOptions?: HandleOptions<Store>,
   ) => {
     const { decide, ...rest } = options;
 
-    return CommandHandler<State, StreamEvent, StreamVersion>(rest)(
+    return CommandHandler<State, StreamEvent>(rest)(
       eventStore,
       id,
       (state) => decide(command, state),

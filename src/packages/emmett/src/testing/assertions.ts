@@ -33,12 +33,12 @@ export const assertThrowsAsync = async <TError extends Error>(
 ): Promise<TError> => {
   try {
     await fun();
-    throw new AssertionError("Function didn't throw expected error");
   } catch (error) {
     const typedError = error as TError;
     if (errorCheck) assertTrue(errorCheck(typedError));
     return typedError;
   }
+  throw new AssertionError("Function didn't throw expected error");
 };
 
 export const assertThrows = <TError extends Error>(
@@ -47,12 +47,12 @@ export const assertThrows = <TError extends Error>(
 ): TError => {
   try {
     fun();
-    throw new AssertionError("Function didn't throw expected error");
   } catch (error) {
     const typedError = error as TError;
     if (errorCheck) assertTrue(errorCheck(typedError));
     return typedError;
   }
+  throw new AssertionError("Function didn't throw expected error");
 };
 
 export const assertRejects = async <T, TError extends Error = Error>(

@@ -14,17 +14,17 @@ import {
   type Event,
   type EventMetaDataOf,
   type ReadEvent,
-  type ReadEventMetadataWithGlobalPosition,
   type ThenThrows,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { handleProjections, type PostgreSQLProjectionDefinition } from '.';
+import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 
 export type PostgreSQLProjectionSpecEvent<
   EventType extends Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
-    ReadEventMetadataWithGlobalPosition,
+    PostgresReadEventMetadata = EventMetaDataOf<EventType> &
+    PostgresReadEventMetadata,
 > = EventType & {
   metadata?: Partial<EventMetaDataType>;
 };
@@ -71,10 +71,8 @@ export const PostgreSQLProjectionSpec = {
             events: PostgreSQLProjectionSpecEvent<EventType>[],
             options?: PostgreSQLProjectionSpecWhenOptions,
           ) => {
-            const allEvents: ReadEvent<
-              EventType,
-              ReadEventMetadataWithGlobalPosition
-            >[] = [];
+            const allEvents: ReadEvent<EventType, PostgresReadEventMetadata>[] =
+              [];
 
             const run = async (pool: Dumbo) => {
               let globalPosition = 0n;
@@ -176,8 +174,8 @@ export const PostgreSQLProjectionSpec = {
 export const eventInStream = <
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
-    ReadEventMetadataWithGlobalPosition,
+    PostgresReadEventMetadata = EventMetaDataOf<EventType> &
+    PostgresReadEventMetadata,
 >(
   streamName: string,
   event: PostgreSQLProjectionSpecEvent<EventType, EventMetaDataType>,
@@ -194,8 +192,8 @@ export const eventInStream = <
 export const eventsInStream = <
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadataWithGlobalPosition = EventMetaDataOf<EventType> &
-    ReadEventMetadataWithGlobalPosition,
+    PostgresReadEventMetadata = EventMetaDataOf<EventType> &
+    PostgresReadEventMetadata,
 >(
   streamName: string,
   events: PostgreSQLProjectionSpecEvent<EventType, EventMetaDataType>[],

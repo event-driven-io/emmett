@@ -1,14 +1,12 @@
 import { ConcurrencyError } from '../errors';
-import type { Flavour } from '../typing';
-import type { DefaultStreamVersionType } from './eventStore';
+import type { BigIntStreamPosition, Flavour } from '../typing';
 
-export type ExpectedStreamVersion<VersionType = DefaultStreamVersionType> =
+export type ExpectedStreamVersion<VersionType = BigIntStreamPosition> =
   | ExpectedStreamVersionWithValue<VersionType>
   | ExpectedStreamVersionGeneral;
 
-export type ExpectedStreamVersionWithValue<
-  VersionType = DefaultStreamVersionType,
-> = Flavour<VersionType, 'StreamVersion'>;
+export type ExpectedStreamVersionWithValue<VersionType = BigIntStreamPosition> =
+  Flavour<VersionType, 'StreamVersion'>;
 
 export type ExpectedStreamVersionGeneral = Flavour<
   'STREAM_EXISTS' | 'STREAM_DOES_NOT_EXIST' | 'NO_CONCURRENCY_CHECK',
@@ -21,9 +19,7 @@ export const STREAM_DOES_NOT_EXIST =
 export const NO_CONCURRENCY_CHECK =
   'NO_CONCURRENCY_CHECK' as ExpectedStreamVersionGeneral;
 
-export const matchesExpectedVersion = <
-  StreamVersion = DefaultStreamVersionType,
->(
+export const matchesExpectedVersion = <StreamVersion = BigIntStreamPosition>(
   current: StreamVersion | undefined,
   expected: ExpectedStreamVersion<StreamVersion>,
   defaultVersion: StreamVersion,
@@ -38,7 +34,7 @@ export const matchesExpectedVersion = <
 };
 
 export const assertExpectedVersionMatchesCurrent = <
-  StreamVersion = DefaultStreamVersionType,
+  StreamVersion = BigIntStreamPosition,
 >(
   current: StreamVersion,
   expected: ExpectedStreamVersion<StreamVersion> | undefined,
@@ -51,7 +47,7 @@ export const assertExpectedVersionMatchesCurrent = <
 };
 
 export class ExpectedVersionConflictError<
-  VersionType = DefaultStreamVersionType,
+  VersionType = BigIntStreamPosition,
 > extends ConcurrencyError {
   constructor(
     current: VersionType,

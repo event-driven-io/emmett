@@ -3,54 +3,65 @@ import type {
   AggregateStreamResult,
   AppendToStreamOptions,
   AppendToStreamResult,
-  DefaultStreamVersionType,
   EventStore,
+  EventStoreReadEventMetadata,
   ReadStreamOptions,
   ReadStreamResult,
+  StreamPositionTypeOfEventStore,
 } from '../eventStore';
-import { type Event, type ReadEventMetadata } from '../typing';
+import { type Event, type EventMetaDataOf } from '../typing';
 
 export type TestEventStream<EventType extends Event = Event> = [
   string,
   EventType[],
 ];
 
-export const WrapEventStore = <
-  StreamVersion = DefaultStreamVersionType,
-  ReadEventMetadataType extends ReadEventMetadata = ReadEventMetadata,
->(
-  eventStore: EventStore<StreamVersion, ReadEventMetadataType>,
-): EventStore<StreamVersion, ReadEventMetadataType> & {
+export type EventStoreWrapper<Store extends EventStore> = Store & {
   appendedEvents: Map<string, TestEventStream>;
   setup<EventType extends Event>(
     streamName: string,
     events: EventType[],
-  ): Promise<AppendToStreamResult<StreamVersion>>;
-} => {
+  ): Promise<AppendToStreamResult<StreamPositionTypeOfEventStore<Store>>>;
+};
+
+export const WrapEventStore = <Store extends EventStore>(
+  eventStore: Store,
+): EventStoreWrapper<Store> => {
   const appendedEvents = new Map<string, TestEventStream>();
 
-  return {
-    async aggregateStream<State, EventType extends Event>(
+  const wrapped = {
+    aggregateStream<State, EventType extends Event>(
       streamName: string,
-      options: AggregateStreamOptions<State, EventType, StreamVersion>,
-    ): Promise<AggregateStreamResult<State, StreamVersion>> {
+      options: AggregateStreamOptions<State, EventType>,
+    ): Promise<
+      AggregateStreamResult<State, StreamPositionTypeOfEventStore<Store>>
+    > {
       return eventStore.aggregateStream(streamName, options);
     },
 
-    readStream<EventType extends Event>(
+    async readStream<EventType extends Event>(
       streamName: string,
-      options?: ReadStreamOptions<StreamVersion>,
+      options?: ReadStreamOptions<StreamPositionTypeOfEventStore<Store>>,
     ): Promise<
-      ReadStreamResult<EventType, StreamVersion, ReadEventMetadataType>
+      ReadStreamResult<
+        EventType,
+        EventStoreReadEventMetadata<Store> & EventMetaDataOf<EventType>
+      >
     > {
-      return eventStore.readStream(streamName, options);
+      return (await eventStore.readStream(
+        streamName,
+        options,
+      )) as ReadStreamResult<
+        EventType,
+        EventStoreReadEventMetadata<Store> & EventMetaDataOf<EventType>
+      >;
     },
 
     appendToStream: async <EventType extends Event>(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions<StreamVersion>,
-    ): Promise<AppendToStreamResult<StreamVersion>> => {
+      options?: AppendToStreamOptions<StreamPositionTypeOfEventStore<Store>>,
+    ): Promise<AppendToStreamResult<StreamPositionTypeOfEventStore<Store>>> => {
       const result = await eventStore.appendToStream(
         streamName,
         events,
@@ -72,7 +83,7 @@ export const WrapEventStore = <
     setup: async <EventType extends Event>(
       streamName: string,
       events: EventType[],
-    ): Promise<AppendToStreamResult<StreamVersion>> => {
+    ): Promise<AppendToStreamResult<StreamPositionTypeOfEventStore<Store>>> => {
       return eventStore.appendToStream(streamName, events);
     },
 
@@ -83,4 +94,6 @@ export const WrapEventStore = <
     //   return eventStore.streamEvents();
     // },
   };
+
+  return wrapped as EventStoreWrapper<Store>;
 };

@@ -14,12 +14,12 @@ import {
   type AggregateStreamResult,
   type AppendToStreamOptions,
   type AppendToStreamResult,
-  type DefaultStreamVersionType,
   type Event,
   type EventStore,
   type EventStoreSession,
   type EventStoreSessionFactory,
   type ProjectionRegistration,
+  type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
@@ -38,11 +38,8 @@ import {
 } from './schema';
 
 export interface PostgresEventStore
-  extends EventStore<
-      DefaultStreamVersionType,
-      ReadEventMetadataWithGlobalPosition
-    >,
-    EventStoreSessionFactory<PostgresEventStore, DefaultStreamVersionType> {
+  extends EventStore<PostgresReadEventMetadata>,
+    EventStoreSessionFactory<PostgresEventStore> {
   close(): Promise<void>;
   schema: {
     sql(): string;
@@ -50,6 +47,13 @@ export interface PostgresEventStore
     migrate(): Promise<void>;
   };
 }
+
+export type PostgresReadEventMetadata = ReadEventMetadataWithGlobalPosition;
+
+export type PostgresReadEvent<EventType extends Event = Event> = ReadEvent<
+  EventType,
+  PostgresReadEventMetadata
+>;
 
 type PostgresEventStorePooledOptions =
   | {
@@ -121,6 +125,7 @@ export type PostgresEventStoreConnectionOptions =
 export type PostgresEventStoreOptions = {
   projections?: ProjectionRegistration<
     'inline',
+    PostgresReadEventMetadata,
     PostgreSQLProjectionHandlerContext
   >[];
   schema?: { autoMigration?: MigrationStyle };
@@ -171,7 +176,9 @@ export const getPostgreSQLEventStore = (
               connectionString,
               transaction,
             },
-            events,
+            // TODO: Add proper handling of global data
+            // Currently it's not available as append doesn't return array of global position but just the last one
+            events: events as ReadEvent<Event, PostgresReadEventMetadata>[],
           })
       : undefined;
 
@@ -185,7 +192,11 @@ export const getPostgreSQLEventStore = (
     },
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
-      options: AggregateStreamOptions<State, EventType>,
+      options: AggregateStreamOptions<
+        State,
+        EventType,
+        PostgresReadEventMetadata
+      >,
     ): Promise<AggregateStreamResult<State>> {
       const { evolve, initialState, read } = options;
 
@@ -218,13 +229,7 @@ export const getPostgreSQLEventStore = (
     readStream: async <EventType extends Event>(
       streamName: string,
       options?: ReadStreamOptions,
-    ): Promise<
-      ReadStreamResult<
-        EventType,
-        DefaultStreamVersionType,
-        ReadEventMetadataWithGlobalPosition
-      >
-    > => {
+    ): Promise<ReadStreamResult<EventType, PostgresReadEventMetadata>> => {
       await ensureSchemaExists();
       return readStream<EventType>(pool.execute, streamName, options);
     },
@@ -267,12 +272,7 @@ export const getPostgreSQLEventStore = (
     close: () => pool.close(),
 
     async withSession<T = unknown>(
-      callback: (
-        session: EventStoreSession<
-          PostgresEventStore,
-          DefaultStreamVersionType
-        >,
-      ) => Promise<T>,
+      callback: (session: EventStoreSession<PostgresEventStore>) => Promise<T>,
     ): Promise<T> {
       return await pool.withConnection(async (connection) => {
         const storeOptions: PostgresEventStoreOptions = {
