@@ -30,16 +30,11 @@ export type StreamNameParts<T extends StreamType = StreamType> = {
   streamId: string;
 };
 
-export interface EventStreamProjection<
-  ShortInfoType extends DefaultRecord = DefaultRecord,
-> {
+export interface EventStreamProjection {
   details: { name?: string };
-  short: ShortInfoType | null;
+  short: DefaultRecord | null;
 }
-export interface EventStream<
-  EventType extends Event = Event,
-  ShortInfoType extends DefaultRecord = DefaultRecord,
-> {
+export interface EventStream<EventType extends Event = Event> {
   streamName: string;
   events: Array<ReadEvent<EventType, ReadEventMetadata>>;
   metadata: {
@@ -49,7 +44,7 @@ export interface EventStream<
     createdAt: Date;
     updatedAt: Date;
   };
-  projections: Record<string, EventStreamProjection<ShortInfoType>>;
+  projections: Record<string, EventStreamProjection>;
 }
 
 export type MongoDBProjectionHandlerContext = {
@@ -62,10 +57,7 @@ type MongoDBAsyncProjection<EventType extends Event = Event> = {
   projection: TypedProjectionDefinition<EventType>;
 };
 
-type MongoDBInlineProjection<
-  EventType extends Event = Event,
-  ShortInfoType extends DefaultRecord = DefaultRecord,
-> = {
+type MongoDBInlineProjection<EventType extends Event = Event> = {
   type: 'inline';
   projection: {
     name: string;
@@ -78,9 +70,7 @@ type MongoDBInlineProjection<
           MongoDBProjectionHandlerContext
         >['handle']
       >
-    ) =>
-      | Promise<EventStreamProjection<ShortInfoType>>
-      | EventStreamProjection<ShortInfoType>;
+    ) => Promise<EventStreamProjection> | EventStreamProjection;
   };
 };
 
@@ -110,21 +100,35 @@ export class MongoDBEventStore implements EventStore {
   ): Promise<Exclude<ReadStreamResult<EventType>, null>> {
     const expectedStreamVersion = options?.expectedStreamVersion;
     // TODO: use `to` and `from`
-    const maxIdx = undefined; //maxEventIndex(expectedStreamVersion);
-    const eventsSlice = maxIdx !== undefined ? { $slice: [0, maxIdx] } : 1;
+
+    const filter = {
+      streamName: { $eq: streamName },
+    };
+
+    const eventsSliceArr: number[] = [];
+
+    if (options && 'from' in options) {
+      eventsSliceArr.push(Number(options.from));
+    } else {
+      eventsSliceArr.push(0);
+    }
+
+    if (options && 'to' in options) {
+      eventsSliceArr.push(Number(options.to));
+    }
+
+    const eventsSlice =
+      eventsSliceArr.length > 1 ? { $slice: eventsSliceArr } : 1;
 
     const stream = await this.collection.findOne<
       WithId<Pick<EventStream<EventType>, 'metadata' | 'events'>>
-    >(
-      { streamName: { $eq: streamName } },
-      {
-        useBigInt64: true,
-        projection: {
-          metadata: 1,
-          events: eventsSlice,
-        },
+    >(filter, {
+      useBigInt64: true,
+      projection: {
+        metadata: 1,
+        events: eventsSlice,
       },
-    );
+    });
 
     if (!stream) {
       return {

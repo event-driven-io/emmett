@@ -124,13 +124,17 @@ void describe('EventStoreDBEventStore', () => {
       { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
     );
 
-    const expectedStreamVersion = 2;
+    const expectedStreamVersion = 3n;
+    const expectedNumEvents = 2;
     const stream = await eventStore.readStream<ShoppingCartEvent>(streamName, {
-      expectedStreamVersion: BigInt(expectedStreamVersion),
+      from: 0n,
+      to: BigInt(expectedNumEvents),
+      expectedStreamVersion,
     });
 
     assertTrue(stream.streamExists);
-    assertEqual(expectedStreamVersion, stream.events.length);
+    assertEqual(expectedStreamVersion, stream.currentStreamVersion);
+    assertEqual(expectedNumEvents, stream.events.length);
   });
 });
 
