@@ -87,7 +87,7 @@ export const postgreSQLEventStoreConsumer = (
     },
     start: () => {
       start = (() => {
-        if (!subscriptions)
+        if (subscriptions.length === 0)
           return Promise.reject(
             new EmmettError(
               'Cannot start consumer without at least a single subscription',

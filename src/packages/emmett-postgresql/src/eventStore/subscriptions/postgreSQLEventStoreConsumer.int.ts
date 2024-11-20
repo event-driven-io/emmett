@@ -3,6 +3,7 @@ import {
   assertFalse,
   assertThrowsAsync,
   assertTrue,
+  EmmettError,
 } from '@event-driven-io/emmett';
 import {
   PostgreSqlContainer,
@@ -88,7 +89,28 @@ void describe('PostgreSQL event store consumer', () => {
         connectionString: connectionStringToNotExistingDB,
         subscriptions: [dummySubscription],
       });
-      await assertThrowsAsync(() => consumerToNotExistingServer.start());
+      await assertThrowsAsync(
+        () => consumerToNotExistingServer.start(),
+        (error) => {
+          return 'code' in error && error.code === 'EAI_AGAIN';
+        },
+      );
+    });
+
+    void it('fails to start if there are no subscriptions', async () => {
+      const consumerToNotExistingServer = postgreSQLEventStoreConsumer({
+        connectionString,
+        subscriptions: [],
+      });
+      await assertThrowsAsync<EmmettError>(
+        () => consumerToNotExistingServer.start(),
+        (error) => {
+          return (
+            error.message ===
+            'Cannot start consumer without at least a single subscription'
+          );
+        },
+      );
     });
 
     void it(`stopping not started consumer doesn't fail`, async () => {
