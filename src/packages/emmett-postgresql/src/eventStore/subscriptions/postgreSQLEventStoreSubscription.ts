@@ -1,21 +1,23 @@
-import { dumbo, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   EmmettError,
   type Event,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import { setTimeout } from 'timers';
-import {
-  readMessagesBatch,
-  type ReadMessagesBatchOptions,
-} from '../schema/readMessagesBatch';
 
-export type PostgreSQLEventStoreSubscription = {
-  isRunning: boolean;
-  subscribe: () => Promise<void>;
-  stop: () => Promise<void>;
+export type PostgreSQLEventStoreSubscriptionEventsBatch<
+  EventType extends Event = Event,
+> = {
+  messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
 };
+
+export type PostgreSQLEventStoreSubscription<EventType extends Event = Event> =
+  {
+    isActive: boolean;
+    handle: (
+      messagesBatch: PostgreSQLEventStoreSubscriptionEventsBatch<EventType>,
+    ) => Promise<void>;
+  };
 
 export const PostgreSQLEventStoreSubscription = {
   result: {
@@ -53,77 +55,7 @@ export const DefaultPostgreSQLEventStoreSubscriptionBatchSize = 100;
 export type PostgreSQLEventStoreSubscriptionOptions<
   EventType extends Event = Event,
 > = {
-  connectionString: string;
   eachMessage: PostgreSQLEventStoreSubscriptionEachMessageHandler<EventType>;
-  batchSize?: number;
-};
-
-type MessageBatchPoolerOptions<EventType extends Event = Event> = {
-  executor: SQLExecutor;
-  batchSize: number;
-  eachMessage: PostgreSQLEventStoreSubscriptionOptions<EventType>['eachMessage'];
-};
-
-const messageBatchPooler = <EventType extends Event = Event>({
-  executor,
-  batchSize,
-  eachMessage,
-}: MessageBatchPoolerOptions<EventType>) => {
-  let isRunning = false;
-
-  let start: Promise<void>;
-
-  const pollMessages = async () => {
-    const options: ReadMessagesBatchOptions = { from: 0n, batchSize };
-
-    let waitTime = 100;
-
-    do {
-      const { events, currentGlobalPosition, areEventsLeft } =
-        await readMessagesBatch(executor, options);
-
-      for (const message of events) {
-        const result = await eachMessage(
-          message as ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
-        );
-
-        if (result) {
-          if (result.type === 'SKIP') continue;
-          else if (result.type === 'STOP') {
-            isRunning = false;
-            break;
-          }
-        }
-      }
-      options.from = currentGlobalPosition;
-
-      if (!areEventsLeft) {
-        waitTime = Math.min(waitTime * 2, 5000);
-        await new Promise((resolve) => setTimeout(resolve, waitTime));
-      } else {
-        waitTime = 0;
-      }
-    } while (isRunning);
-  };
-
-  return {
-    get isRunning() {
-      return isRunning;
-    },
-    start: () => {
-      start = (async () => {
-        isRunning = true;
-
-        return pollMessages();
-      })();
-
-      return start;
-    },
-    stop: async () => {
-      isRunning = false;
-      await start;
-    },
-  };
 };
 
 export const postgreSQLEventStoreSubscription = <
@@ -131,37 +63,28 @@ export const postgreSQLEventStoreSubscription = <
 >(
   options: PostgreSQLEventStoreSubscriptionOptions<EventType>,
 ): PostgreSQLEventStoreSubscription => {
-  let isRunning = false;
-
-  const { connectionString } = options;
-  const pool = dumbo({ connectionString });
-  const messagePooler = messageBatchPooler({
-    executor: pool.execute,
-    eachMessage: options.eachMessage,
-    batchSize:
-      options.batchSize ?? DefaultPostgreSQLEventStoreSubscriptionBatchSize,
-  });
-
-  let subscribe: Promise<void>;
+  const { eachMessage } = options;
+  let isActive = true;
 
   return {
-    get isRunning() {
-      return isRunning;
+    get isActive() {
+      return isActive;
     },
-    subscribe: () => {
-      subscribe = (() => {
-        isRunning = true;
+    handle: async ({ messages }) => {
+      if (!isActive) return;
+      for (const message of messages) {
+        const result = await eachMessage(
+          message as ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
+        );
 
-        return messagePooler.start();
-      })();
-
-      return subscribe;
-    },
-    stop: async () => {
-      await messagePooler.stop();
-      await subscribe;
-      await pool.close();
-      isRunning = false;
+        if (result) {
+          if (result.type === 'SKIP') continue;
+          else if (result.type === 'STOP') {
+            isActive = false;
+            break;
+          }
+        }
+      }
     },
   };
 };

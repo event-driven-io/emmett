@@ -9,12 +9,10 @@ import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
-import {
-  PostgreSQLEventStoreSubscription,
-  postgreSQLEventStoreSubscription,
-} from './postgreSQLEventStoreSubscription';
+import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
+import { PostgreSQLEventStoreSubscription } from './postgreSQLEventStoreSubscription';
 
-void describe('PostgreSQL event store started subscriptions', () => {
+void describe('PostgreSQL event store started consumer', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
   let eventStore: PostgresEventStore;
@@ -48,8 +46,10 @@ void describe('PostgreSQL event store started subscriptions', () => {
     const result: GuestStayEvent[] = [];
 
     // When
-    const subscription = postgreSQLEventStoreSubscription<GuestStayEvent>({
+    const consumer = postgreSQLEventStoreConsumer({
       connectionString,
+    });
+    consumer.subscribe<GuestStayEvent>({
       eachMessage: (event) => {
         result.push(event);
 
@@ -60,11 +60,11 @@ void describe('PostgreSQL event store started subscriptions', () => {
     });
 
     try {
-      await subscription.subscribe();
+      await consumer.start();
 
       assertThatArray(result).containsElementsMatching(events);
     } finally {
-      await subscription.stop();
+      await consumer.stop();
     }
   });
 });
