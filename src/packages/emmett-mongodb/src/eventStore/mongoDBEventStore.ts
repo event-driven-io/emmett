@@ -109,7 +109,8 @@ export class MongoDBEventStore implements EventStore {
     options?: ReadStreamOptions,
   ): Promise<Exclude<ReadStreamResult<EventType>, null>> {
     const expectedStreamVersion = options?.expectedStreamVersion;
-    const maxIdx = maxEventIndex(expectedStreamVersion);
+    // TODO: use `to` and `from`
+    const maxIdx = undefined; //maxEventIndex(expectedStreamVersion);
     const eventsSlice = maxIdx !== undefined ? { $slice: [0, maxIdx] } : 1;
 
     const stream = await this.collection.findOne<
@@ -134,14 +135,13 @@ export class MongoDBEventStore implements EventStore {
     }
 
     assertExpectedVersionMatchesCurrent(
-      BigInt(stream.events.length),
+      stream.metadata.streamPosition,
       expectedStreamVersion,
       MongoDBEventStoreDefaultStreamVersion,
     );
 
     return {
       events: stream.events,
-      // TODO: if returning a slice, do we change this to be the expected stream version?
       currentStreamVersion: stream.metadata.streamPosition,
       streamExists: true,
     };
@@ -165,38 +165,8 @@ export class MongoDBEventStore implements EventStore {
     events: EventType[],
     options?: AppendToStreamOptions,
   ): Promise<AppendToStreamResult> {
-    let stream = await this.collection.findOne(
-      { streamName: { $eq: streamName } },
-      { useBigInt64: true },
-    );
-    let currentStreamPosition = stream?.metadata?.streamPosition ?? 0n;
-    let createdNewStream = false;
-
-    if (!stream) {
-      const { streamId, streamType } = fromStreamName(streamName);
-      const now = new Date();
-      const result = await this.collection.insertOne({
-        streamName,
-        events: [],
-        metadata: {
-          streamId,
-          streamType,
-          streamPosition: MongoDBEventStoreDefaultStreamVersion,
-          createdAt: now,
-          updatedAt: now,
-        },
-        projections: {},
-      });
-      stream = await this.collection.findOne(
-        { _id: result.insertedId },
-        { useBigInt64: true },
-      );
-      createdNewStream = true;
-    }
-
     const eventCreateInputs: ReadEvent[] = [];
     for (const event of events) {
-      currentStreamPosition++;
       eventCreateInputs.push({
         type: event.type,
         data: event.data,
@@ -204,39 +174,17 @@ export class MongoDBEventStore implements EventStore {
           now: new Date(),
           eventId: uuid(),
           streamName,
-          streamPosition: BigInt(currentStreamPosition),
+          streamPosition: MongoDBEventStoreDefaultStreamVersion, // TODO: don't think we can update this unless we read stream first
           ...(event.metadata ?? {}),
         },
       });
     }
 
-    // TODO: error handling / implement retries
-    if (!stream) throw new Error('Failed to create stream');
-
-    assertExpectedVersionMatchesCurrent(
-      stream.metadata.streamPosition,
-      options?.expectedStreamVersion,
-      MongoDBEventStoreDefaultStreamVersion,
-    );
-
     const updates: UpdateFilter<EventStream> = {
       $push: { events: { $each: eventCreateInputs } },
-      $set: {
-        'metadata.updatedAt': new Date(),
-        'metadata.streamPosition':
-          stream.metadata.streamPosition + BigInt(events.length),
-      },
+      $set: { 'metadata.updatedAt': new Date() },
+      $inc: { 'metadata.streamPosition': BigInt(events.length) },
     };
-
-    if (this.asyncProjections) {
-      // Pre-commit handle async projections
-      await handleAsyncProjections({
-        streamName,
-        events: eventCreateInputs,
-        projections: this.asyncProjections,
-        collection: this.collection,
-      });
-    }
 
     if (this.inlineProjections) {
       const projections = filterProjections(
@@ -251,18 +199,19 @@ export class MongoDBEventStore implements EventStore {
       }
     }
 
-    // @ts-expect-error The actual `EventType` is different across each stream document,
-    // but the collection was instantiated as being `EventStream<Event>`. Unlike `findOne`,
-    // `findOneAndUpdate` does not allow a generic to override what the return type is.
-    const updatedStream: WithId<EventStream<EventType>> | null =
-      await this.collection.findOneAndUpdate(
-        {
-          streamName: { $eq: streamName },
-          'metadata.streamPosition': stream.metadata.streamPosition,
-        },
-        updates,
-        { returnDocument: 'after', useBigInt64: true },
-      );
+    // TODO: determine if stream was upserted for `createdNewStream`
+    // Can be done with `updateOne` instead, but then we lose the current stream version because the
+    // document itself isn't returned. Would require a read after update.
+    const updatedStream = await this.collection.findOneAndUpdate(
+      {
+        streamName: { $eq: streamName },
+        'metadata.streamPosition': toExpectedVersion(
+          options?.expectedStreamVersion,
+        ),
+      },
+      updates,
+      { returnDocument: 'after', useBigInt64: true, upsert: true },
+    );
 
     if (!updatedStream) {
       const currentStream = await this.collection.findOne(
@@ -271,13 +220,23 @@ export class MongoDBEventStore implements EventStore {
       );
       throw new ExpectedVersionConflictError(
         currentStream?.metadata?.streamPosition ?? 0n,
-        stream.metadata.streamPosition,
+        options?.expectedStreamVersion ?? 0n,
       );
+    }
+
+    if (this.asyncProjections) {
+      // Pre-commit handle async projections
+      await handleAsyncProjections({
+        streamName,
+        events: eventCreateInputs,
+        projections: this.asyncProjections,
+        collection: this.collection,
+      });
     }
 
     return {
       nextExpectedStreamVersion: updatedStream.metadata.streamPosition,
-      createdNewStream,
+      createdNewStream: false, // TODO:
     };
   }
 }
@@ -346,15 +305,15 @@ export function mongoDBInlineProjection<
   };
 }
 
-function maxEventIndex(
+function toExpectedVersion(
   expectedStreamVersion?: ExpectedStreamVersion,
-): number | undefined {
+): bigint | undefined {
   if (!expectedStreamVersion) return undefined;
 
   if (typeof expectedStreamVersion === 'string') {
     switch (expectedStreamVersion) {
       case STREAM_DOES_NOT_EXIST:
-        return 0;
+        return BigInt(0);
       default:
         return undefined;
     }
@@ -362,7 +321,7 @@ function maxEventIndex(
 
   // TODO: possibly dangerous for very long event streams (overflow)?. May need to perform DB level
   // selections on the events that we return
-  return Number(expectedStreamVersion);
+  return expectedStreamVersion;
 }
 
 /**
