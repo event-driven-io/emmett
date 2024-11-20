@@ -218,12 +218,8 @@ export class MongoDBEventStore implements EventStore {
     );
 
     if (!updatedStream) {
-      const currentStream = await this.collection.findOne(
-        { streamName: { $eq: streamName } },
-        { useBigInt64: true },
-      );
       throw new ExpectedVersionConflictError(
-        currentStream?.metadata?.streamPosition ?? 0n,
+        0n, // TODO: some other value??
         options?.expectedStreamVersion ?? 0n,
       );
     }
