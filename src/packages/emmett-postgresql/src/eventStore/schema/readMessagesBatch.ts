@@ -37,7 +37,7 @@ export type ReadMessagesBatchResult<
   ReadEventMetadataType extends ReadEventMetadata = ReadEventMetadata,
 > = {
   currentGlobalPosition: bigint;
-  events: ReadEvent<EventType, ReadEventMetadataType>[];
+  messages: ReadEvent<EventType, ReadEventMetadataType>[];
   areEventsLeft: boolean;
 };
 
@@ -99,12 +99,12 @@ export const readMessagesBatch = async <
     ? {
         currentGlobalPosition:
           events[events.length - 1]!.metadata.globalPosition,
-        events,
+        messages: events,
         areEventsLeft: events.length === batchSize,
       }
     : {
         currentGlobalPosition: from,
-        events: [],
+        messages: [],
         areEventsLeft: false,
       };
 };
