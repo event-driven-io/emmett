@@ -1,5 +1,8 @@
 import type { DefaultRecord, Flavour } from './';
 
+export type BigIntStreamPosition = bigint;
+export type BigIntGlobalPosition = bigint;
+
 export type Event<
   EventType extends string = string,
   EventData extends DefaultRecord = DefaultRecord,
@@ -48,7 +51,10 @@ export const event = <EventType extends Event>(
 export type ReadEvent<
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ReadEventMetadata<any, any> = EventMetaDataOf<EventType> &
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ReadEventMetadata<any, any>,
 > = CreateEventType<
   EventTypeOf<EventType>,
   EventDataOf<EventType>,
@@ -56,12 +62,30 @@ export type ReadEvent<
 > &
   EventType & { metadata: EventMetaDataType };
 
-export type ReadEventMetadata = Readonly<{
+export type ReadEventMetadata<
+  GlobalPosition = undefined,
+  StreamPosition = BigIntStreamPosition,
+> = Readonly<{
   eventId: string;
-  streamPosition: bigint;
+  streamPosition: StreamPosition;
   streamName: string;
-}>;
+}> &
+  (GlobalPosition extends undefined
+    ? object
+    : { globalPosition: GlobalPosition });
 
-export type ReadEventMetadataWithGlobalPosition = ReadEventMetadata & {
-  globalPosition: bigint;
-};
+export type ReadEventMetadataWithGlobalPosition<
+  GlobalPosition = BigIntGlobalPosition,
+> = ReadEventMetadata<GlobalPosition>;
+
+export type ReadEventMetadataWithoutGlobalPosition<
+  StreamPosition = BigIntStreamPosition,
+> = ReadEventMetadata<undefined, StreamPosition>;
+
+export type GlobalPositionTypeOfReadEventMetadata<ReadEventMetadataType> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ReadEventMetadataType extends ReadEventMetadata<infer GP, any> ? GP : never;
+
+export type StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ReadEventMetadataType extends ReadEventMetadata<any, infer SV> ? SV : never;

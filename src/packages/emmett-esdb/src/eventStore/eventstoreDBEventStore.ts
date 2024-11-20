@@ -10,7 +10,6 @@ import {
   type AggregateStreamResult,
   type AppendToStreamOptions,
   type AppendToStreamResult,
-  type DefaultStreamVersionType,
   type Event,
   type EventStore,
   type ExpectedStreamVersion,
@@ -57,16 +56,26 @@ const toEventStoreDBReadOptions = (
 
 export const EventStoreDBEventStoreDefaultStreamVersion = -1n;
 
+export type EventStoreDBReadEventMetadata = ReadEventMetadataWithGlobalPosition;
+
+export type EventStoreDBReadEvent<EventType extends Event = Event> = ReadEvent<
+  EventType,
+  EventStoreDBReadEventMetadata
+>;
+
+export type EventStoreDBEventStore = EventStore<EventStoreDBReadEventMetadata>;
+
 export const getEventStoreDBEventStore = (
   eventStore: EventStoreDBClient,
-): EventStore<
-  DefaultStreamVersionType,
-  ReadEventMetadataWithGlobalPosition
-> => {
+): EventStoreDBEventStore => {
   return {
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
-      options: AggregateStreamOptions<State, EventType>,
+      options: AggregateStreamOptions<
+        State,
+        EventType,
+        EventStoreDBReadEventMetadata
+      >,
     ): Promise<AggregateStreamResult<State>> {
       const { evolve, initialState, read } = options;
 
@@ -114,17 +123,8 @@ export const getEventStoreDBEventStore = (
     readStream: async <EventType extends Event>(
       streamName: string,
       options?: ReadStreamOptions,
-    ): Promise<
-      ReadStreamResult<
-        EventType,
-        DefaultStreamVersionType,
-        ReadEventMetadataWithGlobalPosition
-      >
-    > => {
-      const events: ReadEvent<
-        EventType,
-        ReadEventMetadataWithGlobalPosition
-      >[] = [];
+    ): Promise<ReadStreamResult<EventType, EventStoreDBReadEventMetadata>> => {
+      const events: ReadEvent<EventType, EventStoreDBReadEventMetadata>[] = [];
 
       let currentStreamVersion: bigint =
         EventStoreDBEventStoreDefaultStreamVersion;
@@ -200,13 +200,13 @@ export const getEventStoreDBEventStore = (
 
 const mapFromESDBEvent = <EventType extends Event = Event>(
   event: JSONRecordedEvent<EventType>,
-): ReadEvent<EventType, ReadEventMetadataWithGlobalPosition> => {
-  return <ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>>{
+): ReadEvent<EventType, EventStoreDBReadEventMetadata> => {
+  return <ReadEvent<EventType, EventStoreDBReadEventMetadata>>{
     type: event.type,
     data: event.data,
     metadata: {
-      ...((event.metadata as ReadEventMetadataWithGlobalPosition) ??
-        ({} as ReadEventMetadataWithGlobalPosition)),
+      ...((event.metadata as EventStoreDBReadEventMetadata) ??
+        ({} as EventStoreDBReadEventMetadata)),
       eventId: event.id,
       streamName: event.streamId,
       streamPosition: event.revision,
@@ -285,7 +285,7 @@ const convertToWebReadableStream = (
 // const streamEvents = (eventStore: EventStoreDBClient) => () => {
 //   return restream<
 //     AllStreamResolvedEvent | GlobalSubscriptionEvent,
-//     | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
+//     | ReadEvent<Event, EventStoreDBReadEventMetadata>
 //     | GlobalSubscriptionEvent
 //   >(
 //     (): ReadableStream<AllStreamResolvedEvent | GlobalSubscriptionEvent> =>
@@ -297,7 +297,7 @@ const convertToWebReadableStream = (
 //       ),
 //     (
 //       resolvedEvent: AllStreamResolvedEvent | GlobalSubscriptionEvent,
-//     ): ReadEvent<Event, ReadEventMetadataWithGlobalPosition> =>
+//     ): ReadEvent<Event, EventStoreDBReadEventMetadata> =>
 //       mapFromESDBEvent(resolvedEvent.event as JSONRecordedEvent<Event>),
 //   );
 // };

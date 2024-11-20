@@ -11,9 +11,9 @@ import {
   type EventMetaDataOf,
   type ProjectionHandler,
   type ReadEvent,
-  type ReadEventMetadata,
   type TypedProjectionDefinition,
 } from '@event-driven-io/emmett';
+import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 
 export type PostgreSQLProjectionHandlerContext = {
   connectionString: string;
@@ -25,7 +25,8 @@ export type PostgreSQLProjectionHandlerContext = {
 export type PostgreSQLProjectionHandler<
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    PostgresReadEventMetadata = EventMetaDataOf<EventType> &
+    PostgresReadEventMetadata,
 > = ProjectionHandler<
   EventType,
   EventMetaDataType,
@@ -35,7 +36,8 @@ export type PostgreSQLProjectionHandler<
 export type PostgreSQLProjectionDefinition<
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    PostgresReadEventMetadata = EventMetaDataOf<EventType> &
+    PostgresReadEventMetadata,
 > = TypedProjectionDefinition<
   EventType,
   EventMetaDataType,
@@ -45,10 +47,11 @@ export type PostgreSQLProjectionDefinition<
 export type ProjectionHandlerOptions<
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    PostgresReadEventMetadata = EventMetaDataOf<EventType> &
+    PostgresReadEventMetadata,
 > = {
   events: ReadEvent<EventType, EventMetaDataType>[];
-  projections: PostgreSQLProjectionDefinition<EventType>[];
+  projections: PostgreSQLProjectionDefinition<EventType, EventMetaDataType>[];
   connection: {
     connectionString: string;
     transaction: NodePostgresTransaction;
@@ -58,7 +61,8 @@ export type ProjectionHandlerOptions<
 export const handleProjections = async <
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    PostgresReadEventMetadata = EventMetaDataOf<EventType> &
+    PostgresReadEventMetadata,
 >(
   options: ProjectionHandlerOptions<EventType, EventMetaDataType>,
 ): Promise<void> => {
@@ -89,15 +93,16 @@ export const handleProjections = async <
 export const postgreSQLProjection = <
   EventType extends Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
-    ReadEventMetadata = EventMetaDataOf<EventType> & ReadEventMetadata,
+    PostgresReadEventMetadata = EventMetaDataOf<EventType> &
+    PostgresReadEventMetadata,
 >(
-  definition: PostgreSQLProjectionDefinition<EventType>,
+  definition: PostgreSQLProjectionDefinition<EventType, EventMetaDataType>,
 ): PostgreSQLProjectionDefinition =>
   projection<
     EventType,
     EventMetaDataType,
     PostgreSQLProjectionHandlerContext,
-    PostgreSQLProjectionDefinition<EventType>
+    PostgreSQLProjectionDefinition<EventType, EventMetaDataType>
   >(definition) as PostgreSQLProjectionDefinition;
 
 export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
