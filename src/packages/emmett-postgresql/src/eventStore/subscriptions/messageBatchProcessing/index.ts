@@ -48,7 +48,7 @@ export const postgreSQLEventStoreMessageBatchPuller = <
 
   let start: Promise<void>;
 
-  const pollMessages = async () => {
+  const pullMessages = async () => {
     const options: ReadMessagesBatchOptions = { from: 0n, batchSize };
 
     let waitTime = 100;
@@ -83,7 +83,7 @@ export const postgreSQLEventStoreMessageBatchPuller = <
       start = (async () => {
         isRunning = true;
 
-        return pollMessages();
+        return pullMessages();
       })();
 
       return start;

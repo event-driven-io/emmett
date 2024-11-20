@@ -35,7 +35,7 @@ export const assertThrowsAsync = async <TError extends Error>(
     await fun();
   } catch (error) {
     const typedError = error as TError;
-    if (!errorCheck) {
+    if (typedError instanceof AssertionError || !errorCheck) {
       assertFalse(
         typedError instanceof AssertionError,
         "Function didn't throw expected error",
@@ -43,7 +43,10 @@ export const assertThrowsAsync = async <TError extends Error>(
       return typedError;
     }
 
-    assertTrue(errorCheck(typedError));
+    assertTrue(
+      errorCheck(typedError),
+      `Error doesn't match the expected condition: ${JSON.stringify(error)}`,
+    );
 
     return typedError;
   }
@@ -58,7 +61,7 @@ export const assertThrows = <TError extends Error>(
     fun();
   } catch (error) {
     const typedError = error as TError;
-    if (!errorCheck) {
+    if (typedError instanceof AssertionError || !errorCheck) {
       assertFalse(
         typedError instanceof AssertionError,
         "Function didn't throw expected error",
@@ -66,7 +69,10 @@ export const assertThrows = <TError extends Error>(
       return typedError;
     }
 
-    assertTrue(errorCheck(typedError));
+    assertTrue(
+      errorCheck(typedError),
+      `Error doesn't match the expected condition: ${JSON.stringify(error)}`,
+    );
 
     return typedError;
   }
