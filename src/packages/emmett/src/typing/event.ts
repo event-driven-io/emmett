@@ -1,3 +1,4 @@
+import type { DefaultStreamVersionType } from '../eventStore';
 import type { DefaultRecord, Flavour } from './';
 
 export type Event<
@@ -56,12 +57,16 @@ export type ReadEvent<
 > &
   EventType & { metadata: EventMetaDataType };
 
-export type ReadEventMetadata = Readonly<{
+export type ReadEventMetadata<
+  GlobalPosition = undefined,
+  StreamPosition = DefaultStreamVersionType,
+> = Readonly<{
   eventId: string;
-  streamPosition: bigint;
+  streamPosition: StreamPosition;
   streamName: string;
-}>;
+}> &
+  (GlobalPosition extends undefined
+    ? object
+    : { globalPosition: GlobalPosition });
 
-export type ReadEventMetadataWithGlobalPosition = ReadEventMetadata & {
-  globalPosition: bigint;
-};
+export type ReadEventMetadataWithGlobalPosition = ReadEventMetadata<bigint>;
