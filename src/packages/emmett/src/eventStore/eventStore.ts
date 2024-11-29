@@ -196,3 +196,9 @@ export type AppendToStreamResult<StreamVersion = BigIntStreamPosition> = {
   nextExpectedStreamVersion: StreamVersion;
   createdNewStream: boolean;
 };
+
+export type AppendToStreamResultWithGlobalPosition<
+  StreamVersion = BigIntStreamPosition,
+> = AppendToStreamResult<StreamVersion> & {
+  lastEventGlobalPosition: StreamVersion;
+};

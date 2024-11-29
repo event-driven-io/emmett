@@ -9,7 +9,7 @@ import {
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
-  type AppendToStreamResult,
+  type AppendToStreamResultWithGlobalPosition,
   type Event,
   type EventStore,
   type ExpectedStreamVersion,
@@ -160,7 +160,7 @@ export const getEventStoreDBEventStore = (
       streamName: string,
       events: EventType[],
       options?: AppendToStreamOptions,
-    ): Promise<AppendToStreamResult> => {
+    ): Promise<AppendToStreamResultWithGlobalPosition> => {
       try {
         const serializedEvents = events.map(jsonEvent);
 
@@ -178,6 +178,7 @@ export const getEventStoreDBEventStore = (
 
         return {
           nextExpectedStreamVersion: appendResult.nextExpectedRevision,
+          lastEventGlobalPosition: appendResult.position!.commit,
           createdNewStream:
             appendResult.nextExpectedRevision >=
             BigInt(serializedEvents.length),

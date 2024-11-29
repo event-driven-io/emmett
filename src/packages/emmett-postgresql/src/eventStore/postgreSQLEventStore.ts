@@ -13,7 +13,7 @@ import {
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
-  type AppendToStreamResult,
+  type AppendToStreamResultWithGlobalPosition,
   type Event,
   type EventStore,
   type EventStoreSession,
@@ -238,7 +238,7 @@ export const getPostgreSQLEventStore = (
       streamName: string,
       events: EventType[],
       options?: AppendToStreamOptions,
-    ): Promise<AppendToStreamResult> => {
+    ): Promise<AppendToStreamResultWithGlobalPosition> => {
       await ensureSchemaExists();
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
@@ -265,6 +265,7 @@ export const getPostgreSQLEventStore = (
 
       return {
         nextExpectedStreamVersion: appendResult.nextStreamPosition,
+        lastEventGlobalPosition: appendResult.lastGlobalPosition,
         createdNewStream:
           appendResult.nextStreamPosition >= BigInt(events.length),
       };
