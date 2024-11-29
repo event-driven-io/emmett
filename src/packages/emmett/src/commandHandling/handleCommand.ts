@@ -123,9 +123,14 @@ export const CommandHandler =
           });
 
           // 2. Use the aggregate state
-          const state = aggregationResult.state;
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          const currentStreamVersion = aggregationResult.currentStreamVersion;
+
+          const {
+            state,
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            currentStreamVersion,
+            streamExists: _streamExists,
+            ...restOfAggregationResult
+          } = aggregationResult;
 
           // 3. Run business logic
           const result = await handle(state);
@@ -134,6 +139,7 @@ export const CommandHandler =
 
           if (newEvents.length === 0) {
             return {
+              ...restOfAggregationResult,
               newEvents: [],
               newState: state,
               // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment

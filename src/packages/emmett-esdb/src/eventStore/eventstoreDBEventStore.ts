@@ -7,7 +7,7 @@ import {
   globalStreamCaughtUp,
   streamTransformations,
   type AggregateStreamOptions,
-  type AggregateStreamResult,
+  type AggregateStreamResultWithGlobalPosition,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
   type Event,
@@ -76,7 +76,7 @@ export const getEventStoreDBEventStore = (
         EventType,
         EventStoreDBReadEventMetadata
       >,
-    ): Promise<AggregateStreamResult<State>> {
+    ): Promise<AggregateStreamResultWithGlobalPosition<State>> {
       const { evolve, initialState, read } = options;
 
       const expectedStreamVersion = read?.expectedStreamVersion;
@@ -84,6 +84,7 @@ export const getEventStoreDBEventStore = (
       let state = initialState();
       let currentStreamVersion: bigint =
         EventStoreDBEventStoreDefaultStreamVersion;
+      let lastEventGlobalPosition: bigint | undefined = undefined;
 
       try {
         for await (const { event } of eventStore.readStream<EventType>(
@@ -94,6 +95,7 @@ export const getEventStoreDBEventStore = (
 
           state = evolve(state, mapFromESDBEvent<EventType>(event));
           currentStreamVersion = event.revision;
+          lastEventGlobalPosition = event.position?.commit;
         }
 
         assertExpectedVersionMatchesCurrent(
@@ -102,11 +104,18 @@ export const getEventStoreDBEventStore = (
           EventStoreDBEventStoreDefaultStreamVersion,
         );
 
-        return {
-          currentStreamVersion,
-          state,
-          streamExists: true,
-        };
+        return lastEventGlobalPosition
+          ? {
+              currentStreamVersion,
+              lastEventGlobalPosition,
+              state,
+              streamExists: true,
+            }
+          : {
+              currentStreamVersion,
+              state,
+              streamExists: false,
+            };
       } catch (error) {
         if (error instanceof StreamNotFoundError) {
           return {

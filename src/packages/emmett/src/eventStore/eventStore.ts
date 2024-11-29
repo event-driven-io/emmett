@@ -1,5 +1,6 @@
 //import type { ReadableStream } from 'web-streams-polyfill';
 import type {
+  BigIntGlobalPosition,
   BigIntStreamPosition,
   Event,
   EventMetaDataOf,
@@ -76,12 +77,6 @@ export type GlobalPositionTypeOfEventStore<Store extends EventStore> =
 
 export type StreamPositionTypeOfEventStore<Store extends EventStore> =
   StreamPositionTypeOfReadEventMetadata<EventStoreReadEventMetadata<Store>>;
-
-export type AppendStreamResultOfEventStore<Store extends EventStore> =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  Store['appendToStream'] extends (...args: any[]) => Promise<infer R>
-    ? R
-    : never;
 
 export type EventStoreSession<EventStoreType extends EventStore> = {
   eventStore: EventStoreType;
@@ -190,6 +185,25 @@ export type AggregateStreamResult<
   streamExists: boolean;
 };
 
+export type AggregateStreamResultWithGlobalPosition<
+  State,
+  StreamPosition = BigIntStreamPosition,
+  GlobalPosition = BigIntGlobalPosition,
+> =
+  | (AggregateStreamResult<State, StreamPosition> & {
+      streamExists: true;
+      lastEventGlobalPosition: GlobalPosition;
+    })
+  | (AggregateStreamResult<State, StreamPosition> & {
+      streamExists: false;
+    });
+
+export type AggregateStreamResultOfEventStore<Store extends EventStore> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Store['aggregateStream'] extends (...args: any[]) => Promise<infer R>
+    ? R
+    : never;
+
 ////////////////////////////////////////////////////////////////////
 /// AppendToStream types
 ////////////////////////////////////////////////////////////////////
@@ -205,6 +219,13 @@ export type AppendToStreamResult<StreamVersion = BigIntStreamPosition> = {
 
 export type AppendToStreamResultWithGlobalPosition<
   StreamVersion = BigIntStreamPosition,
+  GlobalPosition = BigIntGlobalPosition,
 > = AppendToStreamResult<StreamVersion> & {
-  lastEventGlobalPosition: StreamVersion;
+  lastEventGlobalPosition: GlobalPosition;
 };
+
+export type AppendStreamResultOfEventStore<Store extends EventStore> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Store['appendToStream'] extends (...args: any[]) => Promise<infer R>
+    ? R
+    : never;
