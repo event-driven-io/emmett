@@ -77,6 +77,12 @@ export type GlobalPositionTypeOfEventStore<Store extends EventStore> =
 export type StreamPositionTypeOfEventStore<Store extends EventStore> =
   StreamPositionTypeOfReadEventMetadata<EventStoreReadEventMetadata<Store>>;
 
+export type AppendStreamResultOfEventStore<Store extends EventStore> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Store['appendToStream'] extends (...args: any[]) => Promise<infer R>
+    ? R
+    : never;
+
 export type EventStoreSession<EventStoreType extends EventStore> = {
   eventStore: EventStoreType;
   close: () => Promise<void>;
