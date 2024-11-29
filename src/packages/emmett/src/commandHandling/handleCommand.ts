@@ -4,13 +4,13 @@ import {
   NO_CONCURRENCY_CHECK,
   nulloSessionFactory,
   STREAM_DOES_NOT_EXIST,
-  type AppendToStreamResult,
+  type AppendStreamResultOfEventStore,
   type EventStore,
   type EventStoreSession,
   type ExpectedStreamVersion,
   type StreamPositionTypeOfEventStore,
 } from '../eventStore';
-import type { BigIntStreamPosition, Event } from '../typing';
+import type { Event } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
 
 export const CommandHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
@@ -48,8 +48,8 @@ const fromCommandHandlerRetryOptions = (
 export type CommandHandlerResult<
   State,
   StreamEvent extends Event,
-  StreamVersion = BigIntStreamPosition,
-> = AppendToStreamResult<StreamVersion> & {
+  Store extends EventStore,
+> = AppendStreamResultOfEventStore<Store> & {
   newState: State;
   newEvents: StreamEvent[];
 };
@@ -90,13 +90,7 @@ export const CommandHandler =
       | Promise<StreamEvent>
       | Promise<StreamEvent[]>,
     handleOptions?: HandleOptions<Store>,
-  ): Promise<
-    CommandHandlerResult<
-      State,
-      StreamEvent,
-      StreamPositionTypeOfEventStore<Store>
-    >
-  > =>
+  ): Promise<CommandHandlerResult<State, StreamEvent, Store>> =>
     asyncRetry(
       async () => {
         const result = await withSession<
@@ -145,7 +139,7 @@ export const CommandHandler =
               // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               nextExpectedStreamVersion: currentStreamVersion,
               createdNewStream: false,
-            };
+            } as unknown as CommandHandlerResult<State, StreamEvent, Store>;
           }
 
           // Either use:
@@ -178,7 +172,7 @@ export const CommandHandler =
             ...appendResult,
             newEvents,
             newState: newEvents.reduce(evolve, state),
-          };
+          } as unknown as CommandHandlerResult<State, StreamEvent, Store>;
         });
 
         return result;
