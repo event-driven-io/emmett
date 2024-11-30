@@ -47,7 +47,7 @@ void describe('Shopping Cart Short Details Projection', () => {
     }
   });
 
-  void it.skip('adds product to empty shopping cart', () =>
+  void it('adds product to empty shopping cart', () =>
     given([])
       .when([
         {

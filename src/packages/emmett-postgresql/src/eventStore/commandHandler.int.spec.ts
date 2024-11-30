@@ -30,6 +30,7 @@ void describe('Postgres Projections', () => {
   let eventStore: PostgresEventStore;
   let connectionString: string;
   let pongo: PongoClient;
+  const now = new Date();
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
@@ -68,7 +69,7 @@ void describe('Postgres Projections', () => {
 
     const result = await handle(eventStore, shoppingCartId, () => ({
       type: 'ProductItemAdded',
-      data: { productItem },
+      data: { productItem, addedAt: now },
     }));
 
     const couponId = uuid();
@@ -78,7 +79,7 @@ void describe('Postgres Projections', () => {
 
     await handle(eventStore, shoppingCartId, () => ({
       type: 'ProductItemAdded',
-      data: { productItem },
+      data: { productItem, addedAt: new Date() },
     }));
 
     await handle(eventStore, shoppingCartId, () => ({

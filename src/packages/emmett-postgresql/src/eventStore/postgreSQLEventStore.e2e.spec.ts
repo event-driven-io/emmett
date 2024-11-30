@@ -30,6 +30,7 @@ void describe('EventStoreDBEventStore', () => {
   let eventStore: PostgresEventStore;
   let connectionString: string;
   let pongo: PongoClient;
+  const now = new Date();
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
@@ -65,10 +66,10 @@ void describe('EventStoreDBEventStore', () => {
     handledEventsInCustomProjection = [];
 
     await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
-      { type: 'ProductItemAdded', data: { productItem } },
+      { type: 'ProductItemAdded', data: { productItem, addedAt: now } },
     ]);
     await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
-      { type: 'ProductItemAdded', data: { productItem } },
+      { type: 'ProductItemAdded', data: { productItem, addedAt: new Date() } },
     ]);
     await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
       {
