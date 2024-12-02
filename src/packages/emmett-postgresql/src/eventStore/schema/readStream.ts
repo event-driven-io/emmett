@@ -1,7 +1,6 @@
 import { mapRows, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   event,
-  type DefaultStreamVersionType,
   type Event,
   type EventDataOf,
   type EventMetaDataOf,
@@ -11,8 +10,8 @@ import {
   type ReadStreamOptions,
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
-import { defaultTag, eventsTable } from './typing';
 import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
+import { defaultTag, eventsTable } from './typing';
 
 type ReadStreamSqlResult<EventType extends Event> = {
   stream_position: string;
@@ -31,11 +30,7 @@ export const readStream = async <EventType extends Event>(
   streamId: string,
   options?: ReadStreamOptions & { partition?: string },
 ): Promise<
-  ReadStreamResult<
-    EventType,
-    DefaultStreamVersionType,
-    ReadEventMetadataWithGlobalPosition
-  >
+  ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
 > => {
   const fromCondition: string =
     options && 'from' in options

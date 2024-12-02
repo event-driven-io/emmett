@@ -19,7 +19,7 @@ type TestOptions = {
   teardownHook?: () => Promise<void>;
 };
 
-export type EventStoreFactory = () => Promise<EventStore<bigint>>;
+export type EventStoreFactory = () => Promise<EventStore>;
 
 export async function testAggregateStream(
   eventStoreFactory: EventStoreFactory,
@@ -28,7 +28,7 @@ export async function testAggregateStream(
   },
 ) {
   return describe('aggregateStream', async () => {
-    let eventStore: EventStore<bigint>;
+    let eventStore: EventStore;
     const evolveTestCases = [
       {
         evolve,

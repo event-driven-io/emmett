@@ -1,77 +1,104 @@
 //import type { ReadableStream } from 'web-streams-polyfill';
-import type { Event, ReadEvent, ReadEventMetadata } from '../typing';
+import type {
+  BigIntGlobalPosition,
+  BigIntStreamPosition,
+  Event,
+  EventMetaDataOf,
+  GlobalPositionTypeOfReadEventMetadata,
+  ReadEvent,
+  ReadEventMetadata,
+  StreamPositionTypeOfReadEventMetadata,
+} from '../typing';
 //import type { GlobalSubscriptionEvent } from './events';
 import type { ExpectedStreamVersion } from './expectedVersion';
 
 // #region event-store
 export interface EventStore<
-  StreamVersion = DefaultStreamVersionType,
-  ReadEventMetadataType extends ReadEventMetadata = ReadEventMetadata,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ReadEventMetadataType extends ReadEventMetadata<any, any> = ReadEventMetadata<
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any
+  >,
 > {
   aggregateStream<State, EventType extends Event>(
     streamName: string,
     options: AggregateStreamOptions<
       State,
       EventType,
-      StreamVersion,
-      ReadEventMetadataType
+      ReadEventMetadataType & EventMetaDataOf<EventType>
     >,
-  ): Promise<AggregateStreamResult<State, StreamVersion>>;
+  ): Promise<
+    AggregateStreamResult<
+      State,
+      StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>
+    >
+  >;
 
   readStream<EventType extends Event>(
     streamName: string,
-    options?: ReadStreamOptions<StreamVersion>,
-  ): Promise<ReadStreamResult<EventType, StreamVersion, ReadEventMetadataType>>;
+    options?: ReadStreamOptions<
+      StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>
+    >,
+  ): Promise<
+    ReadStreamResult<
+      EventType,
+      ReadEventMetadataType & EventMetaDataOf<EventType>
+    >
+  >;
 
   appendToStream<EventType extends Event>(
     streamName: string,
     events: EventType[],
-    options?: AppendToStreamOptions<StreamVersion>,
-  ): Promise<AppendToStreamResult<StreamVersion>>;
+    options?: AppendToStreamOptions<
+      StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>
+    >,
+  ): Promise<
+    AppendToStreamResult<
+      StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>
+    >
+  >;
 
   // streamEvents(): ReadableStream<
   //   ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent
   // >;
 }
 
-export type EventStoreSession<
-  EventStoreType extends EventStore<StreamVersion>,
-  StreamVersion = DefaultStreamVersionType,
-> = {
+export type EventStoreReadEventMetadata<Store extends EventStore> =
+  Store extends EventStore<infer ReadEventMetadataType>
+    ? ReadEventMetadataType extends ReadEventMetadata<infer GV, infer SV>
+      ? ReadEventMetadata<GV, SV> & ReadEventMetadataType
+      : never
+    : never;
+
+export type GlobalPositionTypeOfEventStore<Store extends EventStore> =
+  GlobalPositionTypeOfReadEventMetadata<EventStoreReadEventMetadata<Store>>;
+
+export type StreamPositionTypeOfEventStore<Store extends EventStore> =
+  StreamPositionTypeOfReadEventMetadata<EventStoreReadEventMetadata<Store>>;
+
+export type EventStoreSession<EventStoreType extends EventStore> = {
   eventStore: EventStoreType;
   close: () => Promise<void>;
 };
 
-export interface EventStoreSessionFactory<
-  EventStoreType extends EventStore<StreamVersion>,
-  StreamVersion = DefaultStreamVersionType,
-> {
+export interface EventStoreSessionFactory<EventStoreType extends EventStore> {
   withSession<T = unknown>(
-    callback: (
-      session: EventStoreSession<EventStoreType, StreamVersion>,
-    ) => Promise<T>,
+    callback: (session: EventStoreSession<EventStoreType>) => Promise<T>,
   ): Promise<T>;
 }
-
-export type DefaultStreamVersionType = bigint;
 // #endregion event-store
 
-export const canCreateEventStoreSession = <
-  Store extends EventStore<StreamVersion>,
-  StreamVersion = DefaultStreamVersionType,
->(
-  eventStore: Store | EventStoreSessionFactory<Store, StreamVersion>,
-): eventStore is EventStoreSessionFactory<Store, StreamVersion> =>
-  'withSession' in eventStore;
+export const canCreateEventStoreSession = <Store extends EventStore>(
+  eventStore: Store | EventStoreSessionFactory<Store>,
+): eventStore is EventStoreSessionFactory<Store> => 'withSession' in eventStore;
 
-export const nulloSessionFactory = <
-  EventStoreType extends EventStore<StreamVersion>,
-  StreamVersion = DefaultStreamVersionType,
->(
+export const nulloSessionFactory = <EventStoreType extends EventStore>(
   eventStore: EventStoreType,
-): EventStoreSessionFactory<EventStoreType, StreamVersion> => ({
+): EventStoreSessionFactory<EventStoreType> => ({
   withSession: (callback) => {
-    const nulloSession: EventStoreSession<EventStoreType, StreamVersion> = {
+    const nulloSession: EventStoreSession<EventStoreType> = {
       eventStore,
       close: () => Promise.resolve(),
     };
@@ -84,7 +111,7 @@ export const nulloSessionFactory = <
 /// ReadStream types
 ////////////////////////////////////////////////////////////////////
 
-export type ReadStreamOptions<StreamVersion = DefaultStreamVersionType> = (
+export type ReadStreamOptions<StreamVersion = BigIntStreamPosition> = (
   | {
       from: StreamVersion;
     }
@@ -99,11 +126,17 @@ export type ReadStreamOptions<StreamVersion = DefaultStreamVersionType> = (
 
 export type ReadStreamResult<
   EventType extends Event,
-  StreamVersion = DefaultStreamVersionType,
-  ReadEventMetadataType extends ReadEventMetadata = ReadEventMetadata,
+  ReadEventMetadataType extends EventMetaDataOf<EventType> &
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ReadEventMetadata<any, any> = EventMetaDataOf<EventType> &
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ReadEventMetadata<any, bigint>,
 > = {
-  currentStreamVersion: StreamVersion;
-  events: ReadEvent<EventType, ReadEventMetadataType>[];
+  currentStreamVersion: StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>;
+  events: ReadEvent<
+    EventType,
+    ReadEventMetadataType & EventMetaDataOf<EventType>
+  >[];
   streamExists: boolean;
 };
 
@@ -114,7 +147,11 @@ export type ReadStreamResult<
 type Evolve<
   State,
   EventType extends Event,
-  ReadEventMetadataType extends ReadEventMetadata = ReadEventMetadata,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ReadEventMetadataType extends ReadEventMetadata<any, any> &
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    EventMetaDataOf<EventType> = ReadEventMetadata<any, any> &
+    EventMetaDataOf<EventType>,
 > =
   | ((currentState: State, event: EventType) => State)
   | ((
@@ -126,32 +163,69 @@ type Evolve<
 export type AggregateStreamOptions<
   State,
   EventType extends Event,
-  StreamVersion = DefaultStreamVersionType,
-  ReadEventMetadataType extends ReadEventMetadata = ReadEventMetadata,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ReadEventMetadataType extends ReadEventMetadata<any, any> &
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    EventMetaDataOf<EventType> = ReadEventMetadata<any, any> &
+    EventMetaDataOf<EventType>,
 > = {
   evolve: Evolve<State, EventType, ReadEventMetadataType>;
   initialState: () => State;
-  read?: ReadStreamOptions<StreamVersion>;
+  read?: ReadStreamOptions<
+    StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>
+  >;
 };
 
 export type AggregateStreamResult<
   State,
-  StreamVersion = DefaultStreamVersionType,
+  StreamPosition = BigIntStreamPosition,
 > = {
-  currentStreamVersion: StreamVersion;
+  currentStreamVersion: StreamPosition;
   state: State;
   streamExists: boolean;
 };
+
+export type AggregateStreamResultWithGlobalPosition<
+  State,
+  StreamPosition = BigIntStreamPosition,
+  GlobalPosition = BigIntGlobalPosition,
+> =
+  | (AggregateStreamResult<State, StreamPosition> & {
+      streamExists: true;
+      lastEventGlobalPosition: GlobalPosition;
+    })
+  | (AggregateStreamResult<State, StreamPosition> & {
+      streamExists: false;
+    });
+
+export type AggregateStreamResultOfEventStore<Store extends EventStore> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Store['aggregateStream'] extends (...args: any[]) => Promise<infer R>
+    ? R
+    : never;
 
 ////////////////////////////////////////////////////////////////////
 /// AppendToStream types
 ////////////////////////////////////////////////////////////////////
 
-export type AppendToStreamOptions<StreamVersion = DefaultStreamVersionType> = {
+export type AppendToStreamOptions<StreamVersion = BigIntStreamPosition> = {
   expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
 };
 
-export type AppendToStreamResult<StreamVersion = DefaultStreamVersionType> = {
+export type AppendToStreamResult<StreamVersion = BigIntStreamPosition> = {
   nextExpectedStreamVersion: StreamVersion;
   createdNewStream: boolean;
 };
+
+export type AppendToStreamResultWithGlobalPosition<
+  StreamVersion = BigIntStreamPosition,
+  GlobalPosition = BigIntGlobalPosition,
+> = AppendToStreamResult<StreamVersion> & {
+  lastEventGlobalPosition: GlobalPosition;
+};
+
+export type AppendStreamResultOfEventStore<Store extends EventStore> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Store['appendToStream'] extends (...args: any[]) => Promise<infer R>
+    ? R
+    : never;

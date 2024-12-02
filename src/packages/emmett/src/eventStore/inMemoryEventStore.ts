@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import type {
+  BigIntStreamPosition,
   Event,
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
@@ -9,7 +10,6 @@ import {
   type AggregateStreamResult,
   type AppendToStreamOptions,
   type AppendToStreamResult,
-  type DefaultStreamVersionType,
   type EventStore,
   type ReadStreamOptions,
   type ReadStreamResult,
@@ -23,10 +23,10 @@ export type EventHandler<E extends Event = Event> = (
 
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
 
-export const getInMemoryEventStore = (): EventStore<
-  DefaultStreamVersionType,
-  ReadEventMetadataWithGlobalPosition
-> => {
+export type InMemoryEventStore =
+  EventStore<ReadEventMetadataWithGlobalPosition>;
+
+export const getInMemoryEventStore = (): InMemoryEventStore => {
   const streams = new Map<
     string,
     ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[]
@@ -42,7 +42,11 @@ export const getInMemoryEventStore = (): EventStore<
   return {
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
-      options: AggregateStreamOptions<State, EventType>,
+      options: AggregateStreamOptions<
+        State,
+        EventType,
+        ReadEventMetadataWithGlobalPosition
+      >,
     ): Promise<AggregateStreamResult<State>> {
       const { evolve, initialState, read } = options;
 
@@ -59,13 +63,9 @@ export const getInMemoryEventStore = (): EventStore<
 
     readStream: <EventType extends Event>(
       streamName: string,
-      options?: ReadStreamOptions,
+      options?: ReadStreamOptions<BigIntStreamPosition>,
     ): Promise<
-      ReadStreamResult<
-        EventType,
-        DefaultStreamVersionType,
-        ReadEventMetadataWithGlobalPosition
-      >
+      ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
     > => {
       const events = streams.get(streamName);
       const currentStreamVersion = events
@@ -102,7 +102,6 @@ export const getInMemoryEventStore = (): EventStore<
 
       const result: ReadStreamResult<
         EventType,
-        DefaultStreamVersionType,
         ReadEventMetadataWithGlobalPosition
       > = {
         currentStreamVersion,

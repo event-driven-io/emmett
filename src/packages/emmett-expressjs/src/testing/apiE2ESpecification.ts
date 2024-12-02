@@ -1,9 +1,6 @@
 import supertest, { type Response } from 'supertest';
 
-import type {
-  DefaultStreamVersionType,
-  EventStore,
-} from '@event-driven-io/emmett';
+import type { EventStore } from '@event-driven-io/emmett';
 import { WrapEventStore } from '@event-driven-io/emmett';
 import assert from 'assert';
 import type { Application } from 'express';
@@ -20,9 +17,9 @@ export type ApiE2ESpecification = (...givenRequests: TestRequest[]) => {
 };
 
 export const ApiE2ESpecification = {
-  for: <StreamVersion = DefaultStreamVersionType>(
-    getEventStore: () => EventStore<StreamVersion>,
-    getApplication: (eventStore: EventStore<StreamVersion>) => Application,
+  for: (
+    getEventStore: () => EventStore,
+    getApplication: (eventStore: EventStore) => Application,
   ): ApiE2ESpecification => {
     {
       return (...givenRequests: TestRequest[]) => {

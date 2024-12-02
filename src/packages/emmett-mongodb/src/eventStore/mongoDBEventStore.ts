@@ -2,20 +2,21 @@ import {
   ExpectedVersionConflictError,
   STREAM_DOES_NOT_EXIST,
   assertExpectedVersionMatchesCurrent,
-  type EventStore,
-  type Event,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
   type AppendToStreamResult,
-  type ReadStreamOptions,
-  type ReadStreamResult,
+  type Event,
+  type EventStore,
   type ReadEvent,
   type ReadEventMetadata,
   type ExpectedStreamVersion,
   type DefaultRecord,
   type CanHandle,
   type TypedProjectionDefinition,
+  type ReadEventMetadataWithoutGlobalPosition,
+  type ReadStreamOptions,
+  type ReadStreamResult,
 } from '@event-driven-io/emmett';
 import { type Collection, type UpdateFilter, type WithId } from 'mongodb';
 import { v4 as uuid } from 'uuid';
@@ -76,7 +77,30 @@ type MongoDBInlineProjection<EventType extends Event = Event> = {
 
 type MongoDBProjection = MongoDBAsyncProjection | MongoDBInlineProjection;
 
-export class MongoDBEventStore implements EventStore {
+export interface EventStream<EventType extends Event = Event> {
+  streamName: string;
+  events: Array<ReadEvent<EventType, ReadEventMetadata<undefined>>>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+export type EventStreamEvent<EventType extends Event = Event> =
+  EventStream<EventType>['events'][number];
+
+export interface MongoDBConnectionOptions {
+  connectionString: string;
+  database: string;
+  collection?: string;
+}
+
+export type MongoDBReadEventMetadata =
+  ReadEventMetadataWithoutGlobalPosition<bigint>;
+
+export type MongoDBReadEvent<EventType extends Event = Event> = ReadEvent<
+  EventType,
+  MongoDBReadEventMetadata
+>;
+
+export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
   private readonly collection: Collection<EventStream>;
   private readonly inlineProjections?: MongoDBInlineProjection[];
   private readonly asyncProjections?: MongoDBAsyncProjection[];
@@ -97,7 +121,9 @@ export class MongoDBEventStore implements EventStore {
   async readStream<EventType extends Event>(
     streamName: StreamName,
     options?: ReadStreamOptions,
-  ): Promise<Exclude<ReadStreamResult<EventType>, null>> {
+  ): Promise<
+    Exclude<ReadStreamResult<EventType, MongoDBReadEventMetadata>, null>
+  > {
     const expectedStreamVersion = options?.expectedStreamVersion;
     // TODO: use `to` and `from`
 
@@ -153,9 +179,10 @@ export class MongoDBEventStore implements EventStore {
 
   async aggregateStream<State, EventType extends Event>(
     streamName: StreamName,
-    options: AggregateStreamOptions<State, EventType>,
+    options: AggregateStreamOptions<State, EventType, MongoDBReadEventMetadata>,
   ): Promise<AggregateStreamResult<State>> {
     const stream = await this.readStream<EventType>(streamName, options?.read);
+
     const state = stream.events.reduce(options.evolve, options.initialState());
     return {
       state,
@@ -169,7 +196,8 @@ export class MongoDBEventStore implements EventStore {
     events: EventType[],
     options?: AppendToStreamOptions,
   ): Promise<AppendToStreamResult> {
-    const eventCreateInputs: ReadEvent[] = [];
+    const eventCreateInputs: ReadEvent<Event, ReadEventMetadata<undefined>>[] =
+      [];
     for (const event of events) {
       eventCreateInputs.push({
         type: event.type,

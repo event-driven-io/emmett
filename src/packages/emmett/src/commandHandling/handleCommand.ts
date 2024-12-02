@@ -4,11 +4,11 @@ import {
   NO_CONCURRENCY_CHECK,
   nulloSessionFactory,
   STREAM_DOES_NOT_EXIST,
-  type AppendToStreamResult,
-  type DefaultStreamVersionType,
+  type AppendStreamResultOfEventStore,
   type EventStore,
   type EventStoreSession,
   type ExpectedStreamVersion,
+  type StreamPositionTypeOfEventStore,
 } from '../eventStore';
 import type { Event } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
@@ -48,8 +48,8 @@ const fromCommandHandlerRetryOptions = (
 export type CommandHandlerResult<
   State,
   StreamEvent extends Event,
-  StreamVersion = DefaultStreamVersionType,
-> = AppendToStreamResult<StreamVersion> & {
+  Store extends EventStore,
+> = AppendStreamResultOfEventStore<Store> & {
   newState: State;
   newEvents: StreamEvent[];
 };
@@ -61,13 +61,14 @@ export type CommandHandlerOptions<State, StreamEvent extends Event> = {
   retry?: CommandHandlerRetryOptions;
 };
 
-export type HandleOptions<
-  StreamVersion,
-  Store extends EventStore<StreamVersion>,
-> = Parameters<Store['appendToStream']>[2] &
+export type HandleOptions<Store extends EventStore> = Parameters<
+  Store['appendToStream']
+>[2] &
   (
     | {
-        expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
+        expectedStreamVersion?: ExpectedStreamVersion<
+          StreamPositionTypeOfEventStore<Store>
+        >;
       }
     | {
         retry?: CommandHandlerRetryOptions;
@@ -75,10 +76,10 @@ export type HandleOptions<
   );
 
 export const CommandHandler =
-  <State, StreamEvent extends Event, StreamVersion = DefaultStreamVersionType>(
+  <State, StreamEvent extends Event>(
     options: CommandHandlerOptions<State, StreamEvent>,
   ) =>
-  async <Store extends EventStore<StreamVersion>>(
+  async <Store extends EventStore>(
     store: Store,
     id: string,
     handle: (
@@ -88,14 +89,17 @@ export const CommandHandler =
       | StreamEvent[]
       | Promise<StreamEvent>
       | Promise<StreamEvent[]>,
-    handleOptions?: HandleOptions<StreamVersion, Store>,
-  ): Promise<CommandHandlerResult<State, StreamEvent, StreamVersion>> =>
+    handleOptions?: HandleOptions<Store>,
+  ): Promise<CommandHandlerResult<State, StreamEvent, Store>> =>
     asyncRetry(
       async () => {
         const result = await withSession<
           Store,
-          StreamVersion,
-          CommandHandlerResult<State, StreamEvent, StreamVersion>
+          CommandHandlerResult<
+            State,
+            StreamEvent,
+            StreamPositionTypeOfEventStore<Store>
+          >
         >(store, async ({ eventStore }) => {
           const { evolve, initialState } = options;
           const mapToStreamId = options.mapToStreamId ?? ((id) => id);
@@ -112,14 +116,21 @@ export const CommandHandler =
             read: {
               // expected stream version is passed to fail fast
               // if stream is in the wrong state
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               expectedStreamVersion:
                 handleOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
             },
           });
 
           // 2. Use the aggregate state
-          const state = aggregationResult.state;
-          const currentStreamVersion = aggregationResult.currentStreamVersion;
+
+          const {
+            state,
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            currentStreamVersion,
+            streamExists: _streamExists,
+            ...restOfAggregationResult
+          } = aggregationResult;
 
           // 3. Run business logic
           const result = await handle(state);
@@ -128,21 +139,28 @@ export const CommandHandler =
 
           if (newEvents.length === 0) {
             return {
+              ...restOfAggregationResult,
               newEvents: [],
               newState: state,
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               nextExpectedStreamVersion: currentStreamVersion,
               createdNewStream: false,
-            };
+            } as unknown as CommandHandlerResult<State, StreamEvent, Store>;
           }
 
           // Either use:
           // - provided expected stream version,
           // - current stream version got from stream aggregation,
           // - or expect stream not to exists otherwise.
-          const expectedStreamVersion: ExpectedStreamVersion<StreamVersion> =
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          const expectedStreamVersion: ExpectedStreamVersion<
+            StreamPositionTypeOfEventStore<Store>
+          > =
             handleOptions?.expectedStreamVersion ??
             (aggregationResult.streamExists
-              ? (currentStreamVersion as ExpectedStreamVersion<StreamVersion>)
+              ? (currentStreamVersion as ExpectedStreamVersion<
+                  StreamPositionTypeOfEventStore<Store>
+                >)
               : STREAM_DOES_NOT_EXIST);
 
           // 4. Append result to the stream
@@ -160,7 +178,7 @@ export const CommandHandler =
             ...appendResult,
             newEvents,
             newState: newEvents.reduce(evolve, state),
-          };
+          } as unknown as CommandHandlerResult<State, StreamEvent, Store>;
         });
 
         return result;
@@ -173,22 +191,13 @@ export const CommandHandler =
     );
 // #endregion command-handler
 
-const withSession = <
-  EventStoreType extends EventStore<StreamVersion>,
-  StreamVersion = DefaultStreamVersionType,
-  T = unknown,
->(
+const withSession = <EventStoreType extends EventStore, T = unknown>(
   eventStore: EventStoreType,
-  callback: (
-    session: EventStoreSession<EventStoreType, StreamVersion>,
-  ) => Promise<T>,
+  callback: (session: EventStoreSession<EventStoreType>) => Promise<T>,
 ) => {
-  const sessionFactory = canCreateEventStoreSession<
-    EventStoreType,
-    StreamVersion
-  >(eventStore)
+  const sessionFactory = canCreateEventStoreSession<EventStoreType>(eventStore)
     ? eventStore
-    : nulloSessionFactory<EventStoreType, StreamVersion>(eventStore);
+    : nulloSessionFactory<EventStoreType>(eventStore);
 
   return sessionFactory.withSession(callback);
 };
