@@ -3,13 +3,14 @@ import {
   assertEqual,
   assertIsNotNull,
   assertTrue,
+  projections,
   STREAM_DOES_NOT_EXIST,
 } from '@event-driven-io/emmett';
 import {
   MongoDBContainer,
   type StartedMongoDBContainer,
 } from '@testcontainers/mongodb';
-import { type Collection, MongoClient } from 'mongodb';
+import { MongoClient, type Collection } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
@@ -21,15 +22,15 @@ import {
 import {
   getMongoDBEventStore,
   toStreamName,
-  mongoDBInlineProjection,
   type EventStream,
   type MongoDBEventStore,
 } from './mongoDBEventStore';
+import { mongoDBInlineProjection } from './projections';
 
 const DB_NAME = 'mongodbeventstore_testing';
 const SHOPPING_CART_PROJECTION_NAME = 'shoppingCartShortInfo';
 
-void describe('EventStoreDBEventStore', () => {
+void describe('MongoDBEventStore', () => {
   let mongodb: StartedMongoDBContainer;
   let eventStore: MongoDBEventStore;
   let client: MongoClient;
@@ -49,13 +50,13 @@ void describe('EventStoreDBEventStore', () => {
 
     eventStore = getMongoDBEventStore({
       collection,
-      projections: [
+      projections: projections.inline([
         mongoDBInlineProjection({
           name: SHOPPING_CART_PROJECTION_NAME,
           canHandle: ['ProductItemAdded', 'DiscountApplied'],
           evolve,
         }),
-      ],
+      ]),
     });
     return eventStore;
   });
@@ -92,12 +93,16 @@ void describe('EventStoreDBEventStore', () => {
       { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
     );
 
-    const stream = await collection.findOne({ streamName });
+    const stream = await collection.findOne(
+      { streamName },
+      { useBigInt64: true },
+    );
     assertIsNotNull(stream);
     assertEqual('3', stream.metadata.streamPosition.toString());
-    assertDeepEqual(stream.projections[SHOPPING_CART_PROJECTION_NAME]?.short, {
+    assertDeepEqual(stream.projections[SHOPPING_CART_PROJECTION_NAME], {
       productItemsCount: 20,
       totalAmount: 54,
+      _metadata: { name: SHOPPING_CART_PROJECTION_NAME, streamPosition: 3n },
     });
   });
 
@@ -146,7 +151,7 @@ type ShoppingCartShortInfo = {
 const evolve = (
   document: ShoppingCartShortInfo | null,
   { type, data: event }: ProductItemAdded | DiscountApplied,
-): ShoppingCartShortInfo => {
+): ShoppingCartShortInfo | null => {
   document = document ?? { productItemsCount: 0, totalAmount: 0 };
 
   switch (type) {
