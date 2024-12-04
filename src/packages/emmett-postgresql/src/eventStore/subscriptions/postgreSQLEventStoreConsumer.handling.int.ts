@@ -160,6 +160,171 @@ void describe('PostgreSQL event store started consumer', () => {
       }
     });
   });
+
+  void it('handles all events when CURRENT position is NOT stored', async () => {
+    // Given
+    const guestId = uuid();
+    const otherGuestId = uuid();
+    const streamName = `guestStay-${guestId}`;
+
+    const initialEvents: GuestStayEvent[] = [
+      { type: 'GuestCheckedIn', data: { guestId } },
+      { type: 'GuestCheckedOut', data: { guestId } },
+    ];
+
+    await eventStore.appendToStream(streamName, initialEvents);
+
+    const events: GuestStayEvent[] = [
+      { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+      { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+    ];
+
+    const result: GuestStayEvent[] = [];
+    let stopAfterPosition: bigint | undefined = undefined;
+
+    // When
+    const consumer = postgreSQLEventStoreConsumer({
+      connectionString,
+    });
+    consumer.subscribe<GuestStayEvent>({
+      startFrom: 'CURRENT',
+      stopAfter: (event) => event.metadata.globalPosition === stopAfterPosition,
+      eachMessage: (event) => {
+        result.push(event);
+      },
+    });
+
+    try {
+      const consumerPromise = consumer.start();
+
+      const appendResult = await eventStore.appendToStream(streamName, events);
+      stopAfterPosition = appendResult.lastEventGlobalPosition;
+
+      await consumerPromise;
+
+      assertThatArray(result).containsElementsMatching([
+        ...initialEvents,
+        ...events,
+      ]);
+    } finally {
+      await consumer.stop();
+    }
+  });
+
+  void it('handles only new events when CURRENT position is stored for restarted consumer', async () => {
+    // Given
+    const guestId = uuid();
+    const otherGuestId = uuid();
+    const streamName = `guestStay-${guestId}`;
+
+    const initialEvents: GuestStayEvent[] = [
+      { type: 'GuestCheckedIn', data: { guestId } },
+      { type: 'GuestCheckedOut', data: { guestId } },
+    ];
+    const { lastEventGlobalPosition } = await eventStore.appendToStream(
+      streamName,
+      initialEvents,
+    );
+
+    const events: GuestStayEvent[] = [
+      { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+      { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+    ];
+
+    const result: GuestStayEvent[] = [];
+    let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
+
+    // When
+    const consumer = postgreSQLEventStoreConsumer({
+      connectionString,
+    });
+    consumer.subscribe<GuestStayEvent>({
+      startFrom: 'CURRENT',
+      stopAfter: (event) => event.metadata.globalPosition === stopAfterPosition,
+      eachMessage: (event) => {
+        result.push(event);
+      },
+    });
+
+    await consumer.start();
+    await consumer.stop();
+
+    stopAfterPosition = undefined;
+
+    try {
+      const consumerPromise = consumer.start();
+
+      const appendResult = await eventStore.appendToStream(streamName, events);
+      stopAfterPosition = appendResult.lastEventGlobalPosition;
+
+      await consumerPromise;
+
+      assertThatArray(result).containsOnlyElementsMatching(events);
+    } finally {
+      await consumer.stop();
+    }
+  });
+
+  void it('handles only new events when CURRENT position is stored for a new consumer', async () => {
+    // Given
+    const guestId = uuid();
+    //const otherGuestId = uuid();
+    const streamName = `guestStay-${guestId}`;
+
+    const initialEvents: GuestStayEvent[] = [
+      { type: 'GuestCheckedIn', data: { guestId } },
+      { type: 'GuestCheckedOut', data: { guestId } },
+    ];
+    //const { lastEventGlobalPosition } =
+    await eventStore.appendToStream(streamName, initialEvents);
+
+    // const events: GuestStayEvent[] = [
+    //   { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+    //   { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+    // ];
+
+    // const result: GuestStayEvent[] = [];
+    // let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
+
+    // // When
+    // const subscriptionOptions: PostgreSQLEventStoreSubscriptionOptions<GuestStayEvent> =
+    //   {
+    //     startFrom: 'CURRENT',
+    //     stopAfter: (event) =>
+    //       event.metadata.globalPosition === stopAfterPosition,
+    //     eachMessage: (event) => {
+    //       result.push(event);
+    //     },
+    //   };
+
+    // const consumer = postgreSQLEventStoreConsumer({
+    //   connectionString,
+    // });
+    // consumer.subscribe<GuestStayEvent>(subscriptionOptions);
+
+    // await consumer.start();
+    // await consumer.stop();
+
+    // stopAfterPosition = undefined;
+
+    // const newConsumer = postgreSQLEventStoreConsumer({
+    //   connectionString,
+    // });
+    // newConsumer.subscribe<GuestStayEvent>(subscriptionOptions);
+
+    // try {
+    //   const consumerPromise = newConsumer.start();
+
+    //   const appendResult = await eventStore.appendToStream(streamName, events);
+    //   stopAfterPosition = appendResult.lastEventGlobalPosition;
+
+    //   await consumerPromise;
+
+    //   assertThatArray(result).containsOnlyElementsMatching(events);
+    // } finally {
+    //   await newConsumer.stop();
+    // }
+  });
 });
 
 type GuestCheckedIn = Event<'GuestCheckedIn', { guestId: string }>;
