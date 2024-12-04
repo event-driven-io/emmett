@@ -113,6 +113,8 @@ export const postgreSQLEventStoreMessageBatchPuller = <
       return isRunning;
     },
     start: (options) => {
+      if (isRunning) return start;
+
       start = (async () => {
         isRunning = true;
 
@@ -122,6 +124,7 @@ export const postgreSQLEventStoreMessageBatchPuller = <
       return start;
     },
     stop: async () => {
+      if (!isRunning) return;
       isRunning = false;
       await start;
     },
