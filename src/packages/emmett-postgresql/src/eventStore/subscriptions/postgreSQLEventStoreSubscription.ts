@@ -4,6 +4,7 @@ import {
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
+import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 
 export type PostgreSQLEventStoreSubscriptionEventsBatch<
   EventType extends Event = Event,
@@ -13,10 +14,11 @@ export type PostgreSQLEventStoreSubscriptionEventsBatch<
 
 export type PostgreSQLEventStoreSubscription<EventType extends Event = Event> =
   {
+    startFrom?: PostgreSQLEventStoreMessageBatchPullerStartFrom;
     isActive: boolean;
     handle: (
       messagesBatch: PostgreSQLEventStoreSubscriptionEventsBatch<EventType>,
-    ) => Promise<void>;
+    ) => Promise<PostgreSQLEventStoreSubscriptionMessageHandlerResult>;
   };
 
 export const PostgreSQLEventStoreSubscription = {
@@ -55,6 +57,7 @@ export const DefaultPostgreSQLEventStoreSubscriptionBatchSize = 100;
 export type PostgreSQLEventStoreSubscriptionOptions<
   EventType extends Event = Event,
 > = {
+  startFrom?: PostgreSQLEventStoreMessageBatchPullerStartFrom;
   stopAfter?: (
     message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
   ) => boolean;
@@ -70,10 +73,13 @@ export const postgreSQLEventStoreSubscription = <
   let isActive = true;
 
   return {
+    startFrom: options.startFrom,
     get isActive() {
       return isActive;
     },
-    handle: async ({ messages }) => {
+    handle: async ({
+      messages,
+    }): Promise<PostgreSQLEventStoreSubscriptionMessageHandlerResult> => {
       if (!isActive) return;
       for (const message of messages) {
         const typedMessage = message as ReadEvent<
@@ -85,14 +91,14 @@ export const postgreSQLEventStoreSubscription = <
 
         if (options.stopAfter && options.stopAfter(typedMessage)) {
           isActive = false;
-          break;
+          return { type: 'STOP', reason: 'Stop condition reached' };
         }
 
         if (result) {
           if (result.type === 'SKIP') continue;
           else if (result.type === 'STOP') {
             isActive = false;
-            break;
+            return result;
           }
         }
       }

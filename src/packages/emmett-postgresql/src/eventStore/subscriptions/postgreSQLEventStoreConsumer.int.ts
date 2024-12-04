@@ -25,6 +25,7 @@ void describe('PostgreSQL event store consumer', () => {
   let connectionString: string;
   let eventStore: PostgresEventStore;
   const dummySubscription: PostgreSQLEventStoreSubscription = {
+    startFrom: 'BEGINNING',
     handle: () => Promise.resolve(),
     isActive: false,
   };
