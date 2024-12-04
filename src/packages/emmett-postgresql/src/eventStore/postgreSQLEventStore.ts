@@ -40,6 +40,11 @@ import {
 export interface PostgresEventStore
   extends EventStore<PostgresReadEventMetadata>,
     EventStoreSessionFactory<PostgresEventStore> {
+  appendToStream<EventType extends Event>(
+    streamName: string,
+    events: EventType[],
+    options?: AppendToStreamOptions,
+  ): Promise<AppendToStreamResultWithGlobalPosition>;
   close(): Promise<void>;
   schema: {
     sql(): string;

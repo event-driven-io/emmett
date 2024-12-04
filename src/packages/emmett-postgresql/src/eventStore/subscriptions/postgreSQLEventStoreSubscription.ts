@@ -55,6 +55,9 @@ export const DefaultPostgreSQLEventStoreSubscriptionBatchSize = 100;
 export type PostgreSQLEventStoreSubscriptionOptions<
   EventType extends Event = Event,
 > = {
+  stopAfter?: (
+    message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
+  ) => boolean;
   eachMessage: PostgreSQLEventStoreSubscriptionEachMessageHandler<EventType>;
 };
 
@@ -73,9 +76,17 @@ export const postgreSQLEventStoreSubscription = <
     handle: async ({ messages }) => {
       if (!isActive) return;
       for (const message of messages) {
-        const result = await eachMessage(
-          message as ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
-        );
+        const typedMessage = message as ReadEvent<
+          EventType,
+          ReadEventMetadataWithGlobalPosition
+        >;
+
+        const result = await eachMessage(typedMessage);
+
+        if (options.stopAfter && options.stopAfter(typedMessage)) {
+          isActive = false;
+          break;
+        }
 
         if (result) {
           if (result.type === 'SKIP') continue;
