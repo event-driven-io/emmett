@@ -7,18 +7,29 @@ import {
   type AppendToStreamOptions,
   type AppendToStreamResult,
   type Event,
+  type EventMetaDataOf,
   type EventStore,
   type ExpectedStreamVersion,
+  type ProjectionRegistration,
   type ReadEvent,
-  type ReadEventMetadata,
   type ReadEventMetadataWithoutGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
-import { type Collection, type WithId } from 'mongodb';
+import {
+  type Collection,
+  type Document,
+  type UpdateFilter,
+  type WithId,
+} from 'mongodb';
 import { v4 as uuid } from 'uuid';
+import {
+  handleInlineProjections,
+  type MongoDBInlineProjectionDefinition,
+  type MongoDBProjectionInlineHandlerContext,
+} from './projections';
 
-export const MongoDBEventStoreDefaultStreamVersion = 0;
+export const MongoDBEventStoreDefaultStreamVersion = 0n;
 
 export type StreamType = string;
 export type StreamName<T extends StreamType = StreamType> = `${T}:${string}`;
@@ -28,26 +39,33 @@ export type StreamNameParts<T extends StreamType = StreamType> = {
   streamId: string;
 };
 
-export type StreamToProject<EventType extends Event> = {
-  streamName: StreamName;
-  streamType: StreamType;
-  streamId: string;
-  streamVersion: number;
-  events: ReadEvent<EventType, ReadEventMetadata<undefined, number>>[];
+export type MongoDBReadModelMetadata = {
+  name: string;
+  schemaVersion: number;
+  streamPosition: bigint;
 };
 
-export type Projection<EventType extends Event> = (
-  stream: StreamToProject<EventType>,
-) => void | Promise<void>;
+export type MongoDBReadModel<Doc extends Document = Document> = Doc & {
+  _metadata: MongoDBReadModelMetadata;
+};
 
-export interface EventStream<EventType extends Event = Event> {
+export interface EventStream<
+  EventType extends Event = Event,
+  EventMetaDataType extends EventMetaDataOf<EventType> &
+    MongoDBReadEventMetadata = EventMetaDataOf<EventType> &
+    MongoDBReadEventMetadata,
+> {
   streamName: string;
-  events: Array<ReadEvent<EventType, ReadEventMetadata<undefined, number>>>;
-  createdAt: Date;
-  updatedAt: Date;
+  events: Array<ReadEvent<EventType, EventMetaDataType>>;
+  metadata: {
+    streamId: string;
+    streamType: StreamType;
+    streamPosition: bigint;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+  projections: Record<string, MongoDBReadModel>;
 }
-export type EventStreamEvent<EventType extends Event = Event> =
-  EventStream<EventType>['events'][number];
 
 export interface MongoDBConnectionOptions {
   connectionString: string;
@@ -56,32 +74,71 @@ export interface MongoDBConnectionOptions {
 }
 
 export type MongoDBReadEventMetadata =
-  ReadEventMetadataWithoutGlobalPosition<number>;
+  ReadEventMetadataWithoutGlobalPosition<bigint>;
 
 export type MongoDBReadEvent<EventType extends Event = Event> = ReadEvent<
   EventType,
   MongoDBReadEventMetadata
 >;
 
+export type MongoDBEventStoreOptions = {
+  collection: Collection<EventStream>;
+  projections?: ProjectionRegistration<
+    'inline',
+    MongoDBReadEventMetadata,
+    MongoDBProjectionInlineHandlerContext
+  >[];
+};
+
 export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
   private readonly collection: Collection<EventStream>;
+  private readonly inlineProjections: MongoDBInlineProjectionDefinition[];
 
-  constructor(collection: typeof this.collection) {
-    this.collection = collection;
+  constructor(options: MongoDBEventStoreOptions) {
+    this.collection = options.collection;
+    this.inlineProjections = (options.projections ?? [])
+      .filter(({ type }) => type === 'inline')
+      .map(
+        ({ projection }) => projection,
+      ) as MongoDBInlineProjectionDefinition[];
   }
 
   async readStream<EventType extends Event>(
     streamName: StreamName,
-    options?: ReadStreamOptions<number>,
+    options?: ReadStreamOptions,
   ): Promise<
     Exclude<ReadStreamResult<EventType, MongoDBReadEventMetadata>, null>
   > {
     const expectedStreamVersion = options?.expectedStreamVersion;
+    // TODO: use `to` and `from`
+
+    const filter = {
+      streamName: { $eq: streamName },
+    };
+
+    const eventsSliceArr: number[] = [];
+
+    if (options && 'from' in options) {
+      eventsSliceArr.push(Number(options.from));
+    } else {
+      eventsSliceArr.push(0);
+    }
+
+    if (options && 'to' in options) {
+      eventsSliceArr.push(Number(options.to));
+    }
+
+    const eventsSlice =
+      eventsSliceArr.length > 1 ? { $slice: eventsSliceArr } : 1;
 
     const stream = await this.collection.findOne<
-      WithId<EventStream<EventType>>
-    >({
-      streamName: { $eq: streamName },
+      WithId<Pick<EventStream<EventType>, 'metadata' | 'events'>>
+    >(filter, {
+      useBigInt64: true,
+      projection: {
+        metadata: 1,
+        events: eventsSlice,
+      },
     });
 
     if (!stream) {
@@ -93,14 +150,14 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
     }
 
     assertExpectedVersionMatchesCurrent(
-      stream.events.length,
+      stream.metadata.streamPosition,
       expectedStreamVersion,
       MongoDBEventStoreDefaultStreamVersion,
     );
 
     return {
-      events: stream.events.slice(0, maxEventIndex(expectedStreamVersion)),
-      currentStreamVersion: stream.events.length,
+      events: stream.events,
+      currentStreamVersion: stream.metadata.streamPosition,
       streamExists: true,
     };
   }
@@ -108,7 +165,7 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
   async aggregateStream<State, EventType extends Event>(
     streamName: StreamName,
     options: AggregateStreamOptions<State, EventType, MongoDBReadEventMetadata>,
-  ): Promise<AggregateStreamResult<State, number>> {
+  ): Promise<AggregateStreamResult<State>> {
     const stream = await this.readStream<EventType>(streamName, options?.read);
 
     const state = stream.events.reduce(options.evolve, options.initialState());
@@ -122,136 +179,122 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
   async appendToStream<EventType extends Event>(
     streamName: StreamName,
     events: EventType[],
-    options?: AppendToStreamOptions<number> & {
-      /**
-       * These will be ran after a the events have been successfully appended to
-       * the stream. `appendToStream` will return after every projection is completed.
-       */
-      projections?: Array<Projection<EventType>>;
-    },
-  ): Promise<AppendToStreamResult<number>> {
-    let stream = await this.collection.findOne({
-      streamName: { $eq: streamName },
-    });
-    let currentStreamPosition = stream?.events.length ?? 0;
-    let createdNewStream = false;
+    options?: AppendToStreamOptions,
+  ): Promise<AppendToStreamResult> {
+    const expectedStreamVersion = options?.expectedStreamVersion;
 
-    if (!stream) {
-      const now = new Date();
-      const result = await this.collection.insertOne({
-        streamName,
-        events: [],
-        createdAt: now,
-        updatedAt: now,
-      });
-      stream = await this.collection.findOne({
-        _id: result.insertedId,
-      });
-      createdNewStream = true;
-    }
-
-    const eventCreateInputs: ReadEvent<
-      Event,
-      ReadEventMetadata<undefined, number>
-    >[] = [];
-    for (const event of events) {
-      currentStreamPosition++;
-      eventCreateInputs.push({
-        type: event.type,
-        data: event.data,
-        metadata: {
-          now: new Date(),
-          eventId: uuid(),
-          streamName,
-          streamPosition: currentStreamPosition,
-          ...(event.metadata ?? {}),
+    const stream = await this.collection.findOne<
+      WithId<Pick<EventStream<EventType>, 'metadata' | 'projections'>>
+    >(
+      { streamName: { $eq: streamName } },
+      {
+        useBigInt64: true,
+        projection: {
+          'metadata.streamPosition': 1,
+          projections: 1,
         },
-      });
-    }
+      },
+    );
 
-    // TODO: better error here, should rarely happen if ever
-    // if another error was not thrown before this
-    if (!stream) throw new Error('Failed to create stream');
+    const currentStreamVersion =
+      stream?.metadata.streamPosition ?? MongoDBEventStoreDefaultStreamVersion;
 
     assertExpectedVersionMatchesCurrent(
-      stream.events.length,
-      options?.expectedStreamVersion,
+      currentStreamVersion,
+      expectedStreamVersion,
       MongoDBEventStoreDefaultStreamVersion,
     );
 
-    // @ts-expect-error The actual `EventType` is different across each stream document,
-    // but the collection was instantiated as being `EventStream<Event>`. Unlike `findOne`,
-    // `findOneAndUpdate` does not allow a generic to override what the return type is.
-    const updatedStream: WithId<EventStream<EventType>> | null =
-      await this.collection.findOneAndUpdate(
-        {
-          streamName: { $eq: streamName },
-          events: { $size: stream.events.length },
+    let streamOffset = currentStreamVersion;
+
+    const eventsToAppend: ReadEvent<
+      EventType,
+      EventMetaDataOf<EventType> & MongoDBReadEventMetadata
+    >[] = events.map((event) => {
+      const metadata: MongoDBReadEventMetadata = {
+        eventId: uuid(),
+        streamName,
+        streamPosition: ++streamOffset,
+      };
+      return {
+        type: event.type,
+        data: event.data,
+        metadata: {
+          ...metadata,
+          ...(event.metadata ?? {}),
         },
-        {
-          $push: { events: { $each: eventCreateInputs } },
-          $set: { updatedAt: new Date() },
-        },
-        { returnDocument: 'after' },
-      );
+      } as ReadEvent<
+        EventType,
+        EventMetaDataOf<EventType> & MongoDBReadEventMetadata
+      >;
+    });
+
+    const updates: UpdateFilter<EventStream> = {
+      $push: { events: { $each: eventsToAppend } },
+      $set: { 'metadata.updatedAt': new Date() },
+      $inc: { 'metadata.streamPosition': BigInt(events.length) },
+    };
+
+    if (this.inlineProjections) {
+      await handleInlineProjections({
+        readModels: stream?.projections ?? {},
+        events: eventsToAppend,
+        projections: this.inlineProjections,
+        collection: this.collection,
+        updates,
+        client: {},
+      });
+    }
+
+    const updatedStream = await this.collection.updateOne(
+      {
+        streamName: { $eq: streamName },
+        'metadata.streamPosition': toExpectedVersion(
+          options?.expectedStreamVersion,
+        ),
+      },
+      updates,
+      { useBigInt64: true, upsert: true },
+    );
 
     if (!updatedStream) {
-      const currentStream = await this.collection.findOne({
-        streamName: { $eq: streamName },
-      });
       throw new ExpectedVersionConflictError(
-        currentStream?.events.length ?? -1,
-        stream.events.length,
+        currentStreamVersion,
+        options?.expectedStreamVersion ?? 0n,
       );
     }
 
-    const { streamType, streamId } = fromStreamName(streamName);
-
-    await executeProjections(
-      {
-        streamName,
-        streamType,
-        streamId,
-        streamVersion: updatedStream.events.length,
-        events: updatedStream.events,
-      },
-      options?.projections,
-    );
-
     return {
-      nextExpectedStreamVersion: updatedStream.events.length,
-      createdNewStream,
+      nextExpectedStreamVersion:
+        currentStreamVersion + BigInt(eventsToAppend.length),
+      createdNewStream:
+        currentStreamVersion === MongoDBEventStoreDefaultStreamVersion,
     };
   }
 }
 
-export const getMongoDBEventStore = (collection: Collection<EventStream>) => {
-  const eventStore = new MongoDBEventStore(collection);
+export const getMongoDBEventStore = (
+  options: ConstructorParameters<typeof MongoDBEventStore>[0],
+) => {
+  const eventStore = new MongoDBEventStore(options);
   return eventStore;
 };
 
-function executeProjections<EventType extends Event>(
-  params: StreamToProject<EventType>,
-  projections?: Array<Projection<EventType>>,
-) {
-  return Promise.all((projections ?? []).map((project) => project(params)));
-}
-
-function maxEventIndex(
-  expectedStreamVersion?: ExpectedStreamVersion<number>,
-): number | undefined {
+function toExpectedVersion(
+  expectedStreamVersion?: ExpectedStreamVersion,
+): bigint | undefined {
   if (!expectedStreamVersion) return undefined;
 
-  if (typeof expectedStreamVersion === 'number') {
-    return expectedStreamVersion;
+  if (typeof expectedStreamVersion === 'string') {
+    switch (expectedStreamVersion) {
+      case STREAM_DOES_NOT_EXIST:
+        return BigInt(0);
+      default:
+        return undefined;
+    }
   }
 
-  switch (expectedStreamVersion) {
-    case STREAM_DOES_NOT_EXIST:
-      return 0;
-    default:
-      return undefined;
-  }
+  return expectedStreamVersion;
 }
 
 /**
