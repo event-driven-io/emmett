@@ -1,3 +1,4 @@
+import { type Dumbo, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   EmmettError,
   type Event,
@@ -14,10 +15,13 @@ export type PostgreSQLEventStoreSubscriptionEventsBatch<
 
 export type PostgreSQLEventStoreSubscription<EventType extends Event = Event> =
   {
-    startFrom?: PostgreSQLEventStoreMessageBatchPullerStartFrom;
+    getStartFrom: (
+      execute: SQLExecutor,
+    ) => Promise<PostgreSQLEventStoreMessageBatchPullerStartFrom | undefined>;
     isActive: boolean;
     handle: (
       messagesBatch: PostgreSQLEventStoreSubscriptionEventsBatch<EventType>,
+      context: { pool: Dumbo },
     ) => Promise<PostgreSQLEventStoreSubscriptionMessageHandlerResult>;
   };
 
@@ -54,10 +58,14 @@ export type PostgreSQLEventStoreSubscriptionEachMessageHandler<
 
 export const DefaultPostgreSQLEventStoreSubscriptionBatchSize = 100;
 
+export type PostgreSQLEventStoreSubscriptionStartFrom =
+  | PostgreSQLEventStoreMessageBatchPullerStartFrom
+  | 'CURRENT';
+
 export type PostgreSQLEventStoreSubscriptionOptions<
   EventType extends Event = Event,
 > = {
-  startFrom?: PostgreSQLEventStoreMessageBatchPullerStartFrom;
+  startFrom?: PostgreSQLEventStoreSubscriptionStartFrom;
   stopAfter?: (
     message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
   ) => boolean;
@@ -73,13 +81,20 @@ export const postgreSQLEventStoreSubscription = <
   let isActive = true;
 
   return {
-    startFrom: options.startFrom,
+    getStartFrom: (
+      _execute: SQLExecutor,
+    ): Promise<PostgreSQLEventStoreMessageBatchPullerStartFrom | undefined> => {
+      return Promise.resolve(
+        options.startFrom !== 'CURRENT' ? options.startFrom : 'BEGINNING',
+      );
+    },
     get isActive() {
       return isActive;
     },
-    handle: async ({
-      messages,
-    }): Promise<PostgreSQLEventStoreSubscriptionMessageHandlerResult> => {
+    handle: async (
+      { messages },
+      { pool },
+    ): Promise<PostgreSQLEventStoreSubscriptionMessageHandlerResult> => {
       if (!isActive) return;
       for (const message of messages) {
         const typedMessage = message as ReadEvent<
@@ -87,7 +102,9 @@ export const postgreSQLEventStoreSubscription = <
           ReadEventMetadataWithGlobalPosition
         >;
 
-        const result = await eachMessage(typedMessage);
+        const result = await pool.withTransaction(
+          async () => await eachMessage(typedMessage),
+        );
 
         if (options.stopAfter && options.stopAfter(typedMessage)) {
           isActive = false;
