@@ -61,18 +61,18 @@ export const assertThrows = <TError extends Error>(
     fun();
   } catch (error) {
     const typedError = error as TError;
-    if (typedError instanceof AssertionError || !errorCheck) {
+
+    if (errorCheck) {
+      assertTrue(
+        errorCheck(typedError),
+        `Error doesn't match the expected condition: ${JSON.stringify(error)}`,
+      );
+    } else if (typedError instanceof AssertionError) {
       assertFalse(
         typedError instanceof AssertionError,
         "Function didn't throw expected error",
       );
-      return typedError;
     }
-
-    assertTrue(
-      errorCheck(typedError),
-      `Error doesn't match the expected condition: ${JSON.stringify(error)}`,
-    );
 
     return typedError;
   }
