@@ -52,7 +52,7 @@ export const postgreSQLEventStoreConsumer = (
     const result = await Promise.allSettled(
       activeSubscriptions.map((s) => {
         // TODO: Add here filtering to only pass messages that can be handled by subscription
-        return s.handle(messagesBatch);
+        return s.handle(messagesBatch, { pool });
       }),
     );
 
@@ -91,7 +91,7 @@ export const postgreSQLEventStoreConsumer = (
       return subscription;
     },
     start: () => {
-      start = (() => {
+      start = (async () => {
         if (subscriptions.length === 0)
           return Promise.reject(
             new EmmettError(
@@ -102,7 +102,9 @@ export const postgreSQLEventStoreConsumer = (
         isRunning = true;
 
         const startFrom = zipPostgreSQLEventStoreMessageBatchPullerStartFrom(
-          subscriptions.map((o) => o.startFrom),
+          await Promise.all(
+            subscriptions.map((o) => o.getStartFrom(pool.execute)),
+          ),
         );
 
         return messagePooler.start({ startFrom });
