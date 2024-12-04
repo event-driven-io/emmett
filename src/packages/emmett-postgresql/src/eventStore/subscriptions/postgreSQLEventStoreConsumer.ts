@@ -2,6 +2,7 @@ import { dumbo } from '@event-driven-io/dumbo';
 import { EmmettError, type Event } from '@event-driven-io/emmett';
 import {
   postgreSQLEventStoreMessageBatchPuller,
+  zipPostgreSQLEventStoreMessageBatchPullerStartFrom,
   type PostgreSQLEventStoreMessagesBatchHandler,
 } from './messageBatchProcessing';
 import {
@@ -55,7 +56,11 @@ export const postgreSQLEventStoreConsumer = (
       }),
     );
 
-    return result.some((r) => r.status === 'fulfilled')
+    return result.some(
+      (r) =>
+        r.status === 'fulfilled' &&
+        (r.value === undefined || r.value.type !== 'STOP'),
+    )
       ? undefined
       : {
           type: 'STOP',
@@ -96,7 +101,11 @@ export const postgreSQLEventStoreConsumer = (
 
         isRunning = true;
 
-        return messagePooler.start();
+        const startFrom = zipPostgreSQLEventStoreMessageBatchPullerStartFrom(
+          subscriptions.map((o) => o.startFrom),
+        );
+
+        return messagePooler.start({ startFrom });
       })();
 
       return start;

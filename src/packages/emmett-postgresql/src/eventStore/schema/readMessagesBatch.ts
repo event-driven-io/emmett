@@ -26,6 +26,10 @@ type ReadMessagesBatchSqlResult<EventType extends Event> = {
 
 export type ReadMessagesBatchOptions =
   | {
+      after: bigint;
+      batchSize: number;
+    }
+  | {
       from: bigint;
       batchSize: number;
     }
@@ -49,19 +53,25 @@ export const readMessagesBatch = async <
   execute: SQLExecutor,
   options: ReadMessagesBatchOptions & { partition?: string },
 ): Promise<ReadMessagesBatchResult<MessageType, ReadEventMetadataType>> => {
-  const from = 'from' in options ? options.from : 0n;
+  const from =
+    'from' in options
+      ? options.from
+      : 'after' in options
+        ? options.after + 1n
+        : 0n;
   const batchSize =
     options && 'batchSize' in options
       ? options.batchSize
       : options.to - options.from;
-  const to = Number(
-    'to' in options ? options.to : from + BigInt(options.batchSize),
-  );
 
   const fromCondition: string =
     from !== -0n ? `AND global_position >= ${from}` : '';
 
-  const toCondition = !isNaN(to) ? `AND global_position <= ${to}` : '';
+  const toCondition =
+    'to' in options ? `AND global_position <= ${options.to}` : '';
+
+  const limitCondition =
+    'batchSize' in options ? `LIMIT ${options.batchSize}` : '';
 
   const events: ReadEvent<MessageType, ReadEventMetadataType>[] = await mapRows(
     execute.query<ReadMessagesBatchSqlResult<MessageType>>(
@@ -69,7 +79,8 @@ export const readMessagesBatch = async <
         `SELECT stream_id, stream_position, global_position, event_data, event_metadata, event_schema_version, event_type, event_id
            FROM ${eventsTable.name}
            WHERE partition = %L AND is_archived = FALSE AND transaction_id < pg_snapshot_xmin(pg_current_snapshot()) ${fromCondition} ${toCondition}
-           ORDER BY transaction_id, global_position`,
+           ORDER BY transaction_id, global_position
+           ${limitCondition}`,
         options?.partition ?? defaultTag,
       ),
     ),
@@ -103,7 +114,12 @@ export const readMessagesBatch = async <
         areEventsLeft: events.length === batchSize,
       }
     : {
-        currentGlobalPosition: from,
+        currentGlobalPosition:
+          'from' in options
+            ? options.from
+            : 'after' in options
+              ? options.after
+              : 0n,
         messages: [],
         areEventsLeft: false,
       };

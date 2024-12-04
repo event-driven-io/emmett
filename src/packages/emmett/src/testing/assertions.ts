@@ -283,6 +283,10 @@ export const assertThatArray = <T>(array: T[]) => {
     containsElementsMatching: (other: T[]) => {
       assertTrue(other.every((ts) => array.some((o) => isSubset(o, ts))));
     },
+    containsOnlyElementsMatching: (other: T[]) => {
+      assertEqual(array.length, other.length);
+      assertTrue(other.every((ts) => array.some((o) => isSubset(o, ts))));
+    },
     containsExactlyInAnyOrder: (other: T[]) => {
       assertEqual(array.length, other.length);
       assertTrue(array.every((ts) => other.some((o) => deepEquals(ts, o))));
