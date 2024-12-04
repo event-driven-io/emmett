@@ -11,6 +11,7 @@ import type {
   EventStream,
   MongoDBReadEventMetadata,
   MongoDBReadModel,
+  MongoDBReadModelMetadata,
 } from '../mongoDBEventStore';
 
 export type MongoDBProjectionInlineHandlerContext<
@@ -133,7 +134,8 @@ export type MongoDBInlineProjectionOptions<
     MongoDBReadEventMetadata = EventMetaDataOf<EventType> &
     MongoDBReadEventMetadata,
 > = {
-  name: string;
+  name?: string;
+  schemaVersion?: number;
   canHandle: CanHandle<EventType>;
 } & (
   | {
@@ -162,10 +164,15 @@ export const mongoDBInlineProjection = <
 >(
   options: MongoDBInlineProjectionOptions<Doc, EventType, EventMetaDataType>,
 ): MongoDBInlineProjectionDefinition => {
+  const projectionName = options.name ?? '_default';
+  const schemaVersion = options.schemaVersion ?? 1;
+
   return {
-    name: options.name,
+    name: projectionName,
     canHandle: options.canHandle,
     handle: async (events, { document, updates }) => {
+      if (events.length === 0) return;
+
       let state =
         'initialState' in options
           ? (document ?? options.initialState())
@@ -178,13 +185,19 @@ export const mongoDBInlineProjection = <
         );
       }
 
-      updates.$set![`projections.${options.name}`] = {
-        ...state,
-        _metadata: {
-          name: options.name,
-          streamPosition: events[events.length - 1]?.metadata.streamPosition,
-        },
+      const metadata: MongoDBReadModelMetadata = {
+        name: projectionName,
+        schemaVersion,
+        streamPosition: events[events.length - 1]!.metadata.streamPosition,
       };
+
+      updates.$set![`projections.${options.name}`] =
+        state !== null
+          ? {
+              ...state,
+              _metadata: metadata,
+            }
+          : null;
     },
   };
 };

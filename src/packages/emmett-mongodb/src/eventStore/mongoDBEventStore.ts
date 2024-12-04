@@ -39,11 +39,14 @@ export type StreamNameParts<T extends StreamType = StreamType> = {
   streamId: string;
 };
 
+export type MongoDBReadModelMetadata = {
+  name: string;
+  schemaVersion: number;
+  streamPosition: bigint;
+};
+
 export type MongoDBReadModel<Doc extends Document = Document> = Doc & {
-  _metadata: {
-    name: string;
-    streamPosition: bigint;
-  };
+  _metadata: MongoDBReadModelMetadata;
 };
 
 export interface EventStream<
@@ -204,7 +207,7 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
 
     let streamOffset = currentStreamVersion;
 
-    const eventCreateInputs: ReadEvent<
+    const eventsToAppend: ReadEvent<
       EventType,
       EventMetaDataOf<EventType> & MongoDBReadEventMetadata
     >[] = events.map((event) => {
@@ -227,7 +230,7 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
     });
 
     const updates: UpdateFilter<EventStream> = {
-      $push: { events: { $each: eventCreateInputs } },
+      $push: { events: { $each: eventsToAppend } },
       $set: { 'metadata.updatedAt': new Date() },
       $inc: { 'metadata.streamPosition': BigInt(events.length) },
     };
@@ -235,7 +238,7 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
     if (this.inlineProjections) {
       await handleInlineProjections({
         readModels: stream?.projections ?? {},
-        events: eventCreateInputs,
+        events: eventsToAppend,
         projections: this.inlineProjections,
         collection: this.collection,
         updates,
@@ -261,19 +264,9 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
       );
     }
 
-    // if (this.asyncProjections) {
-    //   // Pre-commit handle async projections
-    //   await handleAsyncProjections({
-    //     streamName,
-    //     events: eventCreateInputs,
-    //     projections: this.asyncProjections,
-    //     collection: this.collection,
-    //   });
-    // }
-
     return {
       nextExpectedStreamVersion:
-        currentStreamVersion + BigInt(eventCreateInputs.length),
+        currentStreamVersion + BigInt(eventsToAppend.length),
       createdNewStream:
         currentStreamVersion === MongoDBEventStoreDefaultStreamVersion,
     };

@@ -102,7 +102,11 @@ void describe('MongoDBEventStore', () => {
     assertDeepEqual(stream.projections[SHOPPING_CART_PROJECTION_NAME], {
       productItemsCount: 20,
       totalAmount: 54,
-      _metadata: { name: SHOPPING_CART_PROJECTION_NAME, streamPosition: 3n },
+      _metadata: {
+        name: SHOPPING_CART_PROJECTION_NAME,
+        streamPosition: 3n,
+        schemaVersion: 1,
+      },
     });
   });
 
