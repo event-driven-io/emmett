@@ -5,6 +5,10 @@ import {
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
+import {
+  readSubscriptionCheckpoint,
+  storeSubscriptionCheckpoint,
+} from '../schema';
 import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 
 export type PostgreSQLEventStoreSubscriptionEventsBatch<
@@ -15,7 +19,8 @@ export type PostgreSQLEventStoreSubscriptionEventsBatch<
 
 export type PostgreSQLEventStoreSubscription<EventType extends Event = Event> =
   {
-    getStartFrom: (
+    id: string;
+    start: (
       execute: SQLExecutor,
     ) => Promise<PostgreSQLEventStoreMessageBatchPullerStartFrom | undefined>;
     isActive: boolean;
@@ -56,8 +61,6 @@ export type PostgreSQLEventStoreSubscriptionEachMessageHandler<
   | Promise<PostgreSQLEventStoreSubscriptionMessageHandlerResult>
   | PostgreSQLEventStoreSubscriptionMessageHandlerResult;
 
-export const DefaultPostgreSQLEventStoreSubscriptionBatchSize = 100;
-
 export type PostgreSQLEventStoreSubscriptionStartFrom =
   | PostgreSQLEventStoreMessageBatchPullerStartFrom
   | 'CURRENT';
@@ -65,6 +68,9 @@ export type PostgreSQLEventStoreSubscriptionStartFrom =
 export type PostgreSQLEventStoreSubscriptionOptions<
   EventType extends Event = Event,
 > = {
+  subscriptionId: string;
+  version?: number;
+  partition?: string;
   startFrom?: PostgreSQLEventStoreSubscriptionStartFrom;
   stopAfter?: (
     message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
@@ -79,14 +85,27 @@ export const postgreSQLEventStoreSubscription = <
 ): PostgreSQLEventStoreSubscription => {
   const { eachMessage } = options;
   let isActive = true;
+  //let lastProcessedPosition: bigint | null = null;
 
   return {
-    getStartFrom: (
-      _execute: SQLExecutor,
+    id: options.subscriptionId,
+    start: async (
+      execute: SQLExecutor,
     ): Promise<PostgreSQLEventStoreMessageBatchPullerStartFrom | undefined> => {
-      return Promise.resolve(
-        options.startFrom !== 'CURRENT' ? options.startFrom : 'BEGINNING',
+      isActive = true;
+      if (options.startFrom !== 'CURRENT') return options.startFrom;
+
+      const { lastProcessedPosition } = await readSubscriptionCheckpoint(
+        execute,
+        {
+          subscriptionId: options.subscriptionId,
+          partition: options.partition,
+        },
       );
+
+      if (lastProcessedPosition === null) return 'BEGINNING';
+
+      return { globalPosition: lastProcessedPosition };
     },
     get isActive() {
       return isActive;
@@ -96,29 +115,57 @@ export const postgreSQLEventStoreSubscription = <
       { pool },
     ): Promise<PostgreSQLEventStoreSubscriptionMessageHandlerResult> => {
       if (!isActive) return;
-      for (const message of messages) {
-        const typedMessage = message as ReadEvent<
-          EventType,
-          ReadEventMetadataWithGlobalPosition
-        >;
 
-        const result = await pool.withTransaction(
-          async () => await eachMessage(typedMessage),
-        );
+      return pool.withTransaction(async (tx) => {
+        let result:
+          | PostgreSQLEventStoreSubscriptionMessageHandlerResult
+          | undefined = undefined;
 
-        if (options.stopAfter && options.stopAfter(typedMessage)) {
-          isActive = false;
-          return { type: 'STOP', reason: 'Stop condition reached' };
-        }
+        let lastProcessedPosition: bigint | null = null;
 
-        if (result) {
-          if (result.type === 'SKIP') continue;
-          else if (result.type === 'STOP') {
+        for (const message of messages) {
+          const typedMessage = message as ReadEvent<
+            EventType,
+            ReadEventMetadataWithGlobalPosition
+          >;
+
+          const messageProcessingResult = await eachMessage(typedMessage);
+
+          // TODO: Add correct handling of the storing checkpoint
+          await storeSubscriptionCheckpoint(tx.execute, {
+            subscriptionId: options.subscriptionId,
+            version: options.version,
+            lastProcessedPosition,
+            newPosition: typedMessage.metadata.globalPosition,
+            partition: options.partition,
+          });
+
+          lastProcessedPosition = typedMessage.metadata.globalPosition;
+
+          if (
+            messageProcessingResult &&
+            messageProcessingResult.type === 'STOP'
+          ) {
             isActive = false;
-            return result;
+            result = messageProcessingResult;
+            break;
           }
+
+          if (options.stopAfter && options.stopAfter(typedMessage)) {
+            isActive = false;
+            result = { type: 'STOP', reason: 'Stop condition reached' };
+            break;
+          }
+
+          if (
+            messageProcessingResult &&
+            messageProcessingResult.type === 'SKIP'
+          )
+            continue;
         }
-      }
+
+        return result;
+      });
     },
   };
 };

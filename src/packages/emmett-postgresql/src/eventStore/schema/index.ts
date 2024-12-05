@@ -1,5 +1,6 @@
 import { type NodePostgresPool, type SQL } from '@event-driven-io/dumbo';
 import { appendEventsSQL } from './appendToStream';
+import { storeSubscriptionCheckpointSQL } from './storeSubscriptionCheckpoint';
 import {
   addDefaultPartition,
   addEventsPartitions,
@@ -15,7 +16,11 @@ import {
 } from './tables';
 
 export * from './appendToStream';
+export * from './readLastMessageGlobalPosition';
+export * from './readMessagesBatch';
 export * from './readStream';
+export * from './readSubscriptionCheckpoint';
+export * from './storeSubscriptionCheckpoint';
 export * from './tables';
 export * from './typing';
 
@@ -32,6 +37,7 @@ export const schemaSQL: SQL[] = [
   addTenantForAllModulesSQL,
   appendEventsSQL,
   addDefaultPartition,
+  storeSubscriptionCheckpointSQL,
 ];
 
 export const createEventStoreSchema = async (
