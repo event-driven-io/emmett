@@ -38,9 +38,9 @@
   },
   "homepage": "https://github.com/event-driven-io/emmett#readme",
   "dependencies": {
-    "@event-driven-io/emmett-esdb": "0.20.2-alpha.5",
-    "@event-driven-io/emmett-expressjs": "0.20.2-alpha.5",
-    "@event-driven-io/emmett-testcontainers": "0.20.2-alpha.5"
+    "@event-driven-io/emmett-esdb": "0.22.0-alpha.2",
+    "@event-driven-io/emmett-expressjs": "0.22.0-alpha.2",
+    "@event-driven-io/emmett-testcontainers": "0.22.0-alpha.2"
   },
   "devDependencies": {
     "@types/node": "20.11.30",
