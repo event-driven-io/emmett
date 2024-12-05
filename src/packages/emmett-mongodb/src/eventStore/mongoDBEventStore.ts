@@ -110,7 +110,6 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
     Exclude<ReadStreamResult<EventType, MongoDBReadEventMetadata>, null>
   > {
     const expectedStreamVersion = options?.expectedStreamVersion;
-    // TODO: use `to` and `from`
 
     const filter = {
       streamName: { $eq: streamName },
@@ -229,10 +228,17 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
       >;
     });
 
+    const { streamId, streamType } = fromStreamName(streamName);
+    const now = new Date();
     const updates: UpdateFilter<EventStream> = {
       $push: { events: { $each: eventsToAppend } },
-      $set: { 'metadata.updatedAt': new Date() },
+      $set: { 'metadata.updatedAt': now },
       $inc: { 'metadata.streamPosition': BigInt(events.length) },
+      $setOnInsert: {
+        'metadata.streamId': streamId,
+        'metadata.streamType': streamType,
+        'metadata.createdAt': now,
+      },
     };
 
     if (this.inlineProjections) {

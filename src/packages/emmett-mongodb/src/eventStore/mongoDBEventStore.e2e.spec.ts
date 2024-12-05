@@ -70,6 +70,34 @@ void describe('MongoDBEventStore', () => {
     }
   });
 
+  void it('should create a new stream with metadata with appendToStream', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const shoppingCartId = uuid();
+    const streamType = 'shopping_cart';
+    const streamName = toStreamName(streamType, shoppingCartId);
+
+    await eventStore.appendToStream<ShoppingCartEvent>(
+      streamName,
+      [{ type: 'ProductItemAdded', data: { productItem } }],
+      { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+    );
+
+    const stream = await collection.findOne(
+      { streamName },
+      { useBigInt64: true },
+    );
+    assertIsNotNull(stream);
+    assertEqual(1n, stream.metadata.streamPosition);
+    assertEqual(shoppingCartId, stream.metadata.streamId);
+    assertEqual(streamType, stream.metadata.streamType);
+    assertTrue(stream.metadata.createdAt instanceof Date);
+    assertTrue(stream.metadata.updatedAt instanceof Date);
+  });
+
   void it('should append events correctly using appendEvent function', async () => {
     const productItem: PricedProductItem = {
       productId: '123',
@@ -78,7 +106,8 @@ void describe('MongoDBEventStore', () => {
     };
     const discount = 10;
     const shoppingCartId = uuid();
-    const streamName = toStreamName('shopping_cart', shoppingCartId);
+    const streamType = 'shopping_cart';
+    const streamName = toStreamName(streamType, shoppingCartId);
 
     await eventStore.appendToStream<ShoppingCartEvent>(
       streamName,
@@ -98,7 +127,7 @@ void describe('MongoDBEventStore', () => {
       { useBigInt64: true },
     );
     assertIsNotNull(stream);
-    assertEqual('3', stream.metadata.streamPosition.toString());
+    assertEqual(3n, stream.metadata.streamPosition);
     assertDeepEqual(stream.projections[SHOPPING_CART_PROJECTION_NAME], {
       productItemsCount: 20,
       totalAmount: 54,
