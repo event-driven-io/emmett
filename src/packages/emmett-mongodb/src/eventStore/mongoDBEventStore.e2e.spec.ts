@@ -22,10 +22,10 @@ import {
 import {
   getMongoDBEventStore,
   toStreamName,
+  mongoDBInlineProjection,
   type EventStream,
   type MongoDBEventStore,
-} from './mongoDBEventStore';
-import { mongoDBInlineProjection } from './projections';
+} from './';
 
 const DB_NAME = 'mongodbeventstore_testing';
 const SHOPPING_CART_PROJECTION_NAME = 'shoppingCartShortInfo';
