@@ -74,14 +74,8 @@ export const addTablePartitions = rawSql(
       v_active_partiton_name   := emt_sanitize_name(v_main_partiton_name   || '_active');
       v_archived_partiton_name := emt_sanitize_name(v_main_partiton_name   || '_archived');
 
-      -- create default events partition
-      EXECUTE format('
-          CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
-          FOR VALUES IN (%L) PARTITION BY LIST (is_archived);',
-          v_main_partiton_name, tableName, partition_name
-      );
 
-      -- create default streams partition
+      -- create default partition
       EXECUTE format('
           CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
           FOR VALUES IN (%L) PARTITION BY LIST (is_archived);',
@@ -109,6 +103,12 @@ export const addEventsPartitions = rawSql(
   BEGIN                
       PERFORM emt_add_table_partition('${eventsTable.name}', partition_name);
       PERFORM emt_add_table_partition('${streamsTable.name}', partition_name);
+
+      EXECUTE format('
+          CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
+          FOR VALUES IN (%L);',
+          emt_sanitize_name('${subscriptionsTable.name}' || '_' || partition_name), '${subscriptionsTable.name}', partition_name
+      );
   END;
   $$ LANGUAGE plpgsql;`,
 );

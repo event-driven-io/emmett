@@ -11,6 +11,9 @@ import {
   type ReadMessagesBatchOptions,
 } from '../../schema/readMessagesBatch';
 
+export const DefaultPostgreSQLEventStoreSubscriptionBatchSize = 100;
+export const DefaultPostgreSQLEventStoreSubscriptionPullingFrequencyInMs = 50;
+
 export type PostgreSQLEventStoreMessagesBatch<EventType extends Event = Event> =
   {
     messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
@@ -34,6 +37,7 @@ export type PostgreSQLEventStoreMessageBatchPullerOptions<
   EventType extends Event = Event,
 > = {
   executor: SQLExecutor;
+  pullingFrequencyInMs: number;
   batchSize: number;
   eachBatch: PostgreSQLEventStoreMessagesBatchHandler<EventType>;
 };
@@ -61,6 +65,7 @@ export const postgreSQLEventStoreMessageBatchPuller = <
   executor,
   batchSize,
   eachBatch,
+  pullingFrequencyInMs,
 }: PostgreSQLEventStoreMessageBatchPullerOptions<EventType>): PostgreSQLEventStoreMessageBatchPuller => {
   let isRunning = false;
 
@@ -99,11 +104,12 @@ export const postgreSQLEventStoreMessageBatchPuller = <
 
       readMessagesOptions.after = currentGlobalPosition;
 
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
+
       if (!areEventsLeft) {
-        waitTime = Math.min(waitTime * 2, 5000);
-        await new Promise((resolve) => setTimeout(resolve, waitTime));
+        waitTime = Math.min(waitTime * 2, 1000);
       } else {
-        waitTime = 0;
+        waitTime = pullingFrequencyInMs;
       }
     } while (isRunning);
   };

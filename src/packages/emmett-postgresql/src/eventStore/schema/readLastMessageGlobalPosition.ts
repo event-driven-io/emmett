@@ -1,7 +1,7 @@
 import { singleOrNull, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import { defaultTag, eventsTable } from './typing';
 
-type ReadMessagesBatchSqlResult = {
+type ReadLastMessageGlobalPositionSqlResult = {
   global_position: string;
 };
 
@@ -14,7 +14,7 @@ export const readLastMessageGlobalPosition = async (
   options?: { partition?: string },
 ): Promise<ReadLastMessageGlobalPositionResult> => {
   const result = await singleOrNull(
-    execute.query<ReadMessagesBatchSqlResult>(
+    execute.query<ReadLastMessageGlobalPositionSqlResult>(
       sql(
         `SELECT global_position
            FROM ${eventsTable.name}

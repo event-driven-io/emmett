@@ -10,6 +10,7 @@ import {
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
+import { v4 as uuid } from 'uuid';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -25,7 +26,8 @@ void describe('PostgreSQL event store consumer', () => {
   let connectionString: string;
   let eventStore: PostgresEventStore;
   const dummySubscription: PostgreSQLEventStoreSubscription = {
-    getStartFrom: () => Promise.resolve('BEGINNING'),
+    id: uuid(),
+    start: () => Promise.resolve('BEGINNING'),
     handle: () => Promise.resolve(),
     isActive: false,
   };
