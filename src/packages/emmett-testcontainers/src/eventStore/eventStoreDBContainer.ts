@@ -7,14 +7,9 @@ import {
 import type { Environment } from 'testcontainers/build/types';
 
 export const EVENTSTOREDB_PORT = 2113;
-export const EVENTSTOREDB_TCP_PORT = 1113;
-export const EVENTSTOREDB_TCP_PORTS = [
-  EVENTSTOREDB_TCP_PORT,
-  EVENTSTOREDB_PORT,
-];
 export const EVENTSTOREDB_IMAGE_NAME = 'eventstore/eventstore';
-export const EVENTSTOREDB_IMAGE_TAG = '23.10.1-bookworm-slim';
-export const EVENTSTOREDB_ARM64_IMAGE_TAG = '23.10.1-alpha-arm64v8';
+export const EVENTSTOREDB_IMAGE_TAG = '24.10.0-bookworm-slim';
+export const EVENTSTOREDB_ARM64_IMAGE_TAG = '24.10.0-alpha-arm64v8';
 
 export const EVENTSTOREDB_DEFAULT_IMAGE = `${EVENTSTOREDB_IMAGE_NAME}:${process.arch !== 'arm64' ? EVENTSTOREDB_IMAGE_TAG : EVENTSTOREDB_ARM64_IMAGE_TAG}`;
 
@@ -22,7 +17,7 @@ export type EventStoreDBContainerOptions = {
   disableProjections?: boolean;
   isSecure?: boolean;
   useFileStorage?: boolean;
-  withoutReuse?: boolean;
+  withReuse?: boolean;
 };
 
 export const defaultEventStoreDBContainerOptions: EventStoreDBContainerOptions =
@@ -30,12 +25,10 @@ export const defaultEventStoreDBContainerOptions: EventStoreDBContainerOptions =
     disableProjections: false,
     isSecure: false,
     useFileStorage: false,
-    withoutReuse: false,
+    withReuse: false,
   };
 
 export class EventStoreDBContainer extends GenericContainer {
-  private readonly tcpPorts = EVENTSTOREDB_TCP_PORTS;
-
   constructor(
     image = EVENTSTOREDB_DEFAULT_IMAGE,
     options: EventStoreDBContainerOptions = defaultEventStoreDBContainerOptions,
@@ -61,15 +54,13 @@ export class EventStoreDBContainer extends GenericContainer {
         : {}),
       EVENTSTORE_CLUSTER_SIZE: '1',
       EVENTSTORE_START_STANDARD_PROJECTIONS: 'true',
-      EVENTSTORE_EXT_TCP_PORT: `${EVENTSTOREDB_TCP_PORT}`,
-      EVENTSTORE_HTTP_PORT: `${EVENTSTOREDB_PORT}`,
-      EVENTSTORE_ENABLE_EXTERNAL_TCP: 'true',
+      EVENTSTORE_NODE_PORT: `${EVENTSTOREDB_PORT}`,
       EVENTSTORE_ENABLE_ATOM_PUB_OVER_HTTP: 'true',
     };
 
-    this.withEnvironment(environment).withExposedPorts(...this.tcpPorts);
+    this.withEnvironment(environment).withExposedPorts(EVENTSTOREDB_PORT);
 
-    if (!options.withoutReuse) this.withReuse();
+    if (options.withReuse) this.withReuse();
   }
 
   async start(): Promise<StartedEventStoreDBContainer> {
@@ -90,3 +81,33 @@ export class StartedEventStoreDBContainer extends AbstractStartedContainer {
     return EventStoreDBClient.connectionString(this.getConnectionString());
   }
 }
+let container: EventStoreDBContainer | null = null;
+let startedContainer: StartedEventStoreDBContainer | null = null;
+let startedCount = 0;
+
+export const getEventStoreDBTestContainer = async () => {
+  if (startedContainer) return startedContainer;
+
+  if (!container)
+    container = new EventStoreDBContainer(EVENTSTOREDB_DEFAULT_IMAGE);
+
+  startedContainer = await container.start();
+  startedCount++;
+
+  return startedContainer;
+};
+
+export const getSharedTestEventStoreDBClient = async () => {
+  return (await getEventStoreDBTestContainer()).getClient();
+};
+
+export const releaseShartedEventStoreDBTestContainer = async () => {
+  if (startedContainer && --startedCount === 0)
+    try {
+      await startedContainer.stop();
+    } catch {
+      /* do nothing */
+    }
+  container = null;
+  startedContainer = null;
+};
