@@ -17,8 +17,11 @@ import {
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
 import {
+  Db,
+  MongoClient,
   type Collection,
   type Document,
+  type MongoClientOptions,
   type UpdateFilter,
   type WithId,
 } from 'mongodb';
@@ -39,6 +42,13 @@ export type StreamNameParts<T extends StreamType = StreamType> = {
   streamId: string;
 };
 
+export type StreamCollectionName<T extends StreamType = StreamType> =
+  `emt:${T}`;
+
+export type StreamCollectionNameParts<T extends StreamType = StreamType> = {
+  streamType: T;
+};
+
 export type MongoDBReadModelMetadata = {
   name: string;
   schemaVersion: number;
@@ -56,7 +66,7 @@ export interface EventStream<
     MongoDBReadEventMetadata,
 > {
   streamName: string;
-  events: Array<ReadEvent<EventType, EventMetaDataType>>;
+  messages: Array<ReadEvent<EventType, EventMetaDataType>>;
   metadata: {
     streamId: string;
     streamType: StreamType;
@@ -65,12 +75,6 @@ export interface EventStream<
     updatedAt: Date;
   };
   projections: Record<string, MongoDBReadModel>;
-}
-
-export interface MongoDBConnectionOptions {
-  connectionString: string;
-  database: string;
-  collection?: string;
 }
 
 export type MongoDBReadEventMetadata =
@@ -82,20 +86,49 @@ export type MongoDBReadEvent<EventType extends Event = Event> = ReadEvent<
 >;
 
 export type MongoDBEventStoreOptions = {
-  collection: Collection<EventStream>;
+  database?: string;
+  collection?: string;
   projections?: ProjectionRegistration<
     'inline',
     MongoDBReadEventMetadata,
     MongoDBProjectionInlineHandlerContext
   >[];
+} & (
+  | {
+      client: MongoClient;
+    }
+  | {
+      connectionString: string;
+      clientOptions?: MongoClientOptions;
+    }
+);
+
+export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
+  close: () => Promise<void>;
 };
 
-export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
-  private readonly collection: Collection<EventStream>;
+class MongoDBEventStoreImplementation implements MongoDBEventStore {
+  private readonly client: MongoClient;
+  private readonly defaultOptions: {
+    database: string | undefined;
+    collection: string | undefined;
+  };
+  private shouldManageClientLifetime: boolean;
+  private db: Db | undefined;
+  private streamCollections: Map<string, Collection<EventStream>> = new Map();
   private readonly inlineProjections: MongoDBInlineProjectionDefinition[];
+  private isClosed: boolean = false;
 
   constructor(options: MongoDBEventStoreOptions) {
-    this.collection = options.collection;
+    this.client =
+      'client' in options
+        ? options.client
+        : new MongoClient(options.connectionString, options.clientOptions);
+    this.shouldManageClientLifetime = !('client' in options);
+    this.defaultOptions = {
+      database: options.database,
+      collection: options.collection,
+    };
     this.inlineProjections = (options.projections ?? [])
       .filter(({ type }) => type === 'inline')
       .map(
@@ -109,7 +142,10 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
   ): Promise<
     Exclude<ReadStreamResult<EventType, MongoDBReadEventMetadata>, null>
   > {
+    const { streamType } = fromStreamName(streamName);
     const expectedStreamVersion = options?.expectedStreamVersion;
+
+    const collection = await this.collectionFor(streamType);
 
     const filter = {
       streamName: { $eq: streamName },
@@ -130,13 +166,13 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
     const eventsSlice =
       eventsSliceArr.length > 1 ? { $slice: eventsSliceArr } : 1;
 
-    const stream = await this.collection.findOne<
-      WithId<Pick<EventStream<EventType>, 'metadata' | 'events'>>
+    const stream = await collection.findOne<
+      WithId<Pick<EventStream<EventType>, 'metadata' | 'messages'>>
     >(filter, {
       useBigInt64: true,
       projection: {
         metadata: 1,
-        events: eventsSlice,
+        messages: eventsSlice,
       },
     });
 
@@ -155,7 +191,7 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
     );
 
     return {
-      events: stream.events,
+      events: stream.messages,
       currentStreamVersion: stream.metadata.streamPosition,
       streamExists: true,
     };
@@ -180,9 +216,12 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
     events: EventType[],
     options?: AppendToStreamOptions,
   ): Promise<AppendToStreamResult> {
+    const { streamId, streamType } = fromStreamName(streamName);
     const expectedStreamVersion = options?.expectedStreamVersion;
 
-    const stream = await this.collection.findOne<
+    const collection = await this.collectionFor(streamType);
+
+    const stream = await collection.findOne<
       WithId<Pick<EventStream<EventType>, 'metadata' | 'projections'>>
     >(
       { streamName: { $eq: streamName } },
@@ -228,10 +267,9 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
       >;
     });
 
-    const { streamId, streamType } = fromStreamName(streamName);
     const now = new Date();
     const updates: UpdateFilter<EventStream> = {
-      $push: { events: { $each: eventsToAppend } },
+      $push: { messages: { $each: eventsToAppend } },
       $set: { 'metadata.updatedAt': now },
       $inc: { 'metadata.streamPosition': BigInt(events.length) },
       $setOnInsert: {
@@ -246,13 +284,13 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
         readModels: stream?.projections ?? {},
         events: eventsToAppend,
         projections: this.inlineProjections,
-        collection: this.collection,
+        collection,
         updates,
         client: {},
       });
     }
 
-    const updatedStream = await this.collection.updateOne(
+    const updatedStream = await collection.updateOne(
       {
         streamName: { $eq: streamName },
         'metadata.streamPosition': toExpectedVersion(
@@ -277,14 +315,57 @@ export class MongoDBEventStore implements EventStore<MongoDBReadEventMetadata> {
         currentStreamVersion === MongoDBEventStoreDefaultStreamVersion,
     };
   }
+
+  close(): Promise<void> {
+    if (this.isClosed) return Promise.resolve();
+
+    this.isClosed = true;
+    if (!this.shouldManageClientLifetime) return Promise.resolve();
+
+    return this.client.close();
+  }
+
+  private collectionFor = async <EventType extends Event>(
+    streamType: StreamType,
+  ): Promise<Collection<EventStream<EventType>>> => {
+    const collectionName =
+      this.defaultOptions?.collection ?? toStreamCollectionName(streamType);
+
+    let collection = this.streamCollections.get(collectionName) as
+      | Collection<EventStream<EventType>>
+      | undefined;
+
+    if (collection) return collection;
+
+    const db = await this.getDB();
+    collection = db.collection<EventStream<EventType>>(collectionName);
+
+    this.streamCollections.set(
+      collectionName,
+      collection as Collection<EventStream>,
+    );
+
+    return collection;
+  };
+
+  private getDB = async (): Promise<Db> => {
+    if (!this.db) {
+      const connectedClient = await this.getConnectedClient();
+
+      this.db = connectedClient.db(this.defaultOptions.database);
+    }
+    return this.db;
+  };
+
+  private getConnectedClient = async (): Promise<MongoClient> => {
+    if (!this.isClosed) await this.client.connect();
+    return this.client;
+  };
 }
 
 export const getMongoDBEventStore = (
-  options: ConstructorParameters<typeof MongoDBEventStore>[0],
-) => {
-  const eventStore = new MongoDBEventStore(options);
-  return eventStore;
-};
+  options: MongoDBEventStoreOptions,
+): MongoDBEventStore => new MongoDBEventStoreImplementation(options);
 
 function toExpectedVersion(
   expectedStreamVersion?: ExpectedStreamVersion,
@@ -326,5 +407,27 @@ export function fromStreamName<T extends StreamType>(
   return {
     streamType: parts[0],
     streamId: parts[1],
+  };
+}
+
+/**
+ * Accepts a `streamType` (the type/category of the event stream)
+ * and combines them to a `collectionName` which can be used in `EventStore`.
+ */
+export function toStreamCollectionName<T extends StreamType>(
+  streamType: T,
+): StreamCollectionName<T> {
+  return `emt:${streamType}`;
+}
+
+/**
+ * Accepts a fully formatted `streamCollectionName` and returns the parsed `streamType`.
+ */
+export function fromStreamCollectionName<T extends StreamType>(
+  streamCollectionName: StreamCollectionName<T>,
+): StreamCollectionNameParts<T> {
+  const parts = streamCollectionName.split(':') as [string, T];
+  return {
+    streamType: parts[1],
   };
 }

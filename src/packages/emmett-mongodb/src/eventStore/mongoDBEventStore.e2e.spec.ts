@@ -21,13 +21,13 @@ import {
 } from '../testing/shoppingCart.domain';
 import {
   getMongoDBEventStore,
-  toStreamName,
   mongoDBInlineProjection,
+  toStreamCollectionName,
+  toStreamName,
   type EventStream,
   type MongoDBEventStore,
 } from './';
 
-const DB_NAME = 'mongodbeventstore_testing';
 const SHOPPING_CART_PROJECTION_NAME = 'shoppingCartShortInfo';
 
 void describe('MongoDBEventStore', () => {
@@ -43,13 +43,13 @@ void describe('MongoDBEventStore', () => {
     });
 
     await client.connect();
-    const db = client.db(DB_NAME);
+    const db = client.db();
     collection = db.collection<EventStream>(
-      'mongodbeventstore_testing_eventstreams',
+      toStreamCollectionName('shopping_cart'),
     );
 
     eventStore = getMongoDBEventStore({
-      collection,
+      client,
       projections: projections.inline([
         mongoDBInlineProjection({
           name: SHOPPING_CART_PROJECTION_NAME,
