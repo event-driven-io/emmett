@@ -325,15 +325,6 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     return this.client.close();
   }
 
-  private getDB = async (): Promise<Db> => {
-    if (!this.db) {
-      if (!this.isClosed) await this.client.connect();
-
-      this.db = this.client.db(this.defaultOptions.database);
-    }
-    return this.db;
-  };
-
   private collectionFor = async <EventType extends Event>(
     streamType: StreamType,
   ): Promise<Collection<EventStream<EventType>>> => {
@@ -355,6 +346,20 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     );
 
     return collection;
+  };
+
+  private getDB = async (): Promise<Db> => {
+    if (!this.db) {
+      const connectedClient = await this.getConnectedClient();
+
+      this.db = connectedClient.db(this.defaultOptions.database);
+    }
+    return this.db;
+  };
+
+  private getConnectedClient = async (): Promise<MongoClient> => {
+    if (!this.isClosed) await this.client.connect();
+    return this.client;
   };
 }
 
