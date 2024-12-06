@@ -22,6 +22,7 @@ import {
 import {
   getMongoDBEventStore,
   mongoDBInlineProjection,
+  toStreamCollectionName,
   toStreamName,
   type EventStream,
   type MongoDBEventStore,
@@ -43,7 +44,9 @@ void describe('MongoDBEventStore', () => {
 
     await client.connect();
     const db = client.db();
-    collection = db.collection<EventStream>('shopping_cart');
+    collection = db.collection<EventStream>(
+      toStreamCollectionName('shopping_cart'),
+    );
 
     eventStore = getMongoDBEventStore({
       client,

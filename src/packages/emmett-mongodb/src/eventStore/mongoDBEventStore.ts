@@ -66,7 +66,7 @@ export interface EventStream<
     MongoDBReadEventMetadata,
 > {
   streamName: string;
-  events: Array<ReadEvent<EventType, EventMetaDataType>>;
+  messages: Array<ReadEvent<EventType, EventMetaDataType>>;
   metadata: {
     streamId: string;
     streamType: StreamType;
@@ -167,12 +167,12 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
       eventsSliceArr.length > 1 ? { $slice: eventsSliceArr } : 1;
 
     const stream = await collection.findOne<
-      WithId<Pick<EventStream<EventType>, 'metadata' | 'events'>>
+      WithId<Pick<EventStream<EventType>, 'metadata' | 'messages'>>
     >(filter, {
       useBigInt64: true,
       projection: {
         metadata: 1,
-        events: eventsSlice,
+        messages: eventsSlice,
       },
     });
 
@@ -191,7 +191,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     );
 
     return {
-      events: stream.events,
+      events: stream.messages,
       currentStreamVersion: stream.metadata.streamPosition,
       streamExists: true,
     };
@@ -269,7 +269,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
 
     const now = new Date();
     const updates: UpdateFilter<EventStream> = {
-      $push: { events: { $each: eventsToAppend } },
+      $push: { messages: { $each: eventsToAppend } },
       $set: { 'metadata.updatedAt': now },
       $inc: { 'metadata.streamPosition': BigInt(events.length) },
       $setOnInsert: {
