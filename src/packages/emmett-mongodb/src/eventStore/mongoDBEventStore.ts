@@ -22,6 +22,7 @@ import {
   type Collection,
   type Document,
   type MongoClientOptions,
+  type Filter,
   type UpdateFilter,
   type WithId,
 } from 'mongodb';
@@ -103,7 +104,20 @@ export type MongoDBEventStoreOptions = {
     }
 );
 
+type InlineProjectionQueries = {
+  findOne: <Doc extends Document, Projection = MongoDBReadModel<Doc>>(
+    streamType: StreamType,
+    projectionName: string,
+    projectionQuery: Filter<MongoDBReadModel<Doc>>,
+  ) => Promise<Projection | null>;
+};
+
+type ProjectionQueries = {
+  inline: InlineProjectionQueries;
+};
+
 export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
+  projections: ProjectionQueries;
   close: () => Promise<void>;
 };
 
@@ -113,11 +127,13 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     database: string | undefined;
     collection: string | undefined;
   };
+  private readonly inlineProjections: MongoDBInlineProjectionDefinition[];
   private shouldManageClientLifetime: boolean;
   private db: Db | undefined;
   private streamCollections: Map<string, Collection<EventStream>> = new Map();
-  private readonly inlineProjections: MongoDBInlineProjectionDefinition[];
   private isClosed: boolean = false;
+
+  public projections: ProjectionQueries;
 
   constructor(options: MongoDBEventStoreOptions) {
     this.client =
@@ -134,6 +150,12 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
       .map(
         ({ projection }) => projection,
       ) as MongoDBInlineProjectionDefinition[];
+
+    this.projections = {
+      inline: {
+        findOne: this.findOneInlineProjection.bind(this),
+      },
+    };
   }
 
   async readStream<EventType extends Event>(
@@ -361,6 +383,72 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     if (!this.isClosed) await this.client.connect();
     return this.client;
   };
+
+  private async findOneInlineProjection<
+    Doc extends Document,
+    Projection = MongoDBReadModel<Doc>,
+  >(
+    streamType: StreamType,
+    projectionName: string,
+    projectionQuery: Filter<MongoDBReadModel<Doc>>,
+  ) {
+    const collection = await this.collectionFor(streamType);
+    const query = prependObjectKeysToMongoQuery<Filter<EventStream>>(
+      // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
+      projectionQuery,
+      `projections.${projectionName}`,
+    );
+
+    const result = await collection.findOne<{
+      projections: Record<typeof projectionName, Projection>;
+    }>(query, {
+      useBigInt64: true,
+      projection: {
+        [`projections.${projectionName}`]: 1,
+      },
+    });
+
+    return result?.projections?.[projectionName] ?? null;
+  }
+}
+
+/**
+ * Prepends `prefix` to all object keys that don't start with a '$'.
+ */
+function prependObjectKeysToMongoQuery<T>(obj: T, prefix: string): T {
+  if (typeof obj !== 'object' || obj === null) {
+    return obj;
+  }
+
+  for (const key in obj) {
+    // @ts-expect-error we're forcing `k` to be a key of `T`
+    const k: keyof typeof obj = addPrefix(key, prefix);
+    if (k !== key) {
+      obj[k] = obj[key as keyof typeof obj];
+      delete obj[key as keyof typeof obj];
+    }
+
+    obj[k] = prependObjectKeysToMongoQuery(obj[k], prefix);
+  }
+
+  return obj;
+}
+
+function addPrefix(key: string, prefix: string): string {
+  // MongoDB operators
+  if (key[0] === '$') {
+    return key;
+  }
+
+  // Query on root stream object
+  if (key === 'streamName') {
+    return key;
+  }
+
+  // TODO: add in support for querying based on root stream metadata
+  // TODO: add unit tests without exposing these functions. probably move to different file that's imported here but not exported from main module.
+
+  return `${prefix}${key.length > 0 ? '.' : ''}${key}`;
 }
 
 export const getMongoDBEventStore = (
