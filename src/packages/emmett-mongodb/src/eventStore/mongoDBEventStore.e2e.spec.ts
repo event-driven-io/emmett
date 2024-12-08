@@ -175,7 +175,7 @@ void describe('MongoDBEventStore', () => {
     assertEqual(expectedNumEvents, stream.events.length);
   });
 
-  void it('should find the projection using the findOne inline projection query', async () => {
+  void it('should find the projection using projections.inline.findOne', async () => {
     const productItem: PricedProductItem = {
       productId: '123',
       quantity: 10,

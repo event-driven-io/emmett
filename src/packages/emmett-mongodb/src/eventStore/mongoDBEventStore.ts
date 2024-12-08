@@ -110,6 +110,11 @@ type InlineProjectionQueries = {
     projectionName: string,
     projectionQuery: Filter<MongoDBReadModel<Doc>>,
   ) => Promise<Projection | null>;
+  find: <Doc extends Document, Projection = MongoDBReadModel<Doc>>(
+    streamType: StreamType,
+    projectionName: string,
+    projectionQuery: Filter<MongoDBReadModel<Doc>>,
+  ) => Promise<Projection[]>;
 };
 
 type ProjectionQueries = {
@@ -153,6 +158,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
 
     this.projections = {
       inline: {
+        find: this.findInlineProjection.bind(this),
         findOne: this.findOneInlineProjection.bind(this),
       },
     };
@@ -401,14 +407,58 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
 
     const result = await collection.findOne<{
       projections: Record<typeof projectionName, Projection>;
-    }>(query, {
-      useBigInt64: true,
-      projection: {
-        [`projections.${projectionName}`]: 1,
+    }>(
+      {
+        $and: [query, { [`projections.${projectionName}`]: { $exists: true } }],
       },
-    });
+      {
+        useBigInt64: true,
+        projection: {
+          [`projections.${projectionName}`]: 1,
+        },
+      },
+    );
 
     return result?.projections?.[projectionName] ?? null;
+  }
+
+  private async findInlineProjection<
+    Doc extends Document,
+    Projection = MongoDBReadModel<Doc>,
+  >(
+    streamType: StreamType,
+    projectionName: string,
+    projectionQuery: Filter<MongoDBReadModel<Doc>>,
+  ) {
+    const collection = await this.collectionFor(streamType);
+    const query = prependObjectKeysToMongoQuery<Filter<EventStream>>(
+      // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
+      projectionQuery,
+      `projections.${projectionName}`,
+    );
+
+    const streams = await collection
+      .find<{
+        projections: Record<typeof projectionName, Projection>;
+      }>(
+        {
+          $and: [
+            query,
+            { [`projections.${projectionName}`]: { $exists: true } },
+          ],
+        },
+        {
+          useBigInt64: true,
+          projection: {
+            [`projections.${projectionName}`]: 1,
+          },
+        },
+      )
+      .toArray();
+
+    return streams
+      .map((s) => s.projections[projectionName])
+      .filter((s): s is Projection => !!s);
   }
 }
 
