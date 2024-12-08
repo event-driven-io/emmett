@@ -21,13 +21,13 @@ import {
 } from '../testing/shoppingCart.domain';
 import {
   getMongoDBEventStore,
-  toStreamName,
   mongoDBInlineProjection,
+  toStreamCollectionName,
+  toStreamName,
   type EventStream,
   type MongoDBEventStore,
 } from './';
 
-const DB_NAME = 'mongodbeventstore_testing';
 const SHOPPING_CART_PROJECTION_NAME = 'shoppingCartShortInfo';
 
 void describe('MongoDBEventStore', () => {
@@ -43,13 +43,13 @@ void describe('MongoDBEventStore', () => {
     });
 
     await client.connect();
-    const db = client.db(DB_NAME);
+    const db = client.db();
     collection = db.collection<EventStream>(
-      'mongodbeventstore_testing_eventstreams',
+      toStreamCollectionName('shopping_cart'),
     );
 
     eventStore = getMongoDBEventStore({
-      collection,
+      client,
       projections: projections.inline([
         mongoDBInlineProjection({
           name: SHOPPING_CART_PROJECTION_NAME,
@@ -173,6 +173,53 @@ void describe('MongoDBEventStore', () => {
     assertTrue(stream.streamExists);
     assertEqual(expectedStreamVersion, stream.currentStreamVersion);
     assertEqual(expectedNumEvents, stream.events.length);
+  });
+
+  void it('should find the projection using projections.inline.findOne', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const discount = 10;
+    const shoppingCartId = uuid();
+    const streamType = 'shopping_cart';
+    const streamName = toStreamName(streamType, shoppingCartId);
+
+    await eventStore.appendToStream<ShoppingCartEvent>(
+      streamName,
+      [
+        { type: 'ProductItemAdded', data: { productItem } },
+        { type: 'ProductItemAdded', data: { productItem } },
+        {
+          type: 'DiscountApplied',
+          data: { percent: discount, couponId: uuid() },
+        },
+      ],
+      { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+    );
+
+    const projection =
+      await eventStore.projections.inline.findOne<ShoppingCartShortInfo>(
+        streamType,
+        SHOPPING_CART_PROJECTION_NAME,
+        {
+          productItemsCount: { $eq: 20 },
+          totalAmount: { $gte: 20 },
+          '_metadata.schemaVersion': { $eq: 1 },
+        },
+      );
+
+    assertIsNotNull(projection);
+    assertDeepEqual(projection, {
+      productItemsCount: 20,
+      totalAmount: 54,
+      _metadata: {
+        name: SHOPPING_CART_PROJECTION_NAME,
+        streamPosition: 3n,
+        schemaVersion: 1,
+      },
+    });
   });
 });
 
