@@ -1,6 +1,5 @@
 import {
   ExpectedVersionConflictError,
-  STREAM_DOES_NOT_EXIST,
   assertExpectedVersionMatchesCurrent,
   type AggregateStreamOptions,
   type AggregateStreamResult,
@@ -9,7 +8,6 @@ import {
   type Event,
   type EventMetaDataOf,
   type EventStore,
-  type ExpectedStreamVersion,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithoutGlobalPosition,
@@ -84,6 +82,24 @@ export type MongoDBReadEvent<EventType extends Event = Event> = ReadEvent<
   EventType,
   MongoDBReadEventMetadata
 >;
+
+export type MongoDBSingleCollectionEventStoreOptions = {
+  storage: 'SINGLE_COLLECTION';
+  collection: string;
+  projections?: ProjectionRegistration<
+    'inline',
+    MongoDBReadEventMetadata,
+    MongoDBProjectionInlineHandlerContext
+  >[];
+} & (
+  | {
+      client: MongoClient;
+    }
+  | {
+      connectionString: string;
+      clientOptions?: MongoClientOptions;
+    }
+);
 
 export type MongoDBEventStoreOptions = {
   database?: string;
@@ -270,9 +286,12 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     const now = new Date();
     const updates: UpdateFilter<EventStream> = {
       $push: { messages: { $each: eventsToAppend } },
-      $set: { 'metadata.updatedAt': now },
-      $inc: { 'metadata.streamPosition': BigInt(events.length) },
+      $set: {
+        'metadata.updatedAt': now,
+        'metadata.streamPosition': currentStreamVersion + BigInt(events.length),
+      },
       $setOnInsert: {
+        streamName,
         'metadata.streamId': streamId,
         'metadata.streamType': streamType,
         'metadata.createdAt': now,
@@ -293,9 +312,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     const updatedStream = await collection.updateOne(
       {
         streamName: { $eq: streamName },
-        'metadata.streamPosition': toExpectedVersion(
-          options?.expectedStreamVersion,
-        ),
+        'metadata.streamPosition': currentStreamVersion,
       },
       updates,
       { useBigInt64: true, upsert: true },
@@ -366,23 +383,6 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
 export const getMongoDBEventStore = (
   options: MongoDBEventStoreOptions,
 ): MongoDBEventStore => new MongoDBEventStoreImplementation(options);
-
-function toExpectedVersion(
-  expectedStreamVersion?: ExpectedStreamVersion,
-): bigint | undefined {
-  if (!expectedStreamVersion) return undefined;
-
-  if (typeof expectedStreamVersion === 'string') {
-    switch (expectedStreamVersion) {
-      case STREAM_DOES_NOT_EXIST:
-        return BigInt(0);
-      default:
-        return undefined;
-    }
-  }
-
-  return expectedStreamVersion;
-}
 
 /**
  * Accepts a `streamType` (the type/category of the event stream) and an `streamId`
