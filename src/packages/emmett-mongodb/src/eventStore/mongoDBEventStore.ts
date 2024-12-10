@@ -50,6 +50,7 @@ export type StreamCollectionNameParts<T extends StreamType = StreamType> = {
 };
 
 export type MongoDBReadModelMetadata = {
+  streamId: string;
   name: string;
   schemaVersion: number;
   streamPosition: bigint;
@@ -329,6 +330,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     if (this.inlineProjections) {
       await handleInlineProjections({
         readModels: stream?.projections ?? {},
+        streamId,
         events: eventsToAppend,
         projections: this.inlineProjections,
         collection,
@@ -431,9 +433,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
       },
       {
         useBigInt64: true,
-        projection: {
-          [`projections.${projectionName}`]: 1,
-        },
+        projection: { [`projections.${projectionName}`]: 1 },
       },
     );
 
@@ -468,9 +468,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
         },
         {
           useBigInt64: true,
-          projection: {
-            [`projections.${projectionName}`]: 1,
-          },
+          projection: { [`projections.${projectionName}`]: 1 },
         },
       )
       .toArray();
@@ -486,6 +484,14 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
  */
 function prependObjectKeysToMongoQuery<T>(obj: T, prefix: string): T {
   if (typeof obj !== 'object' || obj === null) {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      obj[i] = prependObjectKeysToMongoQuery(obj[i], prefix);
+    }
     return obj;
   }
 
