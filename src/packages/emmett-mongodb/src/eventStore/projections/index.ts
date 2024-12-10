@@ -14,6 +14,8 @@ import type {
   MongoDBReadModelMetadata,
 } from '../mongoDBEventStore';
 
+export const MongoDBDefaultInlineProjectionName = '_default';
+
 export type MongoDBProjectionInlineHandlerContext<
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
@@ -164,7 +166,7 @@ export const mongoDBInlineProjection = <
 >(
   options: MongoDBInlineProjectionOptions<Doc, EventType, EventMetaDataType>,
 ): MongoDBInlineProjectionDefinition => {
-  const projectionName = options.name ?? '_default';
+  const projectionName = options.name ?? MongoDBDefaultInlineProjectionName;
   const schemaVersion = options.schemaVersion ?? 1;
 
   return {

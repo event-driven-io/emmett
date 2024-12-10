@@ -52,7 +52,6 @@ void describe('MongoDBEventStore', () => {
       client,
       projections: projections.inline([
         mongoDBInlineProjection({
-          name: SHOPPING_CART_PROJECTION_NAME,
           canHandle: ['ProductItemAdded', 'DiscountApplied'],
           evolve,
         }),
@@ -202,7 +201,6 @@ void describe('MongoDBEventStore', () => {
     const projection =
       await eventStore.projections.inline.findOne<ShoppingCartShortInfo>(
         streamType,
-        SHOPPING_CART_PROJECTION_NAME,
         {
           productItemsCount: { $eq: 20 },
           totalAmount: { $gte: 20 },
@@ -215,7 +213,7 @@ void describe('MongoDBEventStore', () => {
       productItemsCount: 20,
       totalAmount: 54,
       _metadata: {
-        name: SHOPPING_CART_PROJECTION_NAME,
+        name: '_default',
         streamPosition: 3n,
         schemaVersion: 1,
       },

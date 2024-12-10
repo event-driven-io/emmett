@@ -27,6 +27,7 @@ import {
 import { v4 as uuid } from 'uuid';
 import {
   handleInlineProjections,
+  MongoDBDefaultInlineProjectionName,
   type MongoDBInlineProjectionDefinition,
   type MongoDBProjectionInlineHandlerContext,
 } from './projections';
@@ -102,16 +103,16 @@ export type MongoDBSingleCollectionEventStoreOptions = {
     }
 );
 
+type ProjectionQueryArguments<Doc extends Document> =
+  | [StreamType, Filter<MongoDBReadModel<Doc>>]
+  | [StreamType, Filter<MongoDBReadModel<Doc>>, string];
+
 type InlineProjectionQueries = {
   findOne: <Doc extends Document, Projection = MongoDBReadModel<Doc>>(
-    streamType: StreamType,
-    projectionName: string,
-    projectionQuery: Filter<MongoDBReadModel<Doc>>,
+    ...args: ProjectionQueryArguments<Doc>
   ) => Promise<Projection | null>;
   find: <Doc extends Document, Projection = MongoDBReadModel<Doc>>(
-    streamType: StreamType,
-    projectionName: string,
-    projectionQuery: Filter<MongoDBReadModel<Doc>>,
+    ...args: ProjectionQueryArguments<Doc>
   ) => Promise<Projection[]>;
 };
 
@@ -411,9 +412,10 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     Projection = MongoDBReadModel<Doc>,
   >(
     streamType: StreamType,
-    projectionName: string,
     projectionQuery: Filter<MongoDBReadModel<Doc>>,
+    projectionName?: string,
   ) {
+    projectionName = projectionName ?? MongoDBDefaultInlineProjectionName;
     const collection = await this.collectionFor(streamType);
     const query = prependObjectKeysToMongoQuery<Filter<EventStream>>(
       // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
@@ -443,9 +445,10 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     Projection = MongoDBReadModel<Doc>,
   >(
     streamType: StreamType,
-    projectionName: string,
     projectionQuery: Filter<MongoDBReadModel<Doc>>,
+    projectionName?: string,
   ) {
+    projectionName = projectionName ?? MongoDBDefaultInlineProjectionName;
     const collection = await this.collectionFor(streamType);
     const query = prependObjectKeysToMongoQuery<Filter<EventStream>>(
       // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
