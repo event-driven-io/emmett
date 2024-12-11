@@ -159,6 +159,9 @@ export type MongoDBEventStoreOptions = {
 
 export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
   projections: ProjectionQueries;
+  collectionFor: <EventType extends Event>(
+    streamType: StreamType,
+  ) => Promise<Collection<EventStream<EventType>>>;
   close: () => Promise<void>;
 };
 
@@ -390,7 +393,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     return this.client.close();
   }
 
-  private collectionFor = async <EventType extends Event>(
+  collectionFor = async <EventType extends Event>(
     streamType: StreamType,
   ): Promise<Collection<EventStream<EventType>>> => {
     const collectionName =
