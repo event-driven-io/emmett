@@ -55,8 +55,8 @@ void describe('DeciderSpecification', () => {
     });
   });
 
-  void describe('thenDoesNothing', () => {
-    void it('thenDoesNothing succeeds if returns empty array', () => {
+  void describe('thenNothingHappened', () => {
+    void it('thenNothingHappened succeeds if returns empty array', () => {
       given([])
         .when({
           type: 'Do',
@@ -64,10 +64,10 @@ void describe('DeciderSpecification', () => {
             something: 'Ignore!',
           },
         })
-        .thenDoesNothing();
+        .thenNothingHappened();
     });
 
-    void it('thenDoesNothing fails if returns event', () => {
+    void it('thenNothingHappened fails if returns event', () => {
       assertThrows(
         () => {
           given([])
@@ -77,7 +77,7 @@ void describe('DeciderSpecification', () => {
                 something: 'Yes!',
               },
             })
-            .thenDoesNothing();
+            .thenNothingHappened();
         },
         (error) =>
           error instanceof AssertionError &&
@@ -86,7 +86,7 @@ void describe('DeciderSpecification', () => {
       );
     });
 
-    void it('thenDoesNothing fails if returns array of events', () => {
+    void it('thenNothingHappened fails if returns array of events', () => {
       assertThrows(
         () => {
           given([])
@@ -96,7 +96,7 @@ void describe('DeciderSpecification', () => {
                 something: 'Array!',
               },
             })
-            .thenDoesNothing();
+            .thenNothingHappened();
         },
         (error) =>
           error instanceof AssertionError &&
