@@ -124,10 +124,24 @@ type MultiProjectionQueryOptions = {
 };
 
 type InlineProjectionQueries = {
+  /**
+   * Helper for querying for a single projection. Similar to `collection.findOne`.
+   * @param streamFilter - A filter object for stream level fields. If `streamType` is required if `streamName` is not provided. If `projectionName` is not provided, the default projection will be used (`MongoDBDefaultInlineProjectionName`).
+   * @param projectionQuery - A MongoDB filter query based on the projection schema. Internally, this function will prepend each object key with the necessary projection name.
+   */
   findOne: <Doc extends Document>(
     streamFilter: SingleProjectionQueryStreamFilter,
     projectionQuery?: Filter<MongoDBReadModel<Doc>>,
   ) => Promise<MongoDBReadModel<Doc> | null>;
+  /**
+   * Helper for querying for multiple projections. Similar to `collection.find`.
+   *
+   * ***NOTE***: If `streamFilter.streamNames` is an empty array, this function will return an empty array. If `streamFilter.streamIds` is an empty array, the `streamIds` filter will not be used.
+   *
+   * @param streamFilter - A filter object for stream level fields. If `streamType` is required if `streamNames` is not provided. If `projectionName` is not provided, the default projection will be used (`MongoDBDefaultInlineProjectionName`).
+   * @param projectionQuery - A MongoDB filter query based on the projection schema. Internally, this function will prepend each object key with the necessary projection name.
+   * @param queryOptions - Additional query options like `skip`, `limit`, and `sort`. `sort`, similar to `projectionQuery`, will prepend each object key with the necessary projection name.
+   */
   find: <Doc extends Document, T extends StreamType = StreamType>(
     streamFilter: MultiProjectionQueryStreamFilter<T>,
     projectionQuery?: Filter<MongoDBReadModel<Doc>>,
