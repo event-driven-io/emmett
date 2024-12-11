@@ -1,5 +1,6 @@
 import {
   assertDeepEqual,
+  assertEqual,
   assertIsNotNull,
   assertNotEqual,
   projections,
@@ -32,6 +33,14 @@ void describe('MongoDBEventStore', () => {
   let eventStore: MongoDBEventStore;
   let client: MongoClient;
   let collection: Collection<EventStream>;
+
+  const streamType = 'shopping_cart';
+  const discount = 10;
+  const productItem: PricedProductItem = {
+    productId: '123',
+    quantity: 10,
+    price: 3,
+  };
 
   before(async () => {
     mongodb = await new MongoDBContainer().start();
@@ -67,14 +76,7 @@ void describe('MongoDBEventStore', () => {
   });
 
   void it('should append events and add projection using appendEvent function', async () => {
-    const productItem: PricedProductItem = {
-      productId: '123',
-      quantity: 10,
-      price: 3,
-    };
-    const discount = 10;
     const shoppingCartId = uuid();
-    const streamType = 'shopping_cart';
     const streamName = toStreamName(streamType, shoppingCartId);
 
     await eventStore.appendToStream<ShoppingCartEvent>(
@@ -108,14 +110,7 @@ void describe('MongoDBEventStore', () => {
   });
 
   void it('should find the projection using projections.inline.findOne with just streamType', async () => {
-    const productItem: PricedProductItem = {
-      productId: '123',
-      quantity: 10,
-      price: 3,
-    };
-    const discount = 10;
     const shoppingCartId = uuid();
-    const streamType = 'shopping_cart';
     const streamName = toStreamName(streamType, shoppingCartId);
 
     await eventStore.appendToStream<ShoppingCartEvent>(
@@ -155,15 +150,88 @@ void describe('MongoDBEventStore', () => {
     });
   });
 
+  void it('should find the projection using projections.inline.findOne with streamType and streamId', async () => {
+    const shoppingCartId = uuid();
+    const streamName = toStreamName(streamType, shoppingCartId);
+
+    await eventStore.appendToStream<ShoppingCartEvent>(
+      streamName,
+      [
+        { type: 'ProductItemAdded', data: { productItem } },
+        { type: 'ProductItemAdded', data: { productItem } },
+        {
+          type: 'DiscountApplied',
+          data: { percent: discount, couponId: uuid() },
+        },
+      ],
+      { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+    );
+
+    const projection =
+      await eventStore.projections.inline.findOne<ShoppingCartShortInfo>(
+        { streamType, streamId: shoppingCartId },
+        {
+          productItemsCount: { $eq: 20 },
+          totalAmount: { $gte: 20 },
+          '_metadata.schemaVersion': { $eq: 1 },
+        },
+      );
+
+    assertIsNotNull(projection);
+    assertDeepEqual(projection, {
+      productItemsCount: 20,
+      totalAmount: 54,
+      _metadata: {
+        streamId: shoppingCartId,
+        name: '_default',
+        streamPosition: 3n,
+        schemaVersion: 1,
+      },
+    });
+  });
+
+  void it('should find the projection using projections.inline.findOne with streamName', async () => {
+    const shoppingCartId = uuid();
+    const streamName = toStreamName(streamType, shoppingCartId);
+
+    await eventStore.appendToStream<ShoppingCartEvent>(
+      streamName,
+      [
+        { type: 'ProductItemAdded', data: { productItem } },
+        { type: 'ProductItemAdded', data: { productItem } },
+        {
+          type: 'DiscountApplied',
+          data: { percent: discount, couponId: uuid() },
+        },
+      ],
+      { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+    );
+
+    const projection =
+      await eventStore.projections.inline.findOne<ShoppingCartShortInfo>(
+        { streamName },
+        {
+          productItemsCount: { $eq: 20 },
+          totalAmount: { $gte: 20 },
+          '_metadata.schemaVersion': { $eq: 1 },
+        },
+      );
+
+    assertIsNotNull(projection);
+    assertDeepEqual(projection, {
+      productItemsCount: 20,
+      totalAmount: 54,
+      _metadata: {
+        streamId: shoppingCartId,
+        name: '_default',
+        streamPosition: 3n,
+        schemaVersion: 1,
+      },
+    });
+  });
+
   void it('should find the projections using projections.inline.find with just streamType', async () => {
-    const productItem: PricedProductItem = {
-      productId: '123',
-      quantity: 10,
-      price: 3,
-    };
-    const discount = 10;
     const shoppingCartIds = Array.from({ length: 5 }).map(() => uuid());
-    const streamType = 'shopping_cart';
 
     for (const id of shoppingCartIds) {
       const streamName = toStreamName(streamType, id);
@@ -188,7 +256,6 @@ void describe('MongoDBEventStore', () => {
           productItemsCount: { $eq: 20 },
           totalAmount: { $gte: 20 },
           '_metadata.schemaVersion': { $eq: 1 },
-          '_metadata.streamId': { $in: shoppingCartIds },
         },
       );
 
@@ -206,6 +273,134 @@ void describe('MongoDBEventStore', () => {
         },
       });
     }
+  });
+
+  void it('should find the projections using projections.inline.find with streamIds and streamType', async () => {
+    const shoppingCartIds = Array.from({ length: 5 }).map(() => uuid());
+
+    for (const id of shoppingCartIds) {
+      const streamName = toStreamName(streamType, id);
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        streamName,
+        [
+          { type: 'ProductItemAdded', data: { productItem } },
+          { type: 'ProductItemAdded', data: { productItem } },
+          {
+            type: 'DiscountApplied',
+            data: { percent: discount, couponId: uuid() },
+          },
+        ],
+        { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+      );
+    }
+
+    const projections =
+      await eventStore.projections.inline.find<ShoppingCartShortInfo>(
+        { streamType, streamIds: shoppingCartIds },
+        {
+          productItemsCount: { $eq: 20 },
+          totalAmount: { $gte: 20 },
+          '_metadata.schemaVersion': { $eq: 1 },
+        },
+      );
+
+    assertEqual(projections.length, shoppingCartIds.length);
+    for (const id of shoppingCartIds) {
+      const projection = projections.find((p) => p._metadata.streamId === id);
+      assertNotEqual(projection, undefined);
+      assertDeepEqual(projection, {
+        productItemsCount: 20,
+        totalAmount: 54,
+        _metadata: {
+          streamId: id,
+          name: '_default',
+          streamPosition: 3n,
+          schemaVersion: 1,
+        },
+      });
+    }
+  });
+
+  void it('should find the projections using projections.inline.find with streamNames', async () => {
+    const shoppingCartIds = Array.from({ length: 5 }).map(() => uuid());
+    const streamNames = shoppingCartIds.map((id) =>
+      toStreamName(streamType, id),
+    );
+
+    for (const streamName of streamNames) {
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        streamName,
+        [
+          { type: 'ProductItemAdded', data: { productItem } },
+          { type: 'ProductItemAdded', data: { productItem } },
+          {
+            type: 'DiscountApplied',
+            data: { percent: discount, couponId: uuid() },
+          },
+        ],
+        { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+      );
+    }
+
+    const projections =
+      await eventStore.projections.inline.find<ShoppingCartShortInfo>(
+        { streamNames },
+        {
+          productItemsCount: { $eq: 20 },
+          totalAmount: { $gte: 20 },
+          '_metadata.schemaVersion': { $eq: 1 },
+        },
+      );
+
+    assertEqual(projections.length, shoppingCartIds.length);
+    for (const id of shoppingCartIds) {
+      const projection = projections.find((p) => p._metadata.streamId === id);
+      assertNotEqual(projection, undefined);
+      assertDeepEqual(projection, {
+        productItemsCount: 20,
+        totalAmount: 54,
+        _metadata: {
+          streamId: id,
+          name: '_default',
+          streamPosition: 3n,
+          schemaVersion: 1,
+        },
+      });
+    }
+  });
+
+  void it('should return empty from projections.inline.find if streamNames is empty', async () => {
+    const shoppingCartIds = Array.from({ length: 5 }).map(() => uuid());
+    const streamNames = shoppingCartIds.map((id) =>
+      toStreamName(streamType, id),
+    );
+
+    for (const streamName of streamNames) {
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        streamName,
+        [
+          { type: 'ProductItemAdded', data: { productItem } },
+          { type: 'ProductItemAdded', data: { productItem } },
+          {
+            type: 'DiscountApplied',
+            data: { percent: discount, couponId: uuid() },
+          },
+        ],
+        { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+      );
+    }
+
+    const projections =
+      await eventStore.projections.inline.find<ShoppingCartShortInfo>(
+        { streamNames: [] },
+        {
+          productItemsCount: { $eq: 20 },
+          totalAmount: { $gte: 20 },
+          '_metadata.schemaVersion': { $eq: 1 },
+        },
+      );
+
+    assertEqual(projections.length, 0);
   });
 });
 
