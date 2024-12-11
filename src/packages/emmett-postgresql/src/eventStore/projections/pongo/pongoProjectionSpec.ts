@@ -61,7 +61,7 @@ const assertDocumentsEqual = <
       expected._id,
       actual._id,
       // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-      `Document ids are not matching! Expected: ${expected._id}, actual: ${actual._id}`,
+      `Document ids are not matching! Expected: ${expected._id}, Actual: ${actual._id}`,
     );
 
   return assertDeepEqual(

@@ -45,7 +45,7 @@ export const assertThrowsAsync = async <TError extends Error>(
 
     assertTrue(
       errorCheck(typedError),
-      `Error doesn't match the expected condition: ${JSON.stringify(error)}`,
+      `Error doesn't match the expected condition: ${JSONParser.stringify(error)}`,
     );
 
     return typedError;
@@ -65,7 +65,7 @@ export const assertThrows = <TError extends Error>(
     if (errorCheck) {
       assertTrue(
         errorCheck(typedError),
-        `Error doesn't match the expected condition: ${JSON.stringify(error)}`,
+        `Error doesn't match the expected condition: ${JSONParser.stringify(error)}`,
       );
     } else if (typedError instanceof AssertionError) {
       assertFalse(
@@ -77,6 +77,29 @@ export const assertThrows = <TError extends Error>(
     return typedError;
   }
   throw new AssertionError("Function didn't throw expected error");
+};
+
+export const assertDoesNotThrow = <TError extends Error>(
+  fun: () => void,
+  errorCheck?: (error: Error) => boolean,
+): TError | null => {
+  try {
+    fun();
+    return null;
+  } catch (error) {
+    const typedError = error as TError;
+
+    if (errorCheck) {
+      assertFalse(
+        errorCheck(typedError),
+        `Error matching the expected condition was thrown!: ${JSONParser.stringify(error)}`,
+      );
+    } else {
+      assertFails(`Function threw an error: ${JSONParser.stringify(error)}`);
+    }
+
+    return typedError;
+  }
 };
 
 export const assertRejects = async <T, TError extends Error = Error>(
@@ -166,7 +189,7 @@ export function assertEqual<T>(
 ): void {
   if (expected !== actual)
     throw new AssertionError(
-      `${message ?? 'Objects are not equal'}:\nExpected: ${JSONParser.stringify(expected)}\nActual:${JSONParser.stringify(actual)}`,
+      `${message ?? 'Objects are not equal'}:\nExpected: ${JSONParser.stringify(expected)}\nActual: ${JSONParser.stringify(actual)}`,
     );
 }
 
@@ -274,8 +297,13 @@ export function verifyThat(fn: MockedFunction) {
 
 export const assertThatArray = <T>(array: T[]) => {
   return {
-    isEmpty: () => assertEqual(array.length, 0),
-    isNotEmpty: () => assertNotEqual(array.length, 0),
+    isEmpty: () =>
+      assertEqual(
+        array.length,
+        0,
+        `Array is not empty ${JSONParser.stringify(array)}`,
+      ),
+    isNotEmpty: () => assertNotEqual(array.length, 0, `Array is empty`),
     hasSize: (length: number) => assertEqual(array.length, length),
     containsElements: (other: T[]) => {
       assertTrue(other.every((ts) => array.some((o) => deepEquals(ts, o))));
@@ -284,7 +312,7 @@ export const assertThatArray = <T>(array: T[]) => {
       assertTrue(other.every((ts) => array.some((o) => isSubset(o, ts))));
     },
     containsOnlyElementsMatching: (other: T[]) => {
-      assertEqual(array.length, other.length);
+      assertEqual(array.length, other.length, `Arrays lengths don't match`);
       assertTrue(other.every((ts) => array.some((o) => isSubset(o, ts))));
     },
     containsExactlyInAnyOrder: (other: T[]) => {
