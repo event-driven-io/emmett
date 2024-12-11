@@ -402,6 +402,61 @@ void describe('MongoDBEventStore', () => {
 
     assertEqual(projections.length, 0);
   });
+
+  void it('should paginate and sort the projections using projections.inline.find', async () => {
+    const shoppingCartIds = Array.from({ length: 100 })
+      .map(() => uuid())
+      .sort();
+    const streamNames = shoppingCartIds.map((id) =>
+      toStreamName(streamType, id),
+    );
+
+    for (const streamName of streamNames) {
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        streamName,
+        [
+          { type: 'ProductItemAdded', data: { productItem } },
+          { type: 'ProductItemAdded', data: { productItem } },
+          {
+            type: 'DiscountApplied',
+            data: { percent: discount, couponId: uuid() },
+          },
+        ],
+        { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+      );
+    }
+
+    const projections =
+      await eventStore.projections.inline.find<ShoppingCartShortInfo>(
+        { streamNames },
+        {
+          productItemsCount: { $eq: 20 },
+          totalAmount: { $gte: 20 },
+          '_metadata.schemaVersion': { $eq: 1 },
+        },
+        {
+          skip: 50,
+          limit: 10,
+          sort: [['_metadata.streamId', 1]],
+        },
+      );
+
+    assertEqual(projections.length, 10);
+    for (const id of shoppingCartIds.slice(50, 60)) {
+      const projection = projections.find((p) => p._metadata.streamId === id);
+      assertNotEqual(projection, undefined);
+      assertDeepEqual(projection, {
+        productItemsCount: 20,
+        totalAmount: 54,
+        _metadata: {
+          streamId: id,
+          name: '_default',
+          streamPosition: 3n,
+          schemaVersion: 1,
+        },
+      });
+    }
+  });
 });
 
 type ShoppingCartShortInfo = {

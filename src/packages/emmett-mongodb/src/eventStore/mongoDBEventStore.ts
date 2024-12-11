@@ -23,6 +23,7 @@ import {
   type Filter,
   type UpdateFilter,
   type WithId,
+  type Sort,
 } from 'mongodb';
 import { v4 as uuid } from 'uuid';
 import {
@@ -116,6 +117,12 @@ type MultiProjectionQueryStreamFilter<T extends StreamType> = {
   | { streamType: T; streamIds?: string[] }
 );
 
+type MultiProjectionQueryOptions = {
+  skip?: number;
+  limit?: number;
+  sort?: [string, 1 | -1][] | Record<string, 1 | -1>;
+};
+
 type InlineProjectionQueries = {
   findOne: <Doc extends Document>(
     streamFilter: SingleProjectionQueryStreamFilter,
@@ -124,6 +131,7 @@ type InlineProjectionQueries = {
   find: <Doc extends Document, T extends StreamType = StreamType>(
     streamFilter: MultiProjectionQueryStreamFilter<T>,
     projectionQuery?: Filter<MongoDBReadModel<Doc>>,
+    queryOptions?: MultiProjectionQueryOptions,
   ) => Promise<MongoDBReadModel<Doc>[]>;
 };
 
@@ -460,6 +468,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
   >(
     streamFilter: MultiProjectionQueryStreamFilter<T>,
     projectionQuery?: Filter<MongoDBReadModel<Doc>>,
+    queryOptions?: MultiProjectionQueryOptions,
   ) {
     const parsedStreamFilter =
       parseMultiProjectionQueryStreamFilter(streamFilter);
@@ -467,14 +476,15 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     const { projectionName, streamNames, streamType } = parsedStreamFilter;
 
     const collection = await this.collectionFor(streamType);
-    const query = prependObjectKeysToMongoQuery<Filter<EventStream>>(
+    const prefix = `projections.${projectionName}`;
+    const projectionFilter = prependObjectKeysToMongoQuery<Filter<EventStream>>(
       // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
       projectionQuery,
-      `projections.${projectionName}`,
+      prefix,
     );
 
     const filters: Filter<EventStream>[] = [
-      query,
+      projectionFilter,
       { [`projections.${projectionName}`]: { $exists: true } },
     ];
 
@@ -482,17 +492,33 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
       filters.push({ streamName: { $in: streamNames } });
     }
 
-    const streams = await collection
-      .find<{
-        projections: Record<typeof projectionName, MongoDBReadModel<Doc>>;
-      }>(
-        { $and: filters },
-        {
-          useBigInt64: true,
-          projection: { [`projections.${projectionName}`]: 1 },
-        },
-      )
-      .toArray();
+    let query = collection.find<{
+      projections: Record<typeof projectionName, MongoDBReadModel<Doc>>;
+    }>(
+      { $and: filters },
+      {
+        useBigInt64: true,
+        projection: { [`projections.${projectionName}`]: 1 },
+      },
+    );
+
+    if (queryOptions?.skip) {
+      query = query.skip(queryOptions.skip);
+    }
+
+    if (queryOptions?.limit) {
+      query = query.limit(queryOptions.limit);
+    }
+
+    if (queryOptions?.sort) {
+      const sort = prependObjectKeysToMongoQuery<Sort>(
+        queryOptions.sort,
+        prefix,
+      );
+      query = query.sort(sort);
+    }
+
+    const streams = await query.toArray();
 
     return streams
       .map((s) => s.projections[projectionName])
@@ -567,7 +593,7 @@ function parseMultiProjectionQueryStreamFilter<T extends StreamType>(
 }
 
 /**
- * Prepends `prefix` to all object keys that don't start with a '$'.
+ * Prepends `prefix` to all object keys that don't start with a '$'
  */
 function prependObjectKeysToMongoQuery<T>(obj: T, prefix: string): T {
   if (typeof obj !== 'object' || obj === null) {
