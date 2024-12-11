@@ -17,7 +17,7 @@ export type DeciderSpecfication<Command, Event> = (
 ) => {
   when: (command: Command) => {
     then: (expectedEvents: Event | Event[]) => void;
-    thenDoesNothing: () => void;
+    thenNothingHappened: () => void;
     thenThrows: <ErrorType extends Error = Error>(
       ...args: Parameters<ThenThrows<ErrorType>>
     ) => void;
@@ -63,7 +63,7 @@ export const DeciderSpecification = {
                   expectedEventsArray,
                 );
               },
-              thenDoesNothing: (): void => {
+              thenNothingHappened: (): void => {
                 const resultEvents = handle();
 
                 const resultEventsArray = Array.isArray(resultEvents)
