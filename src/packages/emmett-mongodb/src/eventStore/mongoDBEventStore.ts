@@ -403,15 +403,16 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
       | Collection<EventStream<EventType>>
       | undefined;
 
-    if (collection) return collection;
+    if (!collection) {
+      const db = await this.getDB();
+      collection = db.collection<EventStream<EventType>>(collectionName);
+      await collection.createIndex({ streamName: 1 }, { unique: true });
 
-    const db = await this.getDB();
-    collection = db.collection<EventStream<EventType>>(collectionName);
-
-    this.streamCollections.set(
-      collectionName,
-      collection as Collection<EventStream>,
-    );
+      this.streamCollections.set(
+        collectionName,
+        collection as Collection<EventStream>,
+      );
+    }
 
     return collection;
   };
