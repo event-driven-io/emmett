@@ -1,5 +1,5 @@
 import { isErrorConstructor, type ErrorConstructor } from '../errors';
-import { AssertionError, assertMatches, assertTrue } from './assertions';
+import { AssertionError, assertThatArray, assertTrue } from './assertions';
 
 type ErrorCheck<ErrorType> = (error: ErrorType) => boolean;
 
@@ -17,6 +17,7 @@ export type DeciderSpecfication<Command, Event> = (
 ) => {
   when: (command: Command) => {
     then: (expectedEvents: Event | Event[]) => void;
+    thenDoesNothing: () => void;
     thenThrows: <ErrorType extends Error = Error>(
       ...args: Parameters<ThenThrows<ErrorType>>
     ) => void;
@@ -58,7 +59,18 @@ export const DeciderSpecification = {
                   ? expectedEvents
                   : [expectedEvents];
 
-                assertMatches(resultEventsArray, expectedEventsArray);
+                assertThatArray(resultEventsArray).containsOnlyElementsMatching(
+                  expectedEventsArray,
+                );
+              },
+              thenDoesNothing: (): void => {
+                const resultEvents = handle();
+
+                const resultEventsArray = Array.isArray(resultEvents)
+                  ? resultEvents
+                  : [resultEvents];
+
+                assertThatArray(resultEventsArray).isEmpty();
               },
               thenThrows: <ErrorType extends Error>(
                 ...args: Parameters<ThenThrows<ErrorType>>

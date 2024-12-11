@@ -11,10 +11,14 @@ type Entity = { something: string };
 const decide = (
   { data: { something } }: DoSomething,
   _entity: Entity,
-): SomethingHappened => {
+): SomethingHappened | [] | [SomethingHappened] => {
+  const event: SomethingHappened = { type: 'Did', data: { something } };
+
+  if (something === 'Ignore!') return [];
+  if (something === 'Array!') return [event];
   if (something !== 'Yes!') throw new IllegalStateError('Nope!');
 
-  return { type: 'Did', data: { something } };
+  return event;
 };
 
 const initialState = (): Entity => ({ something: 'Meh' });
@@ -30,6 +34,78 @@ const given = DeciderSpecification.for({
 });
 
 void describe('DeciderSpecification', () => {
+  void describe('then', () => {
+    void it('then fails if returns event, but assertion has an empty array', () => {
+      assertThrows(
+        () => {
+          given([])
+            .when({
+              type: 'Do',
+              data: {
+                something: 'Yes!',
+              },
+            })
+            .then([]);
+        },
+        (error) =>
+          error instanceof AssertionError &&
+          error.message ===
+            `Arrays lengths don't match:\nExpected: 1\nActual: 0`,
+      );
+    });
+  });
+
+  void describe('thenDoesNothing', () => {
+    void it('thenDoesNothing succeeds if returns empty array', () => {
+      given([])
+        .when({
+          type: 'Do',
+          data: {
+            something: 'Ignore!',
+          },
+        })
+        .thenDoesNothing();
+    });
+
+    void it('thenDoesNothing fails if returns event', () => {
+      assertThrows(
+        () => {
+          given([])
+            .when({
+              type: 'Do',
+              data: {
+                something: 'Yes!',
+              },
+            })
+            .thenDoesNothing();
+        },
+        (error) =>
+          error instanceof AssertionError &&
+          error.message ===
+            `Array is not empty [{"type":"Did","data":{"something":"Yes!"}}]:\nExpected: 1\nActual: 0`,
+      );
+    });
+
+    void it('thenDoesNothing fails if returns array of events', () => {
+      assertThrows(
+        () => {
+          given([])
+            .when({
+              type: 'Do',
+              data: {
+                something: 'Array!',
+              },
+            })
+            .thenDoesNothing();
+        },
+        (error) =>
+          error instanceof AssertionError &&
+          error.message ===
+            `Array is not empty [{"type":"Did","data":{"something":"Array!"}}]:\nExpected: 1\nActual: 0`,
+      );
+    });
+  });
+
   void describe('thenThrows', () => {
     void it('check error was thrown', () => {
       given([])
