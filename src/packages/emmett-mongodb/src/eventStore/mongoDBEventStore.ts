@@ -452,7 +452,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     const { projectionName, streamName, streamType } =
       parseSingleProjectionQueryStreamFilter(streamFilter);
     const collection = await this.collectionFor(streamType);
-    const query = prependObjectKeysToMongoQuery<Filter<EventStream>>(
+    const query = prependMongoFilterWithProjectionPrefix<Filter<EventStream>>(
       // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
       projectionQuery,
       `projections.${projectionName}`,
@@ -495,7 +495,9 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
 
     const collection = await this.collectionFor(streamType);
     const prefix = `projections.${projectionName}`;
-    const projectionFilter = prependObjectKeysToMongoQuery<Filter<EventStream>>(
+    const projectionFilter = prependMongoFilterWithProjectionPrefix<
+      Filter<EventStream>
+    >(
       // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
       projectionQuery,
       prefix,
@@ -529,7 +531,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     }
 
     if (queryOptions?.sort) {
-      const sort = prependObjectKeysToMongoQuery<Sort>(
+      const sort = prependMongoFilterWithProjectionPrefix<Sort>(
         queryOptions.sort,
         prefix,
       );
@@ -613,7 +615,10 @@ function parseMultiProjectionQueryStreamFilter<T extends StreamType>(
 /**
  * Prepends `prefix` to all object keys that don't start with a '$'
  */
-function prependObjectKeysToMongoQuery<T>(obj: T, prefix: string): T {
+export function prependMongoFilterWithProjectionPrefix<T>(
+  obj: T,
+  prefix: string,
+): T {
   if (typeof obj !== 'object' || obj === null) {
     return obj;
   }
@@ -621,26 +626,26 @@ function prependObjectKeysToMongoQuery<T>(obj: T, prefix: string): T {
   if (Array.isArray(obj)) {
     for (let i = 0; i < obj.length; i++) {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      obj[i] = prependObjectKeysToMongoQuery(obj[i], prefix);
+      obj[i] = prependMongoFilterWithProjectionPrefix(obj[i], prefix);
     }
     return obj;
   }
 
   for (const key in obj) {
     // @ts-expect-error we're forcing `k` to be a key of `T`
-    const k: keyof typeof obj = addPrefix(key, prefix);
+    const k: keyof typeof obj = addProjectionPrefixToMongoKey(key, prefix);
     if (k !== key) {
       obj[k] = obj[key as keyof typeof obj];
       delete obj[key as keyof typeof obj];
     }
 
-    obj[k] = prependObjectKeysToMongoQuery(obj[k], prefix);
+    obj[k] = prependMongoFilterWithProjectionPrefix(obj[k], prefix);
   }
 
   return obj;
 }
 
-function addPrefix(key: string, prefix: string): string {
+function addProjectionPrefixToMongoKey(key: string, prefix: string): string {
   // MongoDB operators
   if (key[0] === '$') {
     return key;
