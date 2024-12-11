@@ -107,7 +107,7 @@ void describe('MongoDBEventStore', () => {
     });
   });
 
-  void it('should find the projection using projections.inline.findOne', async () => {
+  void it('should find the projection using projections.inline.findOne with just streamType', async () => {
     const productItem: PricedProductItem = {
       productId: '123',
       quantity: 10,
@@ -133,7 +133,7 @@ void describe('MongoDBEventStore', () => {
 
     const projection =
       await eventStore.projections.inline.findOne<ShoppingCartShortInfo>(
-        streamType,
+        { streamType },
         {
           productItemsCount: { $eq: 20 },
           totalAmount: { $gte: 20 },
@@ -155,7 +155,7 @@ void describe('MongoDBEventStore', () => {
     });
   });
 
-  void it('should find the projections using projections.inline.find', async () => {
+  void it('should find the projections using projections.inline.find with just streamType', async () => {
     const productItem: PricedProductItem = {
       productId: '123',
       quantity: 10,
@@ -183,7 +183,7 @@ void describe('MongoDBEventStore', () => {
 
     const projections =
       await eventStore.projections.inline.find<ShoppingCartShortInfo>(
-        streamType,
+        { streamType },
         {
           productItemsCount: { $eq: 20 },
           totalAmount: { $gte: 20 },
