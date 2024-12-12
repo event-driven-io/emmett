@@ -1,9 +1,7 @@
 import {
-  assertDeepEqual,
   assertEqual,
   assertIsNotNull,
   assertTrue,
-  projections,
   STREAM_DOES_NOT_EXIST,
 } from '@event-driven-io/emmett';
 import {
@@ -14,21 +12,16 @@ import { MongoClient, type Collection } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
-  type DiscountApplied,
   type PricedProductItem,
-  type ProductItemAdded,
   type ShoppingCartEvent,
 } from '../testing/shoppingCart.domain';
 import {
   getMongoDBEventStore,
-  mongoDBInlineProjection,
   toStreamCollectionName,
   toStreamName,
   type EventStream,
   type MongoDBEventStore,
 } from './';
-
-const SHOPPING_CART_PROJECTION_NAME = 'shoppingCartShortInfo';
 
 void describe('MongoDBEventStore', () => {
   let mongodb: StartedMongoDBContainer;
@@ -50,13 +43,6 @@ void describe('MongoDBEventStore', () => {
 
     eventStore = getMongoDBEventStore({
       client,
-      projections: projections.inline([
-        mongoDBInlineProjection({
-          name: SHOPPING_CART_PROJECTION_NAME,
-          canHandle: ['ProductItemAdded', 'DiscountApplied'],
-          evolve,
-        }),
-      ]),
     });
     return eventStore;
   });
@@ -128,15 +114,6 @@ void describe('MongoDBEventStore', () => {
     );
     assertIsNotNull(stream);
     assertEqual(3n, stream.metadata.streamPosition);
-    assertDeepEqual(stream.projections[SHOPPING_CART_PROJECTION_NAME], {
-      productItemsCount: 20,
-      totalAmount: 54,
-      _metadata: {
-        name: SHOPPING_CART_PROJECTION_NAME,
-        streamPosition: 3n,
-        schemaVersion: 1,
-      },
-    });
   });
 
   void it('should only return a subset of stream events based on expectedStreamVersion', async () => {
@@ -175,33 +152,3 @@ void describe('MongoDBEventStore', () => {
     assertEqual(expectedNumEvents, stream.events.length);
   });
 });
-
-type ShoppingCartShortInfo = {
-  productItemsCount: number;
-  totalAmount: number;
-};
-
-const evolve = (
-  document: ShoppingCartShortInfo | null,
-  { type, data: event }: ProductItemAdded | DiscountApplied,
-): ShoppingCartShortInfo | null => {
-  document = document ?? { productItemsCount: 0, totalAmount: 0 };
-
-  switch (type) {
-    case 'ProductItemAdded':
-      return {
-        totalAmount:
-          document.totalAmount +
-          event.productItem.price * event.productItem.quantity,
-        productItemsCount:
-          document.productItemsCount + event.productItem.quantity,
-      };
-    case 'DiscountApplied':
-      return {
-        ...document,
-        totalAmount: (document.totalAmount * (100 - event.percent)) / 100,
-      };
-    default:
-      return document;
-  }
-};

@@ -14,6 +14,8 @@ import type {
   MongoDBReadModelMetadata,
 } from '../mongoDBEventStore';
 
+export const MongoDBDefaultInlineProjectionName = '_default';
+
 export type MongoDBProjectionInlineHandlerContext<
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
@@ -21,6 +23,7 @@ export type MongoDBProjectionInlineHandlerContext<
     MongoDBReadEventMetadata,
 > = {
   document: MongoDBReadModel | null;
+  streamId: string;
   updates: UpdateFilter<EventStream<EventType, EventMetaDataType>>;
   collection: Collection<EventStream<EventType, EventMetaDataType>>;
 };
@@ -59,6 +62,7 @@ export type InlineProjectionHandlerOptions<
     EventType,
     EventMetaDataType
   >[];
+  streamId: string;
   collection: Collection<EventStream>;
   updates: UpdateFilter<EventStream<Event>>;
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -79,6 +83,7 @@ export const handleInlineProjections = async <
     events,
     projections: allProjections,
     updates: update,
+    streamId,
     collection,
     readModels,
   } = options;
@@ -92,6 +97,7 @@ export const handleInlineProjections = async <
   for (const projection of projections) {
     await projection.handle(events, {
       document: readModels[projection.name] ?? null,
+      streamId,
       collection,
       updates: update,
     });
@@ -164,13 +170,13 @@ export const mongoDBInlineProjection = <
 >(
   options: MongoDBInlineProjectionOptions<Doc, EventType, EventMetaDataType>,
 ): MongoDBInlineProjectionDefinition => {
-  const projectionName = options.name ?? '_default';
+  const projectionName = options.name ?? MongoDBDefaultInlineProjectionName;
   const schemaVersion = options.schemaVersion ?? 1;
 
   return {
     name: projectionName,
     canHandle: options.canHandle,
-    handle: async (events, { document, updates }) => {
+    handle: async (events, { document, updates, streamId }) => {
       if (events.length === 0) return;
 
       let state =
@@ -186,12 +192,13 @@ export const mongoDBInlineProjection = <
       }
 
       const metadata: MongoDBReadModelMetadata = {
+        streamId,
         name: projectionName,
         schemaVersion,
         streamPosition: events[events.length - 1]!.metadata.streamPosition,
       };
 
-      updates.$set![`projections.${options.name}`] =
+      updates.$set![`projections.${projectionName}`] =
         state !== null
           ? {
               ...state,
