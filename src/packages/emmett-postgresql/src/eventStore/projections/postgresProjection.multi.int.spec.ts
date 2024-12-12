@@ -1,4 +1,4 @@
-import type { ReadEvent } from '@event-driven-io/emmett/src';
+import type { ReadEvent } from '@event-driven-io/emmett';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,

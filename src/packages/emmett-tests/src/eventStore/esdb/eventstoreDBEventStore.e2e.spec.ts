@@ -1,7 +1,8 @@
 //import { streamTransformations, type Event } from '@event-driven-io/emmett';
 import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import {
-  EventStoreDBContainer,
+  getSharedEventStoreDBTestContainer,
+  releaseSharedEventStoreDBTestContainer,
   StartedEventStoreDBContainer,
 } from '@event-driven-io/emmett-testcontainers';
 import { describe } from 'node:test';
@@ -15,12 +16,12 @@ void describe('EventStoreDBEventStore', async () => {
   let esdbContainer: StartedEventStoreDBContainer;
 
   const eventStoreFactory: EventStoreFactory = async () => {
-    esdbContainer = await new EventStoreDBContainer().start();
+    esdbContainer = await getSharedEventStoreDBTestContainer();
     return getEventStoreDBEventStore(esdbContainer.getClient());
   };
 
   const teardownHook = async () => {
-    await esdbContainer.stop();
+    await releaseSharedEventStoreDBTestContainer();
   };
 
   await testAggregateStream(eventStoreFactory, {

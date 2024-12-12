@@ -1,3 +1,4 @@
+import { InProcessLock } from '@event-driven-io/emmett';
 import { EventStoreDBClient } from '@eventstore/db-client';
 import {
   AbstractStartedContainer,
@@ -9,8 +10,8 @@ import type { Environment } from 'testcontainers/build/types';
 
 export const EVENTSTOREDB_PORT = 2113;
 export const EVENTSTOREDB_IMAGE_NAME = 'eventstore/eventstore';
-export const EVENTSTOREDB_IMAGE_TAG = '23.10.1-bookworm-slim';
-export const EVENTSTOREDB_ARM64_IMAGE_TAG = '23.10.1-alpha-arm64v8';
+export const EVENTSTOREDB_IMAGE_TAG = '24.10.0-bookworm-slim';
+export const EVENTSTOREDB_ARM64_IMAGE_TAG = '24.10.0-alpha-arm64v8';
 
 export const EVENTSTOREDB_DEFAULT_IMAGE = `${EVENTSTOREDB_IMAGE_NAME}:${process.arch !== 'arm64' ? EVENTSTOREDB_IMAGE_TAG : EVENTSTOREDB_ARM64_IMAGE_TAG}`;
 
@@ -86,44 +87,52 @@ export class StartedEventStoreDBContainer extends AbstractStartedContainer {
     return EventStoreDBClient.connectionString(this.getConnectionString());
   }
 }
+
 let container: EventStoreDBContainer | null = null;
 let startedContainer: StartedEventStoreDBContainer | null = null;
 let startedCount = 0;
+const lock = InProcessLock();
 
-export const getSharedEventStoreDBTestContainer = async () => {
-  if (startedContainer) return startedContainer;
+export const getSharedEventStoreDBTestContainer = () =>
+  lock.withAcquire(
+    async () => {
+      if (startedContainer) return startedContainer;
 
-  if (!container)
-    container = new EventStoreDBContainer(EVENTSTOREDB_DEFAULT_IMAGE, {
-      withReuse: true,
-    });
+      if (!container)
+        container = new EventStoreDBContainer(EVENTSTOREDB_DEFAULT_IMAGE);
 
-  startedContainer = await container.start();
-  startedCount++;
+      startedContainer = await container.start();
+      startedCount++;
 
-  container.withLogConsumer((stream) =>
-    stream
-      .on('data', (line) => console.log(line))
-      .on('err', (line) => console.error(line))
-      .on('end', () => console.log('Stream closed')),
+      container.withLogConsumer((stream) =>
+        stream
+          .on('data', (line) => console.log(line))
+          .on('err', (line) => console.error(line))
+          .on('end', () => console.log('Stream closed')),
+      );
+
+      return startedContainer;
+    },
+    { lockId: 'SharedEventStoreDBTestContainer' },
   );
-
-  return startedContainer;
-};
 
 export const getSharedTestEventStoreDBClient = async () => {
   return (await getSharedEventStoreDBTestContainer()).getClient();
 };
 
-export const releaseSharedEventStoreDBTestContainer = async () => {
-  const containerToStop = startedContainer;
-  if (containerToStop && --startedCount === 0) {
-    try {
-      startedContainer = null;
-      container = null;
-      await containerToStop.stop();
-    } catch {
-      /* do nothing */
-    }
-  }
-};
+export const releaseSharedEventStoreDBTestContainer = () =>
+  lock.withAcquire(
+    async () => {
+      const containerToStop = startedContainer;
+      if (containerToStop && --startedCount === 0) {
+        try {
+          startedContainer = null;
+          container = null;
+          await containerToStop.stop();
+        } catch {
+          /* do nothing */
+        }
+      }
+    },
+    { lockId: 'SharedEventStoreDBTestContainer' },
+  );
