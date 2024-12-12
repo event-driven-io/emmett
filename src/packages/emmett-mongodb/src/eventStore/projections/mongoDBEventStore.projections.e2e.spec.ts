@@ -457,6 +457,43 @@ void describe('MongoDBEventStore', () => {
       });
     }
   });
+
+  void it('should return the total count of projections using projections.inline.count', async () => {
+    const numberOfProjections = 100;
+    const shoppingCartIds = Array.from({ length: numberOfProjections })
+      .map(() => uuid())
+      .sort();
+    const streamNames = shoppingCartIds.map((id) =>
+      toStreamName(streamType, id),
+    );
+
+    for (const streamName of streamNames) {
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        streamName,
+        [
+          { type: 'ProductItemAdded', data: { productItem } },
+          { type: 'ProductItemAdded', data: { productItem } },
+          {
+            type: 'DiscountApplied',
+            data: { percent: discount, couponId: uuid() },
+          },
+        ],
+        { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+      );
+    }
+
+    const projectionsCount =
+      await eventStore.projections.inline.count<ShoppingCartShortInfo>(
+        { streamNames },
+        {
+          productItemsCount: { $eq: 20 },
+          totalAmount: { $gte: 20 },
+          '_metadata.schemaVersion': { $eq: 1 },
+        },
+      );
+
+    assertEqual(projectionsCount, numberOfProjections);
+  });
 });
 
 type ShoppingCartShortInfo = {
