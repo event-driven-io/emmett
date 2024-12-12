@@ -4,8 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
 import {
   EventStoreDBContainer,
-  getEventStoreDBTestContainer,
-  releaseShartedEventStoreDBTestContainer,
+  getSharedEventStoreDBTestContainer,
+  releaseSharedEventStoreDBTestContainer,
 } from './eventStoreDBContainer';
 
 void describe('EventStoreDBContainer', () => {
@@ -27,7 +27,7 @@ void describe('EventStoreDBContainer', () => {
   });
 
   void it('should connect to shared EventStoreDB and append new event', async () => {
-    const container = await getEventStoreDBTestContainer();
+    const container = await getSharedEventStoreDBTestContainer();
 
     try {
       const client = container.getClient();
@@ -39,15 +39,15 @@ void describe('EventStoreDBContainer', () => {
 
       assertOk(result.success);
     } finally {
-      await releaseShartedEventStoreDBTestContainer();
+      await releaseSharedEventStoreDBTestContainer();
     }
   });
 
   void it('should connect to multiple shared EventStoreDB and append new event', async () => {
     const containers = [
-      await getEventStoreDBTestContainer(),
-      await getEventStoreDBTestContainer(),
-      await getEventStoreDBTestContainer(),
+      await getSharedEventStoreDBTestContainer(),
+      await getSharedEventStoreDBTestContainer(),
+      await getSharedEventStoreDBTestContainer(),
     ];
 
     try {
@@ -62,7 +62,7 @@ void describe('EventStoreDBContainer', () => {
       assertOk(result.success);
     } finally {
       for (let i = 0; i < containers.length; i++) {
-        await releaseShartedEventStoreDBTestContainer();
+        await releaseSharedEventStoreDBTestContainer();
       }
     }
   });
