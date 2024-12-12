@@ -241,7 +241,7 @@ class MongoDBEventStoreImplementation<T extends StreamType = StreamType>
   }
 
   async readStream<EventType extends Event>(
-    streamName: StreamName,
+    streamName: StreamName<T>,
     options?: ReadStreamOptions,
   ): Promise<
     Exclude<ReadStreamResult<EventType, MongoDBReadEventMetadata>, null>
@@ -302,7 +302,7 @@ class MongoDBEventStoreImplementation<T extends StreamType = StreamType>
   }
 
   async aggregateStream<State, EventType extends Event>(
-    streamName: StreamName,
+    streamName: StreamName<T>,
     options: AggregateStreamOptions<State, EventType, MongoDBReadEventMetadata>,
   ): Promise<AggregateStreamResult<State>> {
     const stream = await this.readStream<EventType>(streamName, options?.read);
@@ -316,7 +316,7 @@ class MongoDBEventStoreImplementation<T extends StreamType = StreamType>
   }
 
   async appendToStream<EventType extends Event>(
-    streamName: StreamName,
+    streamName: StreamName<T>,
     events: EventType[],
     options?: AppendToStreamOptions,
   ): Promise<AppendToStreamResult> {
@@ -432,7 +432,7 @@ class MongoDBEventStoreImplementation<T extends StreamType = StreamType>
   }
 
   collectionFor = async <EventType extends Event>(
-    streamType: StreamType,
+    streamType: T,
   ): Promise<Collection<EventStream<T, EventType>>> => {
     const collectionName =
       this.defaultOptions?.collection ?? toStreamCollectionName(streamType);
@@ -603,9 +603,9 @@ class MongoDBEventStoreImplementation<T extends StreamType = StreamType>
   }
 }
 
-function parseSingleProjectionQueryStreamFilter(
-  streamFilter: SingleProjectionQueryStreamFilter,
-) {
+function parseSingleProjectionQueryStreamFilter<
+  T extends StreamType = StreamType,
+>(streamFilter: SingleProjectionQueryStreamFilter<T>) {
   const projectionName =
     streamFilter.projectionName ?? MongoDBDefaultInlineProjectionName;
 
