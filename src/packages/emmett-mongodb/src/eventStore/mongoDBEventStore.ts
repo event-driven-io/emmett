@@ -62,6 +62,7 @@ export type MongoDBReadModel<Doc extends Document = Document> = Doc & {
 };
 
 export interface EventStream<
+  T extends StreamType = StreamType,
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
     MongoDBReadEventMetadata = EventMetaDataOf<EventType> &
@@ -71,7 +72,7 @@ export interface EventStream<
   messages: Array<ReadEvent<EventType, EventMetaDataType>>;
   metadata: {
     streamId: string;
-    streamType: StreamType;
+    streamType: T;
     streamPosition: bigint;
     createdAt: Date;
     updatedAt: Date;
@@ -105,10 +106,9 @@ export type MongoDBSingleCollectionEventStoreOptions = {
     }
 );
 
-type SingleProjectionQueryStreamFilter = { projectionName?: string } & (
-  | { streamName: StreamName }
-  | { streamType: StreamType; streamId?: string }
-);
+type SingleProjectionQueryStreamFilter<T extends StreamType = StreamType> = {
+  projectionName?: string;
+} & ({ streamName: StreamName<T> } | { streamType: T; streamId?: string });
 
 type MultiProjectionQueryStreamFilter<T extends StreamType> = {
   projectionName?: string;
@@ -123,14 +123,17 @@ type MultiProjectionQueryOptions = {
   sort?: [string, 1 | -1][] | Record<string, 1 | -1>;
 };
 
-type InlineProjectionQueries = {
+/**
+ * Helpers for querying inline projections on event streams.
+ */
+type InlineProjectionQueries<T extends StreamType = StreamType> = {
   /**
    * Helper for querying for a single projection. Similar to `collection.findOne`.
    * @param streamFilter - A filter object for stream level fields. If `streamType` is required if `streamName` is not provided. If `projectionName` is not provided, the default projection will be used (`MongoDBDefaultInlineProjectionName`).
    * @param projectionQuery - A MongoDB filter query based on the projection schema. Internally, this function will prepend each object key with the necessary projection name.
    */
   findOne: <Doc extends Document>(
-    streamFilter: SingleProjectionQueryStreamFilter,
+    streamFilter: SingleProjectionQueryStreamFilter<T>,
     projectionQuery?: Filter<MongoDBReadModel<Doc>>,
   ) => Promise<MongoDBReadModel<Doc> | null>;
   /**
@@ -142,24 +145,39 @@ type InlineProjectionQueries = {
    * @param projectionQuery - A MongoDB filter query based on the projection schema. Internally, this function will prepend each object key with the necessary projection name.
    * @param queryOptions - Additional query options like `skip`, `limit`, and `sort`. `sort`, similar to `projectionQuery`, will prepend each object key with the necessary projection name.
    */
-  find: <Doc extends Document, T extends StreamType = StreamType>(
+  find: <Doc extends Document>(
     streamFilter: MultiProjectionQueryStreamFilter<T>,
     projectionQuery?: Filter<MongoDBReadModel<Doc>>,
     queryOptions?: MultiProjectionQueryOptions,
   ) => Promise<MongoDBReadModel<Doc>[]>;
+  /**
+   * Returns the total number of documents matching the provided filter options. Similar to `collection.countDocuments`.
+   *
+   * ***NOTE***: If `streamFilter.streamNames` is an empty array, this function will return `0`. If `streamFilter.streamIds` is an empty array, the `streamIds` filter will not be used.
+   *
+   * @param streamFilter - A filter object for stream level fields. If `streamType` is required if `streamNames` is not provided. If `projectionName` is not provided, the default projection will be used (`MongoDBDefaultInlineProjectionName`).
+   * @param projectionQuery - A MongoDB filter query based on the projection schema. Internally, this function will prepend each object key with the necessary projection name.
+   */
+  count: <Doc extends Document>(
+    streamFilter: MultiProjectionQueryStreamFilter<T>,
+    projectionQuery?: Filter<MongoDBReadModel<Doc>>,
+  ) => Promise<number>;
 };
 
-type ProjectionQueries = {
-  inline: InlineProjectionQueries;
+/**
+ * Helpers for querying projections on event streams.
+ */
+type ProjectionQueries<T extends StreamType = StreamType> = {
+  inline: InlineProjectionQueries<T>;
 };
 
-export type MongoDBEventStoreOptions = {
+export type MongoDBEventStoreOptions<T extends StreamType = StreamType> = {
   database?: string;
   collection?: string;
   projections?: ProjectionRegistration<
     'inline',
     MongoDBReadEventMetadata,
-    MongoDBProjectionInlineHandlerContext
+    MongoDBProjectionInlineHandlerContext<T>
   >[];
 } & (
   | {
@@ -171,15 +189,18 @@ export type MongoDBEventStoreOptions = {
     }
 );
 
-export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
-  projections: ProjectionQueries;
-  collectionFor: <EventType extends Event>(
-    streamType: StreamType,
-  ) => Promise<Collection<EventStream<EventType>>>;
-  close: () => Promise<void>;
-};
+export type MongoDBEventStore<T extends StreamType = StreamType> =
+  EventStore<MongoDBReadEventMetadata> & {
+    projections: ProjectionQueries<T>;
+    collectionFor: <EventType extends Event>(
+      streamType: T,
+    ) => Promise<Collection<EventStream<T, EventType>>>;
+    close: () => Promise<void>;
+  };
 
-class MongoDBEventStoreImplementation implements MongoDBEventStore {
+class MongoDBEventStoreImplementation<T extends StreamType = StreamType>
+  implements MongoDBEventStore<T>
+{
   private readonly client: MongoClient;
   private readonly defaultOptions: {
     database: string | undefined;
@@ -187,10 +208,11 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
   };
   private shouldManageClientLifetime: boolean;
   private db: Db | undefined;
-  private streamCollections: Map<string, Collection<EventStream>> = new Map();
-  private readonly inlineProjections: MongoDBInlineProjectionDefinition[];
+  private streamCollections: Map<string, Collection<EventStream<T>>> =
+    new Map();
+  private readonly inlineProjections: MongoDBInlineProjectionDefinition<T>[];
   private isClosed: boolean = false;
-  public projections: ProjectionQueries;
+  public projections: ProjectionQueries<T>;
 
   constructor(options: MongoDBEventStoreOptions) {
     this.client =
@@ -206,12 +228,14 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
       .filter(({ type }) => type === 'inline')
       .map(
         ({ projection }) => projection,
-      ) as MongoDBInlineProjectionDefinition[];
+        // TODO:
+      ) as unknown as MongoDBInlineProjectionDefinition<T>[];
 
     this.projections = {
       inline: {
-        find: this.findInlineProjection.bind(this),
         findOne: this.findOneInlineProjection.bind(this),
+        find: this.findInlineProjection.bind(this),
+        count: this.countInlineProjection.bind(this),
       },
     };
   }
@@ -247,7 +271,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
       eventsSliceArr.length > 1 ? { $slice: eventsSliceArr } : 1;
 
     const stream = await collection.findOne<
-      WithId<Pick<EventStream<EventType>, 'metadata' | 'messages'>>
+      WithId<Pick<EventStream<T, EventType>, 'metadata' | 'messages'>>
     >(filter, {
       useBigInt64: true,
       projection: {
@@ -302,7 +326,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     const collection = await this.collectionFor(streamType);
 
     const stream = await collection.findOne<
-      WithId<Pick<EventStream<EventType>, 'metadata' | 'projections'>>
+      WithId<Pick<EventStream<T, EventType>, 'metadata' | 'projections'>>
     >(
       { streamName: { $eq: streamName } },
       {
@@ -348,7 +372,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     });
 
     const now = new Date();
-    const updates: UpdateFilter<EventStream> = {
+    const updates: UpdateFilter<EventStream<T>> = {
       $push: { messages: { $each: eventsToAppend } },
       $set: {
         'metadata.updatedAt': now,
@@ -409,22 +433,22 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
 
   collectionFor = async <EventType extends Event>(
     streamType: StreamType,
-  ): Promise<Collection<EventStream<EventType>>> => {
+  ): Promise<Collection<EventStream<T, EventType>>> => {
     const collectionName =
       this.defaultOptions?.collection ?? toStreamCollectionName(streamType);
 
     let collection = this.streamCollections.get(collectionName) as
-      | Collection<EventStream<EventType>>
+      | Collection<EventStream<T, EventType>>
       | undefined;
 
     if (!collection) {
       const db = await this.getDB();
-      collection = db.collection<EventStream<EventType>>(collectionName);
+      collection = db.collection<EventStream<T, EventType>>(collectionName);
       await collection.createIndex({ streamName: 1 }, { unique: true });
 
       this.streamCollections.set(
         collectionName,
-        collection as Collection<EventStream>,
+        collection as Collection<EventStream<T>>,
       );
     }
 
@@ -446,19 +470,21 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
   };
 
   private async findOneInlineProjection<Doc extends Document>(
-    streamFilter: SingleProjectionQueryStreamFilter,
+    streamFilter: SingleProjectionQueryStreamFilter<T>,
     projectionQuery?: Filter<MongoDBReadModel<Doc>>,
   ) {
     const { projectionName, streamName, streamType } =
       parseSingleProjectionQueryStreamFilter(streamFilter);
     const collection = await this.collectionFor(streamType);
-    const query = prependMongoFilterWithProjectionPrefix<Filter<EventStream>>(
+    const query = prependMongoFilterWithProjectionPrefix<
+      Filter<EventStream<T>>
+    >(
       // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
       projectionQuery,
       `projections.${projectionName}`,
     );
 
-    const filters: Filter<EventStream>[] = [
+    const filters: Filter<EventStream<T>>[] = [
       query,
       { [`projections.${projectionName}`]: { $exists: true } },
     ];
@@ -480,10 +506,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     return result?.projections?.[projectionName] ?? null;
   }
 
-  private async findInlineProjection<
-    Doc extends Document,
-    T extends StreamType = StreamType,
-  >(
+  private async findInlineProjection<Doc extends Document>(
     streamFilter: MultiProjectionQueryStreamFilter<T>,
     projectionQuery?: Filter<MongoDBReadModel<Doc>>,
     queryOptions?: MultiProjectionQueryOptions,
@@ -496,14 +519,14 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     const collection = await this.collectionFor(streamType);
     const prefix = `projections.${projectionName}`;
     const projectionFilter = prependMongoFilterWithProjectionPrefix<
-      Filter<EventStream>
+      Filter<EventStream<T>>
     >(
       // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
       projectionQuery,
       prefix,
     );
 
-    const filters: Filter<EventStream>[] = [
+    const filters: Filter<EventStream<T>>[] = [
       projectionFilter,
       { [`projections.${projectionName}`]: { $exists: true } },
     ];
@@ -512,9 +535,11 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
       filters.push({ streamName: { $in: streamNames } });
     }
 
-    let query = collection.find<{
-      projections: Record<typeof projectionName, MongoDBReadModel<Doc>>;
-    }>(
+    let query = collection.find<
+      EventStream<T> & {
+        projections: Record<typeof projectionName, MongoDBReadModel<Doc>>;
+      }
+    >(
       { $and: filters },
       {
         useBigInt64: true,
@@ -543,6 +568,38 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     return streams
       .map((s) => s.projections[projectionName])
       .filter((p): p is MongoDBReadModel<Doc> => !!p);
+  }
+
+  private async countInlineProjection<Doc extends Document>(
+    streamFilter: MultiProjectionQueryStreamFilter<T>,
+    projectionQuery?: Filter<MongoDBReadModel<Doc>>,
+  ) {
+    const parsedStreamFilter =
+      parseMultiProjectionQueryStreamFilter(streamFilter);
+    if (!parsedStreamFilter) return 0;
+    const { projectionName, streamNames, streamType } = parsedStreamFilter;
+
+    const collection = await this.collectionFor(streamType);
+    const prefix = `projections.${projectionName}`;
+    const projectionFilter = prependMongoFilterWithProjectionPrefix<
+      Filter<EventStream<T>>
+    >(
+      // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
+      projectionQuery,
+      prefix,
+    );
+
+    const filters: Filter<EventStream<T>>[] = [
+      projectionFilter,
+      { [`projections.${projectionName}`]: { $exists: true } },
+    ];
+
+    if (streamNames) {
+      filters.push({ streamName: { $in: streamNames } });
+    }
+
+    const total = await collection.countDocuments({ $and: filters });
+    return total;
   }
 }
 
