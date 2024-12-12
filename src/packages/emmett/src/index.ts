@@ -7,6 +7,7 @@ export * from './projections';
 export * from './serialization';
 export * from './streaming';
 export * from './subscriptions';
+export * from './taskProcessing';
 export * from './testing';
 export * from './typing';
 export * from './utils';
