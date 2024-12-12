@@ -12,11 +12,13 @@ import type {
   MongoDBReadEventMetadata,
   MongoDBReadModel,
   MongoDBReadModelMetadata,
+  StreamType,
 } from '../mongoDBEventStore';
 
 export const MongoDBDefaultInlineProjectionName = '_default';
 
 export type MongoDBProjectionInlineHandlerContext<
+  T extends StreamType = StreamType,
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
     MongoDBReadEventMetadata = EventMetaDataOf<EventType> &
@@ -24,8 +26,8 @@ export type MongoDBProjectionInlineHandlerContext<
 > = {
   document: MongoDBReadModel | null;
   streamId: string;
-  updates: UpdateFilter<EventStream<EventType, EventMetaDataType>>;
-  collection: Collection<EventStream<EventType, EventMetaDataType>>;
+  updates: UpdateFilter<EventStream<T, EventType, EventMetaDataType>>;
+  collection: Collection<EventStream<T, EventType, EventMetaDataType>>;
 };
 
 export type MongoDBInlineProjectionHandler<
@@ -40,6 +42,7 @@ export type MongoDBInlineProjectionHandler<
 >;
 
 export type MongoDBInlineProjectionDefinition<
+  T extends StreamType = StreamType,
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
     MongoDBReadEventMetadata = EventMetaDataOf<EventType> &
@@ -47,10 +50,11 @@ export type MongoDBInlineProjectionDefinition<
 > = TypedProjectionDefinition<
   EventType,
   EventMetaDataType,
-  MongoDBProjectionInlineHandlerContext
+  MongoDBProjectionInlineHandlerContext<T>
 > & { name: string };
 
 export type InlineProjectionHandlerOptions<
+  T extends StreamType = StreamType,
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
     MongoDBReadEventMetadata = EventMetaDataOf<EventType> &
@@ -59,12 +63,13 @@ export type InlineProjectionHandlerOptions<
   readModels: Record<string, MongoDBReadModel>;
   events: Array<ReadEvent<EventType, EventMetaDataType>>;
   projections: MongoDBInlineProjectionDefinition<
+    T,
     EventType,
     EventMetaDataType
   >[];
   streamId: string;
-  collection: Collection<EventStream>;
-  updates: UpdateFilter<EventStream<Event>>;
+  collection: Collection<EventStream<T>>;
+  updates: UpdateFilter<EventStream<T, Event>>;
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   client: {
     //todo: add client here
@@ -72,12 +77,13 @@ export type InlineProjectionHandlerOptions<
 };
 
 export const handleInlineProjections = async <
+  T extends StreamType = StreamType,
   EventType extends Event = Event,
   EventMetaDataType extends EventMetaDataOf<EventType> &
     MongoDBReadEventMetadata = EventMetaDataOf<EventType> &
     MongoDBReadEventMetadata,
 >(
-  options: InlineProjectionHandlerOptions<EventType, EventMetaDataType>,
+  options: InlineProjectionHandlerOptions<T, EventType, EventMetaDataType>,
 ): Promise<void> => {
   const {
     events,
@@ -164,12 +170,13 @@ export type MongoDBInlineProjectionOptions<
 export const mongoDBInlineProjection = <
   Doc extends Document,
   EventType extends Event,
+  T extends StreamType = StreamType,
   EventMetaDataType extends EventMetaDataOf<EventType> &
     MongoDBReadEventMetadata = EventMetaDataOf<EventType> &
     MongoDBReadEventMetadata,
 >(
   options: MongoDBInlineProjectionOptions<Doc, EventType, EventMetaDataType>,
-): MongoDBInlineProjectionDefinition => {
+): MongoDBInlineProjectionDefinition<T> => {
   const projectionName = options.name ?? MongoDBDefaultInlineProjectionName;
   const schemaVersion = options.schemaVersion ?? 1;
 
