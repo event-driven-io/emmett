@@ -25,7 +25,7 @@ import {
 
 void describe('MongoDBEventStore', () => {
   let mongodb: StartedMongoDBContainer;
-  let eventStore: MongoDBEventStore;
+  let eventStore: MongoDBEventStore<'onlyType'>;
   let client: MongoClient;
   let collection: Collection<EventStream>;
 
@@ -41,7 +41,7 @@ void describe('MongoDBEventStore', () => {
       toStreamCollectionName('shopping_cart'),
     );
 
-    eventStore = getMongoDBEventStore({
+    eventStore = getMongoDBEventStore<'onlyType'>({
       client,
     });
     return eventStore;
