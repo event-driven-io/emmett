@@ -2,7 +2,7 @@ import type {
   BigIntStreamPosition,
   Event,
   ReadEvent,
-  ReadEventMetadataWithGlobalPosition
+  ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 
 import {
@@ -12,7 +12,7 @@ import {
   type AppendToStreamResult,
   type EventStore,
   type ReadStreamOptions,
-  type ReadStreamResult
+  type ReadStreamResult,
 } from '@event-driven-io/emmett';
 
 export type EventHandler<E extends Event = Event> = (
