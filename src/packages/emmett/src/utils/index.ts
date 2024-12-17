@@ -1,3 +1,4 @@
+export * from './closeable';
 export * from './deepEquals';
 export * from './iterators';
 export * from './locking';
