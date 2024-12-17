@@ -171,6 +171,18 @@ type ProjectionQueries<T extends StreamType> = {
   inline: InlineProjectionQueries<T>;
 };
 
+type MongoDBEventStoreClientOptions = {
+  client: MongoClient;
+  connectionString?: never;
+  clientOptions?: never;
+};
+
+type MongoDBEventStoreConnectionStringOptions = {
+  client?: never;
+  connectionString: string;
+  clientOptions?: MongoClientOptions;
+};
+
 export type MongoDBEventStoreOptions = {
   database?: string;
   collection?: string;
@@ -179,15 +191,7 @@ export type MongoDBEventStoreOptions = {
     MongoDBReadEventMetadata,
     MongoDBProjectionInlineHandlerContext
   >[];
-} & (
-  | {
-      client: MongoClient;
-    }
-  | {
-      connectionString: string;
-      clientOptions?: MongoClientOptions;
-    }
-);
+} & (MongoDBEventStoreClientOptions | MongoDBEventStoreConnectionStringOptions);
 
 export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
   projections: ProjectionQueries<StreamType>;
@@ -211,7 +215,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
 
   constructor(options: MongoDBEventStoreOptions) {
     this.client =
-      'client' in options
+      'client' in options && options.client
         ? options.client
         : new MongoClient(options.connectionString, options.clientOptions);
     this.shouldManageClientLifetime = !('client' in options);
