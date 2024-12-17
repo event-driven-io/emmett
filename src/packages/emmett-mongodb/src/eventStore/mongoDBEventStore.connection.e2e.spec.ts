@@ -48,6 +48,7 @@ void describe('MongoDBEventStore connection', () => {
 
   void it('connects using connection string', async () => {
     const eventStore = getMongoDBEventStore({
+      storage: { type: 'COLLECTION_PER_STREAM_TYPE' },
       connectionString: mongodb.getConnectionString(),
       clientOptions: { directConnection: true },
       projections: projections.inline([
@@ -68,6 +69,7 @@ void describe('MongoDBEventStore connection', () => {
   void it('disconnects on close', async () => {
     // given
     const eventStore = getMongoDBEventStore({
+      storage: { type: 'COLLECTION_PER_STREAM_TYPE' },
       connectionString: mongodb.getConnectionString(),
       clientOptions: { directConnection: true },
       projections: projections.inline([
@@ -97,6 +99,7 @@ void describe('MongoDBEventStore connection', () => {
     });
     try {
       const eventStore = getMongoDBEventStore({
+        storage: { type: 'COLLECTION_PER_STREAM_TYPE' },
         client,
         projections: projections.inline([
           mongoDBInlineProjection({
@@ -128,6 +131,7 @@ void describe('MongoDBEventStore connection', () => {
     await client.connect();
     try {
       const eventStore = getMongoDBEventStore({
+        storage: { type: 'COLLECTION_PER_STREAM_TYPE' },
         client,
         projections: projections.inline([
           mongoDBInlineProjection({
@@ -153,8 +157,8 @@ void describe('MongoDBEventStore connection', () => {
 
     try {
       const eventStore = getMongoDBEventStore({
+        storage: { type: 'COLLECTION_PER_STREAM_TYPE', database },
         client,
-        database,
         projections: projections.inline([
           mongoDBInlineProjection({
             name: SHOPPING_CART_PROJECTION_NAME,
@@ -179,6 +183,7 @@ void describe('MongoDBEventStore connection', () => {
 
   void it('connects using connection string', async () => {
     const eventStore = getMongoDBEventStore({
+      storage: { type: 'COLLECTION_PER_STREAM_TYPE' },
       connectionString: mongodb.getConnectionString(),
       clientOptions: { directConnection: true },
       projections: projections.inline([

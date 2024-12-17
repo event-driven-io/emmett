@@ -183,14 +183,55 @@ type MongoDBEventStoreConnectionStringOptions = {
   clientOptions?: MongoClientOptions;
 };
 
-export type MongoDBEventStoreOptions = {
+export const DefaultMongoDBEventStoreCollectionName = 'emt_streams';
+
+type MongoDBEventStoreCollectionPerStreamTypeStorageOptions = {
+  /**
+   * The recommended setting where each stream type will be kept
+   * in a separate collection type using the format: `emt_${streamType}`.
+   */
+  type: 'COLLECTION_PER_STREAM_TYPE';
   database?: string;
+};
+
+type MongoDBEventStoreSingleCollectionStorageOptions = {
+  /**
+   * All streams will be kept withing a single MongDB collection
+   * It'll either use default collection name ("emt_streams")
+   * or provided name through 'collection' param.
+   */
+  type: 'SINGLE_COLLECTION';
   collection?: string;
+  database?: string;
+};
+
+type MongoDBEventStoreCustomStorageOptions = {
+  /**
+   * This is advanced option, where you specify your own collection
+   * resolution function. You can do that by specifying the `collectionFor` function.
+   */
+  type: 'CUSTOM';
+  database?: string;
+  collectionFor: <EventType extends Event>(
+    streamName: StreamName,
+  ) => Promise<
+    | Collection<EventStream<EventType>>
+    | { db: string; collection: Collection<EventStream<EventType>> }
+  >;
+};
+
+type MongoDBEventStoreStorageOptions =
+  | MongoDBEventStoreSingleCollectionStorageOptions
+  | MongoDBEventStoreCollectionPerStreamTypeStorageOptions
+  | MongoDBEventStoreCustomStorageOptions;
+
+export type MongoDBEventStoreOptions = {
   projections?: ProjectionRegistration<
     'inline',
     MongoDBReadEventMetadata,
     MongoDBProjectionInlineHandlerContext
   >[];
+  storage: MongoDBEventStoreStorageOptions;
 } & (MongoDBEventStoreClientOptions | MongoDBEventStoreConnectionStringOptions);
 
 export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
@@ -220,8 +261,11 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
         : new MongoClient(options.connectionString, options.clientOptions);
     this.shouldManageClientLifetime = !('client' in options);
     this.defaultOptions = {
-      database: options.database,
-      collection: options.collection,
+      database: options.storage.database,
+      collection:
+        'collection' in options.storage
+          ? options.storage.collection
+          : undefined,
     };
     this.inlineProjections = (options.projections ?? [])
       .filter(({ type }) => type === 'inline')
