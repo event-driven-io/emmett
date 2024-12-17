@@ -157,7 +157,7 @@ void describe('MongoDBEventStore connection', () => {
 
     try {
       const eventStore = getMongoDBEventStore({
-        storage: { type: 'COLLECTION_PER_STREAM_TYPE', database },
+        storage: { type: 'COLLECTION_PER_STREAM_TYPE', databaseName: database },
         client,
         projections: projections.inline([
           mongoDBInlineProjection({
