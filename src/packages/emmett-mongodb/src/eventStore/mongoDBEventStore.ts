@@ -16,7 +16,6 @@ import {
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
 import {
-  Db,
   MongoClient,
   type Collection,
   type Document,
@@ -189,7 +188,6 @@ export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
 class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
   private readonly client: MongoClient;
   private shouldManageClientLifetime: boolean;
-  private db: Db | undefined;
   private readonly inlineProjections: MongoDBInlineProjectionDefinition[];
   private isClosed: boolean = false;
   public projections: ProjectionQueries<StreamType>;
