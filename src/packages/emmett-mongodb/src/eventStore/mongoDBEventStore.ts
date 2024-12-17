@@ -1,10 +1,11 @@
 import {
-  ExpectedVersionConflictError,
   assertExpectedVersionMatchesCurrent,
+  ExpectedVersionConflictError,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
   type AppendToStreamResult,
+  type Closeable,
   type Event,
   type EventMetaDataOf,
   type EventStore,
@@ -19,11 +20,11 @@ import {
   MongoClient,
   type Collection,
   type Document,
-  type MongoClientOptions,
   type Filter,
+  type MongoClientOptions,
+  type Sort,
   type UpdateFilter,
   type WithId,
-  type Sort,
 } from 'mongodb';
 import { v4 as uuid } from 'uuid';
 import {
@@ -193,10 +194,9 @@ export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
   collectionFor: <EventType extends Event>(
     streamType: StreamType,
   ) => Promise<Collection<EventStream<EventType>>>;
-  close: () => Promise<void>;
 };
 
-class MongoDBEventStoreImplementation implements MongoDBEventStore {
+class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
   private readonly client: MongoClient;
   private readonly defaultOptions: {
     database: string | undefined;
@@ -416,14 +416,21 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore {
     };
   }
 
-  close(): Promise<void> {
+  /**
+   * Gracefully cleans up managed resources by the MongoDBEventStore.
+   * It closes MongoDB client created for the provided connection string
+   * through event store options.
+   *
+   * @memberof Closeable
+   */
+  close = (): Promise<void> => {
     if (this.isClosed) return Promise.resolve();
 
     this.isClosed = true;
     if (!this.shouldManageClientLifetime) return Promise.resolve();
 
     return this.client.close();
-  }
+  };
 
   collectionFor = async <EventType extends Event>(
     streamType: StreamType,
@@ -703,9 +710,27 @@ function addProjectionPrefixToMongoKey(key: string, prefix: string): string {
   return `${prefix}${key.length > 0 ? '.' : ''}${key}`;
 }
 
-export const getMongoDBEventStore = (
+export function getMongoDBEventStore(
+  options: MongoDBEventStoreOptions & { client: MongoClient },
+): MongoDBEventStore;
+
+export function getMongoDBEventStore(
+  options: MongoDBEventStoreOptions & { connectionString: string },
+): MongoDBEventStore & Closeable;
+
+// Implementation signature covers both, using a union for `options`
+export function getMongoDBEventStore(
   options: MongoDBEventStoreOptions,
-): MongoDBEventStore => new MongoDBEventStoreImplementation(options);
+): MongoDBEventStore | Closeable {
+  const impl = new MongoDBEventStoreImplementation(options);
+
+  // If a client is provided externally, we don't want to allow closing it
+  if ('client' in options && 'close' in impl) {
+    delete (impl as Partial<MongoDBEventStoreImplementation>).close;
+  }
+
+  return impl;
+}
 
 /**
  * Accepts a `streamType` (the type/category of the event stream) and an `streamId`

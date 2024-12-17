@@ -2,7 +2,6 @@ import {
   assertIsNotNull,
   assertNotEqual,
   assertThrowsAsync,
-  assertTrue,
   projections,
   STREAM_DOES_NOT_EXIST,
 } from '@event-driven-io/emmett';
@@ -116,37 +115,6 @@ void describe('MongoDBEventStore connection', () => {
         .collection(toStreamCollectionName(streamType))
         .findOne();
       assertIsNotNull(stream);
-    } finally {
-      await client.close();
-    }
-  });
-
-  void it('does not disconnect connected client', async () => {
-    const client = new MongoClient(mongodb.getConnectionString(), {
-      directConnection: true,
-    });
-
-    await client.connect();
-    try {
-      const eventStore = getMongoDBEventStore({
-        client,
-        projections: projections.inline([
-          mongoDBInlineProjection({
-            name: SHOPPING_CART_PROJECTION_NAME,
-            canHandle: ['ProductItemAdded', 'DiscountApplied'],
-            evolve,
-          }),
-        ]),
-      });
-
-      await eventStore.close();
-
-      const { acknowledged } = await client
-        .db()
-        .collection('test')
-        .insertOne({ test: 'test' });
-
-      assertTrue(acknowledged);
     } finally {
       await client.close();
     }
