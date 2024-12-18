@@ -11,10 +11,7 @@ import {
 import { MongoClient, type Collection } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
-import {
-  type PricedProductItem,
-  type ShoppingCartEvent,
-} from '../testing/shoppingCart.domain';
+import { type PricedProductItem, type ShoppingCartEvent } from '../testing';
 import {
   getMongoDBEventStore,
   toStreamCollectionName,

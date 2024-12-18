@@ -14,12 +14,6 @@ import { MongoClient, type Collection } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
-  type DiscountApplied,
-  type PricedProductItem,
-  type ProductItemAdded,
-  type ShoppingCartEvent,
-} from '../../testing/shoppingCart.domain';
-import {
   getMongoDBEventStore,
   mongoDBInlineProjection,
   toStreamCollectionName,
@@ -27,6 +21,12 @@ import {
   type EventStream,
   type MongoDBEventStore,
 } from '../';
+import {
+  type DiscountApplied,
+  type PricedProductItem,
+  type ProductItemAdded,
+  type ShoppingCartEvent,
+} from '../../testing';
 
 void describe('MongoDBEventStore', () => {
   let mongodb: StartedMongoDBContainer;
