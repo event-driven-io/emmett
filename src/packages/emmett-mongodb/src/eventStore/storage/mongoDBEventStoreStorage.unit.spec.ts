@@ -51,6 +51,20 @@ void describe('mongoDBEventStoreStorage', () => {
     assertEqual(collection.dbName, defaultDBName);
   });
 
+  void it('resolves the same instance of collection for multiple calls for the same stream type resolution', async () => {
+    // Given
+    const storage = mongoDBEventStoreStorage({
+      getConnectedClient,
+    });
+
+    // When
+    const firstResolution = await storage.collectionFor(testStreamTypeName);
+    const nextResolution = await storage.collectionFor(testStreamTypeName);
+
+    // Then
+    assertEqual(firstResolution, nextResolution);
+  });
+
   void describe('Single Collection storage', () => {
     void it('handles SINGLE_COLLECTION passed as string with default collection name and no db', async () => {
       // Given
