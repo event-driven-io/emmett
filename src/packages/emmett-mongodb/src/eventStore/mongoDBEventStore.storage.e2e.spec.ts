@@ -3,7 +3,6 @@ import {
   assertNotEqual,
   assertOk,
   assertThatArray,
-  projections,
   STREAM_DOES_NOT_EXIST,
 } from '@event-driven-io/emmett';
 import {
@@ -17,7 +16,6 @@ import {
   DefaultMongoDBEventStoreCollectionName,
   getMongoDBEventStore,
   MongoDBEventStoreDefaultStreamVersion,
-  mongoDBInlineProjection,
   toStreamCollectionName,
   toStreamName,
   type EventStream,
@@ -32,7 +30,6 @@ import {
   type ShoppingCartEvent,
 } from '../testing/shoppingCart.domain';
 
-const SHOPPING_CART_PROJECTION_NAME = 'shoppingCartShortInfo';
 const streamType: StreamType = 'shopping_cart';
 
 void describe('MongoDBEventStore storage resolution', () => {
@@ -58,13 +55,6 @@ void describe('MongoDBEventStore storage resolution', () => {
     try {
       const eventStore = getMongoDBEventStore({
         client,
-        projections: projections.inline([
-          mongoDBInlineProjection({
-            name: SHOPPING_CART_PROJECTION_NAME,
-            canHandle: ['ProductItemAdded', 'DiscountApplied'],
-            evolve,
-          }),
-        ]),
       });
 
       await assertCanAppend(eventStore);
@@ -94,13 +84,6 @@ void describe('MongoDBEventStore storage resolution', () => {
           collectionName: customCollectionName,
         },
         client,
-        projections: projections.inline([
-          mongoDBInlineProjection({
-            name: SHOPPING_CART_PROJECTION_NAME,
-            canHandle: ['ProductItemAdded', 'DiscountApplied'],
-            evolve,
-          }),
-        ]),
       });
 
       await assertCanAppend(eventStore);
@@ -127,13 +110,6 @@ void describe('MongoDBEventStore storage resolution', () => {
           type: 'SINGLE_COLLECTION',
         },
         client,
-        projections: projections.inline([
-          mongoDBInlineProjection({
-            name: SHOPPING_CART_PROJECTION_NAME,
-            canHandle: ['ProductItemAdded', 'DiscountApplied'],
-            evolve,
-          }),
-        ]),
       });
 
       await assertCanAppend(eventStore);
@@ -169,13 +145,6 @@ void describe('MongoDBEventStore storage resolution', () => {
           }),
         },
         client,
-        projections: projections.inline([
-          mongoDBInlineProjection({
-            name: SHOPPING_CART_PROJECTION_NAME,
-            canHandle: ['ProductItemAdded', 'DiscountApplied'],
-            evolve,
-          }),
-        ]),
       });
 
       await assertCanAppend(eventStore);
@@ -234,34 +203,4 @@ const assertEventStoreSetUpCollection = async (
   return collection as unknown as Collection<
     EventStream<ProductItemAdded | DiscountApplied>
   >;
-};
-
-type ShoppingCartShortInfo = {
-  productItemsCount: number;
-  totalAmount: number;
-};
-
-const evolve = (
-  document: ShoppingCartShortInfo | null,
-  { type, data: event }: ProductItemAdded | DiscountApplied,
-): ShoppingCartShortInfo | null => {
-  document = document ?? { productItemsCount: 0, totalAmount: 0 };
-
-  switch (type) {
-    case 'ProductItemAdded':
-      return {
-        totalAmount:
-          document.totalAmount +
-          event.productItem.price * event.productItem.quantity,
-        productItemsCount:
-          document.productItemsCount + event.productItem.quantity,
-      };
-    case 'DiscountApplied':
-      return {
-        ...document,
-        totalAmount: (document.totalAmount * (100 - event.percent)) / 100,
-      };
-    default:
-      return document;
-  }
 };

@@ -2,7 +2,6 @@ import {
   assertIsNotNull,
   assertNotEqual,
   assertThrowsAsync,
-  projections,
   STREAM_DOES_NOT_EXIST,
 } from '@event-driven-io/emmett';
 import {
@@ -15,20 +14,16 @@ import { v4 as uuid } from 'uuid';
 import {
   getMongoDBEventStore,
   MongoDBEventStoreDefaultStreamVersion,
-  mongoDBInlineProjection,
   toStreamCollectionName,
   toStreamName,
   type MongoDBEventStore,
   type StreamType,
 } from '.';
 import {
-  type DiscountApplied,
   type PricedProductItem,
-  type ProductItemAdded,
   type ShoppingCartEvent,
 } from '../testing/shoppingCart.domain';
 
-const SHOPPING_CART_PROJECTION_NAME = 'shoppingCartShortInfo';
 const streamType: StreamType = 'shopping_cart';
 
 void describe('MongoDBEventStore connection', () => {
@@ -50,13 +45,6 @@ void describe('MongoDBEventStore connection', () => {
     const eventStore = getMongoDBEventStore({
       connectionString: mongodb.getConnectionString(),
       clientOptions: { directConnection: true },
-      projections: projections.inline([
-        mongoDBInlineProjection({
-          name: SHOPPING_CART_PROJECTION_NAME,
-          canHandle: ['ProductItemAdded', 'DiscountApplied'],
-          evolve,
-        }),
-      ]),
     });
     try {
       await assertCanAppend(eventStore);
@@ -70,13 +58,6 @@ void describe('MongoDBEventStore connection', () => {
     const eventStore = getMongoDBEventStore({
       connectionString: mongodb.getConnectionString(),
       clientOptions: { directConnection: true },
-      projections: projections.inline([
-        mongoDBInlineProjection({
-          name: SHOPPING_CART_PROJECTION_NAME,
-          canHandle: ['ProductItemAdded', 'DiscountApplied'],
-          evolve,
-        }),
-      ]),
     });
     // and
     await assertCanAppend(eventStore);
@@ -98,13 +79,6 @@ void describe('MongoDBEventStore connection', () => {
     try {
       const eventStore = getMongoDBEventStore({
         client,
-        projections: projections.inline([
-          mongoDBInlineProjection({
-            name: SHOPPING_CART_PROJECTION_NAME,
-            canHandle: ['ProductItemAdded', 'DiscountApplied'],
-            evolve,
-          }),
-        ]),
       });
 
       await assertCanAppend(eventStore);
@@ -129,13 +103,6 @@ void describe('MongoDBEventStore connection', () => {
     try {
       const eventStore = getMongoDBEventStore({
         client,
-        projections: projections.inline([
-          mongoDBInlineProjection({
-            name: SHOPPING_CART_PROJECTION_NAME,
-            canHandle: ['ProductItemAdded', 'DiscountApplied'],
-            evolve,
-          }),
-        ]),
       });
 
       await assertCanAppend(eventStore);
@@ -148,13 +115,6 @@ void describe('MongoDBEventStore connection', () => {
     const eventStore = getMongoDBEventStore({
       connectionString: mongodb.getConnectionString(),
       clientOptions: { directConnection: true },
-      projections: projections.inline([
-        mongoDBInlineProjection({
-          name: SHOPPING_CART_PROJECTION_NAME,
-          canHandle: ['ProductItemAdded', 'DiscountApplied'],
-          evolve,
-        }),
-      ]),
     });
     try {
       await assertCanAppend(eventStore);
@@ -183,34 +143,4 @@ const assertCanAppend = async (eventStore: MongoDBEventStore) => {
     result.nextExpectedStreamVersion,
     MongoDBEventStoreDefaultStreamVersion,
   );
-};
-
-type ShoppingCartShortInfo = {
-  productItemsCount: number;
-  totalAmount: number;
-};
-
-const evolve = (
-  document: ShoppingCartShortInfo | null,
-  { type, data: event }: ProductItemAdded | DiscountApplied,
-): ShoppingCartShortInfo | null => {
-  document = document ?? { productItemsCount: 0, totalAmount: 0 };
-
-  switch (type) {
-    case 'ProductItemAdded':
-      return {
-        totalAmount:
-          document.totalAmount +
-          event.productItem.price * event.productItem.quantity,
-        productItemsCount:
-          document.productItemsCount + event.productItem.quantity,
-      };
-    case 'DiscountApplied':
-      return {
-        ...document,
-        totalAmount: (document.totalAmount * (100 - event.percent)) / 100,
-      };
-    default:
-      return document;
-  }
 };
