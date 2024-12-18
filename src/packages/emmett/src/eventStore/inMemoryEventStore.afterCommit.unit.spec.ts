@@ -14,8 +14,10 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     // Given
     const appendedEvents: InMemoryReadEvent[] = [];
     const eventStore = getInMemoryEventStore({
-      onAfterCommit: (events) => {
-        appendedEvents.push(...events);
+      hooks: {
+        onAfterCommit: (events) => {
+          appendedEvents.push(...events);
+        },
       },
     });
     const streamName = `test:${uuid()}`;
@@ -44,8 +46,10 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     // Given
     const appendedEvents: InMemoryReadEvent[] = [];
     const eventStore = getInMemoryEventStore({
-      onAfterCommit: (events) => {
-        appendedEvents.push(...events);
+      hooks: {
+        onAfterCommit: (events) => {
+          appendedEvents.push(...events);
+        },
       },
     });
     const streamName = `test:${uuid()}`;
@@ -87,9 +91,11 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     // Given
     const appendedEvents: InMemoryReadEvent[] = [];
     const eventStore = getInMemoryEventStore({
-      onAfterCommit: (events) => {
-        appendedEvents.push(...events);
-        throw new Error('onAfterCommit failed!');
+      hooks: {
+        onAfterCommit: (events) => {
+          appendedEvents.push(...events);
+          throw new Error('onAfterCommit failed!');
+        },
       },
     });
 
