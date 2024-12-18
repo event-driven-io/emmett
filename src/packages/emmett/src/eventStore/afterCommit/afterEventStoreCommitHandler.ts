@@ -1,9 +1,5 @@
 import { type Event, type ReadEvent } from '../../typing';
-import type {
-  DefaultEventStoreOptions,
-  EventStore,
-  EventStoreReadEventMetadata,
-} from '../eventStore';
+import type { EventStore, EventStoreReadEventMetadata } from '../eventStore';
 
 type AfterEventStoreCommitHandlerWithoutContext<Store extends EventStore> = (
   messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
@@ -30,8 +26,8 @@ type TryPublishMessagesAfterCommitOptions<
 
 export async function tryPublishMessagesAfterCommit<Store extends EventStore>(
   messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
-  options: DefaultEventStoreOptions<Store, undefined> | undefined,
-): Promise<void>;
+  options: TryPublishMessagesAfterCommitOptions<Store, undefined> | undefined,
+): Promise<boolean>;
 export async function tryPublishMessagesAfterCommit<
   Store extends EventStore,
   HandlerContext,
@@ -41,7 +37,7 @@ export async function tryPublishMessagesAfterCommit<
     | TryPublishMessagesAfterCommitOptions<Store, HandlerContext>
     | undefined,
   context: HandlerContext,
-): Promise<void>;
+): Promise<boolean>;
 export async function tryPublishMessagesAfterCommit<
   Store extends EventStore,
   HandlerContext = never,
@@ -51,13 +47,15 @@ export async function tryPublishMessagesAfterCommit<
     | TryPublishMessagesAfterCommitOptions<Store, HandlerContext>
     | undefined,
   context?: HandlerContext,
-): Promise<void> {
-  if (options?.onAfterCommit === undefined) return;
+): Promise<boolean> {
+  if (options?.onAfterCommit === undefined) return false;
 
   try {
     await options?.onAfterCommit(messages, context!);
+    return true;
   } catch (error) {
     // TODO: enhance with tracing
     console.error(`Error in on after commit hook`, error);
+    return false;
   }
 }
