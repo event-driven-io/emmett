@@ -5,6 +5,7 @@ import type {
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
 } from '../typing';
+import { tryPublishMessagesAfterCommit } from './afterCommit';
 import {
   type AggregateStreamOptions,
   type AggregateStreamResult,
@@ -17,7 +18,6 @@ import {
 } from './eventStore';
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
 import { StreamingCoordinator } from './subscriptions';
-import { tryPublishMessagesAfterCommit } from './afterCommit';
 
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
 
@@ -166,7 +166,7 @@ export const getInMemoryEventStore = (
           currentStreamVersion === InMemoryEventStoreDefaultStreamVersion,
       };
 
-      await tryPublishMessagesAfterCommit(newEvents, eventStoreOptions);
+      await tryPublishMessagesAfterCommit(newEvents, eventStoreOptions?.hooks);
 
       return result;
     },

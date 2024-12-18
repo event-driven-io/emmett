@@ -239,5 +239,7 @@ export type DefaultEventStoreOptions<
   Store extends EventStore,
   HandlerContext = never,
 > = {
-  onAfterCommit?: AfterEventStoreCommitHandler<Store, HandlerContext>;
+  hooks?: {
+    onAfterCommit?: AfterEventStoreCommitHandler<Store, HandlerContext>;
+  };
 };
