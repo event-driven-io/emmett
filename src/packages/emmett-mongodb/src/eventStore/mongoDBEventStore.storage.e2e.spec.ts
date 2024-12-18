@@ -1,9 +1,7 @@
 import {
   assertIsNotNull,
-  assertNotEqual,
   assertOk,
   assertThatArray,
-  STREAM_DOES_NOT_EXIST,
 } from '@event-driven-io/emmett';
 import {
   MongoDBContainer,
@@ -15,22 +13,16 @@ import { v4 as uuid } from 'uuid';
 import {
   DefaultMongoDBEventStoreCollectionName,
   getMongoDBEventStore,
-  MongoDBEventStoreDefaultStreamVersion,
   toStreamCollectionName,
-  toStreamName,
   type EventStream,
-  type MongoDBEventStore,
   type MongoDBEventStoreCollectionResolution,
-  type StreamType,
 } from '.';
 import {
+  assertCanAppend,
+  ShoppingCartStreamType,
   type DiscountApplied,
-  type PricedProductItem,
   type ProductItemAdded,
-  type ShoppingCartEvent,
-} from '../testing/shoppingCart.domain';
-
-const streamType: StreamType = 'shopping_cart';
+} from '../testing';
 
 void describe('MongoDBEventStore storage resolution', () => {
   let mongodb: StartedMongoDBContainer;
@@ -53,23 +45,28 @@ void describe('MongoDBEventStore storage resolution', () => {
   });
 
   void it('sets up database and collection with COLLECTION_PER_STREAM_TYPE as default', async () => {
+    // Given
+    // When
     const eventStore = getMongoDBEventStore({
       client,
     });
 
+    // Then
     await assertCanAppend(eventStore);
 
     const collection = await assertEventStoreSetUpCollection(
       client.db(),
-      toStreamCollectionName(streamType),
+      toStreamCollectionName(ShoppingCartStreamType),
     );
     const stream = await collection.findOne();
     assertIsNotNull(stream);
   });
 
   void it('sets up database and collection with custom SINGLE_COLLECTION', async () => {
+    // Given
     const customCollectionName = uuid();
 
+    // When
     const eventStore = getMongoDBEventStore({
       storage: {
         type: 'SINGLE_COLLECTION',
@@ -78,6 +75,7 @@ void describe('MongoDBEventStore storage resolution', () => {
       client,
     });
 
+    // Then
     await assertCanAppend(eventStore);
 
     const collection = await assertEventStoreSetUpCollection(
@@ -89,6 +87,8 @@ void describe('MongoDBEventStore storage resolution', () => {
   });
 
   void it('sets up database and collection with default SINGLE_COLLECTION', async () => {
+    // Given
+    // When
     const eventStore = getMongoDBEventStore({
       storage: {
         type: 'SINGLE_COLLECTION',
@@ -96,6 +96,7 @@ void describe('MongoDBEventStore storage resolution', () => {
       client,
     });
 
+    // Then
     await assertCanAppend(eventStore);
 
     const collection = await assertEventStoreSetUpCollection(
@@ -107,8 +108,11 @@ void describe('MongoDBEventStore storage resolution', () => {
   });
 
   void it('sets up database and collection with CUSTOM collection resolution', async () => {
+    // Given
     const customCollectionSuffix = uuid();
     const databaseName = uuid();
+
+    // When
     const eventStore = getMongoDBEventStore({
       storage: {
         type: 'CUSTOM',
@@ -122,37 +126,17 @@ void describe('MongoDBEventStore storage resolution', () => {
       client,
     });
 
+    // Then
     await assertCanAppend(eventStore);
 
     const collection = await assertEventStoreSetUpCollection(
       client.db(databaseName),
-      `${streamType}:${customCollectionSuffix}`,
+      `${ShoppingCartStreamType}:${customCollectionSuffix}`,
     );
     const stream = await collection.findOne();
     assertIsNotNull(stream);
   });
 });
-
-const assertCanAppend = async (eventStore: MongoDBEventStore) => {
-  const productItem: PricedProductItem = {
-    productId: '123',
-    quantity: 10,
-    price: 3,
-  };
-  const shoppingCartId = uuid();
-  const streamName = toStreamName(streamType, shoppingCartId);
-
-  const result = await eventStore.appendToStream<ShoppingCartEvent>(
-    streamName,
-    [{ type: 'ProductItemAdded', data: { productItem } }],
-    { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
-  );
-
-  assertNotEqual(
-    result.nextExpectedStreamVersion,
-    MongoDBEventStoreDefaultStreamVersion,
-  );
-};
 
 const assertEventStoreSetUpCollection = async (
   db: Db,
