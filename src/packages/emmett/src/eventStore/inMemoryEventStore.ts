@@ -6,6 +6,7 @@ import type {
   ReadEventMetadataWithGlobalPosition,
 } from '../typing';
 import {
+  tryPublishMessagesAfterCommit,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
@@ -18,10 +19,6 @@ import {
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
 import { StreamingCoordinator } from './subscriptions';
 
-export type EventHandler<E extends Event = Event> = (
-  eventEnvelope: ReadEvent<E>,
-) => void;
-
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
 
 export type InMemoryEventStore =
@@ -30,8 +27,13 @@ export type InMemoryEventStore =
 export type InMemoryEventStoreOptions =
   DefaultEventStoreOptions<InMemoryEventStore>;
 
+export type InMemoryReadEvent<EventType extends Event = Event> = ReadEvent<
+  EventType,
+  ReadEventMetadataWithGlobalPosition
+>;
+
 export const getInMemoryEventStore = (
-  _options?: InMemoryEventStoreOptions,
+  eventStoreOptions?: InMemoryEventStoreOptions,
 ): InMemoryEventStore => {
   const streams = new Map<
     string,
@@ -163,6 +165,8 @@ export const getInMemoryEventStore = (
         createdNewStream:
           currentStreamVersion === InMemoryEventStoreDefaultStreamVersion,
       };
+
+      await tryPublishMessagesAfterCommit(newEvents, eventStoreOptions);
 
       return result;
     },
