@@ -10,6 +10,7 @@ import {
   type AggregateStreamResult,
   type AppendToStreamOptions,
   type AppendToStreamResult,
+  type DefaultEventStoreOptions,
   type EventStore,
   type ReadStreamOptions,
   type ReadStreamResult,
@@ -26,7 +27,12 @@ export const InMemoryEventStoreDefaultStreamVersion = 0n;
 export type InMemoryEventStore =
   EventStore<ReadEventMetadataWithGlobalPosition>;
 
-export const getInMemoryEventStore = (): InMemoryEventStore => {
+export type InMemoryEventStoreOptions =
+  DefaultEventStoreOptions<InMemoryEventStore>;
+
+export const getInMemoryEventStore = (
+  _options?: InMemoryEventStoreOptions,
+): InMemoryEventStore => {
   const streams = new Map<
     string,
     ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[]
