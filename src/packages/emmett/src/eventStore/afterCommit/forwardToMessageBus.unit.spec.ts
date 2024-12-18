@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import { v7 as uuid } from 'uuid';
+import { getInMemoryMessageBus } from '../../messageBus';
 import { assertDeepEqual, assertEqual } from '../../testing';
 import type {
   Event,
@@ -9,6 +10,7 @@ import type {
 import type { EventStore } from '../eventStore';
 import { type InMemoryReadEvent } from '../inMemoryEventStore';
 import { tryPublishMessagesAfterCommit } from './afterEventStoreCommitHandler';
+import { forwardToMessageBus } from './forwardToMessageBus';
 
 type TestEvent = Event<'test', { counter: number }, { some: boolean }>;
 
@@ -54,13 +56,14 @@ void describe('InMemoryEventStore onAfterCommit', () => {
       },
     ];
 
+    const messageBus = getInMemoryMessageBus();
+    messageBus.subscribe((event: TestReadEvent) => {
+      appendedEvents.push(event);
+    }, 'test');
+
     // When
     await tryPublishMessagesAfterCommit<TestEventStore>(events, {
-      onAfterCommit: (
-        events: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[],
-      ) => {
-        appendedEvents.push(...events);
-      },
+      onAfterCommit: forwardToMessageBus(messageBus),
     });
 
     // Then
@@ -123,21 +126,17 @@ void describe('InMemoryEventStore onAfterCommit', () => {
       },
     ];
 
+    const messageBus = getInMemoryMessageBus();
+    messageBus.subscribe((event: TestReadEvent) => {
+      appendedEvents.push(event);
+    }, 'test');
+
     // When
-    await tryPublishMessagesAfterCommit<TestEventStore>(events, {
-      onAfterCommit: (
-        events: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[],
-      ) => {
-        appendedEvents.push(...events);
-      },
-    });
-    await tryPublishMessagesAfterCommit<TestEventStore>(nextEvents, {
-      onAfterCommit: (
-        events: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[],
-      ) => {
-        appendedEvents.push(...events);
-      },
-    });
+    const options = {
+      onAfterCommit: forwardToMessageBus(messageBus),
+    };
+    await tryPublishMessagesAfterCommit<TestEventStore>(events, options);
+    await tryPublishMessagesAfterCommit<TestEventStore>(nextEvents, options);
 
     // Then
     assertEqual(4, appendedEvents.length);
@@ -174,6 +173,11 @@ void describe('InMemoryEventStore onAfterCommit', () => {
         },
       },
     ];
+
+    const messageBus = getInMemoryMessageBus();
+    messageBus.subscribe((event: TestReadEvent) => {
+      appendedEvents.push(event);
+    }, 'test');
 
     // When
     await tryPublishMessagesAfterCommit<TestEventStore>(events, {
