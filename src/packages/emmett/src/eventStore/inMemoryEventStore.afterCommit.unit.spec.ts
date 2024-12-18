@@ -92,6 +92,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
         throw new Error('onAfterCommit failed!');
       },
     });
+
     const streamName = `test:${uuid()}`;
     let counter = 0;
     const events: TestEvent[] = [

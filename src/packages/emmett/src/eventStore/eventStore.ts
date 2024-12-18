@@ -9,6 +9,7 @@ import type {
   ReadEventMetadata,
   StreamPositionTypeOfReadEventMetadata,
 } from '../typing';
+import type { AfterEventStoreCommitHandler } from './afterCommit';
 //import type { GlobalSubscriptionEvent } from './events';
 import type { ExpectedStreamVersion } from './expectedVersion';
 
@@ -240,49 +241,3 @@ export type DefaultEventStoreOptions<
 > = {
   onAfterCommit?: AfterEventStoreCommitHandler<Store, HandlerContext>;
 };
-
-type AfterEventStoreCommitHandlerWithoutContext<Store extends EventStore> = (
-  messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
-) => Promise<void> | void;
-
-export type AfterEventStoreCommitHandler<
-  Store extends EventStore,
-  HandlerContext = never,
-> = [HandlerContext] extends [never] // Exact check for never
-  ? AfterEventStoreCommitHandlerWithoutContext<Store>
-  :
-      | ((
-          messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
-          context: HandlerContext,
-        ) => Promise<void> | void)
-      | AfterEventStoreCommitHandlerWithoutContext<Store>;
-
-export async function tryPublishMessagesAfterCommit<Store extends EventStore>(
-  messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
-  options: DefaultEventStoreOptions<Store, undefined> | undefined,
-): Promise<void>;
-export async function tryPublishMessagesAfterCommit<
-  Store extends EventStore,
-  HandlerContext,
->(
-  messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
-  options: DefaultEventStoreOptions<Store, HandlerContext> | undefined,
-  context: HandlerContext,
-): Promise<void>;
-export async function tryPublishMessagesAfterCommit<
-  Store extends EventStore,
-  HandlerContext = never,
->(
-  messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
-  options: DefaultEventStoreOptions<Store, HandlerContext> | undefined,
-  context?: HandlerContext,
-): Promise<void> {
-  if (options?.onAfterCommit === undefined) return;
-
-  try {
-    await options?.onAfterCommit(messages, context!);
-  } catch (error) {
-    // TODO: enhance with tracing
-    console.error(`Error in on after commit hook`, error);
-  }
-}
