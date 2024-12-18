@@ -42,7 +42,6 @@ void describe('MongoDBEventStore', () => {
     );
 
     eventStore = getMongoDBEventStore({
-      storage: { type: 'COLLECTION_PER_STREAM_TYPE' },
       client,
     });
     return eventStore;
