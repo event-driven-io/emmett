@@ -1,7 +1,8 @@
 import {
   assertIsNotNull,
   assertNotEqual,
-  assertThrowsAsync,
+  assertOk,
+  assertThatArray,
   projections,
   STREAM_DOES_NOT_EXIST,
 } from '@event-driven-io/emmett';
@@ -9,16 +10,19 @@ import {
   MongoDBContainer,
   type StartedMongoDBContainer,
 } from '@testcontainers/mongodb';
-import { MongoClient, MongoNotConnectedError } from 'mongodb';
+import { Collection, Db, MongoClient } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
+  DefaultMongoDBEventStoreCollectionName,
   getMongoDBEventStore,
   MongoDBEventStoreDefaultStreamVersion,
   mongoDBInlineProjection,
   toStreamCollectionName,
   toStreamName,
+  type EventStream,
   type MongoDBEventStore,
+  type MongoDBEventStoreCollectionResolution,
   type StreamType,
 } from '.';
 import {
@@ -31,7 +35,7 @@ import {
 const SHOPPING_CART_PROJECTION_NAME = 'shoppingCartShortInfo';
 const streamType: StreamType = 'shopping_cart';
 
-void describe('MongoDBEventStore connection', () => {
+void describe('MongoDBEventStore storage resolution', () => {
   let mongodb: StartedMongoDBContainer;
 
   before(async () => {
@@ -46,55 +50,11 @@ void describe('MongoDBEventStore connection', () => {
     }
   });
 
-  void it('connects using connection string', async () => {
-    const eventStore = getMongoDBEventStore({
-      connectionString: mongodb.getConnectionString(),
-      clientOptions: { directConnection: true },
-      projections: projections.inline([
-        mongoDBInlineProjection({
-          name: SHOPPING_CART_PROJECTION_NAME,
-          canHandle: ['ProductItemAdded', 'DiscountApplied'],
-          evolve,
-        }),
-      ]),
-    });
-    try {
-      await assertCanAppend(eventStore);
-    } finally {
-      await eventStore.close();
-    }
-  });
-
-  void it('disconnects on close', async () => {
-    // given
-    const eventStore = getMongoDBEventStore({
-      connectionString: mongodb.getConnectionString(),
-      clientOptions: { directConnection: true },
-      projections: projections.inline([
-        mongoDBInlineProjection({
-          name: SHOPPING_CART_PROJECTION_NAME,
-          canHandle: ['ProductItemAdded', 'DiscountApplied'],
-          evolve,
-        }),
-      ]),
-    });
-    // and
-    await assertCanAppend(eventStore);
-
-    // when
-    await eventStore.close();
-
-    // then
-    await assertThrowsAsync(
-      () => assertCanAppend(eventStore),
-      (error) => error instanceof MongoNotConnectedError,
-    );
-  });
-
-  void it('connects using not-connected client', async () => {
+  void it('sets up database and collection with COLLECTION_PER_STREAM_TYPE as default', async () => {
     const client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
     });
+
     try {
       const eventStore = getMongoDBEventStore({
         client,
@@ -109,25 +69,30 @@ void describe('MongoDBEventStore connection', () => {
 
       await assertCanAppend(eventStore);
 
-      // this should succeed as event store should call connect internally
-      const stream = await client
-        .db()
-        .collection(toStreamCollectionName(streamType))
-        .findOne();
+      const collection = await assertEventStoreSetUpCollection(
+        client.db(),
+        toStreamCollectionName(streamType),
+      );
+      const stream = await collection.findOne();
       assertIsNotNull(stream);
     } finally {
       await client.close();
     }
   });
 
-  void it('connects using connected client', async () => {
+  void it('sets up database and collection with custom SINGLE_COLLECTION', async () => {
+    const customCollectionName = uuid();
+
     const client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
     });
 
-    await client.connect();
     try {
       const eventStore = getMongoDBEventStore({
+        storage: {
+          type: 'SINGLE_COLLECTION',
+          collectionName: customCollectionName,
+        },
         client,
         projections: projections.inline([
           mongoDBInlineProjection({
@@ -139,27 +104,90 @@ void describe('MongoDBEventStore connection', () => {
       });
 
       await assertCanAppend(eventStore);
+
+      const collection = await assertEventStoreSetUpCollection(
+        client.db(),
+        customCollectionName,
+      );
+      const stream = await collection.findOne();
+      assertIsNotNull(stream);
     } finally {
       await client.close();
     }
   });
 
-  void it('connects using connection string', async () => {
-    const eventStore = getMongoDBEventStore({
-      connectionString: mongodb.getConnectionString(),
-      clientOptions: { directConnection: true },
-      projections: projections.inline([
-        mongoDBInlineProjection({
-          name: SHOPPING_CART_PROJECTION_NAME,
-          canHandle: ['ProductItemAdded', 'DiscountApplied'],
-          evolve,
-        }),
-      ]),
+  void it('sets up database and collection with default SINGLE_COLLECTION', async () => {
+    const client = new MongoClient(mongodb.getConnectionString(), {
+      directConnection: true,
     });
+
     try {
+      const eventStore = getMongoDBEventStore({
+        storage: {
+          type: 'SINGLE_COLLECTION',
+        },
+        client,
+        projections: projections.inline([
+          mongoDBInlineProjection({
+            name: SHOPPING_CART_PROJECTION_NAME,
+            canHandle: ['ProductItemAdded', 'DiscountApplied'],
+            evolve,
+          }),
+        ]),
+      });
+
       await assertCanAppend(eventStore);
+
+      const collection = await assertEventStoreSetUpCollection(
+        client.db(),
+        DefaultMongoDBEventStoreCollectionName,
+      );
+      const stream = await collection.findOne();
+      assertIsNotNull(stream);
     } finally {
-      await eventStore.close();
+      await client.close();
+    }
+  });
+
+  void it('sets up database and collection with CUSTOM colleciton resolution', async () => {
+    const customCollectionSuffix = uuid();
+    const databaseName = uuid();
+
+    const client = new MongoClient(mongodb.getConnectionString(), {
+      directConnection: true,
+    });
+
+    try {
+      const eventStore = getMongoDBEventStore({
+        storage: {
+          type: 'CUSTOM',
+          collectionFor: (
+            streamType: string,
+          ): MongoDBEventStoreCollectionResolution => ({
+            collectionName: `${streamType}:${customCollectionSuffix}`,
+            databaseName,
+          }),
+        },
+        client,
+        projections: projections.inline([
+          mongoDBInlineProjection({
+            name: SHOPPING_CART_PROJECTION_NAME,
+            canHandle: ['ProductItemAdded', 'DiscountApplied'],
+            evolve,
+          }),
+        ]),
+      });
+
+      await assertCanAppend(eventStore);
+
+      const collection = await assertEventStoreSetUpCollection(
+        client.db(databaseName),
+        `${streamType}:${customCollectionSuffix}`,
+      );
+      const stream = await collection.findOne();
+      assertIsNotNull(stream);
+    } finally {
+      await client.close();
     }
   });
 });
@@ -183,6 +211,29 @@ const assertCanAppend = async (eventStore: MongoDBEventStore) => {
     result.nextExpectedStreamVersion,
     MongoDBEventStoreDefaultStreamVersion,
   );
+};
+
+const assertEventStoreSetUpCollection = async (
+  db: Db,
+  collectionName: string,
+): Promise<Collection<EventStream<ProductItemAdded | DiscountApplied>>> => {
+  const existingCollections = await db.collections();
+  const collection = existingCollections.find(
+    (c) => c.collectionName,
+    collectionName,
+  );
+
+  assertOk(collection);
+
+  const indexes = await collection.indexes();
+
+  assertThatArray(indexes).anyMatches(
+    (index) => index.unique === true && index.key['streamName'] === 1,
+  );
+
+  return collection as unknown as Collection<
+    EventStream<ProductItemAdded | DiscountApplied>
+  >;
 };
 
 type ShoppingCartShortInfo = {
