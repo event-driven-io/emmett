@@ -26,7 +26,7 @@ import {
   type PricedProductItem,
   type ProductItemAdded,
   type ShoppingCartEvent,
-} from '../../testing/shoppingCart.domain';
+} from '../../testing';
 
 void describe('MongoDBEventStore', () => {
   let mongodb: StartedMongoDBContainer;

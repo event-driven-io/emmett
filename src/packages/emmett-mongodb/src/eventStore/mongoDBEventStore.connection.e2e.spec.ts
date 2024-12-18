@@ -1,30 +1,12 @@
-import {
-  assertIsNotNull,
-  assertNotEqual,
-  assertThrowsAsync,
-  STREAM_DOES_NOT_EXIST,
-} from '@event-driven-io/emmett';
+import { assertIsNotNull, assertThrowsAsync } from '@event-driven-io/emmett';
 import {
   MongoDBContainer,
   type StartedMongoDBContainer,
 } from '@testcontainers/mongodb';
 import { MongoClient, MongoNotConnectedError } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
-import { v4 as uuid } from 'uuid';
-import {
-  getMongoDBEventStore,
-  MongoDBEventStoreDefaultStreamVersion,
-  toStreamCollectionName,
-  toStreamName,
-  type MongoDBEventStore,
-  type StreamType,
-} from '.';
-import {
-  type PricedProductItem,
-  type ShoppingCartEvent,
-} from '../testing/shoppingCart.domain';
-
-const streamType: StreamType = 'shopping_cart';
+import { getMongoDBEventStore, toStreamCollectionName } from '.';
+import { assertCanAppend, ShoppingCartStreamType } from '../testing';
 
 void describe('MongoDBEventStore connection', () => {
   let mongodb: StartedMongoDBContainer;
@@ -86,7 +68,7 @@ void describe('MongoDBEventStore connection', () => {
       // this should succeed as event store should call connect internally
       const stream = await client
         .db()
-        .collection(toStreamCollectionName(streamType))
+        .collection(toStreamCollectionName(ShoppingCartStreamType))
         .findOne();
       assertIsNotNull(stream);
     } finally {
@@ -123,24 +105,3 @@ void describe('MongoDBEventStore connection', () => {
     }
   });
 });
-
-const assertCanAppend = async (eventStore: MongoDBEventStore) => {
-  const productItem: PricedProductItem = {
-    productId: '123',
-    quantity: 10,
-    price: 3,
-  };
-  const shoppingCartId = uuid();
-  const streamName = toStreamName(streamType, shoppingCartId);
-
-  const result = await eventStore.appendToStream<ShoppingCartEvent>(
-    streamName,
-    [{ type: 'ProductItemAdded', data: { productItem } }],
-    { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
-  );
-
-  assertNotEqual(
-    result.nextExpectedStreamVersion,
-    MongoDBEventStoreDefaultStreamVersion,
-  );
-};
