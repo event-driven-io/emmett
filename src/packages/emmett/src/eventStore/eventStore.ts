@@ -239,7 +239,25 @@ export type DefaultEventStoreOptions<
   Store extends EventStore,
   HandlerContext = never,
 > = {
+  /**
+   * Pluggable set of hooks informing about the event store internal behaviour.
+   */
   hooks?: {
+    /**
+     * This hook will be called **AFTER** events were stored in the event store.
+     * It's designed to handle scenarios where delivery and ordering guarantees do not matter much.
+     *
+     * **WARNINGS:**
+     *
+     *  1. It will be called **EXACTLY ONCE** if append succeded.
+     *  2. If the hook fails, its append **will still silently succeed**, and no error will be thrown.
+     *  3. Wen process crashes after events were committed, but before the hook was called, delivery won't be retried.
+     * That can lead to state inconsistencies.
+     *  4. In the case of high concurrent traffic, **race conditions may cause ordering issues**.
+     * For instance, where the second hook takes longer to process than the first one, ordering won't be guaranteed.
+     *
+     * @type {AfterEventStoreCommitHandler<Store, HandlerContext>}
+     */
     onAfterCommit?: AfterEventStoreCommitHandler<Store, HandlerContext>;
   };
 };
