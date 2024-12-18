@@ -146,7 +146,7 @@ const collectionFor = async <EventType extends Event = Event>(options: {
 };
 
 export const mongoDBEventStoreStorage = (options: {
-  storage: MongoDBEventStoreStorageOptions | undefined;
+  storage?: MongoDBEventStoreStorageOptions | undefined;
   getConnectedClient: () => Promise<MongoClient>;
 }): MongoDBEventStoreStorage => {
   const dbsCache: Map<string, Db> = new Map();
