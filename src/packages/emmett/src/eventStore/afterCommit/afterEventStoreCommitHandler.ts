@@ -8,14 +8,12 @@ type AfterEventStoreCommitHandlerWithoutContext<Store extends EventStore> = (
 export type AfterEventStoreCommitHandler<
   Store extends EventStore,
   HandlerContext = never,
-> = [HandlerContext] extends [never] // Exact check for never
+> = [HandlerContext] extends [never]
   ? AfterEventStoreCommitHandlerWithoutContext<Store>
-  :
-      | ((
-          messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
-          context: HandlerContext,
-        ) => Promise<void> | void)
-      | AfterEventStoreCommitHandlerWithoutContext<Store>;
+  : (
+      messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
+      context: HandlerContext,
+    ) => Promise<void> | void;
 
 type TryPublishMessagesAfterCommitOptions<
   Store extends EventStore,
