@@ -229,3 +229,36 @@ export type AppendStreamResultOfEventStore<Store extends EventStore> =
   Store['appendToStream'] extends (...args: any[]) => Promise<infer R>
     ? R
     : never;
+
+////////////////////////////////////////////////////////////////////
+/// DefaultEventStoreOptions
+////////////////////////////////////////////////////////////////////
+
+export type DefaultEventStoreOptions<
+  Store extends EventStore,
+  HandlerContext = never,
+> = {
+  onAfterCommit?: AfterEventStoreCommitHandler<Store, HandlerContext>;
+};
+
+export type AfterEventStoreCommitHandler<
+  Store extends EventStore,
+  HandlerContext = never,
+> = HandlerContext extends never
+  ? <
+      EventType extends Event = Event,
+      EventMetaDataType extends EventMetaDataOf<EventType> &
+        EventStoreReadEventMetadata<Store> = EventMetaDataOf<EventType> &
+        EventStoreReadEventMetadata<Store>,
+    >(
+      messages: ReadEvent<EventType, EventMetaDataType>[],
+    ) => Promise<void>
+  : <
+      EventType extends Event = Event,
+      EventMetaDataType extends EventMetaDataOf<EventType> &
+        EventStoreReadEventMetadata<Store> = EventMetaDataOf<EventType> &
+        EventStoreReadEventMetadata<Store>,
+    >(
+      messages: ReadEvent<EventType, EventMetaDataType>[],
+      context?: HandlerContext,
+    ) => Promise<void>;
