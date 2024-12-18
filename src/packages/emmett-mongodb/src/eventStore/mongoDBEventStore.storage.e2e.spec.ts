@@ -34,13 +34,18 @@ const streamType: StreamType = 'shopping_cart';
 
 void describe('MongoDBEventStore storage resolution', () => {
   let mongodb: StartedMongoDBContainer;
+  let client: MongoClient;
 
   before(async () => {
     mongodb = await new MongoDBContainer().start();
+    client = new MongoClient(mongodb.getConnectionString(), {
+      directConnection: true,
+    });
   });
 
   after(async () => {
     try {
+      await client.close();
       await mongodb.stop();
     } catch (error) {
       console.log(error);
@@ -48,116 +53,83 @@ void describe('MongoDBEventStore storage resolution', () => {
   });
 
   void it('sets up database and collection with COLLECTION_PER_STREAM_TYPE as default', async () => {
-    const client = new MongoClient(mongodb.getConnectionString(), {
-      directConnection: true,
+    const eventStore = getMongoDBEventStore({
+      client,
     });
 
-    try {
-      const eventStore = getMongoDBEventStore({
-        client,
-      });
+    await assertCanAppend(eventStore);
 
-      await assertCanAppend(eventStore);
-
-      const collection = await assertEventStoreSetUpCollection(
-        client.db(),
-        toStreamCollectionName(streamType),
-      );
-      const stream = await collection.findOne();
-      assertIsNotNull(stream);
-    } finally {
-      await client.close();
-    }
+    const collection = await assertEventStoreSetUpCollection(
+      client.db(),
+      toStreamCollectionName(streamType),
+    );
+    const stream = await collection.findOne();
+    assertIsNotNull(stream);
   });
 
   void it('sets up database and collection with custom SINGLE_COLLECTION', async () => {
     const customCollectionName = uuid();
 
-    const client = new MongoClient(mongodb.getConnectionString(), {
-      directConnection: true,
+    const eventStore = getMongoDBEventStore({
+      storage: {
+        type: 'SINGLE_COLLECTION',
+        collectionName: customCollectionName,
+      },
+      client,
     });
 
-    try {
-      const eventStore = getMongoDBEventStore({
-        storage: {
-          type: 'SINGLE_COLLECTION',
-          collectionName: customCollectionName,
-        },
-        client,
-      });
+    await assertCanAppend(eventStore);
 
-      await assertCanAppend(eventStore);
-
-      const collection = await assertEventStoreSetUpCollection(
-        client.db(),
-        customCollectionName,
-      );
-      const stream = await collection.findOne();
-      assertIsNotNull(stream);
-    } finally {
-      await client.close();
-    }
+    const collection = await assertEventStoreSetUpCollection(
+      client.db(),
+      customCollectionName,
+    );
+    const stream = await collection.findOne();
+    assertIsNotNull(stream);
   });
 
   void it('sets up database and collection with default SINGLE_COLLECTION', async () => {
-    const client = new MongoClient(mongodb.getConnectionString(), {
-      directConnection: true,
+    const eventStore = getMongoDBEventStore({
+      storage: {
+        type: 'SINGLE_COLLECTION',
+      },
+      client,
     });
 
-    try {
-      const eventStore = getMongoDBEventStore({
-        storage: {
-          type: 'SINGLE_COLLECTION',
-        },
-        client,
-      });
+    await assertCanAppend(eventStore);
 
-      await assertCanAppend(eventStore);
-
-      const collection = await assertEventStoreSetUpCollection(
-        client.db(),
-        DefaultMongoDBEventStoreCollectionName,
-      );
-      const stream = await collection.findOne();
-      assertIsNotNull(stream);
-    } finally {
-      await client.close();
-    }
+    const collection = await assertEventStoreSetUpCollection(
+      client.db(),
+      DefaultMongoDBEventStoreCollectionName,
+    );
+    const stream = await collection.findOne();
+    assertIsNotNull(stream);
   });
 
-  void it('sets up database and collection with CUSTOM colleciton resolution', async () => {
+  void it('sets up database and collection with CUSTOM collection resolution', async () => {
     const customCollectionSuffix = uuid();
     const databaseName = uuid();
-
-    const client = new MongoClient(mongodb.getConnectionString(), {
-      directConnection: true,
+    const eventStore = getMongoDBEventStore({
+      storage: {
+        type: 'CUSTOM',
+        collectionFor: (
+          streamType: string,
+        ): MongoDBEventStoreCollectionResolution => ({
+          collectionName: `${streamType}:${customCollectionSuffix}`,
+          databaseName,
+        }),
+      },
+      client,
     });
 
-    try {
-      const eventStore = getMongoDBEventStore({
-        storage: {
-          type: 'CUSTOM',
-          collectionFor: (
-            streamType: string,
-          ): MongoDBEventStoreCollectionResolution => ({
-            collectionName: `${streamType}:${customCollectionSuffix}`,
-            databaseName,
-          }),
-        },
-        client,
-      });
+    await assertCanAppend(eventStore);
 
-      await assertCanAppend(eventStore);
-
-      const collection = await assertEventStoreSetUpCollection(
-        client.db(databaseName),
-        `${streamType}:${customCollectionSuffix}`,
-      );
-      const stream = await collection.findOne();
-      assertIsNotNull(stream);
-    } finally {
-      await client.close();
-    }
+    const collection = await assertEventStoreSetUpCollection(
+      client.db(databaseName),
+      `${streamType}:${customCollectionSuffix}`,
+    );
+    const stream = await collection.findOne();
+    assertIsNotNull(stream);
   });
 });
 
