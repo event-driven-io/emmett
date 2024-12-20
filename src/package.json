@@ -97,6 +97,7 @@
     "packages/emmett-mongodb",
     "packages/emmett-esdb",
     "packages/emmett-expressjs",
+    "packages/emmett-sqlite",
     "packages/emmett-testcontainers",
     "packages/emmett-fastify",
     "packages/emmett-tests"
