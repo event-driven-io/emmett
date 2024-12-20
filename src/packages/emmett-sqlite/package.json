@@ -70,13 +70,11 @@
     "dist"
   ],
   "devDependencies": {
-    "sqlite3": "^5.1.7",
     "@types/sqlite3": "^3.1.11",
-    "@event-driven-io/emmett-testcontainers": "0.23.0-alpha.6"
+    "sqlite3": "^5.1.7"
   },
   "peerDependencies": {
-    "@event-driven-io/emmett": "0.23.0-alpha.6",
-    "@event-driven-io/pongo": "0.16.4"
+    "@event-driven-io/emmett": "0.23.0-alpha.6"
   },
   "dependencies": {}
 }
