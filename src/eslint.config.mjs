@@ -98,6 +98,7 @@ export default [
       'packages/emmett-esdb/**',
       'packages/emmett-expressjs/**',
       'packages/emmett-fastify/**',
+      'packages/emmett-sqlite/**',
       'packages/emmett-testcontainers/**',
       'packages/emmett-tests/**',
     ],
