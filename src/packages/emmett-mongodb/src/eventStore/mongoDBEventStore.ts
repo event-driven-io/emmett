@@ -16,7 +16,6 @@ import {
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
 import {
-  Db,
   MongoClient,
   type Collection,
   type Document,
@@ -33,6 +32,11 @@ import {
   type MongoDBInlineProjectionDefinition,
   type MongoDBProjectionInlineHandlerContext,
 } from './projections';
+import {
+  mongoDBEventStoreStorage,
+  type MongoDBEventStoreStorage,
+  type MongoDBEventStoreStorageOptions,
+} from './storage';
 
 export const MongoDBEventStoreDefaultStreamVersion = 0n;
 
@@ -87,24 +91,6 @@ export type MongoDBReadEvent<EventType extends Event = Event> = ReadEvent<
   EventType,
   MongoDBReadEventMetadata
 >;
-
-export type MongoDBSingleCollectionEventStoreOptions = {
-  storage: 'SINGLE_COLLECTION';
-  collection: string;
-  projections?: ProjectionRegistration<
-    'inline',
-    MongoDBReadEventMetadata,
-    MongoDBProjectionInlineHandlerContext
-  >[];
-} & (
-  | {
-      client: MongoClient;
-    }
-  | {
-      connectionString: string;
-      clientOptions?: MongoClientOptions;
-    }
-);
 
 type SingleProjectionQueryStreamFilter<T extends StreamType> = {
   projectionName?: string;
@@ -184,13 +170,12 @@ type MongoDBEventStoreConnectionStringOptions = {
 };
 
 export type MongoDBEventStoreOptions = {
-  database?: string;
-  collection?: string;
   projections?: ProjectionRegistration<
     'inline',
     MongoDBReadEventMetadata,
     MongoDBProjectionInlineHandlerContext
   >[];
+  storage?: MongoDBEventStoreStorageOptions;
 } & (MongoDBEventStoreClientOptions | MongoDBEventStoreConnectionStringOptions);
 
 export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
@@ -202,16 +187,11 @@ export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
 
 class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
   private readonly client: MongoClient;
-  private readonly defaultOptions: {
-    database: string | undefined;
-    collection: string | undefined;
-  };
   private shouldManageClientLifetime: boolean;
-  private db: Db | undefined;
-  private streamCollections: Map<string, Collection<EventStream>> = new Map();
   private readonly inlineProjections: MongoDBInlineProjectionDefinition[];
   private isClosed: boolean = false;
   public projections: ProjectionQueries<StreamType>;
+  private storage: MongoDBEventStoreStorage;
 
   constructor(options: MongoDBEventStoreOptions) {
     this.client =
@@ -219,10 +199,10 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
         ? options.client
         : new MongoClient(options.connectionString, options.clientOptions);
     this.shouldManageClientLifetime = !('client' in options);
-    this.defaultOptions = {
-      database: options.database,
-      collection: options.collection,
-    };
+    this.storage = mongoDBEventStoreStorage({
+      storage: options.storage,
+      getConnectedClient: () => this.getConnectedClient(),
+    });
     this.inlineProjections = (options.projections ?? [])
       .filter(({ type }) => type === 'inline')
       .map(
@@ -247,7 +227,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     const { streamType } = fromStreamName(streamName);
     const expectedStreamVersion = options?.expectedStreamVersion;
 
-    const collection = await this.collectionFor(streamType);
+    const collection = await this.storage.collectionFor(streamType);
 
     const filter = {
       streamName: { $eq: streamName },
@@ -321,7 +301,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     const { streamId, streamType } = fromStreamName(streamName);
     const expectedStreamVersion = options?.expectedStreamVersion;
 
-    const collection = await this.collectionFor(streamType);
+    const collection = await this.storage.collectionFor(streamType);
 
     const stream = await collection.findOne<
       WithId<Pick<EventStream<EventType>, 'metadata' | 'projections'>>
@@ -420,6 +400,12 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     };
   }
 
+  collectionFor = async <EventType extends Event>(
+    streamType: StreamType,
+  ): Promise<Collection<EventStream<EventType>>> => {
+    return this.storage.collectionFor(streamType);
+  };
+
   /**
    * Gracefully cleans up managed resources by the MongoDBEventStore.
    * It closes MongoDB client created for the provided connection string
@@ -436,51 +422,13 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     return this.client.close();
   };
 
-  collectionFor = async <EventType extends Event>(
-    streamType: StreamType,
-  ): Promise<Collection<EventStream<EventType>>> => {
-    const collectionName =
-      this.defaultOptions?.collection ?? toStreamCollectionName(streamType);
-
-    let collection = this.streamCollections.get(collectionName) as
-      | Collection<EventStream<EventType>>
-      | undefined;
-
-    if (!collection) {
-      const db = await this.getDB();
-      collection = db.collection<EventStream<EventType>>(collectionName);
-      await collection.createIndex({ streamName: 1 }, { unique: true });
-
-      this.streamCollections.set(
-        collectionName,
-        collection as Collection<EventStream>,
-      );
-    }
-
-    return collection;
-  };
-
-  private getDB = async (): Promise<Db> => {
-    if (!this.db) {
-      const connectedClient = await this.getConnectedClient();
-
-      this.db = connectedClient.db(this.defaultOptions.database);
-    }
-    return this.db;
-  };
-
-  private getConnectedClient = async (): Promise<MongoClient> => {
-    if (!this.isClosed) await this.client.connect();
-    return this.client;
-  };
-
   private async findOneInlineProjection<Doc extends Document>(
     streamFilter: SingleProjectionQueryStreamFilter<StreamType>,
     projectionQuery?: Filter<MongoDBReadModel<Doc>>,
   ) {
     const { projectionName, streamName, streamType } =
       parseSingleProjectionQueryStreamFilter(streamFilter);
-    const collection = await this.collectionFor(streamType);
+    const collection = await this.storage.collectionFor(streamType);
     const query = prependMongoFilterWithProjectionPrefix<Filter<EventStream>>(
       // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
       projectionQuery,
@@ -519,7 +467,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     if (!parsedStreamFilter) return [];
     const { projectionName, streamNames, streamType } = parsedStreamFilter;
 
-    const collection = await this.collectionFor(streamType);
+    const collection = await this.storage.collectionFor(streamType);
     const prefix = `projections.${projectionName}`;
     const projectionFilter = prependMongoFilterWithProjectionPrefix<
       Filter<EventStream>
@@ -582,7 +530,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     if (!parsedStreamFilter) return 0;
     const { projectionName, streamNames, streamType } = parsedStreamFilter;
 
-    const collection = await this.collectionFor(streamType);
+    const collection = await this.storage.collectionFor(streamType);
     const prefix = `projections.${projectionName}`;
     const projectionFilter = prependMongoFilterWithProjectionPrefix<
       Filter<EventStream>
@@ -604,6 +552,11 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     const total = await collection.countDocuments({ $and: filters });
     return total;
   }
+
+  private getConnectedClient = async (): Promise<MongoClient> => {
+    if (!this.isClosed) await this.client.connect();
+    return this.client;
+  };
 }
 
 function parseSingleProjectionQueryStreamFilter<
