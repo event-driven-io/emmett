@@ -154,17 +154,21 @@ type ProjectionQueries<T extends StreamType> = {
   inline: InlineProjectionQueries<T>;
 };
 
-type MongoDBEventStoreClientOptions = {
+export type MongoDBEventStoreClientOptions = {
   client: MongoClient;
   connectionString?: never;
   clientOptions?: never;
 };
 
-type MongoDBEventStoreConnectionStringOptions = {
+export type MongoDBEventStoreConnectionStringOptions = {
   client?: never;
   connectionString: string;
   clientOptions?: MongoClientOptions;
 };
+
+export type MongoDBEventStoreConnectionOptions =
+  | MongoDBEventStoreClientOptions
+  | MongoDBEventStoreConnectionStringOptions;
 
 export type MongoDBEventStoreOptions = {
   projections?: ProjectionRegistration<
@@ -173,7 +177,7 @@ export type MongoDBEventStoreOptions = {
     MongoDBProjectionInlineHandlerContext
   >[];
   storage?: MongoDBEventStoreStorageOptions;
-} & (MongoDBEventStoreClientOptions | MongoDBEventStoreConnectionStringOptions);
+} & MongoDBEventStoreConnectionOptions;
 
 export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
   projections: ProjectionQueries<StreamType>;
