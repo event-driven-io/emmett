@@ -429,16 +429,21 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     const { projectionName, streamName, streamType } =
       parseSingleProjectionQueryStreamFilter(streamFilter);
     const collection = await this.storage.collectionFor(streamType);
-    const query = prependMongoFilterWithProjectionPrefix<Filter<EventStream>>(
+    const query = prependMongoFilterWithProjectionPrefix<
+      Filter<EventStream> | undefined
+    >(
       // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
       projectionQuery,
       `projections.${projectionName}`,
     );
 
     const filters: Filter<EventStream>[] = [
-      query,
       { [`projections.${projectionName}`]: { $exists: true } },
     ];
+
+    if (query) {
+      filters.push(query);
+    }
 
     if (streamName) {
       filters.push({ streamName: { $eq: streamName } });
@@ -470,7 +475,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     const collection = await this.storage.collectionFor(streamType);
     const prefix = `projections.${projectionName}`;
     const projectionFilter = prependMongoFilterWithProjectionPrefix<
-      Filter<EventStream>
+      Filter<EventStream> | undefined
     >(
       // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
       projectionQuery,
@@ -478,9 +483,12 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     );
 
     const filters: Filter<EventStream>[] = [
-      projectionFilter,
       { [`projections.${projectionName}`]: { $exists: true } },
     ];
+
+    if (projectionFilter) {
+      filters.push(projectionFilter);
+    }
 
     if (streamNames) {
       filters.push({ streamName: { $in: streamNames } });
@@ -533,7 +541,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     const collection = await this.storage.collectionFor(streamType);
     const prefix = `projections.${projectionName}`;
     const projectionFilter = prependMongoFilterWithProjectionPrefix<
-      Filter<EventStream>
+      Filter<EventStream> | undefined
     >(
       // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
       projectionQuery,
@@ -541,9 +549,12 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     );
 
     const filters: Filter<EventStream>[] = [
-      projectionFilter,
       { [`projections.${projectionName}`]: { $exists: true } },
     ];
+
+    if (projectionFilter) {
+      filters.push(projectionFilter);
+    }
 
     if (streamNames) {
       filters.push({ streamName: { $in: streamNames } });
@@ -632,7 +643,7 @@ export function prependMongoFilterWithProjectionPrefix<T>(
   obj: T,
   prefix: string,
 ): T {
-  if (typeof obj !== 'object' || obj === null) {
+  if (typeof obj !== 'object' || obj === null || obj === undefined) {
     return obj;
   }
 
