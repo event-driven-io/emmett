@@ -1,7 +1,4 @@
-import {
-  getInMemoryEventStore,
-  type EventStore,
-} from '@event-driven-io/emmett';
+import { getInMemoryEventStore } from '@event-driven-io/emmett';
 import {
   ApiSpecification,
   getApplication,
@@ -18,8 +15,8 @@ const now = new Date();
 const unitPrice = Math.random() * 10;
 
 const given = ApiSpecification.for<ShoppingCartEvent>(
-  (): EventStore => getInMemoryEventStore(),
-  (eventStore: EventStore) =>
+  () => getInMemoryEventStore(),
+  (eventStore) =>
     getApplication({
       apis: [
         shoppingCartApi(

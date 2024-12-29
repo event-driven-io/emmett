@@ -1,7 +1,6 @@
 import supertest, { type Response } from 'supertest';
 
 import type { EventStore } from '@event-driven-io/emmett';
-import { WrapEventStore } from '@event-driven-io/emmett';
 import assert from 'assert';
 import type { Application } from 'express';
 import type { TestRequest } from './apiSpecification';
@@ -17,13 +16,13 @@ export type ApiE2ESpecification = (...givenRequests: TestRequest[]) => {
 };
 
 export const ApiE2ESpecification = {
-  for: (
-    getEventStore: () => EventStore,
-    getApplication: (eventStore: EventStore) => Application,
+  for: <Store extends EventStore = EventStore>(
+    getEventStore: () => Store,
+    getApplication: (eventStore: Store) => Application,
   ): ApiE2ESpecification => {
     {
       return (...givenRequests: TestRequest[]) => {
-        const eventStore = WrapEventStore(getEventStore());
+        const eventStore = getEventStore();
         const application = getApplication(eventStore);
 
         return {

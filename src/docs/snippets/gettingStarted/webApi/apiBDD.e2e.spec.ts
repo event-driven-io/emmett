@@ -4,7 +4,6 @@ import { ShoppingCartStatus } from './shoppingCart';
 import { shoppingCartApi } from './simpleApi';
 
 // #region getting-started-e2e-tests
-import { type EventStore } from '@event-driven-io/emmett';
 import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import {
   ApiE2ESpecification,
@@ -29,8 +28,8 @@ void describe('ShoppingCart E2E', () => {
     esdbContainer = await new EventStoreDBContainer().start();
 
     given = ApiE2ESpecification.for(
-      (): EventStore => getEventStoreDBEventStore(esdbContainer.getClient()),
-      (eventStore: EventStore) =>
+      () => getEventStoreDBEventStore(esdbContainer.getClient()),
+      (eventStore) =>
         getApplication({
           apis: [
             shoppingCartApi(

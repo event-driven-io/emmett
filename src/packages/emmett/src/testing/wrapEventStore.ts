@@ -30,6 +30,7 @@ export const WrapEventStore = <Store extends EventStore>(
   const appendedEvents = new Map<string, TestEventStream>();
 
   const wrapped = {
+    ...eventStore,
     aggregateStream<State, EventType extends Event>(
       streamName: string,
       options: AggregateStreamOptions<State, EventType>,
