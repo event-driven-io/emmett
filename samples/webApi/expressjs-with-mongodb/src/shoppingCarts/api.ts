@@ -156,20 +156,15 @@ export const shoppingCartApi =
           assertNotEmptyString(request.params.clientId),
         );
 
-        try {
-          const result = await getDetailsById(eventStore, shoppingCartId);
+        const result = await getDetailsById(eventStore, shoppingCartId);
 
-          if (result === null) return NotFound();
+        if (result === null) return NotFound();
 
-          if (result.status !== 'Opened') return NotFound();
+        if (result.status !== 'Opened') return NotFound();
 
-          return OK({
-            body: excludeKey(result, '_version'),
-          });
-        } catch (error) {
-          console.log(error);
-          throw error;
-        }
+        return OK({
+          body: excludeKey(result, '_metadata'),
+        });
       }),
     );
   };
