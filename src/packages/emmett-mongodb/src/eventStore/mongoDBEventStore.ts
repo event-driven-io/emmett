@@ -430,12 +430,9 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       parseSingleProjectionQueryStreamFilter(streamFilter);
     const collection = await this.storage.collectionFor(streamType);
     const query = prependMongoFilterWithProjectionPrefix<
+      Filter<MongoDBReadModel<Doc>> | undefined,
       Filter<EventStream> | undefined
-    >(
-      // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
-      projectionQuery,
-      `projections.${projectionName}`,
-    );
+    >(projectionQuery, `projections.${projectionName}`);
 
     const filters: Filter<EventStream>[] = [
       { [`projections.${projectionName}`]: { $exists: true } },
@@ -475,12 +472,9 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     const collection = await this.storage.collectionFor(streamType);
     const prefix = `projections.${projectionName}`;
     const projectionFilter = prependMongoFilterWithProjectionPrefix<
+      Filter<MongoDBReadModel<Doc>> | undefined,
       Filter<EventStream> | undefined
-    >(
-      // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
-      projectionQuery,
-      prefix,
-    );
+    >(projectionQuery, prefix);
 
     const filters: Filter<EventStream>[] = [
       { [`projections.${projectionName}`]: { $exists: true } },
@@ -541,12 +535,9 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     const collection = await this.storage.collectionFor(streamType);
     const prefix = `projections.${projectionName}`;
     const projectionFilter = prependMongoFilterWithProjectionPrefix<
+      Filter<MongoDBReadModel<Doc>> | undefined,
       Filter<EventStream> | undefined
-    >(
-      // @ts-expect-error we are turning the `Filter<ProjectSchema>` into a `Filter<EventStream>`
-      projectionQuery,
-      prefix,
-    );
+    >(projectionQuery, prefix);
 
     const filters: Filter<EventStream>[] = [
       { [`projections.${projectionName}`]: { $exists: true } },
@@ -639,12 +630,12 @@ function parseMultiProjectionQueryStreamFilter<T extends StreamType>(
 /**
  * Prepends `prefix` to all object keys that don't start with a '$'
  */
-export function prependMongoFilterWithProjectionPrefix<T>(
+export function prependMongoFilterWithProjectionPrefix<T, Result = T>(
   obj: T,
   prefix: string,
-): T {
+): Result {
   if (typeof obj !== 'object' || obj === null || obj === undefined) {
-    return obj;
+    return obj as unknown as Result;
   }
 
   if (Array.isArray(obj)) {
@@ -652,7 +643,7 @@ export function prependMongoFilterWithProjectionPrefix<T>(
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       obj[i] = prependMongoFilterWithProjectionPrefix(obj[i], prefix);
     }
-    return obj;
+    return obj as unknown as Result;
   }
 
   for (const key in obj) {
@@ -666,7 +657,7 @@ export function prependMongoFilterWithProjectionPrefix<T>(
     obj[k] = prependMongoFilterWithProjectionPrefix(obj[k], prefix);
   }
 
-  return obj;
+  return obj as unknown as Result;
 }
 
 function addProjectionPrefixToMongoKey(key: string, prefix: string): string {
