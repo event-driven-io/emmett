@@ -208,6 +208,41 @@ void describe('MongoDBEventStore', () => {
     );
 
     const projection =
+      await eventStore.projections.inline.findOne<ShoppingCartShortInfo>({
+        streamName,
+      });
+
+    assertIsNotNull(projection);
+    assertDeepEqual(projection, {
+      productItemsCount: 20,
+      totalAmount: 54,
+      _metadata: {
+        streamId: shoppingCartId,
+        name: '_default',
+        streamPosition: 3n,
+        schemaVersion: 1,
+      },
+    });
+  });
+
+  void it('should find the projection using projections.inline.findOne with streamName and projection query', async () => {
+    const shoppingCartId = uuid();
+    const streamName = toStreamName(streamType, shoppingCartId);
+
+    await eventStore.appendToStream<ShoppingCartEvent>(
+      streamName,
+      [
+        { type: 'ProductItemAdded', data: { productItem } },
+        { type: 'ProductItemAdded', data: { productItem } },
+        {
+          type: 'DiscountApplied',
+          data: { percent: discount, couponId: uuid() },
+        },
+      ],
+      { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+    );
+
+    const projection =
       await eventStore.projections.inline.findOne<ShoppingCartShortInfo>(
         { streamName },
         {
