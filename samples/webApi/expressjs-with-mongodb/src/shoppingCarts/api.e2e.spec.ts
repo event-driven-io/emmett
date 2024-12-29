@@ -1,8 +1,4 @@
-import {
-  getInMemoryMessageBus,
-  projections,
-  type EventStore,
-} from '@event-driven-io/emmett';
+import { getInMemoryMessageBus, projections } from '@event-driven-io/emmett';
 import {
   ApiE2ESpecification,
   expectResponse,
@@ -51,11 +47,11 @@ void describe('ShoppingCart E2E', () => {
 
     given = ApiE2ESpecification.for(
       () => eventStore,
-      (eventStore: EventStore) =>
+      (eventStore) =>
         getApplication({
           apis: [
             shoppingCartApi(
-              eventStore as MongoDBEventStore,
+              eventStore,
               inMemoryMessageBus,
               getUnitPrice,
               () => now,

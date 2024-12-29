@@ -1,7 +1,6 @@
 import {
   getInMemoryEventStore,
   getInMemoryMessageBus,
-  type EventStore,
 } from '@event-driven-io/emmett';
 import {
   ApiSpecification,
@@ -125,8 +124,8 @@ void describe('ShoppingCart', () => {
   const now = new Date();
 
   const given = ApiSpecification.for<ShoppingCartEvent>(
-    (): EventStore => getInMemoryEventStore(),
-    (eventStore: EventStore) =>
+    () => getInMemoryEventStore(),
+    (eventStore) =>
       getApplication({
         apis: [
           shoppingCartApi(
