@@ -12,7 +12,9 @@
   "editor.tabSize": 2,
 
   "files.exclude": {
-    "**/*.tsbuildinfo": true
+    "**/*.tsbuildinfo": true,
+    "**/node_modules": true,
+    "**/dist": true
   },
   "files.eol": "\n",
 

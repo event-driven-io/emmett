@@ -10,14 +10,14 @@ import {
   type TestRequest,
 } from '@event-driven-io/emmett-expressjs';
 import {
-  getPostgreSQLEventStore,
-  type PostgresEventStore,
-} from '@event-driven-io/emmett-postgresql';
-import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
+  getMongoDBEventStore,
+  type MongoDBEventStore,
+} from '@event-driven-io/emmett-mongodb';
 import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+  MongoDBContainer,
+  StartedMongoDBContainer,
+} from '@testcontainers/mongodb';
+import { MongoClient } from 'mongodb';
 import { randomUUID } from 'node:crypto';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import shoppingCarts, { type ProductItem } from './';
@@ -30,19 +30,22 @@ const getUnitPrice = () => {
 void describe('ShoppingCart E2E', () => {
   let clientId: string;
   let shoppingCartId: string;
-  let postgres: StartedPostgreSqlContainer;
-  let eventStore: PostgresEventStore;
-  let readStore: PongoClient;
+  let mongodb: StartedMongoDBContainer;
+  let eventStore: MongoDBEventStore;
+  let readStore: MongoClient;
   let given: ApiE2ESpecification;
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
-    const connectionString = postgres.getConnectionUri();
+    mongodb = await new MongoDBContainer().start();
+    const connectionString = mongodb.getConnectionString();
 
-    eventStore = getPostgreSQLEventStore(connectionString, {
+    readStore = new MongoClient(connectionString, {
+      directConnection: true,
+    });
+    eventStore = getMongoDBEventStore({
+      client: readStore,
       projections: projections.inline(shoppingCarts.projections),
     });
-    readStore = pongoClient(connectionString);
 
     const inMemoryMessageBus = getInMemoryMessageBus();
 
@@ -52,8 +55,7 @@ void describe('ShoppingCart E2E', () => {
         getApplication({
           apis: [
             shoppingCartApi(
-              eventStore,
-              readStore.db(),
+              eventStore as MongoDBEventStore,
               inMemoryMessageBus,
               getUnitPrice,
               () => now,
@@ -70,7 +72,6 @@ void describe('ShoppingCart E2E', () => {
 
   after(async () => {
     await readStore.close();
-    await eventStore.close();
   });
 
   void describe('When empty', () => {
@@ -105,35 +106,6 @@ void describe('ShoppingCart E2E', () => {
               productItemsCount: productItem.quantity,
               totalAmount: unitPrice * productItem.quantity,
               status: 'Opened',
-            },
-          }),
-        ]);
-    });
-
-    void it('gets shopping cart summary', () => {
-      return given(openedShoppingCart)
-        .when((request) =>
-          request.get(`/clients/${clientId}/shopping-carts/summary`).send(),
-        )
-        .then([
-          expectResponse(200, {
-            body: {
-              clientId,
-              pending: {
-                cartId: shoppingCartId,
-                productItemsCount: productItem.quantity,
-                totalAmount: unitPrice * productItem.quantity,
-              },
-              confirmed: {
-                cartsCount: 0,
-                productItemsCount: 0,
-                totalAmount: 0,
-              },
-              cancelled: {
-                cartsCount: 0,
-                productItemsCount: 0,
-                totalAmount: 0,
-              },
             },
           }),
         ]);

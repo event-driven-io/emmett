@@ -11,6 +11,7 @@ import {
   expectResponse,
   getApplication,
 } from '@event-driven-io/emmett-expressjs';
+import type { MongoDBEventStore } from '@event-driven-io/emmett-mongodb';
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it } from 'node:test';
 import { shoppingCartApi } from './api';
@@ -129,8 +130,7 @@ void describe('ShoppingCart', () => {
       getApplication({
         apis: [
           shoppingCartApi(
-            eventStore,
-            undefined!, //TODO: define recommendation how to use gets here
+            eventStore as MongoDBEventStore,
             getInMemoryMessageBus(),
             getUnitPrice,
             () => now,
