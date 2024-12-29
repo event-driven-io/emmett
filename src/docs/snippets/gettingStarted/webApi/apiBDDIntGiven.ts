@@ -3,10 +3,7 @@ import type { ShoppingCartEvent } from '../events';
 import { shoppingCartApi } from './simpleApi';
 
 // #region given
-import {
-  getInMemoryEventStore,
-  type EventStore,
-} from '@event-driven-io/emmett';
+import { getInMemoryEventStore } from '@event-driven-io/emmett';
 import {
   ApiSpecification,
   getApplication,
@@ -16,8 +13,8 @@ const unitPrice = 100;
 const now = new Date();
 
 const given = ApiSpecification.for<ShoppingCartEvent>(
-  (): EventStore => getInMemoryEventStore(),
-  (eventStore: EventStore) =>
+  () => getInMemoryEventStore(),
+  (eventStore) =>
     getApplication({
       apis: [
         shoppingCartApi(

@@ -85,9 +85,9 @@ export type ApiSpecification<EventType extends Event = Event> = (
 };
 
 export const ApiSpecification = {
-  for: <EventType extends Event = Event>(
-    getEventStore: () => EventStore,
-    getApplication: (eventStore: EventStore) => Application,
+  for: <EventType extends Event = Event, Store extends EventStore = EventStore>(
+    getEventStore: () => Store,
+    getApplication: (eventStore: Store) => Application,
   ): ApiSpecification<EventType> => {
     {
       return (...givenStreams: TestEventStream<EventType>[]) => {

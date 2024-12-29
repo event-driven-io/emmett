@@ -1,4 +1,3 @@
-import { type EventStore } from '@event-driven-io/emmett';
 import {
   ApiE2ESpecification,
   getApplication,
@@ -15,8 +14,8 @@ const now = new Date();
 const unitPrice = Math.random() * 10;
 
 const given = ApiE2ESpecification.for(
-  (): EventStore => getEventStoreDBEventStore(esdbContainer.getClient()),
-  (eventStore: EventStore) =>
+  () => getEventStoreDBEventStore(esdbContainer.getClient()),
+  (eventStore) =>
     getApplication({
       apis: [
         shoppingCartApi(

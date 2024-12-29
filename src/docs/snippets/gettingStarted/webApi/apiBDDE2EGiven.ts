@@ -27,7 +27,6 @@ void describe('ShoppingCart E2E', () => {
 // #endregion test-container
 
 // #region given
-import { type EventStore } from '@event-driven-io/emmett';
 import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import {
   ApiE2ESpecification,
@@ -35,8 +34,8 @@ import {
 } from '@event-driven-io/emmett-expressjs';
 
 const given = ApiE2ESpecification.for(
-  (): EventStore => getEventStoreDBEventStore(esdbContainer.getClient()),
-  (eventStore: EventStore) =>
+  () => getEventStoreDBEventStore(esdbContainer.getClient()),
+  (eventStore) =>
     getApplication({
       apis: [
         shoppingCartApi(

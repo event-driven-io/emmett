@@ -2,10 +2,7 @@ import { beforeEach, describe, it } from 'node:test';
 import type { PricedProductItem, ShoppingCartEvent } from '../events';
 import { shoppingCartApi } from './simpleApi';
 // #region getting-started-integration-tests
-import {
-  getInMemoryEventStore,
-  type EventStore,
-} from '@event-driven-io/emmett';
+import { getInMemoryEventStore } from '@event-driven-io/emmett';
 import {
   ApiSpecification,
   existingStream,
@@ -119,8 +116,8 @@ void describe('ShoppingCart', () => {
   const unitPrice = Math.random() * 10;
 
   const given = ApiSpecification.for<ShoppingCartEvent>(
-    (): EventStore => getInMemoryEventStore(),
-    (eventStore: EventStore) =>
+    () => getInMemoryEventStore(),
+    (eventStore) =>
       getApplication({
         apis: [
           shoppingCartApi(
