@@ -10,6 +10,7 @@ import type {
 } from '../shoppingCart';
 
 export type ShoppingCartDetails = {
+  id: string;
   clientId: string;
   productItems: PricedProductItem[];
   productItemsCount: number;
@@ -27,6 +28,7 @@ const evolve = (
   switch (type) {
     case 'ProductItemAddedToShoppingCart': {
       const document = documentFromDb ?? {
+        id: event.shoppingCartId,
         status: 'Opened',
         productItems: [],
         totalAmount: 0,

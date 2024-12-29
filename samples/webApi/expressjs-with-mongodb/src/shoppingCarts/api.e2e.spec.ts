@@ -96,8 +96,8 @@ void describe('ShoppingCart E2E', () => {
         .then([
           expectResponse(200, {
             body: {
+              id: shoppingCartId,
               clientId,
-              _id: shoppingCartId,
               productItems: [{ ...productItem, unitPrice }],
               productItemsCount: productItem.quantity,
               totalAmount: unitPrice * productItem.quantity,
