@@ -2,7 +2,6 @@ import {
   CommandHandler,
   assertNotEmptyString,
   assertPositiveNumber,
-  type EventStore,
   type EventsPublisher,
 } from '@event-driven-io/emmett';
 import {
@@ -12,7 +11,7 @@ import {
   on,
   type WebApiSetup,
 } from '@event-driven-io/emmett-expressjs';
-import { type PongoDb } from '@event-driven-io/pongo';
+import type { MongoDBEventStore } from '@event-driven-io/emmett-mongodb';
 import { type Request, type Router } from 'express';
 import {
   addProductItem,
@@ -24,19 +23,14 @@ import {
   type ConfirmShoppingCart,
   type RemoveProductItemFromShoppingCart,
 } from './businessLogic';
-import { getClientShoppingSummary } from './getClientShoppingSummary';
 import { getDetailsById } from './getDetails';
-import { evolve, initialState } from './shoppingCart';
+import { ShoppingCartId, evolve, initialState } from './shoppingCart';
 
 export const handle = CommandHandler({ evolve, initialState });
 
-export const getShoppingCartId = (clientId: string) =>
-  `shopping_cart:${assertNotEmptyString(clientId)}:current`;
-
 export const shoppingCartApi =
   (
-    eventStore: EventStore,
-    readStore: PongoDb,
+    eventStore: MongoDBEventStore,
     eventPublisher: EventsPublisher,
     getUnitPrice: (_productId: string) => Promise<number>,
     getCurrentTime: () => Date,
@@ -47,7 +41,7 @@ export const shoppingCartApi =
       '/clients/:clientId/shopping-carts/current/product-items',
       on(async (request: AddProductItemRequest) => {
         const clientId = assertNotEmptyString(request.params.clientId);
-        const shoppingCartId = getShoppingCartId(clientId);
+        const shoppingCartId = ShoppingCartId(assertNotEmptyString(clientId));
         const productId = assertNotEmptyString(request.body.productId);
 
         const command: AddProductItemToShoppingCart = {
@@ -77,7 +71,7 @@ export const shoppingCartApi =
       '/clients/:clientId/shopping-carts/current/product-items',
       on(async (request: Request) => {
         const clientId = assertNotEmptyString(request.params.clientId);
-        const shoppingCartId = getShoppingCartId(
+        const shoppingCartId = ShoppingCartId(
           assertNotEmptyString(request.params.clientId),
         );
 
@@ -107,7 +101,7 @@ export const shoppingCartApi =
       '/clients/:clientId/shopping-carts/current/confirm',
       on(async (request: Request) => {
         const clientId = assertNotEmptyString(request.params.clientId);
-        const shoppingCartId = getShoppingCartId(
+        const shoppingCartId = ShoppingCartId(
           assertNotEmptyString(request.params.clientId),
         );
 
@@ -136,7 +130,7 @@ export const shoppingCartApi =
       '/clients/:clientId/shopping-carts/current',
       on(async (request: Request) => {
         const clientId = assertNotEmptyString(request.params.clientId);
-        const shoppingCartId = getShoppingCartId(
+        const shoppingCartId = ShoppingCartId(
           assertNotEmptyString(request.params.clientId),
         );
 
@@ -158,35 +152,24 @@ export const shoppingCartApi =
     router.get(
       '/clients/:clientId/shopping-carts/current',
       on(async (request: GetShoppingCartRequest) => {
-        const shoppingCartId = getShoppingCartId(
+        const shoppingCartId = ShoppingCartId(
           assertNotEmptyString(request.params.clientId),
         );
 
-        const result = await getDetailsById(readStore, shoppingCartId);
+        try {
+          const result = await getDetailsById(eventStore, shoppingCartId);
 
-        if (result === null) return NotFound();
+          if (result === null) return NotFound();
 
-        if (result.status !== 'Opened') return NotFound();
+          if (result.status !== 'Opened') return NotFound();
 
-        return OK({
-          body: excludeKey(result, '_version'),
-        });
-      }),
-    );
-
-    // Get Shopping Cart
-    router.get(
-      '/clients/:clientId/shopping-carts/summary',
-      on(async (request: GetShoppingCartRequest) => {
-        const clientId = assertNotEmptyString(request.params.clientId);
-
-        const result = await getClientShoppingSummary(readStore, clientId);
-
-        if (result === null) return NotFound();
-
-        return OK({
-          body: excludeKey(result, '_version'),
-        });
+          return OK({
+            body: excludeKey(result, '_version'),
+          });
+        } catch (error) {
+          console.log(error);
+          throw error;
+        }
       }),
     );
   };

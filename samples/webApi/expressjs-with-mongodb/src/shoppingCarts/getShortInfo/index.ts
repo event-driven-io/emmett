@@ -1,6 +1,8 @@
-import { pongoSingleStreamProjection } from '@event-driven-io/emmett-postgresql';
-import { type PongoDb } from '@event-driven-io/pongo';
-import type { ShoppingCartEvent } from '../shoppingCart';
+import {
+  mongoDBInlineProjection,
+  type MongoDBEventStore,
+} from '@event-driven-io/emmett-mongodb';
+import type { ShoppingCartEvent, ShoppingCartId } from '../shoppingCart';
 
 export type ShoppingCartShortInfo = {
   productItemsCount: number;
@@ -37,18 +39,18 @@ const evolve = (
   }
 };
 
-export const shoppingCartShortInfoCollectionName = 'shoppingCartShortInfo';
+export const shoppingCartShortInfoProjectionName = 'shoppingCartShortInfo';
 
 export const getShortInfoById = (
-  db: PongoDb,
-  shoppingCartId: string,
+  db: MongoDBEventStore,
+  shoppingCartId: ShoppingCartId,
 ): Promise<ShoppingCartShortInfo | null> =>
-  db
-    .collection<ShoppingCartShortInfo>(shoppingCartShortInfoCollectionName)
-    .findOne({ _id: shoppingCartId });
+  db.projections.inline.findOne({
+    streamName: shoppingCartId,
+    projectionName: shoppingCartShortInfoProjectionName,
+  });
 
-export const shoppingCartShortInfoProjection = pongoSingleStreamProjection({
-  collectionName: shoppingCartShortInfoCollectionName,
+export const shoppingCartShortInfoProjection = mongoDBInlineProjection({
   evolve,
   canHandle: [
     'ProductItemAddedToShoppingCart',

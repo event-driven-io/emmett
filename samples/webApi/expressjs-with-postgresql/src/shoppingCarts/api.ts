@@ -174,7 +174,7 @@ export const shoppingCartApi =
       }),
     );
 
-    // Get Shopping Cart
+    // Get Shopping Cart Summary
     router.get(
       '/clients/:clientId/shopping-carts/summary',
       on(async (request: GetShoppingCartRequest) => {

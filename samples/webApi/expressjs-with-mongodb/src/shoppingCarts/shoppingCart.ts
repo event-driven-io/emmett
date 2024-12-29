@@ -1,4 +1,5 @@
 import type { Event } from '@event-driven-io/emmett';
+import type { StreamName } from '@event-driven-io/emmett-mongodb';
 
 /////////////////////////////////////////
 ////////// Events
@@ -90,6 +91,11 @@ export const initialState = (): ShoppingCart => {
     status: 'Empty',
   };
 };
+
+export type ShoppingCartId = StreamName<'shopping_cart'>;
+
+export const ShoppingCartId = (clientId: string): ShoppingCartId =>
+  `shopping_cart:${clientId}:current`;
 
 /////////////////////////////////////////
 ////////// Evolve

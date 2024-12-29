@@ -9,51 +9,43 @@ services:
     container_name: emmett_api
     profiles: [app]
     environment:
-      - POSTGRESQL_CONNECTION_STRING=postgresql://postgres@postgres:5432/postgres
+      - MONGODB_CONNECTION_STRING=mongodb://mongodb:27017/
     networks:
       - postgresql_network
     ports:
       - '3000:3000'
 
   #######################################################
-  #  PostgreSQL
+  #  MongoDB
   #######################################################
-  postgres:
-    image: postgres:15.1-alpine
+  mongodb:
+    image: mongo:6.0.12
+    # environment:
+    #     MONGO_INITDB_ROOT_USERNAME: root
+    #     MONGO_INITDB_ROOT_PASSWORD: rootpassword
     ports:
-      - '5432:5432'
-    environment:
-      - POSTGRES_DB=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_USER=postgres
-    networks:
-      - postgresql_network
-
-  pgadmin:
-    container_name: pgadmin_container
-    image: dpage/pgadmin4
-    environment:
-      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-pgadmin4@pgadmin.org}
-      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-postgres}
-      - PGADMIN_CONFIG_SERVER_MODE=False
-      - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
-    ports:
-      - '${PGADMIN_PORT:-5050}:80'
-    entrypoint: /bin/sh -c "chmod 600 /pgpass; /entrypoint.sh;"
-    user: root
+      - 27017:27017
     volumes:
-      - ./docker/pgAdmin/pgpass:/pgpass
-      - ./docker/pgAdmin/servers.json:/pgadmin4/servers.json
-    depends_on:
-      - postgres
-    restart: unless-stopped
+      - mongodb-data:/data/db
     networks:
-      - postgresql_network
+      - mongodb_network
+
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8081:8081
+    environment:
+      # ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      # ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      # ME_CONFIG_MONGODB_URL: mongodb://root:example@mongodb:27017/
+      ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/
+    networks:
+      - mongodb_network
 
 networks:
-  postgresql_network:
+  mongodb_network:
     driver: bridge
 
 volumes:
-  eventstore-volume-data:
-  eventstore-volume-logs:
+  mongodb-data:

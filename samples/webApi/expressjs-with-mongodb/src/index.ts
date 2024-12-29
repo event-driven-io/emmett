@@ -1,19 +1,16 @@
 import { getInMemoryMessageBus, projections } from '@event-driven-io/emmett';
 import { getApplication, startAPI } from '@event-driven-io/emmett-expressjs';
-import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
-import { pongoClient } from '@event-driven-io/pongo';
+import { getMongoDBEventStore } from '@event-driven-io/emmett-mongodb';
 import type { Application } from 'express';
 import shoppingCarts, { type ShoppingCartConfirmed } from './shoppingCarts';
 
 const connectionString =
-  process.env.POSTGRESQL_CONNECTION_STRING ??
-  'postgresql://postgres:postgres@localhost:5432/postgres';
+  process.env.MONGODB_CONNECTION_STRING ?? 'mongodb://localhost:27017/';
 
-const eventStore = getPostgreSQLEventStore(connectionString, {
+const eventStore = getMongoDBEventStore({
+  connectionString,
   projections: projections.inline(shoppingCarts.projections),
 });
-
-const readStore = pongoClient(connectionString);
 
 const inMemoryMessageBus = getInMemoryMessageBus();
 
@@ -30,7 +27,6 @@ const application: Application = getApplication({
   apis: [
     shoppingCarts.api(
       eventStore,
-      readStore.db(),
       inMemoryMessageBus,
       getUnitPrice,
       () => new Date(),
