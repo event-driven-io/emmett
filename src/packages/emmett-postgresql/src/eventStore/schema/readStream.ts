@@ -1,6 +1,5 @@
 import { mapRows, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
-  event,
   type CombinedReadEventMetadata,
   type Event,
   type EventDataOf,
@@ -60,11 +59,11 @@ export const readStream = async <EventType extends Event>(
         ),
       ),
       (row) => {
-        const rawEvent = event<EventType>(
-          row.event_type,
-          row.event_data,
-          row.event_metadata,
-        );
+        const rawEvent = {
+          type: row.event_type,
+          data: row.event_data,
+          metadata: row.event_metadata,
+        } as unknown as EventType;
 
         const metadata: ReadEventMetadataWithGlobalPosition = {
           ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
