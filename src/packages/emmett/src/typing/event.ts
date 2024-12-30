@@ -47,13 +47,21 @@ export type CreateEventType<
         metadata: EventMetaData;
       }
 >;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const event = <T extends Event<string, any, any>>(
-  type: EventTypeOf<T>,
-  data: EventDataOf<T>,
-  metadata?: EventMetaDataOf<T>,
+  ...args: EventMetaDataOf<T> extends undefined
+    ? [type: EventTypeOf<T>, data: EventDataOf<T>]
+    : [type: EventTypeOf<T>, data: EventDataOf<T>, metadata: EventMetaDataOf<T>]
 ): T => {
-  return metadata ? ({ type, data, metadata } as T) : ({ type, data } as T);
+  const [type, data, metadata] = args as [
+    EventTypeOf<T>,
+    EventDataOf<T>,
+    EventMetaDataOf<T> | undefined,
+  ];
+  return metadata !== undefined
+    ? ({ type, data, metadata } as T)
+    : ({ type, data } as T);
 };
 
 export type CombinedReadEventMetadata<
