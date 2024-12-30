@@ -1,21 +1,16 @@
 import type {
+  AnyReadEventMetadata,
   CanHandle,
   DefaultRecord,
   Event,
-  EventMetaDataOf,
   ReadEvent,
-  ReadEventMetadata,
 } from '../typing';
 
 export type ProjectionHandlingType = 'inline' | 'async';
 
 export type ProjectionHandler<
   EventType extends Event = Event,
-  EventMetaDataType extends EventMetaDataOf<EventType> &
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ReadEventMetadata<any, any> = EventMetaDataOf<EventType> &
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ReadEventMetadata<any, any>,
+  EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > = (
   events: ReadEvent<EventType, EventMetaDataType>[],
@@ -23,13 +18,7 @@ export type ProjectionHandler<
 ) => Promise<void> | void;
 
 export interface ProjectionDefinition<
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ReadEventMetadataType extends ReadEventMetadata<any, any> = ReadEventMetadata<
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any
-  >,
+  ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > {
   name?: string;
@@ -43,11 +32,7 @@ export interface ProjectionDefinition<
 
 export interface TypedProjectionDefinition<
   EventType extends Event = Event,
-  EventMetaDataType extends EventMetaDataOf<EventType> &
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ReadEventMetadata<any, any> = EventMetaDataOf<EventType> &
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ReadEventMetadata<any, any>,
+  EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > {
   name?: string;
@@ -61,13 +46,7 @@ export interface TypedProjectionDefinition<
 
 export type ProjectionRegistration<
   HandlingType extends ProjectionHandlingType,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ReadEventMetadataType extends ReadEventMetadata<any, any> = ReadEventMetadata<
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any
-  >,
+  ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > = {
   type: HandlingType;
@@ -79,11 +58,7 @@ export type ProjectionRegistration<
 
 export const projection = <
   EventType extends Event = Event,
-  EventMetaDataType extends EventMetaDataOf<EventType> &
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ReadEventMetadata<any, any> = EventMetaDataOf<EventType> &
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ReadEventMetadata<any, any>,
+  EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
   ProjectionDefintionType extends TypedProjectionDefinition<
     EventType,
@@ -99,13 +74,7 @@ export const projection = <
 ): ProjectionDefintionType => definition;
 
 export const inlineProjections = <
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ReadEventMetadataType extends ReadEventMetadata<any, any> = ReadEventMetadata<
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any
-  >,
+  ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
   ProjectionDefintionType extends ProjectionDefinition<
     ReadEventMetadataType,
@@ -120,13 +89,7 @@ export const inlineProjections = <
 >[] => definitions.map((projection) => ({ type: 'inline', projection }));
 
 export const asyncProjections = <
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ReadEventMetadataType extends ReadEventMetadata<any, any> = ReadEventMetadata<
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any
-  >,
+  ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
   ProjectionDefintionType extends ProjectionDefinition<
     ReadEventMetadataType,

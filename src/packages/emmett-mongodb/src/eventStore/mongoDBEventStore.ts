@@ -7,7 +7,6 @@ import {
   type AppendToStreamResult,
   type Closeable,
   type Event,
-  type EventMetaDataOf,
   type EventStore,
   type ProjectionRegistration,
   type ReadEvent,
@@ -68,9 +67,7 @@ export type MongoDBReadModel<Doc extends Document = Document> = Doc & {
 
 export interface EventStream<
   EventType extends Event = Event,
-  EventMetaDataType extends EventMetaDataOf<EventType> &
-    MongoDBReadEventMetadata = EventMetaDataOf<EventType> &
-    MongoDBReadEventMetadata,
+  EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
 > {
   streamName: string;
   messages: Array<ReadEvent<EventType, EventMetaDataType>>;
@@ -327,27 +324,22 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
 
     let streamOffset = currentStreamVersion;
 
-    const eventsToAppend: ReadEvent<
-      EventType,
-      EventMetaDataOf<EventType> & MongoDBReadEventMetadata
-    >[] = events.map((event) => {
-      const metadata: MongoDBReadEventMetadata = {
-        eventId: uuid(),
-        streamName,
-        streamPosition: ++streamOffset,
-      };
-      return {
-        type: event.type,
-        data: event.data,
-        metadata: {
-          ...metadata,
-          ...(event.metadata ?? {}),
-        },
-      } as ReadEvent<
-        EventType,
-        EventMetaDataOf<EventType> & MongoDBReadEventMetadata
-      >;
-    });
+    const eventsToAppend: ReadEvent<EventType, MongoDBReadEventMetadata>[] =
+      events.map((event) => {
+        const metadata: MongoDBReadEventMetadata = {
+          eventId: uuid(),
+          streamName,
+          streamPosition: ++streamOffset,
+        };
+        return {
+          type: event.type,
+          data: event.data,
+          metadata: {
+            ...metadata,
+            ...('metadata' in event ? (event.metadata ?? {}) : {}),
+          },
+        } as ReadEvent<EventType, MongoDBReadEventMetadata>;
+      });
 
     const now = new Date();
     const updates: UpdateFilter<EventStream> = {

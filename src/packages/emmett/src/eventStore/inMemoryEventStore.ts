@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import type {
   BigIntStreamPosition,
+  CombinedReadEventMetadata,
   Event,
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
@@ -141,15 +142,21 @@ export const getInMemoryEventStore = (
         EventType,
         ReadEventMetadataWithGlobalPosition
       >[] = events.map((event, index) => {
+        const metadata: ReadEventMetadataWithGlobalPosition = {
+          streamName,
+          eventId: uuid(),
+          streamPosition: BigInt(currentEvents.length + index + 1),
+          globalPosition: BigInt(getAllEventsCount() + index + 1),
+        };
         return {
           ...event,
           metadata: {
-            ...(event.metadata ?? {}),
-            streamName,
-            eventId: uuid(),
-            streamPosition: BigInt(currentEvents.length + index + 1),
-            globalPosition: BigInt(getAllEventsCount() + index + 1),
-          },
+            ...('metadata' in event ? (event.metadata ?? {}) : {}),
+            ...metadata,
+          } as CombinedReadEventMetadata<
+            EventType,
+            ReadEventMetadataWithGlobalPosition
+          >,
         };
       });
 

@@ -6,61 +6,70 @@ export type BigIntGlobalPosition = bigint;
 export type Event<
   EventType extends string = string,
   EventData extends DefaultRecord = DefaultRecord,
-  EventMetaData extends DefaultRecord = DefaultRecord,
+  EventMetaData extends DefaultRecord | undefined = undefined,
 > = Flavour<
-  Readonly<{
-    type: EventType;
-    data: EventData;
-    metadata?: EventMetaData;
-  }>,
+  Readonly<
+    EventMetaData extends undefined
+      ? {
+          type: EventType;
+          data: EventData;
+        }
+      : {
+          type: EventType;
+          data: EventData;
+          metadata: EventMetaData;
+        }
+  >,
   'Event'
 >;
 
 export type EventTypeOf<T extends Event> = T['type'];
 export type EventDataOf<T extends Event> = T['data'];
-export type EventMetaDataOf<T extends Event> = T['metadata'];
+export type EventMetaDataOf<T extends Event> = T extends { metadata: infer M }
+  ? M
+  : undefined;
 
 export type CanHandle<T extends Event> = EventTypeOf<T>[];
 
 export type CreateEventType<
   EventType extends string,
   EventData extends DefaultRecord,
-  EventMetaData extends DefaultRecord | undefined,
-> = Readonly<{
-  type: EventType;
-  data: EventData;
-  metadata?: EventMetaData;
-}>;
-
-export const event = <EventType extends Event>(
-  type: EventTypeOf<EventType>,
-  data: EventDataOf<EventType>,
-  metadata?: EventMetaDataOf<EventType>,
-): CreateEventType<
-  EventTypeOf<EventType>,
-  EventDataOf<EventType>,
-  EventMetaDataOf<EventType>
-> => {
-  return {
-    type,
-    data,
-    metadata,
-  };
+  EventMetaData extends DefaultRecord | undefined = undefined,
+> = Readonly<
+  EventMetaData extends undefined
+    ? {
+        type: EventType;
+        data: EventData;
+      }
+    : {
+        type: EventType;
+        data: EventData;
+        metadata: EventMetaData;
+      }
+>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const event = <T extends Event<string, any, any>>(
+  type: EventTypeOf<T>,
+  data: EventDataOf<T>,
+  metadata?: EventMetaDataOf<T>,
+): T => {
+  return metadata ? ({ type, data, metadata } as T) : ({ type, data } as T);
 };
+
+export type CombinedReadEventMetadata<
+  EventType extends Event = Event,
+  EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+> =
+  EventMetaDataOf<EventType> extends undefined
+    ? EventMetaDataType
+    : EventMetaDataOf<EventType> & EventMetaDataType;
 
 export type ReadEvent<
   EventType extends Event = Event,
-  EventMetaDataType extends EventMetaDataOf<EventType> &
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ReadEventMetadata<any, any> = EventMetaDataOf<EventType> &
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ReadEventMetadata<any, any>,
-> = CreateEventType<
-  EventTypeOf<EventType>,
-  EventDataOf<EventType>,
-  EventMetaDataType
-> &
-  EventType & { metadata: EventMetaDataType };
+  EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+> = EventType & {
+  metadata: CombinedReadEventMetadata<EventType, EventMetaDataType>;
+};
 
 export type ReadEventMetadata<
   GlobalPosition = undefined,
@@ -73,6 +82,9 @@ export type ReadEventMetadata<
   (GlobalPosition extends undefined
     ? object
     : { globalPosition: GlobalPosition });
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyReadEventMetadata = ReadEventMetadata<any, any>;
 
 export type ReadEventMetadataWithGlobalPosition<
   GlobalPosition = BigIntGlobalPosition,

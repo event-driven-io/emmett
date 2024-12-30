@@ -11,8 +11,8 @@ import {
   assertThatArray,
   assertTrue,
   isErrorConstructor,
+  type CombinedReadEventMetadata,
   type Event,
-  type EventMetaDataOf,
   type ReadEvent,
   type ThenThrows,
 } from '@event-driven-io/emmett';
@@ -22,9 +22,8 @@ import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 
 export type PostgreSQLProjectionSpecEvent<
   EventType extends Event,
-  EventMetaDataType extends EventMetaDataOf<EventType> &
-    PostgresReadEventMetadata = EventMetaDataOf<EventType> &
-    PostgresReadEventMetadata,
+  EventMetaDataType extends
+    PostgresReadEventMetadata = PostgresReadEventMetadata,
 > = EventType & {
   metadata?: Partial<EventMetaDataType>;
 };
@@ -82,17 +81,22 @@ export const PostgreSQLProjectionSpec = {
                 ...givenEvents,
                 ...Array.from({ length: numberOfTimes }).flatMap(() => events),
               ]) {
+                const metadata: PostgresReadEventMetadata = {
+                  globalPosition: ++globalPosition,
+                  streamPosition: globalPosition,
+                  streamName: `test-${uuid()}`,
+                  eventId: uuid(),
+                };
+
                 allEvents.push({
                   ...event,
                   metadata: {
-                    ...{
-                      globalPosition: ++globalPosition,
-                      streamPosition: globalPosition,
-                      streamName: `test-${uuid()}`,
-                      eventId: uuid(),
-                    },
-                    ...(event.metadata ?? {}),
-                  },
+                    ...metadata,
+                    ...('metadata' in event ? (event.metadata ?? {}) : {}),
+                  } as CombinedReadEventMetadata<
+                    EventType,
+                    PostgresReadEventMetadata
+                  >,
                 });
               }
 
@@ -173,9 +177,8 @@ export const PostgreSQLProjectionSpec = {
 
 export const eventInStream = <
   EventType extends Event = Event,
-  EventMetaDataType extends EventMetaDataOf<EventType> &
-    PostgresReadEventMetadata = EventMetaDataOf<EventType> &
-    PostgresReadEventMetadata,
+  EventMetaDataType extends
+    PostgresReadEventMetadata = PostgresReadEventMetadata,
 >(
   streamName: string,
   event: PostgreSQLProjectionSpecEvent<EventType, EventMetaDataType>,
@@ -191,9 +194,8 @@ export const eventInStream = <
 
 export const eventsInStream = <
   EventType extends Event = Event,
-  EventMetaDataType extends EventMetaDataOf<EventType> &
-    PostgresReadEventMetadata = EventMetaDataOf<EventType> &
-    PostgresReadEventMetadata,
+  EventMetaDataType extends
+    PostgresReadEventMetadata = PostgresReadEventMetadata,
 >(
   streamName: string,
   events: PostgreSQLProjectionSpecEvent<EventType, EventMetaDataType>[],
