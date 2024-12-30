@@ -29,9 +29,14 @@ export type ShoppingCart = {
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
-  { productItem: PricedProductItem }
+  { productItem: PricedProductItem },
+  { meta: string }
 >;
-export type DiscountApplied = Event<'DiscountApplied', { percent: number }>;
+export type DiscountApplied = Event<
+  'DiscountApplied',
+  { percent: number },
+  { meta: string }
+>;
 
 export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 

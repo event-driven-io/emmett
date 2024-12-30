@@ -4,7 +4,7 @@ import {
   assertMatches,
   assertOk,
   getInMemoryEventStore,
-  type EventStore,
+  type InMemoryEventStore,
 } from '@event-driven-io/emmett';
 import { type Application } from 'express';
 import { randomUUID } from 'node:crypto';
@@ -24,7 +24,7 @@ import type { ShoppingCartEvent } from './shoppingCart';
 
 void describe('Application logic with optimistic concurrency', () => {
   let app: Application;
-  let eventStore: EventStore;
+  let eventStore: InMemoryEventStore;
 
   beforeEach(() => {
     eventStore = getInMemoryEventStore();

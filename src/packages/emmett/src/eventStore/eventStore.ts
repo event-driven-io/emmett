@@ -1,9 +1,9 @@
 //import type { ReadableStream } from 'web-streams-polyfill';
 import type {
+  AnyReadEventMetadata,
   BigIntGlobalPosition,
   BigIntStreamPosition,
   Event,
-  EventMetaDataOf,
   GlobalPositionTypeOfReadEventMetadata,
   ReadEvent,
   ReadEventMetadata,
@@ -15,21 +15,11 @@ import type { ExpectedStreamVersion } from './expectedVersion';
 
 // #region event-store
 export interface EventStore<
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ReadEventMetadataType extends ReadEventMetadata<any, any> = ReadEventMetadata<
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any
-  >,
+  ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
 > {
   aggregateStream<State, EventType extends Event>(
     streamName: string,
-    options: AggregateStreamOptions<
-      State,
-      EventType,
-      ReadEventMetadataType & EventMetaDataOf<EventType>
-    >,
+    options: AggregateStreamOptions<State, EventType, ReadEventMetadataType>,
   ): Promise<
     AggregateStreamResult<
       State,
@@ -42,12 +32,7 @@ export interface EventStore<
     options?: ReadStreamOptions<
       StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>
     >,
-  ): Promise<
-    ReadStreamResult<
-      EventType,
-      ReadEventMetadataType & EventMetaDataOf<EventType>
-    >
-  >;
+  ): Promise<ReadStreamResult<EventType, ReadEventMetadataType>>;
 
   appendToStream<EventType extends Event>(
     streamName: string,
@@ -127,17 +112,10 @@ export type ReadStreamOptions<StreamVersion = BigIntStreamPosition> = (
 
 export type ReadStreamResult<
   EventType extends Event,
-  ReadEventMetadataType extends EventMetaDataOf<EventType> &
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ReadEventMetadata<any, any> = EventMetaDataOf<EventType> &
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ReadEventMetadata<any, bigint>,
+  ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
 > = {
   currentStreamVersion: StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>;
-  events: ReadEvent<
-    EventType,
-    ReadEventMetadataType & EventMetaDataOf<EventType>
-  >[];
+  events: ReadEvent<EventType, ReadEventMetadataType>[];
   streamExists: boolean;
 };
 
@@ -148,11 +126,7 @@ export type ReadStreamResult<
 type Evolve<
   State,
   EventType extends Event,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ReadEventMetadataType extends ReadEventMetadata<any, any> &
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    EventMetaDataOf<EventType> = ReadEventMetadata<any, any> &
-    EventMetaDataOf<EventType>,
+  ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
 > =
   | ((currentState: State, event: EventType) => State)
   | ((
@@ -164,11 +138,7 @@ type Evolve<
 export type AggregateStreamOptions<
   State,
   EventType extends Event,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ReadEventMetadataType extends ReadEventMetadata<any, any> &
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    EventMetaDataOf<EventType> = ReadEventMetadata<any, any> &
-    EventMetaDataOf<EventType>,
+  ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
 > = {
   evolve: Evolve<State, EventType, ReadEventMetadataType>;
   initialState: () => State;

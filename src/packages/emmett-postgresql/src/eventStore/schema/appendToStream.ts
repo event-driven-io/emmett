@@ -150,7 +150,7 @@ export const appendToStream = (
           streamName,
           eventId: uuid(),
           streamPosition: BigInt(i),
-          ...e.metadata,
+          ...('metadata' in e ? (e.metadata ?? {}) : {}),
         },
       }));
 
