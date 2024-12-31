@@ -51,6 +51,7 @@ export const getShortInfoById = (
   });
 
 export const shoppingCartShortInfoProjection = mongoDBInlineProjection({
+  name: shoppingCartShortInfoProjectionName,
   evolve,
   canHandle: [
     'ProductItemAddedToShoppingCart',

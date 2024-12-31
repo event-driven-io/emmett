@@ -31,7 +31,7 @@ const evolve = (
   { type, data: event, metadata }: ShoppingCartEvent,
 ): ClientShoppingSummary | null => {
   const summary: ClientShoppingSummary = document ?? {
-    clientId: metadata!.clientId,
+    clientId: metadata.clientId,
     pending: undefined,
     confirmed: initialSummary,
     cancelled: initialSummary,

@@ -46,6 +46,7 @@ void describe('ShoppingCart', () => {
                 productItem,
                 addedAt: now,
               },
+              metadata: { clientId },
             },
           ]),
         ]);
@@ -64,6 +65,7 @@ void describe('ShoppingCart', () => {
               productItem,
               addedAt: oldTime,
             },
+            metadata: { clientId },
           },
         ]),
       )
@@ -79,6 +81,7 @@ void describe('ShoppingCart', () => {
                 shoppingCartId,
                 confirmedAt: now,
               },
+              metadata: { clientId },
             },
           ]),
         ]);
@@ -97,10 +100,12 @@ void describe('ShoppingCart', () => {
               productItem,
               addedAt: oldTime,
             },
+            metadata: { clientId },
           },
           {
             type: 'ShoppingCartConfirmed',
             data: { shoppingCartId, confirmedAt: oldTime },
+            metadata: { clientId },
           },
         ]),
       )
