@@ -1,3 +1,5 @@
+import { EmmettError } from '../errors';
+import { JSONParser } from '../serialization';
 import type {
   AnyReadEventMetadata,
   CanHandle,
@@ -5,6 +7,7 @@ import type {
   Event,
   ReadEvent,
 } from '../typing';
+import { arrayUtils } from '../utils';
 
 export type ProjectionHandlingType = 'inline' | 'async';
 
@@ -54,6 +57,36 @@ export type ProjectionRegistration<
     ReadEventMetadataType,
     ProjectionHandlerContext
   >;
+};
+
+export const filterProjections = <
+  ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+>(
+  type: ProjectionHandlingType,
+  projections: ProjectionRegistration<
+    ProjectionHandlingType,
+    ReadEventMetadataType,
+    ProjectionHandlerContext
+  >[],
+) => {
+  const inlineProjections = projections
+    .filter((projection) => projection.type === type)
+    .map(({ projection }) => projection);
+
+  const duplicateRegistrations = arrayUtils.getDuplicates(
+    inlineProjections,
+    (proj) => proj.name,
+  );
+
+  if (duplicateRegistrations.length > 0) {
+    throw new EmmettError(`You cannot register multiple projections with the same name (or without the name).
+      Ensure that:
+      ${JSONParser.stringify(duplicateRegistrations)}
+      have different names`);
+  }
+
+  return inlineProjections;
 };
 
 export const projection = <
