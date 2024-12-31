@@ -1,6 +1,7 @@
 import {
   assertExpectedVersionMatchesCurrent,
   ExpectedVersionConflictError,
+  filterProjections,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
@@ -204,11 +205,10 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       storage: options.storage,
       getConnectedClient: () => this.getConnectedClient(),
     });
-    this.inlineProjections = (options.projections ?? [])
-      .filter(({ type }) => type === 'inline')
-      .map(
-        ({ projection }) => projection,
-      ) as MongoDBInlineProjectionDefinition[];
+    this.inlineProjections = filterProjections(
+      'inline',
+      options.projections ?? [],
+    ) as MongoDBInlineProjectionDefinition[];
 
     this.projections = {
       inline: {
