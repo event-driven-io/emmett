@@ -49,19 +49,20 @@ export type CreateEventType<
 >;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const event = <T extends Event<string, any, any>>(
-  ...args: EventMetaDataOf<T> extends undefined
-    ? [type: EventTypeOf<T>, data: EventDataOf<T>]
-    : [type: EventTypeOf<T>, data: EventDataOf<T>, metadata: EventMetaDataOf<T>]
-): T => {
-  const [type, data, metadata] = args as [
-    EventTypeOf<T>,
-    EventDataOf<T>,
-    EventMetaDataOf<T> | undefined,
-  ];
+export const event = <EventType extends Event<string, any, any>>(
+  ...args: EventMetaDataOf<EventType> extends undefined
+    ? [type: EventTypeOf<EventType>, data: EventDataOf<EventType>]
+    : [
+        type: EventTypeOf<EventType>,
+        data: EventDataOf<EventType>,
+        metadata: EventMetaDataOf<EventType>,
+      ]
+): EventType => {
+  const [type, data, metadata] = args;
+
   return metadata !== undefined
-    ? ({ type, data, metadata } as T)
-    : ({ type, data } as T);
+    ? ({ type, data, metadata } as EventType)
+    : ({ type, data } as EventType);
 };
 
 export type CombinedReadEventMetadata<
