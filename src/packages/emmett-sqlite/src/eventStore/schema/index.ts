@@ -15,10 +15,8 @@ export const createEventStoreSchema = async (
   for (const sql of schemaSQL) {
     try {
       await db.command(sql);
-    } catch (error) {
-      console.log(error);
-
-      return;
+    } catch (err: unknown) {
+      throw err;
     }
   }
 };
