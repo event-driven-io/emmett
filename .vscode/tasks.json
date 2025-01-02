@@ -7,7 +7,7 @@
       "group": "build",
       "problemMatcher": [],
       "label": "npm: build:ts:watch",
-      "detail": "tsc  --watch",
+      "detail": "tsc -b --watch",
       "options": {
         "cwd": "${workspaceFolder}/src/"
       }
