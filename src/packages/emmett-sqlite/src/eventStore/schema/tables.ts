@@ -26,9 +26,9 @@ export const eventsTableSQL = sql(
       event_type             TEXT                      NOT NULL,
       event_id               TEXT                      NOT NULL,
       is_archived            BOOLEAN                   NOT NULL DEFAULT FALSE,
-      global_position        BIGINT                    ,
+      global_position        INTEGER                   PRIMARY KEY,
       created                DATETIME                  DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (stream_id, stream_position, partition, is_archived)
+      UNIQUE (stream_id, stream_position, partition, is_archived)
   ); 
 `,
 );
@@ -51,9 +51,5 @@ export const eventStreamTrigger = sql(
           )
           ON CONFLICT(stream_id, partition, is_archived) 
           DO UPDATE SET stream_position=stream_position + 1;
-  
-        UPDATE ${eventsTable.name}
-        SET global_position = IFNULL((SELECT MAX(global_position) from ${eventsTable.name})+1, 1)
-        WHERE (stream_id, stream_position, partition, is_archived) = (NEW.stream_id, NEW.stream_position, NEW.partition, NEW.is_archived);
     END;`,
 );

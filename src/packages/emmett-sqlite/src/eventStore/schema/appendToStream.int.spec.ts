@@ -98,6 +98,43 @@ void describe('appendEvent', () => {
     assertTrue(result.success);
   });
 
+  void it('should handle stream position if expected version is too high', async () => {
+    // Given
+    const streamId = uuid();
+
+    const firstResult = await appendToStream(
+      db,
+      streamId,
+      'shopping_cart',
+      events,
+      {
+        expectedStreamVersion: 0n,
+      },
+    );
+    assertTrue(firstResult.success);
+
+    // When
+    const secondResult = await appendToStream(
+      db,
+      streamId,
+      'shopping_cart',
+      events,
+      {
+        expectedStreamVersion: 4n,
+      },
+    );
+
+    // Then
+    assertFalse(secondResult.success);
+
+    const resultEvents = await db.query(
+      'SELECT * FROM emt_events WHERE stream_id = $1',
+      [streamId],
+    );
+
+    assertEqual(events.length, resultEvents.length);
+  });
+
   void it('should handle stream position conflict correctly when two streams are created', async () => {
     // Given
     const streamId = uuid();

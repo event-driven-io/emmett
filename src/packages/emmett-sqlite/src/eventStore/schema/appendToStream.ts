@@ -103,6 +103,7 @@ const appendEventsRaw = async (
 ): Promise<AppendEventResult> => {
   let streamPosition;
   let globalPosition;
+
   try {
     let expectedStreamVersion = options?.expectedStreamVersion ?? null;
 
@@ -114,56 +115,33 @@ const appendEventsRaw = async (
       );
     }
 
-    const buildQuery = `INSERT INTO ${eventsTable.name} (stream_id, stream_position, partition, event_data, event_metadata, event_schema_version, event_type, event_id, is_archived) VALUES `;
-
-    const query = events.reduce(
-      (
-        queryBuilder: {
-          sql: string[];
-          values: Parameters[];
-        },
-        e: ReadEvent,
-      ) => {
-        const streamPosition =
-          e.metadata.streamPosition + expectedStreamVersion;
-
-        queryBuilder.sql.push(`(?,?,?,?,?,?,?,?,?)`);
-        queryBuilder.values.push(
-          streamId,
-          streamPosition.toString(),
-          options?.partition?.toString() ?? defaultTag,
-          JSONParser.stringify(e.data),
-          JSONParser.stringify({ streamType: streamType, ...e.metadata }),
-          expectedStreamVersion?.toString() ?? 0,
-          e.type,
-          e.metadata.eventId,
-          false,
-        );
-
-        return queryBuilder;
-      },
-      {
-        sql: [],
-        values: [],
-      },
+    const { sqlString, values } = buildEventInsertQuery(
+      events,
+      expectedStreamVersion,
+      streamId,
+      streamType,
+      options?.partition?.toString() ?? defaultTag,
     );
 
-    const sqlString = buildQuery + query.sql.join(', ');
+    const returningId = await db.querySingle<{ global_position: string }>(
+      sqlString,
+      values,
+    );
 
-    await db.command(sqlString, query.values);
+    if (returningId?.global_position == null) {
+      throw new Error('Could not find global position');
+    }
+
+    globalPosition = BigInt(returningId.global_position);
 
     const positions = await db.querySingle<{
       stream_position: string;
-      global_position: string;
     } | null>(
       `
         SELECT 
-        CAST(stream_position AS VARCHAR) AS stream_position, 
-        CAST(global_position AS VARCHAR) AS global_position  
-        FROM ${eventsTable.name} 
-        WHERE stream_id = ? 
-        ORDER BY stream_position DESC 
-        LIMIT 1`,
+        CAST(stream_position AS VARCHAR) AS stream_position
+        FROM ${streamsTable.name} 
+        WHERE stream_id = ?`,
       [streamId],
     );
 
@@ -172,7 +150,16 @@ const appendEventsRaw = async (
     }
 
     streamPosition = BigInt(positions.stream_position);
-    globalPosition = BigInt(positions.global_position);
+
+    if (expectedStreamVersion != null) {
+      const expectedStreamPositionAfterSave =
+        BigInt(expectedStreamVersion) + BigInt(events.length);
+      if (streamPosition !== expectedStreamPositionAfterSave) {
+        return {
+          success: false,
+        };
+      }
+    }
   } catch (err: unknown) {
     if (isSQLiteError(err) && isOptimisticConcurrencyError(err)) {
       return {
@@ -211,3 +198,60 @@ async function getLastStreamPosition(
   }
   return expectedStreamVersion;
 }
+
+const buildEventInsertQuery = (
+  events: Event[],
+  expectedStreamVersion: bigint | null,
+  streamId: string,
+  streamType: string,
+  partition: string | null | undefined,
+) => {
+  const query = events.reduce(
+    (
+      queryBuilder: {
+        parameterMarkers: string[];
+        values: Parameters[];
+      },
+      e: ReadEvent,
+    ) => {
+      const streamPosition = e.metadata.streamPosition + expectedStreamVersion;
+
+      queryBuilder.parameterMarkers.push(`(?,?,?,?,?,?,?,?,?)`);
+      queryBuilder.values.push(
+        streamId,
+        streamPosition.toString(),
+        partition ?? defaultTag,
+        JSONParser.stringify(e.data),
+        JSONParser.stringify({ streamType: streamType, ...e.metadata }),
+        expectedStreamVersion?.toString() ?? 0,
+        e.type,
+        e.metadata.eventId,
+        false,
+      );
+
+      return queryBuilder;
+    },
+    {
+      parameterMarkers: [],
+      values: [],
+    },
+  );
+
+  const sqlString = `
+      INSERT INTO ${eventsTable.name} (
+          stream_id, 
+          stream_position, 
+          partition, 
+          event_data, 
+          event_metadata, 
+          event_schema_version, 
+          event_type, 
+          event_id, 
+          is_archived
+      ) 
+      VALUES ${query.parameterMarkers.join(', ')} 
+      RETURNING 
+        CAST(global_position as VARCHAR) AS global_position
+    `;
+  return { sqlString, values: query.values };
+};
