@@ -47,7 +47,7 @@ export const appendToStream = async (
         streamName,
         eventId: uuid(),
         streamPosition: BigInt(i + 1),
-        ...e.metadata,
+        ...('metadata' in e ? (e.metadata ?? {}) : {}),
       },
     }),
   );
@@ -123,10 +123,9 @@ const appendEventsRaw = async (
       options?.partition?.toString() ?? defaultTag,
     );
 
-    const returningId = await db.querySingle<{ global_position: string }>(
-      sqlString,
-      values,
-    );
+    const returningId = await db.querySingle<{
+      global_position: string;
+    } | null>(sqlString, values);
 
     if (returningId?.global_position == null) {
       throw new Error('Could not find global position');
@@ -185,7 +184,7 @@ async function getLastStreamPosition(
   db: SQLiteConnection,
   streamId: string,
   expectedStreamVersion: bigint | null,
-) {
+): Promise<bigint> {
   const result = await db.querySingle<{ stream_position: string } | null>(
     `SELECT CAST(MAX(stream_position) AS VARCHAR) AS stream_position FROM ${streamsTable.name} WHERE stream_id = ?`,
     [streamId],
@@ -200,32 +199,40 @@ async function getLastStreamPosition(
 }
 
 const buildEventInsertQuery = (
-  events: Event[],
-  expectedStreamVersion: bigint | null,
+  events: ReadEvent[],
+  expectedStreamVersion: bigint,
   streamId: string,
   streamType: string,
   partition: string | null | undefined,
-) => {
+): {
+  sqlString: string;
+  values: Parameters[];
+} => {
   const query = events.reduce(
     (
-      queryBuilder: {
-        parameterMarkers: string[];
-        values: Parameters[];
-      },
-      e: ReadEvent,
+      queryBuilder: { parameterMarkers: string[]; values: Parameters[] },
+      event: ReadEvent,
     ) => {
-      const streamPosition = e.metadata.streamPosition + expectedStreamVersion;
+      if (
+        event.metadata?.streamPosition == null ||
+        typeof event.metadata.streamPosition !== 'bigint'
+      ) {
+        throw new Error('Stream position is required');
+      }
+
+      const streamPosition =
+        BigInt(event.metadata.streamPosition) + BigInt(expectedStreamVersion);
 
       queryBuilder.parameterMarkers.push(`(?,?,?,?,?,?,?,?,?)`);
       queryBuilder.values.push(
         streamId,
-        streamPosition.toString(),
+        streamPosition.toString() ?? 0,
         partition ?? defaultTag,
-        JSONParser.stringify(e.data),
-        JSONParser.stringify({ streamType: streamType, ...e.metadata }),
+        JSONParser.stringify(event.data),
+        JSONParser.stringify({ streamType: streamType, ...event.metadata }),
         expectedStreamVersion?.toString() ?? 0,
-        e.type,
-        e.metadata.eventId,
+        event.type,
+        event.metadata.eventId,
         false,
       );
 

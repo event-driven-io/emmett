@@ -13,10 +13,6 @@ export const createEventStoreSchema = async (
   db: SQLiteConnection,
 ): Promise<void> => {
   for (const sql of schemaSQL) {
-    try {
-      await db.command(sql);
-    } catch (err: unknown) {
-      throw err;
-    }
+    await db.command(sql);
   }
 };
