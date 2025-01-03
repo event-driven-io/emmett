@@ -8,7 +8,7 @@ import { describe, it } from 'node:test';
 import type { PricedProductItem } from '../events';
 import { shoppingCartApi } from './simpleApi';
 
-let esdbContainer: StartedEventStoreDBContainer;
+const esdbContainer: StartedEventStoreDBContainer = undefined!;
 const clientId = randomUUID();
 const now = new Date();
 const unitPrice = Math.random() * 10;

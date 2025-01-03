@@ -4,7 +4,6 @@ import {
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
   assertExpectedVersionMatchesCurrent,
-  globalStreamCaughtUp,
   streamTransformations,
   type AggregateStreamOptions,
   type AggregateStreamResultWithGlobalPosition,
@@ -13,7 +12,6 @@ import {
   type Event,
   type EventStore,
   type ExpectedStreamVersion,
-  type GlobalStreamCaughtUp,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
@@ -27,14 +25,10 @@ import {
   StreamNotFoundError,
   WrongExpectedVersionError,
   jsonEvent,
-  type AllStreamResolvedEvent,
-  type AllStreamSubscription,
   type AppendExpectedRevision,
   type ReadStreamOptions as ESDBReadStreamOptions,
   type JSONRecordedEvent,
 } from '@eventstore/db-client';
-import { WritableStream, type ReadableStream } from 'node:stream/web';
-import { Readable } from 'stream';
 
 const { map } = streamTransformations;
 
@@ -253,44 +247,44 @@ const toExpectedVersion = (
   return expected;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const convertToWebReadableStream = (
-  allStreamSubscription: AllStreamSubscription,
-): ReadableStream<AllStreamResolvedEvent | GlobalStreamCaughtUp> => {
-  // Validate the input type
-  if (!(allStreamSubscription instanceof Readable)) {
-    throw new Error('Provided stream is not a Node.js Readable stream.');
-  }
+// // eslint-disable-next-line @typescript-eslint/no-unused-vars
+// const convertToWebReadableStream = (
+//   allStreamSubscription: AllStreamSubscription,
+// ): ReadableStream<AllStreamResolvedEvent | GlobalStreamCaughtUp> => {
+//   // Validate the input type
+//   if (!(allStreamSubscription instanceof Readable)) {
+//     throw new Error('Provided stream is not a Node.js Readable stream.');
+//   }
 
-  let globalPosition = 0n;
+//   let globalPosition = 0n;
 
-  const stream = Readable.toWeb(
-    allStreamSubscription,
-  ) as ReadableStream<AllStreamResolvedEvent>;
+//   const stream = Readable.toWeb(
+//     allStreamSubscription,
+//   ) as ReadableStream<AllStreamResolvedEvent>;
 
-  const writable = new WritableStream<
-    AllStreamResolvedEvent | GlobalStreamCaughtUp
-  >();
+//   const writable = new WritableStream<
+//     AllStreamResolvedEvent | GlobalStreamCaughtUp
+//   >();
 
-  allStreamSubscription.on('caughtUp', async () => {
-    console.log(globalPosition);
-    await writable.getWriter().write(globalStreamCaughtUp({ globalPosition }));
-  });
+//   allStreamSubscription.on('caughtUp', async () => {
+//     console.log(globalPosition);
+//     await writable.getWriter().write(globalStreamCaughtUp({ globalPosition }));
+//   });
 
-  const transform = map<
-    AllStreamResolvedEvent,
-    AllStreamResolvedEvent | GlobalStreamCaughtUp
-  >((event) => {
-    if (event?.event?.position.commit)
-      globalPosition = event.event?.position.commit;
+//   const transform = map<
+//     AllStreamResolvedEvent,
+//     AllStreamResolvedEvent | GlobalStreamCaughtUp
+//   >((event) => {
+//     if (event?.event?.position.commit)
+//       globalPosition = event.event?.position.commit;
 
-    return event;
-  });
+//     return event;
+//   });
 
-  return stream.pipeThrough<AllStreamResolvedEvent | GlobalStreamCaughtUp>(
-    transform,
-  );
-};
+//   return stream.pipeThrough<AllStreamResolvedEvent | GlobalStreamCaughtUp>(
+//     transform,
+//   );
+// };
 
 // const streamEvents = (eventStore: EventStoreDBClient) => () => {
 //   return restream<
