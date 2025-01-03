@@ -1,11 +1,23 @@
 import type sqlite3 from 'sqlite3';
 
-type Parameters = object | string | number | null;
+export type Parameters = object | string | bigint | number | boolean | null;
 
 export type SQLiteConnection = {
   command: (sql: string, values?: Parameters[]) => Promise<void>;
   query: <T>(sql: string, values?: Parameters[]) => Promise<T[]>;
   querySingle: <T>(sql: string, values?: Parameters[]) => Promise<T | null>;
+};
+
+export interface SQLiteError extends Error {
+  errno: number;
+}
+
+export const isSQLiteError = (error: unknown): error is SQLiteError => {
+  if (error instanceof Error && 'code' in error) {
+    return true;
+  }
+
+  return false;
 };
 
 export const dbConn = (conn: sqlite3.Database): SQLiteConnection => {
