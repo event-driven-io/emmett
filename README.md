@@ -8,8 +8,6 @@ Nowadays, storage is cheap, but the information is priceless.
 
 Event Sourcing, contrary to the standard approach, keeps all the facts that happened in our system. To do that, it needs an event store: a database designed for its needs.
 
-This project aims to experiment with an opinionated Event Sourcing framework based on my experience working on [Marten](https://martendb.io/) and [EventStoreDB](https://developers.eventstore.com/).
-
 **Take your event-driven applications back to the future!**
 
 ## Documentation and Resources
@@ -72,7 +70,7 @@ Because I'm unsure how this will end, and I don't want to expose it as an MIT li
 
 ## Support
 
-💖 If you'd like this initiative or want to use it potentially. Feel invited you **join** the group of my 👉 [Github Sponsors](https://github.com/sponsors/oskardudycz).
+💖 If you'd like this initiative or want to use it potentially. Feel invited you **join** the group of my 👉 [Github Sponsors](https://github.com/sponsors/event-driven-io).
 
 GitHub ⭐'s won't pay the bills, so any help is more than welcome!
 
