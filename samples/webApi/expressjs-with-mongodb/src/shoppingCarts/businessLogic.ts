@@ -89,9 +89,9 @@ export const addProductItem = (
       shoppingCartId,
       clientId,
       productItem,
-      addedAt: metadata?.now ?? new Date(),
+      addedAt: metadata.now,
     },
-    metadata: { clientId: metadata!.clientId },
+    metadata: { clientId: metadata.clientId },
   };
 };
 
@@ -117,9 +117,9 @@ export const removeProductItem = (
     data: {
       shoppingCartId,
       productItem,
-      removedAt: metadata?.now ?? new Date(),
+      removedAt: metadata.now,
     },
-    metadata: { clientId: metadata!.clientId },
+    metadata: { clientId: metadata.clientId },
   };
 };
 
@@ -144,9 +144,9 @@ export const confirm = (
     type: 'ShoppingCartConfirmed',
     data: {
       shoppingCartId,
-      confirmedAt: metadata?.now ?? new Date(),
+      confirmedAt: metadata.now,
     },
-    metadata: { clientId: metadata!.clientId },
+    metadata: { clientId: metadata.clientId },
   };
 };
 
@@ -166,9 +166,9 @@ export const cancel = (
     type: 'ShoppingCartCancelled',
     data: {
       shoppingCartId,
-      cancelledAt: metadata?.now ?? new Date(),
+      cancelledAt: metadata.now,
     },
-    metadata: { clientId: metadata!.clientId },
+    metadata: { clientId: metadata.clientId },
   };
 };
 
