@@ -123,6 +123,7 @@ async function runBenchmark() {
         },
       })
       .on('cycle', function (event: Benchmark.Event) {
+        // eslint-disable-next-line @typescript-eslint/no-base-to-string
         console.log(String(event.target));
       })
       .on('complete', function (this: Benchmark.Suite) {

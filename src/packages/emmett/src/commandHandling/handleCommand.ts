@@ -116,7 +116,6 @@ export const CommandHandler =
             read: {
               // expected stream version is passed to fail fast
               // if stream is in the wrong state
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               expectedStreamVersion:
                 handleOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
             },

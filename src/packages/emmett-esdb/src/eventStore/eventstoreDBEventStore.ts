@@ -4,7 +4,6 @@ import {
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
   assertExpectedVersionMatchesCurrent,
-  streamTransformations,
   type AggregateStreamOptions,
   type AggregateStreamResultWithGlobalPosition,
   type AppendToStreamOptions,
@@ -29,8 +28,6 @@ import {
   type ReadStreamOptions as ESDBReadStreamOptions,
   type JSONRecordedEvent,
 } from '@eventstore/db-client';
-
-const { map } = streamTransformations;
 
 const toEventStoreDBReadOptions = (
   options: ReadStreamOptions | undefined,
@@ -247,6 +244,8 @@ const toExpectedVersion = (
   return expected;
 };
 
+// const { map } = streamTransformations;
+//
 // // eslint-disable-next-line @typescript-eslint/no-unused-vars
 // const convertToWebReadableStream = (
 //   allStreamSubscription: AllStreamSubscription,
