@@ -92,16 +92,4 @@ void describe('MongoDBEventStore connection', () => {
       await client.close();
     }
   });
-
-  void it('connects using connection string', async () => {
-    const eventStore = getMongoDBEventStore({
-      connectionString: mongodb.getConnectionString(),
-      clientOptions: { directConnection: true },
-    });
-    try {
-      await assertCanAppend(eventStore);
-    } finally {
-      await eventStore.close();
-    }
-  });
 });

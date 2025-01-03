@@ -30,5 +30,13 @@
   "eslint.workingDirectories": [{ "mode": "auto" }],
   "debug.javascript.terminalOptions": {
     "nodeVersionHint": 20
-  }
+  },
+  "nodejs-testing.include": ["./**/**"],
+  "nodejs-testing.extensions": [
+    {
+      "extensions": ["ts", "mts"],
+      "filePatterns": ["**/*.spec.ts", "**/*.spec.mts"],
+      "parameters": ["--import", "tsx"]
+    }
+  ]
 }
