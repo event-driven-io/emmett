@@ -32,24 +32,3 @@ export const eventsTableSQL = sql(
   ); 
 `,
 );
-
-export const eventStreamTrigger = sql(
-  `
-    CREATE TRIGGER emt_global_event_position
-    AFTER INSERT ON ${eventsTable.name}
-    FOR EACH ROW
-    BEGIN
-       INSERT INTO ${streamsTable.name}
-          (stream_id, stream_position, partition, stream_type, stream_metadata, is_archived)
-          VALUES  (
-              NEW.stream_id,
-              1,
-              NEW.partition,
-              json_extract(NEW.event_metadata, '$.streamType'),
-              '[]',
-              NEW.is_archived
-          )
-          ON CONFLICT(stream_id, partition, is_archived) 
-          DO UPDATE SET stream_position=stream_position + 1;
-    END;`,
-);

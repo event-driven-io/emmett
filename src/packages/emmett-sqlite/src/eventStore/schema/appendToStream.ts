@@ -11,9 +11,9 @@ import {
 import { v4 as uuid } from 'uuid';
 import {
   isSQLiteError,
-  SQLiteError,
   type Parameters,
   type SQLiteConnection,
+  type SQLiteError,
 } from '../../sqliteConnection';
 import { defaultTag, eventsTable, streamsTable } from './typing';
 
@@ -133,15 +133,28 @@ const appendEventsRaw = async (
 
     globalPosition = BigInt(returningId.global_position);
 
-    const positions = await db.querySingle<{
-      stream_position: string;
-    } | null>(
-      `
-        SELECT 
-        CAST(stream_position AS VARCHAR) AS stream_position
-        FROM ${streamsTable.name} 
-        WHERE stream_id = ?`,
-      [streamId],
+    const positions = await db.querySingle<{ stream_position: string } | null>(
+      `INSERT INTO ${streamsTable.name}
+          (stream_id, stream_position, partition, stream_type, stream_metadata, is_archived)
+          VALUES  (
+              ?,
+              ?,
+              ?,
+              ?,
+              '[]',
+              false
+          )
+          ON CONFLICT(stream_id, partition, is_archived) 
+          DO UPDATE SET stream_position=stream_position + ?
+          RETURNING stream_position;
+        `,
+      [
+        streamId,
+        events.length,
+        options?.partition ?? '0',
+        streamType,
+        events.length,
+      ],
     );
 
     if (positions == null) {
