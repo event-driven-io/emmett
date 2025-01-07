@@ -199,7 +199,7 @@ async function getLastStreamPosition(
   expectedStreamVersion: bigint | null,
 ): Promise<bigint> {
   const result = await db.querySingle<{ stream_position: string } | null>(
-    `SELECT CAST(MAX(stream_position) AS VARCHAR) AS stream_position FROM ${streamsTable.name} WHERE stream_id = ?`,
+    `SELECT CAST(stream_position AS VARCHAR) AS stream_position FROM ${streamsTable.name} WHERE stream_id = ?`,
     [streamId],
   );
 
