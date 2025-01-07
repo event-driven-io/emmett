@@ -242,7 +242,7 @@ const buildEventInsertQuery = (
         streamPosition.toString() ?? 0,
         partition ?? defaultTag,
         JSONParser.stringify(event.data),
-        JSONParser.stringify({ streamType: streamType, ...event.metadata }),
+        JSONParser.stringify(event.metadata),
         expectedStreamVersion?.toString() ?? 0,
         event.type,
         event.metadata.eventId,
