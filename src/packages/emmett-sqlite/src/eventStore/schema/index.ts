@@ -1,13 +1,9 @@
 import { type SQLiteConnection } from '../../sqliteConnection';
-import { eventsTableSQL, eventStreamTrigger, streamsTableSQL } from './tables';
+import { eventsTableSQL, streamsTableSQL } from './tables';
 
 export * from './tables';
 
-export const schemaSQL: string[] = [
-  streamsTableSQL,
-  eventsTableSQL,
-  eventStreamTrigger,
-];
+export const schemaSQL: string[] = [streamsTableSQL, eventsTableSQL];
 
 export const createEventStoreSchema = async (
   db: SQLiteConnection,
