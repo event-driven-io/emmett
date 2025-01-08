@@ -133,35 +133,55 @@ const appendEventsRaw = async (
 
     globalPosition = BigInt(returningId.global_position);
 
-    const positions = await db.querySingle<{ stream_position: string } | null>(
-      `INSERT INTO ${streamsTable.name}
-          (stream_id, stream_position, partition, stream_type, stream_metadata, is_archived)
-          VALUES  (
-              ?,
-              ?,
-              ?,
-              ?,
-              '[]',
-              false
-          )
-          ON CONFLICT(stream_id, partition, is_archived) 
-          DO UPDATE SET stream_position=stream_position + ?
-          RETURNING stream_position;
-        `,
-      [
-        streamId,
-        events.length,
-        options?.partition ?? '0',
-        streamType,
-        events.length,
-      ],
-    );
+    let position: { stream_position: string } | null;
 
-    if (positions == null) {
-      throw new Error('Could not find stream positions');
+    if (expectedStreamVersion === 0n) {
+      position = await db.querySingle<{
+        stream_position: string;
+      } | null>(
+        `INSERT INTO ${streamsTable.name}
+            (stream_id, stream_position, partition, stream_type, stream_metadata, is_archived)
+            VALUES  (
+                ?,
+                ?,
+                ?,
+                ?,
+                '[]',
+                false
+            )
+            RETURNING stream_position;
+          `,
+        [
+          streamId,
+          events.length,
+          options?.partition ?? streamsTable.columns.partition,
+          streamType,
+        ],
+      );
+    } else {
+      position = await db.querySingle<{
+        stream_position: string;
+      } | null>(
+        `UPDATE ${streamsTable.name}
+            SET stream_position = stream_position + ?
+            WHERE stream_id = ?
+            AND partition = ?
+            AND is_archived = false
+            RETURNING stream_position;
+          `,
+        [
+          events.length,
+          streamId,
+          options?.partition ?? streamsTable.columns.partition,
+        ],
+      );
     }
 
-    streamPosition = BigInt(positions.stream_position);
+    if (position == null) {
+      throw new Error('Could not find stream position');
+    }
+
+    streamPosition = BigInt(position.stream_position);
 
     if (expectedStreamVersion != null) {
       const expectedStreamPositionAfterSave =
