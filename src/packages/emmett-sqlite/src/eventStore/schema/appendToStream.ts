@@ -115,24 +115,6 @@ const appendEventsRaw = async (
       );
     }
 
-    const { sqlString, values } = buildEventInsertQuery(
-      events,
-      expectedStreamVersion,
-      streamId,
-      streamType,
-      options?.partition?.toString() ?? defaultTag,
-    );
-
-    const returningId = await db.querySingle<{
-      global_position: string;
-    } | null>(sqlString, values);
-
-    if (returningId?.global_position == null) {
-      throw new Error('Could not find global position');
-    }
-
-    globalPosition = BigInt(returningId.global_position);
-
     let position: { stream_position: string } | null;
 
     if (expectedStreamVersion === 0n) {
@@ -192,6 +174,24 @@ const appendEventsRaw = async (
         };
       }
     }
+
+    const { sqlString, values } = buildEventInsertQuery(
+      events,
+      expectedStreamVersion,
+      streamId,
+      streamType,
+      options?.partition?.toString() ?? defaultTag,
+    );
+
+    const returningId = await db.querySingle<{
+      global_position: string;
+    } | null>(sqlString, values);
+
+    if (returningId?.global_position == null) {
+      throw new Error('Could not find global position');
+    }
+
+    globalPosition = BigInt(returningId.global_position);
   } catch (err: unknown) {
     if (isSQLiteError(err) && isOptimisticConcurrencyError(err)) {
       return {
