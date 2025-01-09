@@ -394,6 +394,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     }
 
     await tryPublishMessagesAfterCommit<MongoDBEventStore>(
+      // @ts-expect-error Issues with `globalPosition` not being present causing the type for metadata to expect `never`
       eventsToAppend,
       this.options.hooks,
       // {

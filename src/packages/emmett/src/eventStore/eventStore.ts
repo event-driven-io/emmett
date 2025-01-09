@@ -7,7 +7,6 @@ import type {
   GlobalPositionTypeOfReadEventMetadata,
   ReadEvent,
   ReadEventMetadata,
-  ReadEventMetadataWithoutGlobalPosition,
   StreamPositionTypeOfReadEventMetadata,
 } from '../typing';
 import type { AfterEventStoreCommitHandler } from './afterCommit';
@@ -56,11 +55,7 @@ export type EventStoreReadEventMetadata<Store extends EventStore> =
   Store extends EventStore<infer ReadEventMetadataType>
     ? ReadEventMetadataType extends ReadEventMetadata<infer GV, infer SV>
       ? ReadEventMetadata<GV, SV> & ReadEventMetadataType
-      : ReadEventMetadataType extends ReadEventMetadataWithoutGlobalPosition<
-            infer SV
-          >
-        ? ReadEventMetadata<undefined, SV>
-        : never
+      : never
     : never;
 
 export type GlobalPositionTypeOfEventStore<Store extends EventStore> =
