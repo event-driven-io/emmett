@@ -1,7 +1,8 @@
 import {
-  assertExpectedVersionMatchesCurrent,
   ExpectedVersionConflictError,
+  assertExpectedVersionMatchesCurrent,
   filterProjections,
+  tryPublishMessagesAfterCommit,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
@@ -14,6 +15,7 @@ import {
   type ReadEventMetadataWithoutGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
+  type DefaultEventStoreOptions,
 } from '@event-driven-io/emmett';
 import {
   MongoClient,
@@ -178,7 +180,8 @@ export type MongoDBEventStoreOptions = {
     MongoDBProjectionInlineHandlerContext
   >[];
   storage?: MongoDBEventStoreStorageOptions;
-} & MongoDBEventStoreConnectionOptions;
+} & MongoDBEventStoreConnectionOptions &
+  DefaultEventStoreOptions<MongoDBEventStore>;
 
 export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
   projections: ProjectionQueries<StreamType>;
@@ -189,13 +192,15 @@ export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
 
 class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
   private readonly client: MongoClient;
-  private shouldManageClientLifetime: boolean;
   private readonly inlineProjections: MongoDBInlineProjectionDefinition[];
+  private shouldManageClientLifetime: boolean;
   private isClosed: boolean = false;
-  public projections: ProjectionQueries<StreamType>;
   private storage: MongoDBEventStoreStorage;
+  private options: MongoDBEventStoreOptions;
+  public projections: ProjectionQueries<StreamType>;
 
   constructor(options: MongoDBEventStoreOptions) {
+    this.options = options;
     this.client =
       'client' in options && options.client
         ? options.client
@@ -387,6 +392,14 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
         options?.expectedStreamVersion ?? 0n,
       );
     }
+
+    await tryPublishMessagesAfterCommit<MongoDBEventStore>(
+      eventsToAppend,
+      this.options.hooks,
+      // {
+      // TODO: same context as InlineProjectionHandlerContext for mongodb?
+      // },
+    );
 
     return {
       nextExpectedStreamVersion:
