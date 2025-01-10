@@ -42,7 +42,7 @@ Essential building blocks for designing and running business and application log
 
 - typings around events, commands, Deciders, Workflows, etc.
 - command handling wrappers for application layer,
-- implementation of event store using PostgreSQL, EventStoreDB and basic, in-memory version,
+- implementation of event store using PostgreSQL, EventStoreDB, MongoDB, and basic, in-memory version,
 - abstractions for building read models,
 - building blocks for the Web Apis with Event Sourcing and CQRS,
 - serverless-friendly runtime model,
@@ -51,7 +51,7 @@ Essential building blocks for designing and running business and application log
 
 We'll see, but for sure, I'd like to have the following:
 
-- implementation of event store using other storage engines like SQLite, MongoDB, DynamoDB, CosmosDB etc.
+- implementation of event store using other storage engines like SQLite, DynamoDB, CosmosDB etc.
 - building blocks for integration and running distributed processes,
 - GraphQL API for event stores,
 - Full stack development helpers with Next.js or HTMX,
