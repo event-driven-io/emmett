@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/emmett-fastify",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "type": "module",
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
@@ -53,7 +53,7 @@
   "dependencies": {},
   "devDependencies": {},
   "peerDependencies": {
-    "@event-driven-io/emmett": "0.23.0",
+    "@event-driven-io/emmett": "0.24.0",
     "fastify": "^4.28.1",
     "@fastify/compress": "^7.0.3",
     "@fastify/etag": "^5.2.0",

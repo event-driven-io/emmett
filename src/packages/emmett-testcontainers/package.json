@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/emmett-testcontainers",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "type": "module",
   "description": "Emmett - TestContainers - Event Sourcing development made simple",
   "scripts": {
@@ -47,7 +47,7 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/emmett": "0.23.0",
+    "@event-driven-io/emmett": "0.24.0",
     "testcontainers": "^10.12.0"
   },
   "devDependencies": {
