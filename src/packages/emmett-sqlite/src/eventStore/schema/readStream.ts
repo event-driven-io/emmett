@@ -11,7 +11,7 @@ import {
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
 import { type SQLiteConnection } from '../../sqliteConnection';
-import { SQLiteEventStoreDefaultStreamVersion } from '../../SQLiteEventStore';
+import { SQLiteEventStoreDefaultStreamVersion } from '../SQLiteEventStore';
 import { defaultTag, eventsTable } from './typing';
 
 type ReadStreamSqlResult<EventType extends Event> = {
