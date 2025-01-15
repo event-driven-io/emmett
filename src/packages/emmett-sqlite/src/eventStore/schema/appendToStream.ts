@@ -32,6 +32,7 @@ export const appendToStream = async (
   events: Event[],
   options?: AppendToStreamOptions & {
     partition?: string;
+    preCommitHook?: (events: Event[]) => void;
   },
 ): Promise<AppendEventResult> => {
   if (events.length === 0) return { success: false };
@@ -60,6 +61,8 @@ export const appendToStream = async (
     result = await appendEventsRaw(db, streamName, streamType, eventsToAppend, {
       expectedStreamVersion,
     });
+
+    if (options?.preCommitHook) options.preCommitHook(eventsToAppend);
   } catch (err: unknown) {
     await db.command(`ROLLBACK`);
     throw err;

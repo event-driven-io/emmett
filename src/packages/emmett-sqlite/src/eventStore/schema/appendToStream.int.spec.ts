@@ -257,6 +257,41 @@ void describe('appendEvent', () => {
     assertEqual(events.length * 2, resultEvents.length);
   });
 
+  void it('should allow ability to read events inline with events', async () => {
+    const streamId = uuid();
+
+    let grabbedEvents: Event[] = [];
+
+    await appendToStream(db, streamId, 'shopping_cart', events, {
+      preCommitHook: (events: Event[]): void => {
+        grabbedEvents = events;
+      },
+    });
+
+    assertEqual(2, grabbedEvents.length);
+  });
+
+  void it('should be allowed to throw exception inline and everything, including the events being stored are rolled back', async () => {
+    const streamId = uuid();
+
+    try {
+      await appendToStream(db, streamId, 'shopping_cart', events, {
+        preCommitHook: (_: Event[]): void => {
+          throw new Error('fake error');
+        },
+      });
+    } catch (err: unknown) {
+      assertEqual((err as Error).message, 'fake error');
+    }
+
+    const resultEvents = await db.query(
+      'SELECT * FROM emt_events WHERE stream_id = $1',
+      [streamId],
+    );
+
+    assertEqual(0, resultEvents.length);
+  });
+
   void it('should handle appending an empty events array gracefully', async () => {
     const result = await appendToStream(db, uuid(), 'shopping_cart', []);
 
