@@ -17,6 +17,7 @@
     "playwright": "^1.48.1"
   },
   "dependencies": {
-    "@event-driven-io/emmett": "^0.20.1"
+    "@event-driven-io/emmett": "0.20.1",
+    "http-server": "^14.1.1"
   }
 }
