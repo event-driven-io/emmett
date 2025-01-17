@@ -20,7 +20,7 @@ export const isSQLiteError = (error: unknown): error is SQLiteError => {
   return false;
 };
 
-export const dbConn = (conn: sqlite3.Database): SQLiteConnection => {
+export const sqliteConnection = (conn: sqlite3.Database): SQLiteConnection => {
   const db = conn;
 
   return {

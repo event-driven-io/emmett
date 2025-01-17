@@ -9,7 +9,10 @@ import { after, before, describe, it } from 'node:test';
 import sqlite3 from 'sqlite3';
 import { v4 as uuid } from 'uuid';
 import { createEventStoreSchema } from '.';
-import { dbConn, type SQLiteConnection } from '../../sqliteConnection';
+import {
+  sqliteConnection,
+  type SQLiteConnection,
+} from '../../sqliteConnection';
 import { appendToStream } from './appendToStream';
 import { readStream } from './readStream';
 
@@ -39,7 +42,7 @@ void describe('appendEvent', () => {
   before(async () => {
     conn = new sqlite3.Database(':memory:');
 
-    db = dbConn(conn);
+    db = sqliteConnection(conn);
     await createEventStoreSchema(db);
   });
 
