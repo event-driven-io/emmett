@@ -8,7 +8,7 @@ import {
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import sqlite3 from 'sqlite3';
 import { v4 as uuid } from 'uuid';
-import { dbConn, type SQLiteConnection } from '../sqliteConnection';
+import { sqliteConnection, type SQLiteConnection } from '../sqliteConnection';
 import {
   type DiscountApplied,
   type PricedProductItem,
@@ -24,7 +24,7 @@ void describe('EventStoreDBEventStore', () => {
 
   beforeEach(() => {
     conn = new sqlite3.Database(':memory:');
-    db = dbConn(conn);
+    db = sqliteConnection(conn);
   });
 
   afterEach(() => {

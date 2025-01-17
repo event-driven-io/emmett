@@ -1,7 +1,10 @@
 import assert from 'assert';
 import { after, before, describe, it } from 'node:test';
 import sqlite3 from 'sqlite3';
-import { dbConn, type SQLiteConnection } from '../../sqliteConnection';
+import {
+  sqliteConnection,
+  type SQLiteConnection,
+} from '../../sqliteConnection';
 import { createEventStoreSchema } from '../schema';
 
 type TableExists = {
@@ -26,7 +29,7 @@ void describe('createEventStoreSchema', () => {
   before(async () => {
     conn = new sqlite3.Database(':memory:');
 
-    db = dbConn(conn);
+    db = sqliteConnection(conn);
 
     await createEventStoreSchema(db);
   });
