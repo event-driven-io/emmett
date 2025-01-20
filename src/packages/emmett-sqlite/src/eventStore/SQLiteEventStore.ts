@@ -17,7 +17,12 @@ import {
   type ReadStreamOptions,
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
-import type { SQLiteConnection } from '../sqliteConnection';
+import {
+  sqliteConnection,
+  type AbsolutePath,
+  type RelativePath,
+  type SQLiteConnection,
+} from '../sqliteConnection';
 import { createEventStoreSchema } from './schema';
 import { appendToStream } from './schema/appendToStream';
 import { readStream } from './schema/readStream';
@@ -37,19 +42,38 @@ export type SQLiteReadEvent<EventType extends Event = Event> = ReadEvent<
   SQLiteReadEventMetadata
 >;
 
-export type SQLiteEventStoreOptions = {
-  schema?: {
-    autoMigration?: 'None' | 'CreateOrUpdate';
-  };
-};
+export type SQLiteEventStoreOptions =
+  | {
+      schema?: {
+        autoMigration?: 'None' | 'CreateOrUpdate';
+      };
+      connection: SQLiteConnection;
+      databaseLocation?: never;
+    }
+  | {
+      schema?: {
+        autoMigration?: 'None' | 'CreateOrUpdate';
+      };
+      connection?: never;
+      databaseLocation?: AbsolutePath | RelativePath | ':memory:';
+    };
 
 export const getSQLiteEventStore = (
-  db: SQLiteConnection,
   options?: SQLiteEventStoreOptions,
 ): SQLiteEventStore => {
   let schemaMigrated = false;
-
   let autoGenerateSchema = false;
+  let db: SQLiteConnection;
+
+  if (options?.connection) {
+    db = options.connection;
+  }
+  if (options?.databaseLocation && !options?.connection) {
+    db = sqliteConnection({
+      location: options.databaseLocation,
+    });
+  }
+
   if (options) {
     autoGenerateSchema =
       options.schema?.autoMigration === undefined ||
