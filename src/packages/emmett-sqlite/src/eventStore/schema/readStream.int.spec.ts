@@ -6,7 +6,6 @@ import {
   type Event,
 } from '@event-driven-io/emmett';
 import { after, before, describe, it } from 'node:test';
-import sqlite3 from 'sqlite3';
 import { v4 as uuid } from 'uuid';
 import { createEventStoreSchema } from '.';
 import {
@@ -37,17 +36,14 @@ export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
 void describe('appendEvent', () => {
   let db: SQLiteConnection;
-  let conn: sqlite3.Database;
 
   before(async () => {
-    conn = new sqlite3.Database(':memory:');
-
-    db = sqliteConnection(conn);
+    db = sqliteConnection({ location: ':memory:' });
     await createEventStoreSchema(db);
   });
 
   after(() => {
-    conn.close();
+    db.close();
   });
 
   const events: ShoppingCartEvent[] = [
