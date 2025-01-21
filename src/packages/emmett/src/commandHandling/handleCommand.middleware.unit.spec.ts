@@ -92,9 +92,7 @@ export const handleCommand = async <Store extends EventStore>(
     ): Promise<ShoppingCartEvent | ShoppingCartEvent[]> => {
       await authorize(handleOptions.requestHeaders);
 
-      const result = Promise.resolve(decide(state));
-
-      return result;
+      return decide(state);
     },
     handleOptions,
   );
