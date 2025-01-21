@@ -84,11 +84,7 @@ export const CommandHandler =
     id: string,
     handle: (
       state: State,
-    ) =>
-      | StreamEvent
-      | StreamEvent[]
-      | Promise<StreamEvent>
-      | Promise<StreamEvent[]>,
+    ) => StreamEvent | StreamEvent[] | Promise<StreamEvent | StreamEvent[]>,
     handleOptions?: HandleOptions<Store>,
   ): Promise<CommandHandlerResult<State, StreamEvent, Store>> =>
     asyncRetry(
