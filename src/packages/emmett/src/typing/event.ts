@@ -80,17 +80,23 @@ export type ReadEvent<
   metadata: CombinedReadEventMetadata<EventType, EventMetaDataType>;
 };
 
+export type CommonReadEventMetadata<StreamPosition = BigIntStreamPosition> =
+  Readonly<{
+    eventId: string;
+    streamPosition: StreamPosition;
+    streamName: string;
+  }>;
+
+export type WithGlobalPosition<GlobalPosition> = Readonly<{
+  globalPosition: GlobalPosition;
+}>;
+
 export type ReadEventMetadata<
   GlobalPosition = undefined,
   StreamPosition = BigIntStreamPosition,
-> = Readonly<{
-  eventId: string;
-  streamPosition: StreamPosition;
-  streamName: string;
-}> &
-  (GlobalPosition extends undefined
-    ? object
-    : { globalPosition: GlobalPosition });
+> = CommonReadEventMetadata<StreamPosition> &
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  (GlobalPosition extends undefined ? {} : WithGlobalPosition<GlobalPosition>);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyReadEventMetadata = ReadEventMetadata<any, any>;

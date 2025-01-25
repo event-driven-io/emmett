@@ -3,11 +3,13 @@ import type {
   AnyReadEventMetadata,
   BigIntGlobalPosition,
   BigIntStreamPosition,
+  CommonReadEventMetadata,
   Event,
   GlobalPositionTypeOfReadEventMetadata,
   ReadEvent,
   ReadEventMetadata,
   StreamPositionTypeOfReadEventMetadata,
+  WithGlobalPosition,
 } from '../typing';
 import type { AfterEventStoreCommitHandler } from './afterCommit';
 //import type { GlobalSubscriptionEvent } from './events';
@@ -52,9 +54,11 @@ export interface EventStore<
 }
 
 export type EventStoreReadEventMetadata<Store extends EventStore> =
-  Store extends EventStore<infer ReadEventMetadataType>
-    ? ReadEventMetadataType extends ReadEventMetadata<infer GV, infer SV>
-      ? ReadEventMetadata<GV, SV> & ReadEventMetadataType
+  Store extends EventStore<infer T>
+    ? T extends CommonReadEventMetadata<infer SP>
+      ? T extends WithGlobalPosition<infer GP>
+        ? ReadEventMetadata<GP, SP> & T
+        : ReadEventMetadata<undefined, SP> & T
       : never
     : never;
 
