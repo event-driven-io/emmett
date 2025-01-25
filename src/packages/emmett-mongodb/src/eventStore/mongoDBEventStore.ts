@@ -1,6 +1,6 @@
 import {
-  ExpectedVersionConflictError,
   assertExpectedVersionMatchesCurrent,
+  ExpectedVersionConflictError,
   filterProjections,
   tryPublishMessagesAfterCommit,
   type AggregateStreamOptions,
@@ -8,6 +8,7 @@ import {
   type AppendToStreamOptions,
   type AppendToStreamResult,
   type Closeable,
+  type DefaultEventStoreOptions,
   type Event,
   type EventStore,
   type ProjectionRegistration,
@@ -15,7 +16,6 @@ import {
   type ReadEventMetadataWithoutGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
-  type DefaultEventStoreOptions,
 } from '@event-driven-io/emmett';
 import {
   MongoClient,
@@ -394,7 +394,6 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     }
 
     await tryPublishMessagesAfterCommit<MongoDBEventStore>(
-      // @ts-expect-error Issues with `globalPosition` not being present causing the type for metadata to expect `never`
       eventsToAppend,
       this.options.hooks,
       // {
