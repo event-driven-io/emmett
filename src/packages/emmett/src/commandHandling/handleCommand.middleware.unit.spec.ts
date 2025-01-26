@@ -4,7 +4,11 @@ import { IllegalStateError } from '../errors';
 import { getInMemoryEventStore, type EventStore } from '../eventStore';
 import { assertThrowsAsync, assertTrue } from '../testing';
 import { type Event } from '../typing';
-import { CommandHandler, type HandleOptions } from './handleCommand';
+import {
+  CommandHandler,
+  type CommandHandlerFunction,
+  type HandleOptions,
+} from './handleCommand';
 
 // Events & Entity
 
@@ -59,7 +63,7 @@ const addProductItem = (
   };
 };
 
-const rawCommandHandler = CommandHandler<ShoppingCart, ShoppingCartEvent>({
+const rawCommandHandler = CommandHandler({
   evolve,
   initialState,
 });
@@ -78,13 +82,19 @@ export const authorize = (requestHeaders: RequestHeaders): Promise<void> => {
   return Promise.resolve();
 };
 
-export const handleCommand = async <Store extends EventStore>(
+export type HandleOptionsWithRequestHeaders<Store extends EventStore> =
+  HandleOptions<Store> & { requestHeaders: RequestHeaders };
+
+export const handleCommand: CommandHandler<
+  ShoppingCart,
+  ShoppingCartEvent
+> = async <Store extends EventStore, HandleOptionsWithRequestHeaders<Store>>(
   store: Store,
   id: string,
-  decide: (state: ShoppingCart) => ShoppingCartEvent | ShoppingCartEvent[],
-  handleOptions: HandleOptions<Store> & { requestHeaders: RequestHeaders },
+  decide: CommandHandlerFunction<ShoppingCart, ShoppingCartEvent>,
+  handleOptions: HandleOptionsWithRequestHeaders<Store>,
 ) =>
-  rawCommandHandler(
+  rawCommandHandler<Store>(
     store,
     id,
     async (

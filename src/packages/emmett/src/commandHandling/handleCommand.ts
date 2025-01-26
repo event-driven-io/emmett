@@ -75,17 +75,32 @@ export type HandleOptions<Store extends EventStore> = Parameters<
       }
   );
 
+export type CommandHandlerFunction<State, StreamEvent extends Event> =
+  | ((state: State) => StreamEvent | StreamEvent[])
+  | ((state: State) => Promise<StreamEvent | StreamEvent[]>);
+
+export type CommandHandler<State, StreamEvent extends Event> = <
+  Store extends EventStore,
+  HandleOptionsType extends HandleOptions<Store> = HandleOptions<Store>,
+>(
+  store: Store,
+  id: string,
+  handle: CommandHandlerFunction<State, StreamEvent>,
+  handleOptions?: HandleOptionsType,
+) => Promise<CommandHandlerResult<State, StreamEvent, Store>>;
+
 export const CommandHandler =
   <State, StreamEvent extends Event>(
     options: CommandHandlerOptions<State, StreamEvent>,
   ) =>
-  async <Store extends EventStore>(
+  async <
+    Store extends EventStore,
+    HandleOptionsType extends HandleOptions<Store> = HandleOptions<Store>,
+  >(
     store: Store,
     id: string,
-    handle: (
-      state: State,
-    ) => StreamEvent | StreamEvent[] | Promise<StreamEvent | StreamEvent[]>,
-    handleOptions?: HandleOptions<Store>,
+    handle: CommandHandlerFunction<State, StreamEvent>,
+    handleOptions?: HandleOptionsType,
   ): Promise<CommandHandlerResult<State, StreamEvent, Store>> =>
     asyncRetry(
       async () => {
