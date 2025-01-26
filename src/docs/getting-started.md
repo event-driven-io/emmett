@@ -146,13 +146,13 @@ It brings you three most important methods:
 - `appendToStream` - appends new events at the end of the stream. All events should be appended as an atomic operation. You can specify the expected stream version for an [optimistic concurrency check](https://event-driven.io/en/optimistic_concurrency_for_pessimistic_times/). We're also getting the next stream version as a result.
 - `aggregateStream` - builds the current state from events. Internally, event store implementation should read all events in the stream based on the passed initial state and the `evolve` function. It also supports all the same options as the `readStream` method.
 
-Emmett provides you with out-of-the-box support for the following storage:
+**Emmett provides you with out-of-the-box support for the following storage:**
 
-- PostgreSQL with [emmett-postgresql](https://www.npmjs.com/package/@event-driven-io/emmett-postgresql) package,
-- EventStoreDB with [emmett-esdb](https://www.npmjs.com/package/@event-driven-io/emmett-esdb) package,
-- MongoDB with [emmett-mongodb](https://www.npmjs.com/package/@event-driven-io/emmett-mongodb) package,
-- SQLite with [emmett-sqlite](https://www.npmjs.com/package/@event-driven-io/emmett-sqlite) package,
-- In-Memory with regular [emmett](https://www.npmjs.com/package/@event-driven-io/emmett) package.
+- **PostgreSQL** with [emmett-postgresql](https://www.npmjs.com/package/@event-driven-io/emmett-postgresql) package,
+- **EventStoreDB** with [emmett-esdb](https://www.npmjs.com/package/@event-driven-io/emmett-esdb) package,
+- **MongoDB** with [emmett-mongodb](https://www.npmjs.com/package/@event-driven-io/emmett-mongodb) package,
+- **SQLite** with [emmett-sqlite](https://www.npmjs.com/package/@event-driven-io/emmett-sqlite) package,
+- **In-Memory** with regular [emmett](https://www.npmjs.com/package/@event-driven-io/emmett) package.
 
 Read more about how event stores are built in the [article](https://event-driven.io/en/lets_build_event_store_in_one_hour/).
 
@@ -456,8 +456,6 @@ $ yarn add @testcontainers/postgresql
 $ bun add @testcontainers/postgresql
 ```
 
-:::
-
 ::: info EventStoreDB testing
 
 Emmett provides the package with additional test containers like the one for [EventStoreDB](https://developers.eventstore.com/). If you're using EventStoreDB, install [emmett-testcontainers](https://www.npmjs.com/package/@event-driven-io/emmett-testcontainers) and get the test container for it.
@@ -467,6 +465,14 @@ Emmett provides the package with additional test containers like the one for [Ev
 Having that, we can set our test container with:
 
 <<< @/snippets/gettingStarted/webApi/apiBDDE2EGiven.ts#test-container
+
+::: info Event store lifetime
+
+The PostgreSQL event store creates an internal connection pool to use PostgreSQL efficiently. **Because of that, we recommend using a single event store instance per application.** The same advice applies to other storages.
+
+After the application ends or tests are finished, we need to close it to gracefully release open connections in the connection pool.
+
+:::
 
 And create our test specification using the `ApiE2ESpecification` type:
 
