@@ -6,13 +6,13 @@ const getUnitPrice = (_productId: string) => {
 };
 
 // #region getting-started-api-setup
-import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
-import { EventStoreDBClient } from '@eventstore/db-client';
+import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
 
-const eventStoreDBClient = EventStoreDBClient.connectionString(
-  `esdb://localhost:2113?tls=false`,
-);
-const eventStore = getEventStoreDBEventStore(eventStoreDBClient);
+const connectionString =
+  process.env.POSTGRESQL_CONNECTION_STRING ??
+  'postgresql://localhost:5432/postgres';
+
+const eventStore = getPostgreSQLEventStore(connectionString);
 
 const shoppingCarts = shoppingCartApi(
   eventStore,

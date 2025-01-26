@@ -4,31 +4,31 @@ import { ShoppingCartStatus } from './shoppingCart';
 import { shoppingCartApi } from './simpleApi';
 
 // #region getting-started-e2e-tests
-import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import {
   ApiE2ESpecification,
   expectResponse,
   getApplication,
   type TestRequest,
 } from '@event-driven-io/emmett-expressjs';
+import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
 import {
-  EventStoreDBContainer,
-  StartedEventStoreDBContainer,
-} from '@event-driven-io/emmett-testcontainers';
+  PostgreSqlContainer,
+  type StartedPostgreSqlContainer,
+} from '@testcontainers/postgresql';
 import { randomUUID } from 'node:crypto';
 
 void describe('ShoppingCart E2E', () => {
   const unitPrice = 100;
   let clientId: string;
   let shoppingCartId: string;
-  let esdbContainer: StartedEventStoreDBContainer;
+  let postgreSQLContainer: StartedPostgreSqlContainer;
   let given: ApiE2ESpecification;
 
   before(async () => {
-    esdbContainer = await new EventStoreDBContainer().start();
+    postgreSQLContainer = await new PostgreSqlContainer().start();
 
     given = ApiE2ESpecification.for(
-      () => getEventStoreDBEventStore(esdbContainer.getClient()),
+      () => getPostgreSQLEventStore(postgreSQLContainer.getConnectionUri()),
       (eventStore) =>
         getApplication({
           apis: [
@@ -48,7 +48,7 @@ void describe('ShoppingCart E2E', () => {
   });
 
   after(() => {
-    return esdbContainer.stop();
+    return postgreSQLContainer.stop();
   });
 
   void describe('When opened with product item', () => {

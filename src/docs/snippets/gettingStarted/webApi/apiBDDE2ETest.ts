@@ -8,13 +8,13 @@ import { describe, it } from 'node:test';
 import type { PricedProductItem } from '../events';
 import { shoppingCartApi } from './simpleApi';
 
-const esdbContainer: StartedEventStoreDBContainer = undefined!;
+const postgreSQLContainer: StartedPostgreSqlContainer = undefined!;
 const clientId = randomUUID();
 const now = new Date();
 const unitPrice = Math.random() * 10;
 
 const given = ApiE2ESpecification.for(
-  () => getEventStoreDBEventStore(esdbContainer.getClient()),
+  () => getPostgreSQLEventStore(postgreSQLContainer.getConnectionUri()),
   (eventStore) =>
     getApplication({
       apis: [
@@ -38,9 +38,9 @@ const getRandomProduct = (): PricedProductItem => {
 const productItem = getRandomProduct();
 
 // #region test
-import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import { expectResponse } from '@event-driven-io/emmett-expressjs';
-import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
+import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
 void describe('When opened with product item', () => {
   const openedShoppingCartWithProduct: TestRequest = (request) =>

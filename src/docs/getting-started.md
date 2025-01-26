@@ -140,15 +140,19 @@ The essential difference between Event Sourcing and Event Streaming is that in E
 
 **Emmett provides a lightweight abstraction for event stores.** We don't intend to provide the lowest common denominator but streamline the typical usage patterns. It's OK if you use your preferred event store or client for the cases where those parts do not suffice your needs. Still, what's there should take you far enough.
 
-Here is the general definition of it:
-
-<<< @./../packages/emmett/src/eventStore/eventStore.ts#event-store
-
 It brings you three most important methods:
 
 - `readStream` - reads events for the specific stream. By default, it reads all events, but through options, you can specify the event range you want to get (`from`, `to`, `maxCount`). You can also specify the expected stream version.
 - `appendToStream` - appends new events at the end of the stream. All events should be appended as an atomic operation. You can specify the expected stream version for an [optimistic concurrency check](https://event-driven.io/en/optimistic_concurrency_for_pessimistic_times/). We're also getting the next stream version as a result.
 - `aggregateStream` - builds the current state from events. Internally, event store implementation should read all events in the stream based on the passed initial state and the `evolve` function. It also supports all the same options as the `readStream` method.
+
+Emmett provides you with out-of-the-box support for the following storage:
+
+- PostgreSQL with [emmett-postgresql](https://www.npmjs.com/package/@event-driven-io/emmett-postgresql) package,
+- EventStoreDB with [emmett-esdb](https://www.npmjs.com/package/@event-driven-io/emmett-esdb) package,
+- MongoDB with [emmett-mongodb](https://www.npmjs.com/package/@event-driven-io/emmett-mongodb) package,
+- SQLite with [emmett-sqlite](https://www.npmjs.com/package/@event-driven-io/emmett-sqlite) package,
+- In-Memory with regular [emmett](https://www.npmjs.com/package/@event-driven-io/emmett) package.
 
 Read more about how event stores are built in the [article](https://event-driven.io/en/lets_build_event_store_in_one_hour/).
 
@@ -267,7 +271,7 @@ That clearly explains what dependencies this API needs, and by reading the file,
 
 <<< @/snippets/gettingStarted/webApi/apiSetup.ts#getting-started-api-setup
 
-We're using the simplest option for this guide: an in-memory event store. For a real application, you'd need to use another, e.g. [EventStoreDB](https://developers.eventstore.com/) implementation.
+We're using the simplest option for this guide: an in-memory event store. For a real application, you'd need to use another, e.g. PostgreSQL implementation.
 
 Sounds like we have all the building blocks to define our API; let's do it!
 
@@ -384,7 +388,7 @@ Complete tests will look like this:
 
 You can use those tests as complementary to the business logic (e.g., testing the most important scenarios), or you may even replace unit tests with them. As they're in memory, they're fast enough to be run continuously.
 
-You can also replace the in-memory store with the real one (e.g. [EventStoreDB](https://developers.eventstore.com/)) and test your module in isolation from other modules. The choice is yours!
+You can also replace the in-memory store with the real one (e.g. PostgreSQL) and test your module in isolation from other modules. The choice is yours!
 
 Again, in Emmett, we don't want to force you to anything but give you options and the recommended safe path.
 
@@ -402,55 +406,61 @@ You may say:
 
 And we answer: sure, why not! We also give you help with that.
 
-Let's start by adding some flavour and use [EventStoreDB](https://developers.eventstore.com/) this time. We need to install two more packages. One for adding implementation of the [EventStoreDB](https://developers.eventstore.com/) event store:
+Let's start by adding some flavour and finally use a real database, so PostgreSQL this time. We need to install two more packages. One for adding implementation of the PostgreSQL event store:
 
 ::: code-group
 
 ```sh [npm]
-$ npm add @event-driven-io/@event-driven-io/emmett-esdb
+$ npm add @event-driven-io/@event-driven-io/emmett-postgresql
 ```
 
 ```sh [pnpm]
-$ pnpm add @event-driven-io/@event-driven-io/emmett-esdb
+$ pnpm add @event-driven-io/@event-driven-io/emmett-postgresql
 ```
 
 ```sh [yarn]
-$ yarn add @event-driven-io/@event-driven-io/emmett-esdb
+$ yarn add @event-driven-io/@event-driven-io/emmett-postgresql
 ```
 
 ```sh [bun]
-$ bun add @event-driven-io/@event-driven-io/emmett-esdb
+$ bun add @event-driven-io/@event-driven-io/emmett-postgresql
 ```
 
 :::
 
-Now, we need to switch the in-memory implementation to [EventStoreDB](https://developers.eventstore.com/) in WebApi setup. Updated will look as follows:
+Now, we need to switch the in-memory implementation to PostgreSQL in WebApi setup. Updated will look as follows:
 
-<<< @/snippets/gettingStarted/webApi/apiSetupWithESDB.ts#getting-started-api-setup
+<<< @/snippets/gettingStarted/webApi/apiSetupWithPostgreSQL.ts#getting-started-api-setup
 
 It's as simple as that; we're injecting just a different implementation.
 
-As [EventStoreDB](https://developers.eventstore.com/) is a real database, we need to set it up for our tests. The simplest option is to use a Docker container. You can do it in multiple ways, but the fastest can be using [TestContainers](https://node.testcontainers.org/). The library allows us to easily set up containers for our tests. It automatically randomise ports, helps in teardown etc.
+As PostgreSQL is a real database, we need to set it up for our tests. The simplest option is to use a Docker container. You can do it in multiple ways, but the fastest can be using [TestContainers](https://node.testcontainers.org/). The library allows us to easily set up containers for our tests. It automatically randomise ports, helps in teardown etc.
 
-Emmett provides the package with additional test containers like the one for [EventStoreDB](https://developers.eventstore.com/). You need to install:
+For PostgreSQL you'll need to install:
 
 ::: code-group
 
 ```sh [npm]
-$ npm add @event-driven-io/@event-driven-io/emmett-testcontainers
+$ npm add @testcontainers/postgresql
 ```
 
 ```sh [pnpm]
-$ pnpm add @event-driven-io/@event-driven-io/emmett-testcontainers
+$ pnpm add @testcontainers/postgresql
 ```
 
 ```sh [yarn]
-$ yarn add @event-driven-io/@event-driven-io/emmett-testcontainers
+$ yarn add @testcontainers/postgresql
 ```
 
 ```sh [bun]
-$ bun add @event-driven-io/@event-driven-io/emmett-testcontainers
+$ bun add @testcontainers/postgresql
 ```
+
+:::
+
+::: info EventStoreDB testing
+
+Emmett provides the package with additional test containers like the one for [EventStoreDB](https://developers.eventstore.com/). If you're using EventStoreDB, install [emmett-testcontainers](https://www.npmjs.com/package/@event-driven-io/emmett-testcontainers) and get the test container for it.
 
 :::
 
@@ -470,4 +480,4 @@ Complete tests will look like this:
 
 <<< @/snippets/gettingStarted/webApi/apiBDD.e2e.spec.ts#getting-started-e2e-tests
 
-Check also the [full sample in Emmett repository](https://github.com/event-driven-io/emmett/tree/main/samples/webApi/expressjs-with-esdb).
+Check also the [full sample in Emmett repository](https://github.com/event-driven-io/emmett/tree/main/samples/webApi/expressjs-with-postgresql).
