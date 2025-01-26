@@ -3,6 +3,8 @@ import {
   getApplication,
   type TestRequest,
 } from '@event-driven-io/emmett-expressjs';
+import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
 import type { PricedProductItem } from '../events';
@@ -39,8 +41,6 @@ const productItem = getRandomProduct();
 
 // #region test
 import { expectResponse } from '@event-driven-io/emmett-expressjs';
-import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
 void describe('When opened with product item', () => {
   const openedShoppingCartWithProduct: TestRequest = (request) =>

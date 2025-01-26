@@ -10,7 +10,10 @@ import {
   getApplication,
   type TestRequest,
 } from '@event-driven-io/emmett-expressjs';
-import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
+import {
+  getPostgreSQLEventStore,
+  type PostgresEventStore,
+} from '@event-driven-io/emmett-postgresql';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
@@ -22,13 +25,17 @@ void describe('ShoppingCart E2E', () => {
   let clientId: string;
   let shoppingCartId: string;
   let postgreSQLContainer: StartedPostgreSqlContainer;
+  let eventStore: PostgresEventStore;
   let given: ApiE2ESpecification;
 
   before(async () => {
     postgreSQLContainer = await new PostgreSqlContainer().start();
+    eventStore = getPostgreSQLEventStore(
+      postgreSQLContainer.getConnectionUri(),
+    );
 
     given = ApiE2ESpecification.for(
-      () => getPostgreSQLEventStore(postgreSQLContainer.getConnectionUri()),
+      () => eventStore,
       (eventStore) =>
         getApplication({
           apis: [
@@ -47,7 +54,8 @@ void describe('ShoppingCart E2E', () => {
     shoppingCartId = `shopping_cart:${clientId}:current`;
   });
 
-  after(() => {
+  after(async () => {
+    await eventStore.close();
     return postgreSQLContainer.stop();
   });
 

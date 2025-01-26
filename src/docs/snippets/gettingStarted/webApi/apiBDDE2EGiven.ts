@@ -7,34 +7,44 @@ const now = new Date();
 
 // #region test-container
 import {
+  getPostgreSQLEventStore,
+  type PostgresEventStore,
+} from '@event-driven-io/emmett-postgresql';
+import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 
-let postgreSQLContainer: StartedPostgreSqlContainer;
 void describe('ShoppingCart E2E', () => {
-  // Set up a container before all tests
+  let postgreSQLContainer: StartedPostgreSqlContainer;
+  let eventStore: PostgresEventStore;
+
+  // Set up a container and event store before all tests
   before(async () => {
     postgreSQLContainer = await new PostgreSqlContainer().start();
+    eventStore = getPostgreSQLEventStore(
+      postgreSQLContainer.getConnectionUri(),
+    );
   });
 
-  // Stop container once we finished testing
-  after(() => {
+  // Close PostgreSQL connection and stop container once we finished testing
+  after(async () => {
+    await eventStore.close();
     return postgreSQLContainer.stop();
   });
   // (...) Tests will go here
 });
 // #endregion test-container
 
+const eventStore: PostgresEventStore = undefined!;
 // #region given
 import {
   ApiE2ESpecification,
   getApplication,
 } from '@event-driven-io/emmett-expressjs';
-import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
 
 const given = ApiE2ESpecification.for(
-  () => getPostgreSQLEventStore(postgreSQLContainer.getConnectionUri()),
+  () => eventStore,
   (eventStore) =>
     getApplication({
       apis: [
