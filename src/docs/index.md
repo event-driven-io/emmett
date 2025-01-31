@@ -14,9 +14,6 @@ hero:
       text: Getting Started
       link: /getting-started
     - theme: alt
-      text: API Docs
-      link: /api-docs
-    - theme: alt
       text: 🧑‍💻 Join Discord Server
       link: https://discord.gg/fTpqUTMmVa
 

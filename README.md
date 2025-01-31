@@ -70,13 +70,19 @@ Because I'm unsure how this will end, and I don't want to expose it as an MIT li
 
 ## Support
 
-💖 If you'd like this initiative or want to use it potentially. Feel invited you **join** the group of my 👉 [Github Sponsors](https://github.com/sponsors/event-driven-io).
+💖 If you'd like this project and want us to deliver more and faster, feel invited to **join** the group of our 👉 [Github Sponsors](https://github.com/sponsors/event-driven-io).
 
-GitHub ⭐'s won't pay the bills, so any help is more than welcome!
+By doing so, you're helping to make our work on it sustainable and continuing our efforts so we can support your products.
+
+**🥉 [Bronze Sponsors](https://github.com/sponsors/event-driven-io)**
+
+- [productminds](https://github.com/pminds)
 
 ## Contributing
 
-Feel invited to contribute to Emmett. Check details in [contributing guide](CONTRIBUTING.md).
+Emmett is a community project, so once you find something missing or not working, we encourage you to [send us a GH issue](https://github.com/event-driven-io/emmett/issues/new) or [Pull Request](https://github.com/event-driven-io/emmett/compare) extending the support or test coverage! Check also [Contributing guide](https://github.com/event-driven-io/emmett/blob/main/CONTRIBUTING.md)
+
+**If you think something is missing or want to get some features faster, I'm happy to take sponsoring to prioritise it. Feel free to [contact me](mailto:oskar@event-driven.io) - we'll find a way to help you!**
 
 ## Code of Conduct
 
