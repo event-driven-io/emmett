@@ -26,6 +26,9 @@ void describe('SQLiteEventStore', () => {
   const testDatabasePath: AbsolutePath = __dirname + '/../testing/database/';
 
   afterEach(() => {
+    if (!fs.existsSync(`${testDatabasePath}/test.db`)) {
+      return;
+    }
     fs.unlink(`${testDatabasePath}/test.db`, (err) => {
       if (err) console.error('Error deleting file:', err);
     });
