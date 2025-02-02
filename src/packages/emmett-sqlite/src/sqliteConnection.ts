@@ -24,28 +24,18 @@ export const isSQLiteError = (error: unknown): error is SQLiteError => {
 export type AbsolutePath = `/${string}`;
 export type RelativePath = `${'.' | '..'}/${string}`;
 
-type SQLiteConnectionOptions =
-  | {
-      conn: sqlite3.Database;
-      location?: never;
-    }
-  | {
-      conn?: never;
-      location: AbsolutePath | RelativePath | ':memory:';
-    };
+type SQLiteConnectionOptions = {
+  location: AbsolutePath | RelativePath | ':memory:';
+};
+
 export const sqliteConnection = (
   options: SQLiteConnectionOptions,
 ): SQLiteConnection => {
-  let db: sqlite3.Database;
-
-  if (options.conn != null) {
-    db = options.conn;
-  } else {
-    if (typeof options.location !== 'string') {
-      throw new Error('Path for sqlite database must be given');
-    }
-    db = new sqlite3.Database(options.location);
+  if (typeof options.location !== 'string') {
+    throw new Error('Path for sqlite database must be given');
   }
+
+  const db = new sqlite3.Database(options.location);
 
   return {
     close: (): void => db.close(),
