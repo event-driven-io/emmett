@@ -1,6 +1,5 @@
 import assert from 'assert';
 import { after, before, describe, it } from 'node:test';
-import sqlite3 from 'sqlite3';
 import {
   sqliteConnection,
   type SQLiteConnection,
@@ -23,19 +22,16 @@ const tableExists = async (
 };
 
 void describe('createEventStoreSchema', () => {
-  let conn: sqlite3.Database;
   let db: SQLiteConnection;
 
   before(async () => {
-    conn = new sqlite3.Database(':memory:');
-
-    db = sqliteConnection({ connection: conn });
+    db = sqliteConnection({ location: ':memory:' });
 
     await createEventStoreSchema(db);
   });
 
   after(() => {
-    conn.close();
+    db.close();
   });
 
   void describe('creates tables', () => {
