@@ -29,7 +29,7 @@ void describe('createEventStoreSchema', () => {
   before(async () => {
     conn = new sqlite3.Database(':memory:');
 
-    db = sqliteConnection({ conn });
+    db = sqliteConnection({ connection: conn });
 
     await createEventStoreSchema(db);
   });
