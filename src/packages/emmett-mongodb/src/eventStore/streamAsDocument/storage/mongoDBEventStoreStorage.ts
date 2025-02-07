@@ -4,7 +4,7 @@ import {
   toStreamCollectionName,
   type EventStream,
   type StreamType,
-} from '../mongoDBEventStore';
+} from '../mongoDBStreamAsDocumentEventStore';
 
 export type MongoDBEventStoreCollectionPerStreamTypeStorageOptions = {
   /**
