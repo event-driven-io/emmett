@@ -85,11 +85,12 @@ export const PostgreSQLProjectionSpec = {
                   globalPosition: ++globalPosition,
                   streamPosition: globalPosition,
                   streamName: `test-${uuid()}`,
-                  eventId: uuid(),
+                  messageId: uuid(),
                 };
 
                 allEvents.push({
                   ...event,
+                  kind: 'Event',
                   metadata: {
                     ...metadata,
                     ...('metadata' in event ? (event.metadata ?? {}) : {}),

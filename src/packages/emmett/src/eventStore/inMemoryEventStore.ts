@@ -161,12 +161,13 @@ export const getInMemoryEventStore = (
       >[] = events.map((event, index) => {
         const metadata: ReadEventMetadataWithGlobalPosition = {
           streamName,
-          eventId: uuid(),
+          messageId: uuid(),
           streamPosition: BigInt(currentEvents.length + index + 1),
           globalPosition: BigInt(getAllEventsCount() + index + 1),
         };
         return {
           ...event,
+          kind: event.kind ?? 'Event',
           metadata: {
             ...('metadata' in event ? (event.metadata ?? {}) : {}),
             ...metadata,

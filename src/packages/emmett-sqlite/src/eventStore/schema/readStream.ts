@@ -61,13 +61,14 @@ export const readStream = async <EventType extends Event>(
 
       const metadata: ReadEventMetadataWithGlobalPosition = {
         ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
-        eventId: row.event_id,
+        messageId: row.event_id,
         streamName: streamId,
         streamPosition: BigInt(row.stream_position),
         globalPosition: BigInt(row.global_position),
       };
 
       return {
+        kind: 'Event',
         ...rawEvent,
         metadata: metadata as CombinedReadEventMetadata<
           EventType,
