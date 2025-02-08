@@ -5,10 +5,12 @@ import {
   assertThrowsAsync,
   ExpectedVersionConflictError,
 } from '@event-driven-io/emmett';
-import { afterEach, beforeEach, describe, it } from 'node:test';
-import sqlite3 from 'sqlite3';
+import fs from 'fs';
+import { afterEach, describe, it } from 'node:test';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
-import { sqliteConnection, type SQLiteConnection } from '../sqliteConnection';
+import { sqliteConnection, type AbsolutePath } from '../sqliteConnection';
 import {
   type DiscountApplied,
   type PricedProductItem,
@@ -18,22 +20,27 @@ import {
 import { createEventStoreSchema } from './schema';
 import { getSQLiteEventStore } from './SQLiteEventStore';
 
-void describe('EventStoreDBEventStore', () => {
-  let db: SQLiteConnection;
-  let conn: sqlite3.Database;
+const __dirname = dirname(fileURLToPath(import.meta.url)) as AbsolutePath;
 
-  beforeEach(() => {
-    conn = new sqlite3.Database(':memory:');
-    db = sqliteConnection(conn);
-  });
+void describe('SQLiteEventStore', () => {
+  const testDatabasePath: AbsolutePath = __dirname + '/../testing/database/';
 
   afterEach(() => {
-    conn.close();
+    if (!fs.existsSync(`${testDatabasePath}/test.db`)) {
+      return;
+    }
+    fs.unlink(`${testDatabasePath}/test.db`, (err) => {
+      if (err) console.error('Error deleting file:', err);
+    });
   });
 
   void it('should append events', async () => {
-    await createEventStoreSchema(db);
-    const eventStore = getSQLiteEventStore(db);
+    await createEventStoreSchema(
+      sqliteConnection({ location: `/${testDatabasePath}/test.db` }),
+    );
+    const eventStore = getSQLiteEventStore({
+      databaseLocation: `${testDatabasePath}/test.db`,
+    });
 
     const productItem: PricedProductItem = {
       productId: '123',
@@ -72,8 +79,12 @@ void describe('EventStoreDBEventStore', () => {
   });
 
   void it('should aggregate stream', async () => {
-    await createEventStoreSchema(db);
-    const eventStore = getSQLiteEventStore(db);
+    await createEventStoreSchema(
+      sqliteConnection({ location: `${testDatabasePath}/test.db` }),
+    );
+    const eventStore = getSQLiteEventStore({
+      databaseLocation: `${testDatabasePath}/test.db`,
+    });
 
     const productItem: PricedProductItem = {
       productId: '123',
@@ -117,12 +128,38 @@ void describe('EventStoreDBEventStore', () => {
   });
 
   void it('should automatically create schema', async () => {
-    const eventStore = getSQLiteEventStore(db, {
+    const eventStore = getSQLiteEventStore({
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
+      databaseLocation: `${testDatabasePath}/test.db`,
     });
 
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    const { events } = await eventStore.readStream(shoppingCartId);
+
+    assertIsNotNull(events);
+    assertEqual(1, events.length);
+  });
+
+  void it('should create the sqlite connection in memory, and not close the connection', async () => {
+    const eventStore = getSQLiteEventStore({
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+      },
+      databaseLocation: ':memory:',
+    });
     const productItem: PricedProductItem = {
       productId: '123',
       quantity: 10,
@@ -142,10 +179,11 @@ void describe('EventStoreDBEventStore', () => {
   });
 
   void it('should not overwrite event store if it exists', async () => {
-    const eventStore = getSQLiteEventStore(db, {
+    const eventStore = getSQLiteEventStore({
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
+      databaseLocation: `${testDatabasePath}/test.db`,
     });
 
     const productItem: PricedProductItem = {
@@ -164,23 +202,25 @@ void describe('EventStoreDBEventStore', () => {
 
     assertIsNotNull(events);
     assertEqual(1, events.length);
-
-    const sameEventStore = getSQLiteEventStore(db, {
+    const sameEventStore = getSQLiteEventStore({
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
+      databaseLocation: `${testDatabasePath}/test.db`,
     });
 
     const stream = await sameEventStore.readStream(shoppingCartId);
+
     assertIsNotNull(stream.events);
     assertEqual(1, stream.events.length);
   });
 
   void it('should throw an error if concurrency check has failed when appending stream', async () => {
-    const eventStore = getSQLiteEventStore(db, {
+    const eventStore = getSQLiteEventStore({
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
+      databaseLocation: `${testDatabasePath}/test.db`,
     });
 
     const productItem: PricedProductItem = {
