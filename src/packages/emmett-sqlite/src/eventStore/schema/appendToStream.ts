@@ -15,7 +15,7 @@ import {
   type SQLiteConnection,
   type SQLiteError,
 } from '../../sqliteConnection';
-import { defaultTag, eventsTable, streamsTable } from './typing';
+import { defaultTag, messagesTable, streamsTable } from './typing';
 
 export type AppendEventResult =
   | {
@@ -282,15 +282,15 @@ const buildEventInsertQuery = (
   );
 
   const sqlString = `
-      INSERT INTO ${eventsTable.name} (
+      INSERT INTO ${messagesTable.name} (
           stream_id, 
           stream_position, 
           partition, 
-          event_data, 
-          event_metadata, 
-          event_schema_version, 
-          event_type, 
-          event_id, 
+          message_data, 
+          message_metadata, 
+          message_schema_version, 
+          message_type, 
+          message_id, 
           is_archived
       ) 
       VALUES ${query.parameterMarkers.join(', ')} 

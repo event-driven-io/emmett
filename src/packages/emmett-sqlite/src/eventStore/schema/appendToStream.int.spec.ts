@@ -93,7 +93,7 @@ void describe('appendEvent', () => {
     await appendToStream(db, streamId, 'shopping_cart', events);
     const result = await appendToStream(db, streamId, 'shopping_cart', events);
     const resultEvents = await db.query(
-      'SELECT * FROM emt_events WHERE stream_id = $1',
+      'SELECT * FROM emt_messages WHERE stream_id = $1',
       [streamId],
     );
 
@@ -131,7 +131,7 @@ void describe('appendEvent', () => {
     assertFalse(secondResult.success);
 
     const resultEvents = await db.query(
-      'SELECT * FROM emt_events WHERE stream_id = $1',
+      'SELECT * FROM emt_messages WHERE stream_id = $1',
       [streamId],
     );
 
@@ -168,7 +168,7 @@ void describe('appendEvent', () => {
     assertFalse(secondResult.success);
 
     const resultEvents = await db.query(
-      'SELECT * FROM emt_events WHERE stream_id = $1',
+      'SELECT * FROM emt_messages WHERE stream_id = $1',
       [streamId],
     );
 
@@ -215,7 +215,7 @@ void describe('appendEvent', () => {
     assertFalse(secondResult.success);
 
     const resultEvents = await db.query(
-      'SELECT * FROM emt_events WHERE stream_id = $1',
+      'SELECT * FROM emt_messages WHERE stream_id = $1',
       [streamId],
     );
 
@@ -253,7 +253,7 @@ void describe('appendEvent', () => {
     assertTrue(secondResult.success);
 
     const resultEvents = await db.query(
-      'SELECT * FROM emt_events WHERE stream_id = $1',
+      'SELECT * FROM emt_messages WHERE stream_id = $1',
       [streamId],
     );
 
@@ -288,7 +288,7 @@ void describe('appendEvent', () => {
     }
 
     const resultEvents = await db.query(
-      'SELECT * FROM emt_events WHERE stream_id = $1',
+      'SELECT * FROM emt_messages WHERE stream_id = $1',
       [streamId],
     );
 

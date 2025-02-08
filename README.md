@@ -20,7 +20,7 @@ Check also my blog articles on Emmett:
 - [Testing Event Sourcing, Emmett edition](https://event-driven.io/en/testing_event_sourcing_emmett_edition/)
 - [Event Sourcing on PostgreSQL in Node.js just became possible with Emmett](https://event-driven.io/en/emmett_postgresql_event_store/)
 - [Writing and testing event-driven projections with Emmett, Pongo and PostgreSQL](https://event-driven.io/en/emmett_projections_testing/)
-- [Using event metadata in event-driven projections](https://event-driven.io/en/projections_and_event_metadata/)=
+- [Using event metadata in event-driven projections](https://event-driven.io/en/projections_and_event_metadata/)
 
 ## FAQ
 
