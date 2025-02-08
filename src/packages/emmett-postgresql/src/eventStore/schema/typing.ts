@@ -23,8 +23,8 @@ export const streamsTable = {
   },
 };
 
-export const eventsTable = {
-  name: `${emmettPrefix}_events`,
+export const messagesTable = {
+  name: `${emmettPrefix}_messages`,
   columns: {
     partition: columns.partition,
     isArchived: columns.isArchived,

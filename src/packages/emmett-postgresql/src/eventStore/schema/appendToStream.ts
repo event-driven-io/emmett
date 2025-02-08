@@ -17,15 +17,15 @@ import {
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import { defaultTag, eventsTable, streamsTable } from './typing';
+import { defaultTag, messagesTable, streamsTable } from './typing';
 
 export const appendEventsSQL = rawSql(
   `CREATE OR REPLACE FUNCTION emt_append_event(
-      v_event_ids text[],
+      v_message_ids text[],
       v_events_data jsonb[],
       v_events_metadata jsonb[],
-      v_event_schema_versions text[],
-      v_event_types text[],
+      v_message_schema_versions text[],
+      v_message_types text[],
       v_stream_id text,
       v_stream_type text,
       v_expected_stream_position bigint DEFAULT NULL,
@@ -55,23 +55,23 @@ export const appendEventsSQL = rawSql(
 
       WITH ev AS (
           SELECT row_number() OVER () + v_expected_stream_position AS stream_position, 
-                event_data, 
-                event_metadata, 
+                message_data, 
+                message_metadata, 
                 schema_version, 
-                event_id, 
-                event_type
+                message_id, 
+                message_type
           FROM (
               SELECT *
               FROM 
-                unnest(v_event_ids, v_events_data, v_events_metadata, v_event_schema_versions, v_event_types) 
-              AS event(event_id, event_data, event_metadata, schema_version, event_type)
+                unnest(v_message_ids, v_events_data, v_events_metadata, v_message_schema_versions, v_message_types) 
+              AS event(message_id, message_data, message_metadata, schema_version, message_type)
           ) AS event
       ),
       all_events_insert AS (
-          INSERT INTO ${eventsTable.name}
-              (stream_id, stream_position, partition, event_data, event_metadata, event_schema_version, event_type, event_id, transaction_id)
+          INSERT INTO ${messagesTable.name}
+              (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_id, transaction_id)
           SELECT 
-              v_stream_id, ev.stream_position, v_partition, ev.event_data, ev.event_metadata, ev.schema_version, ev.event_type, ev.event_id, v_transaction_id
+              v_stream_id, ev.stream_position, v_partition, ev.message_data, ev.message_metadata, ev.schema_version, ev.message_type, ev.message_id, v_transaction_id
           FROM ev
           RETURNING global_position
       )

@@ -42,7 +42,7 @@ void describe('createEventStoreSchema', () => {
     });
 
     void it('creates the events table', async () => {
-      assert.ok(await tableExists(pool, 'emt_events'));
+      assert.ok(await tableExists(pool, 'emt_messages'));
     });
 
     void it('creates the subscriptions table', async () => {
@@ -50,15 +50,15 @@ void describe('createEventStoreSchema', () => {
     });
 
     void it('creates the events default partition', async () => {
-      assert.ok(await tableExists(pool, 'emt_events_emt_default'));
+      assert.ok(await tableExists(pool, 'emt_messages_emt_default'));
     });
 
     void it('creates the events secondary level active partition', async () => {
-      assert.ok(await tableExists(pool, 'emt_events_emt_default_active'));
+      assert.ok(await tableExists(pool, 'emt_messages_emt_default_active'));
     });
 
     void it('creates the events secondary level archived partition', async () => {
-      assert.ok(await tableExists(pool, 'emt_events_emt_default_archived'));
+      assert.ok(await tableExists(pool, 'emt_messages_emt_default_archived'));
     });
   });
 
@@ -96,7 +96,7 @@ void describe('createEventStoreSchema', () => {
         rawSql(`
       SELECT EXISTS (
         SELECT FROM pg_tables
-        WHERE tablename = 'emt_events_test_module__global'
+        WHERE tablename = 'emt_messages_test_module__global'
       ) AS exists;
     `),
       ),
@@ -115,7 +115,7 @@ void describe('createEventStoreSchema', () => {
         rawSql(`
           SELECT EXISTS (
             SELECT FROM pg_tables
-            WHERE tablename = 'emt_events_test_module__test_tenant'
+            WHERE tablename = 'emt_messages_test_module__test_tenant'
           ) AS exists;`),
       ),
     );
@@ -126,7 +126,7 @@ void describe('createEventStoreSchema', () => {
   // void it('should allow adding a module for all tenants', async () => {
   //   await createEventStoreSchema(pool);
 
-  //   await pool.query(`INSERT INTO emt_events (stream_id, stream_position, partition, event_data, event_metadata, event_schema_version, event_type, event_id, transaction_id)
+  //   await pool.query(`INSERT INTO emt_messages (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_id, transaction_id)
   //                     VALUES ('test_stream', 0, 'global__global', '{}', '{}', '1.0', 'test', '${uuid()}', pg_current_xact_id())`);
 
   //   await pool.query(`SELECT add_module_for_all_tenants('new_module')`);
@@ -134,7 +134,7 @@ void describe('createEventStoreSchema', () => {
   //   const res = await pool.query(`
   //     SELECT EXISTS (
   //       SELECT FROM pg_tables
-  //       WHERE tablename = 'emt_events_new_module__existing_tenant'
+  //       WHERE tablename = 'emt_messages_new_module__existing_tenant'
   //     ) AS exists;
   //   `);
 
@@ -149,7 +149,7 @@ void describe('createEventStoreSchema', () => {
   // void it('should allow adding a tenant for all modules', async () => {
   //   await createEventStoreSchema(pool);
 
-  //   await pool.query(`INSERT INTO emt_events (stream_id, stream_position, partition, event_data, event_metadata, event_schema_version, event_type, event_id, transaction_id)
+  //   await pool.query(`INSERT INTO emt_messages (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_id, transaction_id)
   //                     VALUES ('test_stream', 0, '${emmettPrefix}:partition:existing_module:existing_tenant', '{}', '{}', '1.0', 'test', '${uuid()}', 0)`);
 
   //   await pool.query(`SELECT add_tenant_for_all_modules('new_tenant')`);
@@ -157,7 +157,7 @@ void describe('createEventStoreSchema', () => {
   //   const res = await pool.query(`
   //     SELECT EXISTS (
   //       SELECT FROM pg_tables
-  //       WHERE tablename = 'emt_events_existing_module_new_tenant'
+  //       WHERE tablename = 'emt_messages_existing_module_new_tenant'
   //     ) AS exists;
   //   `);
 
