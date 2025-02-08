@@ -1,4 +1,15 @@
-import type { DefaultRecord, Flavour } from './';
+import type { DefaultRecord } from './';
+import type {
+  AnyRecordedMessageMetadata,
+  CombinedRecordedMessageMetadata,
+  CommonRecordedMessageMetadata,
+  GlobalPositionTypeOfRecordedMessageMetadata,
+  RecordedMessage,
+  RecordedMessageMetadata,
+  RecordedMessageMetadataWithGlobalPosition,
+  RecordedMessageMetadataWithoutGlobalPosition,
+  StreamPositionTypeOfRecordedMessageMetadata,
+} from './message';
 
 export type BigIntStreamPosition = bigint;
 export type BigIntGlobalPosition = bigint;
@@ -7,29 +18,24 @@ export type Event<
   EventType extends string = string,
   EventData extends DefaultRecord = DefaultRecord,
   EventMetaData extends DefaultRecord | undefined = undefined,
-> = Flavour<
-  Readonly<
-    EventMetaData extends undefined
-      ? {
-          type: EventType;
-          data: EventData;
-        }
-      : {
-          type: EventType;
-          data: EventData;
-          metadata: EventMetaData;
-        }
-  >,
-  'Event'
->;
+> = Readonly<
+  EventMetaData extends undefined
+    ? {
+        type: EventType;
+        data: EventData;
+      }
+    : {
+        type: EventType;
+        data: EventData;
+        metadata: EventMetaData;
+      }
+> & { readonly kind?: 'Event' };
 
 export type EventTypeOf<T extends Event> = T['type'];
 export type EventDataOf<T extends Event> = T['data'];
 export type EventMetaDataOf<T extends Event> = T extends { metadata: infer M }
   ? M
   : undefined;
-
-export type CanHandle<T extends Event> = EventTypeOf<T>[];
 
 export type CreateEventType<
   EventType extends string,
@@ -46,7 +52,7 @@ export type CreateEventType<
         data: EventData;
         metadata: EventMetaData;
       }
->;
+> & { readonly kind?: 'Event' };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const event = <EventType extends Event<string, any, any>>(
@@ -61,58 +67,42 @@ export const event = <EventType extends Event<string, any, any>>(
   const [type, data, metadata] = args;
 
   return metadata !== undefined
-    ? ({ type, data, metadata } as EventType)
-    : ({ type, data } as EventType);
+    ? ({ type, data, metadata, kind: 'Event' } as EventType)
+    : ({ type, data, kind: 'Event' } as EventType);
 };
 
 export type CombinedReadEventMetadata<
   EventType extends Event = Event,
-  EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-> =
-  EventMetaDataOf<EventType> extends undefined
-    ? EventMetaDataType
-    : EventMetaDataOf<EventType> & EventMetaDataType;
+  EventMetaDataType extends
+    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+> = CombinedRecordedMessageMetadata<EventType, EventMetaDataType>;
 
 export type ReadEvent<
   EventType extends Event = Event,
-  EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-> = EventType & {
-  metadata: CombinedReadEventMetadata<EventType, EventMetaDataType>;
-};
+  EventMetaDataType extends
+    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+> = RecordedMessage<EventType, EventMetaDataType>;
 
 export type CommonReadEventMetadata<StreamPosition = BigIntStreamPosition> =
-  Readonly<{
-    eventId: string;
-    streamPosition: StreamPosition;
-    streamName: string;
-  }>;
-
-export type WithGlobalPosition<GlobalPosition> = Readonly<{
-  globalPosition: GlobalPosition;
-}>;
+  CommonRecordedMessageMetadata<StreamPosition>;
 
 export type ReadEventMetadata<
   GlobalPosition = undefined,
   StreamPosition = BigIntStreamPosition,
-> = CommonReadEventMetadata<StreamPosition> &
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-  (GlobalPosition extends undefined ? {} : WithGlobalPosition<GlobalPosition>);
+> = RecordedMessageMetadata<GlobalPosition, StreamPosition>;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyReadEventMetadata = ReadEventMetadata<any, any>;
+export type AnyReadEventMetadata = AnyRecordedMessageMetadata;
 
 export type ReadEventMetadataWithGlobalPosition<
   GlobalPosition = BigIntGlobalPosition,
-> = ReadEventMetadata<GlobalPosition>;
+> = RecordedMessageMetadataWithGlobalPosition<GlobalPosition>;
 
 export type ReadEventMetadataWithoutGlobalPosition<
   StreamPosition = BigIntStreamPosition,
-> = ReadEventMetadata<undefined, StreamPosition>;
+> = RecordedMessageMetadataWithoutGlobalPosition<StreamPosition>;
 
 export type GlobalPositionTypeOfReadEventMetadata<ReadEventMetadataType> =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ReadEventMetadataType extends ReadEventMetadata<infer GP, any> ? GP : never;
+  GlobalPositionTypeOfRecordedMessageMetadata<ReadEventMetadataType>;
 
 export type StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType> =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ReadEventMetadataType extends ReadEventMetadata<any, infer SV> ? SV : never;
+  StreamPositionTypeOfRecordedMessageMetadata<ReadEventMetadataType>;
