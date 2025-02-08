@@ -146,9 +146,10 @@ export const appendToStream = (
 
       const eventsToAppend: ReadEvent[] = events.map((e, i) => ({
         ...e,
+        kind: e.kind ?? 'Event',
         metadata: {
           streamName,
-          eventId: uuid(),
+          messageId: uuid(),
           streamPosition: BigInt(i),
           ...('metadata' in e ? (e.metadata ?? {}) : {}),
         },
@@ -252,7 +253,7 @@ const appendEventsRaw = (
                   %s::bigint,
                   %L::text
               )`,
-        events.map((e) => sql('%L', e.metadata.eventId)).join(','),
+        events.map((e) => sql('%L', e.metadata.messageId)).join(','),
         events.map((e) => sql('%L', JSONParser.stringify(e.data))).join(','),
         events
           .map((e) => sql('%L', JSONParser.stringify(e.metadata ?? {})))
