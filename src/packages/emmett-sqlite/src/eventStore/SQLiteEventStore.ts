@@ -127,9 +127,10 @@ export const getSQLiteEventStore = (
       } catch (err: Error) {
         closeConnection();
         throw err;
-      } finally {
-        closeConnection();
       }
+
+      closeConnection();
+
       const currentStreamVersion = result.currentStreamVersion;
 
       assertExpectedVersionMatchesCurrent(
@@ -168,9 +169,10 @@ export const getSQLiteEventStore = (
       } catch (err: Error) {
         closeConnection();
         throw err;
-      } finally {
-        closeConnection();
       }
+
+      closeConnection();
+
       return stream;
     },
 
@@ -202,9 +204,9 @@ export const getSQLiteEventStore = (
       } catch (err: Error) {
         closeConnection();
         throw err;
-      } finally {
-        closeConnection();
       }
+
+      closeConnection();
 
       if (!appendResult.success)
         throw new ExpectedVersionConflictError<bigint>(
