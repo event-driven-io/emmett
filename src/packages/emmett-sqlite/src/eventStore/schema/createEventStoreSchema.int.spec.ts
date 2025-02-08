@@ -41,7 +41,7 @@ void describe('createEventStoreSchema', () => {
     });
 
     void it('creates the events table', async () => {
-      assert.ok(await tableExists(db, 'emt_events'));
+      assert.ok(await tableExists(db, 'emt_messages'));
     });
   });
 });
