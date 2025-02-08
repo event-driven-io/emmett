@@ -336,7 +336,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     const eventsToAppend: ReadEvent<EventType, MongoDBReadEventMetadata>[] =
       events.map((event) => {
         const metadata: MongoDBReadEventMetadata = {
-          eventId: uuid(),
+          messageId: uuid(),
           streamName,
           streamPosition: ++streamOffset,
         };

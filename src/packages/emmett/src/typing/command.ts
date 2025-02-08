@@ -1,25 +1,22 @@
-import type { DefaultRecord, Flavour } from './';
+import type { DefaultRecord } from './';
 
 export type Command<
   CommandType extends string = string,
   CommandData extends DefaultRecord = DefaultRecord,
   CommandMetaData extends DefaultRecord | undefined = undefined,
-> = Flavour<
-  Readonly<
-    CommandMetaData extends undefined
-      ? {
-          type: CommandType;
-          data: Readonly<CommandData>;
-          metadata?: DefaultCommandMetadata | undefined;
-        }
-      : {
-          type: CommandType;
-          data: CommandData;
-          metadata: CommandMetaData;
-        }
-  >,
-  'Command'
->;
+> = Readonly<
+  CommandMetaData extends undefined
+    ? {
+        type: CommandType;
+        data: Readonly<CommandData>;
+        metadata?: DefaultCommandMetadata | undefined;
+      }
+    : {
+        type: CommandType;
+        data: CommandData;
+        metadata: CommandMetaData;
+      }
+> & { readonly kind?: 'Command' };
 
 export type CommandTypeOf<T extends Command> = T['type'];
 export type CommandDataOf<T extends Command> = T['data'];
@@ -45,7 +42,7 @@ export type CreateCommandType<
         data: CommandData;
         metadata: CommandMetaData;
       }
->;
+> & { readonly kind?: 'Command' };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const command = <CommandType extends Command<string, any, any>>(
@@ -64,8 +61,8 @@ export const command = <CommandType extends Command<string, any, any>>(
   const [type, data, metadata] = args;
 
   return metadata !== undefined
-    ? ({ type, data, metadata } as CommandType)
-    : ({ type, data } as CommandType);
+    ? ({ type, data, metadata, kind: 'Command' } as CommandType)
+    : ({ type, data, kind: 'Command' } as CommandType);
 };
 
 export type DefaultCommandMetadata = { now: Date };
