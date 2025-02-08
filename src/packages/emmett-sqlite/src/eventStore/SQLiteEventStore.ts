@@ -46,7 +46,6 @@ export type SQLiteEventStoreOptions = {
   schema?: {
     autoMigration?: 'None' | 'CreateOrUpdate';
   };
-  shouldManageClientLifetime?: boolean;
   databaseLocation: AbsolutePath | RelativePath | ':memory:';
 };
 
