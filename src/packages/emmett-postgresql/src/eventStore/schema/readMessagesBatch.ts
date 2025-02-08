@@ -9,16 +9,16 @@ import {
   type ReadEventMetadata,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import { defaultTag, eventsTable } from './typing';
+import { defaultTag, messagesTable } from './typing';
 
 type ReadMessagesBatchSqlResult<EventType extends Event> = {
   stream_position: string;
   stream_id: string;
-  event_data: EventDataOf<EventType>;
-  event_metadata: EventMetaDataOf<EventType>;
-  event_schema_version: string;
-  event_type: EventTypeOf<EventType>;
-  event_id: string;
+  message_data: EventDataOf<EventType>;
+  message_metadata: EventMetaDataOf<EventType>;
+  message_schema_version: string;
+  message_type: EventTypeOf<EventType>;
+  message_id: string;
   global_position: string;
   transaction_id: string;
   created: string;
@@ -76,8 +76,8 @@ export const readMessagesBatch = async <
   const events: ReadEvent<MessageType, ReadEventMetadataType>[] = await mapRows(
     execute.query<ReadMessagesBatchSqlResult<MessageType>>(
       sql(
-        `SELECT stream_id, stream_position, global_position, event_data, event_metadata, event_schema_version, event_type, event_id
-           FROM ${eventsTable.name}
+        `SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
+           FROM ${messagesTable.name}
            WHERE partition = %L AND is_archived = FALSE AND transaction_id < pg_snapshot_xmin(pg_current_snapshot()) ${fromCondition} ${toCondition}
            ORDER BY transaction_id, global_position
            ${limitCondition}`,
@@ -86,14 +86,14 @@ export const readMessagesBatch = async <
     ),
     (row) => {
       const rawEvent = {
-        type: row.event_type,
-        data: row.event_data,
-        metadata: row.event_metadata,
+        type: row.message_type,
+        data: row.message_data,
+        metadata: row.message_metadata,
       } as unknown as MessageType;
 
       const metadata: ReadEventMetadataWithGlobalPosition = {
         ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
-        messageId: row.event_id,
+        messageId: row.message_id,
         streamName: row.stream_id,
         streamPosition: BigInt(row.stream_position),
         globalPosition: BigInt(row.global_position),

@@ -133,7 +133,7 @@ void describe('appendEvent', () => {
     assertFalse(secondResult.success);
 
     const resultEvents = await pool.execute.query(
-      sql(`SELECT * FROM emt_events WHERE stream_id = %L`, streamId),
+      sql(`SELECT * FROM emt_messages WHERE stream_id = %L`, streamId),
     );
 
     assertEqual(events.length, resultEvents.rows.length);
@@ -178,7 +178,7 @@ void describe('appendEvent', () => {
     assertFalse(secondResult.success);
 
     const resultEvents = await pool.execute.query(
-      sql(`SELECT * FROM emt_events WHERE stream_id = %L`, streamId),
+      sql(`SELECT * FROM emt_messages WHERE stream_id = %L`, streamId),
     );
 
     assertEqual(events.length * 2, resultEvents.rows.length);
@@ -215,7 +215,7 @@ void describe('appendEvent', () => {
     assertTrue(secondResult.success);
 
     const resultEvents = await pool.execute.query(
-      sql(`SELECT * FROM emt_events WHERE stream_id = %L`, streamId),
+      sql(`SELECT * FROM emt_messages WHERE stream_id = %L`, streamId),
     );
 
     assertEqual(events.length * 2, resultEvents.rows.length);

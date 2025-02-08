@@ -12,15 +12,15 @@ import {
 } from '@event-driven-io/emmett';
 import { type SQLiteConnection } from '../../sqliteConnection';
 import { SQLiteEventStoreDefaultStreamVersion } from '../SQLiteEventStore';
-import { defaultTag, eventsTable } from './typing';
+import { defaultTag, messagesTable } from './typing';
 
 type ReadStreamSqlResult<EventType extends Event> = {
   stream_position: string;
-  event_data: EventDataOf<EventType>;
-  event_metadata: EventMetaDataOf<EventType>;
-  event_schema_version: string;
-  event_type: EventTypeOf<EventType>;
-  event_id: string;
+  message_data: EventDataOf<EventType>;
+  message_metadata: EventMetaDataOf<EventType>;
+  message_schema_version: string;
+  message_type: EventTypeOf<EventType>;
+  message_id: string;
   global_position: string;
   created: string;
 };
@@ -48,8 +48,8 @@ export const readStream = async <EventType extends Event>(
   const toCondition = !isNaN(to) ? `AND stream_position <= ${to}` : '';
 
   const results = await db.query<ReadStreamSqlResult<EventType>>(
-    `SELECT stream_id, stream_position, global_position, event_data, event_metadata, event_schema_version, event_type, event_id
-           FROM ${eventsTable.name}
+    `SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
+           FROM ${messagesTable.name}
            WHERE stream_id = ? AND partition = ? AND is_archived = FALSE ${fromCondition} ${toCondition}`,
     [streamId, options?.partition ?? defaultTag],
   );
@@ -57,16 +57,16 @@ export const readStream = async <EventType extends Event>(
   const events: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
     results.map((row) => {
       const rawEvent = event<EventType>(
-        row.event_type,
-        JSONParser.parse(row.event_data),
-        JSONParser.parse(row.event_metadata),
+        row.message_type,
+        JSONParser.parse(row.message_data),
+        JSONParser.parse(row.message_metadata),
       );
 
       return {
         ...rawEvent,
         metadata: {
           ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
-          eventId: row.event_id,
+          eventId: row.message_id,
           streamName: streamId,
           streamPosition: BigInt(row.stream_position),
           globalPosition: BigInt(row.global_position),
