@@ -93,7 +93,7 @@ export const readMessagesBatch = async <
 
       const metadata: ReadEventMetadataWithGlobalPosition = {
         ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
-        eventId: row.event_id,
+        messageId: row.event_id,
         streamName: row.stream_id,
         streamPosition: BigInt(row.stream_position),
         globalPosition: BigInt(row.global_position),
@@ -101,6 +101,7 @@ export const readMessagesBatch = async <
 
       return {
         ...rawEvent,
+        kind: 'Event',
         metadata: metadata as CombinedReadEventMetadata<
           MessageType,
           ReadEventMetadataType

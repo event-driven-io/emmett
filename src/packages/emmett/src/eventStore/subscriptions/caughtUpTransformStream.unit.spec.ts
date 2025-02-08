@@ -22,9 +22,10 @@ void describe('CaughtUpTransformStream', () => {
     globalPosition: bigint,
   ): ReadEvent<ShoppingCartOpened, ReadEventMetadataWithGlobalPosition> => ({
     type: 'ShoppingCartOpened',
+    kind: 'Event',
     data: { cartId: 'cartId' },
     metadata: {
-      eventId: uuid(),
+      messageId: uuid(),
       globalPosition,
       streamPosition: globalPosition,
       streamName: 'test',
