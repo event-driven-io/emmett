@@ -114,15 +114,22 @@ export const getSQLiteEventStore = (
       let state = initialState();
 
       if (typeof streamName !== 'string') {
-        throw new Error('not string');
+        throw new Error('Stream name is not string');
       }
 
       if (db == null) {
         db = createConnection();
       }
 
-      const result = await readStream<EventType>(db, streamName, options.read);
-
+      let result;
+      try {
+        result = await readStream<EventType>(db, streamName, options.read);
+      } catch (err: Error) {
+        closeConnection();
+        throw err;
+      } finally {
+        closeConnection();
+      }
       const currentStreamVersion = result.currentStreamVersion;
 
       assertExpectedVersionMatchesCurrent(
@@ -136,8 +143,6 @@ export const getSQLiteEventStore = (
 
         state = evolve(state, event);
       }
-
-      closeConnection();
 
       return {
         currentStreamVersion: currentStreamVersion,
@@ -157,9 +162,15 @@ export const getSQLiteEventStore = (
       }
 
       await ensureSchemaExists();
-      const stream = await readStream<EventType>(db, streamName, options);
-
-      closeConnection();
+      let stream;
+      try {
+        stream = await readStream<EventType>(db, streamName, options);
+      } catch (err: Error) {
+        closeConnection();
+        throw err;
+      } finally {
+        closeConnection();
+      }
       return stream;
     },
 
@@ -179,15 +190,21 @@ export const getSQLiteEventStore = (
       const streamType =
         firstPart && rest.length > 0 ? firstPart : 'emt:unknown';
 
-      const appendResult = await appendToStream(
-        db,
-        streamName,
-        streamType,
-        events,
-        options,
-      );
-
-      closeConnection();
+      let appendResult;
+      try {
+        appendResult = await appendToStream(
+          db,
+          streamName,
+          streamType,
+          events,
+          options,
+        );
+      } catch (err: Error) {
+        closeConnection();
+        throw err;
+      } finally {
+        closeConnection();
+      }
 
       if (!appendResult.success)
         throw new ExpectedVersionConflictError<bigint>(
