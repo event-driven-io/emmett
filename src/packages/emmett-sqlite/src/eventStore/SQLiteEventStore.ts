@@ -47,26 +47,22 @@ export type SQLiteEventStoreOptions = {
     autoMigration?: 'None' | 'CreateOrUpdate';
   };
   shouldManageClientLifetime?: boolean;
-  databaseLocation?: AbsolutePath | RelativePath | ':memory:';
+  databaseLocation: AbsolutePath | RelativePath | ':memory:';
 };
 
 export const getSQLiteEventStore = (
-  options?: SQLiteEventStoreOptions,
+  options: SQLiteEventStoreOptions,
 ): SQLiteEventStore => {
   let schemaMigrated = false;
   let autoGenerateSchema = false;
   let db: SQLiteConnection | null;
-  const databaseLocation = options?.databaseLocation ?? null;
+  const databaseLocation = options.databaseLocation ?? null;
 
   const isInMemory: boolean = databaseLocation === ':memory:';
 
   const createConnection = () => {
     if (db != null) {
       return db;
-    }
-
-    if (options?.databaseLocation == null) {
-      throw new Error('Database location is not set');
     }
 
     return sqliteConnection({
