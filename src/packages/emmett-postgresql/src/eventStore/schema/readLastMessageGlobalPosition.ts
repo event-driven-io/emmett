@@ -1,5 +1,5 @@
 import { singleOrNull, sql, type SQLExecutor } from '@event-driven-io/dumbo';
-import { defaultTag, eventsTable } from './typing';
+import { defaultTag, messagesTable } from './typing';
 
 type ReadLastMessageGlobalPositionSqlResult = {
   global_position: string;
@@ -17,7 +17,7 @@ export const readLastMessageGlobalPosition = async (
     execute.query<ReadLastMessageGlobalPositionSqlResult>(
       sql(
         `SELECT global_position
-           FROM ${eventsTable.name}
+           FROM ${messagesTable.name}
            WHERE partition = %L AND is_archived = FALSE AND transaction_id < pg_snapshot_xmin(pg_current_snapshot())
            ORDER BY transaction_id, global_position
            LIMIT 1`,
