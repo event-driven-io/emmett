@@ -162,9 +162,9 @@ export const getSQLiteEventStore = (
         db = createConnection();
       }
 
-      await ensureSchemaExists();
       let stream;
       try {
+        await ensureSchemaExists();
         stream = await readStream<EventType>(db, streamName, options);
       } catch (err: Error) {
         closeConnection();
@@ -185,7 +185,6 @@ export const getSQLiteEventStore = (
         db = createConnection();
       }
 
-      await ensureSchemaExists();
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
 
@@ -193,7 +192,10 @@ export const getSQLiteEventStore = (
         firstPart && rest.length > 0 ? firstPart : 'emt:unknown';
 
       let appendResult;
+
       try {
+        await ensureSchemaExists();
+
         appendResult = await appendToStream(
           db,
           streamName,
