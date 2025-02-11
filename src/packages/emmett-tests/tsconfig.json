@@ -9,6 +9,7 @@
       "@event-driven-io/emmett": ["../packages/emmett"],
       "@event-driven-io/emmett-esdb": ["../packages/emmett-esdb"],
       "@event-driven-io/emmett-postgresql": ["../packages/emmett-postgresql"],
+      "@event-driven-io/emmett-sqlite": ["../packages/emmett-sqlite"],
       "@event-driven-io/emmett-mongodb": ["../packages/emmett-mongodb"],
       "@event-driven-io/emmett-testcontainers": [
         "../packages/emmett-testcontainers"
@@ -24,6 +25,9 @@
     },
     {
       "path": "../emmett-postgresql/"
+    },
+    {
+      "path": "../emmett-sqlite/"
     },
     {
       "path": "../emmett-mongodb/"

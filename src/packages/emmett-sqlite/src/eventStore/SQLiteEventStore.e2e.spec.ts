@@ -6,11 +6,11 @@ import {
   ExpectedVersionConflictError,
 } from '@event-driven-io/emmett';
 import fs from 'fs';
-import { afterEach, describe, it } from 'node:test';
-import { dirname } from 'path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
-import { sqliteConnection, type AbsolutePath } from '../sqliteConnection';
+import { InMemorySQLiteDatabase, sqliteConnection } from '../sqliteConnection';
 import {
   type DiscountApplied,
   type PricedProductItem,
@@ -18,113 +18,147 @@ import {
   type ShoppingCartEvent,
 } from '../testing/shoppingCart.domain';
 import { createEventStoreSchema } from './schema';
-import { getSQLiteEventStore } from './SQLiteEventStore';
-
-const __dirname = dirname(fileURLToPath(import.meta.url)) as AbsolutePath;
+import {
+  getSQLiteEventStore,
+  type SQLiteEventStoreOptions,
+} from './SQLiteEventStore';
 
 void describe('SQLiteEventStore', () => {
-  const testDatabasePath: AbsolutePath = __dirname + '/../testing/database/';
+  const testDatabasePath = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    'testing',
+  );
+  const fileName = path.resolve(testDatabasePath, 'test.db');
 
   afterEach(() => {
-    if (!fs.existsSync(`${testDatabasePath}/test.db`)) {
+    if (!fs.existsSync(fileName)) {
       return;
     }
-    fs.unlink(`${testDatabasePath}/test.db`, (err) => {
-      if (err) console.error('Error deleting file:', err);
-    });
+    fs.unlinkSync(fileName);
   });
 
-  void it('should append events', async () => {
-    await createEventStoreSchema(
-      sqliteConnection({ location: `/${testDatabasePath}/test.db` }),
-    );
-    const eventStore = getSQLiteEventStore({
-      databaseLocation: `${testDatabasePath}/test.db`,
-    });
-
-    const productItem: PricedProductItem = {
-      productId: '123',
-      quantity: 10,
-      price: 3,
+  void describe('With manual Schema Creation', () => {
+    const config: SQLiteEventStoreOptions = {
+      schema: {
+        autoMigration: 'None',
+      },
+      fileName,
     };
-    const discount = 10;
-    const shoppingCartId = `shopping_cart-${uuid()}`;
 
-    const result = await eventStore.appendToStream<ShoppingCartEvent>(
-      shoppingCartId,
-      [{ type: 'ProductItemAdded', data: { productItem } }],
-    );
+    beforeEach(() => createEventStoreSchema(sqliteConnection({ fileName })));
 
-    const result2 = await eventStore.appendToStream<ShoppingCartEvent>(
-      shoppingCartId,
-      [{ type: 'ProductItemAdded', data: { productItem } }],
-      { expectedStreamVersion: result.nextExpectedStreamVersion },
-    );
+    void it('should append events', async () => {
+      const eventStore = getSQLiteEventStore(config);
 
-    await eventStore.appendToStream<ShoppingCartEvent>(
-      shoppingCartId,
-      [
-        {
-          type: 'DiscountApplied',
-          data: { percent: discount, couponId: uuid() },
-        },
-      ],
-      { expectedStreamVersion: result2.nextExpectedStreamVersion },
-    );
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 10,
+        price: 3,
+      };
+      const discount = 10;
+      const shoppingCartId = `shopping_cart-${uuid()}`;
 
-    const { events } = await eventStore.readStream(shoppingCartId);
+      const result = await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+      );
 
-    assertIsNotNull(events);
-    assertEqual(3, events.length);
-  });
+      const result2 = await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+        { expectedStreamVersion: result.nextExpectedStreamVersion },
+      );
 
-  void it('should aggregate stream', async () => {
-    await createEventStoreSchema(
-      sqliteConnection({ location: `${testDatabasePath}/test.db` }),
-    );
-    const eventStore = getSQLiteEventStore({
-      databaseLocation: `${testDatabasePath}/test.db`,
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [
+          {
+            type: 'DiscountApplied',
+            data: { percent: discount, couponId: uuid() },
+          },
+        ],
+        { expectedStreamVersion: result2.nextExpectedStreamVersion },
+      );
+
+      const { events } = await eventStore.readStream(shoppingCartId);
+
+      assertIsNotNull(events);
+      assertEqual(3, events.length);
     });
 
-    const productItem: PricedProductItem = {
-      productId: '123',
-      quantity: 10,
-      price: 3,
-    };
-    const discount = 10;
-    const shoppingCartId = `shopping_cart-${uuid()}`;
+    void it('should aggregate stream', async () => {
+      const eventStore = getSQLiteEventStore(config);
 
-    const result = await eventStore.appendToStream<ShoppingCartEvent>(
-      shoppingCartId,
-      [{ type: 'ProductItemAdded', data: { productItem } }],
-    );
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 10,
+        price: 3,
+      };
+      const discount = 10;
+      const shoppingCartId = `shopping_cart-${uuid()}`;
 
-    const result2 = await eventStore.appendToStream<ShoppingCartEvent>(
-      shoppingCartId,
-      [{ type: 'ProductItemAdded', data: { productItem } }],
-      { expectedStreamVersion: result.nextExpectedStreamVersion },
-    );
+      const result = await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+      );
 
-    await eventStore.appendToStream<ShoppingCartEvent>(
-      shoppingCartId,
-      [
-        {
-          type: 'DiscountApplied',
-          data: { percent: discount, couponId: uuid() },
-        },
-      ],
-      { expectedStreamVersion: result2.nextExpectedStreamVersion },
-    );
+      const result2 = await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+        { expectedStreamVersion: result.nextExpectedStreamVersion },
+      );
 
-    const aggregation = await eventStore.aggregateStream(shoppingCartId, {
-      evolve,
-      initialState: () => null,
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [
+          {
+            type: 'DiscountApplied',
+            data: { percent: discount, couponId: uuid() },
+          },
+        ],
+        { expectedStreamVersion: result2.nextExpectedStreamVersion },
+      );
+
+      const aggregation = await eventStore.aggregateStream(shoppingCartId, {
+        evolve,
+        initialState: () => null,
+      });
+
+      assertDeepEqual(
+        { totalAmount: 54, productItemsCount: 20 },
+        aggregation.state,
+      );
     });
 
-    assertDeepEqual(
-      { totalAmount: 54, productItemsCount: 20 },
-      aggregation.state,
-    );
+    void it('should throw an error if concurrency check has failed when appending stream', async () => {
+      const eventStore = getSQLiteEventStore(config);
+
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 10,
+        price: 3,
+      };
+
+      const shoppingCartId = `shopping_cart-${uuid()}`;
+
+      await assertThrowsAsync<ExpectedVersionConflictError<bigint>>(
+        async () => {
+          await eventStore.appendToStream<ShoppingCartEvent>(
+            shoppingCartId,
+            [
+              {
+                type: 'ProductItemAdded',
+                data: { productItem },
+              },
+            ],
+            {
+              expectedStreamVersion: 5n,
+            },
+          );
+        },
+      );
+    });
   });
 
   void it('should automatically create schema', async () => {
@@ -132,7 +166,7 @@ void describe('SQLiteEventStore', () => {
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
-      databaseLocation: `${testDatabasePath}/test.db`,
+      fileName,
     });
 
     const productItem: PricedProductItem = {
@@ -158,7 +192,7 @@ void describe('SQLiteEventStore', () => {
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
-      databaseLocation: ':memory:',
+      fileName: InMemorySQLiteDatabase,
     });
     const productItem: PricedProductItem = {
       productId: '123',
@@ -183,7 +217,7 @@ void describe('SQLiteEventStore', () => {
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
-      databaseLocation: `${testDatabasePath}/test.db`,
+      fileName,
     });
 
     const productItem: PricedProductItem = {
@@ -206,45 +240,13 @@ void describe('SQLiteEventStore', () => {
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
-      databaseLocation: `${testDatabasePath}/test.db`,
+      fileName,
     });
 
     const stream = await sameEventStore.readStream(shoppingCartId);
 
     assertIsNotNull(stream.events);
     assertEqual(1, stream.events.length);
-  });
-
-  void it('should throw an error if concurrency check has failed when appending stream', async () => {
-    const eventStore = getSQLiteEventStore({
-      schema: {
-        autoMigration: 'CreateOrUpdate',
-      },
-      databaseLocation: `${testDatabasePath}/test.db`,
-    });
-
-    const productItem: PricedProductItem = {
-      productId: '123',
-      quantity: 10,
-      price: 3,
-    };
-
-    const shoppingCartId = `shopping_cart-${uuid()}`;
-
-    await assertThrowsAsync<ExpectedVersionConflictError<bigint>>(async () => {
-      await eventStore.appendToStream<ShoppingCartEvent>(
-        shoppingCartId,
-        [
-          {
-            type: 'ProductItemAdded',
-            data: { productItem },
-          },
-        ],
-        {
-          expectedStreamVersion: 5n,
-        },
-      );
-    });
   });
 });
 
