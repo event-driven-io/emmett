@@ -1,4 +1,5 @@
 import type {
+  AppendToStreamResultWithGlobalPosition,
   BigIntStreamPosition,
   Event,
   ReadEvent,
@@ -12,15 +13,13 @@ import {
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
-  type AppendToStreamResult,
   type EventStore,
   type ReadStreamOptions,
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
 import {
+  InMemorySQLiteDatabase,
   sqliteConnection,
-  type AbsolutePath,
-  type RelativePath,
   type SQLiteConnection,
 } from '../sqliteConnection';
 import { createEventStoreSchema } from './schema';
@@ -46,7 +45,8 @@ export type SQLiteEventStoreOptions = {
   schema?: {
     autoMigration?: 'None' | 'CreateOrUpdate';
   };
-  databaseLocation: AbsolutePath | RelativePath | ':memory:';
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+  fileName: InMemorySQLiteDatabase | string | undefined;
 };
 
 export const getSQLiteEventStore = (
@@ -54,18 +54,18 @@ export const getSQLiteEventStore = (
 ): SQLiteEventStore => {
   let schemaMigrated = false;
   let autoGenerateSchema = false;
-  let db: SQLiteConnection | null;
-  const databaseLocation = options.databaseLocation ?? null;
+  let database: SQLiteConnection | null;
+  const fileName = options.fileName ?? InMemorySQLiteDatabase;
 
-  const isInMemory: boolean = databaseLocation === ':memory:';
+  const isInMemory: boolean = fileName === InMemorySQLiteDatabase;
 
   const createConnection = () => {
-    if (db != null) {
-      return db;
+    if (database != null) {
+      return database;
     }
 
     return sqliteConnection({
-      location: databaseLocation,
+      fileName,
     });
   };
 
@@ -73,9 +73,24 @@ export const getSQLiteEventStore = (
     if (isInMemory) {
       return;
     }
-    if (db != null) {
-      db.close();
-      db = null;
+    if (database != null) {
+      database.close();
+      database = null;
+    }
+  };
+
+  const withConnection = async <Result>(
+    handler: (db: SQLiteConnection) => Promise<Result>,
+  ): Promise<Result> => {
+    if (database == null) {
+      database = createConnection();
+    }
+
+    try {
+      await ensureSchemaExists(database);
+      return await handler(database);
+    } finally {
+      closeConnection();
     }
   };
 
@@ -85,13 +100,13 @@ export const getSQLiteEventStore = (
       options.schema?.autoMigration !== 'None';
   }
 
-  const ensureSchemaExists = async (): Promise<void> => {
+  const ensureSchemaExists = async (
+    connection: SQLiteConnection,
+  ): Promise<void> => {
     if (!autoGenerateSchema) return Promise.resolve();
-    if (db == null) {
-      throw new Error('Database connection does not exist');
-    }
+
     if (!schemaMigrated) {
-      await createEventStoreSchema(db);
+      await createEventStoreSchema(connection);
       schemaMigrated = true;
     }
 
@@ -117,19 +132,13 @@ export const getSQLiteEventStore = (
         throw new Error('Stream name is not string');
       }
 
-      if (db == null) {
-        db = createConnection();
+      if (database == null) {
+        database = createConnection();
       }
 
-      let result;
-      try {
-        result = await readStream<EventType>(db, streamName, options.read);
-      } catch (err: Error) {
-        closeConnection();
-        throw err;
-      }
-
-      closeConnection();
+      const result = await withConnection((db) =>
+        readStream<EventType>(db, streamName, options.read),
+      );
 
       const currentStreamVersion = result.currentStreamVersion;
 
@@ -157,32 +166,15 @@ export const getSQLiteEventStore = (
       options?: ReadStreamOptions<BigIntStreamPosition>,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
-    > => {
-      if (db == null) {
-        db = createConnection();
-      }
-
-      let stream;
-      try {
-        await ensureSchemaExists();
-        stream = await readStream<EventType>(db, streamName, options);
-      } catch (err: Error) {
-        closeConnection();
-        throw err;
-      }
-
-      closeConnection();
-
-      return stream;
-    },
+    > => withConnection((db) => readStream<EventType>(db, streamName, options)),
 
     appendToStream: async <EventType extends Event>(
       streamName: string,
       events: EventType[],
       options?: AppendToStreamOptions,
-    ): Promise<AppendToStreamResult> => {
-      if (db == null) {
-        db = createConnection();
+    ): Promise<AppendToStreamResultWithGlobalPosition> => {
+      if (database == null) {
+        database = createConnection();
       }
 
       // TODO: This has to be smarter when we introduce urn-based resolution
@@ -191,24 +183,9 @@ export const getSQLiteEventStore = (
       const streamType =
         firstPart && rest.length > 0 ? firstPart : 'emt:unknown';
 
-      let appendResult;
-
-      try {
-        await ensureSchemaExists();
-
-        appendResult = await appendToStream(
-          db,
-          streamName,
-          streamType,
-          events,
-          options,
-        );
-      } catch (err: Error) {
-        closeConnection();
-        throw err;
-      }
-
-      closeConnection();
+      const appendResult = await withConnection((db) =>
+        appendToStream(db, streamName, streamType, events, options),
+      );
 
       if (!appendResult.success)
         throw new ExpectedVersionConflictError<bigint>(

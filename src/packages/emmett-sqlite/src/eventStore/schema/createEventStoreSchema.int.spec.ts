@@ -1,6 +1,7 @@
 import assert from 'assert';
 import { after, before, describe, it } from 'node:test';
 import {
+  InMemorySQLiteDatabase,
   sqliteConnection,
   type SQLiteConnection,
 } from '../../sqliteConnection';
@@ -25,7 +26,7 @@ void describe('createEventStoreSchema', () => {
   let db: SQLiteConnection;
 
   before(async () => {
-    db = sqliteConnection({ location: ':memory:' });
+    db = sqliteConnection({ fileName: InMemorySQLiteDatabase });
 
     await createEventStoreSchema(db);
   });

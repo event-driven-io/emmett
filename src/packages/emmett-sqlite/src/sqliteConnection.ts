@@ -21,21 +21,18 @@ export const isSQLiteError = (error: unknown): error is SQLiteError => {
   return false;
 };
 
-export type AbsolutePath = `/${string}`;
-export type RelativePath = `${'.' | '..'}/${string}`;
+export type InMemorySQLiteDatabase = ':memory:';
+export const InMemorySQLiteDatabase = ':memory:';
 
 type SQLiteConnectionOptions = {
-  location: AbsolutePath | RelativePath | ':memory:';
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+  fileName: InMemorySQLiteDatabase | string | undefined;
 };
 
 export const sqliteConnection = (
   options: SQLiteConnectionOptions,
 ): SQLiteConnection => {
-  if (typeof options.location !== 'string') {
-    throw new Error('Path for sqlite database must be given');
-  }
-
-  const db = new sqlite3.Database(options.location);
+  const db = new sqlite3.Database(options.fileName ?? InMemorySQLiteDatabase);
 
   return {
     close: (): void => db.close(),
