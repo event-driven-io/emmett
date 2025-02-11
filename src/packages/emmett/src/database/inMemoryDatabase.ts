@@ -6,10 +6,6 @@ export interface DocumentsCollection<T> {
   get: (id: string) => T | null;
 }
 
-export type DocumentHandler<T> =
-  | ((document: T | null) => T | null)
-  | ((document: T | null) => Promise<T | null>);
-
 export interface Database {
   collection: <T>(name: string) => DocumentsCollection<T>;
 }
