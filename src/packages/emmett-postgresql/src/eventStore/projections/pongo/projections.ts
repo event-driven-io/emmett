@@ -167,6 +167,7 @@ export type PongoSingleStreamProjectionOptions<
     PostgresReadEventMetadata = PostgresReadEventMetadata,
 > = {
   canHandle: CanHandle<EventType>;
+  getDocumentId?: (event: ReadEvent<EventType>) => string;
 
   collectionName: string;
 } & (
@@ -201,6 +202,7 @@ export const pongoSingleStreamProjection = <
 ): PostgreSQLProjectionDefinition => {
   return pongoMultiStreamProjection<Document, EventType, EventMetaDataType>({
     ...options,
-    getDocumentId: (event) => event.metadata.streamName,
+    getDocumentId:
+      options.getDocumentId ?? ((event) => event.metadata.streamName),
   });
 };
