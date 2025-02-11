@@ -17,7 +17,7 @@ import {
 export type PostgreSQLEventStoreConsumerOptions = {
   connectionString: string;
   subscriptions?: PostgreSQLEventStoreSubscription[];
-  pooling?: {
+  pulling?: {
     batchSize?: number;
     pullingFrequencyInMs?: number;
   };
@@ -39,12 +39,12 @@ export const postgreSQLEventStoreConsumer = (
   options: PostgreSQLEventStoreConsumerOptions,
 ): PostgreSQLEventStoreConsumer => {
   let isRunning = false;
-  const { connectionString, pooling } = options;
+  const { connectionString, pulling } = options;
   const subscriptions = options.subscriptions ?? [];
 
   let start: Promise<void>;
 
-  let currentMessagePooler: PostgreSQLEventStoreMessageBatchPuller | undefined;
+  let currentMessagePuller: PostgreSQLEventStoreMessageBatchPuller | undefined;
 
   const pool = dumbo({ connectionString });
 
@@ -75,23 +75,23 @@ export const postgreSQLEventStoreConsumer = (
         };
   };
 
-  const messagePooler = (currentMessagePooler =
+  const messagePooler = (currentMessagePuller =
     postgreSQLEventStoreMessageBatchPuller({
       executor: pool.execute,
       eachBatch,
       batchSize:
-        pooling?.batchSize ?? DefaultPostgreSQLEventStoreSubscriptionBatchSize,
+        pulling?.batchSize ?? DefaultPostgreSQLEventStoreSubscriptionBatchSize,
       pullingFrequencyInMs:
-        pooling?.pullingFrequencyInMs ??
+        pulling?.pullingFrequencyInMs ??
         DefaultPostgreSQLEventStoreSubscriptionPullingFrequencyInMs,
     }));
 
   const stop = async () => {
     if (!isRunning) return;
     isRunning = false;
-    if (currentMessagePooler) {
-      await currentMessagePooler.stop();
-      currentMessagePooler = undefined;
+    if (currentMessagePuller) {
+      await currentMessagePuller.stop();
+      currentMessagePuller = undefined;
     }
     await start;
   };
