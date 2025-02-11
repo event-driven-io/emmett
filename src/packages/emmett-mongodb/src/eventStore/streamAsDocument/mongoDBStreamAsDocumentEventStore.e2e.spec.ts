@@ -17,12 +17,12 @@ import {
   toStreamCollectionName,
   toStreamName,
   type EventStream,
-  type MongoDBEventStore,
+  type MongoDBStreamAsDocumentEventStore,
 } from './';
 
 void describe('MongoDBEventStore', () => {
   let mongodb: StartedMongoDBContainer;
-  let eventStore: MongoDBEventStore;
+  let eventStore: MongoDBStreamAsDocumentEventStore;
   let client: MongoClient;
   let collection: Collection<EventStream>;
 
