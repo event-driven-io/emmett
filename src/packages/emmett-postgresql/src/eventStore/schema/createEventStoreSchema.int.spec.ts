@@ -64,7 +64,7 @@ void describe('createEventStoreSchema', () => {
 
   void describe('creates functions', () => {
     void it('creates the append_event function', async () => {
-      assert.ok(await functionExists(pool, 'emt_append_event'));
+      assert.ok(await functionExists(pool, 'emt_append_to_stream'));
     });
 
     void it('creates the emt_add_partition function', async () => {
