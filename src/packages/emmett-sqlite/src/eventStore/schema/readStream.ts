@@ -1,10 +1,7 @@
 import {
-  event,
   JSONParser,
+  type CombinedReadEventMetadata,
   type Event,
-  type EventDataOf,
-  type EventMetaDataOf,
-  type EventTypeOf,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
@@ -14,12 +11,12 @@ import { type SQLiteConnection } from '../../sqliteConnection';
 import { SQLiteEventStoreDefaultStreamVersion } from '../SQLiteEventStore';
 import { defaultTag, eventsTable } from './typing';
 
-type ReadStreamSqlResult<EventType extends Event> = {
+type ReadStreamSqlResult = {
   stream_position: string;
-  event_data: EventDataOf<EventType>;
-  event_metadata: EventMetaDataOf<EventType>;
+  event_data: string;
+  event_metadata: string;
   event_schema_version: string;
-  event_type: EventTypeOf<EventType>;
+  event_type: string;
   event_id: string;
   global_position: string;
   created: string;
@@ -47,7 +44,7 @@ export const readStream = async <EventType extends Event>(
 
   const toCondition = !isNaN(to) ? `AND stream_position <= ${to}` : '';
 
-  const results = await db.query<ReadStreamSqlResult<EventType>>(
+  const results = await db.query<ReadStreamSqlResult>(
     `SELECT stream_id, stream_position, global_position, event_data, event_metadata, event_schema_version, event_type, event_id
            FROM ${eventsTable.name}
            WHERE stream_id = ? AND partition = ? AND is_archived = FALSE ${fromCondition} ${toCondition}`,
@@ -56,21 +53,26 @@ export const readStream = async <EventType extends Event>(
 
   const events: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
     results.map((row) => {
-      const rawEvent = event<EventType>(
-        row.event_type,
-        JSONParser.parse(row.event_data),
-        JSONParser.parse(row.event_metadata),
-      );
+      const rawEvent = {
+        type: row.event_type,
+        data: JSONParser.parse(row.event_data),
+        metadata: JSONParser.parse(row.event_metadata),
+      } as unknown as EventType;
+
+      const metadata: ReadEventMetadataWithGlobalPosition = {
+        ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
+        eventId: row.event_id,
+        streamName: streamId,
+        streamPosition: BigInt(row.stream_position),
+        globalPosition: BigInt(row.global_position),
+      };
 
       return {
         ...rawEvent,
-        metadata: {
-          ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
-          eventId: row.event_id,
-          streamName: streamId,
-          streamPosition: BigInt(row.stream_position),
-          globalPosition: BigInt(row.global_position),
-        },
+        metadata: metadata as CombinedReadEventMetadata<
+          EventType,
+          ReadEventMetadataWithGlobalPosition
+        >,
       };
     });
 
@@ -79,6 +81,7 @@ export const readStream = async <EventType extends Event>(
         currentStreamVersion:
           events[events.length - 1]!.metadata.streamPosition,
         events,
+        streamExists: true,
       }
     : {
         currentStreamVersion: SQLiteEventStoreDefaultStreamVersion,
