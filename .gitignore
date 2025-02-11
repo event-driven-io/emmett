@@ -127,3 +127,5 @@ lib
 e2e/esmCompatibility/.output
 src/e2e/esmCompatibility/.output
 **/0x
+
+**/*.db

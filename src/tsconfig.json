@@ -33,6 +33,9 @@
       "path": "./packages/emmett-postgresql/"
     },
     {
+      "path": "./packages/emmett-sqlite/"
+    },
+    {
       "path": "./packages/emmett-mongodb/"
     },
     {

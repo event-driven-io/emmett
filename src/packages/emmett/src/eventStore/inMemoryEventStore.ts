@@ -19,14 +19,27 @@ import {
 } from './eventStore';
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
 import { StreamingCoordinator } from './subscriptions';
+import type { ProjectionRegistration } from '../projections';
 
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
 
 export type InMemoryEventStore =
   EventStore<ReadEventMetadataWithGlobalPosition>;
 
+export type InMemoryReadEventMetadata = ReadEventMetadataWithGlobalPosition;
+
+export type InMemoryProjectionHandlerContext = {
+  eventStore: InMemoryEventStore;
+};
+
 export type InMemoryEventStoreOptions =
-  DefaultEventStoreOptions<InMemoryEventStore>;
+  DefaultEventStoreOptions<InMemoryEventStore> & {
+    projections?: ProjectionRegistration<
+      'inline',
+      InMemoryReadEventMetadata,
+      InMemoryProjectionHandlerContext
+    >[];
+  };
 
 export type InMemoryReadEvent<EventType extends Event = Event> = ReadEvent<
   EventType,
@@ -47,6 +60,10 @@ export const getInMemoryEventStore = (
       .map((s) => s.length)
       .reduce((p, c) => p + c, 0);
   };
+
+  const _inlineProjections = (eventStoreOptions?.projections ?? [])
+    .filter(({ type }) => type === 'inline')
+    .map(({ projection }) => projection);
 
   return {
     async aggregateStream<State, EventType extends Event>(
