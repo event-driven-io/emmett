@@ -9,11 +9,15 @@ import {
   EventStoreDBClient,
   excludeSystemEvents,
   START,
-  type AllStreamJSONRecordedEvent,
-  type AllStreamResolvedEvent,
+  type JSONRecordedEvent,
+  type StreamSubscription,
 } from '@eventstore/db-client';
 import { finished, Readable } from 'stream';
 import { mapFromESDBEvent } from '../../eventstoreDBEventStore';
+import {
+  $all,
+  type EventStoreDBEventStoreConsumerType,
+} from '../eventStoreDBEventStoreConsumer';
 
 export const DefaultEventStoreDBEventStoreSubscriptionBatchSize = 100;
 export const DefaultEventStoreDBEventStoreSubscriptionPullingFrequencyInMs = 50;
@@ -41,13 +45,14 @@ export type EventStoreDBEventStoreMessagesBatchHandler<
 export type EventStoreDBEventStoreMessageBatchPullerOptions<
   EventType extends Event = Event,
 > = {
+  from?: EventStoreDBEventStoreConsumerType;
   eventStoreDBClient: EventStoreDBClient;
   batchSize: number;
   eachBatch: EventStoreDBEventStoreMessagesBatchHandler<EventType>;
 };
 
 export type EventStoreDBEventStoreMessageBatchPullerStartFrom =
-  | { globalPosition: bigint }
+  | { position: bigint }
   | 'BEGINNING'
   | 'END';
 
@@ -63,10 +68,48 @@ export type EventStoreDBEventStoreMessageBatchPuller = {
   stop(): Promise<void>;
 };
 
+const toGlobalPosition = (
+  startFrom: EventStoreDBEventStoreMessageBatchPullerStartFrom,
+) =>
+  startFrom === 'BEGINNING'
+    ? START
+    : startFrom === 'END'
+      ? END
+      : {
+          prepare: startFrom.position,
+          commit: startFrom.position,
+        };
+
+const toStreamPosition = (
+  startFrom: EventStoreDBEventStoreMessageBatchPullerStartFrom,
+) =>
+  startFrom === 'BEGINNING'
+    ? START
+    : startFrom === 'END'
+      ? END
+      : startFrom.position;
+
+const subscribe = (
+  eventStoreDBClient: EventStoreDBClient,
+  from: EventStoreDBEventStoreConsumerType | undefined,
+  options: EventStoreDBEventStoreMessageBatchPullerStartOptions,
+) =>
+  from == undefined || from.stream == $all
+    ? eventStoreDBClient.subscribeToAll({
+        fromPosition: toGlobalPosition(options.startFrom),
+        filter: excludeSystemEvents(),
+        ...(from?.options ?? {}),
+      })
+    : eventStoreDBClient.subscribeToStream(from.stream, {
+        fromRevision: toStreamPosition(options.startFrom),
+        ...(from.options ?? {}),
+      });
+
 export const eventStoreDBEventStoreMessageBatchPuller = <
   EventType extends Event = Event,
 >({
   eventStoreDBClient,
+  from,
   //batchSize,
   eachBatch,
 }: EventStoreDBEventStoreMessageBatchPullerOptions<EventType>): EventStoreDBEventStoreMessageBatchPuller => {
@@ -74,42 +117,28 @@ export const eventStoreDBEventStoreMessageBatchPuller = <
 
   let start: Promise<void>;
 
+  let subscription: StreamSubscription<EventType>;
+
   const pullMessages = async (
     options: EventStoreDBEventStoreMessageBatchPullerStartOptions,
   ) => {
-    const fromPosition =
-      options.startFrom === 'BEGINNING'
-        ? START
-        : options.startFrom === 'END'
-          ? END
-          : {
-              prepare: options.startFrom.globalPosition,
-              commit: options.startFrom.globalPosition,
-            };
-
-    const subscription = eventStoreDBClient.subscribeToAll({
-      fromPosition,
-      filter: excludeSystemEvents(),
-    });
+    subscription = subscribe(eventStoreDBClient, from, options);
 
     return new Promise<void>((resolve, reject) => {
       finished(
-        subscription.on(
-          'data',
-          async (resolvedEvent: AllStreamResolvedEvent) => {
-            if (!resolvedEvent.event) return;
+        subscription.on('data', async (resolvedEvent) => {
+          if (!resolvedEvent.event) return;
 
-            const event = mapFromESDBEvent(
-              resolvedEvent.event as AllStreamJSONRecordedEvent<EventType>,
-            );
+          const event = mapFromESDBEvent(
+            resolvedEvent.event as JSONRecordedEvent<EventType>,
+          );
 
-            const result = await eachBatch({ messages: [event] });
+          const result = await eachBatch({ messages: [event] });
 
-            if (result && result.type === 'STOP') {
-              subscription.destroy();
-            }
-          },
-        ) as unknown as Readable,
+          if (result && result.type === 'STOP') {
+            await subscription.unsubscribe();
+          }
+        }) as unknown as Readable,
         (error) => {
           if (!error) {
             console.info(`Stopping subscription.`);
@@ -121,33 +150,6 @@ export const eventStoreDBEventStoreMessageBatchPuller = <
         },
       );
     });
-    //return subscription;
-
-    // let waitTime = 100;
-
-    // do {
-    //   const { messages, currentGlobalPosition, areEventsLeft } =
-    //     await readMessagesBatch<EventType>(executor, readMessagesOptions);
-
-    //   if (messages.length > 0) {
-    //     const result = await eachBatch({ messages });
-
-    //     if (result && result.type === 'STOP') {
-    //       isRunning = false;
-    //       break;
-    //     }
-    //   }
-
-    //   readMessagesOptions.after = currentGlobalPosition;
-
-    //   await new Promise((resolve) => setTimeout(resolve, waitTime));
-
-    //   if (!areEventsLeft) {
-    //     waitTime = Math.min(waitTime * 2, 1000);
-    //   } else {
-    //     waitTime = pullingFrequencyInMs;
-    //   }
-    // } while (isRunning);
   };
 
   return {
@@ -168,6 +170,7 @@ export const eventStoreDBEventStoreMessageBatchPuller = <
     stop: async () => {
       if (!isRunning) return;
       isRunning = false;
+      await subscription?.unsubscribe();
       await start;
     },
   };

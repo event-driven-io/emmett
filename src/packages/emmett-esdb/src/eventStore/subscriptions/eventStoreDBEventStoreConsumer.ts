@@ -1,5 +1,9 @@
 import { EmmettError, type Event } from '@event-driven-io/emmett';
-import { EventStoreDBClient } from '@eventstore/db-client';
+import {
+  EventStoreDBClient,
+  type SubscribeToAllOptions,
+  type SubscribeToStreamOptions,
+} from '@eventstore/db-client';
 import {
   eventStoreDBEventStoreSubscription,
   type EventStoreDBEventStoreSubscription,
@@ -15,11 +19,25 @@ import {
 
 export type EventStoreDBEventStoreConsumerOptions = {
   connectionString: string;
+  from?: EventStoreDBEventStoreConsumerType;
   subscriptions?: EventStoreDBEventStoreSubscription[];
   pulling?: {
     batchSize?: number;
   };
 };
+
+export type $all = '$all';
+export const $all = '$all';
+
+export type EventStoreDBEventStoreConsumerType =
+  | {
+      stream: $all;
+      options?: Exclude<SubscribeToAllOptions, 'fromPosition'>;
+    }
+  | {
+      stream: string;
+      options?: Exclude<SubscribeToStreamOptions, 'fromRevision'>;
+    };
 
 export type EventStoreDBEventStoreConsumer = Readonly<{
   connectionString: string;

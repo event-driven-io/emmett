@@ -24,7 +24,6 @@ import {
   StreamNotFoundError,
   WrongExpectedVersionError,
   jsonEvent,
-  type AllStreamJSONRecordedEvent,
   type AppendExpectedRevision,
   type ReadStreamOptions as ESDBReadStreamOptions,
   type JSONRecordedEvent,
@@ -208,7 +207,7 @@ export const getEventStoreDBEventStore = (
 };
 
 export const mapFromESDBEvent = <EventType extends Event = Event>(
-  event: JSONRecordedEvent<EventType> | AllStreamJSONRecordedEvent<EventType>,
+  event: JSONRecordedEvent<EventType>,
 ): ReadEvent<EventType, EventStoreDBReadEventMetadata> => {
   return <ReadEvent<EventType, EventStoreDBReadEventMetadata>>{
     type: event.type,
