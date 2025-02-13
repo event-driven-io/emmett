@@ -5,100 +5,99 @@ import {
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import type { EventStoreDBClient } from '@eventstore/db-client';
-import type { EventStoreDBEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
+import { v7 as uuid } from 'uuid';
+import type { EventStoreDBSubscriptionStartFrom } from './subscriptions';
 
-export type EventStoreDBEventStoreSubscriptionEventsBatch<
+export type EventStoreDBEventStoreProcessorEventsBatch<
   EventType extends Event = Event,
 > = {
   messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
 };
 
-export type EventStoreDBEventStoreSubscription<
-  EventType extends Event = Event,
-> = {
+export type EventStoreDBEventStoreProcessor<EventType extends Event = Event> = {
   id: string;
   start: (
     eventStoreDBClient: EventStoreDBClient,
-  ) => Promise<EventStoreDBEventStoreMessageBatchPullerStartFrom | undefined>;
+  ) => Promise<EventStoreDBSubscriptionStartFrom | undefined>;
   isActive: boolean;
   handle: (
-    messagesBatch: EventStoreDBEventStoreSubscriptionEventsBatch<EventType>,
+    messagesBatch: EventStoreDBEventStoreProcessorEventsBatch<EventType>,
     context: { eventStoreDBClient: EventStoreDBClient },
-  ) => Promise<EventStoreDBEventStoreSubscriptionMessageHandlerResult>;
+  ) => Promise<EventStoreDBEventStoreProcessorMessageHandlerResult>;
 };
 
-export const EventStoreDBEventStoreSubscription = {
+export const EventStoreDBEventStoreProcessor = {
   result: {
     skip: (options?: {
       reason?: string;
-    }): EventStoreDBEventStoreSubscriptionMessageHandlerResult => ({
+    }): EventStoreDBEventStoreProcessorMessageHandlerResult => ({
       type: 'SKIP',
       ...(options ?? {}),
     }),
     stop: (options?: {
       reason?: string;
       error?: EmmettError;
-    }): EventStoreDBEventStoreSubscriptionMessageHandlerResult => ({
+    }): EventStoreDBEventStoreProcessorMessageHandlerResult => ({
       type: 'STOP',
       ...(options ?? {}),
     }),
   },
 };
 
-export type EventStoreDBEventStoreSubscriptionMessageHandlerResult =
+export type EventStoreDBEventStoreProcessorMessageHandlerResult =
   | void
   | { type: 'SKIP'; reason?: string }
   | { type: 'STOP'; reason?: string; error?: EmmettError };
 
-export type EventStoreDBEventStoreSubscriptionEachMessageHandler<
+export type EventStoreDBEventStoreProcessorEachMessageHandler<
   EventType extends Event = Event,
 > = (
   event: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
 ) =>
-  | Promise<EventStoreDBEventStoreSubscriptionMessageHandlerResult>
-  | EventStoreDBEventStoreSubscriptionMessageHandlerResult;
+  | Promise<EventStoreDBEventStoreProcessorMessageHandlerResult>
+  | EventStoreDBEventStoreProcessorMessageHandlerResult;
 
-export type EventStoreDBEventStoreSubscriptionStartFrom =
-  | EventStoreDBEventStoreMessageBatchPullerStartFrom
+export type EventStoreDBEventStoreProcessorStartFrom =
+  | EventStoreDBSubscriptionStartFrom
   | 'CURRENT';
 
-export type EventStoreDBEventStoreSubscriptionOptions<
+export type EventStoreDBEventStoreProcessorOptions<
   EventType extends Event = Event,
 > = {
-  subscriptionId: string;
+  processorId?: string;
   version?: number;
   partition?: string;
-  startFrom?: EventStoreDBEventStoreSubscriptionStartFrom;
+  startFrom?: EventStoreDBEventStoreProcessorStartFrom;
   stopAfter?: (
     message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
   ) => boolean;
-  eachMessage: EventStoreDBEventStoreSubscriptionEachMessageHandler<EventType>;
+  eachMessage: EventStoreDBEventStoreProcessorEachMessageHandler<EventType>;
 };
 
-export const eventStoreDBEventStoreSubscription = <
+export const eventStoreDBEventStoreProcessor = <
   EventType extends Event = Event,
 >(
-  options: EventStoreDBEventStoreSubscriptionOptions<EventType>,
-): EventStoreDBEventStoreSubscription => {
+  options: EventStoreDBEventStoreProcessorOptions<EventType>,
+): EventStoreDBEventStoreProcessor => {
   const { eachMessage } = options;
   let isActive = true;
   //let lastProcessedPosition: bigint | null = null;
 
+  options.processorId = options.processorId ?? uuid();
+
   return {
-    id: options.subscriptionId,
+    id: options.processorId,
     start: (
       _eventStoreDBClient: EventStoreDBClient,
-    ): Promise<
-      EventStoreDBEventStoreMessageBatchPullerStartFrom | undefined
-    > => {
+    ): Promise<EventStoreDBSubscriptionStartFrom | undefined> => {
       isActive = true;
       if (options.startFrom !== 'CURRENT')
         return Promise.resolve(options.startFrom);
 
-      // const { lastProcessedPosition } = await readSubscriptionCheckpoint(
+      // const { lastProcessedPosition } = await readProcessorCheckpoint(
       //   execute,
       //   {
-      //     subscriptionId: options.subscriptionId,
+      //     processorId: options.processorId,
       //     partition: options.partition,
       //   },
       // );
@@ -113,11 +112,11 @@ export const eventStoreDBEventStoreSubscription = <
     },
     handle: async ({
       messages,
-    }): Promise<EventStoreDBEventStoreSubscriptionMessageHandlerResult> => {
+    }): Promise<EventStoreDBEventStoreProcessorMessageHandlerResult> => {
       if (!isActive) return;
 
       let result:
-        | EventStoreDBEventStoreSubscriptionMessageHandlerResult
+        | EventStoreDBEventStoreProcessorMessageHandlerResult
         | undefined = undefined;
 
       //let lastProcessedPosition: bigint | null = null;
@@ -131,8 +130,8 @@ export const eventStoreDBEventStoreSubscription = <
         const messageProcessingResult = await eachMessage(typedMessage);
 
         // TODO: Add correct handling of the storing checkpoint
-        // await storeSubscriptionCheckpoint(tx.execute, {
-        //   subscriptionId: options.subscriptionId,
+        // await storeProcessorCheckpoint(tx.execute, {
+        //   processorId: options.processorId,
         //   version: options.version,
         //   lastProcessedPosition,
         //   newPosition: typedMessage.metadata.globalPosition,

@@ -19,8 +19,8 @@ import {
   type EventStoreDBEventStoreConsumerType,
 } from '../eventStoreDBEventStoreConsumer';
 
-export const DefaultEventStoreDBEventStoreSubscriptionBatchSize = 100;
-export const DefaultEventStoreDBEventStoreSubscriptionPullingFrequencyInMs = 50;
+export const DefaultEventStoreDBEventStoreProcessorBatchSize = 100;
+export const DefaultEventStoreDBEventStoreProcessorPullingFrequencyInMs = 50;
 
 export type EventStoreDBEventStoreMessagesBatch<
   EventType extends Event = Event,
@@ -42,35 +42,29 @@ export type EventStoreDBEventStoreMessagesBatchHandler<
   | Promise<EventStoreDBEventStoreMessagesBatchHandlerResult>
   | EventStoreDBEventStoreMessagesBatchHandlerResult;
 
-export type EventStoreDBEventStoreMessageBatchPullerOptions<
-  EventType extends Event = Event,
-> = {
+export type EventStoreDBSubscriptionOptions<EventType extends Event = Event> = {
   from?: EventStoreDBEventStoreConsumerType;
   eventStoreDBClient: EventStoreDBClient;
   batchSize: number;
   eachBatch: EventStoreDBEventStoreMessagesBatchHandler<EventType>;
 };
 
-export type EventStoreDBEventStoreMessageBatchPullerStartFrom =
+export type EventStoreDBSubscriptionStartFrom =
   | { position: bigint }
   | 'BEGINNING'
   | 'END';
 
-export type EventStoreDBEventStoreMessageBatchPullerStartOptions = {
-  startFrom: EventStoreDBEventStoreMessageBatchPullerStartFrom;
+export type EventStoreDBSubscriptionStartOptions = {
+  startFrom: EventStoreDBSubscriptionStartFrom;
 };
 
 export type EventStoreDBEventStoreMessageBatchPuller = {
   isRunning: boolean;
-  start(
-    options: EventStoreDBEventStoreMessageBatchPullerStartOptions,
-  ): Promise<void>;
+  start(options: EventStoreDBSubscriptionStartOptions): Promise<void>;
   stop(): Promise<void>;
 };
 
-const toGlobalPosition = (
-  startFrom: EventStoreDBEventStoreMessageBatchPullerStartFrom,
-) =>
+const toGlobalPosition = (startFrom: EventStoreDBSubscriptionStartFrom) =>
   startFrom === 'BEGINNING'
     ? START
     : startFrom === 'END'
@@ -80,9 +74,7 @@ const toGlobalPosition = (
           commit: startFrom.position,
         };
 
-const toStreamPosition = (
-  startFrom: EventStoreDBEventStoreMessageBatchPullerStartFrom,
-) =>
+const toStreamPosition = (startFrom: EventStoreDBSubscriptionStartFrom) =>
   startFrom === 'BEGINNING'
     ? START
     : startFrom === 'END'
@@ -92,7 +84,7 @@ const toStreamPosition = (
 const subscribe = (
   eventStoreDBClient: EventStoreDBClient,
   from: EventStoreDBEventStoreConsumerType | undefined,
-  options: EventStoreDBEventStoreMessageBatchPullerStartOptions,
+  options: EventStoreDBSubscriptionStartOptions,
 ) =>
   from == undefined || from.stream == $all
     ? eventStoreDBClient.subscribeToAll({
@@ -105,14 +97,12 @@ const subscribe = (
         ...(from.options ?? {}),
       });
 
-export const eventStoreDBEventStoreMessageBatchPuller = <
-  EventType extends Event = Event,
->({
+export const eventStoreDBSubscription = <EventType extends Event = Event>({
   eventStoreDBClient,
   from,
   //batchSize,
   eachBatch,
-}: EventStoreDBEventStoreMessageBatchPullerOptions<EventType>): EventStoreDBEventStoreMessageBatchPuller => {
+}: EventStoreDBSubscriptionOptions<EventType>): EventStoreDBEventStoreMessageBatchPuller => {
   let isRunning = false;
 
   let start: Promise<void>;
@@ -120,7 +110,7 @@ export const eventStoreDBEventStoreMessageBatchPuller = <
   let subscription: StreamSubscription<EventType>;
 
   const pullMessages = async (
-    options: EventStoreDBEventStoreMessageBatchPullerStartOptions,
+    options: EventStoreDBSubscriptionStartOptions,
   ) => {
     subscription = subscribe(eventStoreDBClient, from, options);
 
@@ -177,8 +167,8 @@ export const eventStoreDBEventStoreMessageBatchPuller = <
 };
 
 export const zipEventStoreDBEventStoreMessageBatchPullerStartFrom = (
-  options: (EventStoreDBEventStoreMessageBatchPullerStartFrom | undefined)[],
-): EventStoreDBEventStoreMessageBatchPullerStartFrom => {
+  options: (EventStoreDBSubscriptionStartFrom | undefined)[],
+): EventStoreDBSubscriptionStartFrom => {
   if (
     options.length === 0 ||
     options.some((o) => o === undefined || o === 'BEGINNING')
