@@ -51,7 +51,7 @@ void describe('EventStoreDB event store consumer', () => {
 
   void it('creates not-started consumer if connection string targets not existing EventStoreDB database', () => {
     const connectionStringToNotExistingDB =
-      'postgresql://postgres:postgres@not-existing-database:5432/postgres';
+      'esdb://not-existing:2113?tls=false';
     const consumer = eventStoreDBEventStoreConsumer({
       connectionString: connectionStringToNotExistingDB,
       subscriptions: [dummySubscription],
@@ -79,7 +79,7 @@ void describe('EventStoreDB event store consumer', () => {
 
     void it('fails to start if connection string targets not existing EventStoreDB database', async () => {
       const connectionStringToNotExistingDB =
-        'postgresql://postgres:postgres@not-existing-database:5432/postgres';
+        'esdb://not-existing:2113?tls=false';
       const consumerToNotExistingServer = eventStoreDBEventStoreConsumer({
         connectionString: connectionStringToNotExistingDB,
         subscriptions: [dummySubscription],
@@ -87,7 +87,7 @@ void describe('EventStoreDB event store consumer', () => {
       await assertThrowsAsync(
         () => consumerToNotExistingServer.start(),
         (error) => {
-          return 'code' in error && error.code === 'EAI_AGAIN';
+          return 'type' in error && error.type === 'unavailable';
         },
       );
     });
