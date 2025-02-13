@@ -15,12 +15,12 @@ import {
   eventStoreDBEventStoreConsumer,
   type EventStoreDBEventStoreConsumer,
 } from './eventStoreDBEventStoreConsumer';
-import type { EventStoreDBEventStoreSubscription } from './eventStoreDBEventStoreSubscription';
+import type { EventStoreDBEventStoreProcessor } from './eventStoreDBEventStoreProcessor';
 
 void describe('EventStoreDB event store consumer', () => {
   let eventStoreDB: StartedEventStoreDBContainer;
   let connectionString: string;
-  const dummySubscription: EventStoreDBEventStoreSubscription = {
+  const dummyProcessor: EventStoreDBEventStoreProcessor = {
     id: uuid(),
     start: () => Promise.resolve('BEGINNING'),
     handle: () => Promise.resolve(),
@@ -43,7 +43,7 @@ void describe('EventStoreDB event store consumer', () => {
   void it('creates not-started consumer for the specified connection string', () => {
     const consumer = eventStoreDBEventStoreConsumer({
       connectionString,
-      subscriptions: [dummySubscription],
+      processors: [dummyProcessor],
     });
 
     assertFalse(consumer.isRunning);
@@ -54,7 +54,7 @@ void describe('EventStoreDB event store consumer', () => {
       'esdb://not-existing:2113?tls=false';
     const consumer = eventStoreDBEventStoreConsumer({
       connectionString: connectionStringToNotExistingDB,
-      subscriptions: [dummySubscription],
+      processors: [dummyProcessor],
     });
 
     assertFalse(consumer.isRunning);
@@ -66,7 +66,7 @@ void describe('EventStoreDB event store consumer', () => {
     beforeEach(() => {
       consumer = eventStoreDBEventStoreConsumer({
         connectionString,
-        subscriptions: [dummySubscription],
+        processors: [dummyProcessor],
       });
     });
     afterEach(() => consumer.stop());
@@ -82,7 +82,7 @@ void describe('EventStoreDB event store consumer', () => {
         'esdb://not-existing:2113?tls=false';
       const consumerToNotExistingServer = eventStoreDBEventStoreConsumer({
         connectionString: connectionStringToNotExistingDB,
-        subscriptions: [dummySubscription],
+        processors: [dummyProcessor],
       });
       await assertThrowsAsync(
         () => consumerToNotExistingServer.start(),
@@ -92,17 +92,17 @@ void describe('EventStoreDB event store consumer', () => {
       );
     });
 
-    void it('fails to start if there are no subscriptions', async () => {
+    void it('fails to start if there are no processors', async () => {
       const consumerToNotExistingServer = eventStoreDBEventStoreConsumer({
         connectionString,
-        subscriptions: [],
+        processors: [],
       });
       await assertThrowsAsync<EmmettError>(
         () => consumerToNotExistingServer.start(),
         (error) => {
           return (
             error.message ===
-            'Cannot start consumer without at least a single subscription'
+            'Cannot start consumer without at least a single processor'
           );
         },
       );
@@ -128,7 +128,7 @@ void describe('EventStoreDB event store consumer', () => {
     beforeEach(() => {
       consumer = eventStoreDBEventStoreConsumer({
         connectionString,
-        subscriptions: [dummySubscription],
+        processors: [dummyProcessor],
       });
     });
     afterEach(() => consumer.stop());

@@ -14,7 +14,7 @@ import {
   eventStoreDBEventStoreConsumer,
   type EventStoreDBEventStoreConsumerType,
 } from './eventStoreDBEventStoreConsumer';
-import type { EventStoreDBEventStoreSubscriptionOptions } from './eventStoreDBEventStoreSubscription';
+import type { EventStoreDBEventStoreProcessorOptions } from './eventStoreDBEventStoreProcessor';
 
 void describe('EventStoreDB event store started consumer', () => {
   let eventStoreDB: StartedEventStoreDBContainer;
@@ -45,7 +45,7 @@ void describe('EventStoreDB event store started consumer', () => {
 
   consumeFrom.forEach(([displayName, from]) => {
     void describe('eachMessage', () => {
-      void it(`handles all events from ${displayName} appended to event store BEFORE subscription was started`, async () => {
+      void it(`handles all events from ${displayName} appended to event store BEFORE processor was started`, async () => {
         // Given
         const guestId = uuid();
         const streamName = `guestStay-${guestId}`;
@@ -65,8 +65,8 @@ void describe('EventStoreDB event store started consumer', () => {
           connectionString,
           from: from(streamName),
         });
-        consumer.subscribe<GuestStayEvent>({
-          subscriptionId: uuid(),
+        consumer.processor<GuestStayEvent>({
+          processorId: uuid(),
           stopAfter: (event) =>
             event.metadata.globalPosition ===
             appendResult.lastEventGlobalPosition,
@@ -84,7 +84,7 @@ void describe('EventStoreDB event store started consumer', () => {
         }
       });
 
-      void it(`handles all events from ${displayName} appended to event store AFTER subscription was started`, async () => {
+      void it(`handles all events from ${displayName} appended to event store AFTER processor was started`, async () => {
         // Given
 
         const result: GuestStayEvent[] = [];
@@ -98,8 +98,8 @@ void describe('EventStoreDB event store started consumer', () => {
           connectionString,
           from: from(streamName),
         });
-        consumer.subscribe<GuestStayEvent>({
-          subscriptionId: uuid(),
+        consumer.processor<GuestStayEvent>({
+          processorId: uuid(),
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
@@ -155,8 +155,8 @@ void describe('EventStoreDB event store started consumer', () => {
           connectionString,
           from: from(streamName),
         });
-        consumer.subscribe<GuestStayEvent>({
-          subscriptionId: uuid(),
+        consumer.processor<GuestStayEvent>({
+          processorId: uuid(),
           startFrom: { position: startPosition },
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
@@ -208,8 +208,8 @@ void describe('EventStoreDB event store started consumer', () => {
           connectionString,
           from: from(streamName),
         });
-        consumer.subscribe<GuestStayEvent>({
-          subscriptionId: uuid(),
+        consumer.processor<GuestStayEvent>({
+          processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
@@ -266,8 +266,8 @@ void describe('EventStoreDB event store started consumer', () => {
           connectionString,
           from: from(streamName),
         });
-        consumer.subscribe<GuestStayEvent>({
-          subscriptionId: uuid(),
+        consumer.processor<GuestStayEvent>({
+          processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
@@ -323,9 +323,9 @@ void describe('EventStoreDB event store started consumer', () => {
         let result: GuestStayEvent[] = [];
         let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
 
-        const subscriptionOptions: EventStoreDBEventStoreSubscriptionOptions<GuestStayEvent> =
+        const processorOptions: EventStoreDBEventStoreProcessorOptions<GuestStayEvent> =
           {
-            subscriptionId: uuid(),
+            processorId: uuid(),
             startFrom: 'CURRENT',
             stopAfter: (event) =>
               event.metadata.globalPosition === stopAfterPosition,
@@ -340,7 +340,7 @@ void describe('EventStoreDB event store started consumer', () => {
           from: from(streamName),
         });
         try {
-          consumer.subscribe<GuestStayEvent>(subscriptionOptions);
+          consumer.processor<GuestStayEvent>(processorOptions);
 
           await consumer.start();
         } finally {
@@ -355,7 +355,7 @@ void describe('EventStoreDB event store started consumer', () => {
           connectionString,
           from: from(streamName),
         });
-        newConsumer.subscribe<GuestStayEvent>(subscriptionOptions);
+        newConsumer.processor<GuestStayEvent>(processorOptions);
 
         try {
           const consumerPromise = newConsumer.start();
