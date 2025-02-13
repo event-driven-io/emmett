@@ -1,27 +1,27 @@
 import { singleOrNull, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import { defaultTag, subscriptionsTable } from './typing';
 
-type ReadSubscriptionCheckpointSqlResult = {
+type ReadProcessorCheckpointSqlResult = {
   last_processed_position: string;
 };
 
-export type ReadSubscriptionCheckpointResult = {
+export type ReadProcessorCheckpointResult = {
   lastProcessedPosition: bigint | null;
 };
 
-export const readSubscriptionCheckpoint = async (
+export const readProcessorCheckpoint = async (
   execute: SQLExecutor,
-  options: { subscriptionId: string; partition?: string },
-): Promise<ReadSubscriptionCheckpointResult> => {
+  options: { processorId: string; partition?: string },
+): Promise<ReadProcessorCheckpointResult> => {
   const result = await singleOrNull(
-    execute.query<ReadSubscriptionCheckpointSqlResult>(
+    execute.query<ReadProcessorCheckpointSqlResult>(
       sql(
         `SELECT last_processed_position
            FROM ${subscriptionsTable.name}
            WHERE partition = %L AND subscription_id = %L
            LIMIT 1`,
         options?.partition ?? defaultTag,
-        options.subscriptionId,
+        options.processorId,
       ),
     ),
   );

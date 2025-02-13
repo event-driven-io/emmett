@@ -10,7 +10,7 @@ import {
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
-import type { PostgreSQLEventStoreSubscriptionOptions } from './postgreSQLEventStoreSubscription';
+import type { PostgreSQLProcessorOptions } from './postgreSQLProcessor';
 
 void describe('PostgreSQL event store started consumer', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -34,7 +34,7 @@ void describe('PostgreSQL event store started consumer', () => {
   });
 
   void describe('eachMessage', () => {
-    void it('handles all events appended to event store BEFORE subscription was started', async () => {
+    void it('handles all events appended to event store BEFORE processor was started', async () => {
       // Given
       const guestId = uuid();
       const streamName = `guestStay-${guestId}`;
@@ -50,8 +50,8 @@ void describe('PostgreSQL event store started consumer', () => {
       const consumer = postgreSQLEventStoreConsumer({
         connectionString,
       });
-      consumer.subscribe<GuestStayEvent>({
-        subscriptionId: uuid(),
+      consumer.processor<GuestStayEvent>({
+        processorId: uuid(),
         stopAfter: (event) =>
           event.metadata.globalPosition ===
           appendResult.lastEventGlobalPosition,
@@ -69,7 +69,7 @@ void describe('PostgreSQL event store started consumer', () => {
       }
     });
 
-    void it('handles all events appended to event store AFTER subscription was started', async () => {
+    void it('handles all events appended to event store AFTER processor was started', async () => {
       // Given
 
       const result: GuestStayEvent[] = [];
@@ -79,8 +79,8 @@ void describe('PostgreSQL event store started consumer', () => {
       const consumer = postgreSQLEventStoreConsumer({
         connectionString,
       });
-      consumer.subscribe<GuestStayEvent>({
-        subscriptionId: uuid(),
+      consumer.processor<GuestStayEvent>({
+        processorId: uuid(),
         stopAfter: (event) =>
           event.metadata.globalPosition === stopAfterPosition,
         eachMessage: (event) => {
@@ -137,8 +137,8 @@ void describe('PostgreSQL event store started consumer', () => {
       const consumer = postgreSQLEventStoreConsumer({
         connectionString,
       });
-      consumer.subscribe<GuestStayEvent>({
-        subscriptionId: uuid(),
+      consumer.processor<GuestStayEvent>({
+        processorId: uuid(),
         startFrom: { globalPosition: startPosition },
         stopAfter: (event) =>
           event.metadata.globalPosition === stopAfterPosition,
@@ -189,8 +189,8 @@ void describe('PostgreSQL event store started consumer', () => {
       const consumer = postgreSQLEventStoreConsumer({
         connectionString,
       });
-      consumer.subscribe<GuestStayEvent>({
-        subscriptionId: uuid(),
+      consumer.processor<GuestStayEvent>({
+        processorId: uuid(),
         startFrom: 'CURRENT',
         stopAfter: (event) =>
           event.metadata.globalPosition === stopAfterPosition,
@@ -246,8 +246,8 @@ void describe('PostgreSQL event store started consumer', () => {
       const consumer = postgreSQLEventStoreConsumer({
         connectionString,
       });
-      consumer.subscribe<GuestStayEvent>({
-        subscriptionId: uuid(),
+      consumer.processor<GuestStayEvent>({
+        processorId: uuid(),
         startFrom: 'CURRENT',
         stopAfter: (event) =>
           event.metadata.globalPosition === stopAfterPosition,
@@ -303,23 +303,22 @@ void describe('PostgreSQL event store started consumer', () => {
       let result: GuestStayEvent[] = [];
       let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
 
-      const subscriptionOptions: PostgreSQLEventStoreSubscriptionOptions<GuestStayEvent> =
-        {
-          subscriptionId: uuid(),
-          startFrom: 'CURRENT',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
-          eachMessage: (event) => {
-            result.push(event);
-          },
-        };
+      const processorOptions: PostgreSQLProcessorOptions<GuestStayEvent> = {
+        processorId: uuid(),
+        startFrom: 'CURRENT',
+        stopAfter: (event) =>
+          event.metadata.globalPosition === stopAfterPosition,
+        eachMessage: (event) => {
+          result.push(event);
+        },
+      };
 
       // When
       const consumer = postgreSQLEventStoreConsumer({
         connectionString,
       });
       try {
-        consumer.subscribe<GuestStayEvent>(subscriptionOptions);
+        consumer.processor<GuestStayEvent>(processorOptions);
 
         await consumer.start();
       } finally {
@@ -333,7 +332,7 @@ void describe('PostgreSQL event store started consumer', () => {
       const newConsumer = postgreSQLEventStoreConsumer({
         connectionString,
       });
-      newConsumer.subscribe<GuestStayEvent>(subscriptionOptions);
+      newConsumer.processor<GuestStayEvent>(processorOptions);
 
       try {
         const consumerPromise = newConsumer.start();

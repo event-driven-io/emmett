@@ -19,13 +19,13 @@ import {
   postgreSQLEventStoreConsumer,
   type PostgreSQLEventStoreConsumer,
 } from './postgreSQLEventStoreConsumer';
-import type { PostgreSQLEventStoreSubscription } from './postgreSQLEventStoreSubscription';
+import type { PostgreSQLProcessor } from './postgreSQLProcessor';
 
 void describe('PostgreSQL event store consumer', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
   let eventStore: PostgresEventStore;
-  const dummySubscription: PostgreSQLEventStoreSubscription = {
+  const dummyProcessor: PostgreSQLProcessor = {
     id: uuid(),
     start: () => Promise.resolve('BEGINNING'),
     handle: () => Promise.resolve(),
@@ -51,7 +51,7 @@ void describe('PostgreSQL event store consumer', () => {
   void it('creates not-started consumer for the specified connection string', () => {
     const consumer = postgreSQLEventStoreConsumer({
       connectionString,
-      subscriptions: [dummySubscription],
+      processors: [dummyProcessor],
     });
 
     assertFalse(consumer.isRunning);
@@ -62,7 +62,7 @@ void describe('PostgreSQL event store consumer', () => {
       'postgresql://postgres:postgres@not-existing-database:5432/postgres';
     const consumer = postgreSQLEventStoreConsumer({
       connectionString: connectionStringToNotExistingDB,
-      subscriptions: [dummySubscription],
+      processors: [dummyProcessor],
     });
 
     assertFalse(consumer.isRunning);
@@ -74,7 +74,7 @@ void describe('PostgreSQL event store consumer', () => {
     beforeEach(() => {
       consumer = postgreSQLEventStoreConsumer({
         connectionString,
-        subscriptions: [dummySubscription],
+        processors: [dummyProcessor],
       });
     });
     afterEach(() => consumer.stop());
@@ -90,7 +90,7 @@ void describe('PostgreSQL event store consumer', () => {
         'postgresql://postgres:postgres@not-existing-database:5432/postgres';
       const consumerToNotExistingServer = postgreSQLEventStoreConsumer({
         connectionString: connectionStringToNotExistingDB,
-        subscriptions: [dummySubscription],
+        processors: [dummyProcessor],
       });
       await assertThrowsAsync(
         () => consumerToNotExistingServer.start(),
@@ -100,17 +100,17 @@ void describe('PostgreSQL event store consumer', () => {
       );
     });
 
-    void it('fails to start if there are no subscriptions', async () => {
+    void it('fails to start if there are no processors', async () => {
       const consumerToNotExistingServer = postgreSQLEventStoreConsumer({
         connectionString,
-        subscriptions: [],
+        processors: [],
       });
       await assertThrowsAsync<EmmettError>(
         () => consumerToNotExistingServer.start(),
         (error) => {
           return (
             error.message ===
-            'Cannot start consumer without at least a single subscription'
+            'Cannot start consumer without at least a single processor'
           );
         },
       );
@@ -136,7 +136,7 @@ void describe('PostgreSQL event store consumer', () => {
     beforeEach(() => {
       consumer = postgreSQLEventStoreConsumer({
         connectionString,
-        subscriptions: [dummySubscription],
+        processors: [dummyProcessor],
       });
     });
     afterEach(() => consumer.stop());

@@ -11,8 +11,8 @@ import {
   type ReadMessagesBatchOptions,
 } from '../../schema/readMessagesBatch';
 
-export const DefaultPostgreSQLEventStoreSubscriptionBatchSize = 100;
-export const DefaultPostgreSQLEventStoreSubscriptionPullingFrequencyInMs = 50;
+export const DefaultPostgreSQLEventStoreProcessorBatchSize = 100;
+export const DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs = 50;
 
 export type PostgreSQLEventStoreMessagesBatch<EventType extends Event = Event> =
   {

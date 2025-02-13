@@ -5,103 +5,90 @@ import {
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import {
-  readSubscriptionCheckpoint,
-  storeSubscriptionCheckpoint,
-} from '../schema';
+import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
 import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 
-export type PostgreSQLEventStoreSubscriptionEventsBatch<
-  EventType extends Event = Event,
-> = {
+export type PostgreSQLProcessorEventsBatch<EventType extends Event = Event> = {
   messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
 };
 
-export type PostgreSQLEventStoreSubscription<EventType extends Event = Event> =
-  {
-    id: string;
-    start: (
-      execute: SQLExecutor,
-    ) => Promise<PostgreSQLEventStoreMessageBatchPullerStartFrom | undefined>;
-    isActive: boolean;
-    handle: (
-      messagesBatch: PostgreSQLEventStoreSubscriptionEventsBatch<EventType>,
-      context: { pool: Dumbo },
-    ) => Promise<PostgreSQLEventStoreSubscriptionMessageHandlerResult>;
-  };
+export type PostgreSQLProcessor<EventType extends Event = Event> = {
+  id: string;
+  start: (
+    execute: SQLExecutor,
+  ) => Promise<PostgreSQLEventStoreMessageBatchPullerStartFrom | undefined>;
+  isActive: boolean;
+  handle: (
+    messagesBatch: PostgreSQLProcessorEventsBatch<EventType>,
+    context: { pool: Dumbo },
+  ) => Promise<PostgreSQLProcessorMessageHandlerResult>;
+};
 
-export const PostgreSQLEventStoreSubscription = {
+export const PostgreSQLProcessor = {
   result: {
     skip: (options?: {
       reason?: string;
-    }): PostgreSQLEventStoreSubscriptionMessageHandlerResult => ({
+    }): PostgreSQLProcessorMessageHandlerResult => ({
       type: 'SKIP',
       ...(options ?? {}),
     }),
     stop: (options?: {
       reason?: string;
       error?: EmmettError;
-    }): PostgreSQLEventStoreSubscriptionMessageHandlerResult => ({
+    }): PostgreSQLProcessorMessageHandlerResult => ({
       type: 'STOP',
       ...(options ?? {}),
     }),
   },
 };
 
-export type PostgreSQLEventStoreSubscriptionMessageHandlerResult =
+export type PostgreSQLProcessorMessageHandlerResult =
   | void
   | { type: 'SKIP'; reason?: string }
   | { type: 'STOP'; reason?: string; error?: EmmettError };
 
-export type PostgreSQLEventStoreSubscriptionEachMessageHandler<
+export type PostgreSQLProcessorEachMessageHandler<
   EventType extends Event = Event,
 > = (
   event: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
 ) =>
-  | Promise<PostgreSQLEventStoreSubscriptionMessageHandlerResult>
-  | PostgreSQLEventStoreSubscriptionMessageHandlerResult;
+  | Promise<PostgreSQLProcessorMessageHandlerResult>
+  | PostgreSQLProcessorMessageHandlerResult;
 
-export type PostgreSQLEventStoreSubscriptionStartFrom =
+export type PostgreSQLProcessorStartFrom =
   | PostgreSQLEventStoreMessageBatchPullerStartFrom
   | 'CURRENT';
 
-export type PostgreSQLEventStoreSubscriptionOptions<
-  EventType extends Event = Event,
-> = {
-  subscriptionId: string;
+export type PostgreSQLProcessorOptions<EventType extends Event = Event> = {
+  processorId: string;
   version?: number;
   partition?: string;
-  startFrom?: PostgreSQLEventStoreSubscriptionStartFrom;
+  startFrom?: PostgreSQLProcessorStartFrom;
   stopAfter?: (
     message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
   ) => boolean;
-  eachMessage: PostgreSQLEventStoreSubscriptionEachMessageHandler<EventType>;
+  eachMessage: PostgreSQLProcessorEachMessageHandler<EventType>;
 };
 
-export const postgreSQLEventStoreSubscription = <
-  EventType extends Event = Event,
->(
-  options: PostgreSQLEventStoreSubscriptionOptions<EventType>,
-): PostgreSQLEventStoreSubscription => {
+export const postgreSQLProcessor = <EventType extends Event = Event>(
+  options: PostgreSQLProcessorOptions<EventType>,
+): PostgreSQLProcessor => {
   const { eachMessage } = options;
   let isActive = true;
   //let lastProcessedPosition: bigint | null = null;
 
   return {
-    id: options.subscriptionId,
+    id: options.processorId,
     start: async (
       execute: SQLExecutor,
     ): Promise<PostgreSQLEventStoreMessageBatchPullerStartFrom | undefined> => {
       isActive = true;
       if (options.startFrom !== 'CURRENT') return options.startFrom;
 
-      const { lastProcessedPosition } = await readSubscriptionCheckpoint(
-        execute,
-        {
-          subscriptionId: options.subscriptionId,
-          partition: options.partition,
-        },
-      );
+      const { lastProcessedPosition } = await readProcessorCheckpoint(execute, {
+        processorId: options.processorId,
+        partition: options.partition,
+      });
 
       if (lastProcessedPosition === null) return 'BEGINNING';
 
@@ -113,13 +100,12 @@ export const postgreSQLEventStoreSubscription = <
     handle: async (
       { messages },
       { pool },
-    ): Promise<PostgreSQLEventStoreSubscriptionMessageHandlerResult> => {
+    ): Promise<PostgreSQLProcessorMessageHandlerResult> => {
       if (!isActive) return;
 
       return pool.withTransaction(async (tx) => {
-        let result:
-          | PostgreSQLEventStoreSubscriptionMessageHandlerResult
-          | undefined = undefined;
+        let result: PostgreSQLProcessorMessageHandlerResult | undefined =
+          undefined;
 
         let lastProcessedPosition: bigint | null = null;
 
@@ -132,8 +118,8 @@ export const postgreSQLEventStoreSubscription = <
           const messageProcessingResult = await eachMessage(typedMessage);
 
           // TODO: Add correct handling of the storing checkpoint
-          await storeSubscriptionCheckpoint(tx.execute, {
-            subscriptionId: options.subscriptionId,
+          await storeProcessorCheckpoint(tx.execute, {
+            processorId: options.processorId,
             version: options.version,
             lastProcessedPosition,
             newPosition: typedMessage.metadata.globalPosition,
