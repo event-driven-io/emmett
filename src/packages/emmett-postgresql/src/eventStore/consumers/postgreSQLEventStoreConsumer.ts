@@ -1,22 +1,22 @@
 import { dumbo } from '@event-driven-io/dumbo';
 import { EmmettError, type Event } from '@event-driven-io/emmett';
 import {
-  DefaultPostgreSQLEventStoreSubscriptionBatchSize,
-  DefaultPostgreSQLEventStoreSubscriptionPullingFrequencyInMs,
+  DefaultPostgreSQLEventStoreProcessorBatchSize,
+  DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
   postgreSQLEventStoreMessageBatchPuller,
   zipPostgreSQLEventStoreMessageBatchPullerStartFrom,
   type PostgreSQLEventStoreMessageBatchPuller,
   type PostgreSQLEventStoreMessagesBatchHandler,
 } from './messageBatchProcessing';
 import {
-  postgreSQLEventStoreSubscription,
-  type PostgreSQLEventStoreSubscription,
-  type PostgreSQLEventStoreSubscriptionOptions,
-} from './postgreSQLEventStoreSubscription';
+  postgreSQLProcessor,
+  type PostgreSQLProcessor,
+  type PostgreSQLProcessorOptions,
+} from './postgreSQLProcessor';
 
 export type PostgreSQLEventStoreConsumerOptions = {
   connectionString: string;
-  subscriptions?: PostgreSQLEventStoreSubscription[];
+  processors?: PostgreSQLProcessor[];
   pulling?: {
     batchSize?: number;
     pullingFrequencyInMs?: number;
@@ -26,10 +26,10 @@ export type PostgreSQLEventStoreConsumerOptions = {
 export type PostgreSQLEventStoreConsumer = Readonly<{
   connectionString: string;
   isRunning: boolean;
-  subscriptions: PostgreSQLEventStoreSubscription[];
-  subscribe: <EventType extends Event = Event>(
-    options: PostgreSQLEventStoreSubscriptionOptions<EventType>,
-  ) => PostgreSQLEventStoreSubscription<EventType>;
+  processors: PostgreSQLProcessor[];
+  processor: <EventType extends Event = Event>(
+    options: PostgreSQLProcessorOptions<EventType>,
+  ) => PostgreSQLProcessor<EventType>;
   start: () => Promise<void>;
   stop: () => Promise<void>;
   close: () => Promise<void>;
@@ -40,7 +40,7 @@ export const postgreSQLEventStoreConsumer = (
 ): PostgreSQLEventStoreConsumer => {
   let isRunning = false;
   const { connectionString, pulling } = options;
-  const subscriptions = options.subscriptions ?? [];
+  const processors = options.processors ?? [];
 
   let start: Promise<void>;
 
@@ -51,17 +51,17 @@ export const postgreSQLEventStoreConsumer = (
   const eachBatch: PostgreSQLEventStoreMessagesBatchHandler = async (
     messagesBatch,
   ) => {
-    const activeSubscriptions = subscriptions.filter((s) => s.isActive);
+    const activeProcessors = processors.filter((s) => s.isActive);
 
-    if (activeSubscriptions.length === 0)
+    if (activeProcessors.length === 0)
       return {
         type: 'STOP',
-        reason: 'No active subscriptions',
+        reason: 'No active processors',
       };
 
     const result = await Promise.allSettled(
-      activeSubscriptions.map((s) => {
-        // TODO: Add here filtering to only pass messages that can be handled by subscription
+      activeProcessors.map((s) => {
+        // TODO: Add here filtering to only pass messages that can be handled by processor
         return s.handle(messagesBatch, { pool });
       }),
     );
@@ -80,10 +80,10 @@ export const postgreSQLEventStoreConsumer = (
       executor: pool.execute,
       eachBatch,
       batchSize:
-        pulling?.batchSize ?? DefaultPostgreSQLEventStoreSubscriptionBatchSize,
+        pulling?.batchSize ?? DefaultPostgreSQLEventStoreProcessorBatchSize,
       pullingFrequencyInMs:
         pulling?.pullingFrequencyInMs ??
-        DefaultPostgreSQLEventStoreSubscriptionPullingFrequencyInMs,
+        DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
     }));
 
   const stop = async () => {
@@ -98,34 +98,34 @@ export const postgreSQLEventStoreConsumer = (
 
   return {
     connectionString,
-    subscriptions,
+    processors,
     get isRunning() {
       return isRunning;
     },
-    subscribe: <EventType extends Event = Event>(
-      options: PostgreSQLEventStoreSubscriptionOptions<EventType>,
-    ): PostgreSQLEventStoreSubscription<EventType> => {
-      const subscription = postgreSQLEventStoreSubscription<EventType>(options);
+    processor: <EventType extends Event = Event>(
+      options: PostgreSQLProcessorOptions<EventType>,
+    ): PostgreSQLProcessor<EventType> => {
+      const processor = postgreSQLProcessor<EventType>(options);
 
-      subscriptions.push(subscription);
+      processors.push(processor);
 
-      return subscription;
+      return processor;
     },
     start: () => {
       if (isRunning) return start;
 
       start = (async () => {
-        if (subscriptions.length === 0)
+        if (processors.length === 0)
           return Promise.reject(
             new EmmettError(
-              'Cannot start consumer without at least a single subscription',
+              'Cannot start consumer without at least a single processor',
             ),
           );
 
         isRunning = true;
 
         const startFrom = zipPostgreSQLEventStoreMessageBatchPullerStartFrom(
-          await Promise.all(subscriptions.map((o) => o.start(pool.execute))),
+          await Promise.all(processors.map((o) => o.start(pool.execute))),
         );
 
         return messagePooler.start({ startFrom });
