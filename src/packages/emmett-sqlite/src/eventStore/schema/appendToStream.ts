@@ -44,9 +44,10 @@ export const appendToStream = async (
   const eventsToAppend: ReadEvent[] = events.map(
     (e: Event, i: number): ReadEvent => ({
       ...e,
+      kind: e.kind ?? 'Event',
       metadata: {
         streamName,
-        eventId: uuid(),
+        messageId: uuid(),
         streamPosition: BigInt(i + 1),
         ...('metadata' in e ? (e.metadata ?? {}) : {}),
       },
@@ -268,7 +269,7 @@ const buildEventInsertQuery = (
         JSONParser.stringify(event.metadata),
         expectedStreamVersion?.toString() ?? 0,
         event.type,
-        event.metadata.eventId,
+        event.metadata.messageId,
         false,
       );
 
