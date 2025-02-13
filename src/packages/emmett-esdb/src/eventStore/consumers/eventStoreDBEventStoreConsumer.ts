@@ -5,22 +5,22 @@ import {
   type SubscribeToStreamOptions,
 } from '@eventstore/db-client';
 import {
-  eventStoreDBEventStoreSubscription,
-  type EventStoreDBEventStoreSubscription,
-  type EventStoreDBEventStoreSubscriptionOptions,
-} from './eventStoreDBEventStoreSubscription';
+  eventStoreDBEventStoreProcessor,
+  type EventStoreDBEventStoreProcessor,
+  type EventStoreDBEventStoreProcessorOptions,
+} from './eventStoreDBEventStoreProcessor';
 import {
-  DefaultEventStoreDBEventStoreSubscriptionBatchSize,
-  eventStoreDBEventStoreMessageBatchPuller,
+  DefaultEventStoreDBEventStoreProcessorBatchSize,
+  eventStoreDBSubscription,
   zipEventStoreDBEventStoreMessageBatchPullerStartFrom,
   type EventStoreDBEventStoreMessageBatchPuller,
   type EventStoreDBEventStoreMessagesBatchHandler,
-} from './messageBatchProcessing';
+} from './subscriptions';
 
 export type EventStoreDBEventStoreConsumerOptions = {
   connectionString: string;
   from?: EventStoreDBEventStoreConsumerType;
-  subscriptions?: EventStoreDBEventStoreSubscription[];
+  processors?: EventStoreDBEventStoreProcessor[];
   pulling?: {
     batchSize?: number;
   };
@@ -42,10 +42,10 @@ export type EventStoreDBEventStoreConsumerType =
 export type EventStoreDBEventStoreConsumer = Readonly<{
   connectionString: string;
   isRunning: boolean;
-  subscriptions: EventStoreDBEventStoreSubscription[];
-  subscribe: <EventType extends Event = Event>(
-    options: EventStoreDBEventStoreSubscriptionOptions<EventType>,
-  ) => EventStoreDBEventStoreSubscription<EventType>;
+  processors: EventStoreDBEventStoreProcessor[];
+  processor: <EventType extends Event = Event>(
+    options: EventStoreDBEventStoreProcessorOptions<EventType>,
+  ) => EventStoreDBEventStoreProcessor<EventType>;
   start: () => Promise<void>;
   stop: () => Promise<void>;
   close: () => Promise<void>;
@@ -56,7 +56,7 @@ export const eventStoreDBEventStoreConsumer = (
 ): EventStoreDBEventStoreConsumer => {
   let isRunning = false;
   const { connectionString, pulling } = options;
-  const subscriptions = options.subscriptions ?? [];
+  const processors = options.processors ?? [];
 
   let start: Promise<void>;
 
@@ -70,17 +70,17 @@ export const eventStoreDBEventStoreConsumer = (
   const eachBatch: EventStoreDBEventStoreMessagesBatchHandler = async (
     messagesBatch,
   ) => {
-    const activeSubscriptions = subscriptions.filter((s) => s.isActive);
+    const activeProcessors = processors.filter((s) => s.isActive);
 
-    if (activeSubscriptions.length === 0)
+    if (activeProcessors.length === 0)
       return {
         type: 'STOP',
-        reason: 'No active subscriptions',
+        reason: 'No active processors',
       };
 
     const result = await Promise.allSettled(
-      activeSubscriptions.map((s) => {
-        // TODO: Add here filtering to only pass messages that can be handled by subscription
+      activeProcessors.map((s) => {
+        // TODO: Add here filtering to only pass messages that can be handled by processor
         return s.handle(messagesBatch, { eventStoreDBClient });
       }),
     );
@@ -94,14 +94,12 @@ export const eventStoreDBEventStoreConsumer = (
         };
   };
 
-  const messagePuller = (currentMessagePooler =
-    eventStoreDBEventStoreMessageBatchPuller({
-      eventStoreDBClient,
-      eachBatch,
-      batchSize:
-        pulling?.batchSize ??
-        DefaultEventStoreDBEventStoreSubscriptionBatchSize,
-    }));
+  const messagePuller = (currentMessagePooler = eventStoreDBSubscription({
+    eventStoreDBClient,
+    eachBatch,
+    batchSize:
+      pulling?.batchSize ?? DefaultEventStoreDBEventStoreProcessorBatchSize,
+  }));
 
   const stop = async () => {
     if (!isRunning) return;
@@ -115,37 +113,34 @@ export const eventStoreDBEventStoreConsumer = (
 
   return {
     connectionString,
-    subscriptions,
+    processors,
     get isRunning() {
       return isRunning;
     },
-    subscribe: <EventType extends Event = Event>(
-      options: EventStoreDBEventStoreSubscriptionOptions<EventType>,
-    ): EventStoreDBEventStoreSubscription<EventType> => {
-      const subscription =
-        eventStoreDBEventStoreSubscription<EventType>(options);
+    processor: <EventType extends Event = Event>(
+      options: EventStoreDBEventStoreProcessorOptions<EventType>,
+    ): EventStoreDBEventStoreProcessor<EventType> => {
+      const processor = eventStoreDBEventStoreProcessor<EventType>(options);
 
-      subscriptions.push(subscription);
+      processors.push(processor);
 
-      return subscription;
+      return processor;
     },
     start: () => {
       if (isRunning) return start;
 
       start = (async () => {
-        if (subscriptions.length === 0)
+        if (processors.length === 0)
           return Promise.reject(
             new EmmettError(
-              'Cannot start consumer without at least a single subscription',
+              'Cannot start consumer without at least a single processor',
             ),
           );
 
         isRunning = true;
 
         const startFrom = zipEventStoreDBEventStoreMessageBatchPullerStartFrom(
-          await Promise.all(
-            subscriptions.map((o) => o.start(eventStoreDBClient)),
-          ),
+          await Promise.all(processors.map((o) => o.start(eventStoreDBClient))),
         );
 
         return messagePuller.start({ startFrom });
