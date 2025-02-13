@@ -62,7 +62,7 @@ END;
 $$ LANGUAGE plpgsql;
 `);
 
-export type StoreLastProcessedSubscriptionPositionResult<
+export type StoreLastProcessedProcessorPositionResult<
   Position extends bigint | null = bigint,
 > =
   | {
@@ -71,42 +71,42 @@ export type StoreLastProcessedSubscriptionPositionResult<
     }
   | { success: false; reason: 'IGNORED' | 'MISMATCH' };
 
-export function storeSubscriptionCheckpoint(
+export function storeProcessorCheckpoint(
   execute: SQLExecutor,
   options: {
-    subscriptionId: string;
+    processorId: string;
     version: number | undefined;
     newPosition: bigint | null;
     lastProcessedPosition: bigint | null;
     partition?: string;
   },
-): Promise<StoreLastProcessedSubscriptionPositionResult<bigint | null>>;
-export function storeSubscriptionCheckpoint(
+): Promise<StoreLastProcessedProcessorPositionResult<bigint | null>>;
+export function storeProcessorCheckpoint(
   execute: SQLExecutor,
   options: {
-    subscriptionId: string;
+    processorId: string;
     version: number | undefined;
     newPosition: bigint;
     lastProcessedPosition: bigint | null;
     partition?: string;
   },
-): Promise<StoreLastProcessedSubscriptionPositionResult<bigint>>;
-export async function storeSubscriptionCheckpoint(
+): Promise<StoreLastProcessedProcessorPositionResult<bigint>>;
+export async function storeProcessorCheckpoint(
   execute: SQLExecutor,
   options: {
-    subscriptionId: string;
+    processorId: string;
     version: number | undefined;
     newPosition: bigint | null;
     lastProcessedPosition: bigint | null;
     partition?: string;
   },
-): Promise<StoreLastProcessedSubscriptionPositionResult<bigint | null>> {
+): Promise<StoreLastProcessedProcessorPositionResult<bigint | null>> {
   try {
     const { result } = await single(
       execute.command<{ result: 0 | 1 | 2 }>(
         sql(
           `SELECT store_subscription_checkpoint(%L, %s, %L, %L, pg_current_xact_id(), %L) as result;`,
-          options.subscriptionId,
+          options.processorId,
           options.version ?? 1,
           options.newPosition,
           options.lastProcessedPosition,
