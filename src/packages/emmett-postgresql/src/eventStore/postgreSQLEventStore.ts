@@ -26,6 +26,11 @@ import {
 } from '@event-driven-io/emmett';
 import pg from 'pg';
 import {
+  postgreSQLEventStoreConsumer,
+  type PostgreSQLEventStoreConsumer,
+  type PostgreSQLEventStoreConsumerConfig,
+} from './consumers';
+import {
   handleProjections,
   type PostgreSQLProjectionHandlerContext,
 } from './projections';
@@ -45,6 +50,9 @@ export interface PostgresEventStore
     events: EventType[],
     options?: AppendToStreamOptions,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
+  consumer<ConsumerEventType extends Event = Event>(
+    options: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
+  ): PostgreSQLEventStoreConsumer<ConsumerEventType>;
   close(): Promise<void>;
   schema: {
     sql(): string;
@@ -275,6 +283,10 @@ export const getPostgreSQLEventStore = (
           appendResult.nextStreamPosition >= BigInt(events.length),
       };
     },
+    consumer: <ConsumerEventType extends Event = Event>(
+      options: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
+    ): PostgreSQLEventStoreConsumer<ConsumerEventType> =>
+      postgreSQLEventStoreConsumer<ConsumerEventType>({ ...options, pool }),
     close: () => pool.close(),
 
     async withSession<T = unknown>(

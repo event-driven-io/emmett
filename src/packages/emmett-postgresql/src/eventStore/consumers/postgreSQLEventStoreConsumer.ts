@@ -1,4 +1,4 @@
-import { dumbo } from '@event-driven-io/dumbo';
+import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import { EmmettError, type Event } from '@event-driven-io/emmett';
 import {
   DefaultPostgreSQLEventStoreProcessorBatchSize,
@@ -14,21 +14,30 @@ import {
   type PostgreSQLProcessorOptions,
 } from './postgreSQLProcessor';
 
-export type PostgreSQLEventStoreConsumerOptions = {
-  connectionString: string;
-  processors?: PostgreSQLProcessor[];
+export type PostgreSQLEventStoreConsumerConfig<
+  ConsumerEventType extends Event = Event,
+> = {
+  processors?: PostgreSQLProcessor<ConsumerEventType>[];
   pulling?: {
     batchSize?: number;
     pullingFrequencyInMs?: number;
   };
 };
+export type PostgreSQLEventStoreConsumerOptions<
+  ConsumerEventType extends Event = Event,
+> = PostgreSQLEventStoreConsumerConfig<ConsumerEventType> &
+  (
+    | {
+        connectionString: string;
+      }
+    | { pool: Dumbo }
+  );
 
 export type PostgreSQLEventStoreConsumer<
   ConsumerEventType extends Event = Event,
 > = Readonly<{
-  connectionString: string;
   isRunning: boolean;
-  processors: PostgreSQLProcessor[];
+  processors: PostgreSQLProcessor<ConsumerEventType>[];
   processor: <EventType extends ConsumerEventType = ConsumerEventType>(
     options: PostgreSQLProcessorOptions<EventType>,
   ) => PostgreSQLProcessor<EventType>;
@@ -40,21 +49,24 @@ export type PostgreSQLEventStoreConsumer<
 export const postgreSQLEventStoreConsumer = <
   ConsumerEventType extends Event = Event,
 >(
-  options: PostgreSQLEventStoreConsumerOptions,
+  options: PostgreSQLEventStoreConsumerOptions<ConsumerEventType>,
 ): PostgreSQLEventStoreConsumer<ConsumerEventType> => {
   let isRunning = false;
-  const { connectionString, pulling } = options;
+  const { pulling } = options;
   const processors = options.processors ?? [];
 
   let start: Promise<void>;
 
   let currentMessagePuller: PostgreSQLEventStoreMessageBatchPuller | undefined;
 
-  const pool = dumbo({ connectionString });
+  const pool =
+    'pool' in options
+      ? options.pool
+      : dumbo({ connectionString: options.connectionString });
 
-  const eachBatch: PostgreSQLEventStoreMessagesBatchHandler = async (
-    messagesBatch,
-  ) => {
+  const eachBatch: PostgreSQLEventStoreMessagesBatchHandler<
+    ConsumerEventType
+  > = async (messagesBatch) => {
     const activeProcessors = processors.filter((s) => s.isActive);
 
     if (activeProcessors.length === 0)
@@ -101,7 +113,6 @@ export const postgreSQLEventStoreConsumer = <
   };
 
   return {
-    connectionString,
     processors,
     get isRunning() {
       return isRunning;
