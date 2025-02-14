@@ -23,11 +23,13 @@ export type PostgreSQLEventStoreConsumerOptions = {
   };
 };
 
-export type PostgreSQLEventStoreConsumer = Readonly<{
+export type PostgreSQLEventStoreConsumer<
+  ConsumerEventType extends Event = Event,
+> = Readonly<{
   connectionString: string;
   isRunning: boolean;
   processors: PostgreSQLProcessor[];
-  processor: <EventType extends Event = Event>(
+  processor: <EventType extends ConsumerEventType = ConsumerEventType>(
     options: PostgreSQLProcessorOptions<EventType>,
   ) => PostgreSQLProcessor<EventType>;
   start: () => Promise<void>;
@@ -35,9 +37,11 @@ export type PostgreSQLEventStoreConsumer = Readonly<{
   close: () => Promise<void>;
 }>;
 
-export const postgreSQLEventStoreConsumer = (
+export const postgreSQLEventStoreConsumer = <
+  ConsumerEventType extends Event = Event,
+>(
   options: PostgreSQLEventStoreConsumerOptions,
-): PostgreSQLEventStoreConsumer => {
+): PostgreSQLEventStoreConsumer<ConsumerEventType> => {
   let isRunning = false;
   const { connectionString, pulling } = options;
   const processors = options.processors ?? [];
@@ -102,7 +106,7 @@ export const postgreSQLEventStoreConsumer = (
     get isRunning() {
       return isRunning;
     },
-    processor: <EventType extends Event = Event>(
+    processor: <EventType extends ConsumerEventType = ConsumerEventType>(
       options: PostgreSQLProcessorOptions<EventType>,
     ): PostgreSQLProcessor<EventType> => {
       const processor = postgreSQLProcessor<EventType>(options);
