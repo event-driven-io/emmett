@@ -159,10 +159,11 @@ const createMockEvent = (
   position: bigint,
 ): ReadEvent<MockEvent, ReadEventMetadataWithGlobalPosition> => ({
   type: 'Mocked',
+  kind: 'Event',
   data: { mocked: true },
   metadata: {
     streamName: 'testStream',
-    eventId: `event-${position}`,
+    messageId: `message-${position}`,
     streamPosition: position,
     globalPosition: position,
   },

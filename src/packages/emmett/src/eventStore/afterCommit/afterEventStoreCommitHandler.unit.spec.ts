@@ -31,22 +31,24 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     let counter = 0;
     const events: TestReadEvent[] = [
       {
+        kind: 'Event',
         type: 'test',
         data: { counter: ++counter },
         metadata: {
           some: true,
-          eventId: uuid(),
+          messageId: uuid(),
           globalPosition: 1n,
           streamName,
           streamPosition: 1n,
         },
       },
       {
+        kind: 'Event',
         type: 'test',
         data: { counter: ++counter },
         metadata: {
           some: false,
-          eventId: uuid(),
+          messageId: uuid(),
           globalPosition: 1n,
           streamName,
           streamPosition: 1n,
@@ -76,22 +78,24 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     let counter = 0;
     const events: TestReadEvent[] = [
       {
+        kind: 'Event',
         type: 'test',
         data: { counter: ++counter },
         metadata: {
           some: true,
-          eventId: uuid(),
+          messageId: uuid(),
           globalPosition: 1n,
           streamName,
           streamPosition: 1n,
         },
       },
       {
+        kind: 'Event',
         type: 'test',
         data: { counter: ++counter },
         metadata: {
           some: false,
-          eventId: uuid(),
+          messageId: uuid(),
           globalPosition: 1n,
           streamName,
           streamPosition: 1n,
@@ -100,22 +104,24 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     ];
     const nextEvents: TestReadEvent[] = [
       {
+        kind: 'Event',
         type: 'test',
         data: { counter: ++counter },
         metadata: {
           some: true,
-          eventId: uuid(),
+          messageId: uuid(),
           globalPosition: 1n,
           streamName,
           streamPosition: 1n,
         },
       },
       {
+        kind: 'Event',
         type: 'test',
         data: { counter: ++counter },
         metadata: {
           some: false,
-          eventId: uuid(),
+          messageId: uuid(),
           globalPosition: 1n,
           streamName,
           streamPosition: 1n,
@@ -152,22 +158,24 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     let counter = 0;
     const events: TestReadEvent[] = [
       {
+        kind: 'Event',
         type: 'test',
         data: { counter: ++counter },
         metadata: {
           some: true,
-          eventId: uuid(),
+          messageId: uuid(),
           globalPosition: 1n,
           streamName,
           streamPosition: 1n,
         },
       },
       {
+        kind: 'Event',
         type: 'test',
         data: { counter: ++counter },
         metadata: {
           some: false,
-          eventId: uuid(),
+          messageId: uuid(),
           globalPosition: 1n,
           streamName,
           streamPosition: 1n,
