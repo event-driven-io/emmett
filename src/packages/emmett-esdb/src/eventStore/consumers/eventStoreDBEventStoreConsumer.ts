@@ -20,7 +20,6 @@ import {
 export type EventStoreDBEventStoreConsumerConfig<
   ConsumerEventType extends Event = Event,
 > = {
-  connectionString: string;
   from?: EventStoreDBEventStoreConsumerType;
   processors?: EventStoreDBEventStoreProcessor<ConsumerEventType>[];
   pulling?: {
@@ -35,7 +34,7 @@ export type EventStoreDBEventStoreConsumerOptions<
     | {
         connectionString: string;
       }
-    | { eventStoreDBClient: EventStoreDBClient }
+    | { client: EventStoreDBClient }
   );
 
 export type $all = '$all';
@@ -54,7 +53,6 @@ export type EventStoreDBEventStoreConsumerType =
 export type EventStoreDBEventStoreConsumer<
   ConsumerEventType extends Event = Event,
 > = Readonly<{
-  connectionString: string;
   isRunning: boolean;
   processors: EventStoreDBEventStoreProcessor<ConsumerEventType>[];
   processor: <EventType extends ConsumerEventType = ConsumerEventType>(
@@ -71,17 +69,17 @@ export const eventStoreDBEventStoreConsumer = <
   options: EventStoreDBEventStoreConsumerOptions<ConsumerEventType>,
 ): EventStoreDBEventStoreConsumer<ConsumerEventType> => {
   let isRunning = false;
-  const { connectionString, pulling } = options;
+  const { pulling } = options;
   const processors = options.processors ?? [];
 
   let start: Promise<void>;
 
-  let currentMessagePooler:
-    | EventStoreDBEventStoreMessageBatchPuller
-    | undefined;
+  let currentSubscription: EventStoreDBEventStoreMessageBatchPuller | undefined;
 
-  const eventStoreDBClient =
-    EventStoreDBClient.connectionString(connectionString);
+  const client =
+    'client' in options
+      ? options.client
+      : EventStoreDBClient.connectionString(options.connectionString);
 
   const eachBatch: EventStoreDBEventStoreMessagesBatchHandler<
     ConsumerEventType
@@ -97,7 +95,7 @@ export const eventStoreDBEventStoreConsumer = <
     const result = await Promise.allSettled(
       activeProcessors.map((s) => {
         // TODO: Add here filtering to only pass messages that can be handled by processor
-        return s.handle(messagesBatch, { eventStoreDBClient });
+        return s.handle(messagesBatch, { client });
       }),
     );
 
@@ -110,8 +108,8 @@ export const eventStoreDBEventStoreConsumer = <
         };
   };
 
-  const messagePuller = (currentMessagePooler = eventStoreDBSubscription({
-    eventStoreDBClient,
+  const subscription = (currentSubscription = eventStoreDBSubscription({
+    client,
     eachBatch,
     batchSize:
       pulling?.batchSize ?? DefaultEventStoreDBEventStoreProcessorBatchSize,
@@ -120,15 +118,14 @@ export const eventStoreDBEventStoreConsumer = <
   const stop = async () => {
     if (!isRunning) return;
     isRunning = false;
-    if (currentMessagePooler) {
-      await currentMessagePooler.stop();
-      currentMessagePooler = undefined;
+    if (currentSubscription) {
+      await currentSubscription.stop();
+      currentSubscription = undefined;
     }
     await start;
   };
 
   return {
-    connectionString,
     processors,
     get isRunning() {
       return isRunning;
@@ -156,10 +153,10 @@ export const eventStoreDBEventStoreConsumer = <
         isRunning = true;
 
         const startFrom = zipEventStoreDBEventStoreMessageBatchPullerStartFrom(
-          await Promise.all(processors.map((o) => o.start(eventStoreDBClient))),
+          await Promise.all(processors.map((o) => o.start(client))),
         );
 
-        return messagePuller.start({ startFrom });
+        return subscription.start({ startFrom });
       })();
 
       return start;

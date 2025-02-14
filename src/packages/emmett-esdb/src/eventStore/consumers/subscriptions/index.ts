@@ -44,7 +44,7 @@ export type EventStoreDBEventStoreMessagesBatchHandler<
 
 export type EventStoreDBSubscriptionOptions<EventType extends Event = Event> = {
   from?: EventStoreDBEventStoreConsumerType;
-  eventStoreDBClient: EventStoreDBClient;
+  client: EventStoreDBClient;
   batchSize: number;
   eachBatch: EventStoreDBEventStoreMessagesBatchHandler<EventType>;
 };
@@ -82,23 +82,23 @@ const toStreamPosition = (startFrom: EventStoreDBSubscriptionStartFrom) =>
       : startFrom.position;
 
 const subscribe = (
-  eventStoreDBClient: EventStoreDBClient,
+  client: EventStoreDBClient,
   from: EventStoreDBEventStoreConsumerType | undefined,
   options: EventStoreDBSubscriptionStartOptions,
 ) =>
   from == undefined || from.stream == $all
-    ? eventStoreDBClient.subscribeToAll({
+    ? client.subscribeToAll({
         fromPosition: toGlobalPosition(options.startFrom),
         filter: excludeSystemEvents(),
         ...(from?.options ?? {}),
       })
-    : eventStoreDBClient.subscribeToStream(from.stream, {
+    : client.subscribeToStream(from.stream, {
         fromRevision: toStreamPosition(options.startFrom),
         ...(from.options ?? {}),
       });
 
 export const eventStoreDBSubscription = <EventType extends Event = Event>({
-  eventStoreDBClient,
+  client,
   from,
   //batchSize,
   eachBatch,
@@ -112,7 +112,7 @@ export const eventStoreDBSubscription = <EventType extends Event = Event>({
   const pullMessages = async (
     options: EventStoreDBSubscriptionStartOptions,
   ) => {
-    subscription = subscribe(eventStoreDBClient, from, options);
+    subscription = subscribe(client, from, options);
 
     return new Promise<void>((resolve, reject) => {
       finished(
