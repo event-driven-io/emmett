@@ -17,12 +17,12 @@ export type EventStoreDBEventStoreProcessorEventsBatch<
 export type EventStoreDBEventStoreProcessor<EventType extends Event = Event> = {
   id: string;
   start: (
-    eventStoreDBClient: EventStoreDBClient,
+    client: EventStoreDBClient,
   ) => Promise<EventStoreDBSubscriptionStartFrom | undefined>;
   isActive: boolean;
   handle: (
     messagesBatch: EventStoreDBEventStoreProcessorEventsBatch<EventType>,
-    context: { eventStoreDBClient: EventStoreDBClient },
+    context: { client: EventStoreDBClient },
   ) => Promise<EventStoreDBEventStoreProcessorMessageHandlerResult>;
 };
 
@@ -88,7 +88,7 @@ export const eventStoreDBEventStoreProcessor = <
   return {
     id: options.processorId,
     start: (
-      _eventStoreDBClient: EventStoreDBClient,
+      _client: EventStoreDBClient,
     ): Promise<EventStoreDBSubscriptionStartFrom | undefined> => {
       isActive = true;
       if (options.startFrom !== 'CURRENT')
