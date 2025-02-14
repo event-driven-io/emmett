@@ -28,6 +28,11 @@ import {
   type ReadStreamOptions as ESDBReadStreamOptions,
   type JSONRecordedEvent,
 } from '@eventstore/db-client';
+import {
+  eventStoreDBEventStoreConsumer,
+  type EventStoreDBEventStoreConsumer,
+  type EventStoreDBEventStoreConsumerConfig,
+} from './consumers';
 
 const toEventStoreDBReadOptions = (
   options: ReadStreamOptions | undefined,
@@ -61,6 +66,9 @@ export interface EventStoreDBEventStore
     events: EventType[],
     options?: AppendToStreamOptions,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
+  consumer<ConsumerEventType extends Event = Event>(
+    options: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
+  ): EventStoreDBEventStoreConsumer<ConsumerEventType>;
 }
 
 export const getEventStoreDBEventStore = (
@@ -201,6 +209,14 @@ export const getEventStoreDBEventStore = (
         throw error;
       }
     },
+
+    consumer: <ConsumerEventType extends Event = Event>(
+      options: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
+    ): EventStoreDBEventStoreConsumer<ConsumerEventType> =>
+      eventStoreDBEventStoreConsumer<ConsumerEventType>({
+        ...options,
+        eventStoreDBClient: eventStore,
+      }),
 
     //streamEvents: streamEvents(eventStore),
   };
