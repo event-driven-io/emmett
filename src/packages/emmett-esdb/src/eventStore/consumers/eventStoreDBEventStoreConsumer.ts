@@ -39,11 +39,13 @@ export type EventStoreDBEventStoreConsumerType =
       options?: Exclude<SubscribeToStreamOptions, 'fromRevision'>;
     };
 
-export type EventStoreDBEventStoreConsumer = Readonly<{
+export type EventStoreDBEventStoreConsumer<
+  ConsumerEventType extends Event = Event,
+> = Readonly<{
   connectionString: string;
   isRunning: boolean;
   processors: EventStoreDBEventStoreProcessor[];
-  processor: <EventType extends Event = Event>(
+  processor: <EventType extends ConsumerEventType = ConsumerEventType>(
     options: EventStoreDBEventStoreProcessorOptions<EventType>,
   ) => EventStoreDBEventStoreProcessor<EventType>;
   start: () => Promise<void>;
@@ -51,9 +53,11 @@ export type EventStoreDBEventStoreConsumer = Readonly<{
   close: () => Promise<void>;
 }>;
 
-export const eventStoreDBEventStoreConsumer = (
+export const eventStoreDBEventStoreConsumer = <
+  ConsumerEventType extends Event = Event,
+>(
   options: EventStoreDBEventStoreConsumerOptions,
-): EventStoreDBEventStoreConsumer => {
+): EventStoreDBEventStoreConsumer<ConsumerEventType> => {
   let isRunning = false;
   const { connectionString, pulling } = options;
   const processors = options.processors ?? [];
@@ -117,7 +121,7 @@ export const eventStoreDBEventStoreConsumer = (
     get isRunning() {
       return isRunning;
     },
-    processor: <EventType extends Event = Event>(
+    processor: <EventType extends ConsumerEventType = ConsumerEventType>(
       options: EventStoreDBEventStoreProcessorOptions<EventType>,
     ): EventStoreDBEventStoreProcessor<EventType> => {
       const processor = eventStoreDBEventStoreProcessor<EventType>(options);
