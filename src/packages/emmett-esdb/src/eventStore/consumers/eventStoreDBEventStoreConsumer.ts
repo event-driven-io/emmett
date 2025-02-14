@@ -17,14 +17,26 @@ import {
   type EventStoreDBEventStoreMessagesBatchHandler,
 } from './subscriptions';
 
-export type EventStoreDBEventStoreConsumerOptions = {
+export type EventStoreDBEventStoreConsumerConfig<
+  ConsumerEventType extends Event = Event,
+> = {
   connectionString: string;
   from?: EventStoreDBEventStoreConsumerType;
-  processors?: EventStoreDBEventStoreProcessor[];
+  processors?: EventStoreDBEventStoreProcessor<ConsumerEventType>[];
   pulling?: {
     batchSize?: number;
   };
 };
+
+export type EventStoreDBEventStoreConsumerOptions<
+  ConsumerEventType extends Event = Event,
+> = EventStoreDBEventStoreConsumerConfig<ConsumerEventType> &
+  (
+    | {
+        connectionString: string;
+      }
+    | { eventStoreDBClient: EventStoreDBClient }
+  );
 
 export type $all = '$all';
 export const $all = '$all';
@@ -44,7 +56,7 @@ export type EventStoreDBEventStoreConsumer<
 > = Readonly<{
   connectionString: string;
   isRunning: boolean;
-  processors: EventStoreDBEventStoreProcessor[];
+  processors: EventStoreDBEventStoreProcessor<ConsumerEventType>[];
   processor: <EventType extends ConsumerEventType = ConsumerEventType>(
     options: EventStoreDBEventStoreProcessorOptions<EventType>,
   ) => EventStoreDBEventStoreProcessor<EventType>;
@@ -56,7 +68,7 @@ export type EventStoreDBEventStoreConsumer<
 export const eventStoreDBEventStoreConsumer = <
   ConsumerEventType extends Event = Event,
 >(
-  options: EventStoreDBEventStoreConsumerOptions,
+  options: EventStoreDBEventStoreConsumerOptions<ConsumerEventType>,
 ): EventStoreDBEventStoreConsumer<ConsumerEventType> => {
   let isRunning = false;
   const { connectionString, pulling } = options;
@@ -71,9 +83,9 @@ export const eventStoreDBEventStoreConsumer = <
   const eventStoreDBClient =
     EventStoreDBClient.connectionString(connectionString);
 
-  const eachBatch: EventStoreDBEventStoreMessagesBatchHandler = async (
-    messagesBatch,
-  ) => {
+  const eachBatch: EventStoreDBEventStoreMessagesBatchHandler<
+    ConsumerEventType
+  > = async (messagesBatch) => {
     const activeProcessors = processors.filter((s) => s.isActive);
 
     if (activeProcessors.length === 0)
