@@ -51,7 +51,7 @@ export interface PostgresEventStore
     options?: AppendToStreamOptions,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerEventType extends Event = Event>(
-    options: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
+    options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
   ): PostgreSQLEventStoreConsumer<ConsumerEventType>;
   close(): Promise<void>;
   schema: {
@@ -284,9 +284,12 @@ export const getPostgreSQLEventStore = (
       };
     },
     consumer: <ConsumerEventType extends Event = Event>(
-      options: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
+      options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
     ): PostgreSQLEventStoreConsumer<ConsumerEventType> =>
-      postgreSQLEventStoreConsumer<ConsumerEventType>({ ...options, pool }),
+      postgreSQLEventStoreConsumer<ConsumerEventType>({
+        ...(options ?? {}),
+        pool,
+      }),
     close: () => pool.close(),
 
     async withSession<T = unknown>(

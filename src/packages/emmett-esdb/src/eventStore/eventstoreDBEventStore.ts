@@ -67,7 +67,7 @@ export interface EventStoreDBEventStore
     options?: AppendToStreamOptions,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerEventType extends Event = Event>(
-    options: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
+    options?: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
   ): EventStoreDBEventStoreConsumer<ConsumerEventType>;
 }
 
@@ -211,11 +211,11 @@ export const getEventStoreDBEventStore = (
     },
 
     consumer: <ConsumerEventType extends Event = Event>(
-      options: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
+      options?: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
     ): EventStoreDBEventStoreConsumer<ConsumerEventType> =>
       eventStoreDBEventStoreConsumer<ConsumerEventType>({
-        ...options,
-        eventStoreDBClient: eventStore,
+        ...(options ?? {}),
+        client: eventStore,
       }),
 
     //streamEvents: streamEvents(eventStore),
