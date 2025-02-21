@@ -59,30 +59,19 @@ export type PongoDocumentEvolve<
   | PongoWithNotNullDocumentEvolve<Document, EventType, EventMetaDataType>
   | PongoWithNullableDocumentEvolve<Document, EventType, EventMetaDataType>;
 
-export type PongoProjectionOptions<
-  EventType extends Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
-> = {
+export type PongoProjectionOptions<EventType extends Event> = {
   handle: (
-    events: ReadEvent<EventType, EventMetaDataType>[],
+    events: ReadEvent<EventType, PostgresReadEventMetadata>[],
     context: PongoProjectionHandlerContext,
   ) => Promise<void>;
   canHandle: CanHandle<EventType>;
 };
 
-export const pongoProjection = <
-  EventType extends Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
->({
+export const pongoProjection = <EventType extends Event>({
   handle,
   canHandle,
-}: PongoProjectionOptions<
-  EventType,
-  EventMetaDataType
->): PostgreSQLProjectionDefinition =>
-  postgreSQLProjection<EventType, EventMetaDataType>({
+}: PongoProjectionOptions<EventType>): PostgreSQLProjectionDefinition =>
+  postgreSQLProjection<EventType>({
     canHandle,
     handle: async (events, context) => {
       const { connectionString, client } = context;

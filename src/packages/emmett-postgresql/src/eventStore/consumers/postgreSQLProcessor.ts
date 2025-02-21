@@ -5,6 +5,7 @@ import {
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
+import type { PostgreSQLProjectionDefinition } from '../projections';
 import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
 import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 
@@ -68,6 +69,20 @@ export type PostgreSQLProcessorOptions<EventType extends Event = Event> = {
     message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
   ) => boolean;
   eachMessage: PostgreSQLProcessorEachMessageHandler<EventType>;
+};
+
+export const postgreSQLProjectionProcessor = <EventType extends Event = Event>(
+  projection: PostgreSQLProjectionDefinition<EventType>,
+): PostgreSQLProcessor => {
+  return postgreSQLProcessor<EventType>({
+    processorId: `projection:${projection.name}`,
+    eachMessage: async (event) => {
+      if (!projection.canHandle.includes(event.type)) return;
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+      await projection.handle([event as any], {} as any);
+    },
+  });
 };
 
 export const postgreSQLProcessor = <EventType extends Event = Event>(

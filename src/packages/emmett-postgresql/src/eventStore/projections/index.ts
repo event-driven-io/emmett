@@ -31,35 +31,26 @@ export type PostgreSQLProjectionHandler<
   PostgreSQLProjectionHandlerContext
 >;
 
-export type PostgreSQLProjectionDefinition<
-  EventType extends Event = Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
-> = TypedProjectionDefinition<
-  EventType,
-  EventMetaDataType,
-  PostgreSQLProjectionHandlerContext
->;
+export type PostgreSQLProjectionDefinition<EventType extends Event = Event> =
+  TypedProjectionDefinition<
+    EventType,
+    PostgresReadEventMetadata,
+    PostgreSQLProjectionHandlerContext
+  >;
 
-export type ProjectionHandlerOptions<
+export type PostgreSQLProjectionHandlerOptions<
   EventType extends Event = Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
 > = {
-  events: ReadEvent<EventType, EventMetaDataType>[];
-  projections: PostgreSQLProjectionDefinition<EventType, EventMetaDataType>[];
+  events: ReadEvent<EventType, PostgresReadEventMetadata>[];
+  projections: PostgreSQLProjectionDefinition<EventType>[];
   connection: {
     connectionString: string;
     transaction: NodePostgresTransaction;
   };
 };
 
-export const handleProjections = async <
-  EventType extends Event = Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
->(
-  options: ProjectionHandlerOptions<EventType, EventMetaDataType>,
+export const handleProjections = async <EventType extends Event = Event>(
+  options: PostgreSQLProjectionHandlerOptions<EventType>,
 ): Promise<void> => {
   const {
     projections: allProjections,
@@ -85,18 +76,14 @@ export const handleProjections = async <
   }
 };
 
-export const postgreSQLProjection = <
-  EventType extends Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
->(
-  definition: PostgreSQLProjectionDefinition<EventType, EventMetaDataType>,
+export const postgreSQLProjection = <EventType extends Event>(
+  definition: PostgreSQLProjectionDefinition<EventType>,
 ): PostgreSQLProjectionDefinition =>
   projection<
     EventType,
-    EventMetaDataType,
+    PostgresReadEventMetadata,
     PostgreSQLProjectionHandlerContext,
-    PostgreSQLProjectionDefinition<EventType, EventMetaDataType>
+    PostgreSQLProjectionDefinition<EventType>
   >(definition) as PostgreSQLProjectionDefinition;
 
 export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
