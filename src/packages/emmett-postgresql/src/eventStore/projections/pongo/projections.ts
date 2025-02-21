@@ -74,7 +74,9 @@ export const pongoProjection = <EventType extends Event>({
   postgreSQLProjection<EventType>({
     canHandle,
     handle: async (events, context) => {
-      const { connectionString, client } = context;
+      const {
+        connection: { connectionString, client },
+      } = context;
       const pongo = pongoClient(connectionString, {
         connectionOptions: { client },
       });

@@ -187,6 +187,7 @@ export const getPostgreSQLEventStore = (
             projections: inlineProjections,
             connection: {
               connectionString,
+              pool,
               transaction,
             },
             // TODO: Add proper handling of global data
@@ -289,6 +290,7 @@ export const getPostgreSQLEventStore = (
       postgreSQLEventStoreConsumer<ConsumerEventType>({
         ...(options ?? {}),
         pool,
+        connectionString,
       }),
     close: () => pool.close(),
 

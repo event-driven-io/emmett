@@ -1,4 +1,9 @@
-import { type Dumbo, type SQLExecutor } from '@event-driven-io/dumbo';
+import {
+  type Dumbo,
+  type NodePostgresClient,
+  type NodePostgresTransaction,
+  type SQLExecutor,
+} from '@event-driven-io/dumbo';
 import {
   EmmettError,
   type Event,
@@ -13,6 +18,16 @@ export type PostgreSQLProcessorEventsBatch<EventType extends Event = Event> = {
   messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
 };
 
+export type PostgreSQLProcessorHandlerContext = {
+  execute: SQLExecutor;
+  connection: {
+    connectionString: string;
+    client: NodePostgresClient;
+    transaction: NodePostgresTransaction;
+    pool: Dumbo;
+  };
+};
+
 export type PostgreSQLProcessor<EventType extends Event = Event> = {
   id: string;
   start: (
@@ -21,7 +36,7 @@ export type PostgreSQLProcessor<EventType extends Event = Event> = {
   isActive: boolean;
   handle: (
     messagesBatch: PostgreSQLProcessorEventsBatch<EventType>,
-    context: { pool: Dumbo },
+    context: { pool: Dumbo; connectionString: string },
   ) => Promise<PostgreSQLProcessorMessageHandlerResult>;
 };
 
@@ -52,6 +67,7 @@ export type PostgreSQLProcessorEachMessageHandler<
   EventType extends Event = Event,
 > = (
   event: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
+  context: PostgreSQLProcessorHandlerContext,
 ) =>
   | Promise<PostgreSQLProcessorMessageHandlerResult>
   | PostgreSQLProcessorMessageHandlerResult;
@@ -114,11 +130,11 @@ export const postgreSQLProcessor = <EventType extends Event = Event>(
     },
     handle: async (
       { messages },
-      { pool },
+      { pool, connectionString },
     ): Promise<PostgreSQLProcessorMessageHandlerResult> => {
       if (!isActive) return;
 
-      return pool.withTransaction(async (tx) => {
+      return pool.withTransaction(async (transaction) => {
         let result: PostgreSQLProcessorMessageHandlerResult | undefined =
           undefined;
 
@@ -130,10 +146,21 @@ export const postgreSQLProcessor = <EventType extends Event = Event>(
             ReadEventMetadataWithGlobalPosition
           >;
 
-          const messageProcessingResult = await eachMessage(typedMessage);
+          const client =
+            (await transaction.connection.open()) as NodePostgresClient;
+
+          const messageProcessingResult = await eachMessage(typedMessage, {
+            execute: transaction.execute,
+            connection: {
+              connectionString,
+              pool,
+              transaction: transaction,
+              client,
+            },
+          });
 
           // TODO: Add correct handling of the storing checkpoint
-          await storeProcessorCheckpoint(tx.execute, {
+          await storeProcessorCheckpoint(transaction.execute, {
             processorId: options.processorId,
             version: options.version,
             lastProcessedPosition,

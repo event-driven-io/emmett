@@ -1,4 +1,5 @@
 import {
+  type Dumbo,
   type NodePostgresClient,
   type NodePostgresTransaction,
   type SQL,
@@ -15,10 +16,13 @@ import {
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 
 export type PostgreSQLProjectionHandlerContext = {
-  connectionString: string;
-  client: NodePostgresClient;
   execute: SQLExecutor;
-  transaction: NodePostgresTransaction;
+  connection: {
+    connectionString: string;
+    client: NodePostgresClient;
+    transaction: NodePostgresTransaction;
+    pool: Dumbo;
+  };
 };
 
 export type PostgreSQLProjectionHandler<
@@ -46,6 +50,7 @@ export type PostgreSQLProjectionHandlerOptions<
   connection: {
     connectionString: string;
     transaction: NodePostgresTransaction;
+    pool: Dumbo;
   };
 };
 
@@ -55,7 +60,7 @@ export const handleProjections = async <EventType extends Event = Event>(
   const {
     projections: allProjections,
     events,
-    connection: { transaction, connectionString },
+    connection: { pool, transaction, connectionString },
   } = options;
 
   const eventTypes = events.map((e) => e.type);
@@ -68,9 +73,12 @@ export const handleProjections = async <EventType extends Event = Event>(
 
   for (const projection of projections) {
     await projection.handle(events, {
-      connectionString,
-      client,
-      transaction,
+      connection: {
+        connectionString,
+        pool,
+        client,
+        transaction,
+      },
       execute: transaction.execute,
     });
   }
