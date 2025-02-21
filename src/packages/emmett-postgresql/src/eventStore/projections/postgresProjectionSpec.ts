@@ -105,6 +105,7 @@ export const PostgreSQLProjectionSpec = {
                   events: allEvents,
                   projections: [projection],
                   connection: {
+                    pool,
                     connectionString,
                     transaction,
                   },

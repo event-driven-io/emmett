@@ -25,13 +25,10 @@ export type PostgreSQLEventStoreConsumerConfig<
 };
 export type PostgreSQLEventStoreConsumerOptions<
   ConsumerEventType extends Event = Event,
-> = PostgreSQLEventStoreConsumerConfig<ConsumerEventType> &
-  (
-    | {
-        connectionString: string;
-      }
-    | { pool: Dumbo }
-  );
+> = PostgreSQLEventStoreConsumerConfig<ConsumerEventType> & {
+  connectionString: string;
+  pool?: Dumbo;
+};
 
 export type PostgreSQLEventStoreConsumer<
   ConsumerEventType extends Event = Event,
@@ -59,10 +56,9 @@ export const postgreSQLEventStoreConsumer = <
 
   let currentMessagePuller: PostgreSQLEventStoreMessageBatchPuller | undefined;
 
-  const pool =
-    'pool' in options
-      ? options.pool
-      : dumbo({ connectionString: options.connectionString });
+  const pool = options.pool
+    ? options.pool
+    : dumbo({ connectionString: options.connectionString });
 
   const eachBatch: PostgreSQLEventStoreMessagesBatchHandler<
     ConsumerEventType
@@ -78,7 +74,10 @@ export const postgreSQLEventStoreConsumer = <
     const result = await Promise.allSettled(
       activeProcessors.map((s) => {
         // TODO: Add here filtering to only pass messages that can be handled by processor
-        return s.handle(messagesBatch, { pool });
+        return s.handle(messagesBatch, {
+          pool,
+          connectionString: options.connectionString,
+        });
       }),
     );
 
