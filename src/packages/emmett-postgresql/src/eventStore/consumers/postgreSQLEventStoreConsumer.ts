@@ -1,5 +1,6 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import { EmmettError, type Event } from '@event-driven-io/emmett';
+import type { PostgreSQLProjectionDefinition } from '../projections';
 import {
   DefaultPostgreSQLEventStoreProcessorBatchSize,
   DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
@@ -10,6 +11,7 @@ import {
 } from './messageBatchProcessing';
 import {
   postgreSQLProcessor,
+  postgreSQLProjectionProcessor,
   type PostgreSQLProcessor,
   type PostgreSQLProcessorOptions,
 } from './postgreSQLProcessor';
@@ -37,6 +39,11 @@ export type PostgreSQLEventStoreConsumer<
   processors: PostgreSQLProcessor<ConsumerEventType>[];
   processor: <EventType extends ConsumerEventType = ConsumerEventType>(
     options: PostgreSQLProcessorOptions<EventType>,
+  ) => PostgreSQLProcessor<EventType>;
+  projectionProcessor: <
+    EventType extends ConsumerEventType = ConsumerEventType,
+  >(
+    projection: PostgreSQLProjectionDefinition<EventType>,
   ) => PostgreSQLProcessor<EventType>;
   start: () => Promise<void>;
   stop: () => Promise<void>;
@@ -120,6 +127,17 @@ export const postgreSQLEventStoreConsumer = <
       options: PostgreSQLProcessorOptions<EventType>,
     ): PostgreSQLProcessor<EventType> => {
       const processor = postgreSQLProcessor<EventType>(options);
+
+      processors.push(processor);
+
+      return processor;
+    },
+    projectionProcessor: <
+      EventType extends ConsumerEventType = ConsumerEventType,
+    >(
+      projection: PostgreSQLProjectionDefinition<EventType>,
+    ): PostgreSQLProcessor<EventType> => {
+      const processor = postgreSQLProjectionProcessor<EventType>(projection);
 
       processors.push(processor);
 

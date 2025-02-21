@@ -92,11 +92,10 @@ export const postgreSQLProjectionProcessor = <EventType extends Event = Event>(
 ): PostgreSQLProcessor => {
   return postgreSQLProcessor<EventType>({
     processorId: `projection:${projection.name}`,
-    eachMessage: async (event) => {
+    eachMessage: async (event, context) => {
       if (!projection.canHandle.includes(event.type)) return;
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
-      await projection.handle([event as any], {} as any);
+      await projection.handle([event], context);
     },
   });
 };
