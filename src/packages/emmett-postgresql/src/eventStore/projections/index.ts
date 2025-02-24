@@ -1,4 +1,5 @@
 import {
+  type Dumbo,
   type NodePostgresClient,
   type NodePostgresTransaction,
   type SQL,
@@ -15,10 +16,13 @@ import {
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 
 export type PostgreSQLProjectionHandlerContext = {
-  connectionString: string;
-  client: NodePostgresClient;
   execute: SQLExecutor;
-  transaction: NodePostgresTransaction;
+  connection: {
+    connectionString: string;
+    client: NodePostgresClient;
+    transaction: NodePostgresTransaction;
+    pool: Dumbo;
+  };
 };
 
 export type PostgreSQLProjectionHandler<
@@ -31,40 +35,32 @@ export type PostgreSQLProjectionHandler<
   PostgreSQLProjectionHandlerContext
 >;
 
-export type PostgreSQLProjectionDefinition<
-  EventType extends Event = Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
-> = TypedProjectionDefinition<
-  EventType,
-  EventMetaDataType,
-  PostgreSQLProjectionHandlerContext
->;
+export type PostgreSQLProjectionDefinition<EventType extends Event = Event> =
+  TypedProjectionDefinition<
+    EventType,
+    PostgresReadEventMetadata,
+    PostgreSQLProjectionHandlerContext
+  >;
 
-export type ProjectionHandlerOptions<
+export type PostgreSQLProjectionHandlerOptions<
   EventType extends Event = Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
 > = {
-  events: ReadEvent<EventType, EventMetaDataType>[];
-  projections: PostgreSQLProjectionDefinition<EventType, EventMetaDataType>[];
+  events: ReadEvent<EventType, PostgresReadEventMetadata>[];
+  projections: PostgreSQLProjectionDefinition<EventType>[];
   connection: {
     connectionString: string;
     transaction: NodePostgresTransaction;
+    pool: Dumbo;
   };
 };
 
-export const handleProjections = async <
-  EventType extends Event = Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
->(
-  options: ProjectionHandlerOptions<EventType, EventMetaDataType>,
+export const handleProjections = async <EventType extends Event = Event>(
+  options: PostgreSQLProjectionHandlerOptions<EventType>,
 ): Promise<void> => {
   const {
     projections: allProjections,
     events,
-    connection: { transaction, connectionString },
+    connection: { pool, transaction, connectionString },
   } = options;
 
   const eventTypes = events.map((e) => e.type);
@@ -77,27 +73,26 @@ export const handleProjections = async <
 
   for (const projection of projections) {
     await projection.handle(events, {
-      connectionString,
-      client,
-      transaction,
+      connection: {
+        connectionString,
+        pool,
+        client,
+        transaction,
+      },
       execute: transaction.execute,
     });
   }
 };
 
-export const postgreSQLProjection = <
-  EventType extends Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
->(
-  definition: PostgreSQLProjectionDefinition<EventType, EventMetaDataType>,
-): PostgreSQLProjectionDefinition =>
+export const postgreSQLProjection = <EventType extends Event>(
+  definition: PostgreSQLProjectionDefinition<EventType>,
+): PostgreSQLProjectionDefinition<EventType> =>
   projection<
     EventType,
-    EventMetaDataType,
+    PostgresReadEventMetadata,
     PostgreSQLProjectionHandlerContext,
-    PostgreSQLProjectionDefinition<EventType, EventMetaDataType>
-  >(definition) as PostgreSQLProjectionDefinition;
+    PostgreSQLProjectionDefinition<EventType>
+  >(definition);
 
 export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
   handle: (
@@ -105,7 +100,7 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
     context: PostgreSQLProjectionHandlerContext,
   ) => Promise<SQL[]> | SQL[],
   ...canHandle: CanHandle<EventType>
-): PostgreSQLProjectionDefinition =>
+): PostgreSQLProjectionDefinition<EventType> =>
   postgreSQLProjection<EventType>({
     canHandle,
     handle: async (events, context) => {
@@ -121,7 +116,7 @@ export const postgreSQLRawSQLProjection = <EventType extends Event>(
     context: PostgreSQLProjectionHandlerContext,
   ) => Promise<SQL> | SQL,
   ...canHandle: CanHandle<EventType>
-): PostgreSQLProjectionDefinition =>
+): PostgreSQLProjectionDefinition<EventType> =>
   postgreSQLRawBatchSQLProjection<EventType>(
     async (events, context) => {
       const sqls: SQL[] = [];

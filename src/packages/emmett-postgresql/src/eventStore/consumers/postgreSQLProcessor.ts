@@ -1,15 +1,31 @@
-import { type Dumbo, type SQLExecutor } from '@event-driven-io/dumbo';
+import {
+  type Dumbo,
+  type NodePostgresClient,
+  type NodePostgresTransaction,
+  type SQLExecutor,
+} from '@event-driven-io/dumbo';
 import {
   EmmettError,
   type Event,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
+import type { PostgreSQLProjectionDefinition } from '../projections';
 import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
 import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 
 export type PostgreSQLProcessorEventsBatch<EventType extends Event = Event> = {
   messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
+};
+
+export type PostgreSQLProcessorHandlerContext = {
+  execute: SQLExecutor;
+  connection: {
+    connectionString: string;
+    client: NodePostgresClient;
+    transaction: NodePostgresTransaction;
+    pool: Dumbo;
+  };
 };
 
 export type PostgreSQLProcessor<EventType extends Event = Event> = {
@@ -20,7 +36,7 @@ export type PostgreSQLProcessor<EventType extends Event = Event> = {
   isActive: boolean;
   handle: (
     messagesBatch: PostgreSQLProcessorEventsBatch<EventType>,
-    context: { pool: Dumbo },
+    context: { pool: Dumbo; connectionString: string },
   ) => Promise<PostgreSQLProcessorMessageHandlerResult>;
 };
 
@@ -51,6 +67,7 @@ export type PostgreSQLProcessorEachMessageHandler<
   EventType extends Event = Event,
 > = (
   event: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
+  context: PostgreSQLProcessorHandlerContext,
 ) =>
   | Promise<PostgreSQLProcessorMessageHandlerResult>
   | PostgreSQLProcessorMessageHandlerResult;
@@ -59,19 +76,37 @@ export type PostgreSQLProcessorStartFrom =
   | PostgreSQLEventStoreMessageBatchPullerStartFrom
   | 'CURRENT';
 
-export type PostgreSQLProcessorOptions<EventType extends Event = Event> = {
-  processorId: string;
+export type GenericPostgreSQLProcessorOptions<EventType extends Event = Event> =
+  {
+    processorId: string;
+    version?: number;
+    partition?: string;
+    startFrom?: PostgreSQLProcessorStartFrom;
+    stopAfter?: (
+      message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
+    ) => boolean;
+    eachMessage: PostgreSQLProcessorEachMessageHandler<EventType>;
+  };
+
+export type PostgreSQLProjectionProcessorOptions<
+  EventType extends Event = Event,
+> = {
+  processorId?: string;
   version?: number;
+  projection: PostgreSQLProjectionDefinition<EventType>;
   partition?: string;
   startFrom?: PostgreSQLProcessorStartFrom;
   stopAfter?: (
     message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
   ) => boolean;
-  eachMessage: PostgreSQLProcessorEachMessageHandler<EventType>;
 };
 
-export const postgreSQLProcessor = <EventType extends Event = Event>(
-  options: PostgreSQLProcessorOptions<EventType>,
+export type PostgreSQLProcessorOptions<EventType extends Event = Event> =
+  | GenericPostgreSQLProcessorOptions<EventType>
+  | PostgreSQLProjectionProcessorOptions<EventType>;
+
+const genericPostgreSQLProcessor = <EventType extends Event = Event>(
+  options: GenericPostgreSQLProcessorOptions<EventType>,
 ): PostgreSQLProcessor => {
   const { eachMessage } = options;
   let isActive = true;
@@ -99,11 +134,11 @@ export const postgreSQLProcessor = <EventType extends Event = Event>(
     },
     handle: async (
       { messages },
-      { pool },
+      { pool, connectionString },
     ): Promise<PostgreSQLProcessorMessageHandlerResult> => {
       if (!isActive) return;
 
-      return pool.withTransaction(async (tx) => {
+      return pool.withTransaction(async (transaction) => {
         let result: PostgreSQLProcessorMessageHandlerResult | undefined =
           undefined;
 
@@ -115,10 +150,21 @@ export const postgreSQLProcessor = <EventType extends Event = Event>(
             ReadEventMetadataWithGlobalPosition
           >;
 
-          const messageProcessingResult = await eachMessage(typedMessage);
+          const client =
+            (await transaction.connection.open()) as NodePostgresClient;
+
+          const messageProcessingResult = await eachMessage(typedMessage, {
+            execute: transaction.execute,
+            connection: {
+              connectionString,
+              pool,
+              transaction: transaction,
+              client,
+            },
+          });
 
           // TODO: Add correct handling of the storing checkpoint
-          await storeProcessorCheckpoint(tx.execute, {
+          await storeProcessorCheckpoint(transaction.execute, {
             processorId: options.processorId,
             version: options.version,
             lastProcessedPosition,
@@ -154,4 +200,30 @@ export const postgreSQLProcessor = <EventType extends Event = Event>(
       });
     },
   };
+};
+
+export const postgreSQLProjectionProcessor = <EventType extends Event = Event>(
+  options: PostgreSQLProjectionProcessorOptions<EventType>,
+): PostgreSQLProcessor => {
+  const projection = options.projection;
+
+  return genericPostgreSQLProcessor<EventType>({
+    processorId: options.processorId ?? `projection:${projection.name}`,
+    eachMessage: async (event, context) => {
+      if (!projection.canHandle.includes(event.type)) return;
+
+      await projection.handle([event], context);
+    },
+    ...options,
+  });
+};
+
+export const postgreSQLProcessor = <EventType extends Event = Event>(
+  options: PostgreSQLProcessorOptions<EventType>,
+): PostgreSQLProcessor => {
+  if ('projection' in options) {
+    return postgreSQLProjectionProcessor(options);
+  }
+
+  return genericPostgreSQLProcessor(options);
 };

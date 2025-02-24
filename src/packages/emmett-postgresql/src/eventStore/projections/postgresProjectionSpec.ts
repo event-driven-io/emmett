@@ -52,13 +52,13 @@ export type PostgreSQLProjectionAssert = (options: {
   connectionString: string;
 }) => Promise<void | boolean>;
 
-export type PostgreSQLProjectionSpecOptions = {
-  projection: PostgreSQLProjectionDefinition;
+export type PostgreSQLProjectionSpecOptions<EventType extends Event> = {
+  projection: PostgreSQLProjectionDefinition<EventType>;
 } & DumboOptions;
 
 export const PostgreSQLProjectionSpec = {
   for: <EventType extends Event>(
-    options: PostgreSQLProjectionSpecOptions,
+    options: PostgreSQLProjectionSpecOptions<EventType>,
   ): PostgreSQLProjectionSpec<EventType> => {
     {
       const { projection, ...dumoOptions } = options;
@@ -105,6 +105,7 @@ export const PostgreSQLProjectionSpec = {
                   events: allEvents,
                   projections: [projection],
                   connection: {
+                    pool,
                     connectionString,
                     transaction,
                   },
