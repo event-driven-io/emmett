@@ -1,14 +1,17 @@
-import { assertThatArray, type Event } from '@event-driven-io/emmett';
+import { assertThatArray, type ReadEvent } from '@event-driven-io/emmett';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
+import type { ShoppingCartConfirmed } from '../../testing/shoppingCart.domain';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
+import { pongoMultiStreamProjection } from '../projections';
+import type { ProductItemAdded } from '../projections/postgresProjection.customid.int.spec';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 import type { PostgreSQLProcessorOptions } from './postgreSQLProcessor';
 
@@ -43,7 +46,7 @@ void describe('PostgreSQL event store started consumer', () => {
         // Given
         const guestId = uuid();
         const streamName = `guestStay-${guestId}`;
-        const events: GuestStayEvent[] = [
+        const events: ShoppingCartSummaryEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId } },
           { type: 'GuestCheckedOut', data: { guestId } },
         ];
@@ -52,20 +55,18 @@ void describe('PostgreSQL event store started consumer', () => {
           events,
         );
 
-        const result: GuestStayEvent[] = [];
+        const result: ShoppingCartSummaryEvent[] = [];
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.processor({
           processorId: uuid(),
+          projection: shoppingCartsSummaryProjection,
           stopAfter: (event) =>
             event.metadata.globalPosition ===
             appendResult.lastEventGlobalPosition,
-          eachMessage: (event) => {
-            result.push(event);
-          },
         });
 
         try {
@@ -84,25 +85,23 @@ void describe('PostgreSQL event store started consumer', () => {
       async () => {
         // Given
 
-        const result: GuestStayEvent[] = [];
+        const result: ShoppingCartSummaryEvent[] = [];
         let stopAfterPosition: bigint | undefined = undefined;
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.processor({
           processorId: uuid(),
+          projection: shoppingCartsSummaryProjection,
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
-          eachMessage: (event) => {
-            result.push(event);
-          },
         });
 
         const guestId = uuid();
         const streamName = `guestStay-${guestId}`;
-        const events: GuestStayEvent[] = [
+        const events: ShoppingCartSummaryEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId } },
           { type: 'GuestCheckedOut', data: { guestId } },
         ];
@@ -134,33 +133,31 @@ void describe('PostgreSQL event store started consumer', () => {
         const otherGuestId = uuid();
         const streamName = `guestStay-${guestId}`;
 
-        const initialEvents: GuestStayEvent[] = [
+        const initialEvents: ShoppingCartSummaryEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId } },
           { type: 'GuestCheckedOut', data: { guestId } },
         ];
         const { lastEventGlobalPosition: startPosition } =
           await eventStore.appendToStream(streamName, initialEvents);
 
-        const events: GuestStayEvent[] = [
+        const events: ShoppingCartSummaryEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
           { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
         ];
 
-        const result: GuestStayEvent[] = [];
+        const result: ShoppingCartSummaryEvent[] = [];
         let stopAfterPosition: bigint | undefined = undefined;
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.processor({
           processorId: uuid(),
+          projection: shoppingCartsSummaryProjection,
           startFrom: { globalPosition: startPosition },
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
-          eachMessage: (event) => {
-            result.push(event);
-          },
         });
 
         try {
@@ -190,33 +187,31 @@ void describe('PostgreSQL event store started consumer', () => {
         const otherGuestId = uuid();
         const streamName = `guestStay-${guestId}`;
 
-        const initialEvents: GuestStayEvent[] = [
+        const initialEvents: ShoppingCartSummaryEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId } },
           { type: 'GuestCheckedOut', data: { guestId } },
         ];
 
         await eventStore.appendToStream(streamName, initialEvents);
 
-        const events: GuestStayEvent[] = [
+        const events: ShoppingCartSummaryEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
           { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
         ];
 
-        const result: GuestStayEvent[] = [];
+        const result: ShoppingCartSummaryEvent[] = [];
         let stopAfterPosition: bigint | undefined = undefined;
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.processor({
           processorId: uuid(),
+          projection: shoppingCartsSummaryProjection,
           startFrom: 'CURRENT',
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
-          eachMessage: (event) => {
-            result.push(event);
-          },
         });
 
         try {
@@ -249,7 +244,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const otherGuestId = uuid();
         const streamName = `guestStay-${guestId}`;
 
-        const initialEvents: GuestStayEvent[] = [
+        const initialEvents: ShoppingCartSummaryEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId } },
           { type: 'GuestCheckedOut', data: { guestId } },
         ];
@@ -258,26 +253,24 @@ void describe('PostgreSQL event store started consumer', () => {
           initialEvents,
         );
 
-        const events: GuestStayEvent[] = [
+        const events: ShoppingCartSummaryEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
           { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
         ];
 
-        let result: GuestStayEvent[] = [];
+        let result: ShoppingCartSummaryEvent[] = [];
         let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.processor({
           processorId: uuid(),
+          projection: shoppingCartsSummaryProjection,
           startFrom: 'CURRENT',
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
-          eachMessage: (event) => {
-            result.push(event);
-          },
         });
 
         await consumer.start();
@@ -314,7 +307,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const otherGuestId = uuid();
         const streamName = `guestStay-${guestId}`;
 
-        const initialEvents: GuestStayEvent[] = [
+        const initialEvents: ShoppingCartSummaryEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId } },
           { type: 'GuestCheckedOut', data: { guestId } },
         ];
@@ -323,30 +316,29 @@ void describe('PostgreSQL event store started consumer', () => {
           initialEvents,
         );
 
-        const events: GuestStayEvent[] = [
+        const events: ShoppingCartSummaryEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
           { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
         ];
 
-        let result: GuestStayEvent[] = [];
+        let result: ShoppingCartSummaryEvent[] = [];
         let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
 
-        const processorOptions: PostgreSQLProcessorOptions<GuestStayEvent> = {
-          processorId: uuid(),
-          startFrom: 'CURRENT',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
-          eachMessage: (event) => {
-            result.push(event);
-          },
-        };
+        const processorOptions: PostgreSQLProcessorOptions<ShoppingCartSummaryEvent> =
+          {
+            processorId: uuid(),
+            projection: shoppingCartsSummaryProjection,
+            startFrom: 'CURRENT',
+            stopAfter: (event) =>
+              event.metadata.globalPosition === stopAfterPosition,
+          };
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
         try {
-          consumer.processor<GuestStayEvent>(processorOptions);
+          consumer.processor<ShoppingCartSummaryEvent>(processorOptions);
 
           await consumer.start();
         } finally {
@@ -360,7 +352,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const newConsumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        newConsumer.processor<GuestStayEvent>(processorOptions);
+        newConsumer.processor<ShoppingCartSummaryEvent>(processorOptions);
 
         try {
           const consumerPromise = newConsumer.start();
@@ -382,7 +374,48 @@ void describe('PostgreSQL event store started consumer', () => {
   });
 });
 
-type GuestCheckedIn = Event<'GuestCheckedIn', { guestId: string }>;
-type GuestCheckedOut = Event<'GuestCheckedOut', { guestId: string }>;
+type ShoppingCartSummary = {
+  _id?: string;
+  activeCount: number;
+  activeShopingCarts: string[];
+};
 
-type GuestStayEvent = GuestCheckedIn | GuestCheckedOut;
+const shoppingCartsSummaryCollectionName = 'shoppingCartsSummary';
+
+export type ShoppingCartSummaryEvent = ProductItemAdded | ShoppingCartConfirmed;
+
+const evolve = (
+  document: ShoppingCartSummary,
+  { type, metadata: { streamName } }: ReadEvent<ShoppingCartSummaryEvent>,
+): ShoppingCartSummary => {
+  switch (type) {
+    case 'ProductItemAdded': {
+      if (!document.activeShopingCarts.includes(streamName)) {
+        document.activeShopingCarts.push(streamName);
+        document.activeCount++;
+      }
+
+      return document;
+    }
+    case 'ShoppingCartConfirmed':
+      document.activeShopingCarts = document.activeShopingCarts.filter(
+        (item) => item !== streamName,
+      );
+      document.activeCount--;
+
+      return document;
+    default:
+      return document;
+  }
+};
+
+const shoppingCartsSummaryProjection = pongoMultiStreamProjection({
+  getDocumentId: (event) => event.metadata.streamName.split(':')[1]!,
+  collectionName: shoppingCartsSummaryCollectionName,
+  evolve,
+  canHandle: ['ProductItemAdded', 'ShoppingCartConfirmed'],
+  initialState: () => ({
+    activeCount: 0,
+    activeShopingCarts: [],
+  }),
+});

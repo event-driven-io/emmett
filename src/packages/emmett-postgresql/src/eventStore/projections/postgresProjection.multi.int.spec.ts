@@ -15,7 +15,6 @@ import {
   PostgreSQLProjectionSpec,
 } from '.';
 import {
-  type DiscountApplied,
   type ProductItemAdded,
   type ShoppingCartConfirmed,
 } from '../../testing/shoppingCart.domain';
@@ -23,7 +22,7 @@ import {
 void describe('Postgres Projections', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
-  let given: PostgreSQLProjectionSpec<ProductItemAdded | DiscountApplied>;
+  let given: PostgreSQLProjectionSpec<ProductItemAdded | ShoppingCartConfirmed>;
   let shoppingCartId: string;
   let clientId: string;
 
