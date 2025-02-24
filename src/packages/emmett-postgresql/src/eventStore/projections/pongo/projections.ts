@@ -70,7 +70,7 @@ export type PongoProjectionOptions<EventType extends Event> = {
 export const pongoProjection = <EventType extends Event>({
   handle,
   canHandle,
-}: PongoProjectionOptions<EventType>): PostgreSQLProjectionDefinition =>
+}: PongoProjectionOptions<EventType>): PostgreSQLProjectionDefinition<EventType> =>
   postgreSQLProjection<EventType>({
     canHandle,
     handle: async (events, context) => {
@@ -126,7 +126,7 @@ export const pongoMultiStreamProjection = <
     EventType,
     EventMetaDataType
   >,
-): PostgreSQLProjectionDefinition => {
+): PostgreSQLProjectionDefinition<EventType> => {
   const { collectionName, getDocumentId, canHandle } = options;
 
   return pongoProjection({
@@ -190,7 +190,7 @@ export const pongoSingleStreamProjection = <
     EventType,
     EventMetaDataType
   >,
-): PostgreSQLProjectionDefinition => {
+): PostgreSQLProjectionDefinition<EventType> => {
   return pongoMultiStreamProjection<Document, EventType, EventMetaDataType>({
     ...options,
     getDocumentId:

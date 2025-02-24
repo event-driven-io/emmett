@@ -90,13 +90,16 @@ export type GenericPostgreSQLProcessorOptions<EventType extends Event = Event> =
 
 export type PostgreSQLProjectionProcessorOptions<
   EventType extends Event = Event,
-> = { type: 'projection' } & PostgreSQLProjectionDefinition<EventType> & {
-    partition?: string;
-    startFrom?: PostgreSQLProcessorStartFrom;
-    stopAfter?: (
-      message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
-    ) => boolean;
-  };
+> = {
+  processorId?: string;
+  version?: number;
+  projection: PostgreSQLProjectionDefinition<EventType>;
+  partition?: string;
+  startFrom?: PostgreSQLProcessorStartFrom;
+  stopAfter?: (
+    message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
+  ) => boolean;
+};
 
 export type PostgreSQLProcessorOptions<EventType extends Event = Event> =
   | GenericPostgreSQLProcessorOptions<EventType>
@@ -202,12 +205,14 @@ const genericPostgreSQLProcessor = <EventType extends Event = Event>(
 export const postgreSQLProjectionProcessor = <EventType extends Event = Event>(
   options: PostgreSQLProjectionProcessorOptions<EventType>,
 ): PostgreSQLProcessor => {
-  return genericPostgreSQLProcessor<EventType>({
-    processorId: `projection:${options.name}`,
-    eachMessage: async (event, context) => {
-      if (!options.canHandle.includes(event.type)) return;
+  const projection = options.projection;
 
-      await options.handle([event], context);
+  return genericPostgreSQLProcessor<EventType>({
+    processorId: options.processorId ?? `projection:${projection.name}`,
+    eachMessage: async (event, context) => {
+      if (!projection.canHandle.includes(event.type)) return;
+
+      await projection.handle([event], context);
     },
     ...options,
   });
@@ -216,7 +221,7 @@ export const postgreSQLProjectionProcessor = <EventType extends Event = Event>(
 export const postgreSQLProcessor = <EventType extends Event = Event>(
   options: PostgreSQLProcessorOptions<EventType>,
 ): PostgreSQLProcessor => {
-  if ('type' in options) {
+  if ('projection' in options) {
     return postgreSQLProjectionProcessor(options);
   }
 
