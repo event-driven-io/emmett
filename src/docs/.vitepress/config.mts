@@ -28,6 +28,7 @@ export default defineConfig({
       {
         text: 'Documentation',
         items: [
+          { text: 'Overview', link: '/overview' },
           { text: 'Getting Started', link: '/getting-started' },
           { text: 'API reference', link: '/api-docs' },
         ],
