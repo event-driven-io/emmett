@@ -2,7 +2,7 @@
 outline: deep
 ---
 
-# API docs
+# API reference
 
 ## Event
 
