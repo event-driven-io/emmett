@@ -76,32 +76,34 @@ export type PostgreSQLProcessorStartFrom =
   | PostgreSQLEventStoreMessageBatchPullerStartFrom
   | 'CURRENT';
 
-export type PostgreSQLProcessorOptions<EventType extends Event = Event> = {
-  processorId: string;
-  version?: number;
-  partition?: string;
-  startFrom?: PostgreSQLProcessorStartFrom;
-  stopAfter?: (
-    message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
-  ) => boolean;
-  eachMessage: PostgreSQLProcessorEachMessageHandler<EventType>;
-};
+export type GenericPostgreSQLProcessorOptions<EventType extends Event = Event> =
+  {
+    processorId: string;
+    version?: number;
+    partition?: string;
+    startFrom?: PostgreSQLProcessorStartFrom;
+    stopAfter?: (
+      message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
+    ) => boolean;
+    eachMessage: PostgreSQLProcessorEachMessageHandler<EventType>;
+  };
 
-export const postgreSQLProjectionProcessor = <EventType extends Event = Event>(
-  projection: PostgreSQLProjectionDefinition<EventType>,
-): PostgreSQLProcessor => {
-  return postgreSQLProcessor<EventType>({
-    processorId: `projection:${projection.name}`,
-    eachMessage: async (event, context) => {
-      if (!projection.canHandle.includes(event.type)) return;
+export type PostgreSQLProjectionProcessorOptions<
+  EventType extends Event = Event,
+> = { type: 'projection' } & PostgreSQLProjectionDefinition<EventType> & {
+    partition?: string;
+    startFrom?: PostgreSQLProcessorStartFrom;
+    stopAfter?: (
+      message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
+    ) => boolean;
+  };
 
-      await projection.handle([event], context);
-    },
-  });
-};
+export type PostgreSQLProcessorOptions<EventType extends Event = Event> =
+  | GenericPostgreSQLProcessorOptions<EventType>
+  | PostgreSQLProjectionProcessorOptions<EventType>;
 
-export const postgreSQLProcessor = <EventType extends Event = Event>(
-  options: PostgreSQLProcessorOptions<EventType>,
+const genericPostgreSQLProcessor = <EventType extends Event = Event>(
+  options: GenericPostgreSQLProcessorOptions<EventType>,
 ): PostgreSQLProcessor => {
   const { eachMessage } = options;
   let isActive = true;
@@ -195,4 +197,28 @@ export const postgreSQLProcessor = <EventType extends Event = Event>(
       });
     },
   };
+};
+
+export const postgreSQLProjectionProcessor = <EventType extends Event = Event>(
+  options: PostgreSQLProjectionProcessorOptions<EventType>,
+): PostgreSQLProcessor => {
+  return genericPostgreSQLProcessor<EventType>({
+    processorId: `projection:${options.name}`,
+    eachMessage: async (event, context) => {
+      if (!options.canHandle.includes(event.type)) return;
+
+      await options.handle([event], context);
+    },
+    ...options,
+  });
+};
+
+export const postgreSQLProcessor = <EventType extends Event = Event>(
+  options: PostgreSQLProcessorOptions<EventType>,
+): PostgreSQLProcessor => {
+  if ('type' in options) {
+    return postgreSQLProjectionProcessor(options);
+  }
+
+  return genericPostgreSQLProcessor(options);
 };
