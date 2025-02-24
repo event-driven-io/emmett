@@ -86,13 +86,13 @@ export const handleProjections = async <EventType extends Event = Event>(
 
 export const postgreSQLProjection = <EventType extends Event>(
   definition: PostgreSQLProjectionDefinition<EventType>,
-): PostgreSQLProjectionDefinition =>
+): PostgreSQLProjectionDefinition<EventType> =>
   projection<
     EventType,
     PostgresReadEventMetadata,
     PostgreSQLProjectionHandlerContext,
     PostgreSQLProjectionDefinition<EventType>
-  >(definition) as PostgreSQLProjectionDefinition;
+  >(definition);
 
 export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
   handle: (
@@ -100,7 +100,7 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
     context: PostgreSQLProjectionHandlerContext,
   ) => Promise<SQL[]> | SQL[],
   ...canHandle: CanHandle<EventType>
-): PostgreSQLProjectionDefinition =>
+): PostgreSQLProjectionDefinition<EventType> =>
   postgreSQLProjection<EventType>({
     canHandle,
     handle: async (events, context) => {
@@ -116,7 +116,7 @@ export const postgreSQLRawSQLProjection = <EventType extends Event>(
     context: PostgreSQLProjectionHandlerContext,
   ) => Promise<SQL> | SQL,
   ...canHandle: CanHandle<EventType>
-): PostgreSQLProjectionDefinition =>
+): PostgreSQLProjectionDefinition<EventType> =>
   postgreSQLRawBatchSQLProjection<EventType>(
     async (events, context) => {
       const sqls: SQL[] = [];
