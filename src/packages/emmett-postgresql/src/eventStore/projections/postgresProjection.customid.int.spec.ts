@@ -10,10 +10,7 @@ import {
   pongoSingleStreamProjection,
   PostgreSQLProjectionSpec,
 } from '.';
-import type {
-  DiscountApplied,
-  PricedProductItem,
-} from '../../testing/shoppingCart.domain';
+import type { PricedProductItem } from '../../testing/shoppingCart.domain';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -23,7 +20,7 @@ export type ProductItemAdded = Event<
 void describe('Postgres Projections', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
-  let given: PostgreSQLProjectionSpec<ProductItemAdded | DiscountApplied>;
+  let given: PostgreSQLProjectionSpec<ProductItemAdded>;
   let shoppingCartId: string;
   let streamName: string;
 

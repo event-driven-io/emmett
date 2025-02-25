@@ -2,7 +2,6 @@ import {
   assertDeepEqual,
   assertEqual,
   assertIsNotNull,
-  projections,
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import {
@@ -36,10 +35,10 @@ void describe('EventStoreDBEventStore', async () => {
     postgres = await new PostgreSqlContainer().start();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString, {
-      projections: projections.inline([
-        shoppingCartShortInfoProjection,
-        customProjection,
-      ]),
+      projections: [
+        { type: 'inline', projection: shoppingCartShortInfoProjection },
+        { type: 'inline', projection: customProjection },
+      ],
     });
     pongo = pongoClient(connectionString);
     return eventStore;

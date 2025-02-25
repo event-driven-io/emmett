@@ -3,7 +3,6 @@ import {
   assertEqual,
   assertIsNotNull,
   CommandHandler,
-  projections,
 } from '@event-driven-io/emmett';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
 import {
@@ -35,7 +34,9 @@ void describe('Postgres Projections', () => {
     postgres = await new PostgreSqlContainer().start();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString, {
-      projections: projections.inline([shoppingCartShortInfoProjection]),
+      projections: [
+        { type: 'inline', projection: shoppingCartShortInfoProjection },
+      ],
       schema: {
         autoMigration: 'None',
       },
