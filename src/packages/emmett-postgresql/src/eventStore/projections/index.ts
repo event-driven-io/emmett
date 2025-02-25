@@ -9,9 +9,9 @@ import {
   projection,
   type CanHandle,
   type Event,
+  type ProjectionDefinition,
   type ProjectionHandler,
   type ReadEvent,
-  type TypedProjectionDefinition,
 } from '@event-driven-io/emmett';
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 
@@ -36,7 +36,7 @@ export type PostgreSQLProjectionHandler<
 >;
 
 export type PostgreSQLProjectionDefinition<EventType extends Event = Event> =
-  TypedProjectionDefinition<
+  ProjectionDefinition<
     EventType,
     PostgresReadEventMetadata,
     PostgreSQLProjectionHandlerContext
@@ -90,8 +90,7 @@ export const postgreSQLProjection = <EventType extends Event>(
   projection<
     EventType,
     PostgresReadEventMetadata,
-    PostgreSQLProjectionHandlerContext,
-    PostgreSQLProjectionDefinition<EventType>
+    PostgreSQLProjectionHandlerContext
   >(definition);
 
 export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(

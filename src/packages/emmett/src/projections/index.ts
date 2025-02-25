@@ -1,6 +1,7 @@
 import { EmmettError } from '../errors';
 import { JSONParser } from '../serialization';
 import type {
+  AnyEvent,
   AnyReadEventMetadata,
   CanHandle,
   DefaultRecord,
@@ -21,19 +22,6 @@ export type ProjectionHandler<
 ) => Promise<void> | void;
 
 export interface ProjectionDefinition<
-  ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
-> {
-  name?: string;
-  canHandle: CanHandle<Event>;
-  handle: ProjectionHandler<
-    Event,
-    ReadEventMetadataType,
-    ProjectionHandlerContext
-  >;
-}
-
-export interface TypedProjectionDefinition<
   EventType extends Event = Event,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
@@ -54,6 +42,7 @@ export type ProjectionRegistration<
 > = {
   type: HandlingType;
   projection: ProjectionDefinition<
+    AnyEvent,
     ReadEventMetadataType,
     ProjectionHandlerContext
   >;
@@ -93,48 +82,55 @@ export const projection = <
   EventType extends Event = Event,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
-  ProjectionDefintionType extends TypedProjectionDefinition<
-    EventType,
-    EventMetaDataType,
-    ProjectionHandlerContext
-  > = TypedProjectionDefinition<
+>(
+  definition: ProjectionDefinition<
     EventType,
     EventMetaDataType,
     ProjectionHandlerContext
   >,
->(
-  definition: ProjectionDefintionType,
-): ProjectionDefintionType => definition;
+): ProjectionDefinition<
+  EventType,
+  EventMetaDataType,
+  ProjectionHandlerContext
+> => definition;
 
 export const inlineProjections = <
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
-  ProjectionDefintionType extends ProjectionDefinition<
+>(
+  definitions: ProjectionDefinition<
+    AnyEvent,
     ReadEventMetadataType,
     ProjectionHandlerContext
-  > = ProjectionDefinition<ReadEventMetadataType, ProjectionHandlerContext>,
->(
-  definitions: ProjectionDefintionType[],
+  >[],
 ): ProjectionRegistration<
   'inline',
   ReadEventMetadataType,
   ProjectionHandlerContext
->[] => definitions.map((projection) => ({ type: 'inline', projection }));
+>[] =>
+  definitions.map((definition) => ({
+    type: 'inline',
+    projection: definition,
+  }));
 
 export const asyncProjections = <
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
-  ProjectionDefintionType extends ProjectionDefinition<
+>(
+  definitions: ProjectionDefinition<
+    AnyEvent,
     ReadEventMetadataType,
     ProjectionHandlerContext
-  > = ProjectionDefinition<ReadEventMetadataType, ProjectionHandlerContext>,
->(
-  definitions: ProjectionDefintionType[],
+  >[],
 ): ProjectionRegistration<
-  'async',
+  'inline',
   ReadEventMetadataType,
   ProjectionHandlerContext
->[] => definitions.map((projection) => ({ type: 'async', projection }));
+>[] =>
+  definitions.map((definition) => ({
+    type: 'inline',
+    projection: definition,
+  }));
 
 export const projections = {
   inline: inlineProjections,

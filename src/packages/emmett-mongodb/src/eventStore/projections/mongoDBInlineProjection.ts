@@ -1,9 +1,9 @@
 import {
   type CanHandle,
   type Event,
+  type ProjectionDefinition,
   type ProjectionHandler,
   type ReadEvent,
-  type TypedProjectionDefinition,
 } from '@event-driven-io/emmett';
 import type { Collection, Document, UpdateFilter } from 'mongodb';
 import type {
@@ -37,7 +37,7 @@ export type MongoDBInlineProjectionHandler<
 export type MongoDBInlineProjectionDefinition<
   EventType extends Event = Event,
   EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
-> = TypedProjectionDefinition<
+> = ProjectionDefinition<
   EventType,
   EventMetaDataType,
   MongoDBProjectionInlineHandlerContext
