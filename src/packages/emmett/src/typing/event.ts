@@ -23,6 +23,9 @@ export type Event<
   'Event'
 >;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyEvent = Event<any, any, any>;
+
 export type EventTypeOf<T extends Event> = T['type'];
 export type EventDataOf<T extends Event> = T['data'];
 export type EventMetaDataOf<T extends Event> = T extends { metadata: infer M }
