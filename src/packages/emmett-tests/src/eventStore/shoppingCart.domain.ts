@@ -38,7 +38,7 @@ export const evolve = (
     case 'DiscountApplied':
       return {
         ...state,
-        totalAmount: state.totalAmount * (1 - data.percent / 100),
+        totalAmount: Math.max(state.totalAmount * (1 - data.percent / 100), 0)
       };
   }
 };
