@@ -1,6 +1,11 @@
 import {
+  dumbo,
   type Dumbo,
   type NodePostgresClient,
+  type NodePostgresClientConnection,
+  type NodePostgresConnector,
+  type NodePostgresPool,
+  type NodePostgresPoolClientConnection,
   type NodePostgresTransaction,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
@@ -10,6 +15,7 @@ import {
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
+import pg from 'pg';
 import type { PostgreSQLProjectionDefinition } from '../projections';
 import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
 import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
@@ -36,7 +42,7 @@ export type PostgreSQLProcessor<EventType extends Event = Event> = {
   isActive: boolean;
   handle: (
     messagesBatch: PostgreSQLProcessorEventsBatch<EventType>,
-    context: { pool: Dumbo; connectionString: string },
+    context: { pool?: Dumbo; connectionString?: string },
   ) => Promise<PostgreSQLProcessorMessageHandlerResult>;
 };
 
@@ -72,9 +78,76 @@ export type PostgreSQLProcessorEachMessageHandler<
   | Promise<PostgreSQLProcessorMessageHandlerResult>
   | PostgreSQLProcessorMessageHandlerResult;
 
+export type PostgreSQLProcessorEachBatchHandler<
+  EventType extends Event = Event,
+> = (
+  event: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[],
+  context: PostgreSQLProcessorHandlerContext,
+) =>
+  | Promise<PostgreSQLProcessorMessageHandlerResult>
+  | PostgreSQLProcessorMessageHandlerResult;
+
 export type PostgreSQLProcessorStartFrom =
   | PostgreSQLEventStoreMessageBatchPullerStartFrom
   | 'CURRENT';
+
+type PostgreSQLProcessorPooledOptions =
+  | {
+      connector?: NodePostgresConnector;
+      database?: string;
+      pooled: true;
+      pool: pg.Pool;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      database?: string;
+      pool: pg.Pool;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      database?: string;
+      pooled: true;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      database?: string;
+    };
+
+type PostgreSQLProcessorNotPooledOptions =
+  | {
+      connector?: NodePostgresConnector;
+      database?: string;
+      pooled: false;
+      client: pg.Client;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      database?: string;
+      client: pg.Client;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      database?: string;
+      pooled: false;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      database?: string;
+      connection:
+        | NodePostgresPoolClientConnection
+        | NodePostgresClientConnection;
+      pooled?: false;
+    }
+  | {
+      connector?: NodePostgresConnector;
+      database?: string;
+      dumbo: NodePostgresPool;
+      pooled?: false;
+    };
+
+export type PostgreSQLProcessorConnectionOptions = {
+  connectionString: string;
+} & (PostgreSQLProcessorPooledOptions | PostgreSQLProcessorNotPooledOptions);
 
 export type GenericPostgreSQLProcessorOptions<EventType extends Event = Event> =
   {
@@ -86,6 +159,8 @@ export type GenericPostgreSQLProcessorOptions<EventType extends Event = Event> =
       message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
     ) => boolean;
     eachMessage: PostgreSQLProcessorEachMessageHandler<EventType>;
+    connectionOptions?: PostgreSQLProcessorConnectionOptions;
+    // TODO: Add eachBatch
   };
 
 export type PostgreSQLProjectionProcessorOptions<
@@ -99,6 +174,7 @@ export type PostgreSQLProjectionProcessorOptions<
   stopAfter?: (
     message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
   ) => boolean;
+  connectionOptions?: PostgreSQLProcessorConnectionOptions;
 };
 
 export type PostgreSQLProcessorOptions<EventType extends Event = Event> =
@@ -111,6 +187,51 @@ const genericPostgreSQLProcessor = <EventType extends Event = Event>(
   const { eachMessage } = options;
   let isActive = true;
   //let lastProcessedPosition: bigint | null = null;
+
+  const poolOptions = {
+    ...(options.connectionOptions ? options.connectionOptions : {}),
+  };
+  const processorConnectionString =
+    'connectionString' in poolOptions ? poolOptions.connectionString : null;
+
+  const processorPool =
+    'dumbo' in poolOptions
+      ? (poolOptions.dumbo as NodePostgresPool)
+      : processorConnectionString
+        ? dumbo({
+            connectionString: processorConnectionString,
+            ...poolOptions,
+          })
+        : null;
+
+  const getPool = (context: {
+    pool?: Dumbo;
+    connectionString?: string;
+  }): { pool: Dumbo; connectionString: string } => {
+    const connectionString =
+      processorConnectionString ?? context.connectionString;
+
+    if (!connectionString)
+      throw new EmmettError(
+        `PostgreSQL processor '${options.processorId}' is missing connection string. Ensure that you passed it through options`,
+      );
+
+    const pool =
+      (!processorConnectionString ||
+      connectionString == processorConnectionString
+        ? context?.pool
+        : processorPool) ?? processorPool;
+
+    if (!pool)
+      throw new EmmettError(
+        `PostgreSQL processor '${options.processorId}' is missing connection string. Ensure that you passed it through options`,
+      );
+
+    return {
+      connectionString,
+      pool: pool,
+    };
+  };
 
   return {
     id: options.processorId,
@@ -134,9 +255,11 @@ const genericPostgreSQLProcessor = <EventType extends Event = Event>(
     },
     handle: async (
       { messages },
-      { pool, connectionString },
+      context,
     ): Promise<PostgreSQLProcessorMessageHandlerResult> => {
       if (!isActive) return;
+
+      const { pool, connectionString } = getPool(context);
 
       return pool.withTransaction(async (transaction) => {
         let result: PostgreSQLProcessorMessageHandlerResult | undefined =
