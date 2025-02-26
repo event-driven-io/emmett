@@ -1,4 +1,9 @@
-import { type ReadEvent } from '@event-driven-io/emmett';
+import { assertDeepEqual, type ReadEvent } from '@event-driven-io/emmett';
+import {
+  pongoClient,
+  type PongoClient,
+  type PongoCollection,
+} from '@event-driven-io/pongo';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -13,7 +18,7 @@ import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
-import { pongoMultiStreamProjection } from '../projections';
+import { pongoSingleStreamProjection } from '../projections';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 import type { PostgreSQLProcessorOptions } from './postgreSQLProcessor';
 
@@ -23,6 +28,8 @@ void describe('PostgreSQL event store started consumer', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
   let eventStore: PostgresEventStore;
+  let pongo: PongoClient;
+  let summaries: PongoCollection<ShoppingCartSummary>;
   const productItem = { price: 10, productId: uuid(), quantity: 10 };
   const confirmedAt = new Date();
 
@@ -30,12 +37,15 @@ void describe('PostgreSQL event store started consumer', () => {
     postgres = await new PostgreSqlContainer().start();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString);
+    pongo = pongoClient(connectionString);
+    summaries = pongo.db().collection(shoppingCartsSummaryCollectionName);
     await eventStore.schema.migrate();
   });
 
   after(async () => {
     try {
       await eventStore.close();
+      await pongo.close();
       await postgres.stop();
     } catch (error) {
       console.log(error);
@@ -74,7 +84,14 @@ void describe('PostgreSQL event store started consumer', () => {
         try {
           await consumer.start();
 
-          //          assertThatArray(result).containsElementsMatching(events);
+          const summary = await summaries.findOne({ _id: streamName });
+
+          assertDeepEqual(summary, {
+            _id: streamName,
+            status: 'confirmed',
+            _version: 2n,
+            productItemsCount: productItem.quantity,
+          });
         } finally {
           await consumer.close();
         }
@@ -125,7 +142,14 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await consumerPromise;
 
-          //assertThatArray(result).containsElementsMatching(events);
+          const summary = await summaries.findOne({ _id: streamName });
+
+          assertDeepEqual(summary, {
+            _id: streamName,
+            status: 'confirmed',
+            _version: 2n,
+            productItemsCount: productItem.quantity,
+          });
         } finally {
           await consumer.close();
         }
@@ -180,7 +204,14 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await consumerPromise;
 
-          //assertThatArray(result).containsOnlyElementsMatching(events);
+          const summary = await summaries.findOne({ _id: streamName });
+
+          assertDeepEqual(summary, {
+            _id: streamName,
+            status: 'confirmed',
+            _version: 2n,
+            productItemsCount: productItem.quantity,
+          });
         } finally {
           await consumer.close();
         }
@@ -235,10 +266,14 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await consumerPromise;
 
-          // assertThatArray(result).containsElementsMatching([
-          //   ...initialEvents,
-          //   ...events,
-          // ]);
+          const summary = await summaries.findOne({ _id: streamName });
+
+          assertDeepEqual(summary, {
+            _id: streamName,
+            status: 'confirmed',
+            _version: 4n,
+            productItemsCount: productItem.quantity * 3,
+          });
         } finally {
           await consumer.close();
         }
@@ -300,7 +335,14 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await consumerPromise;
 
-          // assertThatArray(result).containsOnlyElementsMatching(events);
+          const summary = await summaries.findOne({ _id: streamName });
+
+          assertDeepEqual(summary, {
+            _id: streamName,
+            status: 'confirmed',
+            _version: 4n,
+            productItemsCount: productItem.quantity * 3,
+          });
         } finally {
           await consumer.close();
         }
@@ -373,7 +415,14 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await consumerPromise;
 
-          // assertThatArray(result).containsOnlyElementsMatching(events);
+          const summary = await summaries.findOne({ _id: streamName });
+
+          assertDeepEqual(summary, {
+            _id: streamName,
+            status: 'confirmed',
+            _version: 4n,
+            productItemsCount: productItem.quantity * 3,
+          });
         } finally {
           await newConsumer.close();
         }
@@ -413,8 +462,7 @@ const evolve = (
   }
 };
 
-const shoppingCartsSummaryProjection = pongoMultiStreamProjection({
-  getDocumentId: (event) => event.metadata.streamName.split(':')[0]!,
+const shoppingCartsSummaryProjection = pongoSingleStreamProjection({
   collectionName: shoppingCartsSummaryCollectionName,
   evolve,
   canHandle: ['ProductItemAdded', 'ShoppingCartConfirmed'],
