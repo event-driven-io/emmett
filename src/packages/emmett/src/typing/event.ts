@@ -83,6 +83,10 @@ export type ReadEvent<
   metadata: CombinedReadEventMetadata<EventType, EventMetaDataType>;
 };
 
+export type AnyReadEvent<
+  EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+> = ReadEvent<AnyEvent, EventMetaDataType>;
+
 export type CommonReadEventMetadata<StreamPosition = BigIntStreamPosition> =
   Readonly<{
     eventId: string;
