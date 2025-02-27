@@ -6,7 +6,7 @@ Everything you need to know about Emmet and Event Sourcing.
 
 If you are new to Emmet or Event Sourcing, no problem.
 
-The [Getting Started](/getting-started) guide will help you with your first Emmet project.
+The [Getting Started](/getting-started) guide will help you with your first Emmett project.
 
 ## Getting help
 
@@ -17,9 +17,9 @@ If you need help or got stuck, feel free to ask on the [Emmet Community Discord 
 The [API reference](/api-docs) provides you with definitions and insights of Emmets core building blocks:
 
 - **Events** are the centerpiece of event-sourced systems. They represent both critical points of the business process but are also used as the state.
-- **Commands** represent the intent to record a business operation.
+- **Commands** represent the intent to perform a business operation.
 - **Event Store** for recording events
-- **Command Handlers** aggregate several events from the event store into a single object to perform the intended business operation, resulting in one or more events to record the change.
+- **Command Handlers** are responsible for handling business logic. They read events from the event store for specific events and build a decision model. Then, check business rules and perform the intended business operation, resulting in one or more events to record the change.
 
 ## How the documenantation is organized
 
