@@ -23,7 +23,7 @@ The [API reference](/api-docs) provides you with definitions and insights of Emm
 
 ## How the documenantation is organized
 
-Currently documentation for Emmett is spread across several places: This website, the Emmett Discord and quite a few blog articles.
+Currently documentation for Emmett is spread across several places: This website, the [Emmett Discord](https://discord.gg/fTpqUTMmVa) and [quite a few blog articles](/overview#further-reading).
 At the moment we are in the process of consolidating and refactoring these into a single documentation on this website.
 
 Our aim is that each part of the documenation roughly falls into one of these four categories:
