@@ -1,3 +1,4 @@
+import type { EmmettError } from '../errors';
 import type { DefaultRecord } from './';
 import type {
   AnyRecordedMessageMetadata,
@@ -85,6 +86,28 @@ export type ReadEvent<
   EventMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
 > = RecordedMessage<EventType, EventMetaDataType>;
+
+export type MessagesBatch<
+  EventType extends Event = Event,
+  EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+> = {
+  messages: ReadEvent<EventType, EventMetaDataType>[];
+};
+
+export type MessageBatchHandler<
+  EventType extends Event = Event,
+  EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+> = (
+  event: ReadEvent<EventType, EventMetaDataType>,
+  context: PostgreSQLProcessorHandlerContext,
+) =>
+  | Promise<PostgreSQLProcessorMessageHandlerResult>
+  | PostgreSQLProcessorMessageHandlerResult;
+
+export type MessageBatchHandlingResult =
+  | void
+  | { type: 'SKIP'; reason?: string }
+  | { type: 'STOP'; reason?: string; error?: EmmettError };
 
 export type AnyReadEvent<
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
