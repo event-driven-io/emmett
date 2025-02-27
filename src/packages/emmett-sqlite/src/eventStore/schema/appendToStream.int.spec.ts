@@ -4,6 +4,7 @@ import {
   assertIsNotNull,
   assertTrue,
   type Event,
+  type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -268,8 +269,8 @@ void describe('appendEvent', () => {
     let grabbedEvents: Event[] = [];
 
     await appendToStream(db, streamId, 'shopping_cart', events, {
-      preCommitHook: (events: Event[]): void => {
-        grabbedEvents = events;
+      preCommitHook: (messages: RecordedMessage[]): void => {
+        grabbedEvents = messages.filter((m) => m.kind === 'Event');
       },
     });
 
@@ -281,7 +282,7 @@ void describe('appendEvent', () => {
 
     try {
       await appendToStream(db, streamId, 'shopping_cart', events, {
-        preCommitHook: (_: Event[]): void => {
+        preCommitHook: (_: RecordedMessage[]): void => {
           throw new Error('fake error');
         },
       });
