@@ -4,6 +4,7 @@ export * from './database';
 export * from './errors';
 export * from './eventStore';
 export * from './messageBus';
+export * from './processors';
 export * from './projections';
 export * from './serialization';
 export * from './streaming';
