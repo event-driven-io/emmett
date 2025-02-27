@@ -17,7 +17,7 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/overview' },
           { text: 'Getting started', link: '/getting-started' },
-          { text: 'API reference', link: '/api-reference' },
+          { text: 'API reference', link: '/api-docs' },
         ],
       },
       { text: '🧑‍💻 Join Discord Server', link: 'https://discord.gg/fTpqUTMmVa' },
