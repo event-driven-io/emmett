@@ -4,9 +4,9 @@ import {
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
   type AppendToStreamOptions,
-  type Event,
   type ExpectedStreamVersion,
-  type ReadEvent,
+  type Event as Message,
+  type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import {
@@ -29,29 +29,30 @@ export const appendToStream = async (
   db: SQLiteConnection,
   streamName: string,
   streamType: string,
-  events: Event[],
+  messages: Message[],
   options?: AppendToStreamOptions & {
     partition?: string;
-    preCommitHook?: (events: Event[]) => void;
+    preCommitHook?: (events: RecordedMessage[]) => void;
   },
 ): Promise<AppendEventResult> => {
-  if (events.length === 0) return { success: false };
+  if (messages.length === 0) return { success: false };
 
   const expectedStreamVersion = toExpectedVersion(
     options?.expectedStreamVersion,
   );
 
-  const eventsToAppend: ReadEvent[] = events.map(
-    (e: Event, i: number): ReadEvent => ({
-      ...e,
-      kind: e.kind ?? 'Event',
-      metadata: {
-        streamName,
-        messageId: uuid(),
-        streamPosition: BigInt(i + 1),
-        ...('metadata' in e ? (e.metadata ?? {}) : {}),
-      },
-    }),
+  const messagesToAppend: RecordedMessage[] = messages.map(
+    (m: Message, i: number): RecordedMessage =>
+      ({
+        ...m,
+        kind: m.kind ?? 'Event',
+        metadata: {
+          streamName,
+          messageId: uuid(),
+          streamPosition: BigInt(i + 1),
+          ...('metadata' in m ? (m.metadata ?? {}) : {}),
+        },
+      }) as RecordedMessage,
   );
 
   let result: AppendEventResult;
@@ -59,11 +60,17 @@ export const appendToStream = async (
   await db.command(`BEGIN TRANSACTION`);
 
   try {
-    result = await appendEventsRaw(db, streamName, streamType, eventsToAppend, {
-      expectedStreamVersion,
-    });
+    result = await appendToStreamRaw(
+      db,
+      streamName,
+      streamType,
+      messagesToAppend,
+      {
+        expectedStreamVersion,
+      },
+    );
 
-    if (options?.preCommitHook) options.preCommitHook(eventsToAppend);
+    if (options?.preCommitHook) options.preCommitHook(messagesToAppend);
   } catch (err: unknown) {
     await db.command(`ROLLBACK`);
     throw err;
@@ -95,11 +102,11 @@ const toExpectedVersion = (
   return expected as bigint;
 };
 
-const appendEventsRaw = async (
+const appendToStreamRaw = async (
   db: SQLiteConnection,
   streamId: string,
   streamType: string,
-  events: ReadEvent[],
+  messages: RecordedMessage[],
   options?: {
     expectedStreamVersion: bigint | null;
     partition?: string;
@@ -139,7 +146,7 @@ const appendEventsRaw = async (
           `,
         [
           streamId,
-          events.length,
+          messages.length,
           options?.partition ?? streamsTable.columns.partition,
           streamType,
         ],
@@ -156,7 +163,7 @@ const appendEventsRaw = async (
             RETURNING stream_position;
           `,
         [
-          events.length,
+          messages.length,
           streamId,
           options?.partition ?? streamsTable.columns.partition,
         ],
@@ -171,7 +178,7 @@ const appendEventsRaw = async (
 
     if (expectedStreamVersion != null) {
       const expectedStreamPositionAfterSave =
-        BigInt(expectedStreamVersion) + BigInt(events.length);
+        BigInt(expectedStreamVersion) + BigInt(messages.length);
       if (streamPosition !== expectedStreamPositionAfterSave) {
         return {
           success: false,
@@ -179,8 +186,8 @@ const appendEventsRaw = async (
       }
     }
 
-    const { sqlString, values } = buildEventInsertQuery(
-      events,
+    const { sqlString, values } = buildMessageInsertQuery(
+      messages,
       expectedStreamVersion,
       streamId,
       options?.partition?.toString() ?? defaultTag,
@@ -234,8 +241,8 @@ async function getLastStreamPosition(
   return expectedStreamVersion;
 }
 
-const buildEventInsertQuery = (
-  events: ReadEvent[],
+const buildMessageInsertQuery = (
+  messages: RecordedMessage[],
   expectedStreamVersion: bigint,
   streamId: string,
   partition: string | null | undefined,
@@ -243,32 +250,32 @@ const buildEventInsertQuery = (
   sqlString: string;
   values: Parameters[];
 } => {
-  const query = events.reduce(
+  const query = messages.reduce(
     (
       queryBuilder: { parameterMarkers: string[]; values: Parameters[] },
-      event: ReadEvent,
+      message: RecordedMessage,
     ) => {
       if (
-        event.metadata?.streamPosition == null ||
-        typeof event.metadata.streamPosition !== 'bigint'
+        message.metadata?.streamPosition == null ||
+        typeof message.metadata.streamPosition !== 'bigint'
       ) {
         throw new Error('Stream position is required');
       }
 
       const streamPosition =
-        BigInt(event.metadata.streamPosition) + BigInt(expectedStreamVersion);
+        BigInt(message.metadata.streamPosition) + BigInt(expectedStreamVersion);
 
       queryBuilder.parameterMarkers.push(`(?,?,?,?,?,?,?,?,?,?)`);
       queryBuilder.values.push(
         streamId,
         streamPosition.toString() ?? 0,
         partition ?? defaultTag,
-        event.kind === 'Event' ? 'E' : 'C',
-        JSONParser.stringify(event.data),
-        JSONParser.stringify(event.metadata),
+        message.kind === 'Event' ? 'E' : 'C',
+        JSONParser.stringify(message.data),
+        JSONParser.stringify(message.metadata),
         expectedStreamVersion?.toString() ?? 0,
-        event.type,
-        event.metadata.messageId,
+        message.type,
+        message.metadata.messageId,
         false,
       );
 
