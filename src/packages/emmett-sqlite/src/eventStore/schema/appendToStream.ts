@@ -183,7 +183,6 @@ const appendEventsRaw = async (
       events,
       expectedStreamVersion,
       streamId,
-      streamType,
       options?.partition?.toString() ?? defaultTag,
     );
 
@@ -239,7 +238,6 @@ const buildEventInsertQuery = (
   events: ReadEvent[],
   expectedStreamVersion: bigint,
   streamId: string,
-  streamType: string,
   partition: string | null | undefined,
 ): {
   sqlString: string;
@@ -260,11 +258,12 @@ const buildEventInsertQuery = (
       const streamPosition =
         BigInt(event.metadata.streamPosition) + BigInt(expectedStreamVersion);
 
-      queryBuilder.parameterMarkers.push(`(?,?,?,?,?,?,?,?,?)`);
+      queryBuilder.parameterMarkers.push(`(?,?,?,?,?,?,?,?,?,?)`);
       queryBuilder.values.push(
         streamId,
         streamPosition.toString() ?? 0,
         partition ?? defaultTag,
+        event.kind === 'Event' ? 'E' : 'C',
         JSONParser.stringify(event.data),
         JSONParser.stringify(event.metadata),
         expectedStreamVersion?.toString() ?? 0,
@@ -286,6 +285,7 @@ const buildEventInsertQuery = (
           stream_id, 
           stream_position, 
           partition, 
+          message_kind,
           message_data, 
           message_metadata, 
           message_schema_version, 

@@ -20,7 +20,7 @@ export const messagesTableSQL = sql(
       stream_id              TEXT                      NOT NULL,
       stream_position        BIGINT                    NOT NULL,
       partition              TEXT                      NOT NULL DEFAULT '${globalTag}',
-      message_kind           TEXT                      NOT NULL DEFAULT 'Event',
+      message_kind           CHAR(1)                   NOT NULL DEFAULT 'E',
       message_data           JSONB                     NOT NULL,
       message_metadata       JSONB                     NOT NULL,
       message_schema_version TEXT                      NOT NULL,

@@ -263,7 +263,9 @@ const appendEventsRaw = (
           .join(','),
         messages.map(() => `'1'`).join(','),
         messages.map((e) => sql('%L', e.type)).join(','),
-        messages.map((e) => sql('%L', e.kind)).join(','),
+        messages
+          .map((e) => sql('%L', e.kind === 'Event' ? 'E' : 'C'))
+          .join(','),
         streamId,
         streamType,
         options?.expectedStreamVersion ?? 'NULL',
