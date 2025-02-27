@@ -22,7 +22,7 @@ export const streamsTableSQL = rawSql(
 
 export const messagesTableSQL = rawSql(
   `
-  CREATE SEQUENCE IF NOT EXISTS emt_global_event_position;
+  CREATE SEQUENCE IF NOT EXISTS emt_global_message_position;
 
   CREATE TABLE IF NOT EXISTS ${messagesTable.name}(
       stream_id              TEXT                      NOT NULL,
@@ -35,7 +35,7 @@ export const messagesTableSQL = rawSql(
       message_type           TEXT                      NOT NULL,
       message_id             TEXT                      NOT NULL,
       is_archived            BOOLEAN                   NOT NULL DEFAULT FALSE,
-      global_position        BIGINT                    DEFAULT nextval('emt_global_event_position'),
+      global_position        BIGINT                    DEFAULT nextval('emt_global_message_position'),
       transaction_id         XID8                      NOT NULL,
       created                TIMESTAMPTZ               NOT NULL DEFAULT now(),
       PRIMARY KEY (stream_id, stream_position, partition, is_archived)
@@ -347,6 +347,8 @@ BEGIN
             RENAME COLUMN event_type TO message_type;
         ALTER TABLE emt_messages 
             RENAME COLUMN event_id TO message_id;
+        ALTER TABLE emt_messages 
+            ADD COLUMN message_kind CHAR(1) NOT NULL DEFAULT 'E';
 
         -- Rename sequence if it exists
         IF EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'emt_global_event_position') THEN
