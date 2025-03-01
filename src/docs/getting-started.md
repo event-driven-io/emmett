@@ -46,7 +46,7 @@ We could define it as follows:
 
 It shows that clients can add or remove products to our shopping cart and confirm or cancel them. All events represent facts that happened and tell the story of the shopping cart. To highlight that, we're grouping all type definitions with the `ShoppingCartEvent` union type. It tells that either of those events may happen.
 
-We're using [Event type](/api-docs.md#event), which helps to keep the event definition aligned. It's not a must, but it helps to ensure that it has a type name defined (e.g. `ProductItemAddedToShoppingCart`) and read-only payload data.
+We're using [Event type](/api-reference/event), which helps to keep the event definition aligned. It's not a must, but it helps to ensure that it has a type name defined (e.g. `ProductItemAddedToShoppingCart`) and read-only payload data.
 
 ## Commands
 
@@ -54,7 +54,7 @@ We need to provide a clear business intention to capture a meaningful business e
 
 <<< @/snippets/gettingStarted/commands.ts#getting-started-commands
 
-Accordingly, to define the event, we're using the [`Command` type](/api-docs.md#command), ensuring that our type definition is aligned. Using the `Command` type is optional, as Emmett won't force you to use any marker types, but with [TypeScript structural typing](https://event-driven.io/en/structural_typing_in_type_script/), this is quite useful to align the type definition.
+Accordingly, to define the event, we're using the [`Command` type](/api-reference/command), ensuring that our type definition is aligned. Using the `Command` type is optional, as Emmett won't force you to use any marker types, but with [TypeScript structural typing](https://event-driven.io/en/structural_typing_in_type_script/), this is quite useful to align the type definition.
 
 ## Business logic and decisions
 

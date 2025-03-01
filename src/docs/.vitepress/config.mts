@@ -17,7 +17,7 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/overview' },
           { text: 'Getting started', link: '/getting-started' },
-          { text: 'API reference', link: '/api-docs' },
+          { text: 'API reference', link: '/api-reference' },
         ],
       },
       { text: '🧑‍💻 Join Discord Server', link: 'https://discord.gg/fTpqUTMmVa' },
@@ -37,7 +37,12 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/overview' },
           { text: 'Getting Started', link: '/getting-started' },
-          { text: 'API reference', link: '/api-docs' },
+          { text: 'API reference', link: '/api-reference', items: [
+            { text: 'Event', link: '/api-reference/event' },
+            { text: 'Command', link: '/api-reference/command' },
+            { text: 'Event Store', link: '/api-reference/eventstore' },
+            { text: 'Command Handler', link: '/api-reference/commandhandler' },
+          ] },
         ],
       },
     ],
