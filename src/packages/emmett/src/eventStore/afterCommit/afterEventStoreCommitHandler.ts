@@ -5,11 +5,25 @@ type AfterEventStoreCommitHandlerWithoutContext<Store extends EventStore> = (
   messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
 ) => Promise<void> | void;
 
+type BeforeEventStoreCommitHandlerWithoutContext<Store extends EventStore> = (
+  messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
+) => Promise<void> | void;
+
 export type AfterEventStoreCommitHandler<
   Store extends EventStore,
   HandlerContext = never,
 > = [HandlerContext] extends [never]
   ? AfterEventStoreCommitHandlerWithoutContext<Store>
+  : (
+      messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
+      context: HandlerContext,
+    ) => Promise<void> | void;
+
+export type BeforeEventStoreCommitHandler<
+  Store extends EventStore,
+  HandlerContext = never,
+> = [HandlerContext] extends [never]
+  ? BeforeEventStoreCommitHandlerWithoutContext<Store>
   : (
       messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
       context: HandlerContext,

@@ -39,7 +39,7 @@ import {
   createEventStoreSchema,
   readStream,
   schemaSQL,
-  type AppendToStreamPreCommitHook,
+  type AppendToStreamBeforeCommitHook,
 } from './schema';
 
 export interface PostgresEventStore
@@ -180,7 +180,7 @@ export const getPostgreSQLEventStore = (
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
 
-  const preCommitHook: AppendToStreamPreCommitHook | undefined =
+  const beforeCommitHook: AppendToStreamBeforeCommitHook | undefined =
     inlineProjections.length > 0
       ? (events, { transaction }) =>
           handleProjections({
@@ -267,7 +267,7 @@ export const getPostgreSQLEventStore = (
         events,
         {
           ...options,
-          preCommitHook,
+          beforeCommitHook,
         },
       );
 

@@ -269,7 +269,7 @@ void describe('appendEvent', () => {
     let grabbedEvents: Event[] = [];
 
     await appendToStream(db, streamId, 'shopping_cart', events, {
-      preCommitHook: (messages: RecordedMessage[]): void => {
+      onBeforeCommit: (messages: RecordedMessage[]): void => {
         grabbedEvents = messages.filter((m) => m.kind === 'Event');
       },
     });
@@ -282,7 +282,7 @@ void describe('appendEvent', () => {
 
     try {
       await appendToStream(db, streamId, 'shopping_cart', events, {
-        preCommitHook: (_: RecordedMessage[]): void => {
+        onBeforeCommit: (_: RecordedMessage[]): void => {
           throw new Error('fake error');
         },
       });
