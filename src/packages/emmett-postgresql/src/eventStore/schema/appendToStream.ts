@@ -116,7 +116,7 @@ type AppendToStreamResult =
     }
   | { success: false };
 
-export type AppendToStreamPreCommitHook = (
+export type AppendToStreamBeforeCommitHook = (
   messages: RecordedMessage[],
   context: {
     transaction: NodePostgresTransaction;
@@ -130,7 +130,7 @@ export const appendToStream = (
   messages: Message[],
   options?: AppendToStreamOptions & {
     partition?: string;
-    preCommitHook?: AppendToStreamPreCommitHook;
+    beforeCommitHook?: AppendToStreamBeforeCommitHook;
   },
 ): Promise<AppendToStreamResult> =>
   pool.withTransaction<AppendToStreamResult>(async (transaction) => {
@@ -168,8 +168,8 @@ export const appendToStream = (
         },
       );
 
-      if (options?.preCommitHook)
-        await options.preCommitHook(messagesToAppend, { transaction });
+      if (options?.beforeCommitHook)
+        await options.beforeCommitHook(messagesToAppend, { transaction });
     } catch (error) {
       if (!isOptimisticConcurrencyError(error)) throw error;
 
