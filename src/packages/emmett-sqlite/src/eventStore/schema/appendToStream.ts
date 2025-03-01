@@ -4,6 +4,7 @@ import {
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
   type AppendToStreamOptions,
+  type BeforeEventStoreCommitHandler,
   type ExpectedStreamVersion,
   type Event as Message,
   type RecordedMessage,
@@ -15,6 +16,10 @@ import {
   type SQLiteConnection,
   type SQLiteError,
 } from '../../connection';
+import type {
+  SQLiteEventStore,
+  SQLiteReadEventMetadata,
+} from '../SQLiteEventStore';
 import { defaultTag, messagesTable, streamsTable } from './typing';
 
 export type AppendEventResult =
@@ -25,14 +30,17 @@ export type AppendEventResult =
     }
   | { success: false };
 
-export const appendToStream = async (
+export const appendToStream = async <MessageType extends Message>(
   db: SQLiteConnection,
   streamName: string,
   streamType: string,
-  messages: Message[],
+  messages: MessageType[],
   options?: AppendToStreamOptions & {
     partition?: string;
-    preCommitHook?: (events: RecordedMessage[]) => void;
+    onBeforeCommit?: BeforeEventStoreCommitHandler<
+      SQLiteEventStore,
+      { connection: SQLiteConnection }
+    >;
   },
 ): Promise<AppendEventResult> => {
   if (messages.length === 0) return { success: false };
@@ -41,8 +49,14 @@ export const appendToStream = async (
     options?.expectedStreamVersion,
   );
 
-  const messagesToAppend: RecordedMessage[] = messages.map(
-    (m: Message, i: number): RecordedMessage =>
+  const messagesToAppend: RecordedMessage<
+    MessageType,
+    SQLiteReadEventMetadata
+  >[] = messages.map(
+    (
+      m: Message,
+      i: number,
+    ): RecordedMessage<MessageType, SQLiteReadEventMetadata> =>
       ({
         ...m,
         kind: m.kind ?? 'Event',
@@ -52,7 +66,7 @@ export const appendToStream = async (
           streamPosition: BigInt(i + 1),
           ...('metadata' in m ? (m.metadata ?? {}) : {}),
         },
-      }) as RecordedMessage,
+      }) as RecordedMessage<MessageType, SQLiteReadEventMetadata>,
   );
 
   let result: AppendEventResult;
@@ -70,7 +84,8 @@ export const appendToStream = async (
       },
     );
 
-    if (options?.preCommitHook) options.preCommitHook(messagesToAppend);
+    if (options?.onBeforeCommit)
+      await options.onBeforeCommit(messagesToAppend, { connection: db });
   } catch (err: unknown) {
     await db.command(`ROLLBACK`);
     throw err;

@@ -1,7 +1,9 @@
 import type {
   AppendToStreamResultWithGlobalPosition,
+  BeforeEventStoreCommitHandler,
   BigIntStreamPosition,
   Event,
+  ProjectionRegistration,
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
@@ -22,6 +24,10 @@ import {
   sqliteConnection,
   type SQLiteConnection,
 } from '../connection';
+import {
+  handleProjections,
+  type SQLiteProjectionHandlerContext,
+} from './projections';
 import { createEventStoreSchema } from './schema';
 import { appendToStream } from './schema/appendToStream';
 import { readStream } from './schema/readStream';
@@ -42,11 +48,26 @@ export type SQLiteReadEvent<EventType extends Event = Event> = ReadEvent<
 >;
 
 export type SQLiteEventStoreOptions = {
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+  fileName: InMemorySQLiteDatabase | string | undefined;
+  projections?: ProjectionRegistration<
+    'inline',
+    SQLiteReadEventMetadata,
+    SQLiteProjectionHandlerContext
+  >[];
   schema?: {
     autoMigration?: 'None' | 'CreateOrUpdate';
   };
-  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-  fileName: InMemorySQLiteDatabase | string | undefined;
+  hooks?: {
+    /**
+     * This hook will be called **BEFORE** events were stored in the event store.
+     * @type {BeforeEventStoreCommitHandler<SQLiteEventStore, HandlerContext>}
+     */
+    onBeforeCommit?: BeforeEventStoreCommitHandler<
+      SQLiteEventStore,
+      { connection: SQLiteConnection }
+    >;
+  };
 };
 
 export const getSQLiteEventStore = (
@@ -58,6 +79,12 @@ export const getSQLiteEventStore = (
   const fileName = options.fileName ?? InMemorySQLiteDatabase;
 
   const isInMemory: boolean = fileName === InMemorySQLiteDatabase;
+
+  const inlineProjections = (options.projections ?? [])
+    .filter(({ type }) => type === 'inline')
+    .map(({ projection }) => projection);
+
+  const onBeforeCommitHook = options.hooks?.onBeforeCommit;
 
   const createConnection = () => {
     if (database != null) {
@@ -184,7 +211,19 @@ export const getSQLiteEventStore = (
         firstPart && rest.length > 0 ? firstPart : 'emt:unknown';
 
       const appendResult = await withConnection((db) =>
-        appendToStream(db, streamName, streamType, events, options),
+        appendToStream(db, streamName, streamType, events, {
+          ...options,
+          onBeforeCommit: async (messages, context) => {
+            if (inlineProjections.length > 0)
+              await handleProjections({
+                projections: inlineProjections,
+                events: messages,
+                ...context,
+              });
+
+            if (onBeforeCommitHook) await onBeforeCommitHook(messages, context);
+          },
+        }),
       );
 
       if (!appendResult.success)
