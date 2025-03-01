@@ -4,6 +4,7 @@
 
 Event type helps to keep the event definition aligned. It's not a must, but it helps to ensure that it has a type name defined (e.g. `ProductItemAddedToShoppingCart`) and read-only payload data.
 
+## Usage
 You can use it as follows
 
 <<< @/snippets/api/event.ts#event-type
@@ -14,6 +15,8 @@ The type is a simple wrapper to ensure the structure's correctness. It defines:
 - **data** - represents the business data the event contains. It has to be a record structure; primitives are not allowed,
 - **metadata** - represents the generic data event contains. It can represent telemetry, user id, tenant id, timestamps and other information that can be useful for running infrastructure. It has to be a record structure; primitives are not allowed.
 
-See more context in [getting started guide](/getting-started.md#events)
+
+## See also
+Find more context in [getting started guide](/getting-started.md#events)
 
 <<< @./../packages/emmett/src/typing/event.ts

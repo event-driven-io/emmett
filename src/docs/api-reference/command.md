@@ -4,9 +4,9 @@
 
 Command type helps to keep the command definition aligned. It's not a must, but it helps to ensure that it has a type name defined (e.g. `AddProductItemToShoppingCart`) and read-only payload data.
 
-You can use it as follows
+## Usage
 
-<< @/snippets/api/command.ts#command-type
+<<< @/snippets/api/command.ts#command-type
 
 The type is a simple wrapper to ensure the structure's correctness. It defines:
 
@@ -14,6 +14,9 @@ The type is a simple wrapper to ensure the structure's correctness. It defines:
 - **data** - represents the business data the command contains. It has to be a record structure; primitives are not allowed,
 - **metadata** - represents the generic data command contains. It can represent telemetry, user id, tenant id, timestamps and other information that can be useful for running infrastructure. It has to be a record structure; primitives are not allowed.
 
-See more context in [getting started guide](./getting-started.md#commands)
+## Definition
 
 <<< @./../packages/emmett/src/typing/command.ts
+
+## See also
+See more context in [getting started guide](./getting-started.md#commands)
