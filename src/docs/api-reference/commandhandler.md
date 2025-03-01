@@ -28,6 +28,8 @@ await eventStore.appendToStream(streamName, result, { expectedStreamVersion });
 
 That looks quite simple, but generalising it and making it robust requires some experience. But that's why you have Emmett, the intention is to cut the learning curve for you and help you with basic abstractions.
 
+## Usage
+
 You can use the `CommandHandler` method to set up a command handler for you:
 
 <<< @/snippets/gettingStarted/commandHandler.ts#command-handler
@@ -35,3 +37,7 @@ You can use the `CommandHandler` method to set up a command handler for you:
 Such handlers should be defined per stream type (e.g., one for Shopping Cart, the other for Orders, etc.). It can be used later in the application code as:
 
 <<< @/snippets/gettingStarted/commandHandling.ts#command-handling
+
+## Definition
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.ts#command-handler
