@@ -14,7 +14,7 @@ import {
   type Parameters,
   type SQLiteConnection,
   type SQLiteError,
-} from '../../sqliteConnection';
+} from '../../connection';
 import { defaultTag, messagesTable, streamsTable } from './typing';
 
 export type AppendEventResult =

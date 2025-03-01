@@ -13,7 +13,7 @@ import {
   InMemorySQLiteDatabase,
   sqliteConnection,
   type SQLiteConnection,
-} from '../../sqliteConnection';
+} from '../../connection';
 import { appendToStream } from './appendToStream';
 
 export type PricedProductItem = {
