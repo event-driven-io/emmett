@@ -21,7 +21,7 @@ import {
   InMemorySQLiteDatabase,
   sqliteConnection,
   type SQLiteConnection,
-} from '../sqliteConnection';
+} from '../connection';
 import { createEventStoreSchema } from './schema';
 import { appendToStream } from './schema/appendToStream';
 import { readStream } from './schema/readStream';

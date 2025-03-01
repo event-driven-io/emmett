@@ -4,7 +4,7 @@ import {
   InMemorySQLiteDatabase,
   sqliteConnection,
   type SQLiteConnection,
-} from '../../sqliteConnection';
+} from '../../connection';
 import { createEventStoreSchema } from '../schema';
 
 type TableExists = {

@@ -7,7 +7,7 @@ import {
   type ReadStreamOptions,
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
-import { type SQLiteConnection } from '../../sqliteConnection';
+import { type SQLiteConnection } from '../../connection';
 import { SQLiteEventStoreDefaultStreamVersion } from '../SQLiteEventStore';
 import { defaultTag, messagesTable } from './typing';
 

@@ -1,3 +1,4 @@
+import type { SQLiteConnection } from '../../connection';
 import { globalTag, messagesTable, streamsTable } from './typing';
 
 export const sql = (sql: string) => sql;
@@ -33,3 +34,13 @@ export const messagesTableSQL = sql(
   ); 
 `,
 );
+
+export const schemaSQL: string[] = [streamsTableSQL, messagesTableSQL];
+
+export const createEventStoreSchema = async (
+  db: SQLiteConnection,
+): Promise<void> => {
+  for (const sql of schemaSQL) {
+    await db.command(sql);
+  }
+};
