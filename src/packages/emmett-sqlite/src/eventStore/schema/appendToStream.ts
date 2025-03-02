@@ -85,7 +85,7 @@ export const appendToStream = async <MessageType extends Message>(
     );
 
     if (options?.onBeforeCommit)
-      await options.onBeforeCommit(messagesToAppend, { connection: db });
+      await options.onBeforeCommit(messagesToAppend, { db });
   } catch (err: unknown) {
     await db.command(`ROLLBACK`);
     throw err;
