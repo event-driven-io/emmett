@@ -46,7 +46,7 @@ export const subscriptionsTableSQL = sql(
       subscription_id                 TEXT                   NOT NULL,
       version                         INTEGER                NOT NULL DEFAULT 1,
       partition                       TEXT                   NOT NULL DEFAULT '${globalTag}',
-      last_processed_position         INTEGER                NOT NULL,
+      last_processed_position         BIGINT                NOT NULL,
       PRIMARY KEY (subscription_id, partition, version)
   );
 `,
