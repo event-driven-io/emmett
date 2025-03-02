@@ -1,7 +1,7 @@
 import type { DefaultRecord } from './';
 import type {
   AnyRecordedMessageMetadata,
-  CombinedRecordedMessageMetadata,
+  CombinedMessageMetadata,
   CommonRecordedMessageMetadata,
   GlobalPositionTypeOfRecordedMessageMetadata,
   RecordedMessage,
@@ -78,7 +78,7 @@ export type CombinedReadEventMetadata<
   EventType extends Event = Event,
   EventMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
-> = CombinedRecordedMessageMetadata<EventType, EventMetaDataType>;
+> = CombinedMessageMetadata<EventType, EventMetaDataType>;
 
 export type ReadEvent<
   EventType extends Event = Event,
