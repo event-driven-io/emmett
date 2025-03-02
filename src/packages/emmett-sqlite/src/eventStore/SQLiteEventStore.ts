@@ -65,7 +65,7 @@ export type SQLiteEventStoreOptions = {
      */
     onBeforeCommit?: BeforeEventStoreCommitHandler<
       SQLiteEventStore,
-      { connection: SQLiteConnection }
+      { db: SQLiteConnection }
     >;
   };
 };
@@ -127,13 +127,11 @@ export const getSQLiteEventStore = (
       options.schema?.autoMigration !== 'None';
   }
 
-  const ensureSchemaExists = async (
-    connection: SQLiteConnection,
-  ): Promise<void> => {
+  const ensureSchemaExists = async (db: SQLiteConnection): Promise<void> => {
     if (!autoGenerateSchema) return Promise.resolve();
 
     if (!schemaMigrated) {
-      await createEventStoreSchema(connection);
+      await createEventStoreSchema(db);
       schemaMigrated = true;
     }
 
