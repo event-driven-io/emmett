@@ -1,9 +1,13 @@
 import { EmmettError } from '../errors';
 import {
+  type AnyCommand,
+  type AnyMessage,
   type Command,
   type CommandTypeOf,
   type Event,
   type EventTypeOf,
+  type Message,
+  type SingleMessageHandler,
 } from '../typing';
 
 export interface CommandSender {
@@ -36,30 +40,21 @@ export interface MessageBus extends CommandBus, EventBus {
   ): void;
 }
 
-type CommandHandler<CommandType extends Command = Command> = (
-  command: CommandType,
-) => Promise<void> | void;
-
 export interface CommandProcessor {
   handle<CommandType extends Command>(
-    commandHandler: CommandHandler<CommandType>,
+    commandHandler: SingleMessageHandler<CommandType>,
     ...commandTypes: CommandTypeOf<CommandType>[]
   ): void;
 }
-
-type EventHandler<EventType extends Event = Event> = (
-  event: EventType,
-) => Promise<void> | void;
-
-export interface EventProcessor {
+export interface EventSubscription {
   subscribe<EventType extends Event>(
-    eventHandler: EventHandler<EventType>,
+    eventHandler: SingleMessageHandler<EventType>,
     ...eventTypes: EventTypeOf<EventType>[]
   ): void;
 }
 
 export type ScheduledMessage = {
-  message: Event | Command;
+  message: Message;
   options?: ScheduleOptions;
 };
 
@@ -67,19 +62,17 @@ export interface ScheduledMessageProcessor {
   dequeue(): ScheduledMessage[];
 }
 
-export type MessageHandler = CommandHandler | EventHandler;
-
-export type MessageProcessor = EventProcessor | CommandProcessor;
+export type MessageSubscription = EventSubscription | CommandProcessor;
 
 export const getInMemoryMessageBus = (): MessageBus &
-  EventProcessor &
+  EventSubscription &
   CommandProcessor &
   ScheduledMessageProcessor => {
-  const allHandlers = new Map<string, MessageHandler[]>();
+  const allHandlers = new Map<string, SingleMessageHandler<AnyMessage>[]>();
   let pendingMessages: ScheduledMessage[] = [];
 
   return {
-    send: async <CommandType extends Command = Command>(
+    send: async <CommandType extends Command = AnyCommand>(
       command: CommandType,
     ): Promise<void> => {
       const handlers = allHandlers.get(command.type);
@@ -89,7 +82,7 @@ export const getInMemoryMessageBus = (): MessageBus &
           `No handler registered for command ${command.type}!`,
         );
 
-      const commandHandler = handlers[0] as CommandHandler<CommandType>;
+      const commandHandler = handlers[0]!;
 
       await commandHandler(command);
     },
@@ -100,13 +93,13 @@ export const getInMemoryMessageBus = (): MessageBus &
       const handlers = allHandlers.get(event.type) ?? [];
 
       for (const handler of handlers) {
-        const eventHandler = handler as EventHandler<EventType>;
+        const eventHandler = handler;
 
         await eventHandler(event);
       }
     },
 
-    schedule: <MessageType extends Command | Event>(
+    schedule: <MessageType extends Message>(
       message: MessageType,
       when?: ScheduleOptions,
     ): void => {
@@ -114,7 +107,7 @@ export const getInMemoryMessageBus = (): MessageBus &
     },
 
     handle: <CommandType extends Command>(
-      commandHandler: CommandHandler<CommandType>,
+      commandHandler: SingleMessageHandler<CommandType>,
       ...commandTypes: CommandTypeOf<CommandType>[]
     ): void => {
       const alreadyRegistered = [...allHandlers.keys()].filter((registered) =>
@@ -126,12 +119,14 @@ export const getInMemoryMessageBus = (): MessageBus &
           `Cannot register handler for commands ${alreadyRegistered.join(', ')} as they're already registered!`,
         );
       for (const commandType of commandTypes) {
-        allHandlers.set(commandType, [commandHandler as MessageHandler]);
+        allHandlers.set(commandType, [
+          commandHandler as SingleMessageHandler<AnyMessage>,
+        ]);
       }
     },
 
     subscribe<EventType extends Event>(
-      eventHandler: EventHandler<EventType>,
+      eventHandler: SingleMessageHandler<EventType>,
       ...eventTypes: EventTypeOf<EventType>[]
     ): void {
       for (const eventType of eventTypes) {
@@ -139,7 +134,7 @@ export const getInMemoryMessageBus = (): MessageBus &
 
         allHandlers.set(eventType, [
           ...(allHandlers.get(eventType) ?? []),
-          eventHandler as MessageHandler,
+          eventHandler as SingleMessageHandler<AnyMessage>,
         ]);
       }
     },
