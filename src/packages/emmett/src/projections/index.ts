@@ -3,10 +3,10 @@ import { JSONParser } from '../serialization';
 import type {
   AnyEvent,
   AnyReadEventMetadata,
+  BatchRecordedMessageHandlerWithContext,
   CanHandle,
   DefaultRecord,
   Event,
-  ReadEvent,
 } from '../typing';
 import { arrayUtils } from '../utils';
 
@@ -16,10 +16,11 @@ export type ProjectionHandler<
   EventType extends Event = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
-> = (
-  events: ReadEvent<EventType, EventMetaDataType>[],
-  context: ProjectionHandlerContext,
-) => Promise<void> | void;
+> = BatchRecordedMessageHandlerWithContext<
+  EventType,
+  EventMetaDataType,
+  ProjectionHandlerContext
+>;
 
 export interface ProjectionDefinition<
   EventType extends Event = AnyEvent,
