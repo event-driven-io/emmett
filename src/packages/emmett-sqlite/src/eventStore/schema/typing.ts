@@ -29,3 +29,7 @@ export const messagesTable = {
     isArchived: columns.isArchived,
   },
 };
+
+export const subscriptionsTable = {
+  name: `${emmettPrefix}_subscriptions`,
+};

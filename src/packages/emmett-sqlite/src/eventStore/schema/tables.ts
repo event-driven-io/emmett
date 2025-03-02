@@ -1,5 +1,10 @@
 import type { SQLiteConnection } from '../../connection';
-import { globalTag, messagesTable, streamsTable } from './typing';
+import {
+  globalTag,
+  messagesTable,
+  streamsTable,
+  subscriptionsTable,
+} from './typing';
 
 export const sql = (sql: string) => sql;
 
@@ -35,7 +40,23 @@ export const messagesTableSQL = sql(
 `,
 );
 
-export const schemaSQL: string[] = [streamsTableSQL, messagesTableSQL];
+export const subscriptionsTableSQL = sql(
+  `
+  CREATE TABLE IF NOT EXISTS ${subscriptionsTable.name}(
+      subscription_id                 TEXT                   NOT NULL,
+      version                         INTEGER                NOT NULL DEFAULT 1,
+      partition                       TEXT                   NOT NULL DEFAULT '${globalTag}',
+      last_processed_position         INTEGER                NOT NULL,
+      PRIMARY KEY (subscription_id, partition, version)
+  );
+`,
+);
+
+export const schemaSQL: string[] = [
+  streamsTableSQL,
+  messagesTableSQL,
+  subscriptionsTableSQL,
+];
 
 export const createEventStoreSchema = async (
   db: SQLiteConnection,
