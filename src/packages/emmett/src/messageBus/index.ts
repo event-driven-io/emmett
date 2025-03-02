@@ -8,6 +8,7 @@ import {
   type EventTypeOf,
   type Message,
   type SingleMessageHandler,
+  type SingleRawMessageHandlerWithoutContext,
 } from '../typing';
 
 export interface CommandSender {
@@ -68,7 +69,10 @@ export const getInMemoryMessageBus = (): MessageBus &
   EventSubscription &
   CommandProcessor &
   ScheduledMessageProcessor => {
-  const allHandlers = new Map<string, SingleMessageHandler<AnyMessage>[]>();
+  const allHandlers = new Map<
+    string,
+    SingleRawMessageHandlerWithoutContext<AnyMessage>[]
+  >();
   let pendingMessages: ScheduledMessage[] = [];
 
   return {
@@ -120,7 +124,7 @@ export const getInMemoryMessageBus = (): MessageBus &
         );
       for (const commandType of commandTypes) {
         allHandlers.set(commandType, [
-          commandHandler as SingleMessageHandler<AnyMessage>,
+          commandHandler as SingleRawMessageHandlerWithoutContext<AnyMessage>,
         ]);
       }
     },
@@ -134,7 +138,7 @@ export const getInMemoryMessageBus = (): MessageBus &
 
         allHandlers.set(eventType, [
           ...(allHandlers.get(eventType) ?? []),
-          eventHandler as SingleMessageHandler<AnyMessage>,
+          eventHandler as SingleRawMessageHandlerWithoutContext<AnyMessage>,
         ]);
       }
     },
