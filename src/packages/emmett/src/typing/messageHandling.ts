@@ -79,7 +79,7 @@ export type BatchRawMessageHandlerWithoutContext<
   messages: MessageType[],
 ) => Promise<MessageHandlerResult> | MessageHandlerResult;
 
-type BatchRecordedMessageHandlerWithoutContext<
+export type BatchRecordedMessageHandlerWithoutContext<
   MessageType extends Message = AnyMessage,
   MessageMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
