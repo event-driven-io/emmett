@@ -11,18 +11,17 @@ import {
 } from '@event-driven-io/dumbo';
 import {
   EmmettError,
+  MessageProcessor,
+  type CreateGenericMessageProcessorOptions,
   type Event,
+  type Message,
+  type ProjectionProcessorOptions,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import pg from 'pg';
-import type { PostgreSQLProjectionDefinition } from '../projections';
 import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
 import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
-
-export type PostgreSQLProcessorEventsBatch<EventType extends Event = Event> = {
-  messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
-};
 
 export type PostgreSQLProcessorHandlerContext = {
   execute: SQLExecutor;
@@ -34,17 +33,12 @@ export type PostgreSQLProcessorHandlerContext = {
   };
 };
 
-export type PostgreSQLProcessor<EventType extends Event = Event> = {
-  id: string;
-  start: (
-    execute: SQLExecutor,
-  ) => Promise<PostgreSQLEventStoreMessageBatchPullerStartFrom | undefined>;
-  isActive: boolean;
-  handle: (
-    messagesBatch: PostgreSQLProcessorEventsBatch<EventType>,
-    context: { pool?: Dumbo; connectionString?: string },
-  ) => Promise<PostgreSQLProcessorMessageHandlerResult>;
-};
+export type PostgreSQLProcessor<MessageType extends Message = Message> =
+  MessageProcessor<
+    MessageType,
+    ReadEventMetadataWithGlobalPosition,
+    PostgreSQLProcessorHandlerContext
+  >;
 
 export const PostgreSQLProcessor = {
   result: {
@@ -149,31 +143,23 @@ export type PostgreSQLProcessorConnectionOptions = {
   connectionString: string;
 } & (PostgreSQLProcessorPooledOptions | PostgreSQLProcessorNotPooledOptions);
 
-export type GenericPostgreSQLProcessorOptions<EventType extends Event = Event> =
-  {
-    processorId: string;
-    version?: number;
-    partition?: string;
-    startFrom?: PostgreSQLProcessorStartFrom;
-    stopAfter?: (
-      message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
-    ) => boolean;
-    eachMessage: PostgreSQLProcessorEachMessageHandler<EventType>;
-    connectionOptions?: PostgreSQLProcessorConnectionOptions;
-    // TODO: Add eachBatch
-  };
+type GenericPostgreSQLProcessorOptions<MessageType extends Message = Message> =
+  CreateGenericMessageProcessorOptions<
+    MessageType,
+    ReadEventMetadataWithGlobalPosition,
+    PostgreSQLProcessorHandlerContext,
+    {
+      connectionOptions?: PostgreSQLProcessorConnectionOptions;
+    }
+  >;
 
 export type PostgreSQLProjectionProcessorOptions<
   EventType extends Event = Event,
-> = {
-  processorId?: string;
-  version?: number;
-  projection: PostgreSQLProjectionDefinition<EventType>;
-  partition?: string;
-  startFrom?: PostgreSQLProcessorStartFrom;
-  stopAfter?: (
-    message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
-  ) => boolean;
+> = ProjectionProcessorOptions<
+  EventType,
+  ReadEventMetadataWithGlobalPosition,
+  PostgreSQLProcessorHandlerContext
+> & {
   connectionOptions?: PostgreSQLProcessorConnectionOptions;
 };
 
@@ -341,9 +327,9 @@ export const postgreSQLProjectionProcessor = <EventType extends Event = Event>(
   });
 };
 
-export const postgreSQLProcessor = <EventType extends Event = Event>(
-  options: PostgreSQLProcessorOptions<EventType>,
-): PostgreSQLProcessor => {
+export const postgreSQLProcessor = <MessageType extends Message = Message>(
+  options: PostgreSQLProcessorOptions<MessageType>,
+): PostgreSQLProcessor<MessageType> => {
   if ('projection' in options) {
     return postgreSQLProjectionProcessor(options);
   }

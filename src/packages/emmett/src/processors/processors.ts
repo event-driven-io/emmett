@@ -11,10 +11,10 @@ import {
   type Event,
   type GlobalPositionTypeOfRecordedMessageMetadata,
   type Message,
-  type MessageHandler,
   type MessageHandlerResult,
   type RecordedMessage,
   type SingleMessageHandlerWithContext,
+  type SingleRecordedMessageHandlerWithContext,
 } from '../typing';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,16 +64,6 @@ export const MessageProcessor = {
   },
 };
 
-// export type MessageProcessingScope<HandlerContext = never> = (
-//   partialContext: Partial<HandlerContext>,
-// ) =>
-//   | ((
-//       handler: (context: HandlerContext) => MessageHandlerResult,
-//     ) => MessageHandlerResult)
-//   | ((
-//       handler: (context: HandlerContext) => Promise<MessageHandlerResult>,
-//     ) => Promise<MessageHandlerResult>);
-
 export type MessageProcessingScope<
   HandlerContext extends DefaultRecord | undefined = undefined,
 > = (
@@ -84,7 +74,8 @@ export type MessageProcessingScope<
   ) => MessageHandlerResult | Promise<MessageHandlerResult>,
 ) => MessageHandlerResult | Promise<MessageHandlerResult>;
 
-export type GenericMessageProcessorOptions<
+// Base options without handler-specific properties
+export type BaseMessageProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
@@ -106,9 +97,15 @@ export type GenericMessageProcessorOptions<
       HandlerContext
     >;
   };
-} & (
+};
+
+export type HandlerOptions<
+  MessageType extends AnyMessage = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends DefaultRecord = DefaultRecord,
+> =
   | {
-      eachMessage: SingleMessageHandlerWithContext<
+      eachMessage: SingleRecordedMessageHandlerWithContext<
         MessageType,
         MessageMetadataType,
         HandlerContext
@@ -116,14 +113,42 @@ export type GenericMessageProcessorOptions<
       canHandle?: CanHandle<MessageType>;
     }
   | {
-      eachBatch: MessageHandler<
+      eachBatch: BatchRecordedMessageHandlerWithContext<
         MessageType,
         MessageMetadataType,
         HandlerContext
       >;
       canHandle?: CanHandle<MessageType>;
-    }
-);
+    };
+
+// Complete processor options combining base and handler
+export type GenericMessageProcessorOptions<
+  MessageType extends AnyMessage = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends DefaultRecord = DefaultRecord,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+> = BaseMessageProcessorOptions<
+  MessageType,
+  MessageMetadataType,
+  HandlerContext,
+  CheckpointType
+> &
+  HandlerOptions<MessageType, MessageMetadataType, HandlerContext>;
+
+export type CreateGenericMessageProcessorOptions<
+  MessageType extends AnyMessage = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends DefaultRecord = DefaultRecord,
+  AdditionalOptions extends DefaultRecord = DefaultRecord,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+> = BaseMessageProcessorOptions<
+  MessageType,
+  MessageMetadataType,
+  HandlerContext,
+  CheckpointType
+> &
+  HandlerOptions<MessageType, MessageMetadataType, HandlerContext> &
+  AdditionalOptions;
 
 export type ProjectionProcessorOptions<
   EventType extends AnyEvent = AnyEvent,
@@ -149,6 +174,20 @@ export type ProjectionProcessorOptions<
   };
 };
 
+export type CreateProjectionProcessorOptions<
+  EventType extends AnyEvent = AnyEvent,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends DefaultRecord = DefaultRecord,
+  AdditionalOptions extends DefaultRecord = DefaultRecord,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+> = ProjectionProcessorOptions<
+  EventType,
+  MessageMetadataType,
+  HandlerContext,
+  CheckpointType
+> &
+  AdditionalOptions;
+
 export type MessageProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -170,7 +209,14 @@ export type MessageProcessorOptions<
         >
       : never);
 
-// export const defaultProcessingMessageProcessingScope = <HandlerContext = never>(partialContext: Partial<HandlerContext>) => ((context: HandlerContext) => (MessageHandlerResult | Promise<MessageHandlerResult>));
+export const defaultProcessingMessageProcessingScope =
+  <HandlerContext = never>(partialContext: Partial<HandlerContext>) =>
+  (
+    handler: (
+      context: HandlerContext,
+    ) => MessageHandlerResult | Promise<MessageHandlerResult>,
+  ) =>
+    handler(partialContext as HandlerContext);
 
 export type ReadProcessorCheckpointResult<CheckpointType = unknown> = {
   lastCheckpoint: CheckpointType | null;
@@ -284,7 +330,9 @@ const genericMessageProcessor = <
     ): Promise<MessageHandlerResult> => {
       if (!isActive) return;
 
-      const scope = options.processingScope!(partialContext);
+      const scope = options.processingScope
+        ? options.processingScope(partialContext)
+        : defaultProcessingMessageProcessingScope(partialContext);
 
       return scope(async (context) => {
         let result: MessageHandlerResult = undefined;
