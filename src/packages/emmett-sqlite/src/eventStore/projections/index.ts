@@ -10,7 +10,7 @@ import type { SQLiteConnection } from '../../connection';
 import type { SQLiteReadEventMetadata } from '../SQLiteEventStore';
 
 export type SQLiteProjectionHandlerContext = {
-  connection: SQLiteConnection;
+  db: SQLiteConnection;
 };
 
 export type SQLiteProjectionHandler<
@@ -32,13 +32,13 @@ export type SQLiteProjectionDefinition<EventType extends Event = Event> =
 export type SQLiteProjectionHandlerOptions<EventType extends Event = Event> = {
   events: ReadEvent<EventType, SQLiteReadEventMetadata>[];
   projections: SQLiteProjectionDefinition<EventType>[];
-  connection: SQLiteConnection;
+  db: SQLiteConnection;
 };
 
 export const handleProjections = async <EventType extends Event = Event>(
   options: SQLiteProjectionHandlerOptions<EventType>,
 ): Promise<void> => {
-  const { projections: allProjections, events, connection } = options;
+  const { projections: allProjections, events, db } = options;
 
   const eventTypes = events.map((e) => e.type);
 
@@ -48,7 +48,7 @@ export const handleProjections = async <EventType extends Event = Event>(
 
   for (const projection of projections) {
     await projection.handle(events, {
-      connection,
+      db,
     });
   }
 };
@@ -74,7 +74,7 @@ export const sqliteRawBatchSQLProjection = <EventType extends Event>(
     handle: async (events, context) => {
       const sqls: string[] = await handle(events, context);
 
-      for (const sql of sqls) await context.connection.command(sql);
+      for (const sql of sqls) await context.db.command(sql);
     },
   });
 

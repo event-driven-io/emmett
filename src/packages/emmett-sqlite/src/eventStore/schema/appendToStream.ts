@@ -39,7 +39,7 @@ export const appendToStream = async <MessageType extends Message>(
     partition?: string;
     onBeforeCommit?: BeforeEventStoreCommitHandler<
       SQLiteEventStore,
-      { connection: SQLiteConnection }
+      { db: SQLiteConnection }
     >;
   },
 ): Promise<AppendEventResult> => {
