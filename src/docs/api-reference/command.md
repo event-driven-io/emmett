@@ -19,4 +19,5 @@ The type is a simple wrapper to ensure the structure's correctness. It defines:
 <<< @./../packages/emmett/src/typing/command.ts
 
 ## See also
+
 See more context in [getting started guide](./getting-started.md#commands)
