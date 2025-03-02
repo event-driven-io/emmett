@@ -1,4 +1,6 @@
 import type {
+  AnyCommand,
+  AnyEvent,
   BigIntGlobalPosition,
   BigIntStreamPosition,
   Command,
@@ -11,6 +13,8 @@ export type Message<
   Data extends DefaultRecord = DefaultRecord,
   MetaData extends DefaultRecord | undefined = undefined,
 > = Command<Type, Data, MetaData> | Event<Type, Data, MetaData>;
+
+export type AnyMessage = AnyEvent | AnyCommand;
 
 export type MessageKindOf<T extends Message> = T['kind'];
 export type MessageTypeOf<T extends Message> = T['type'];

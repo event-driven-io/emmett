@@ -3,6 +3,7 @@ export * from './deepReadonly';
 export * from './command';
 export * from './event';
 export * from './message';
+export * from './messageHandling';
 
 export * from './decider';
 export * from './workflow';

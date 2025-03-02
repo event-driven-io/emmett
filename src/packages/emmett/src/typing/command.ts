@@ -18,6 +18,9 @@ export type Command<
       }
 > & { readonly kind?: 'Command' };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyCommand = Command<any, any, any>;
+
 export type CommandTypeOf<T extends Command> = T['type'];
 export type CommandDataOf<T extends Command> = T['data'];
 export type CommandMetaDataOf<T extends Command> = T extends {
