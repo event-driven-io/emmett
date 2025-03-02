@@ -71,36 +71,20 @@ export type StoreLastProcessedProcessorPositionResult<
     }
   | { success: false; reason: 'IGNORED' | 'MISMATCH' };
 
-export function storeProcessorCheckpoint(
+export const storeProcessorCheckpoint = async <Position extends bigint | null>(
   execute: SQLExecutor,
   options: {
     processorId: string;
     version: number | undefined;
-    newPosition: bigint | null;
+    newPosition: null extends Position ? bigint | null : bigint;
     lastProcessedPosition: bigint | null;
     partition?: string;
   },
-): Promise<StoreLastProcessedProcessorPositionResult<bigint | null>>;
-export function storeProcessorCheckpoint(
-  execute: SQLExecutor,
-  options: {
-    processorId: string;
-    version: number | undefined;
-    newPosition: bigint;
-    lastProcessedPosition: bigint | null;
-    partition?: string;
-  },
-): Promise<StoreLastProcessedProcessorPositionResult<bigint>>;
-export async function storeProcessorCheckpoint(
-  execute: SQLExecutor,
-  options: {
-    processorId: string;
-    version: number | undefined;
-    newPosition: bigint | null;
-    lastProcessedPosition: bigint | null;
-    partition?: string;
-  },
-): Promise<StoreLastProcessedProcessorPositionResult<bigint | null>> {
+): Promise<
+  StoreLastProcessedProcessorPositionResult<
+    null extends Position ? bigint | null : bigint
+  >
+> => {
   try {
     const { result } = await single(
       execute.command<{ result: 0 | 1 | 2 }>(
@@ -122,4 +106,4 @@ export async function storeProcessorCheckpoint(
     console.log(error);
     throw error;
   }
-}
+};
