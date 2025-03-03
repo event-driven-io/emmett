@@ -40,7 +40,7 @@ export type SQLiteEventStoreConsumer<ConsumerEventType extends Event = Event> =
     close: () => Promise<void>;
   }>;
 
-export const SQLiteEventStoreConsumer = <
+export const sqliteEventStoreConsumer = <
   ConsumerEventType extends Event = Event,
 >(
   options: SQLiteEventStoreConsumerOptions<ConsumerEventType>,
