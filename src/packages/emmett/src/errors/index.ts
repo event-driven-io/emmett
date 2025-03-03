@@ -63,6 +63,18 @@ export class ConcurrencyError extends EmmettError {
   }
 }
 
+export class ConcurrencyInMemoryDatabaseError extends EmmettError {
+  constructor(message?: string) {
+    super({
+      errorCode: 412,
+      message: message ?? `Expected document state does not match current one!`,
+    });
+
+    // 👇️ because we are extending a built-in class
+    Object.setPrototypeOf(this, ConcurrencyInMemoryDatabaseError.prototype);
+  }
+}
+
 export class ValidationError extends EmmettError {
   constructor(message?: string) {
     super({
