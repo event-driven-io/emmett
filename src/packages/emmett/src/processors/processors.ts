@@ -74,7 +74,16 @@ export type MessageProcessingScope<
   ) => MessageHandlerResult | Promise<MessageHandlerResult>,
 ) => MessageHandlerResult | Promise<MessageHandlerResult>;
 
-// Base options without handler-specific properties
+export type Checkpointer<
+  MessageType extends AnyMessage = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends DefaultRecord = DefaultRecord,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+> = {
+  read: ReadProcessorCheckpoint<CheckpointType, HandlerContext>;
+  store: StoreProcessorCheckpoint<MessageType, CheckpointType, HandlerContext>;
+};
+
 export type BaseMessageProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -89,14 +98,12 @@ export type BaseMessageProcessorOptions<
     message: RecordedMessage<MessageType, MessageMetadataType>,
   ) => boolean;
   processingScope?: MessageProcessingScope<HandlerContext>;
-  checkpoints?: {
-    read: ReadProcessorCheckpoint<CheckpointType, HandlerContext>;
-    store: StoreProcessorCheckpoint<
-      MessageType,
-      CheckpointType,
-      HandlerContext
-    >;
-  };
+  checkpoints?: Checkpointer<
+    MessageType,
+    MessageMetadataType,
+    HandlerContext,
+    CheckpointType
+  >;
 };
 
 export type HandlerOptions<

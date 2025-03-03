@@ -12,9 +12,13 @@ import {
 import {
   EmmettError,
   MessageProcessor,
+  type AnyMessage,
+  type Checkpointer,
   type CreateGenericMessageProcessorOptions,
   type Event,
   type Message,
+  type MessageHandlerResult,
+  type MessageProcessingScope,
   type ProjectionProcessorOptions,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -143,6 +147,30 @@ export type PostgreSQLProcessorConnectionOptions = {
   connectionString: string;
 } & (PostgreSQLProcessorPooledOptions | PostgreSQLProcessorNotPooledOptions);
 
+export type PostgreSQLCheckpoint = bigint;
+
+export type PostgreSQLCheckpointer<
+  MessageType extends AnyMessage = AnyMessage,
+> = Checkpointer<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  PostgreSQLProcessorHandlerContext,
+  PostgreSQLCheckpoint
+>;
+
+export const PostgreSQLCheckpointer: PostgreSQLCheckpointer = {
+  read: async (options, context) => {
+    const result = await readProcessorCheckpoint(context.execute, options);
+
+    return result?.lastProcessedPosition;
+  },
+  store: async (options, context) => {
+    const result = await storeProcessorCheckpoint(context.execute, options);
+
+    return result.success ? result.newPosition : null;
+  },
+};
+
 type GenericPostgreSQLProcessorOptions<MessageType extends Message = Message> =
   CreateGenericMessageProcessorOptions<
     MessageType,
@@ -150,7 +178,8 @@ type GenericPostgreSQLProcessorOptions<MessageType extends Message = Message> =
     PostgreSQLProcessorHandlerContext,
     {
       connectionOptions?: PostgreSQLProcessorConnectionOptions;
-    }
+    },
+    PostgreSQLCheckpoint
   >;
 
 export type PostgreSQLProjectionProcessorOptions<
@@ -158,7 +187,8 @@ export type PostgreSQLProjectionProcessorOptions<
 > = ProjectionProcessorOptions<
   EventType,
   ReadEventMetadataWithGlobalPosition,
-  PostgreSQLProcessorHandlerContext
+  PostgreSQLProcessorHandlerContext,
+  PostgreSQLCheckpoint
 > & {
   connectionOptions?: PostgreSQLProcessorConnectionOptions;
 };
@@ -170,10 +200,6 @@ export type PostgreSQLProcessorOptions<EventType extends Event = Event> =
 const genericPostgreSQLProcessor = <EventType extends Event = Event>(
   options: GenericPostgreSQLProcessorOptions<EventType>,
 ): PostgreSQLProcessor => {
-  const { eachMessage } = options;
-  let isActive = true;
-  //let lastProcessedPosition: bigint | null = null;
-
   const poolOptions = {
     ...(options.connectionOptions ? options.connectionOptions : {}),
   };
@@ -190,34 +216,60 @@ const genericPostgreSQLProcessor = <EventType extends Event = Event>(
           })
         : null;
 
+  const processingScope: MessageProcessingScope<
+    PostgreSQLProcessorHandlerContext
+  > =
+    (partialContext) =>
+    async (
+      handler: (
+        context: PostgreSQLProcessorHandlerContext,
+      ) => MessageHandlerResult | Promise<MessageHandlerResult>,
+    ) => {
+      const connection = partialContext?.connection;
+      const connectionString =
+        processorConnectionString ?? connection?.connectionString;
+
+      if (!connectionString)
+        throw new EmmettError(
+          `PostgreSQL processor '${options.processorId}' is missing connection string. Ensure that you passed it through options`,
+        );
+
+      const pool =
+        (!processorConnectionString ||
+        connectionString == processorConnectionString
+          ? connection?.pool
+          : processorPool) ?? processorPool;
+
+      if (!pool)
+        throw new EmmettError(
+          `PostgreSQL processor '${options.processorId}' is missing connection string. Ensure that you passed it through options`,
+        );
+
+      return pool.withTransaction(async (transaction) => {
+        const client =
+          (await transaction.connection.open()) as NodePostgresClient;
+        return handler({
+          execute: transaction.execute,
+          connection: {
+            client,
+            connectionString,
+            transaction,
+            pool,
+          },
+        });
+      });
+    };
+
+  return genericPostgreSQLProcessor({
+    ...options,
+    processingScope,
+    checkpoints: {},
+  });
+
   const getPool = (context: {
     pool?: Dumbo;
     connectionString?: string;
-  }): { pool: Dumbo; connectionString: string } => {
-    const connectionString =
-      processorConnectionString ?? context.connectionString;
-
-    if (!connectionString)
-      throw new EmmettError(
-        `PostgreSQL processor '${options.processorId}' is missing connection string. Ensure that you passed it through options`,
-      );
-
-    const pool =
-      (!processorConnectionString ||
-      connectionString == processorConnectionString
-        ? context?.pool
-        : processorPool) ?? processorPool;
-
-    if (!pool)
-      throw new EmmettError(
-        `PostgreSQL processor '${options.processorId}' is missing connection string. Ensure that you passed it through options`,
-      );
-
-    return {
-      connectionString,
-      pool: pool,
-    };
-  };
+  }): { pool: Dumbo; connectionString: string } => {};
 
   return {
     id: options.processorId,
