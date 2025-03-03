@@ -3,14 +3,7 @@
 {
   "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
   "name": "Node.js",
-  // Fixes permissions problems when using podman
-  // See https://medium.com/@guillem.riera/making-visual-studio-code-devcontainer-work-properly-on-rootless-podman-8d9ddc368b30
-  "runArgs": ["--userns=keep-id:uid=1000,gid=1000"],
-  "updateRemoteUserUID": true,
-  "containerEnv": {
-    "HOME": "/home/node"
-  },
-
+  
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
   // "forwardPorts": [],
 
