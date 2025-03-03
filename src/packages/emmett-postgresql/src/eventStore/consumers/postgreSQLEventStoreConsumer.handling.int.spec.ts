@@ -155,7 +155,7 @@ void describe('PostgreSQL event store started consumer', () => {
         });
         consumer.processor<GuestStayEvent>({
           processorId: uuid(),
-          startFrom: { globalPosition: startPosition },
+          startFrom: { lastCheckpoint: startPosition },
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {

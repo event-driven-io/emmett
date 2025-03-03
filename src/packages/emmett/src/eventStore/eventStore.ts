@@ -4,6 +4,7 @@ import type {
   BigIntGlobalPosition,
   BigIntStreamPosition,
   CommonReadEventMetadata,
+  DefaultRecord,
   Event,
   GlobalPositionTypeOfReadEventMetadata,
   ReadEvent,
@@ -211,7 +212,7 @@ export type AppendStreamResultOfEventStore<Store extends EventStore> =
 
 export type DefaultEventStoreOptions<
   Store extends EventStore,
-  HandlerContext = never,
+  HandlerContext extends DefaultRecord | undefined = undefined,
 > = {
   /**
    * Pluggable set of hooks informing about the event store internal behaviour.

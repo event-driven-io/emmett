@@ -1,4 +1,6 @@
 import type {
+  AnyCommand,
+  AnyEvent,
   BigIntGlobalPosition,
   BigIntStreamPosition,
   Command,
@@ -11,6 +13,8 @@ export type Message<
   Data extends DefaultRecord = DefaultRecord,
   MetaData extends DefaultRecord | undefined = undefined,
 > = Command<Type, Data, MetaData> | Event<Type, Data, MetaData>;
+
+export type AnyMessage = AnyEvent | AnyCommand;
 
 export type MessageKindOf<T extends Message> = T['kind'];
 export type MessageTypeOf<T extends Message> = T['type'];
@@ -45,22 +49,27 @@ export const message = <MessageType extends Message<string, any, any>>(
     : ({ type, data, kind } as MessageType);
 };
 
-export type CombinedRecordedMessageMetadata<
+export type CombinedMessageMetadata<
   MessageType extends Message = Message,
-  MessageMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  MessageMetaDataType extends DefaultRecord = DefaultRecord,
 > =
   MessageMetaDataOf<MessageType> extends undefined
     ? MessageMetaDataType
     : MessageMetaDataOf<MessageType> & MessageMetaDataType;
 
+export type CombineMetadata<
+  MessageType extends Message = Message,
+  MessageMetaDataType extends DefaultRecord = DefaultRecord,
+> = MessageType & {
+  metadata: CombinedMessageMetadata<MessageType, MessageMetaDataType>;
+};
+
 export type RecordedMessage<
   MessageType extends Message = Message,
   MessageMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
-> = MessageType & {
+> = CombineMetadata<MessageType, MessageMetaDataType> & {
   kind: NonNullable<MessageKindOf<Message>>;
-  metadata: CombinedRecordedMessageMetadata<MessageType, MessageMetaDataType>;
 };
 
 export type CommonRecordedMessageMetadata<
