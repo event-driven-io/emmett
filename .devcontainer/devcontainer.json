@@ -1,0 +1,42 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/javascript-node
+{
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "name": "Node.js",
+  // Fixes permissions problems when using podman
+  // See https://medium.com/@guillem.riera/making-visual-studio-code-devcontainer-work-properly-on-rootless-podman-8d9ddc368b30
+  "runArgs": ["--userns=keep-id:uid=1000,gid=1000"],
+  "updateRemoteUserUID": true,
+  "containerEnv": {
+    "HOME": "/home/node"
+  },
+
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  // "forwardPorts": [],
+
+  // Use 'postCreateCommand' to run commands after the container is created.
+  "postCreateCommand": "cd src && npm install",
+
+  // Configure tool-specific properties.
+  // "customizations": {},
+
+  "containerUser": "node",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "connor4312.nodejs-testing"
+      ]
+    }
+  },
+  "features": {
+    // Required for running Testcontainers tests inside the devcontainer
+    // See https://www.docker.com/blog/streamlining-local-development-with-dev-containers-and-testcontainers-cloud/ for reference
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": true,
+      "version": "latest",
+      "dockerDashComposeVersion": "latest"
+    }
+  }
+}
