@@ -81,7 +81,12 @@ export type Checkpointer<
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = {
   read: ReadProcessorCheckpoint<CheckpointType, HandlerContext>;
-  store: StoreProcessorCheckpoint<MessageType, CheckpointType, HandlerContext>;
+  store: StoreProcessorCheckpoint<
+    MessageType,
+    MessageMetadataType,
+    CheckpointType,
+    HandlerContext
+  >;
 };
 
 export type BaseMessageProcessorOptions<
@@ -175,10 +180,12 @@ export type ProjectionProcessorOptions<
   stopAfter?: (
     message: RecordedMessage<EventType, MessageMetadataType>,
   ) => boolean;
-  checkpoints?: {
-    read: ReadProcessorCheckpoint<CheckpointType, HandlerContext>;
-    store: StoreProcessorCheckpoint<EventType, CheckpointType, HandlerContext>;
-  };
+  checkpoints?: Checkpointer<
+    EventType,
+    MessageMetadataType,
+    HandlerContext,
+    CheckpointType
+  >;
 };
 
 export type CreateProjectionProcessorOptions<
@@ -246,12 +253,13 @@ export type StoreProcessorCheckpointResult<CheckpointType = unknown> =
 
 export type StoreProcessorCheckpoint<
   MessageType extends Message = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   CheckpointType = unknown,
   HandlerContext extends DefaultRecord | undefined = undefined,
 > =
   | ((
       options: {
-        message: MessageType;
+        message: RecordedMessage<MessageType, MessageMetadataType>;
         processorId: string;
         version: number | undefined;
         lastCheckpoint: CheckpointType | null;
@@ -261,7 +269,7 @@ export type StoreProcessorCheckpoint<
     ) => Promise<StoreProcessorCheckpointResult<CheckpointType | null>>)
   | ((
       options: {
-        message: MessageType;
+        message: RecordedMessage<MessageType, MessageMetadataType>;
         processorId: string;
         version: number | undefined;
         lastCheckpoint: CheckpointType | null;
@@ -403,7 +411,12 @@ export const projectionProcessor = <
   HandlerContext extends DefaultRecord = DefaultRecord,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<EventMetaDataType>,
 >(
-  options: ProjectionProcessorOptions<EventType>,
+  options: ProjectionProcessorOptions<
+    EventType,
+    EventMetaDataType,
+    HandlerContext,
+    CheckpointType
+  >,
 ): MessageProcessor<
   EventType,
   EventMetaDataType,

@@ -12,7 +12,9 @@ import {
 import {
   EmmettError,
   MessageProcessor,
+  projectionProcessor,
   type AnyMessage,
+  type BatchRecordedMessageHandlerWithContext,
   type Checkpointer,
   type CreateGenericMessageProcessorOptions,
   type Event,
@@ -20,8 +22,8 @@ import {
   type MessageHandlerResult,
   type MessageProcessingScope,
   type ProjectionProcessorOptions,
-  type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
+  type SingleRecordedMessageHandlerWithContext,
 } from '@event-driven-io/emmett';
 import pg from 'pg';
 import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
@@ -44,46 +46,21 @@ export type PostgreSQLProcessor<MessageType extends Message = Message> =
     PostgreSQLProcessorHandlerContext
   >;
 
-export const PostgreSQLProcessor = {
-  result: {
-    skip: (options?: {
-      reason?: string;
-    }): PostgreSQLProcessorMessageHandlerResult => ({
-      type: 'SKIP',
-      ...(options ?? {}),
-    }),
-    stop: (options?: {
-      reason?: string;
-      error?: EmmettError;
-    }): PostgreSQLProcessorMessageHandlerResult => ({
-      type: 'STOP',
-      ...(options ?? {}),
-    }),
-  },
-};
-
-export type PostgreSQLProcessorMessageHandlerResult =
-  | void
-  | { type: 'SKIP'; reason?: string }
-  | { type: 'STOP'; reason?: string; error?: EmmettError };
-
 export type PostgreSQLProcessorEachMessageHandler<
-  EventType extends Event = Event,
-> = (
-  event: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
-  context: PostgreSQLProcessorHandlerContext,
-) =>
-  | Promise<PostgreSQLProcessorMessageHandlerResult>
-  | PostgreSQLProcessorMessageHandlerResult;
+  MessageType extends Message = Message,
+> = SingleRecordedMessageHandlerWithContext<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  PostgreSQLProcessorHandlerContext
+>;
 
 export type PostgreSQLProcessorEachBatchHandler<
-  EventType extends Event = Event,
-> = (
-  event: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[],
-  context: PostgreSQLProcessorHandlerContext,
-) =>
-  | Promise<PostgreSQLProcessorMessageHandlerResult>
-  | PostgreSQLProcessorMessageHandlerResult;
+  MessageType extends Message = Message,
+> = BatchRecordedMessageHandlerWithContext<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  PostgreSQLProcessorHandlerContext
+>;
 
 export type PostgreSQLProcessorStartFrom =
   | PostgreSQLEventStoreMessageBatchPullerStartFrom
@@ -147,27 +124,32 @@ export type PostgreSQLProcessorConnectionOptions = {
   connectionString: string;
 } & (PostgreSQLProcessorPooledOptions | PostgreSQLProcessorNotPooledOptions);
 
-export type PostgreSQLCheckpoint = bigint;
-
 export type PostgreSQLCheckpointer<
   MessageType extends AnyMessage = AnyMessage,
 > = Checkpointer<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
-  PostgreSQLProcessorHandlerContext,
-  PostgreSQLCheckpoint
+  PostgreSQLProcessorHandlerContext
 >;
 
 export const PostgreSQLCheckpointer: PostgreSQLCheckpointer = {
   read: async (options, context) => {
     const result = await readProcessorCheckpoint(context.execute, options);
 
-    return result?.lastProcessedPosition;
+    return { lastCheckpoint: result?.lastProcessedPosition };
   },
   store: async (options, context) => {
-    const result = await storeProcessorCheckpoint(context.execute, options);
+    const result = await storeProcessorCheckpoint(context.execute, {
+      lastProcessedPosition: options.lastCheckpoint,
+      newPosition: options.message.metadata.globalPosition,
+      processorId: options.processorId,
+      partition: options.partition,
+      version: options.version,
+    });
 
-    return result.success ? result.newPosition : null;
+    return result.success
+      ? { success: true, newCheckpoint: result.newPosition }
+      : result;
   },
 };
 
@@ -178,8 +160,7 @@ type GenericPostgreSQLProcessorOptions<MessageType extends Message = Message> =
     PostgreSQLProcessorHandlerContext,
     {
       connectionOptions?: PostgreSQLProcessorConnectionOptions;
-    },
-    PostgreSQLCheckpoint
+    }
   >;
 
 export type PostgreSQLProjectionProcessorOptions<
@@ -187,15 +168,16 @@ export type PostgreSQLProjectionProcessorOptions<
 > = ProjectionProcessorOptions<
   EventType,
   ReadEventMetadataWithGlobalPosition,
-  PostgreSQLProcessorHandlerContext,
-  PostgreSQLCheckpoint
+  PostgreSQLProcessorHandlerContext
 > & {
   connectionOptions?: PostgreSQLProcessorConnectionOptions;
 };
 
-export type PostgreSQLProcessorOptions<EventType extends Event = Event> =
-  | GenericPostgreSQLProcessorOptions<EventType>
-  | PostgreSQLProjectionProcessorOptions<EventType>;
+export type PostgreSQLProcessorOptions<MessageType extends Message = Message> =
+  | GenericPostgreSQLProcessorOptions<MessageType>
+  | MessageType extends Event
+  ? PostgreSQLProjectionProcessorOptions<MessageType>
+  : never;
 
 const genericPostgreSQLProcessor = <EventType extends Event = Event>(
   options: GenericPostgreSQLProcessorOptions<EventType>,
@@ -263,104 +245,8 @@ const genericPostgreSQLProcessor = <EventType extends Event = Event>(
   return genericPostgreSQLProcessor({
     ...options,
     processingScope,
-    checkpoints: {},
+    checkpoints: PostgreSQLCheckpointer,
   });
-
-  const getPool = (context: {
-    pool?: Dumbo;
-    connectionString?: string;
-  }): { pool: Dumbo; connectionString: string } => {};
-
-  return {
-    id: options.processorId,
-    start: async (
-      execute: SQLExecutor,
-    ): Promise<PostgreSQLEventStoreMessageBatchPullerStartFrom | undefined> => {
-      isActive = true;
-      if (options.startFrom !== 'CURRENT') return options.startFrom;
-
-      const { lastProcessedPosition } = await readProcessorCheckpoint(execute, {
-        processorId: options.processorId,
-        partition: options.partition,
-      });
-
-      if (lastProcessedPosition === null) return 'BEGINNING';
-
-      return { globalPosition: lastProcessedPosition };
-    },
-    get isActive() {
-      return isActive;
-    },
-    handle: async (
-      { messages },
-      context,
-    ): Promise<PostgreSQLProcessorMessageHandlerResult> => {
-      if (!isActive) return;
-
-      const { pool, connectionString } = getPool(context);
-
-      return pool.withTransaction(async (transaction) => {
-        let result: PostgreSQLProcessorMessageHandlerResult | undefined =
-          undefined;
-
-        let lastProcessedPosition: bigint | null = null;
-
-        for (const message of messages) {
-          const typedMessage = message as ReadEvent<
-            EventType,
-            ReadEventMetadataWithGlobalPosition
-          >;
-
-          const client =
-            (await transaction.connection.open()) as NodePostgresClient;
-
-          const messageProcessingResult = await eachMessage(typedMessage, {
-            execute: transaction.execute,
-            connection: {
-              connectionString,
-              pool,
-              transaction: transaction,
-              client,
-            },
-          });
-
-          // TODO: Add correct handling of the storing checkpoint
-          await storeProcessorCheckpoint(transaction.execute, {
-            processorId: options.processorId,
-            version: options.version,
-            lastProcessedPosition,
-            newPosition: typedMessage.metadata.globalPosition,
-            partition: options.partition,
-          });
-
-          lastProcessedPosition = typedMessage.metadata.globalPosition;
-
-          if (
-            messageProcessingResult &&
-            messageProcessingResult.type === 'STOP'
-          ) {
-            isActive = false;
-            result = messageProcessingResult;
-            break;
-          }
-
-          if (options.stopAfter && options.stopAfter(typedMessage)) {
-            isActive = false;
-            result = { type: 'STOP', reason: 'Stop condition reached' };
-            break;
-          }
-
-          if (
-            messageProcessingResult &&
-            messageProcessingResult.type === 'SKIP'
-          )
-            continue;
-        }
-
-        return result;
-      });
-    },
-  };
 };
 
 export const postgreSQLProjectionProcessor = <EventType extends Event = Event>(
@@ -368,15 +254,11 @@ export const postgreSQLProjectionProcessor = <EventType extends Event = Event>(
 ): PostgreSQLProcessor => {
   const projection = options.projection;
 
-  return genericPostgreSQLProcessor<EventType>({
-    processorId: options.processorId ?? `projection:${projection.name}`,
-    eachMessage: async (event, context) => {
-      if (!projection.canHandle.includes(event.type)) return;
-
-      await projection.handle([event], context);
-    },
-    ...options,
-  });
+  return projectionProcessor<
+    EventType,
+    ReadEventMetadataWithGlobalPosition,
+    PostgreSQLProcessorHandlerContext
+  >(options);
 };
 
 export const postgreSQLProcessor = <MessageType extends Message = Message>(
