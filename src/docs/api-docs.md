@@ -14,6 +14,6 @@ outline: deep
 
 ## Event Store
 
-[Moved here](/api-reference/event-store)
+[Moved here](/api-reference/eventstore)
 
 ## Command Handler

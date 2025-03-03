@@ -14,7 +14,7 @@ If you need help or got stuck, feel free to ask on the [Emmett Community Discord
 
 ## API reference
 
-The [API reference](/api-reference) provides you with definitions and insights of Emmetts core building blocks:
+The [API reference](/api-reference/) provides you with definitions and insights of Emmetts core building blocks:
 
 - **Events** are the centerpiece of event-sourced systems. They represent both critical points of the business process but are also used as the state.
 - **Commands** represent the intent to perform a business operation.
