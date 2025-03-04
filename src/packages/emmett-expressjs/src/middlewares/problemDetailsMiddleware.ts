@@ -16,12 +16,12 @@ export const problemDetailsMiddleware =
     if (mapError) problemDetails = mapError(error, request);
 
     problemDetails =
-      problemDetails ?? defaulErrorToProblemDetailsMapping(error);
+      problemDetails ?? defaultErrorToProblemDetailsMapping(error);
 
     sendProblem(response, problemDetails.status, { problem: problemDetails });
   };
 
-export const defaulErrorToProblemDetailsMapping = (
+export const defaultErrorToProblemDetailsMapping = (
   error: Error,
 ): ProblemDocument => {
   let statusCode = 500;
