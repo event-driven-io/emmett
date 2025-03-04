@@ -75,7 +75,6 @@ export const postgreSQLEventStoreConsumer = <
       activeProcessors.map((s) => {
         // TODO: Add here filtering to only pass messages that can be handled by processor
         return s.handle(messagesBatch, {
-          pool,
           connectionString: options.connectionString,
         });
       }),
