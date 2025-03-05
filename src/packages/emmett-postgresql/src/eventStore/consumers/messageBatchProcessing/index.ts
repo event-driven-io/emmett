@@ -3,6 +3,7 @@ import type {
   BatchRecordedMessageHandlerWithoutContext,
   EmmettError,
   Message,
+  ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { readLastMessageGlobalPosition } from '../../schema/readLastMessageGlobalPosition';
 import {
@@ -25,11 +26,14 @@ export type PostgreSQLEventStoreMessageBatchPullerOptions<
   executor: SQLExecutor;
   pullingFrequencyInMs: number;
   batchSize: number;
-  eachBatch: BatchRecordedMessageHandlerWithoutContext<MessageType>;
+  eachBatch: BatchRecordedMessageHandlerWithoutContext<
+    MessageType,
+    ReadEventMetadataWithGlobalPosition
+  >;
 };
 
 export type PostgreSQLEventStoreMessageBatchPullerStartFrom =
-  | { globalPosition: bigint }
+  | { lastCheckpoint: bigint }
   | 'BEGINNING'
   | 'END';
 
@@ -66,7 +70,7 @@ export const postgreSQLEventStoreMessageBatchPuller = <
         : options.startFrom === 'END'
           ? ((await readLastMessageGlobalPosition(executor))
               .currentGlobalPosition ?? 0n)
-          : options.startFrom.globalPosition;
+          : options.startFrom.lastCheckpoint;
 
     const readMessagesOptions: ReadMessagesBatchOptions = {
       after,

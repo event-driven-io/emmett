@@ -1,4 +1,9 @@
-import { assertThatArray, type Event } from '@event-driven-io/emmett';
+import {
+  assertThatArray,
+  type Event,
+  type ReadEventMetadataWithGlobalPosition,
+  type RecordedMessage,
+} from '@event-driven-io/emmett';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -60,7 +65,12 @@ void describe('PostgreSQL event store started consumer', () => {
         });
         consumer.processor<GuestStayEvent>({
           processorId: uuid(),
-          stopAfter: (event) =>
+          stopAfter: (
+            event: RecordedMessage<
+              GuestStayEvent,
+              ReadEventMetadataWithGlobalPosition
+            >,
+          ) =>
             event.metadata.globalPosition ===
             appendResult.lastEventGlobalPosition,
           eachMessage: (event) => {

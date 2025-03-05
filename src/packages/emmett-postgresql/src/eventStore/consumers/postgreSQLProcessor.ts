@@ -1,12 +1,10 @@
 import {
   dumbo,
   type Dumbo,
-  type NodePostgresClient,
   type NodePostgresClientConnection,
   type NodePostgresConnector,
   type NodePostgresPool,
   type NodePostgresPoolClientConnection,
-  type NodePostgresTransaction,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import {
@@ -33,8 +31,8 @@ export type PostgreSQLProcessorHandlerContext = {
   execute: SQLExecutor;
   connection: {
     connectionString: string;
-    client: NodePostgresClient;
-    transaction: NodePostgresTransaction;
+    // client: NodePostgresClient;
+    // transaction: NodePostgresTransaction;
     pool: Dumbo;
   };
 };
@@ -132,7 +130,9 @@ export type PostgreSQLCheckpointer<
   PostgreSQLProcessorHandlerContext
 >;
 
-export const PostgreSQLCheckpointer: PostgreSQLCheckpointer = {
+export const postgreSQLCheckpointer = <
+  MessageType extends Message = Message,
+>(): PostgreSQLCheckpointer<MessageType> => ({
   read: async (options, context) => {
     const result = await readProcessorCheckpoint(context.execute, options);
 
@@ -151,7 +151,7 @@ export const PostgreSQLCheckpointer: PostgreSQLCheckpointer = {
       ? { success: true, newCheckpoint: result.newPosition }
       : result;
   },
-};
+});
 
 type GenericPostgreSQLProcessorOptions<MessageType extends Message = Message> =
   CreateGenericMessageProcessorOptions<
@@ -175,12 +175,12 @@ export type PostgreSQLProjectionProcessorOptions<
 
 export type PostgreSQLProcessorOptions<MessageType extends Message = Message> =
   | GenericPostgreSQLProcessorOptions<MessageType>
-  | MessageType extends Event
-  ? PostgreSQLProjectionProcessorOptions<MessageType>
-  : never;
+  | (MessageType extends Event
+      ? PostgreSQLProjectionProcessorOptions<MessageType>
+      : never);
 
-const genericPostgreSQLProcessor = <EventType extends Event = Event>(
-  options: GenericPostgreSQLProcessorOptions<EventType>,
+const genericPostgreSQLProcessor = <MessageType extends Message = Message>(
+  options: GenericPostgreSQLProcessorOptions<MessageType>,
 ): PostgreSQLProcessor => {
   const poolOptions = {
     ...(options.connectionOptions ? options.connectionOptions : {}),
@@ -228,14 +228,10 @@ const genericPostgreSQLProcessor = <EventType extends Event = Event>(
         );
 
       return pool.withTransaction(async (transaction) => {
-        const client =
-          (await transaction.connection.open()) as NodePostgresClient;
         return handler({
           execute: transaction.execute,
           connection: {
-            client,
             connectionString,
-            transaction,
             pool,
           },
         });
@@ -245,27 +241,26 @@ const genericPostgreSQLProcessor = <EventType extends Event = Event>(
   return genericPostgreSQLProcessor({
     ...options,
     processingScope,
-    checkpoints: PostgreSQLCheckpointer,
+    checkpoints: postgreSQLCheckpointer<MessageType>(),
   });
 };
 
 export const postgreSQLProjectionProcessor = <EventType extends Event = Event>(
   options: PostgreSQLProjectionProcessorOptions<EventType>,
-): PostgreSQLProcessor => {
-  const projection = options.projection;
-
-  return projectionProcessor<
+): PostgreSQLProcessor<EventType> =>
+  projectionProcessor<
     EventType,
     ReadEventMetadataWithGlobalPosition,
     PostgreSQLProcessorHandlerContext
   >(options);
-};
 
 export const postgreSQLProcessor = <MessageType extends Message = Message>(
   options: PostgreSQLProcessorOptions<MessageType>,
 ): PostgreSQLProcessor<MessageType> => {
   if ('projection' in options) {
-    return postgreSQLProjectionProcessor(options);
+    return postgreSQLProjectionProcessor(
+      options,
+    ) as PostgreSQLProcessor<MessageType>;
   }
 
   return genericPostgreSQLProcessor(options);

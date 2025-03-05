@@ -36,9 +36,7 @@ export type MessageProcessor<
 > = {
   id: string;
   start: (
-    options: Partial<HandlerContext> & {
-      startFrom: MessageProcessorStartFrom<CheckpointType>;
-    },
+    options: Partial<HandlerContext>,
   ) => Promise<CurrentMessageProcessorPosition<CheckpointType> | undefined>;
   isActive: boolean;
   handle: BatchRecordedMessageHandlerWithContext<
@@ -308,12 +306,10 @@ const genericMessageProcessor = <
   return {
     id: options.processorId,
     start: async (
-      startOptions: Partial<HandlerContext> & {
-        startFrom: MessageProcessorStartFrom<CheckpointType>;
-      },
+      startOptions: Partial<HandlerContext>,
     ): Promise<CurrentMessageProcessorPosition<CheckpointType> | undefined> => {
       isActive = true;
-      if (startOptions.startFrom !== 'CURRENT') return startOptions.startFrom;
+      if (options.startFrom !== 'CURRENT') return options.startFrom;
 
       let lastCheckpoint: CheckpointType | null = null;
 
