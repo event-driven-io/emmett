@@ -25,6 +25,11 @@ import {
   type SQLiteConnection,
 } from '../connection';
 import {
+  sqliteEventStoreConsumer,
+  type SQLiteEventStoreConsumer,
+  type SQLiteEventStoreConsumerConfig,
+} from './consumers';
+import {
   handleProjections,
   type SQLiteProjectionHandlerContext,
 } from './projections';
@@ -38,7 +43,16 @@ export type EventHandler<E extends Event = Event> = (
 
 export const SQLiteEventStoreDefaultStreamVersion = 0n;
 
-export type SQLiteEventStore = EventStore<SQLiteReadEventMetadata>;
+export interface SQLiteEventStore extends EventStore<SQLiteReadEventMetadata> {
+  appendToStream<EventType extends Event>(
+    streamName: string,
+    events: EventType[],
+    options?: AppendToStreamOptions,
+  ): Promise<AppendToStreamResultWithGlobalPosition>;
+  consumer<ConsumerEventType extends Event = Event>(
+    options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
+  ): SQLiteEventStoreConsumer<ConsumerEventType>;
+}
 
 export type SQLiteReadEventMetadata = ReadEventMetadataWithGlobalPosition;
 
@@ -237,5 +251,13 @@ export const getSQLiteEventStore = (
           appendResult.nextStreamPosition >= BigInt(events.length),
       };
     },
+    consumer: <ConsumerEventType extends Event = Event>(
+      options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
+    ): SQLiteEventStoreConsumer<ConsumerEventType> =>
+      sqliteEventStoreConsumer<ConsumerEventType>({
+        ...(options ?? {}),
+        fileName,
+        db: database ?? undefined,
+      }),
   };
 };

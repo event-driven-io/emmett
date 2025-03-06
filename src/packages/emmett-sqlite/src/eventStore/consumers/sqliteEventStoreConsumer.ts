@@ -1,5 +1,5 @@
 import { EmmettError, type Event } from '@event-driven-io/emmett';
-import { type SQLiteConnection } from '../../connection';
+import { sqliteConnection, type SQLiteConnection } from '../../connection';
 import {
   DefaultSQLiteEventStoreProcessorBatchSize,
   DefaultSQLiteEventStoreProcessorPullingFrequencyInMs,
@@ -25,7 +25,8 @@ export type SQLiteEventStoreConsumerConfig<
 export type SQLiteEventStoreConsumerOptions<
   ConsumerEventType extends Event = Event,
 > = SQLiteEventStoreConsumerConfig<ConsumerEventType> & {
-  db: SQLiteConnection;
+  fileName: string;
+  db?: SQLiteConnection;
 };
 
 export type SQLiteEventStoreConsumer<ConsumerEventType extends Event = Event> =
@@ -53,6 +54,8 @@ export const sqliteEventStoreConsumer = <
 
   let currentMessagePuller: SQLiteEventStoreMessageBatchPuller | undefined;
 
+  const db = options.db ?? sqliteConnection({ fileName: options.fileName });
+
   const eachBatch: SQLiteEventStoreMessagesBatchHandler<
     ConsumerEventType
   > = async (messagesBatch) => {
@@ -67,7 +70,7 @@ export const sqliteEventStoreConsumer = <
     const result = await Promise.allSettled(
       activeProcessors.map((s) => {
         // TODO: Add here filtering to only pass messages that can be handled by processor
-        return s.handle(messagesBatch, { db: options.db });
+        return s.handle(messagesBatch, { db });
       }),
     );
 
@@ -82,7 +85,7 @@ export const sqliteEventStoreConsumer = <
 
   const messagePooler = (currentMessagePuller =
     SQLiteEventStoreMessageBatchPuller({
-      db: options.db,
+      db,
       eachBatch,
       batchSize:
         pulling?.batchSize ?? DefaultSQLiteEventStoreProcessorBatchSize,
@@ -129,7 +132,7 @@ export const sqliteEventStoreConsumer = <
         isRunning = true;
 
         const startFrom = zipSQLiteEventStoreMessageBatchPullerStartFrom(
-          await Promise.all(processors.map((o) => o.start(options.db))),
+          await Promise.all(processors.map((o) => o.start(db))),
         );
 
         return messagePooler.start({ startFrom });

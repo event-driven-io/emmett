@@ -4,7 +4,7 @@ import {
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import type { SQLiteConnection } from '../../connection';
+import { sqliteConnection, type SQLiteConnection } from '../../connection';
 import type { SQLiteProjectionDefinition } from '../projections';
 import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
 import type { SQLiteEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
@@ -15,6 +15,7 @@ export type SQLiteProcessorEventsBatch<EventType extends Event = Event> = {
 
 export type SQLiteProcessorHandlerContext = {
   db: SQLiteConnection;
+  fileName: string;
 };
 
 export type SQLiteProcessor<EventType extends Event = Event> = {
@@ -25,7 +26,7 @@ export type SQLiteProcessor<EventType extends Event = Event> = {
   isActive: boolean;
   handle: (
     messagesBatch: SQLiteProcessorEventsBatch<EventType>,
-    context: { db: SQLiteConnection },
+    context: { db?: SQLiteConnection; fileName?: string },
   ) => Promise<SQLiteProcessorMessageHandlerResult>;
 };
 
@@ -71,6 +72,11 @@ export type SQLiteProcessorStartFrom =
   | SQLiteEventStoreMessageBatchPullerStartFrom
   | 'CURRENT';
 
+export type SQLiteProcessorConnectionOptions = {
+  fileName: string;
+  db?: SQLiteConnection;
+};
+
 export type GenericSQLiteProcessorOptions<EventType extends Event = Event> = {
   processorId: string;
   version?: number;
@@ -80,6 +86,7 @@ export type GenericSQLiteProcessorOptions<EventType extends Event = Event> = {
     message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
   ) => boolean;
   eachMessage: SQLiteProcessorEachMessageHandler<EventType>;
+  connectionOptions?: SQLiteProcessorConnectionOptions;
   // TODO: Add eachBatch
 };
 
@@ -105,6 +112,24 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
   const { eachMessage } = options;
   let isActive = true;
   //let lastProcessedPosition: number | null = null;
+
+  const getDb = (context: {
+    db?: SQLiteConnection;
+    fileName?: string;
+  }): { db: SQLiteConnection; fileName: string } => {
+    const fileName = context.fileName ?? options.connectionOptions?.fileName;
+    if (!fileName)
+      throw new EmmettError(
+        `SQLite processor '${options.processorId}' is missing file name. Ensure that you passed it through options`,
+      );
+
+    const db =
+      context.db ??
+      options.connectionOptions?.db ??
+      sqliteConnection({ fileName });
+
+    return { db, fileName };
+  };
 
   return {
     id: options.processorId,
@@ -132,7 +157,9 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
     ): Promise<SQLiteProcessorMessageHandlerResult> => {
       if (!isActive) return;
 
-      return context.db.withTransaction(async () => {
+      const { db, fileName } = getDb(context);
+
+      return db.withTransaction(async () => {
         let result: SQLiteProcessorMessageHandlerResult | undefined = undefined;
 
         let lastProcessedPosition: bigint | null = null;
@@ -144,11 +171,12 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
           >;
 
           const messageProcessingResult = await eachMessage(typedMessage, {
-            db: context.db,
+            db,
+            fileName,
           });
 
           // TODO: Add correct handling of the storing checkpoint
-          await storeProcessorCheckpoint(context.db, {
+          await storeProcessorCheckpoint(db, {
             processorId: options.processorId,
             version: options.version,
             lastProcessedPosition,
