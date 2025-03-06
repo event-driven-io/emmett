@@ -15,7 +15,10 @@ import {
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
-import type { PostgreSQLProcessorOptions } from './postgreSQLProcessor';
+import {
+  postgreSQLProcessor,
+  type PostgreSQLProcessorOptions,
+} from './postgreSQLProcessor';
 
 const withDeadline = { timeout: 5000 };
 
@@ -58,6 +61,16 @@ void describe('PostgreSQL event store started consumer', () => {
         );
 
         const result: GuestStayEvent[] = [];
+
+        const processor = postgreSQLProcessor<GuestStayEvent>({
+          processorId: uuid(),
+          stopAfter: (event) =>
+            event.metadata.globalPosition ===
+            appendResult.lastEventGlobalPosition,
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
 
         // When
         const consumer = postgreSQLEventStoreConsumer({

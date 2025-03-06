@@ -1,6 +1,7 @@
-import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
+import { dumbo, type Dumbo, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   EmmettError,
+  MessageProcessor,
   type AnyMessage,
   type BatchRecordedMessageHandlerWithoutContext,
   type Message,
@@ -19,10 +20,22 @@ import {
   type PostgreSQLProcessorOptions,
 } from './postgreSQLProcessor';
 
+export type PostgreSQLConsumerContext = {
+  execute: SQLExecutor;
+  connection: {
+    connectionString: string;
+    pool: Dumbo;
+  };
+};
+
 export type PostgreSQLEventStoreConsumerConfig<
   ConsumerMessageType extends Message = Message,
 > = {
-  processors?: PostgreSQLProcessor<ConsumerMessageType>[];
+  processors?: MessageProcessor<
+    ConsumerMessageType,
+    ReadEventMetadataWithGlobalPosition,
+    PostgreSQLConsumerContext
+  >[];
   pulling?: {
     batchSize?: number;
     pullingFrequencyInMs?: number;

@@ -107,6 +107,7 @@ export type BaseMessageProcessorOptions<
     HandlerContext,
     CheckpointType
   >;
+  canHandle?: CanHandle<MessageType>;
 };
 
 export type HandlerOptions<
@@ -120,7 +121,6 @@ export type HandlerOptions<
         MessageMetadataType,
         HandlerContext
       >;
-      canHandle?: CanHandle<MessageType>;
     }
   | {
       eachBatch: BatchRecordedMessageHandlerWithContext<
@@ -128,7 +128,6 @@ export type HandlerOptions<
         MessageMetadataType,
         HandlerContext
       >;
-      canHandle?: CanHandle<MessageType>;
     };
 
 // Complete processor options combining base and handler
