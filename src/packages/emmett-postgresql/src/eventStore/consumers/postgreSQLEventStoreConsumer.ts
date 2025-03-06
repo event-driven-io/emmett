@@ -4,6 +4,7 @@ import {
   MessageProcessor,
   type AnyMessage,
   type BatchRecordedMessageHandlerWithoutContext,
+  type DefaultRecord,
   type Message,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
@@ -28,14 +29,19 @@ export type PostgreSQLConsumerContext = {
   };
 };
 
+export type ExtendableContext = Partial<PostgreSQLConsumerContext> &
+  DefaultRecord;
+
 export type PostgreSQLEventStoreConsumerConfig<
   ConsumerMessageType extends Message = Message,
 > = {
-  processors?: MessageProcessor<
-    ConsumerMessageType,
-    ReadEventMetadataWithGlobalPosition,
-    PostgreSQLConsumerContext
-  >[];
+  processors?: Array<
+    MessageProcessor<
+      ConsumerMessageType,
+      ReadEventMetadataWithGlobalPosition,
+      ExtendableContext
+    >
+  >;
   pulling?: {
     batchSize?: number;
     pullingFrequencyInMs?: number;
