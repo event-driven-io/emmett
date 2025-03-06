@@ -14,8 +14,8 @@ import {
   type AnyMessage,
   type BatchRecordedMessageHandlerWithContext,
   type Checkpointer,
-  type CreateGenericMessageProcessorOptions,
   type Event,
+  type GenericMessageProcessorOptions,
   type Message,
   type MessageHandlerResult,
   type MessageProcessingScope,
@@ -154,14 +154,13 @@ export const postgreSQLCheckpointer = <
 });
 
 type GenericPostgreSQLProcessorOptions<MessageType extends Message = Message> =
-  CreateGenericMessageProcessorOptions<
+  GenericMessageProcessorOptions<
     MessageType,
     ReadEventMetadataWithGlobalPosition,
-    PostgreSQLProcessorHandlerContext,
-    {
-      connectionOptions?: PostgreSQLProcessorConnectionOptions;
-    }
-  >;
+    PostgreSQLProcessorHandlerContext
+  > & {
+    connectionOptions?: PostgreSQLProcessorConnectionOptions;
+  };
 
 export type PostgreSQLProjectionProcessorOptions<
   EventType extends Event = Event,
