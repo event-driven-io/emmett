@@ -132,8 +132,7 @@ export type HandlerOptions<
       >;
     };
 
-// Complete processor options combining base and handler
-export type GenericMessageProcessorOptions<
+export type MessageProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
@@ -144,22 +143,25 @@ export type GenericMessageProcessorOptions<
   HandlerContext,
   CheckpointType
 > &
-  HandlerOptions<MessageType, MessageMetadataType, HandlerContext>;
+  HandlerOptions<MessageType, MessageMetadataType, HandlerContext> & {
+    type: string;
+  };
 
-// export type CreateGenericMessageProcessorOptions<
-//   MessageType extends AnyMessage = AnyMessage,
-//   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-//   HandlerContext extends DefaultRecord = DefaultRecord,
-//   AdditionalOptions extends DefaultRecord = DefaultRecord,
-//   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
-// > = BaseMessageProcessorOptions<
-//   MessageType,
-//   MessageMetadataType,
-//   HandlerContext,
-//   CheckpointType
-// > &
-//   HandlerOptions<MessageType, MessageMetadataType, HandlerContext> &
-//   AdditionalOptions;
+// Complete processor options combining base and handler
+export type MessageHandlerProcessorOptions<
+  MessageType extends AnyMessage = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends DefaultRecord = DefaultRecord,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+> = BaseMessageProcessorOptions<
+  MessageType,
+  MessageMetadataType,
+  HandlerContext,
+  CheckpointType
+> &
+  HandlerOptions<MessageType, MessageMetadataType, HandlerContext> & {
+    type: 'handler';
+  };
 
 export type ProjectionProcessorOptions<
   EventType extends AnyEvent = AnyEvent,
@@ -177,43 +179,8 @@ export type ProjectionProcessorOptions<
     MessageMetadataType,
     HandlerContext
   >;
-  partition?: string;
+  type: 'projection';
 };
-
-// export type CreateProjectionProcessorOptions<
-//   EventType extends AnyEvent = AnyEvent,
-//   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-//   HandlerContext extends DefaultRecord = DefaultRecord,
-//   AdditionalOptions extends DefaultRecord = DefaultRecord,
-//   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
-// > = ProjectionProcessorOptions<
-//   EventType,
-//   MessageMetadataType,
-//   HandlerContext,
-//   CheckpointType
-// > &
-//   AdditionalOptions;
-
-export type MessageProcessorOptions<
-  MessageType extends AnyMessage = AnyMessage,
-  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends DefaultRecord = DefaultRecord,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
-> =
-  | GenericMessageProcessorOptions<
-      MessageType,
-      MessageMetadataType,
-      HandlerContext,
-      CheckpointType
-    >
-  | (MessageType extends Event
-      ? ProjectionProcessorOptions<
-          MessageType,
-          MessageMetadataType,
-          HandlerContext,
-          CheckpointType
-        >
-      : never);
 
 export const defaultProcessingMessageProcessingScope =
   <HandlerContext = never>(partialContext: Partial<HandlerContext>) =>
@@ -270,13 +237,13 @@ export type StoreProcessorCheckpoint<
       context: HandlerContext,
     ) => Promise<StoreProcessorCheckpointResult<CheckpointType>>);
 
-const genericMessageProcessor = <
+export const messageProcessor = <
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 >(
-  options: GenericMessageProcessorOptions<
+  options: MessageProcessorOptions<
     MessageType,
     MessageMetadataType,
     HandlerContext,
@@ -416,15 +383,15 @@ export const projectionProcessor = <
   HandlerContext,
   CheckpointType
 > => {
-  const projection = options.projection;
+  const { projection, ...rest } = options;
 
-  return genericMessageProcessor<
+  return messageProcessor<
     EventType,
     EventMetaDataType,
     HandlerContext,
     CheckpointType
   >({
-    ...options,
+    ...rest,
     processorId: options.processorId ?? `projection:${projection.name}`,
     eachMessage: async (
       event: RecordedMessage<EventType, EventMetaDataType>,
@@ -435,35 +402,4 @@ export const projectionProcessor = <
       await projection.handle([event], context);
     },
   });
-};
-
-export const messageProcessor = <
-  MessageType extends Message = AnyMessage,
-  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends DefaultRecord = DefaultRecord,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
->(
-  options: MessageProcessorOptions<
-    MessageType,
-    MessageMetadataType,
-    HandlerContext,
-    CheckpointType
-  >,
-): MessageProcessor<
-  MessageType,
-  MessageMetadataType,
-  HandlerContext,
-  CheckpointType
-> => {
-  if ('projection' in options) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
-    return projectionProcessor(options as any) as MessageProcessor<
-      MessageType,
-      MessageMetadataType,
-      HandlerContext,
-      CheckpointType
-    >;
-  }
-
-  return genericMessageProcessor(options);
 };

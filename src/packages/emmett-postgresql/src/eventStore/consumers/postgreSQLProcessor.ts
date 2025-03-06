@@ -1,6 +1,7 @@
 import {
   dumbo,
   type Dumbo,
+  type NodePostgresClient,
   type NodePostgresClientConnection,
   type NodePostgresConnector,
   type NodePostgresPool,
@@ -15,8 +16,8 @@ import {
   type BatchRecordedMessageHandlerWithContext,
   type Checkpointer,
   type Event,
-  type GenericMessageProcessorOptions,
   type Message,
+  type MessageHandlerProcessorOptions,
   type MessageHandlerResult,
   type MessageProcessingScope,
   type ProjectionProcessorOptions,
@@ -31,7 +32,7 @@ export type PostgreSQLProcessorHandlerContext = {
   execute: SQLExecutor;
   connection: {
     connectionString: string;
-    // client: NodePostgresClient;
+    client: NodePostgresClient;
     // transaction: NodePostgresTransaction;
     pool: Dumbo;
   };
@@ -153,14 +154,26 @@ export const postgreSQLCheckpointer = <
   },
 });
 
-type GenericPostgreSQLProcessorOptions<MessageType extends Message = Message> =
-  GenericMessageProcessorOptions<
-    MessageType,
-    ReadEventMetadataWithGlobalPosition,
-    PostgreSQLProcessorHandlerContext
-  > & {
-    connectionOptions?: PostgreSQLProcessorConnectionOptions;
-  };
+type PostgreSQLConnectionOptions = {
+  connectionOptions?: PostgreSQLProcessorConnectionOptions;
+};
+
+// export type PostgreSQLProcessorOptions<MessageType extends Message = Message> =
+//   MessageProcessorOptions<
+//     MessageType,
+//     ReadEventMetadataWithGlobalPosition,
+//     PostgreSQLProcessorHandlerContext
+//   > &
+//     PostgreSQLConnectionOptions;
+
+type PostgreSQLMessageHandlerProcessorOptions<
+  MessageType extends Message = Message,
+> = MessageHandlerProcessorOptions<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  PostgreSQLProcessorHandlerContext
+> &
+  PostgreSQLConnectionOptions;
 
 export type PostgreSQLProjectionProcessorOptions<
   EventType extends Event = Event,
@@ -168,18 +181,16 @@ export type PostgreSQLProjectionProcessorOptions<
   EventType,
   ReadEventMetadataWithGlobalPosition,
   PostgreSQLProcessorHandlerContext
-> & {
-  connectionOptions?: PostgreSQLProcessorConnectionOptions;
-};
+> &
+  PostgreSQLConnectionOptions;
 
 export type PostgreSQLProcessorOptions<MessageType extends Message = Message> =
-  | GenericPostgreSQLProcessorOptions<MessageType>
-  | (MessageType extends Event
-      ? PostgreSQLProjectionProcessorOptions<MessageType>
-      : never);
+  | PostgreSQLMessageHandlerProcessorOptions<MessageType>
+  // @ts-expect-error I don't know how to fix it for  now
+  | PostgreSQLProjectionProcessorOptions<MessageType>;
 
 const genericPostgreSQLProcessor = <MessageType extends Message = Message>(
-  options: GenericPostgreSQLProcessorOptions<MessageType>,
+  options: PostgreSQLMessageHandlerProcessorOptions<MessageType>,
 ): PostgreSQLProcessor => {
   const poolOptions = {
     ...(options.connectionOptions ? options.connectionOptions : {}),
@@ -258,7 +269,7 @@ export const postgreSQLProcessor = <MessageType extends Message = Message>(
 ): PostgreSQLProcessor<MessageType> => {
   if ('projection' in options) {
     return postgreSQLProjectionProcessor(
-      options,
+      options as unknown as PostgreSQLProjectionProcessorOptions<Event>,
     ) as PostgreSQLProcessor<MessageType>;
   }
 
