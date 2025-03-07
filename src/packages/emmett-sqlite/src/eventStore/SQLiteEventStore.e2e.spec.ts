@@ -248,6 +248,35 @@ void describe('SQLiteEventStore', () => {
     assertIsNotNull(stream.events);
     assertEqual(1, stream.events.length);
   });
+
+  void it('should allow events to be processed in the onBeforeCommit hook', async () => {
+    const savedEvents = [];
+    const eventStore = getSQLiteEventStore({
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+      },
+      fileName,
+      hooks: {
+        onBeforeCommit: (messages): void => {
+          savedEvents.push(...messages);
+        },
+      },
+    });
+
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    assertEqual(savedEvents.length, 1);
+  });
 });
 
 type ShoppingCartShortInfo = {
