@@ -26,11 +26,6 @@ import {
   type SQLiteConnection,
 } from '../connection';
 import {
-  sqliteEventStoreConsumer,
-  type SQLiteEventStoreConsumer,
-  type SQLiteEventStoreConsumerConfig,
-} from './consumers';
-import {
   handleProjections,
   type SQLiteProjectionHandlerContext,
 } from './projections';
@@ -44,16 +39,7 @@ export type EventHandler<E extends Event = Event> = (
 
 export const SQLiteEventStoreDefaultStreamVersion = 0n;
 
-export interface SQLiteEventStore extends EventStore<SQLiteReadEventMetadata> {
-  appendToStream<EventType extends Event>(
-    streamName: string,
-    events: EventType[],
-    options?: AppendToStreamOptions,
-  ): Promise<AppendToStreamResultWithGlobalPosition>;
-  consumer<ConsumerEventType extends Event = Event>(
-    options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
-  ): SQLiteEventStoreConsumer<ConsumerEventType>;
-}
+export type SQLiteEventStore = EventStore<SQLiteReadEventMetadata>;
 
 export type SQLiteReadEventMetadata = ReadEventMetadataWithGlobalPosition;
 
@@ -84,7 +70,7 @@ export type SQLiteEventStoreOptions = {
      */
     onBeforeCommit?: BeforeEventStoreCommitHandler<
       SQLiteEventStore,
-      { db: SQLiteConnection }
+      { connection: SQLiteConnection }
     >;
   };
 };
@@ -148,11 +134,13 @@ export const getSQLiteEventStore = (
       options.schema?.autoMigration !== 'None';
   }
 
-  const ensureSchemaExists = async (db: SQLiteConnection): Promise<void> => {
+  const ensureSchemaExists = async (
+    connection: SQLiteConnection,
+  ): Promise<void> => {
     if (!autoGenerateSchema) return Promise.resolve();
 
     if (!schemaMigrated) {
-      await createEventStoreSchema(db);
+      await createEventStoreSchema(connection);
       schemaMigrated = true;
     }
 
@@ -258,13 +246,5 @@ export const getSQLiteEventStore = (
           appendResult.nextStreamPosition >= BigInt(events.length),
       };
     },
-    consumer: <ConsumerEventType extends Event = Event>(
-      options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
-    ): SQLiteEventStoreConsumer<ConsumerEventType> =>
-      sqliteEventStoreConsumer<ConsumerEventType>({
-        ...(options ?? {}),
-        fileName,
-        db: database ?? undefined,
-      }),
   };
 };

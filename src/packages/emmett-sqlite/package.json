@@ -7,14 +7,6 @@
     "build": "tsup",
     "build:ts": "tsc",
     "build:ts:watch": "tsc -b --watch",
-    "test": "run-s test:unit test:int test:e2e",
-    "test:unit": "glob -c \"node --import tsx --test\" **/*.unit.spec.ts",
-    "test:int": "glob -c \"node --import tsx --test\" **/*.int.spec.ts",
-    "test:e2e": "glob -c \"node --import tsx --test\" **/*.e2e.spec.ts",
-    "test:watch": "node --import tsx --test --watch",
-    "test:unit:watch": "glob -c \"node --import tsx --test --watch\" **/*.unit.spec.ts",
-    "test:int:watch": "glob -c \"node --import tsx --test --watch\" **/*.int.spec.ts",
-    "test:e2e:watch": "glob -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts",
     "benchmark": "node --import tsx src/benchmarks/index.ts",
     "flamegraph": "0x -D \"0x/{pid}\" -- node --import tsx src/benchmarks/ox.ts"
   },
@@ -69,7 +61,9 @@
     "dist"
   ],
   "devDependencies": {
-    "@types/sqlite3": "^3.1.11"
+    "@sqlite.org/sqlite-wasm": "^3.49.1-build2",
+    "@types/sqlite3": "^3.1.11",
+    "vitest": "^3.0.7"
   },
   "peerDependencies": {
     "@event-driven-io/emmett": "0.37.0",
