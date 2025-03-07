@@ -10,7 +10,7 @@ import type { SQLiteConnection } from '../../connection';
 import type { SQLiteReadEventMetadata } from '../SQLiteEventStore';
 
 export type SQLiteProjectionHandlerContext = {
-  db: SQLiteConnection;
+  connection: SQLiteConnection;
 };
 
 export type SQLiteProjectionHandler<
@@ -32,25 +32,31 @@ export type SQLiteProjectionDefinition<EventType extends Event = Event> =
 export type SQLiteProjectionHandlerOptions<EventType extends Event = Event> = {
   events: ReadEvent<EventType, SQLiteReadEventMetadata>[];
   projections: SQLiteProjectionDefinition<EventType>[];
-  db: SQLiteConnection;
+  connection: SQLiteConnection;
 };
 
 export const handleProjections = async <EventType extends Event = Event>(
   options: SQLiteProjectionHandlerOptions<EventType>,
 ): Promise<void> => {
-  const { projections: allProjections, events, db } = options;
+  const { projections: allProjections, events, connection } = options;
 
   const eventTypes = events.map((e) => e.type);
 
-  const projections = allProjections.filter((p) =>
-    p.canHandle.some((type) => eventTypes.includes(type)),
-  );
+  // each event
+  // for (const eventType of eventTypes) {
+  // const projections = allProjections.filter((p) => {
+  //   return p.canHandle.includes(eventType);
+  // });
 
-  for (const projection of projections) {
+  for (const projection of allProjections) {
+    if (!projection.canHandle.some((type) => eventTypes.includes(type))) {
+      continue;
+    }
     await projection.handle(events, {
-      db,
+      connection,
     });
   }
+  // }
 };
 
 export const sqliteProjection = <EventType extends Event>(
@@ -74,14 +80,16 @@ export const sqliteRawBatchSQLProjection = <EventType extends Event>(
     handle: async (events, context) => {
       const sqls: string[] = await handle(events, context);
 
-      for (const sql of sqls) await context.db.command(sql);
+      for (const sql of sqls) await context.connection.command(sql);
     },
   });
 
 export const sqliteRawSQLProjection = <EventType extends Event>(
+  getDocumentId: (event: EventType) => string,
   handle: (
     event: EventType,
     context: SQLiteProjectionHandlerContext,
+    documentId: string,
   ) => Promise<string> | string,
   ...canHandle: CanHandle<EventType>
 ): SQLiteProjectionDefinition<EventType> =>
@@ -90,7 +98,7 @@ export const sqliteRawSQLProjection = <EventType extends Event>(
       const sqls: string[] = [];
 
       for (const event of events) {
-        sqls.push(await handle(event, context));
+        sqls.push(await handle(event, context, getDocumentId(event)));
       }
       return sqls;
     },

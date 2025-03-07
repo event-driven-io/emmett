@@ -5,8 +5,8 @@ import {
   assertMatches,
   type Event,
 } from '@event-driven-io/emmett';
-import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { createEventStoreSchema } from '.';
 import {
   InMemorySQLiteDatabase,
@@ -43,12 +43,12 @@ export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 void describe('appendEvent', () => {
   let db: SQLiteConnection;
 
-  before(async () => {
+  beforeAll(async () => {
     db = sqliteConnection({ fileName: InMemorySQLiteDatabase });
     await createEventStoreSchema(db);
   });
 
-  after(() => {
+  afterAll(() => {
     db.close();
   });
 
