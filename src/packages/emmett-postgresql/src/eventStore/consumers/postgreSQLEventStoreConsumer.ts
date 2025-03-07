@@ -1,12 +1,19 @@
-import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
-import { EmmettError, type Event } from '@event-driven-io/emmett';
+import { dumbo, type Dumbo, type SQLExecutor } from '@event-driven-io/dumbo';
+import {
+  EmmettError,
+  MessageProcessor,
+  type AnyMessage,
+  type BatchRecordedMessageHandlerWithoutContext,
+  type DefaultRecord,
+  type Message,
+  type ReadEventMetadataWithGlobalPosition,
+} from '@event-driven-io/emmett';
 import {
   DefaultPostgreSQLEventStoreProcessorBatchSize,
   DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
   postgreSQLEventStoreMessageBatchPuller,
   zipPostgreSQLEventStoreMessageBatchPullerStartFrom,
   type PostgreSQLEventStoreMessageBatchPuller,
-  type PostgreSQLEventStoreMessagesBatchHandler,
 } from './messageBatchProcessing';
 import {
   postgreSQLProcessor,
@@ -14,40 +21,57 @@ import {
   type PostgreSQLProcessorOptions,
 } from './postgreSQLProcessor';
 
+export type PostgreSQLConsumerContext = {
+  execute: SQLExecutor;
+  connection: {
+    connectionString: string;
+    pool: Dumbo;
+  };
+};
+
+export type ExtendableContext = Partial<PostgreSQLConsumerContext> &
+  DefaultRecord;
+
 export type PostgreSQLEventStoreConsumerConfig<
-  ConsumerEventType extends Event = Event,
+  ConsumerMessageType extends Message = Message,
 > = {
-  processors?: PostgreSQLProcessor<ConsumerEventType>[];
+  processors?: Array<
+    MessageProcessor<
+      ConsumerMessageType,
+      ReadEventMetadataWithGlobalPosition,
+      ExtendableContext
+    >
+  >;
   pulling?: {
     batchSize?: number;
     pullingFrequencyInMs?: number;
   };
 };
 export type PostgreSQLEventStoreConsumerOptions<
-  ConsumerEventType extends Event = Event,
-> = PostgreSQLEventStoreConsumerConfig<ConsumerEventType> & {
+  ConsumerMessageType extends Message = Message,
+> = PostgreSQLEventStoreConsumerConfig<ConsumerMessageType> & {
   connectionString: string;
   pool?: Dumbo;
 };
 
 export type PostgreSQLEventStoreConsumer<
-  ConsumerEventType extends Event = Event,
+  ConsumerMessageType extends Message = Message,
 > = Readonly<{
   isRunning: boolean;
-  processors: PostgreSQLProcessor<ConsumerEventType>[];
-  processor: <EventType extends ConsumerEventType = ConsumerEventType>(
-    options: PostgreSQLProcessorOptions<EventType>,
-  ) => PostgreSQLProcessor<EventType>;
+  processors: PostgreSQLProcessor<ConsumerMessageType>[];
+  processor: <MessageType extends Message = ConsumerMessageType>(
+    options: PostgreSQLProcessorOptions<MessageType>,
+  ) => PostgreSQLProcessor<MessageType>;
   start: () => Promise<void>;
   stop: () => Promise<void>;
   close: () => Promise<void>;
 }>;
 
 export const postgreSQLEventStoreConsumer = <
-  ConsumerEventType extends Event = Event,
+  ConsumerMessageType extends Message = AnyMessage,
 >(
-  options: PostgreSQLEventStoreConsumerOptions<ConsumerEventType>,
-): PostgreSQLEventStoreConsumer<ConsumerEventType> => {
+  options: PostgreSQLEventStoreConsumerOptions<ConsumerMessageType>,
+): PostgreSQLEventStoreConsumer<ConsumerMessageType> => {
   let isRunning = false;
   const { pulling } = options;
   const processors = options.processors ?? [];
@@ -60,8 +84,9 @@ export const postgreSQLEventStoreConsumer = <
     ? options.pool
     : dumbo({ connectionString: options.connectionString });
 
-  const eachBatch: PostgreSQLEventStoreMessagesBatchHandler<
-    ConsumerEventType
+  const eachBatch: BatchRecordedMessageHandlerWithoutContext<
+    ConsumerMessageType,
+    ReadEventMetadataWithGlobalPosition
   > = async (messagesBatch) => {
     const activeProcessors = processors.filter((s) => s.isActive);
 
@@ -75,8 +100,10 @@ export const postgreSQLEventStoreConsumer = <
       activeProcessors.map((s) => {
         // TODO: Add here filtering to only pass messages that can be handled by processor
         return s.handle(messagesBatch, {
-          pool,
-          connectionString: options.connectionString,
+          connection: {
+            connectionString: options.connectionString,
+            pool,
+          },
         });
       }),
     );
@@ -116,12 +143,15 @@ export const postgreSQLEventStoreConsumer = <
     get isRunning() {
       return isRunning;
     },
-    processor: <EventType extends ConsumerEventType = ConsumerEventType>(
-      options: PostgreSQLProcessorOptions<EventType>,
-    ): PostgreSQLProcessor<EventType> => {
-      const processor = postgreSQLProcessor<EventType>(options);
+    processor: <MessageType extends Message = ConsumerMessageType>(
+      options: PostgreSQLProcessorOptions<MessageType>,
+    ): PostgreSQLProcessor<MessageType> => {
+      const processor = postgreSQLProcessor(options);
 
-      processors.push(processor);
+      processors.push(
+        // TODO: change that
+        processor as unknown as PostgreSQLProcessor<ConsumerMessageType>,
+      );
 
       return processor;
     },
@@ -139,7 +169,17 @@ export const postgreSQLEventStoreConsumer = <
         isRunning = true;
 
         const startFrom = zipPostgreSQLEventStoreMessageBatchPullerStartFrom(
-          await Promise.all(processors.map((o) => o.start(pool.execute))),
+          await Promise.all(
+            processors.map((o) =>
+              o.start({
+                execute: pool.execute,
+                connection: {
+                  connectionString: options.connectionString,
+                  pool,
+                },
+              }),
+            ),
+          ),
         );
 
         return messagePooler.start({ startFrom });
