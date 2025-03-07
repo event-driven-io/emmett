@@ -3,8 +3,9 @@ import { sqliteConnection, type SQLiteConnection } from '../../connection';
 import {
   DefaultSQLiteEventStoreProcessorBatchSize,
   DefaultSQLiteEventStoreProcessorPullingFrequencyInMs,
-  SQLiteEventStoreMessageBatchPuller,
+  sqliteEventStoreMessageBatchPuller,
   zipSQLiteEventStoreMessageBatchPullerStartFrom,
+  type SQLiteEventStoreMessageBatchPuller,
   type SQLiteEventStoreMessagesBatchHandler,
 } from './messageBatchProcessing';
 import {
@@ -84,7 +85,7 @@ export const sqliteEventStoreConsumer = <
   };
 
   const messagePooler = (currentMessagePuller =
-    SQLiteEventStoreMessageBatchPuller({
+    sqliteEventStoreMessageBatchPuller({
       db,
       eachBatch,
       batchSize:
