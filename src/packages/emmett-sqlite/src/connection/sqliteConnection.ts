@@ -22,6 +22,8 @@ export const isSQLiteError = (error: unknown): error is SQLiteError => {
   return false;
 };
 
+export type InMemorySharedCacheSQLiteDatabase = 'file::memory:?cache=shared';
+export const InMemorySharedCacheSQLiteDatabase = 'file::memory:?cache=shared';
 export type InMemorySQLiteDatabase = ':memory:';
 export const InMemorySQLiteDatabase = ':memory:';
 
@@ -33,7 +35,14 @@ type SQLiteConnectionOptions = {
 export const sqliteConnection = (
   options: SQLiteConnectionOptions,
 ): SQLiteConnection => {
-  const db = new sqlite3.Database(options.fileName ?? InMemorySQLiteDatabase);
+  const fileName = options.fileName ?? InMemorySQLiteDatabase;
+  let db: sqlite3.Database;
+
+  if (fileName === InMemorySharedCacheSQLiteDatabase) {
+    db = new sqlite3.Database(fileName, sqlite3.OPEN_URI);
+  } else {
+    db = new sqlite3.Database(fileName);
+  }
 
   return {
     close: (): void => db.close(),

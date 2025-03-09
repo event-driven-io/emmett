@@ -20,6 +20,7 @@ import {
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
 import {
+  InMemorySharedCacheSQLiteDatabase,
   InMemorySQLiteDatabase,
   sqliteConnection,
   type SQLiteConnection,
@@ -62,8 +63,12 @@ export type SQLiteReadEvent<EventType extends Event = Event> = ReadEvent<
 >;
 
 export type SQLiteEventStoreOptions = {
-  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-  fileName: InMemorySQLiteDatabase | string | undefined;
+  fileName: // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+  | InMemorySQLiteDatabase
+    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+    | InMemorySharedCacheSQLiteDatabase
+    | string
+    | undefined;
   projections?: ProjectionRegistration<
     'inline',
     SQLiteReadEventMetadata,
@@ -92,7 +97,9 @@ export const getSQLiteEventStore = (
   let database: SQLiteConnection | null;
   const fileName = options.fileName ?? InMemorySQLiteDatabase;
 
-  const isInMemory: boolean = fileName === InMemorySQLiteDatabase;
+  const isInMemory: boolean =
+    fileName === InMemorySQLiteDatabase ||
+    fileName === InMemorySharedCacheSQLiteDatabase;
 
   const inlineProjections = (options.projections ?? [])
     .filter(({ type }) => type === 'inline')
