@@ -1,9 +1,7 @@
 import {
+  JSONParser,
   type CombinedReadEventMetadata,
   type Event,
-  type EventDataOf,
-  type EventMetaDataOf,
-  type EventTypeOf,
   type ReadEvent,
   type ReadEventMetadata,
   type ReadEventMetadataWithGlobalPosition,
@@ -12,13 +10,13 @@ import type { SQLiteConnection } from '../../connection';
 import { sql } from './tables';
 import { defaultTag, messagesTable } from './typing';
 
-type ReadMessagesBatchSqlResult<EventType extends Event> = {
+type ReadMessagesBatchSqlResult = {
   stream_position: string;
   stream_id: string;
-  message_data: EventDataOf<EventType>;
-  message_metadata: EventMetaDataOf<EventType>;
+  message_data: string;
+  message_metadata: string;
   message_schema_version: string;
-  message_type: EventTypeOf<EventType>;
+  message_type: string;
   message_id: string;
   global_position: string;
   transaction_id: string;
@@ -75,7 +73,7 @@ export const readMessagesBatch = async <
     'batchSize' in options ? `LIMIT ${options.batchSize}` : '';
 
   const events: ReadEvent<MessageType, ReadEventMetadataType>[] = (
-    await db.query<ReadMessagesBatchSqlResult<MessageType>>(
+    await db.query<ReadMessagesBatchSqlResult>(
       sql(
         `SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
            FROM ${messagesTable.name}
@@ -88,8 +86,8 @@ export const readMessagesBatch = async <
   ).map((row) => {
     const rawEvent = {
       type: row.message_type,
-      data: row.message_data,
-      metadata: row.message_metadata,
+      data: JSONParser.parse(row.message_data),
+      metadata: JSONParser.parse(row.message_metadata),
     } as unknown as MessageType;
 
     const metadata: ReadEventMetadataWithGlobalPosition = {
