@@ -38,11 +38,16 @@ export const sqliteConnection = (
   const fileName = options.fileName ?? InMemorySQLiteDatabase;
   let db: sqlite3.Database;
 
-  if (fileName === InMemorySharedCacheSQLiteDatabase) {
-    db = new sqlite3.Database(fileName, sqlite3.OPEN_URI);
+  if (fileName.startsWith('file:')) {
+    db = new sqlite3.Database(
+      fileName,
+      sqlite3.OPEN_URI | sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
+    );
   } else {
     db = new sqlite3.Database(fileName);
   }
+
+  let transactionNesting = 0;
 
   return {
     close: (): void => db.close(),
@@ -83,15 +88,22 @@ export const sqliteConnection = (
           resolve(result);
         });
       }),
-    withTransaction: <T>(fn: () => Promise<T>) =>
-      new Promise<T>((resolve, reject) => {
-        beginTransaction(db)
-          .then(() => fn())
-          .then((result) => commitTransaction(db).then(() => resolve(result)))
-          .catch((err: Error) =>
-            rollbackTransaction(db).then(() => reject(err)),
-          );
-      }),
+    withTransaction: async <T>(fn: () => Promise<T>) => {
+      try {
+        if (transactionNesting == 0) {
+          await beginTransaction(db);
+        }
+        transactionNesting++;
+        return await fn();
+      } catch (err) {
+        console.log(err);
+        await rollbackTransaction(db);
+        throw err;
+      } finally {
+        transactionNesting--;
+        if (transactionNesting === 0) await commitTransaction(db);
+      }
+    },
   };
 };
 

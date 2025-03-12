@@ -1,7 +1,7 @@
 import { isSQLiteError, type SQLiteConnection } from '../../connection';
 import { sql } from './tables';
 import { defaultTag, subscriptionsTable } from './typing';
-import { single } from './utils';
+import { singleOrNull } from './utils';
 
 // for more infos see the postgresql stored procedure version
 async function storeSubscriptionCheckpointSQLite(
@@ -27,7 +27,7 @@ async function storeSubscriptionCheckpointSQLite(
       if (updateResult.changes > 0) {
         return 1;
       } else {
-        const current_position = await single(
+        const current_position = await singleOrNull(
           db.query<{ last_processed_position: bigint }>(
             sql(
               `SELECT last_processed_position FROM ${subscriptionsTable.name} 
@@ -41,6 +41,7 @@ async function storeSubscriptionCheckpointSQLite(
           return 0;
         } else if (
           position !== null &&
+          current_position !== null &&
           current_position?.last_processed_position > position
         ) {
           return 2;
@@ -62,7 +63,7 @@ async function storeSubscriptionCheckpointSQLite(
           throw err;
         }
 
-        const current = await single(
+        const current = await singleOrNull(
           db.query<{ last_processed_position: bigint }>(
             sql(
               `SELECT last_processed_position FROM ${subscriptionsTable.name} WHERE subscription_id = ? AND partition = ?`,

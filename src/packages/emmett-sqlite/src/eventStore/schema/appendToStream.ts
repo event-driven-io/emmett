@@ -208,15 +208,20 @@ const appendToStreamRaw = async (
       options?.partition?.toString() ?? defaultTag,
     );
 
-    const returningId = await db.querySingle<{
+    const returningIds = await db.query<{
       global_position: string;
     } | null>(sqlString, values);
 
-    if (returningId?.global_position == null) {
+    if (
+      returningIds.length === 0 ||
+      !returningIds[returningIds.length - 1]?.global_position
+    ) {
       throw new Error('Could not find global position');
     }
 
-    globalPosition = BigInt(returningId.global_position);
+    globalPosition = BigInt(
+      returningIds[returningIds.length - 1]!.global_position,
+    );
   } catch (err: unknown) {
     if (isSQLiteError(err) && isOptimisticConcurrencyError(err)) {
       return {
