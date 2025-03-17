@@ -2,6 +2,7 @@
 next:
   text: 'Event'
   link: '/api-reference/event'
+documentationType: reference
 ---
 
 # API reference

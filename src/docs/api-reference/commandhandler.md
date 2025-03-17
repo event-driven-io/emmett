@@ -1,3 +1,6 @@
+---
+documentationType: reference
+---
 # Command Handler
 
 **Event Sourcing brings a repeatable pattern for handling business logic.** We can expand that to application logic.
