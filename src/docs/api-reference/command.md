@@ -1,3 +1,7 @@
+---
+documentationType: reference
+---
+
 # Command
 
 **Commands represent intention to perform business operation.** It targets a specific _audience_. It can be an application service and request with intention to “add user” or “change the order status to confirmed”. So the sender of the command must know the recipient and expects the request to be executed. Of course, the recipient may refuse to do it by not passing us the salt or throwing an exception during the request handling.

@@ -1,3 +1,7 @@
+---
+documentationType: reference
+---
+
 # Event
 
 **Events are the centrepiece of event-sourced systems.** They represent both critical points of the business process but are also used as the state. That enables you to reflect your business into the code better, getting the synergy. Let's model a simple business process: a shopping cart. You can open it, add or remove the product from it and confirm or cancel.

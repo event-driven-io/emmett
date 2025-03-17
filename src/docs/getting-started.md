@@ -1,3 +1,6 @@
+---
+documentationType: user-guide
+---
 # Getting Started
 
 ![](/logo.png)
