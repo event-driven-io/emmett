@@ -71,9 +71,7 @@ export const appendToStream = async <MessageType extends Message>(
 
   let result: AppendEventResult;
 
-  await db.command(`BEGIN TRANSACTION`);
-
-  try {
+  return await db.withTransaction(async () => {
     result = await appendToStreamRaw(
       db,
       streamName,
@@ -86,19 +84,9 @@ export const appendToStream = async <MessageType extends Message>(
 
     if (options?.onBeforeCommit)
       await options.onBeforeCommit(messagesToAppend, { db });
-  } catch (err: unknown) {
-    await db.command(`ROLLBACK`);
-    throw err;
-  }
 
-  if (result.success == null || !result.success) {
-    await db.command(`ROLLBACK`);
     return result;
-  }
-
-  await db.command(`COMMIT`);
-
-  return result;
+  });
 };
 
 const toExpectedVersion = (

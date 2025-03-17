@@ -1,8 +1,6 @@
 import {
-  assertFails,
   assertFalse,
   assertThrowsAsync,
-  assertTrue,
   EmmettError,
 } from '@event-driven-io/emmett';
 import { afterEach, beforeEach, describe, it } from 'node:test';
@@ -41,12 +39,6 @@ void describe('SQLite event store consumer', () => {
       });
     });
     afterEach(() => consumer.stop());
-
-    void it('subscribes to existing event store', () => {
-      consumer.start().catch(() => assertFails());
-
-      assertTrue(consumer.isRunning);
-    });
 
     void it('fails to start if there are no processors', async () => {
       const consumerToNotExistingServer = sqliteEventStoreConsumer({

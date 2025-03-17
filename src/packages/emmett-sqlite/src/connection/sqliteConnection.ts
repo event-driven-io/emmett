@@ -46,7 +46,7 @@ export const sqliteConnection = (
   } else {
     db = new sqlite3.Database(fileName);
   }
-
+  db.run('PRAGMA journal_mode = WAL;');
   let transactionNesting = 0;
 
   return {
@@ -90,18 +90,21 @@ export const sqliteConnection = (
       }),
     withTransaction: async <T>(fn: () => Promise<T>) => {
       try {
-        if (transactionNesting == 0) {
+        if (transactionNesting++ == 0) {
           await beginTransaction(db);
         }
-        transactionNesting++;
-        return await fn();
+        const result = await fn();
+
+        if (transactionNesting === 1) await commitTransaction(db);
+        transactionNesting--;
+
+        return result;
       } catch (err) {
         console.log(err);
-        await rollbackTransaction(db);
+
+        if (--transactionNesting === 0) await rollbackTransaction(db);
+
         throw err;
-      } finally {
-        transactionNesting--;
-        if (transactionNesting === 0) await commitTransaction(db);
       }
     },
   };
@@ -109,7 +112,7 @@ export const sqliteConnection = (
 
 const beginTransaction = (db: sqlite3.Database) =>
   new Promise<void>((resolve, reject) => {
-    db.run('BEGIN TRANSACTION', (err: Error | null) => {
+    db.run('BEGIN IMMEDIATE TRANSACTION', (err: Error | null) => {
       if (err) {
         reject(err);
         return;
