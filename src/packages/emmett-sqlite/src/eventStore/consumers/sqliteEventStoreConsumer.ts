@@ -145,6 +145,8 @@ export const sqliteEventStoreConsumer = <
     close: async () => {
       await stop();
 
+      db.close();
+
       await new Promise((resolve) => setTimeout(resolve, 250));
     },
   };
