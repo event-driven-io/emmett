@@ -110,6 +110,7 @@ export const eventStoreDBEventStoreConsumer = <
 
   const subscription = (currentSubscription = eventStoreDBSubscription({
     client,
+    from: options.from,
     eachBatch,
     batchSize:
       pulling?.batchSize ?? DefaultEventStoreDBEventStoreProcessorBatchSize,
