@@ -36,6 +36,7 @@ export default defineConfig({
         text: 'Documentation',
         items: [
           { text: 'Overview', link: '/overview' },
+          { text: 'Quick Start', link: '/quick-start' },
           { text: 'Getting Started', link: '/getting-started' },
           { text: 'API reference', link: '/api-reference', items: [
             { text: 'Event', link: '/api-reference/event' },
