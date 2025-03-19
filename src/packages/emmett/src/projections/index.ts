@@ -13,7 +13,7 @@ import { arrayUtils } from '../utils';
 export type ProjectionHandlingType = 'inline' | 'async';
 
 export type ProjectionHandler<
-  EventType extends Event = Event,
+  EventType extends Event = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > = (
@@ -22,7 +22,7 @@ export type ProjectionHandler<
 ) => Promise<void> | void;
 
 export interface ProjectionDefinition<
-  EventType extends Event = Event,
+  EventType extends Event = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > {
@@ -99,7 +99,8 @@ export const inlineProjections = <
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 >(
   definitions: ProjectionDefinition<
-    AnyEvent,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
     ReadEventMetadataType,
     ProjectionHandlerContext
   >[],
