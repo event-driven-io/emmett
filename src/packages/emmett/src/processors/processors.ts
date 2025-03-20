@@ -160,10 +160,10 @@ export type MessageHandlerProcessorOptions<
   CheckpointType
 > &
   HandlerOptions<MessageType, MessageMetadataType, HandlerContext> & {
-    type: 'handler';
+    type: 'reactor';
   };
 
-export type ProjectionProcessorOptions<
+export type ProjectorOptions<
   EventType extends AnyEvent = AnyEvent,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
@@ -179,7 +179,7 @@ export type ProjectionProcessorOptions<
     MessageMetadataType,
     HandlerContext
   >;
-  type: 'projection';
+  type: 'projector';
 };
 
 export const defaultProcessingMessageProcessingScope =
@@ -364,14 +364,14 @@ export const messageProcessor = <
   };
 };
 
-export const projectionProcessor = <
+export const projector = <
   EventType extends Event = Event,
   EventMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<EventMetaDataType>,
 >(
-  options: ProjectionProcessorOptions<
+  options: ProjectorOptions<
     EventType,
     EventMetaDataType,
     HandlerContext,

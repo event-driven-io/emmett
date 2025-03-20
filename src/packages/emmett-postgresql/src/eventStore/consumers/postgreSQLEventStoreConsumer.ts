@@ -17,7 +17,7 @@ import {
   type PostgreSQLEventStoreMessageBatchPuller,
 } from './messageBatchProcessing';
 import {
-  postgreSQLProcessor,
+  postgreSQLMessageProcessor,
   type PostgreSQLProcessor,
   type PostgreSQLProcessorOptions,
 } from './postgreSQLProcessor';
@@ -145,7 +145,7 @@ export const postgreSQLEventStoreConsumer = <
     processor: <MessageType extends Message = ConsumerMessageType>(
       options: PostgreSQLProcessorOptions<MessageType>,
     ): PostgreSQLProcessor<MessageType> => {
-      const processor = postgreSQLProcessor(options);
+      const processor = postgreSQLMessageProcessor(options);
 
       processors.push(
         // TODO: change that

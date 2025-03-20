@@ -1,9 +1,4 @@
-import {
-  assertThatArray,
-  type Event,
-  type ReadEventMetadataWithGlobalPosition,
-  type RecordedMessage,
-} from '@event-driven-io/emmett';
+import { assertThatArray, type Event } from '@event-driven-io/emmett';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -64,14 +59,9 @@ void describe('PostgreSQL event store started consumer', () => {
           connectionString,
         });
         consumer.processor<GuestStayEvent>({
-          type: 'handler',
+          type: 'reactor',
           processorId: uuid(),
-          stopAfter: (
-            event: RecordedMessage<
-              GuestStayEvent,
-              ReadEventMetadataWithGlobalPosition
-            >,
-          ) =>
+          stopAfter: (event) =>
             event.metadata.globalPosition ===
             appendResult.lastEventGlobalPosition,
           eachMessage: (event) => {
@@ -103,7 +93,7 @@ void describe('PostgreSQL event store started consumer', () => {
           connectionString,
         });
         consumer.processor<GuestStayEvent>({
-          type: 'handler',
+          type: 'reactor',
           processorId: uuid(),
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
@@ -166,7 +156,7 @@ void describe('PostgreSQL event store started consumer', () => {
           connectionString,
         });
         consumer.processor<GuestStayEvent>({
-          type: 'handler',
+          type: 'reactor',
           processorId: uuid(),
           startFrom: { lastCheckpoint: startPosition },
           stopAfter: (event) =>
@@ -223,7 +213,7 @@ void describe('PostgreSQL event store started consumer', () => {
           connectionString,
         });
         consumer.processor<GuestStayEvent>({
-          type: 'handler',
+          type: 'reactor',
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
@@ -285,7 +275,7 @@ void describe('PostgreSQL event store started consumer', () => {
           connectionString,
         });
         consumer.processor<GuestStayEvent>({
-          type: 'handler',
+          type: 'reactor',
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
@@ -347,7 +337,7 @@ void describe('PostgreSQL event store started consumer', () => {
         let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
 
         const processorOptions: PostgreSQLProcessorOptions<GuestStayEvent> = {
-          type: 'handler',
+          type: 'reactor',
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>

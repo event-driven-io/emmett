@@ -13,7 +13,7 @@ import {
   EmmettError,
   messageProcessor,
   MessageProcessor,
-  projectionProcessor,
+  projector,
   type AnyMessage,
   type BatchRecordedMessageHandlerWithContext,
   type Checkpointer,
@@ -22,7 +22,7 @@ import {
   type MessageHandlerProcessorOptions,
   type MessageHandlerResult,
   type MessageProcessingScope,
-  type ProjectionProcessorOptions,
+  type ProjectorOptions,
   type ReadEventMetadataWithGlobalPosition,
   type SingleRecordedMessageHandlerWithContext,
 } from '@event-driven-io/emmett';
@@ -169,19 +169,18 @@ type PostgreSQLMessageHandlerProcessorOptions<
 > &
   PostgreSQLConnectionOptions;
 
-export type PostgreSQLProjectionProcessorOptions<
-  EventType extends Event = Event,
-> = ProjectionProcessorOptions<
-  EventType,
-  ReadEventMetadataWithGlobalPosition,
-  PostgreSQLProcessorHandlerContext
-> &
-  PostgreSQLConnectionOptions;
+export type PostgreSQLProjectorOptions<EventType extends Event = Event> =
+  ProjectorOptions<
+    EventType,
+    ReadEventMetadataWithGlobalPosition,
+    PostgreSQLProcessorHandlerContext
+  > &
+    PostgreSQLConnectionOptions;
 
 export type PostgreSQLProcessorOptions<MessageType extends Message = Message> =
   | PostgreSQLMessageHandlerProcessorOptions<MessageType>
   // @ts-expect-error I don't know how to fix it for  now
-  | PostgreSQLProjectionProcessorOptions<MessageType>;
+  | PostgreSQLProjectorOptions<MessageType>;
 
 const postgreSQLProcessingScope = <MessageType extends Message = Message>(
   options: PostgreSQLProcessorOptions<MessageType>,
@@ -249,10 +248,10 @@ const postgreSQLProcessingScope = <MessageType extends Message = Message>(
   return processingScope;
 };
 
-export const postgreSQLProjectionProcessor = <EventType extends Event = Event>(
-  options: PostgreSQLProjectionProcessorOptions<EventType>,
+export const postgreSQLProjector = <EventType extends Event = Event>(
+  options: PostgreSQLProjectorOptions<EventType>,
 ): PostgreSQLProcessor<EventType> =>
-  projectionProcessor<
+  projector<
     EventType,
     ReadEventMetadataWithGlobalPosition,
     PostgreSQLProcessorHandlerContext
@@ -262,12 +261,14 @@ export const postgreSQLProjectionProcessor = <EventType extends Event = Event>(
     checkpoints: postgreSQLCheckpointer<EventType>(),
   });
 
-export const postgreSQLProcessor = <MessageType extends Message = Message>(
+export const postgreSQLMessageProcessor = <
+  MessageType extends Message = Message,
+>(
   options: PostgreSQLProcessorOptions<MessageType>,
 ): PostgreSQLProcessor<MessageType> => {
   if ('projection' in options) {
-    return postgreSQLProjectionProcessor(
-      options as unknown as PostgreSQLProjectionProcessorOptions<Event>,
+    return postgreSQLProjector(
+      options as unknown as PostgreSQLProjectorOptions<Event>,
     ) as PostgreSQLProcessor<MessageType>;
   }
 
