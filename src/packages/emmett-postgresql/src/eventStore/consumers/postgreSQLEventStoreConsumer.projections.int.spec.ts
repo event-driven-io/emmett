@@ -75,7 +75,7 @@ void describe('PostgreSQL event store started consumer', () => {
           connectionString,
         });
         consumer.processor<ShoppingCartSummaryEvent>({
-          type: 'projection',
+          type: 'projector',
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           stopAfter: (event) =>
@@ -112,7 +112,7 @@ void describe('PostgreSQL event store started consumer', () => {
           connectionString,
         });
         consumer.processor({
-          type: 'projection',
+          type: 'projector',
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           stopAfter: (event) =>
@@ -189,7 +189,7 @@ void describe('PostgreSQL event store started consumer', () => {
           connectionString,
         });
         consumer.processor({
-          type: 'projection',
+          type: 'projector',
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           startFrom: { lastCheckpoint: startPosition },
@@ -252,7 +252,7 @@ void describe('PostgreSQL event store started consumer', () => {
           connectionString,
         });
         consumer.processor({
-          type: 'projection',
+          type: 'projector',
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           startFrom: 'CURRENT',
@@ -317,7 +317,7 @@ void describe('PostgreSQL event store started consumer', () => {
           connectionString,
         });
         consumer.processor({
-          type: 'projection',
+          type: 'projector',
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           startFrom: 'CURRENT',
@@ -384,7 +384,7 @@ void describe('PostgreSQL event store started consumer', () => {
 
         const processorOptions: PostgreSQLProcessorOptions<ShoppingCartSummaryEvent> =
           {
-            type: 'projection',
+            type: 'projector',
             processorId: uuid(),
             projection: shoppingCartsSummaryProjection,
             startFrom: 'CURRENT',
