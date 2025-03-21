@@ -136,6 +136,8 @@ export const postgreSQLEventStoreConsumer = <
       currentMessagePuller = undefined;
     }
     await start;
+
+    await Promise.all(processors.map((p) => p.close()));
   };
 
   return {
