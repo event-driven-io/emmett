@@ -70,6 +70,7 @@ export type PongoProjectionOptions<EventType extends Event> = {
 };
 
 export const pongoProjection = <EventType extends Event>({
+  truncate,
   handle,
   canHandle,
 }: PongoProjectionOptions<EventType>): PostgreSQLProjectionDefinition<EventType> =>
@@ -87,6 +88,20 @@ export const pongoProjection = <EventType extends Event>({
         pongo,
       });
     },
+    truncate: truncate
+      ? (context) => {
+          const {
+            connection: { connectionString, client },
+          } = context;
+          const pongo = pongoClient(connectionString, {
+            connectionOptions: { client },
+          });
+          return truncate({
+            ...context,
+            pongo,
+          });
+        }
+      : undefined,
   });
 
 export type PongoMultiStreamProjectionOptions<
