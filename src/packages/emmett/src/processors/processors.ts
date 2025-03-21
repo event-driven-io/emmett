@@ -140,20 +140,6 @@ export type HandlerOptions<
       >;
     };
 
-export type MessageProcessorOptions<
-  MessageType extends AnyMessage = AnyMessage,
-  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends DefaultRecord = DefaultRecord,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
-> = BaseMessageProcessorOptions<
-  MessageType,
-  MessageMetadataType,
-  HandlerContext,
-  CheckpointType
-> &
-  HandlerOptions<MessageType, MessageMetadataType, HandlerContext>;
-
-// Complete processor options combining base and handler
 export type ReactorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -172,11 +158,14 @@ export type ProjectorOptions<
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
-> = BaseMessageProcessorOptions<
-  EventType,
-  MessageMetadataType,
-  HandlerContext,
-  CheckpointType
+> = Exclude<
+  BaseMessageProcessorOptions<
+    EventType,
+    MessageMetadataType,
+    HandlerContext,
+    CheckpointType
+  >,
+  'type'
 > & {
   projection: ProjectionDefinition<
     EventType,
@@ -240,13 +229,13 @@ export type StoreProcessorCheckpoint<
       context: HandlerContext,
     ) => Promise<StoreProcessorCheckpointResult<CheckpointType>>);
 
-export const messageProcessor = <
+export const reactor = <
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 >(
-  options: MessageProcessorOptions<
+  options: ReactorOptions<
     MessageType,
     MessageMetadataType,
     HandlerContext,
@@ -389,12 +378,7 @@ export const projector = <
 > => {
   const { projection, ...rest } = options;
 
-  return messageProcessor<
-    EventType,
-    EventMetaDataType,
-    HandlerContext,
-    CheckpointType
-  >({
+  return reactor<EventType, EventMetaDataType, HandlerContext, CheckpointType>({
     ...rest,
     type: MessageProcessorType.PROJECTOR,
     processorId: options.processorId ?? `projection:${projection.name}`,

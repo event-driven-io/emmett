@@ -11,9 +11,9 @@ import {
 } from '@event-driven-io/dumbo';
 import {
   EmmettError,
-  messageProcessor,
   MessageProcessor,
   projector,
+  reactor,
   type AnyMessage,
   type BatchRecordedMessageHandlerWithContext,
   type Checkpointer,
@@ -260,6 +260,15 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
     checkpoints: postgreSQLCheckpointer<EventType>(),
   });
 
+export const postgreSQLReactor = <MessageType extends Message = Message>(
+  options: PostgreSQLReactorOptions<MessageType>,
+): PostgreSQLProcessor<MessageType> =>
+  reactor({
+    ...options,
+    processingScope: postgreSQLProcessingScope(options),
+    checkpoints: postgreSQLCheckpointer<MessageType>(),
+  });
+
 export const postgreSQLMessageProcessor = <
   MessageType extends Message = Message,
 >(
@@ -271,9 +280,5 @@ export const postgreSQLMessageProcessor = <
     ) as PostgreSQLProcessor<MessageType>;
   }
 
-  return messageProcessor({
-    ...options,
-    processingScope: postgreSQLProcessingScope(options),
-    checkpoints: postgreSQLCheckpointer<MessageType>(),
-  }) as PostgreSQLProcessor;
+  return postgreSQLReactor(options);
 };
