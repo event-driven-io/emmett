@@ -12,7 +12,7 @@ import {
 } from './postgreSQLEventStoreConsumer';
 import type { PostgreSQLProcessorHandlerContext } from './postgreSQLProcessor';
 
-export const rebuildPostgreSQLProjection = <
+export const rebuildPostgreSQLProjections = <
   EventType extends AnyEvent = AnyEvent,
 >(
   options: Omit<
@@ -22,25 +22,19 @@ export const rebuildPostgreSQLProjection = <
     (
       | {
           projections: (
-            | (Omit<
-                ProjectorOptions<
-                  EventType,
-                  ReadEventMetadataWithGlobalPosition,
-                  PostgreSQLProcessorHandlerContext
-                >,
-                'processorId'
-              > & { processorId?: string })
+            | ProjectorOptions<
+                EventType,
+                ReadEventMetadataWithGlobalPosition,
+                PostgreSQLProcessorHandlerContext
+              >
             | PostgreSQLProjectionDefinition<EventType>
           )[];
         }
-      | (Omit<
-          ProjectorOptions<
-            EventType,
-            ReadEventMetadataWithGlobalPosition,
-            PostgreSQLProcessorHandlerContext
-          >,
-          'processorId'
-        > & { processorId?: string })
+      | ProjectorOptions<
+          EventType,
+          ReadEventMetadataWithGlobalPosition,
+          PostgreSQLProcessorHandlerContext
+        >
     ),
 ): PostgreSQLEventStoreConsumer<EventType> => {
   const consumer = postgreSQLEventStoreConsumer({
