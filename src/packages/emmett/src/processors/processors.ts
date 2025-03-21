@@ -122,7 +122,7 @@ export type HandlerOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
-> =
+> = (
   | {
       eachMessage: SingleRecordedMessageHandlerWithContext<
         MessageType,
@@ -138,7 +138,12 @@ export type HandlerOptions<
         MessageMetadataType,
         HandlerContext
       >;
-    };
+    }
+) & { onStart?: OnReactorStartHook<HandlerContext> };
+
+export type OnReactorStartHook<
+  HandlerContext extends DefaultRecord = DefaultRecord,
+> = (context: HandlerContext) => Promise<void>;
 
 export type ReactorOptions<
   MessageType extends AnyMessage = AnyMessage,
@@ -167,6 +172,7 @@ export type ProjectorOptions<
   >,
   'type'
 > & {
+  truncateOnStart?: boolean;
   projection: ProjectionDefinition<
     EventType,
     MessageMetadataType,
@@ -382,6 +388,7 @@ export const projector = <
     ...rest,
     type: MessageProcessorType.PROJECTOR,
     processorId: options.processorId ?? `projection:${projection.name}`,
+    onStart: options.truncateOnStart ? options.projection.truncate : undefined,
     eachMessage: async (
       event: RecordedMessage<EventType, EventMetaDataType>,
       context: HandlerContext,
