@@ -181,59 +181,57 @@ export type PostgreSQLProcessorOptions<MessageType extends Message = Message> =
   // @ts-expect-error I don't know how to fix it for  now
   | PostgreSQLProjectorOptions<MessageType>;
 
-const postgreSQLProcessingScope = <Result = MessageHandlerResult>(options: {
+const postgreSQLProcessingScope = (options: {
   pool: Dumbo | null;
   connectionString: string | null;
   processorId: string;
-}): MessageProcessingScope<PostgreSQLProcessorHandlerContext, Result> => {
+}): MessageProcessingScope<PostgreSQLProcessorHandlerContext> => {
   const processorConnectionString = options.connectionString;
 
   const processorPool = options.pool;
 
   const processingScope: MessageProcessingScope<
-    PostgreSQLProcessorHandlerContext,
-    Result
-  > =
-    (partialContext) =>
-    async (
-      handler: (
-        context: PostgreSQLProcessorHandlerContext,
-      ) => Result | Promise<Result>,
-    ) => {
-      const connection = partialContext?.connection;
-      const connectionString =
-        processorConnectionString ?? connection?.connectionString;
+    PostgreSQLProcessorHandlerContext
+  > = async <Result = MessageHandlerResult>(
+    handler: (
+      context: PostgreSQLProcessorHandlerContext,
+    ) => Result | Promise<Result>,
+    partialContext: Partial<PostgreSQLProcessorHandlerContext>,
+  ) => {
+    const connection = partialContext?.connection;
+    const connectionString =
+      processorConnectionString ?? connection?.connectionString;
 
-      if (!connectionString)
-        throw new EmmettError(
-          `PostgreSQL processor '${options.processorId}' is missing connection string. Ensure that you passed it through options`,
-        );
+    if (!connectionString)
+      throw new EmmettError(
+        `PostgreSQL processor '${options.processorId}' is missing connection string. Ensure that you passed it through options`,
+      );
 
-      const pool =
-        (!processorConnectionString ||
-        connectionString == processorConnectionString
-          ? connection?.pool
-          : processorPool) ?? processorPool;
+    const pool =
+      (!processorConnectionString ||
+      connectionString == processorConnectionString
+        ? connection?.pool
+        : processorPool) ?? processorPool;
 
-      if (!pool)
-        throw new EmmettError(
-          `PostgreSQL processor '${options.processorId}' is missing connection string. Ensure that you passed it through options`,
-        );
+    if (!pool)
+      throw new EmmettError(
+        `PostgreSQL processor '${options.processorId}' is missing connection string. Ensure that you passed it through options`,
+      );
 
-      return pool.withTransaction(async (transaction) => {
-        const client =
-          (await transaction.connection.open()) as NodePostgresClient;
-        return handler({
-          execute: transaction.execute,
-          connection: {
-            connectionString,
-            pool,
-            client,
-            transaction,
-          },
-        });
+    return pool.withTransaction(async (transaction) => {
+      const client =
+        (await transaction.connection.open()) as NodePostgresClient;
+      return handler({
+        execute: transaction.execute,
+        connection: {
+          connectionString,
+          pool,
+          client,
+          transaction,
+        },
       });
-    };
+    });
+  };
 
   return processingScope;
 };
@@ -293,7 +291,8 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
     processingScope: postgreSQLProcessingScope({
       pool,
       connectionString,
-      processorId: options.processorId,
+      processorId:
+        options.processorId ?? `projection:${options.projection.name}`,
     }),
     checkpoints: postgreSQLCheckpointer<EventType>(),
   });

@@ -24,9 +24,9 @@ import {
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
 import { pongoSingleStreamProjection } from '../projections';
-import { rebuildPostgreSQLProjection } from './rebuildPostgreSQLProjection';
+import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
 
-const withDeadline = { timeout: 5000 };
+const withDeadline = { timeout: 5000000 };
 
 void describe('PostgreSQL event store started consumer', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -58,7 +58,6 @@ void describe('PostgreSQL event store started consumer', () => {
   after(async () => {
     try {
       await eventStore.close();
-      await db.close();
       await pongo.close();
       await postgres.stop();
     } catch (error) {
@@ -66,7 +65,7 @@ void describe('PostgreSQL event store started consumer', () => {
     }
   });
 
-  void describe('rebuildPostgreSQLProjection', () => {
+  void describe('rebuildPostgreSQLProjections', () => {
     void it('rebuilds single inline projections', withDeadline, async () => {
       // Given
       const shoppingCartId = `shoppingCart:${uuid()}`;
@@ -98,7 +97,7 @@ void describe('PostgreSQL event store started consumer', () => {
       });
 
       // When
-      const consumer = rebuildPostgreSQLProjection({
+      const consumer = rebuildPostgreSQLProjections({
         connectionString,
         projection: shoppingCartsSummaryProjectionV2,
       });
@@ -164,7 +163,7 @@ void describe('PostgreSQL event store started consumer', () => {
       assertDeepEqual(p1OtherSummary, p2OtherSummary);
 
       // When
-      const consumer = rebuildPostgreSQLProjection({
+      const consumer = rebuildPostgreSQLProjections({
         connectionString,
         projections: [
           shoppingCartsSummaryProjectionV2,

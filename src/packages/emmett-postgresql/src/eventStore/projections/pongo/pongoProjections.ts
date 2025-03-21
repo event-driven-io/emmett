@@ -78,10 +78,10 @@ export const pongoProjection = <EventType extends Event>({
     canHandle,
     handle: async (events, context) => {
       const {
-        connection: { connectionString, client },
+        connection: { connectionString, client, pool },
       } = context;
       const pongo = pongoClient(connectionString, {
-        connectionOptions: { client },
+        connectionOptions: { client, pool },
       });
       await handle(events, {
         ...context,
@@ -91,10 +91,10 @@ export const pongoProjection = <EventType extends Event>({
     truncate: truncate
       ? (context) => {
           const {
-            connection: { connectionString, client },
+            connection: { connectionString, client, pool },
           } = context;
           const pongo = pongoClient(connectionString, {
-            connectionOptions: { client },
+            connectionOptions: { client, pool },
           });
           return truncate({
             ...context,
@@ -167,10 +167,10 @@ export const pongoMultiStreamProjection = <
     canHandle,
     truncate: async (context) => {
       const {
-        connection: { connectionString, client },
+        connection: { connectionString, client, pool },
       } = context;
       const pongo = pongoClient(connectionString, {
-        connectionOptions: { client },
+        connectionOptions: { client, pool },
       });
 
       await pongo.db().collection<Document>(collectionName).deleteMany();

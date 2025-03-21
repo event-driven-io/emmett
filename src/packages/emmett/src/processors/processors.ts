@@ -72,11 +72,9 @@ export const MessageProcessor = {
 
 export type MessageProcessingScope<
   HandlerContext extends DefaultRecord | undefined = undefined,
-  Result = MessageHandlerResult,
-> = (
-  partialContext: Partial<HandlerContext>,
-) => (
+> = <Result = MessageHandlerResult>(
   handler: (context: HandlerContext) => Result | Promise<Result>,
+  partialContext: Partial<HandlerContext>,
 ) => Result | Promise<Result>;
 
 export type Checkpointer<
@@ -168,15 +166,15 @@ export type ProjectorOptions<
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
-> = Exclude<
+> = Omit<
   BaseMessageProcessorOptions<
     EventType,
     MessageMetadataType,
     HandlerContext,
     CheckpointType
   >,
-  'type'
-> & {
+  'type' | 'processorId'
+> & { processorId?: string } & {
   truncateOnStart?: boolean;
   projection: ProjectionDefinition<
     EventType,
@@ -185,14 +183,13 @@ export type ProjectorOptions<
   >;
 };
 
-export const defaultProcessingMessageProcessingScope =
-  <HandlerContext = never>(partialContext: Partial<HandlerContext>) =>
-  (
-    handler: (
-      context: HandlerContext,
-    ) => MessageHandlerResult | Promise<MessageHandlerResult>,
-  ) =>
-    handler(partialContext as HandlerContext);
+export const defaultProcessingMessageProcessingScope = <
+  HandlerContext = never,
+  Result = MessageHandlerResult,
+>(
+  handler: (context: HandlerContext) => Result | Promise<Result>,
+  partialContext: Partial<HandlerContext>,
+) => handler(partialContext as HandlerContext);
 
 export type ReadProcessorCheckpointResult<CheckpointType = unknown> = {
   lastCheckpoint: CheckpointType | null;
@@ -270,6 +267,9 @@ export const reactor = <
 
   const { checkpoints, processorId, partition } = options;
 
+  const processingScope =
+    options.processingScope ?? defaultProcessingMessageProcessingScope;
+
   return {
     id: options.processorId,
     type: options.type ?? MessageProcessorType.REACTOR,
@@ -280,32 +280,35 @@ export const reactor = <
     ): Promise<CurrentMessageProcessorPosition<CheckpointType> | undefined> => {
       isActive = true;
 
-      if (options.hooks?.onStart) {
-        await options.hooks?.onStart(startOptions as HandlerContext);
-      }
+      return await processingScope(async (context) => {
+        if (options.hooks?.onStart) {
+          await options.hooks?.onStart(context);
+        }
 
-      if (options.startFrom !== 'CURRENT') return options.startFrom;
+        if (options.startFrom !== 'CURRENT' && options.startFrom)
+          return options.startFrom;
 
-      let lastCheckpoint: CheckpointType | null = null;
+        let lastCheckpoint: CheckpointType | null = null;
 
-      if (checkpoints) {
-        const readResult = await checkpoints?.read(
-          {
-            processorId: processorId,
-            partition: partition,
-          },
-          startOptions as HandlerContext & {
-            startFrom: MessageProcessorStartFrom<CheckpointType>;
-          },
-        );
-        lastCheckpoint = readResult.lastCheckpoint;
-      }
+        if (checkpoints) {
+          const readResult = await checkpoints?.read(
+            {
+              processorId: processorId,
+              partition: partition,
+            },
+            startOptions as HandlerContext & {
+              startFrom: MessageProcessorStartFrom<CheckpointType>;
+            },
+          );
+          lastCheckpoint = readResult.lastCheckpoint;
+        }
 
-      if (lastCheckpoint === null) return 'BEGINNING';
+        if (lastCheckpoint === null) return 'BEGINNING';
 
-      return {
-        lastCheckpoint,
-      } as CurrentMessageProcessorPosition<CheckpointType>;
+        return {
+          lastCheckpoint,
+        } as CurrentMessageProcessorPosition<CheckpointType>;
+      }, startOptions);
     },
     get isActive() {
       return isActive;
@@ -314,13 +317,9 @@ export const reactor = <
       messages: RecordedMessage<MessageType, MessageMetadataType>[],
       partialContext: Partial<HandlerContext>,
     ): Promise<MessageHandlerResult> => {
-      if (!isActive) return;
+      if (!isActive) return Promise.resolve();
 
-      const scope = options.processingScope
-        ? options.processingScope(partialContext)
-        : defaultProcessingMessageProcessingScope(partialContext);
-
-      return scope(async (context) => {
+      return await processingScope(async (context) => {
         let result: MessageHandlerResult = undefined;
 
         let lastCheckpoint: CheckpointType | null = null;
@@ -370,7 +369,7 @@ export const reactor = <
         }
 
         return result;
-      });
+      }, partialContext);
     },
   };
 };
