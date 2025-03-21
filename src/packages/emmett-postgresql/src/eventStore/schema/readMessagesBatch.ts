@@ -42,7 +42,7 @@ export type ReadMessagesBatchResult<
 > = {
   currentGlobalPosition: bigint;
   messages: RecordedMessage<MessageType, MessageMetadataType>[];
-  areEventsLeft: boolean;
+  areMessagesLeft: boolean;
 };
 
 export const readMessagesBatch = async <
@@ -75,7 +75,7 @@ export const readMessagesBatch = async <
   const limitCondition =
     'batchSize' in options ? `LIMIT ${options.batchSize}` : '';
 
-  const events: RecordedMessage<MessageType, RecordedMessageMetadataType>[] =
+  const messages: RecordedMessage<MessageType, RecordedMessageMetadataType>[] =
     await mapRows(
       execute.query<ReadMessagesBatchSqlResult<MessageType>>(
         sql(
@@ -113,12 +113,12 @@ export const readMessagesBatch = async <
       },
     );
 
-  return events.length > 0
+  return messages.length > 0
     ? {
         currentGlobalPosition:
-          events[events.length - 1]!.metadata.globalPosition,
-        messages: events,
-        areEventsLeft: events.length === batchSize,
+          messages[messages.length - 1]!.metadata.globalPosition,
+        messages: messages,
+        areMessagesLeft: messages.length === batchSize,
       }
     : {
         currentGlobalPosition:
@@ -128,6 +128,6 @@ export const readMessagesBatch = async <
               ? options.after
               : 0n,
         messages: [],
-        areEventsLeft: false,
+        areMessagesLeft: false,
       };
 };
