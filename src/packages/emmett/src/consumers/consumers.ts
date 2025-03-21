@@ -17,7 +17,7 @@ export type MessageConsumer<
   consumerId: string;
   isRunning: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  processors: Array<MessageProcessor<ConsumerMessageType, any, any>>;
+  processors: ReadonlyArray<MessageProcessor<ConsumerMessageType, any, any>>;
   start: () => Promise<void>;
   stop: () => Promise<void>;
   close: () => Promise<void>;
