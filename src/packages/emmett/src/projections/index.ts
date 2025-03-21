@@ -22,6 +22,10 @@ export type ProjectionHandler<
   ProjectionHandlerContext
 >;
 
+export type TruncateProjection<
+  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+> = (context: ProjectionHandlerContext) => Promise<void>;
+
 export interface ProjectionDefinition<
   EventType extends Event = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -34,6 +38,7 @@ export interface ProjectionDefinition<
     EventMetaDataType,
     ProjectionHandlerContext
   >;
+  truncate?: TruncateProjection<ProjectionHandlerContext>;
 }
 
 export type ProjectionRegistration<

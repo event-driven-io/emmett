@@ -2,6 +2,7 @@ import {
   type CanHandle,
   type Event,
   type ReadEvent,
+  type TruncateProjection,
 } from '@event-driven-io/emmett';
 import {
   pongoClient,
@@ -65,6 +66,7 @@ export type PongoProjectionOptions<EventType extends Event> = {
     context: PongoProjectionHandlerContext,
   ) => Promise<void>;
   canHandle: CanHandle<EventType>;
+  truncate?: TruncateProjection<PongoProjectionHandlerContext>;
 };
 
 export const pongoProjection = <EventType extends Event>({
@@ -148,6 +150,16 @@ export const pongoMultiStreamProjection = <
       }
     },
     canHandle,
+    truncate: async (context) => {
+      const {
+        connection: { connectionString, client },
+      } = context;
+      const pongo = pongoClient(connectionString, {
+        connectionOptions: { client },
+      });
+
+      await pongo.db().collection<Document>(collectionName).deleteMany();
+    },
   });
 };
 
