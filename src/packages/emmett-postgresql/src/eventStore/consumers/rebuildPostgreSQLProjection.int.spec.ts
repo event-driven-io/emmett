@@ -25,7 +25,7 @@ import {
 import { pongoSingleStreamProjection } from '../projections';
 import { rebuildPostgreSQLProjection } from './rebuildPostgreSQLProjection';
 
-const withDeadline = { timeout: 5000000 };
+const withDeadline = { timeout: 5000 };
 
 void describe('PostgreSQL event store started consumer', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -33,18 +33,25 @@ void describe('PostgreSQL event store started consumer', () => {
   let eventStore: PostgresEventStore;
   let pongo: PongoClient;
   let summaries: PongoCollection<ShoppingCartSummary>;
+  let otherSummaries: PongoCollection<ShoppingCartSummary>;
   const productItem = { price: 10, productId: uuid(), quantity: 10 };
   const confirmedAt = new Date();
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
     connectionString = postgres.getConnectionUri();
+
     eventStore = getPostgreSQLEventStore(connectionString, {
-      projections: projections.inline([shoppingCartsSummaryProjection]),
+      projections: projections.inline([
+        shoppingCartsSummaryProjection,
+        otherShoppingCartsSummaryProjection,
+      ]),
     });
     pongo = pongoClient(connectionString);
     summaries = pongo.db().collection(shoppingCartsSummaryCollectionName);
-    await eventStore.schema.migrate();
+    otherSummaries = pongo
+      .db()
+      .collection(otherShoppingCartsSummaryCollectionName);
   });
 
   after(async () => {
@@ -57,71 +64,140 @@ void describe('PostgreSQL event store started consumer', () => {
     }
   });
 
-  void describe('eachMessage', () => {
-    void it(
-      'handles all events appended to event store BEFORE processor was started',
-      withDeadline,
-      async () => {
-        // Given
-        const shoppingCartId = `shoppingCart:${uuid()}`;
-        const otherShoppingCartId = `shoppingCart:${uuid()}`;
+  void describe('rebuildPostgreSQLProjection', () => {
+    void it('rebuilds single inline projections', withDeadline, async () => {
+      // Given
+      const shoppingCartId = `shoppingCart:${uuid()}`;
+      const otherShoppingCartId = `shoppingCart:${uuid()}`;
+      const streamName = `shopping_cart-${shoppingCartId}`;
+      const otherStreamName = `shopping_cart-${otherShoppingCartId}`;
+      const events: ShoppingCartSummaryEvent[] = [
+        { type: 'ProductItemAdded', data: { productItem } },
+        { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
+      ];
 
-        const streamName = `shopping_cart-${shoppingCartId}`;
-        const otherStreamName = `shopping_cart-${otherShoppingCartId}`;
+      await eventStore.appendToStream(streamName, events);
+      await eventStore.appendToStream(otherStreamName, events);
 
-        const events: ShoppingCartSummaryEvent[] = [
-          { type: 'ProductItemAdded', data: { productItem } },
-          { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
-        ];
+      let summary = await summaries.findOne({ _id: streamName });
+      let otherSummary = await summaries.findOne({ _id: otherStreamName });
 
-        await eventStore.appendToStream(streamName, events);
-        await eventStore.appendToStream(otherStreamName, events);
+      assertDeepEqual(summary, {
+        _id: streamName,
+        status: 'confirmed',
+        _version: 2n,
+        productItemsCount: productItem.quantity,
+      });
+      assertDeepEqual(otherSummary, {
+        _id: otherStreamName,
+        status: 'confirmed',
+        _version: 2n,
+        productItemsCount: productItem.quantity,
+      });
 
-        let summary = await summaries.findOne({ _id: streamName });
-        let otherSummary = await summaries.findOne({ _id: otherStreamName });
+      // When
+      const consumer = rebuildPostgreSQLProjection({
+        connectionString,
+        projection: shoppingCartsSummaryProjectionV2,
+      });
+
+      try {
+        await consumer.start();
+
+        summary = await summaries.findOne({ _id: streamName });
+        otherSummary = await summaries.findOne({ _id: otherStreamName });
 
         assertDeepEqual(summary, {
           _id: streamName,
           status: 'confirmed',
           _version: 2n,
-          productItemsCount: productItem.quantity,
+          productItemsCount: productItem.quantity * v2QuantityMultiplier,
         });
         assertDeepEqual(otherSummary, {
           _id: otherStreamName,
           status: 'confirmed',
           _version: 2n,
-          productItemsCount: productItem.quantity,
+          productItemsCount: productItem.quantity * v2QuantityMultiplier,
+        });
+      } finally {
+        await consumer.close();
+      }
+    });
+
+    void it('rebuilds multiple inline projection', withDeadline, async () => {
+      // Given
+      const shoppingCartId = `shoppingCart:${uuid()}`;
+      const otherShoppingCartId = `shoppingCart:${uuid()}`;
+      const streamName = `shopping_cart-${shoppingCartId}`;
+      const otherStreamName = `shopping_cart-${otherShoppingCartId}`;
+      const events: ShoppingCartSummaryEvent[] = [
+        { type: 'ProductItemAdded', data: { productItem } },
+        { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
+      ];
+
+      await eventStore.appendToStream(streamName, events);
+      await eventStore.appendToStream(otherStreamName, events);
+
+      let p1Summary = await summaries.findOne({ _id: streamName });
+      let p1OtherSummary = await summaries.findOne({ _id: otherStreamName });
+      let p2Summary = await otherSummaries.findOne({ _id: streamName });
+      let p2OtherSummary = await otherSummaries.findOne({
+        _id: otherStreamName,
+      });
+
+      assertDeepEqual(p1Summary, {
+        _id: streamName,
+        status: 'confirmed',
+        _version: 2n,
+        productItemsCount: productItem.quantity,
+      });
+      assertDeepEqual(p1OtherSummary, {
+        _id: otherStreamName,
+        status: 'confirmed',
+        _version: 2n,
+        productItemsCount: productItem.quantity,
+      });
+
+      assertDeepEqual(p1Summary, p2Summary);
+      assertDeepEqual(p1OtherSummary, p2OtherSummary);
+
+      // When
+      const consumer = rebuildPostgreSQLProjection({
+        connectionString,
+        projections: [
+          shoppingCartsSummaryProjectionV2,
+          otherShoppingCartsSummaryProjectionV2,
+        ],
+      });
+
+      try {
+        await consumer.start();
+
+        p1Summary = await summaries.findOne({ _id: streamName });
+        p1OtherSummary = await summaries.findOne({ _id: otherStreamName });
+        p2Summary = await otherSummaries.findOne({ _id: streamName });
+        p2OtherSummary = await otherSummaries.findOne({
+          _id: otherStreamName,
         });
 
-        // When
-        const consumer = rebuildPostgreSQLProjection({
-          connectionString,
-          projection: shoppingCartsSummaryProjectionV2,
+        assertDeepEqual(p1Summary, {
+          _id: streamName,
+          status: 'confirmed',
+          _version: 2n,
+          productItemsCount: productItem.quantity * v2QuantityMultiplier,
         });
-
-        try {
-          await consumer.start();
-
-          summary = await summaries.findOne({ _id: streamName });
-          otherSummary = await summaries.findOne({ _id: otherStreamName });
-
-          assertDeepEqual(summary, {
-            _id: streamName,
-            status: 'confirmed',
-            _version: 2n,
-            productItemsCount: productItem.quantity * v2QuantityMultiplier,
-          });
-          assertDeepEqual(otherSummary, {
-            _id: otherStreamName,
-            status: 'confirmed',
-            _version: 2n,
-            productItemsCount: productItem.quantity * v2QuantityMultiplier,
-          });
-        } finally {
-          await consumer.close();
-        }
-      },
-    );
+        assertDeepEqual(p1OtherSummary, {
+          _id: otherStreamName,
+          status: 'confirmed',
+          _version: 2n,
+          productItemsCount: productItem.quantity * v2QuantityMultiplier,
+        });
+        assertDeepEqual(p1Summary, p2Summary);
+        assertDeepEqual(p1OtherSummary, p2OtherSummary);
+      } finally {
+        await consumer.close();
+      }
+    });
   });
 });
 
@@ -132,6 +208,7 @@ type ShoppingCartSummary = {
 };
 
 const shoppingCartsSummaryCollectionName = 'shoppingCartsSummary';
+const otherShoppingCartsSummaryCollectionName = 'otherShoppingCartsSummary';
 
 export type ShoppingCartSummaryEvent = ProductItemAdded | ShoppingCartConfirmed;
 
@@ -193,6 +270,26 @@ const shoppingCartsSummaryProjection = pongoSingleStreamProjection({
 
 const shoppingCartsSummaryProjectionV2 = pongoSingleStreamProjection({
   collectionName: shoppingCartsSummaryCollectionName,
+  evolve: evolveV2,
+  canHandle: ['ProductItemAdded', 'ShoppingCartConfirmed'],
+  initialState: () => ({
+    status: 'pending',
+    productItemsCount: 0,
+  }),
+});
+
+const otherShoppingCartsSummaryProjection = pongoSingleStreamProjection({
+  collectionName: otherShoppingCartsSummaryCollectionName,
+  evolve,
+  canHandle: ['ProductItemAdded', 'ShoppingCartConfirmed'],
+  initialState: () => ({
+    status: 'pending',
+    productItemsCount: 0,
+  }),
+});
+
+const otherShoppingCartsSummaryProjectionV2 = pongoSingleStreamProjection({
+  collectionName: otherShoppingCartsSummaryCollectionName,
   evolve: evolveV2,
   canHandle: ['ProductItemAdded', 'ShoppingCartConfirmed'],
   initialState: () => ({
