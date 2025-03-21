@@ -30,6 +30,7 @@ void describe('PostgreSQL event store consumer', () => {
     type: MessageProcessorType.REACTOR,
     id: uuid(),
     start: () => Promise.resolve('BEGINNING'),
+    close: () => Promise.resolve(),
     handle: () => Promise.resolve(),
     isActive: false,
   };

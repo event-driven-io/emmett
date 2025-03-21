@@ -45,6 +45,7 @@ export type MessageProcessor<
   start: (
     options: Partial<HandlerContext>,
   ) => Promise<CurrentMessageProcessorPosition<CheckpointType> | undefined>;
+  close: () => Promise<void>;
   isActive: boolean;
   handle: BatchRecordedMessageHandlerWithContext<
     MessageType,
@@ -116,13 +117,17 @@ export type BaseMessageProcessorOptions<
     CheckpointType
   >;
   canHandle?: CanHandle<MessageType>;
+  hooks?: {
+    onStart?: OnReactorStartHook<HandlerContext>;
+    onClose?: OnReactorCloseHook;
+  };
 };
 
 export type HandlerOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
-> = (
+> =
   | {
       eachMessage: SingleRecordedMessageHandlerWithContext<
         MessageType,
@@ -138,12 +143,13 @@ export type HandlerOptions<
         MessageMetadataType,
         HandlerContext
       >;
-    }
-) & { onStart?: OnReactorStartHook<HandlerContext> };
+    };
 
 export type OnReactorStartHook<
   HandlerContext extends DefaultRecord = DefaultRecord,
 > = (context: HandlerContext) => Promise<void>;
+
+export type OnReactorCloseHook = () => Promise<void>;
 
 export type ReactorOptions<
   MessageType extends AnyMessage = AnyMessage,
@@ -268,13 +274,15 @@ export const reactor = <
   return {
     id: options.processorId,
     type: options.type ?? MessageProcessorType.REACTOR,
+    close: () =>
+      options.hooks?.onClose ? options.hooks?.onClose() : Promise.resolve(),
     start: async (
       startOptions: Partial<HandlerContext>,
     ): Promise<CurrentMessageProcessorPosition<CheckpointType> | undefined> => {
       isActive = true;
 
-      if (options.onStart) {
-        await options.onStart(startOptions as HandlerContext);
+      if (options.hooks?.onStart) {
+        await options.hooks?.onStart(startOptions as HandlerContext);
       }
 
       if (options.startFrom !== 'CURRENT') return options.startFrom;
@@ -393,7 +401,19 @@ export const projector = <
     ...rest,
     type: MessageProcessorType.PROJECTOR,
     processorId: options.processorId ?? `projection:${projection.name}`,
-    onStart: options.truncateOnStart ? options.projection.truncate : undefined,
+    hooks: {
+      onStart:
+        (options.truncateOnStart && options.projection.truncate) ||
+        options.hooks?.onStart
+          ? async (context: HandlerContext) => {
+              if (options.truncateOnStart && options.projection.truncate)
+                await options.projection.truncate(context);
+
+              if (options.hooks?.onStart) await options.hooks?.onStart(context);
+            }
+          : undefined,
+      onClose: options.hooks?.onClose,
+    },
     eachMessage: async (
       event: RecordedMessage<EventType, EventMetaDataType>,
       context: HandlerContext,
