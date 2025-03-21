@@ -72,13 +72,12 @@ export const MessageProcessor = {
 
 export type MessageProcessingScope<
   HandlerContext extends DefaultRecord | undefined = undefined,
+  Result = MessageHandlerResult,
 > = (
   partialContext: Partial<HandlerContext>,
 ) => (
-  handler: (
-    context: HandlerContext,
-  ) => MessageHandlerResult | Promise<MessageHandlerResult>,
-) => MessageHandlerResult | Promise<MessageHandlerResult>;
+  handler: (context: HandlerContext) => Result | Promise<Result>,
+) => Result | Promise<Result>;
 
 export type Checkpointer<
   MessageType extends AnyMessage = AnyMessage,

@@ -181,33 +181,24 @@ export type PostgreSQLProcessorOptions<MessageType extends Message = Message> =
   // @ts-expect-error I don't know how to fix it for  now
   | PostgreSQLProjectorOptions<MessageType>;
 
-const postgreSQLProcessingScope = <MessageType extends Message = Message>(
-  options: PostgreSQLProcessorOptions<MessageType>,
-): MessageProcessingScope<PostgreSQLProcessorHandlerContext> => {
-  const poolOptions = {
-    ...(options.connectionOptions ? options.connectionOptions : {}),
-  };
-  const processorConnectionString =
-    'connectionString' in poolOptions ? poolOptions.connectionString : null;
+const postgreSQLProcessingScope = <Result = MessageHandlerResult>(options: {
+  pool: Dumbo | null;
+  connectionString: string | null;
+  processorId: string;
+}): MessageProcessingScope<PostgreSQLProcessorHandlerContext, Result> => {
+  const processorConnectionString = options.connectionString;
 
-  const processorPool =
-    'dumbo' in poolOptions
-      ? (poolOptions.dumbo as NodePostgresPool)
-      : processorConnectionString
-        ? dumbo({
-            connectionString: processorConnectionString,
-            ...poolOptions,
-          })
-        : null;
+  const processorPool = options.pool;
 
   const processingScope: MessageProcessingScope<
-    PostgreSQLProcessorHandlerContext
+    PostgreSQLProcessorHandlerContext,
+    Result
   > =
     (partialContext) =>
     async (
       handler: (
         context: PostgreSQLProcessorHandlerContext,
-      ) => MessageHandlerResult | Promise<MessageHandlerResult>,
+      ) => Result | Promise<Result>,
     ) => {
       const connection = partialContext?.connection;
       const connectionString =
@@ -247,27 +238,94 @@ const postgreSQLProcessingScope = <MessageType extends Message = Message>(
   return processingScope;
 };
 
+const getProcessorPool = (options: PostgreSQLConnectionOptions) => {
+  const poolOptions = {
+    ...(options.connectionOptions ? options.connectionOptions : {}),
+  };
+  const processorConnectionString =
+    'connectionString' in poolOptions
+      ? (poolOptions.connectionString ?? null)
+      : null;
+
+  const processorPool =
+    'dumbo' in poolOptions
+      ? (poolOptions.dumbo as NodePostgresPool)
+      : processorConnectionString
+        ? dumbo({
+            connectionString: processorConnectionString,
+            ...poolOptions,
+          })
+        : null;
+
+  return {
+    pool: processorPool,
+    connectionString: processorConnectionString,
+    close:
+      processorPool != null && !('dumbo' in poolOptions)
+        ? processorPool.close
+        : undefined,
+  };
+};
+
 export const postgreSQLProjector = <EventType extends Event = Event>(
   options: PostgreSQLProjectorOptions<EventType>,
-): PostgreSQLProcessor<EventType> =>
-  projector<
+): PostgreSQLProcessor<EventType> => {
+  const { pool, connectionString, close } = getProcessorPool(options);
+
+  const hooks = {
+    onStart: options.hooks?.onStart,
+    onClose:
+      options.hooks?.onClose || close
+        ? async () => {
+            if (options.hooks?.onClose) await options.hooks?.onClose();
+            if (close) await close();
+          }
+        : undefined,
+  };
+
+  return projector<
     EventType,
     ReadEventMetadataWithGlobalPosition,
     PostgreSQLProcessorHandlerContext
   >({
     ...options,
-    processingScope: postgreSQLProcessingScope(options),
+    hooks,
+    processingScope: postgreSQLProcessingScope({
+      pool,
+      connectionString,
+      processorId: options.processorId,
+    }),
     checkpoints: postgreSQLCheckpointer<EventType>(),
   });
+};
 
 export const postgreSQLReactor = <MessageType extends Message = Message>(
   options: PostgreSQLReactorOptions<MessageType>,
-): PostgreSQLProcessor<MessageType> =>
-  reactor({
+): PostgreSQLProcessor<MessageType> => {
+  const { pool, connectionString, close } = getProcessorPool(options);
+
+  const hooks = {
+    onStart: options.hooks?.onStart,
+    onClose:
+      options.hooks?.onClose || close
+        ? async () => {
+            if (options.hooks?.onClose) await options.hooks?.onClose();
+            if (close) await close();
+          }
+        : undefined,
+  };
+
+  return reactor({
     ...options,
-    processingScope: postgreSQLProcessingScope(options),
+    hooks,
+    processingScope: postgreSQLProcessingScope({
+      pool,
+      connectionString,
+      processorId: options.processorId,
+    }),
     checkpoints: postgreSQLCheckpointer<MessageType>(),
   });
+};
 
 export const postgreSQLMessageProcessor = <
   MessageType extends Message = Message,
