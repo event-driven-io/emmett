@@ -19,10 +19,10 @@ import {
   type Checkpointer,
   type Event,
   type Message,
-  type MessageHandlerProcessorOptions,
   type MessageHandlerResult,
   type MessageProcessingScope,
   type ProjectorOptions,
+  type ReactorOptions,
   type ReadEventMetadataWithGlobalPosition,
   type SingleRecordedMessageHandlerWithContext,
 } from '@event-driven-io/emmett';
@@ -160,14 +160,13 @@ type PostgreSQLConnectionOptions = {
   connectionOptions?: PostgreSQLProcessorConnectionOptions;
 };
 
-type PostgreSQLMessageHandlerProcessorOptions<
-  MessageType extends Message = Message,
-> = MessageHandlerProcessorOptions<
-  MessageType,
-  ReadEventMetadataWithGlobalPosition,
-  PostgreSQLProcessorHandlerContext
-> &
-  PostgreSQLConnectionOptions;
+type PostgreSQLReactorOptions<MessageType extends Message = Message> =
+  ReactorOptions<
+    MessageType,
+    ReadEventMetadataWithGlobalPosition,
+    PostgreSQLProcessorHandlerContext
+  > &
+    PostgreSQLConnectionOptions;
 
 export type PostgreSQLProjectorOptions<EventType extends Event = Event> =
   ProjectorOptions<
@@ -178,7 +177,7 @@ export type PostgreSQLProjectorOptions<EventType extends Event = Event> =
     PostgreSQLConnectionOptions;
 
 export type PostgreSQLProcessorOptions<MessageType extends Message = Message> =
-  | PostgreSQLMessageHandlerProcessorOptions<MessageType>
+  | PostgreSQLReactorOptions<MessageType>
   // @ts-expect-error I don't know how to fix it for  now
   | PostgreSQLProjectorOptions<MessageType>;
 

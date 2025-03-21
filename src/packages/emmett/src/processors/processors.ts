@@ -28,6 +28,12 @@ export type MessageProcessorStartFrom<CheckpointType = any> =
   | CurrentMessageProcessorPosition<CheckpointType>
   | 'CURRENT';
 
+export type MessageProcessorType = 'projector' | 'reactor';
+export const MessageProcessorType = {
+  PROJECTOR: 'projector' as MessageProcessorType,
+  REACTOR: 'reactor' as MessageProcessorType,
+};
+
 export type MessageProcessor<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -35,6 +41,7 @@ export type MessageProcessor<
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = {
   id: string;
+  type: string;
   start: (
     options: Partial<HandlerContext>,
   ) => Promise<CurrentMessageProcessorPosition<CheckpointType> | undefined>;
@@ -93,6 +100,7 @@ export type BaseMessageProcessorOptions<
   HandlerContext extends DefaultRecord = DefaultRecord,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = {
+  type?: string;
   processorId: string;
   version?: number;
   partition?: string;
@@ -143,12 +151,10 @@ export type MessageProcessorOptions<
   HandlerContext,
   CheckpointType
 > &
-  HandlerOptions<MessageType, MessageMetadataType, HandlerContext> & {
-    type: string;
-  };
+  HandlerOptions<MessageType, MessageMetadataType, HandlerContext>;
 
 // Complete processor options combining base and handler
-export type MessageHandlerProcessorOptions<
+export type ReactorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
@@ -159,9 +165,7 @@ export type MessageHandlerProcessorOptions<
   HandlerContext,
   CheckpointType
 > &
-  HandlerOptions<MessageType, MessageMetadataType, HandlerContext> & {
-    type: 'reactor';
-  };
+  HandlerOptions<MessageType, MessageMetadataType, HandlerContext>;
 
 export type ProjectorOptions<
   EventType extends AnyEvent = AnyEvent,
@@ -179,7 +183,6 @@ export type ProjectorOptions<
     MessageMetadataType,
     HandlerContext
   >;
-  type: 'projector';
 };
 
 export const defaultProcessingMessageProcessingScope =
@@ -269,6 +272,7 @@ export const messageProcessor = <
 
   return {
     id: options.processorId,
+    type: options.type ?? MessageProcessorType.REACTOR,
     start: async (
       startOptions: Partial<HandlerContext>,
     ): Promise<CurrentMessageProcessorPosition<CheckpointType> | undefined> => {
@@ -392,6 +396,7 @@ export const projector = <
     CheckpointType
   >({
     ...rest,
+    type: MessageProcessorType.PROJECTOR,
     processorId: options.processorId ?? `projection:${projection.name}`,
     eachMessage: async (
       event: RecordedMessage<EventType, EventMetaDataType>,
