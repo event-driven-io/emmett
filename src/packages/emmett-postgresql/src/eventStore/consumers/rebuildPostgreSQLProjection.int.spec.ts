@@ -7,6 +7,7 @@ import {
   pongoClient,
   type PongoClient,
   type PongoCollection,
+  type PongoDb,
 } from '@event-driven-io/pongo';
 import {
   PostgreSqlContainer,
@@ -36,6 +37,7 @@ void describe('PostgreSQL event store started consumer', () => {
   let otherSummaries: PongoCollection<ShoppingCartSummary>;
   const productItem = { price: 10, productId: uuid(), quantity: 10 };
   const confirmedAt = new Date();
+  let db: PongoDb;
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
@@ -48,15 +50,15 @@ void describe('PostgreSQL event store started consumer', () => {
       ]),
     });
     pongo = pongoClient(connectionString);
-    summaries = pongo.db().collection(shoppingCartsSummaryCollectionName);
-    otherSummaries = pongo
-      .db()
-      .collection(otherShoppingCartsSummaryCollectionName);
+    db = pongo.db();
+    summaries = db.collection(shoppingCartsSummaryCollectionName);
+    otherSummaries = db.collection(otherShoppingCartsSummaryCollectionName);
   });
 
   after(async () => {
     try {
       await eventStore.close();
+      await db.close();
       await pongo.close();
       await postgres.stop();
     } catch (error) {
