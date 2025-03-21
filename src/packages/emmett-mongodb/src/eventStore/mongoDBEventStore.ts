@@ -173,6 +173,10 @@ export type MongoDBEventStoreConnectionOptions =
   | MongoDBEventStoreClientOptions
   | MongoDBEventStoreConnectionStringOptions;
 
+export type MongoDBEventStoreHookHandlerContext = {
+  eventStore: MongoDBEventStore;
+};
+
 export type MongoDBEventStoreOptions = {
   projections?: ProjectionRegistration<
     'inline',
@@ -181,7 +185,10 @@ export type MongoDBEventStoreOptions = {
   >[];
   storage?: MongoDBEventStoreStorageOptions;
 } & MongoDBEventStoreConnectionOptions &
-  DefaultEventStoreOptions<MongoDBEventStore>;
+  DefaultEventStoreOptions<
+    MongoDBEventStore,
+    MongoDBEventStoreHookHandlerContext
+  >;
 
 export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
   projections: ProjectionQueries<StreamType>;
@@ -393,13 +400,9 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       );
     }
 
-    await tryPublishMessagesAfterCommit<MongoDBEventStore>(
-      eventsToAppend,
-      this.options.hooks,
-      // {
-      // TODO: same context as InlineProjectionHandlerContext for mongodb?
-      // },
-    );
+    await tryPublishMessagesAfterCommit(eventsToAppend, this.options.hooks, {
+      eventStore: this,
+    });
 
     return {
       nextExpectedStreamVersion:
