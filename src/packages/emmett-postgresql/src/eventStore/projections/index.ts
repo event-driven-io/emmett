@@ -20,7 +20,7 @@ export type PostgreSQLProjectionHandlerContext = {
   connection: {
     connectionString: string;
     client: NodePostgresClient;
-    // transaction: NodePostgresTransaction;
+    transaction: NodePostgresTransaction;
     pool: Dumbo;
   };
 };
@@ -77,7 +77,7 @@ export const handleProjections = async <EventType extends Event = Event>(
         connectionString,
         pool,
         client,
-        // transaction,
+        transaction,
       },
       execute: transaction.execute,
     });

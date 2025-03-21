@@ -7,8 +7,11 @@ import {
   type BatchRecordedMessageHandlerWithoutContext,
   type DefaultRecord,
   type Message,
+  type MessageConsumer,
+  type MessageConsumerOptions,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
+import { v7 as uuid } from 'uuid';
 import {
   DefaultPostgreSQLEventStoreProcessorBatchSize,
   DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
@@ -36,14 +39,13 @@ export type ExtendableContext = Partial<PostgreSQLConsumerContext> &
 export type PostgreSQLEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
-> = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  processors?: Array<MessageProcessor<ConsumerMessageType, any, any, bigint>>;
+> = MessageConsumerOptions<ConsumerMessageType> & {
   pulling?: {
     batchSize?: number;
     pullingFrequencyInMs?: number;
   };
 };
+
 export type PostgreSQLEventStoreConsumerOptions<
   ConsumerMessageType extends Message = Message,
 > = PostgreSQLEventStoreConsumerConfig<ConsumerMessageType> & {
@@ -54,17 +56,12 @@ export type PostgreSQLEventStoreConsumerOptions<
 export type PostgreSQLEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
-> = Readonly<{
-  isRunning: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  processors: Array<MessageProcessor<ConsumerMessageType, any, any>>;
-  processor: <MessageType extends Message = ConsumerMessageType>(
-    options: PostgreSQLProcessorOptions<MessageType>,
-  ) => PostgreSQLProcessor<MessageType>;
-  start: () => Promise<void>;
-  stop: () => Promise<void>;
-  close: () => Promise<void>;
-}>;
+> = MessageConsumer<ConsumerMessageType> &
+  Readonly<{
+    processor: <MessageType extends Message = ConsumerMessageType>(
+      options: PostgreSQLProcessorOptions<MessageType>,
+    ) => PostgreSQLProcessor<MessageType>;
+  }>;
 
 export const postgreSQLEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
@@ -138,10 +135,11 @@ export const postgreSQLEventStoreConsumer = <
   };
 
   return {
-    processors,
+    consumerId: options.consumerId ?? uuid(),
     get isRunning() {
       return isRunning;
     },
+    processors,
     processor: <MessageType extends Message = ConsumerMessageType>(
       options: PostgreSQLProcessorOptions<MessageType>,
     ): PostgreSQLProcessor<MessageType> => {
