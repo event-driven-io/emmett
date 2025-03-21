@@ -272,6 +272,11 @@ export const reactor = <
       startOptions: Partial<HandlerContext>,
     ): Promise<CurrentMessageProcessorPosition<CheckpointType> | undefined> => {
       isActive = true;
+
+      if (options.onStart) {
+        await options.onStart(startOptions as HandlerContext);
+      }
+
       if (options.startFrom !== 'CURRENT') return options.startFrom;
 
       let lastCheckpoint: CheckpointType | null = null;
