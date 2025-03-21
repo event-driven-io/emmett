@@ -40,6 +40,9 @@ export type PostgreSQLEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
 > = MessageConsumerOptions<ConsumerMessageType> & {
+  stopWhen?: {
+    noMessagesLeft?: boolean;
+  };
   pulling?: {
     batchSize?: number;
     pullingFrequencyInMs?: number;
@@ -115,6 +118,7 @@ export const postgreSQLEventStoreConsumer = <
 
   const messagePooler = (currentMessagePuller =
     postgreSQLEventStoreMessageBatchPuller({
+      stopWhen: options.stopWhen,
       executor: pool.execute,
       eachBatch,
       batchSize:
