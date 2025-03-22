@@ -23,6 +23,7 @@ export interface DocumentsCollection<T extends Document> {
     options?: HandleOptions,
   ) => HandleResult<T>;
   findOne: (predicate?: Predicate<T>) => T | null;
+  find: (predicate?: Predicate<T>) => T[];
   insertOne: (
     document: OptionalUnlessRequiredIdAndVersion<T>,
   ) => InsertOneResult;
@@ -39,13 +40,14 @@ export interface Database {
 }
 
 type Predicate<T> = (item: T) => boolean;
+type CollectionName = string;
 
 export const getInMemoryDatabase = (): Database => {
-  const storage = new Map<string, WithIdAndVersion<Document>[]>();
+  const storage = new Map<CollectionName, WithIdAndVersion<Document>[]>();
 
   return {
-    collection: <T extends Document>(
-      collectionName: string,
+    collection: <T extends Document, CollectionName extends string>(
+      collectionName: CollectionName,
       collectionOptions: {
         errors?: HandleOptionErrors;
       } = {},
@@ -105,6 +107,16 @@ export const getInMemoryDatabase = (): Database => {
 
           return firstOne as T | null;
         },
+        find: (predicate?: Predicate<T>): T[] => {
+          ensureCollectionCreated();
+
+          const documentsInCollection = storage.get(collectionName);
+          const filteredDocuments = predicate
+            ? documentsInCollection?.filter((doc) => predicate(doc as T))
+            : documentsInCollection;
+
+          return filteredDocuments as T[];
+        },
         deleteOne: (predicate?: Predicate<T>): DeleteResult => {
           ensureCollectionCreated();
 
@@ -141,20 +153,20 @@ export const getInMemoryDatabase = (): Database => {
                 { operationName: 'deleteOne', collectionName, errors },
               );
             }
-          } else {
-            const newCollection = documentsInCollection.slice(1);
-
-            storage.set(collectionName, newCollection);
-
-            return operationResult<DeleteResult>(
-              {
-                successful: true,
-                matchedCount: 1,
-                deletedCount: 1,
-              },
-              { operationName: 'deleteOne', collectionName, errors },
-            );
           }
+
+          const newCollection = documentsInCollection.slice(1);
+
+          storage.set(collectionName, newCollection);
+
+          return operationResult<DeleteResult>(
+            {
+              successful: true,
+              matchedCount: 1,
+              deletedCount: 1,
+            },
+            { operationName: 'deleteOne', collectionName, errors },
+          );
         },
         replaceOne: (
           predicate: Predicate<T>,
@@ -171,7 +183,7 @@ export const getInMemoryDatabase = (): Database => {
 
           const firstIndex = foundIndexes[0];
 
-          if (!firstIndex || firstIndex === -1) {
+          if (firstIndex === undefined || firstIndex === -1) {
             return operationResult<UpdateResult>(
               {
                 successful: false,
@@ -228,7 +240,7 @@ export const getInMemoryDatabase = (): Database => {
           const { expectedVersion: version, ...operationOptions } =
             options ?? {};
           ensureCollectionCreated();
-          const existing = collection.findOne((c) => c.id === id);
+          const existing = collection.findOne(({ _id }) => _id === id);
 
           const expectedVersion = expectedVersionValue(version);
 
