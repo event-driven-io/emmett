@@ -23,7 +23,7 @@ export interface DocumentsCollection<T extends Document> {
     options?: HandleOptions,
   ) => HandleResult<T>;
   findOne: (predicate?: Predicate<T>) => T | null;
-  find: (predicate?: Predicate<T>) => T[] | null;
+  find: (predicate?: Predicate<T>) => T[];
   insertOne: (
     document: OptionalUnlessRequiredIdAndVersion<T>,
   ) => InsertOneResult;
@@ -107,7 +107,7 @@ export const getInMemoryDatabase = (): Database => {
 
           return firstOne as T | null;
         },
-        find: (predicate?: Predicate<T>): T[] | null => {
+        find: (predicate?: Predicate<T>): T[] => {
           ensureCollectionCreated();
 
           const documentsInCollection = storage.get(collectionName);
@@ -115,7 +115,7 @@ export const getInMemoryDatabase = (): Database => {
             ? documentsInCollection?.filter((doc) => predicate(doc as T))
             : documentsInCollection;
 
-          return filteredDocuments as T[] | null;
+          return filteredDocuments as T[];
         },
         deleteOne: (predicate?: Predicate<T>): DeleteResult => {
           ensureCollectionCreated();
