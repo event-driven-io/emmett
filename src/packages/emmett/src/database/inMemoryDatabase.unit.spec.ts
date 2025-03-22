@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import { getInMemoryDatabase } from './inMemoryDatabase';
-import { equal } from 'node:assert';
+import { equal, ok } from 'node:assert';
 
 type TestUser = {
   name: string;
@@ -15,7 +15,7 @@ void describe('inMemoryDatabase', () => {
 
     const result = collection.insertOne({ age: 10, name: 'test' });
 
-    equal(result.successful, true);
+    ok(result.successful);
   });
 
   void it('should not allow inserting one with id that already is there', () => {
