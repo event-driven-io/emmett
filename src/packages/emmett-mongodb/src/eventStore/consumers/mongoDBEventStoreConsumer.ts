@@ -1,75 +1,10 @@
-import type { Message } from '@event-driven-io/emmett';
-
-export type MongoDBEventStoreConsumerSubscription<MessageType extends Message> =
-  {
-    canHandle: MessageType['type'][];
-    handle: (messages: MessageType[]) => void | Promise<void>;
-  };
-
-/**
- * The `MongoDBEventStoreConsumer` allows you to subscribe handlers to be called when messages are published to the consumer.
- *
- * @example
- *
- * ```typescript
- * import {
- *     getMongoDBEventStore,
- *     MongoDBEventStoreConsumer,
- * } from '@event-driven-io/emmett-mongodb';
- *
- * const consumer = new MongoDBEventStoreConsumer()
- *     .subscribe({
- *         canHandle: ['MyEventType'],
- *         handle: (messages) => {
- *             // handle messages ...
- *         },
- *     })
- *     .subscribe({
- *         canHandle: ['AnotherEventType'],
- *         handle: (messages) => {
- *             // handle messages ...
- *         },
- *     })
- *
- * const eventStore = getMongoDBEventStore({
- *     // ...,
- *     hooks: {
- *         onAfterCommit: (events) => {
- *             consumer.publish(events);
- *         },
- *     },
- * })
- */
-export class MongoDBEventStoreConsumer<MessageType extends Message> {
-  private subscriptions: MongoDBEventStoreConsumerSubscription<MessageType>[];
-
-  constructor() {
-    this.subscriptions = [];
-  }
-
-  publish<MessageType extends Message>(messages: MessageType[]) {
-    for (const subscription of this.subscriptions) {
-      const messagesSubscriptionCanHandle = filterMessagesByType(
-        messages,
-        subscription.canHandle,
-      );
-
-      if (messagesSubscriptionCanHandle.length < 0) {
-        continue;
-      }
-
-      // TODO: should this be ran asynchronoously or awaited?
-      subscription.handle(messagesSubscriptionCanHandle);
-    }
-
-    return this;
-  }
-
-  subscribe(subscription: MongoDBEventStoreConsumerSubscription<MessageType>) {
-    this.subscriptions.push(subscription);
-    return this;
-  }
-}
+import { EmmettError, type Message } from '@event-driven-io/emmett';
+import type { MongoClient } from 'mongodb';
+import {
+  mongoDBEventStoreProcessor,
+  type MongoDBEventStoreProcessor,
+  type MongoDBEventStoreProcessorOptions,
+} from './mongoDBEventStoreProcessor';
 
 export function filterMessagesByType<
   IncomingMessageType extends Message,
@@ -80,4 +15,88 @@ export function filterMessagesByType<
 ): ExpectedMessageType[] {
   // @ts-expect-error The `type` parameter is how we determine whether or not the `message` is an `ExpectedMessageType`
   return messages.filter((m) => types.includes(m.type));
+}
+
+export function mongoDBEventStoreConsumer<
+  ConsumerMessageType extends Message = Message,
+>(options: MongoDBEventStoreConsumerOptions<ConsumerMessageType>) {
+  return new MongoDBEventStoreConsumer<ConsumerMessageType>(options);
+}
+
+export type MongoDBEventStoreConsumerOptions<MessageType extends Message> = {
+  client: MongoClient;
+  processors?: MongoDBEventStoreProcessor<MessageType>[];
+};
+
+export class MongoDBEventStoreConsumer<ConsumerMessageType extends Message> {
+  #isRunning: boolean;
+  #start: Promise<void>;
+
+  private subscription: MongoDBEventStoreMessageSubscription;
+  private currentSubscription: MongoDBEventStoreMessageSubscription | undefined;
+  private processors: MongoDBEventStoreProcessor<ConsumerMessageType>[];
+
+  constructor(
+    private options: MongoDBEventStoreConsumerOptions<ConsumerMessageType>,
+  ) {
+    this.#isRunning = false;
+    this.#start = Promise.resolve();
+    this.processors = options.processors ?? [];
+
+    this.subscription = mongoDBEventStoreSubscription({
+      client,
+      // TODO:
+    });
+    this.currentSubscription = this.subscription;
+  }
+
+  get isRunning() {
+    return this.#isRunning;
+  }
+
+  // TODO:
+  async start() {
+    if (this.#isRunning) {
+      return this.#start;
+    }
+
+    this.#start = (async () => {
+      if (this.processors.length === 0) {
+        new EmmettError(
+          'Cannot start consumer without at least a single processor',
+        );
+      }
+
+      this.#isRunning = true;
+
+      return this.subscription.start();
+    })();
+
+    return this.#start;
+    throw new Error('TODO');
+  }
+
+  async stop() {
+    if (this.#isRunning) {
+      return;
+    }
+    if (this.currentSubscription) {
+      await this.currentSubscription.stop();
+      this.currentSubscription = undefined;
+    }
+    this.#isRunning = false;
+    await this.#start;
+  }
+
+  async close() {
+    await this.stop();
+  }
+
+  processor<MessageType extends ConsumerMessageType = ConsumerMessageType>(
+    options: MongoDBEventStoreProcessorOptions<MessageType>,
+  ): MongoDBEventStoreProcessor<MessageType> {
+    const processor = mongoDBEventStoreProcessor<MessageType>(options);
+    this.processors.push(processor as MongoDBEventStoreProcessor);
+    return processor;
+  }
 }
