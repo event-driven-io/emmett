@@ -56,7 +56,7 @@ export const rebuildPostgreSQLProjections = <
             ? {
                 ...p,
                 processorId: `projection:${p.projection.name ?? uuid()}-rebuild`,
-                truncateOnStart: true,
+                truncateOnStart: p.truncateOnStart ?? true,
               }
             : {
                 projection: p,
