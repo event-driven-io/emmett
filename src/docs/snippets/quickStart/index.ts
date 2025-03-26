@@ -1,25 +1,30 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   CommandHandler,
   EmmettError,
   type Command,
   type Event,
-} from "@event-driven-io/emmett";
+} from '@event-driven-io/emmett';
 
-
-type ShoppingCart ={
-  items: Set<string>
+// #region state-definition
+type ShoppingCart = {
+  items: Set<string>;
 };
+// #endregion state-definition
 
+// #region initial-state
 export function initialState(): ShoppingCart {
   return {
     items: new Set(),
-  }
+  };
 }
+// #endregion initial-state
 
+// #region commands
 // Command<type, payload>
 export type AddItem = Command<
   // Type
-  "AddItem",
+  'AddItem',
   // Payload
   {
     name: string;
@@ -29,7 +34,7 @@ export type AddItem = Command<
 // Command<type, payload>
 export type RemoveItem = Command<
   // Type
-  "RemoveItem",
+  'RemoveItem',
   // Payload
   {
     name: string;
@@ -39,16 +44,20 @@ export type RemoveItem = Command<
 // Union type of all possible commands (for later)
 export type ShoppingCartCommand = AddItem | RemoveItem;
 
+// #endregion commands
+
+// #region events
+
 // Event<type, payload>
 export type ItemAdded = Event<
-  "ItemAdded",
+  'ItemAdded',
   {
     name: string;
   }
 >;
 
 export type ItemRemoved = Event<
-  "ItemRemoved",
+  'ItemRemoved',
   {
     name: string;
   }
@@ -56,113 +65,143 @@ export type ItemRemoved = Event<
 
 // Union type of all possible shopping cart events (for later)
 export type ShoppingCartEvent = ItemAdded | ItemRemoved;
+// #endregion events
 
+// #region command-handler-functions
 export function addItem(
   command: AddItem,
-  state: ShoppingCart
+  state: ShoppingCart,
 ): ShoppingCartEvent {
   return {
-    type: "ItemAdded",
+    type: 'ItemAdded',
     data: {
-      name: command.data.name
+      name: command.data.name,
     },
   };
 }
 
 export function removeItem(
   command: RemoveItem,
-  state: ShoppingCart
+  state: ShoppingCart,
 ): ItemRemoved {
   return {
-    type: "ItemRemoved",
+    type: 'ItemRemoved',
     data: {
-      name: command.data.name
+      name: command.data.name,
     },
   };
 }
+// #endregion command-handler-functions
 
-export function decide(command: ShoppingCartCommand, state: ShoppingCart): ShoppingCartEvent {
+// #region decider
+export function decide(
+  command: ShoppingCartCommand,
+  state: ShoppingCart,
+): ShoppingCartEvent {
   const { type } = command;
   switch (type) {
-    case "AddItem":
+    case 'AddItem':
       return addItem(command, state);
-    case "RemoveItem":
+    case 'RemoveItem':
       return removeItem(command, state);
     default: {
       const _notExistingCommandType: never = type;
-      throw new EmmettError(`Unknown command ${_notExistingCommandType}`);
+      throw new EmmettError(`Unknown command`);
     }
   }
 }
+// #endregion decider
 
-export function evolve(state: ShoppingCart, event: ShoppingCartEvent): ShoppingCart {
+// #region evolve
+export function evolve(
+  state: ShoppingCart,
+  event: ShoppingCartEvent,
+): ShoppingCart {
   const { type, data } = event;
   switch (type) {
-    case "ItemAdded": {
+    case 'ItemAdded': {
       const nextState = {
         ...state,
-        items: new Set([...state.items, data.name])
+        items: new Set([...state.items, data.name]),
       };
-      console.log(`${type}(name: ${data.name}) // ShoppingCart(items: ${Array.from(nextState.items.values()).join(", ")})`);
+      // Print the event data and the contents of the changed shopping cart
+      console.log(
+        `${type}(name: ${data.name}) // ShoppingCart(items: ${Array.from(nextState.items.values()).join(', ')})`,
+      );
       return nextState;
     }
-    case "ItemRemoved": {
+    case 'ItemRemoved': {
       const items = new Set(state.items);
       items.delete(data.name);
       const nextState = {
         ...state,
-        items
-      }
-      console.log(`${type}(name: ${data.name}) // ShoppingCart(items: ${Array.from(nextState.items.values()).join(", ")})`);
+        items,
+      };
+      // Print the event data and the contents of the changed shopping cart
+      console.log(
+        `${type}(name: ${data.name}) // ShoppingCart(items: ${Array.from(nextState.items.values()).join(', ')})`,
+      );
       return nextState;
     }
     default: {
       const _notExistingEventType: never = type;
-      throw new EmmettError(`Unknown event ${_notExistingEventType}`);
+      throw new EmmettError(`Unknown event`);
     }
   }
 }
+//#endregion evolve
 
+//#region handle
 export const handle = CommandHandler({ evolve, initialState });
+//#endregion handle
 
-import { getInMemoryEventStore } from "@event-driven-io/emmett";
+//#region event-store
+import { getInMemoryEventStore } from '@event-driven-io/emmett';
 
 const eventStore = getInMemoryEventStore();
+//#endregion event-store
 
+//#region example-commands
 const addPizza: AddItem = {
-  type: "AddItem",
+  type: 'AddItem',
   data: {
-    name: "Pizza"
+    name: 'Pizza',
   },
 };
 
 const addIceCream: AddItem = {
-  type: "AddItem",
+  type: 'AddItem',
   data: {
-    name: "Ice Cream"
+    name: 'Ice Cream',
   },
 };
 
 const removePizza: RemoveItem = {
-  type: "RemoveItem",
+  type: 'RemoveItem',
   data: {
-    name: "Pizza"
+    name: 'Pizza',
   },
 };
 
 const removeIceCream: RemoveItem = {
-  type: "RemoveItem",
+  type: 'RemoveItem',
   data: {
-    name: "Ice Cream"
+    name: 'Ice Cream',
   },
 };
 
+//#endregion example-commands
 
-const counterId = "1";
+//#region handle-example-commands
+// Use a constant cart id for this example. In real life applications, this should be a real cart id.
+const shoppingCartId = '1';
 
 // 2. Handle command
-await handle(eventStore, counterId, (state) => decide(addPizza, state));
-console.log("---")
-await handle(eventStore, counterId, (state) => decide(addIceCream, state));
-console.log("---")
-await handle(eventStore, counterId, (state) => decide(removeIceCream, state));
+await handle(eventStore, shoppingCartId, (state) => decide(addPizza, state));
+console.log('---');
+await handle(eventStore, shoppingCartId, (state) => decide(addIceCream, state));
+console.log('---');
+await handle(eventStore, shoppingCartId, (state) =>
+  decide(removeIceCream, state),
+);
+//#endregion handle-example-commands
