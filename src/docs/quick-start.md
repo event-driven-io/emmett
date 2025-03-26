@@ -3,7 +3,7 @@ title: Quick start
 documentationType: tutorial
 ---
 
-In this tutorial we will create an application that can increase and decrease a counter. Along this way you will experience the fundamental mechanics and basic building blocks of Emmett.
+In this tutorial we will create an application that can add and remove items to/from a shopping cart. Along this way you will experience the fundamental mechanics and basic building blocks of Emmett.
 
 ## Create a Node.js project
 
@@ -43,7 +43,7 @@ For now, just accept the defaults.
 The output should look like this:
 
 ```text
-package name: (emmet-quick-start)
+package name: (emmett-quick-start)
 version: (1.0.0)
 description:
 entry point: (index.js) dist/index.js
@@ -52,10 +52,10 @@ git repository:
 keywords:
 author:
 license: (ISC)
-About to write to /home/tobias/projekte/emmet-quick-start/package.json:
+About to write to /home/tobias/projekte/emmett-quick-start/package.json:
 
 {
-  "name": "emmet-quick-start",
+  "name": "emmett-quick-start",
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
@@ -72,29 +72,32 @@ Is this OK? (yes)
 
 ## Add TypeScript
 
-Now install TypeScript:
+Now install TypeScript and `tsx` as dev dependencies for running our code:
+
+::: code-group
 
 ```sh [npm]
-npm install typescript @types/node --save-dev
+npm install typescript @types/node tsx --save-dev
 ```
 
-The output should look like this:
-
-```text
+```txt [View output]
 added 3 packages, and audited 4 packages in 1s
 
 found 0 vulnerabilities
 ```
 
+:::
+
 Now we initialize TypeScript using
 
-```sh
+::: code-group
+
+```sh [npm]
 npx tsc --init --target ESNEXT --outDir dist --module nodenext --moduleResolution nodenext
 ```
 
-The output should look like this:
+```txt [View output]
 
-```text
 Created a new tsconfig.json with:
 
   target: es2016
@@ -108,29 +111,11 @@ Created a new tsconfig.json with:
 You can learn more at https://aka.ms/tsconfig
 ```
 
-Then add the `build:ts` and `build:ts:watch` targets to your package.json:
+:::
 
-```json{7-8}
-{
-  "name": "emmet-quick-start",
-  "version": "1.0.0",
-  "description": "",
-  "main": "dist/index.js",
-  "scripts": {
-    "build:ts": "tsc",
-    "build:ts:watch": "tsc -b --watch"
-  },
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "@types/node": "^22.13.10",
-    "typescript": "^5.8.2"
-  },
-  "dependencies": {
-    "@event-driven-io/emmett": "^0.34.0"
-  }
-}
-```
+Then add the `start` target to your package.json:
+
+<<< @/snippets/quickStart/package.json{7}
 
 Let us add an empty `index.ts` file as entrypoint for our application:
 
@@ -138,22 +123,22 @@ Let us add an empty `index.ts` file as entrypoint for our application:
 touch index.ts
 ```
 
-> [!NOTE]
-> In real-life applications, we might want to consider improving the project structure later on. However premature optimization is the root of all evil, so let us start simple and evolve later.
+> [!TIP]
+> In this example we are going to add all our source code to just `index.ts`. For real-life applications, we might want to consider improving the project structure, e.g. by having a separate source folder later on.
 
 Test your configuration by running
 
 ::: code-group
 
 ```sh [npm]
-npm run build:ts
+npm run start
 ```
 
-```text [View output]
+```txt [View output]
 $ npm run build:ts
 
-> emmet-quick-start@1.0.0 build:ts
-> tsc
+> emmett-quick-start@1.0.0 start
+> tsx ./index.ts
 
 ```
 
@@ -181,195 +166,77 @@ bun add @event-driven-io/emmett
 
 :::
 
-## Writing a simple counter application
+## Writing a simple shopping cart application
 
-Let us write a simple counter application using the four basic building blocks in Emmett: _Commands_, _command handlers_, _events_ and the _event store_.
+Let us write a simple shopping cart application using the four basic building blocks in Emmett: _Commands_, _command handlers_, _events_ and the _event store_.
 
-### Defining the counter
+### Defining the shopping cart
 
-Let us define how our counter should look like:
+First open the `index.ts` file that we created previously. Then let us define a type for how our shopping cart should look like:
 
-```ts
-type Counter = {
-  value: number;
-};
-```
+<<< @/snippets/quickStart/index.ts#state-definition
 
 ### Create the initial state
 
-We cannot start from just anywhere. That is why we need a function that returns the initial state of our counter:
+We cannot start from just anywhere. That is why we need a function that returns the initial state of our shopping cart:
 
-```ts
-export function initialState(): Counter {
-  return {
-    value: 0,
-  };
-}
-```
+<<< @/snippets/quickStart/index.ts#initial-state
 
-Now the counter starts with `value = 0`.`
+This creates a new empty shopping cart
 
 ### Commands
 
-Commands\_ are instructions to the application to perform a certain operation like \_Increment counter!
+Commands are instructions to the application to perform a certain operation like _Add item to shopping cart_!
 
 Our application needs to perform the following operations:
 
-- Increment the counter
-- Decrement the counter
+- Add item: Add an item by its name
+- Remove item: Remove an item by its name
 
-Let us first create a command to increment the counter in `index.ts` and another to decrement it:
+Let us first create a command to add an item in `index.ts` and another to remove one:
 
-```ts
-import type { Command } from '@event-driven-io/emmett';
+<<< @/snippets/quickStart/index.ts#commands
 
-// Command<type, payload>
-export type IncrementCounter = Command<
-  // Type
-  'IncrementCounter',
-  // Payload
-  {
-    by: number;
-  }
->;
+This declares a command whose type is `AddItem` (or `RemiveUten`) and whose payload has a `name` property of type `string`. This `name` property specifies the name of the item that should be added to or removed from the cart.
 
-// Command<type, payload>
-export type DecrementCounter = Command<
-  // Type
-  'DecrementCounter',
-  // Payload
-  {
-    by: number;
-  }
->;
-
-// Union type of all possible commands (for later)
-export type CounterCommand = IncrementCounter | DecrementCounter;
-```
-
-This declares a command whose type is `IncrementCounter` (or `DecrementCounter`) and whose payload has a `by` property of type `number`. This `by` property specifies by how much the counter should be incremented (or decremented).
-
-Last but not least, we define a type `CounterCommand` that accomodates all commands. This way we can easily extend the list of possible commands using union types without having to change the code in other places.
+Last but not least, we define a type `ShoppingCartCommand` that accomodates all commands. This way we can easily extend the list of possible commands using union types without having to change the code in other places.
 
 > [!NOTE]
-> The command is only a _request_ to increment the counter (perform the operation). Depending on the outcome, this request can be successful or not.
+> The command is only a _request_ to perform the operation, e.g. to add an item to the cart. Depending on the outcome, this request can be successful or not.
 
 ### Events
 
-_Events_ record that something happened in the past, e.g. `counter incremented`. They are immutable facts that _cannot be changed anymore_.
+_Events_ record that something happened in the past, e.g. `item was added to shopping cart`. They are immutable facts that _cannot be changed anymore_.
 
-Before we can put things together, we need to define our _counter incremented_ event. Also we define a `CounterEvent` type to accomodate all events:
+Before we can put things together, we need to define our _item added_ event. Also we define a `ShoppingCartEvent` type to accomodate all events:
 
-```ts
-import type { Event } from '@event-driven-io/emmett';
+<<< @/snippets/quickStart/index.ts#events
 
-export type CounterIncremented = Event<
-  'CounterIncremented',
-  {
-    by: number;
-  }
->;
-
-export type CounterDecremented = Event<
-  'CounterDecremented',
-  {
-    by: number;
-  }
->;
-
-// Union type of all possible counter events (for later)
-export type CounterEvent = CounterIncremented | CounterDecremented;
-```
-
-We use this type to record that our counter has been incremented (or decremented) by the amount in the `by` property.
+We use this type to record that our item has been added to (or removed from) the shopping cart.
 
 ### Turning commands into events
 
 Now we need to put the commands and events together using _command handler_ functions:
 
-```ts
-export function incrementCounter(
-  command: IncrementCounter,
-  state: Counter,
-): CounterIncremented {
-  return {
-    type: 'CounterIncremented',
-    data: {
-      by: command.data.by,
-    },
-  };
-}
+<<< @/snippets/quickStart/index.ts#state-definition
 
-export function decrementCounter(
-  command: DecrementCounter,
-  state: Counter,
-): CounterDecremented {
-  return {
-    type: 'CounterDecremented',
-    data: {
-      by: command.data.by,
-    },
-  };
-}
-```
-
-This function is responsible for deciding the outcome of the command using buisiness rules. We have none, so we simply pass the amount using the `data.by` property of the `command`.
+This function is responsible for deciding the outcome of the command using business rules (e.g. items may not be added more than once). Currently there are none, so we simply pass the name using the `data.name` property of the `command`.
 
 Emmett promotes the following _decider_ pattern that is easily extensible for more commands:
 
-```ts
-export function decide(command: CounterCommand, state: Counter): CounterEvent {
-  const { type } = command;
+<<< @/snippets/quickStart/index.ts#decider
 
-  switch (type) {
-    case 'IncrementCounter':
-      return incrementCounter(command, state);
-    case 'DecrementCounter':
-      return decrementCounter(command, state);
-    default: {
-      const _notExistingCommandType: never = type;
-      throw new EmmettError(`Unknown command type`);
-    }
-  }
-}
-```
+This calls the correct _command handler_ function based on the `type` of the command.
 
-This simply calls the correct _command handler_ function based on the `type` of the command.
+### Calculating the next shopping cart
 
-### Calculating the next counter value
+Finally we need to _evolve_ our shopping cart. Given a current state (items) of the shopping cart, we add or remove items based on the `name` in the event. The pattern is pretty similar to the decider pattern, except that we take an shopping cart and an event to compute the next state:
 
-Finally we need to _evolve_ our counter. Given a current state (value) of the counter, we increment or decrement the it based on the value in the event. The pattern is pretty similar to the decider pattern, except that we take an old counter and an event to compute the next counter value:
+<<< @/snippets/quickStart/index.ts#evolve
 
-```ts
-export function evolve(state: Counter, event: CounterEvent): Counter {
-  const { type, data } = event;
+Finally we can declare the _command handler_ itself:
 
-  switch (type) {
-    case 'CounterIncremented': {
-      return {
-        ...state,
-        value: state.value + data.by,
-      };
-    }
-    case 'CounterDecremented': {
-      return {
-        ...state,
-        value: state.value - data.by,
-      };
-    }
-    default: {
-      const _notExistingCommandType: never = type;
-      throw new EmmettError(`Unknown command type`);
-    }
-  }
-}
-```
-
-Finally we can declare our _command handler_ itself:
-
-```ts
-export const handle = CommandHandler({ evolve, initialState });
-```
+<<< @/snippets/quickStart/index.ts#handle
 
 ### Putting it all together with an event store
 
@@ -380,121 +247,35 @@ Starting from the initial state, it collates all events using the `evolve` funct
 For example:
 
 ```ts
-// Inital state: Counter (value: 0)
-CounterIncremented(by: 5) // Counter(value: 5)
-CounterDecremented(by: 4) // Counter(value: 1)
-CounterIncremented(by: 10) // Counter(value: 11)
-CounterDecremented(by: 10) // Counter(value: 1)
+// Inital state: ShoppingCart (items: [])
+ItemAdded(name: Pizza) // ShoppingCart(items: Pizza)
+ItemAdded(name: Ice Cream) // ShoppingCart(items: Pizza, Ice Cream)
+ItemRemoved(name: Ice Cream) // ShoppingCart(items: Pizza)
 ```
 
-These events are stored inside the `EventStore`. Emmet provides several implementations of event stores. For simplicity we use the _in-memory event store_:
+These events are stored inside the `EventStore`. Emmett provides several implementations of event stores. For simplicity we use the _in-memory event store_:
 
-```ts
-import { getInMemoryEventStore } from '@event-driven-io/emmett';
-
-const eventStore = getInMemoryEventStore();
-```
+<<< @/snippets/quickStart/index.ts#event-store
 
 Next let us define a few example commands:
 
-```ts
-const incrementBy5: IncrementCounter = {
-  type: 'IncrementCounter',
-  data: {
-    by: 5,
-  },
-};
-
-const incrementBy10: IncrementCounter = {
-  type: 'IncrementCounter',
-  data: {
-    by: 10,
-  },
-};
-
-const incrementBy0: IncrementCounter = {
-  type: 'IncrementCounter',
-  data: {
-    by: 0,
-  },
-};
-
-const decrementBy4: DecrementCounter = {
-  type: 'DecrementCounter',
-  data: {
-    by: 4,
-  },
-};
-
-const decrementBy10: DecrementCounter = {
-  type: 'DecrementCounter',
-  data: {
-    by: 10,
-  },
-};
-```
+<<< @/snippets/quickStart/index.ts#example-commands
 
 We can pass these to the `handle` function that we previously defined and use our decider for "routing" the commands to the correct methods:
 
-```ts
-const counterId = '1';
-
-// 2. Handle command
-await handle(eventStore, counterId, (state) => decide(incrementBy5, state));
-console.log('---');
-await handle(eventStore, counterId, (state) => decide(decrementBy4, state));
-console.log('---');
-await handle(eventStore, counterId, (state) => decide(incrementBy10, state));
-console.log('---');
-await handle(eventStore, counterId, (state) => decide(decrementBy10, state));
-```
-
-As a final step, let us tweak the `evolve` function to log the current state, the event data and the next state to the console:
-
-```ts{5-11,14-20}
-export function evolve(state: Counter, event: CounterEvent): Counter {
-  const { type, data } = event;
-  switch (type) {
-    case "CounterIncremented": {
-      const nextState = {
-        ...state,
-        value: state.value + data.by,
-      };
-      console.log(`${type}(by: ${data.by}) // Counter(value: ${nextState.value})`);
-      return nextState;
-    }
-    case "CounterDecremented": {
-      const nextState = {
-        ...state,
-        value: state.value - data.by,
-      };
-      console.log(`${type}(by: ${data.by}) // Counter(value: ${nextState.value})`);
-      return nextState;
-    }
-    default: {
-      const _notExistingCommandType: never = type;
-      throw new EmmettError(`Unknown command type`);
-    }
-  }
-}
-```
+<<< @/snippets/quickStart/index.ts#handle-example-commands
 
 This results in the following output:
 
 ```ts
-CounterIncremented(by: 5) // Counter(value: 5)
+ItemAdded(name: Pizza) // ShoppingCart(items: Pizza)
 ---
-CounterIncremented(by: 5) // Counter(value: 5)
-CounterDecremented(by: 4) // Counter(value: 1)
+ItemAdded(name: Pizza) // ShoppingCart(items: Pizza)
+ItemAdded(name: Ice Cream) // ShoppingCart(items: Pizza, Ice Cream)
 ---
-CounterIncremented(by: 5) // Counter(value: 5)
-CounterDecremented(by: 4) // Counter(value: 1)
-CounterIncremented(by: 10) // Counter(value: 11)
----
-CounterIncremented(by: 5) // Counter(value: 5)
-CounterDecremented(by: 4) // Counter(value: 1)
-CounterIncremented(by: 10) // Counter(value: 11)
-CounterDecremented(by: 10) // Counter(value: 1)
+ItemAdded(name: Pizza) // ShoppingCart(items: Pizza)
+ItemAdded(name: Ice Cream) // ShoppingCart(items: Pizza, Ice Cream)
+ItemRemoved(name: Ice Cream) // ShoppingCart(items: Pizza)
 ```
 
 Why does it look that way?
@@ -506,179 +287,8 @@ This tutorial has shown you the fundamental building blocks of Emmett. However t
 
 Here is the full source code for reference:
 
-```ts
-import {
-  CommandHandler,
-  EmmettError,
-  event,
-  type Command,
-  type Event,
-} from '@event-driven-io/emmett';
-
-type Counter = {
-  value: number;
-};
-
-export function initialState(): Counter {
-  return {
-    value: 0,
-  };
-}
-
-// Command<type, payload>
-export type IncrementCounter = Command<
-  // Type
-  'IncrementCounter',
-  // Payload
-  {
-    by: number;
-  }
->;
-
-// Command<type, payload>
-export type DecrementCounter = Command<
-  // Type
-  'DecrementCounter',
-  // Payload
-  {
-    by: number;
-  }
->;
-
-// Union type of all possible commands (for later)
-export type CounterCommand = IncrementCounter | DecrementCounter;
-
-export type CounterIncremented = Event<
-  'CounterIncremented',
-  {
-    by: number;
-  }
->;
-
-export type CounterDecremented = Event<
-  'CounterDecremented',
-  {
-    by: number;
-  }
->;
-
-// Union type of all possible counter events (for later)
-export type CounterEvent = CounterIncremented | CounterDecremented;
-
-export function incrementCounter(
-  command: IncrementCounter,
-  state: Counter,
-): CounterIncremented {
-  return {
-    type: 'CounterIncremented',
-    data: {
-      by: command.data.by,
-    },
-  };
-}
-
-export function decrementCounter(
-  command: DecrementCounter,
-  state: Counter,
-): CounterDecremented {
-  return {
-    type: 'CounterDecremented',
-    data: {
-      by: command.data.by,
-    },
-  };
-}
-
-export function decide(command: CounterCommand, state: Counter): CounterEvent {
-  const { type } = command;
-  switch (type) {
-    case 'IncrementCounter':
-      return incrementCounter(command, state);
-    case 'DecrementCounter':
-      return decrementCounter(command, state);
-    default: {
-      const _notExistingCommandType: never = type;
-      throw new EmmettError(`Unknown command type`);
-    }
-  }
-}
-
-export function evolve(state: Counter, event: CounterEvent): Counter {
-  const { type, data } = event;
-  switch (type) {
-    case 'CounterIncremented': {
-      const nextState = {
-        ...state,
-        value: state.value + data.by,
-      };
-      console.log(
-        `${type}(by: ${data.by}) // Counter(value: ${nextState.value})`,
-      );
-      return nextState;
-    }
-    case 'CounterDecremented': {
-      const nextState = {
-        ...state,
-        value: state.value - data.by,
-      };
-      console.log(
-        `${type}(by: ${data.by}) // Counter(value: ${nextState.value})`,
-      );
-      return nextState;
-    }
-    default: {
-      const _notExistingCommandType: never = type;
-      throw new EmmettError(`Unknown command type`);
-    }
-  }
-}
-
-export const handle = CommandHandler({ evolve, initialState });
-
-import { getInMemoryEventStore } from '@event-driven-io/emmett';
-
-const eventStore = getInMemoryEventStore();
-
-const incrementBy5: IncrementCounter = {
-  type: 'IncrementCounter',
-  data: {
-    by: 5,
-  },
-};
-
-const incrementBy10: IncrementCounter = {
-  type: 'IncrementCounter',
-  data: {
-    by: 10,
-  },
-};
-
-const decrementBy4: DecrementCounter = {
-  type: 'DecrementCounter',
-  data: {
-    by: 4,
-  },
-};
-
-const decrementBy10: DecrementCounter = {
-  type: 'DecrementCounter',
-  data: {
-    by: 10,
-  },
-};
-
-const counterId = '1';
-
-// 2. Handle command
-await handle(eventStore, counterId, (state) => decide(incrementBy5, state));
-console.log('---');
-await handle(eventStore, counterId, (state) => decide(decrementBy4, state));
-console.log('---');
-await handle(eventStore, counterId, (state) => decide(incrementBy10, state));
-console.log('---');
-await handle(eventStore, counterId, (state) => decide(decrementBy10, state));
-```
+<<< @/snippets/quickStart/index.ts
 
 ## Next steps
 
-For diving deeper into Emmett, please check out the [Getting Started](/getting-started) user guide which will demonstrate Emmetts features more comprehensively.
+For diving deeper into Emmett, please check out the [Getting Started](/getting-started) user guide which will demonstrate Emmett's features more comprehensively.
