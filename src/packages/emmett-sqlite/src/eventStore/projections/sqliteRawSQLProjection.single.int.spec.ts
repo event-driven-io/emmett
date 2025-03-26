@@ -1,9 +1,9 @@
 import { assertDeepEqual, JSONParser } from '@event-driven-io/emmett';
 import fs from 'fs';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
-import { afterEach, beforeEach, describe, it } from 'vitest';
 import { sqliteRawSQLProjection, type SQLiteProjectionHandlerContext } from '.';
 import { sqliteConnection, type SQLiteConnection } from '../../connection';
 import {
@@ -58,7 +58,7 @@ void describe('SQLite Projections', () => {
     });
   });
 
-  afterEach(async () => {
+  afterEach(() => {
     if (!fs.existsSync(fileName)) {
       return;
     }
@@ -196,15 +196,9 @@ const rowExists = async <T>({
   return true;
 };
 
-type ShoppingCartShortInfo = {
-  productItemsCount: number;
-  totalAmount: number;
-  discountsApplied: string[];
-};
-
 const shoppingCartShortInfoProjection = sqliteRawSQLProjection(
   (event: EventType) => event.metadata?.streamName ?? '',
-  async (
+  (
     event: EventType,
     context: SQLiteProjectionHandlerContext,
     documentId: string,
