@@ -117,9 +117,12 @@ You can learn more at https://aka.ms/tsconfig
 
 ### Running your applicatoon
 
-Add the `start` target to your package.json:
+Add the `start` target to your `package.json`:
+::: code-group
 
 <<< @/snippets/quickStart/package.json{7}
+
+:::
 
 Let us add an empty `index.ts` file as entrypoint for our application:
 
