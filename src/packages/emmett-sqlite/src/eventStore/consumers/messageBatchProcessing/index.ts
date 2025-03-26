@@ -56,7 +56,7 @@ export type SQLiteEventStoreMessageBatchPuller = {
   stop(): Promise<void>;
 };
 
-export const SQLiteEventStoreMessageBatchPuller = <
+export const sqliteEventStoreMessageBatchPuller = <
   EventType extends Event = Event,
 >({
   db,

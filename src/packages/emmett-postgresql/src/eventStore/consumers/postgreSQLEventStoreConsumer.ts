@@ -1,53 +1,76 @@
-import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
-import { EmmettError, type Event } from '@event-driven-io/emmett';
+import { dumbo, type Dumbo, type SQLExecutor } from '@event-driven-io/dumbo';
+import {
+  EmmettError,
+  MessageProcessor,
+  type AnyMessage,
+  type AnyRecordedMessageMetadata,
+  type BatchRecordedMessageHandlerWithoutContext,
+  type DefaultRecord,
+  type Message,
+  type MessageConsumer,
+  type MessageConsumerOptions,
+  type ReadEventMetadataWithGlobalPosition,
+} from '@event-driven-io/emmett';
+import { v7 as uuid } from 'uuid';
 import {
   DefaultPostgreSQLEventStoreProcessorBatchSize,
   DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
   postgreSQLEventStoreMessageBatchPuller,
   zipPostgreSQLEventStoreMessageBatchPullerStartFrom,
   type PostgreSQLEventStoreMessageBatchPuller,
-  type PostgreSQLEventStoreMessagesBatchHandler,
 } from './messageBatchProcessing';
 import {
-  postgreSQLProcessor,
+  postgreSQLMessageProcessor,
   type PostgreSQLProcessor,
   type PostgreSQLProcessorOptions,
 } from './postgreSQLProcessor';
 
+export type PostgreSQLConsumerContext = {
+  execute: SQLExecutor;
+  connection: {
+    connectionString: string;
+    pool: Dumbo;
+  };
+};
+
+export type ExtendableContext = Partial<PostgreSQLConsumerContext> &
+  DefaultRecord;
+
 export type PostgreSQLEventStoreConsumerConfig<
-  ConsumerEventType extends Event = Event,
-> = {
-  processors?: PostgreSQLProcessor<ConsumerEventType>[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends Message = any,
+> = MessageConsumerOptions<ConsumerMessageType> & {
+  stopWhen?: {
+    noMessagesLeft?: boolean;
+  };
   pulling?: {
     batchSize?: number;
     pullingFrequencyInMs?: number;
   };
 };
+
 export type PostgreSQLEventStoreConsumerOptions<
-  ConsumerEventType extends Event = Event,
-> = PostgreSQLEventStoreConsumerConfig<ConsumerEventType> & {
+  ConsumerMessageType extends Message = Message,
+> = PostgreSQLEventStoreConsumerConfig<ConsumerMessageType> & {
   connectionString: string;
   pool?: Dumbo;
 };
 
 export type PostgreSQLEventStoreConsumer<
-  ConsumerEventType extends Event = Event,
-> = Readonly<{
-  isRunning: boolean;
-  processors: PostgreSQLProcessor<ConsumerEventType>[];
-  processor: <EventType extends ConsumerEventType = ConsumerEventType>(
-    options: PostgreSQLProcessorOptions<EventType>,
-  ) => PostgreSQLProcessor<EventType>;
-  start: () => Promise<void>;
-  stop: () => Promise<void>;
-  close: () => Promise<void>;
-}>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends Message = any,
+> = MessageConsumer<ConsumerMessageType> &
+  Readonly<{
+    processor: <MessageType extends Message = ConsumerMessageType>(
+      options: PostgreSQLProcessorOptions<MessageType>,
+    ) => PostgreSQLProcessor<MessageType>;
+  }>;
 
 export const postgreSQLEventStoreConsumer = <
-  ConsumerEventType extends Event = Event,
+  ConsumerMessageType extends Message = AnyMessage,
 >(
-  options: PostgreSQLEventStoreConsumerOptions<ConsumerEventType>,
-): PostgreSQLEventStoreConsumer<ConsumerEventType> => {
+  options: PostgreSQLEventStoreConsumerOptions<ConsumerMessageType>,
+): PostgreSQLEventStoreConsumer<ConsumerMessageType> => {
   let isRunning = false;
   const { pulling } = options;
   const processors = options.processors ?? [];
@@ -60,8 +83,9 @@ export const postgreSQLEventStoreConsumer = <
     ? options.pool
     : dumbo({ connectionString: options.connectionString });
 
-  const eachBatch: PostgreSQLEventStoreMessagesBatchHandler<
-    ConsumerEventType
+  const eachBatch: BatchRecordedMessageHandlerWithoutContext<
+    ConsumerMessageType,
+    ReadEventMetadataWithGlobalPosition
   > = async (messagesBatch) => {
     const activeProcessors = processors.filter((s) => s.isActive);
 
@@ -75,8 +99,10 @@ export const postgreSQLEventStoreConsumer = <
       activeProcessors.map((s) => {
         // TODO: Add here filtering to only pass messages that can be handled by processor
         return s.handle(messagesBatch, {
-          pool,
-          connectionString: options.connectionString,
+          connection: {
+            connectionString: options.connectionString,
+            pool,
+          },
         });
       }),
     );
@@ -92,6 +118,7 @@ export const postgreSQLEventStoreConsumer = <
 
   const messagePooler = (currentMessagePuller =
     postgreSQLEventStoreMessageBatchPuller({
+      stopWhen: options.stopWhen,
       executor: pool.execute,
       eachBatch,
       batchSize:
@@ -109,19 +136,29 @@ export const postgreSQLEventStoreConsumer = <
       currentMessagePuller = undefined;
     }
     await start;
+
+    await Promise.all(processors.map((p) => p.close()));
   };
 
   return {
-    processors,
+    consumerId: options.consumerId ?? uuid(),
     get isRunning() {
       return isRunning;
     },
-    processor: <EventType extends ConsumerEventType = ConsumerEventType>(
-      options: PostgreSQLProcessorOptions<EventType>,
-    ): PostgreSQLProcessor<EventType> => {
-      const processor = postgreSQLProcessor<EventType>(options);
+    processors,
+    processor: <MessageType extends Message = ConsumerMessageType>(
+      options: PostgreSQLProcessorOptions<MessageType>,
+    ): PostgreSQLProcessor<MessageType> => {
+      const processor = postgreSQLMessageProcessor(options);
 
-      processors.push(processor);
+      processors.push(
+        // TODO: change that
+        processor as unknown as MessageProcessor<
+          ConsumerMessageType,
+          AnyRecordedMessageMetadata,
+          DefaultRecord
+        >,
+      );
 
       return processor;
     },
@@ -139,7 +176,19 @@ export const postgreSQLEventStoreConsumer = <
         isRunning = true;
 
         const startFrom = zipPostgreSQLEventStoreMessageBatchPullerStartFrom(
-          await Promise.all(processors.map((o) => o.start(pool.execute))),
+          await Promise.all(
+            processors.map(async (o) => {
+              const result = await o.start({
+                execute: pool.execute,
+                connection: {
+                  connectionString: options.connectionString,
+                  pool,
+                },
+              });
+
+              return result;
+            }),
+          ),
         );
 
         return messagePooler.start({ startFrom });

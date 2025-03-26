@@ -3,26 +3,31 @@ import { JSONParser } from '../serialization';
 import type {
   AnyEvent,
   AnyReadEventMetadata,
+  BatchRecordedMessageHandlerWithContext,
   CanHandle,
   DefaultRecord,
   Event,
-  ReadEvent,
 } from '../typing';
 import { arrayUtils } from '../utils';
 
 export type ProjectionHandlingType = 'inline' | 'async';
 
 export type ProjectionHandler<
-  EventType extends Event = Event,
+  EventType extends Event = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
-> = (
-  events: ReadEvent<EventType, EventMetaDataType>[],
-  context: ProjectionHandlerContext,
-) => Promise<void> | void;
+> = BatchRecordedMessageHandlerWithContext<
+  EventType,
+  EventMetaDataType,
+  ProjectionHandlerContext
+>;
+
+export type TruncateProjection<
+  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+> = (context: ProjectionHandlerContext) => Promise<void>;
 
 export interface ProjectionDefinition<
-  EventType extends Event = Event,
+  EventType extends Event = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > {
@@ -33,6 +38,7 @@ export interface ProjectionDefinition<
     EventMetaDataType,
     ProjectionHandlerContext
   >;
+  truncate?: TruncateProjection<ProjectionHandlerContext>;
 }
 
 export type ProjectionRegistration<
@@ -99,7 +105,8 @@ export const inlineProjections = <
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 >(
   definitions: ProjectionDefinition<
-    AnyEvent,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
     ReadEventMetadataType,
     ProjectionHandlerContext
   >[],

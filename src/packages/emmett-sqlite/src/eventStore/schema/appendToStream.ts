@@ -71,9 +71,7 @@ export const appendToStream = async <MessageType extends Message>(
 
   let result: AppendEventResult;
 
-  await db.command(`BEGIN TRANSACTION`);
-
-  try {
+  return await db.withTransaction(async () => {
     result = await appendToStreamRaw(
       db,
       streamName,
@@ -86,19 +84,9 @@ export const appendToStream = async <MessageType extends Message>(
 
     if (options?.onBeforeCommit)
       await options.onBeforeCommit(messagesToAppend, { db });
-  } catch (err: unknown) {
-    await db.command(`ROLLBACK`);
-    throw err;
-  }
 
-  if (result.success == null || !result.success) {
-    await db.command(`ROLLBACK`);
     return result;
-  }
-
-  await db.command(`COMMIT`);
-
-  return result;
+  });
 };
 
 const toExpectedVersion = (
@@ -208,15 +196,20 @@ const appendToStreamRaw = async (
       options?.partition?.toString() ?? defaultTag,
     );
 
-    const returningId = await db.querySingle<{
+    const returningIds = await db.query<{
       global_position: string;
     } | null>(sqlString, values);
 
-    if (returningId?.global_position == null) {
+    if (
+      returningIds.length === 0 ||
+      !returningIds[returningIds.length - 1]?.global_position
+    ) {
       throw new Error('Could not find global position');
     }
 
-    globalPosition = BigInt(returningId.global_position);
+    globalPosition = BigInt(
+      returningIds[returningIds.length - 1]!.global_position,
+    );
   } catch (err: unknown) {
     if (isSQLiteError(err) && isOptimisticConcurrencyError(err)) {
       return {

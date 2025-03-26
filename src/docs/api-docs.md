@@ -1,5 +1,6 @@
 ---
 outline: deep
+documentationType: reference
 ---
 
 # API reference

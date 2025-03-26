@@ -156,3 +156,8 @@ export type DeleteManyOptions = {
     'DOCUMENT_EXISTS' | 'NO_CONCURRENCY_CHECK'
   >;
 };
+
+export type FullId<
+  Collection extends string,
+  Id extends string,
+> = `${Collection}-${Id}`;

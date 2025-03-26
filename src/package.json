@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/core",
   "type": "module",
-  "version": "0.34.0",
+  "version": "0.36.0",
   "description": "Emmett - Event Sourcing development made simple",
   "engines": {
     "node": ">=20.11.1"
@@ -11,6 +11,7 @@
     "setup": "cat .nvmrc | nvm install; nvm use",
     "build": "run-s build:ts build:shims build:emmett build:esdb build:mongodb build:postgresql build:sqlite build:expressjs build:fastify build:testcontainers build:tests",
     "build:ts": "tsc -b",
+    "build:ts:clean": "tsc --build --clean",
     "build:ts:watch": "tsc -b --watch",
     "build:shims": "npm run build -w packages/emmett-shims",
     "build:emmett": "npm run build -w packages/emmett",

@@ -13,6 +13,7 @@ import { v4 as uuid } from 'uuid';
 import type {
   ProductItemAdded,
   ShoppingCartConfirmed,
+  ShoppingCartEvent,
 } from '../../testing/shoppingCart.domain';
 import {
   getPostgreSQLEventStore,
@@ -70,10 +71,10 @@ void describe('PostgreSQL event store started consumer', () => {
         );
 
         // When
-        const consumer = postgreSQLEventStoreConsumer({
+        const consumer = postgreSQLEventStoreConsumer<ShoppingCartEvent>({
           connectionString,
         });
-        consumer.processor({
+        consumer.processor<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           stopAfter: (event) =>
@@ -188,7 +189,7 @@ void describe('PostgreSQL event store started consumer', () => {
         consumer.processor({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
-          startFrom: { globalPosition: startPosition },
+          startFrom: { lastCheckpoint: startPosition },
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
         });

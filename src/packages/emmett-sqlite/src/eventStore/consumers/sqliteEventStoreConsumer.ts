@@ -3,8 +3,9 @@ import { sqliteConnection, type SQLiteConnection } from '../../connection';
 import {
   DefaultSQLiteEventStoreProcessorBatchSize,
   DefaultSQLiteEventStoreProcessorPullingFrequencyInMs,
-  SQLiteEventStoreMessageBatchPuller,
+  sqliteEventStoreMessageBatchPuller,
   zipSQLiteEventStoreMessageBatchPullerStartFrom,
+  type SQLiteEventStoreMessageBatchPuller,
   type SQLiteEventStoreMessagesBatchHandler,
 } from './messageBatchProcessing';
 import {
@@ -70,7 +71,7 @@ export const sqliteEventStoreConsumer = <
     const result = await Promise.allSettled(
       activeProcessors.map((s) => {
         // TODO: Add here filtering to only pass messages that can be handled by processor
-        return s.handle(messagesBatch, { db });
+        return s.handle(messagesBatch, { db, fileName: options.fileName });
       }),
     );
 
@@ -84,7 +85,7 @@ export const sqliteEventStoreConsumer = <
   };
 
   const messagePooler = (currentMessagePuller =
-    SQLiteEventStoreMessageBatchPuller({
+    sqliteEventStoreMessageBatchPuller({
       db,
       eachBatch,
       batchSize:
@@ -143,6 +144,10 @@ export const sqliteEventStoreConsumer = <
     stop,
     close: async () => {
       await stop();
+
+      db.close();
+
+      await new Promise((resolve) => setTimeout(resolve, 250));
     },
   };
 };

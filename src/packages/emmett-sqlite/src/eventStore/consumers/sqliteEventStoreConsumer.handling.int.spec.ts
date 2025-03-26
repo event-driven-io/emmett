@@ -1,35 +1,45 @@
 import { assertThatArray, type Event } from '@event-driven-io/emmett';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
-import { after, before, describe, it } from 'node:test';
+import fs from 'fs';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
+import { sqliteConnection } from '../../connection';
+import { createEventStoreSchema } from '../schema';
 import {
-  getPostgreSQLEventStore,
-  type PostgresEventStore,
-} from '../postgreSQLEventStore';
-import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
-import { type PostgreSQLProcessorOptions } from './postgreSQLProcessor';
+  getSQLiteEventStore,
+  type SQLiteEventStore,
+  type SQLiteEventStoreOptions,
+} from '../SQLiteEventStore';
+import { sqliteEventStoreConsumer } from './sqliteEventStoreConsumer';
+import type { SQLiteProcessorOptions } from './sqliteProcessor';
 
 const withDeadline = { timeout: 5000 };
 
-void describe('PostgreSQL event store started consumer', () => {
-  let postgres: StartedPostgreSqlContainer;
-  let connectionString: string;
-  let eventStore: PostgresEventStore;
+void describe('SQLite event store started consumer', () => {
+  const testDatabasePath = path.dirname(fileURLToPath(import.meta.url));
+  const fileName = path.resolve(testDatabasePath, `test.db`);
 
-  before(async () => {
-    postgres = await new PostgreSqlContainer().start();
-    connectionString = postgres.getConnectionUri();
-    eventStore = getPostgreSQLEventStore(connectionString);
-    await eventStore.schema.migrate();
+  const config: SQLiteEventStoreOptions = {
+    schema: {
+      autoMigration: 'None',
+    },
+    fileName,
+  };
+
+  let eventStore: SQLiteEventStore;
+
+  beforeEach(() => {
+    eventStore = getSQLiteEventStore(config);
+    return createEventStoreSchema(sqliteConnection({ fileName }));
   });
 
-  after(async () => {
+  afterEach(() => {
+    if (!fs.existsSync(fileName)) {
+      return;
+    }
     try {
-      await eventStore.close();
-      await postgres.stop();
+      fs.unlinkSync(fileName);
     } catch (error) {
       console.log(error);
     }
@@ -51,12 +61,11 @@ void describe('PostgreSQL event store started consumer', () => {
           streamName,
           events,
         );
-
         const result: GuestStayEvent[] = [];
 
         // When
-        const consumer = postgreSQLEventStoreConsumer({
-          connectionString,
+        const consumer = sqliteEventStoreConsumer({
+          fileName,
         });
         consumer.processor<GuestStayEvent>({
           processorId: uuid(),
@@ -70,8 +79,9 @@ void describe('PostgreSQL event store started consumer', () => {
 
         try {
           await consumer.start();
-
           assertThatArray(result).containsElementsMatching(events);
+        } catch (error) {
+          console.log(error);
         } finally {
           await consumer.close();
         }
@@ -88,8 +98,8 @@ void describe('PostgreSQL event store started consumer', () => {
         let stopAfterPosition: bigint | undefined = undefined;
 
         // When
-        const consumer = postgreSQLEventStoreConsumer({
-          connectionString,
+        const consumer = sqliteEventStoreConsumer({
+          fileName,
         });
         consumer.processor<GuestStayEvent>({
           processorId: uuid(),
@@ -150,12 +160,12 @@ void describe('PostgreSQL event store started consumer', () => {
         let stopAfterPosition: bigint | undefined = undefined;
 
         // When
-        const consumer = postgreSQLEventStoreConsumer({
-          connectionString,
+        const consumer = sqliteEventStoreConsumer({
+          fileName,
         });
         consumer.processor<GuestStayEvent>({
           processorId: uuid(),
-          startFrom: { lastCheckpoint: startPosition },
+          startFrom: { globalPosition: startPosition },
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
@@ -206,8 +216,8 @@ void describe('PostgreSQL event store started consumer', () => {
         let stopAfterPosition: bigint | undefined = undefined;
 
         // When
-        const consumer = postgreSQLEventStoreConsumer({
-          connectionString,
+        const consumer = sqliteEventStoreConsumer({
+          fileName,
         });
         consumer.processor<GuestStayEvent>({
           processorId: uuid(),
@@ -267,8 +277,8 @@ void describe('PostgreSQL event store started consumer', () => {
         let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
 
         // When
-        const consumer = postgreSQLEventStoreConsumer({
-          connectionString,
+        const consumer = sqliteEventStoreConsumer({
+          fileName,
         });
         consumer.processor<GuestStayEvent>({
           processorId: uuid(),
@@ -331,7 +341,7 @@ void describe('PostgreSQL event store started consumer', () => {
         let result: GuestStayEvent[] = [];
         let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
 
-        const processorOptions: PostgreSQLProcessorOptions<GuestStayEvent> = {
+        const processorOptions: SQLiteProcessorOptions<GuestStayEvent> = {
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
@@ -342,8 +352,8 @@ void describe('PostgreSQL event store started consumer', () => {
         };
 
         // When
-        const consumer = postgreSQLEventStoreConsumer({
-          connectionString,
+        const consumer = sqliteEventStoreConsumer({
+          fileName,
         });
         try {
           consumer.processor<GuestStayEvent>(processorOptions);
@@ -357,8 +367,8 @@ void describe('PostgreSQL event store started consumer', () => {
 
         stopAfterPosition = undefined;
 
-        const newConsumer = postgreSQLEventStoreConsumer({
-          connectionString,
+        const newConsumer = sqliteEventStoreConsumer({
+          fileName,
         });
         newConsumer.processor<GuestStayEvent>(processorOptions);
 

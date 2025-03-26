@@ -3,6 +3,7 @@ import {
   assertEqual,
   assertIsNotNull,
   projections,
+  type Event,
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
@@ -13,17 +14,11 @@ import {
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
-  type DiscountApplied,
-  type PricedProductItem,
-  type ProductItemAdded,
-  type ShoppingCartEvent,
-} from '../testing/shoppingCart.domain';
-import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from './postgreSQLEventStore';
 import { postgreSQLProjection } from './projections';
-import { pongoSingleStreamProjection } from './projections/pongo/projections';
+import { pongoSingleStreamProjection } from './projections/pongo/pongoProjections';
 
 void describe('EventStoreDBEventStore', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -61,19 +56,29 @@ void describe('EventStoreDBEventStore', () => {
       price: 3,
     };
     const discount = 10;
-    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const clientId = uuid();
+    const shoppingCartId = `shopping_cart-${clientId}`;
     handledEventsInCustomProjection = [];
 
     await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
-      { type: 'ProductItemAdded', data: { productItem } },
+      {
+        type: 'ProductItemAdded',
+        data: { productItem },
+        metadata: { clientId },
+      },
     ]);
     await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
-      { type: 'ProductItemAdded', data: { productItem } },
+      {
+        type: 'ProductItemAdded',
+        data: { productItem },
+        metadata: { clientId },
+      },
     ]);
     await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
       {
         type: 'DiscountApplied',
         data: { percent: discount, couponId: uuid() },
+        metadata: { clientId },
       },
     ]);
 
@@ -130,6 +135,35 @@ const evolve = (
       return document;
   }
 };
+
+type PricedProductItem = {
+  productId: string;
+  quantity: number;
+  price: number;
+};
+
+type ShoppingCartEventMetadata = { clientId: string };
+
+type ProductItemAdded = Event<
+  'ProductItemAdded',
+  { productItem: PricedProductItem },
+  ShoppingCartEventMetadata
+>;
+type DiscountApplied = Event<
+  'DiscountApplied',
+  { percent: number; couponId: string },
+  ShoppingCartEventMetadata
+>;
+type ShoppingCartConfirmed = Event<
+  'ShoppingCartConfirmed',
+  { confirmedAt: Date },
+  ShoppingCartEventMetadata
+>;
+
+type ShoppingCartEvent =
+  | ProductItemAdded
+  | DiscountApplied
+  | ShoppingCartConfirmed;
 
 const shoppingCartShortInfoProjection = pongoSingleStreamProjection({
   collectionName: shoppingCartShortInfoCollectionName,

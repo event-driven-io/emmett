@@ -1,8 +1,8 @@
 import { type SQLExecutor } from '@event-driven-io/dumbo';
 import type {
+  BatchRecordedMessageHandlerWithoutContext,
   EmmettError,
-  Event,
-  ReadEvent,
+  Message,
   ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { readLastMessageGlobalPosition } from '../../schema/readLastMessageGlobalPosition';
@@ -14,36 +14,29 @@ import {
 export const DefaultPostgreSQLEventStoreProcessorBatchSize = 100;
 export const DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs = 50;
 
-export type PostgreSQLEventStoreMessagesBatch<EventType extends Event = Event> =
-  {
-    messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
-  };
-
 export type PostgreSQLEventStoreMessagesBatchHandlerResult = void | {
   type: 'STOP';
   reason?: string;
   error?: EmmettError;
 };
 
-export type PostgreSQLEventStoreMessagesBatchHandler<
-  EventType extends Event = Event,
-> = (
-  messagesBatch: PostgreSQLEventStoreMessagesBatch<EventType>,
-) =>
-  | Promise<PostgreSQLEventStoreMessagesBatchHandlerResult>
-  | PostgreSQLEventStoreMessagesBatchHandlerResult;
-
 export type PostgreSQLEventStoreMessageBatchPullerOptions<
-  EventType extends Event = Event,
+  MessageType extends Message = Message,
 > = {
   executor: SQLExecutor;
   pullingFrequencyInMs: number;
   batchSize: number;
-  eachBatch: PostgreSQLEventStoreMessagesBatchHandler<EventType>;
+  eachBatch: BatchRecordedMessageHandlerWithoutContext<
+    MessageType,
+    ReadEventMetadataWithGlobalPosition
+  >;
+  stopWhen?: {
+    noMessagesLeft?: boolean;
+  };
 };
 
 export type PostgreSQLEventStoreMessageBatchPullerStartFrom =
-  | { globalPosition: bigint }
+  | { lastCheckpoint: bigint }
   | 'BEGINNING'
   | 'END';
 
@@ -60,13 +53,14 @@ export type PostgreSQLEventStoreMessageBatchPuller = {
 };
 
 export const postgreSQLEventStoreMessageBatchPuller = <
-  EventType extends Event = Event,
+  MessageType extends Message = Message,
 >({
   executor,
   batchSize,
   eachBatch,
   pullingFrequencyInMs,
-}: PostgreSQLEventStoreMessageBatchPullerOptions<EventType>): PostgreSQLEventStoreMessageBatchPuller => {
+  stopWhen,
+}: PostgreSQLEventStoreMessageBatchPullerOptions<MessageType>): PostgreSQLEventStoreMessageBatchPuller => {
   let isRunning = false;
 
   let start: Promise<void>;
@@ -80,7 +74,7 @@ export const postgreSQLEventStoreMessageBatchPuller = <
         : options.startFrom === 'END'
           ? ((await readLastMessageGlobalPosition(executor))
               .currentGlobalPosition ?? 0n)
-          : options.startFrom.globalPosition;
+          : options.startFrom.lastCheckpoint;
 
     const readMessagesOptions: ReadMessagesBatchOptions = {
       after,
@@ -90,11 +84,11 @@ export const postgreSQLEventStoreMessageBatchPuller = <
     let waitTime = 100;
 
     do {
-      const { messages, currentGlobalPosition, areEventsLeft } =
-        await readMessagesBatch<EventType>(executor, readMessagesOptions);
+      const { messages, currentGlobalPosition, areMessagesLeft } =
+        await readMessagesBatch<MessageType>(executor, readMessagesOptions);
 
       if (messages.length > 0) {
-        const result = await eachBatch({ messages });
+        const result = await eachBatch(messages);
 
         if (result && result.type === 'STOP') {
           isRunning = false;
@@ -106,7 +100,12 @@ export const postgreSQLEventStoreMessageBatchPuller = <
 
       await new Promise((resolve) => setTimeout(resolve, waitTime));
 
-      if (!areEventsLeft) {
+      if (stopWhen?.noMessagesLeft === true && !areMessagesLeft) {
+        isRunning = false;
+        break;
+      }
+
+      if (!areMessagesLeft) {
         waitTime = Math.min(waitTime * 2, 1000);
       } else {
         waitTime = pullingFrequencyInMs;

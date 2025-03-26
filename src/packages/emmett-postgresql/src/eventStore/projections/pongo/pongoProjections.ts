@@ -2,6 +2,7 @@ import {
   type CanHandle,
   type Event,
   type ReadEvent,
+  type TruncateProjection,
 } from '@event-driven-io/emmett';
 import {
   pongoClient,
@@ -65,9 +66,11 @@ export type PongoProjectionOptions<EventType extends Event> = {
     context: PongoProjectionHandlerContext,
   ) => Promise<void>;
   canHandle: CanHandle<EventType>;
+  truncate?: TruncateProjection<PongoProjectionHandlerContext>;
 };
 
 export const pongoProjection = <EventType extends Event>({
+  truncate,
   handle,
   canHandle,
 }: PongoProjectionOptions<EventType>): PostgreSQLProjectionDefinition<EventType> =>
@@ -75,16 +78,30 @@ export const pongoProjection = <EventType extends Event>({
     canHandle,
     handle: async (events, context) => {
       const {
-        connection: { connectionString, client },
+        connection: { connectionString, client, pool },
       } = context;
       const pongo = pongoClient(connectionString, {
-        connectionOptions: { client },
+        connectionOptions: { client, pool },
       });
       await handle(events, {
         ...context,
         pongo,
       });
     },
+    truncate: truncate
+      ? (context) => {
+          const {
+            connection: { connectionString, client, pool },
+          } = context;
+          const pongo = pongoClient(connectionString, {
+            connectionOptions: { client, pool },
+          });
+          return truncate({
+            ...context,
+            pongo,
+          });
+        }
+      : undefined,
   });
 
 export type PongoMultiStreamProjectionOptions<
@@ -148,6 +165,16 @@ export const pongoMultiStreamProjection = <
       }
     },
     canHandle,
+    truncate: async (context) => {
+      const {
+        connection: { connectionString, client, pool },
+      } = context;
+      const pongo = pongoClient(connectionString, {
+        connectionOptions: { client, pool },
+      });
+
+      await pongo.db().collection<Document>(collectionName).deleteMany();
+    },
   });
 };
 

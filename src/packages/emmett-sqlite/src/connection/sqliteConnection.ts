@@ -22,6 +22,8 @@ export const isSQLiteError = (error: unknown): error is SQLiteError => {
   return false;
 };
 
+export type InMemorySharedCacheSQLiteDatabase = 'file::memory:?cache=shared';
+export const InMemorySharedCacheSQLiteDatabase = 'file::memory:?cache=shared';
 export type InMemorySQLiteDatabase = ':memory:';
 export const InMemorySQLiteDatabase = ':memory:';
 
@@ -33,7 +35,19 @@ type SQLiteConnectionOptions = {
 export const sqliteConnection = (
   options: SQLiteConnectionOptions,
 ): SQLiteConnection => {
-  const db = new sqlite3.Database(options.fileName ?? InMemorySQLiteDatabase);
+  const fileName = options.fileName ?? InMemorySQLiteDatabase;
+  let db: sqlite3.Database;
+
+  if (fileName.startsWith('file:')) {
+    db = new sqlite3.Database(
+      fileName,
+      sqlite3.OPEN_URI | sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
+    );
+  } else {
+    db = new sqlite3.Database(fileName);
+  }
+  db.run('PRAGMA journal_mode = WAL;');
+  let transactionNesting = 0;
 
   return {
     close: (): void => db.close(),
@@ -74,21 +88,31 @@ export const sqliteConnection = (
           resolve(result);
         });
       }),
-    withTransaction: <T>(fn: () => Promise<T>) =>
-      new Promise<T>((resolve, reject) => {
-        beginTransaction(db)
-          .then(() => fn())
-          .then((result) => commitTransaction(db).then(() => resolve(result)))
-          .catch((err: Error) =>
-            rollbackTransaction(db).then(() => reject(err)),
-          );
-      }),
+    withTransaction: async <T>(fn: () => Promise<T>) => {
+      try {
+        if (transactionNesting++ == 0) {
+          await beginTransaction(db);
+        }
+        const result = await fn();
+
+        if (transactionNesting === 1) await commitTransaction(db);
+        transactionNesting--;
+
+        return result;
+      } catch (err) {
+        console.log(err);
+
+        if (--transactionNesting === 0) await rollbackTransaction(db);
+
+        throw err;
+      }
+    },
   };
 };
 
 const beginTransaction = (db: sqlite3.Database) =>
   new Promise<void>((resolve, reject) => {
-    db.run('BEGIN TRANSACTION', (err: Error | null) => {
+    db.run('BEGIN IMMEDIATE TRANSACTION', (err: Error | null) => {
       if (err) {
         reject(err);
         return;

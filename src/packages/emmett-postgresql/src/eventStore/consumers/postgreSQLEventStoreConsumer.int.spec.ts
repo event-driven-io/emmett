@@ -4,6 +4,7 @@ import {
   assertThrowsAsync,
   assertTrue,
   EmmettError,
+  MessageProcessorType,
 } from '@event-driven-io/emmett';
 import {
   PostgreSqlContainer,
@@ -26,8 +27,10 @@ void describe('PostgreSQL event store consumer', () => {
   let connectionString: string;
   let eventStore: PostgresEventStore;
   const dummyProcessor: PostgreSQLProcessor = {
+    type: MessageProcessorType.REACTOR,
     id: uuid(),
     start: () => Promise.resolve('BEGINNING'),
+    close: () => Promise.resolve(),
     handle: () => Promise.resolve(),
     isActive: false,
   };

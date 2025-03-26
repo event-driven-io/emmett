@@ -1,7 +1,7 @@
 import { isSQLiteError, type SQLiteConnection } from '../../connection';
 import { sql } from './tables';
 import { defaultTag, subscriptionsTable } from './typing';
-import { single } from './utils';
+import { singleOrNull } from './utils';
 
 // for more infos see the postgresql stored procedure version
 async function storeSubscriptionCheckpointSQLite(
@@ -12,72 +12,71 @@ async function storeSubscriptionCheckpointSQLite(
   checkPosition: bigint | null,
   partition: string,
 ): Promise<0 | 1 | 2> {
-  return await db.withTransaction(async () => {
-    if (checkPosition !== null) {
-      const updateResult = await db.command(
-        sql(`
+  if (checkPosition !== null) {
+    const updateResult = await db.command(
+      sql(`
           UPDATE ${subscriptionsTable.name}
           SET last_processed_position = ?
           WHERE subscription_id = ? 
             AND last_processed_position = ? 
             AND partition = ?
         `),
-        [position, processorId, checkPosition, partition],
-      );
-      if (updateResult.changes > 0) {
-        return 1;
-      } else {
-        const current_position = await single(
-          db.query<{ last_processed_position: bigint }>(
-            sql(
-              `SELECT last_processed_position FROM ${subscriptionsTable.name} 
-               WHERE subscription_id = ? AND partition = ?`,
-            ),
-            [processorId, partition],
-          ),
-        );
-
-        if (current_position?.last_processed_position === position) {
-          return 0;
-        } else if (
-          position !== null &&
-          current_position?.last_processed_position > position
-        ) {
-          return 2;
-        } else {
-          return 2;
-        }
-      }
+      [position!.toString(), processorId, checkPosition.toString(), partition],
+    );
+    if (updateResult.changes > 0) {
+      return 1;
     } else {
-      try {
-        await db.command(
+      const current_position = await singleOrNull(
+        db.query<{ last_processed_position: bigint }>(
           sql(
-            `INSERT INTO ${subscriptionsTable.name} (subscription_id, version, last_processed_position, partition) VALUES (?, ?, ?, ?)`,
+            `SELECT last_processed_position FROM ${subscriptionsTable.name} 
+               WHERE subscription_id = ? AND partition = ?`,
           ),
-          [processorId, version, position, partition],
-        );
-        return 1;
-      } catch (err) {
-        if (!(isSQLiteError(err) && (err.errno === 19 || err.errno === 2067))) {
-          throw err;
-        }
+          [processorId, partition],
+        ),
+      );
 
-        const current = await single(
-          db.query<{ last_processed_position: bigint }>(
-            sql(
-              `SELECT last_processed_position FROM ${subscriptionsTable.name} WHERE subscription_id = ? AND partition = ?`,
-            ),
-            [processorId, partition],
-          ),
-        );
-        if (current?.last_processed_position === position) {
-          return 0;
-        } else {
-          return 2;
-        }
+      if (current_position?.last_processed_position === position) {
+        return 0;
+      } else if (
+        position !== null &&
+        current_position !== null &&
+        current_position?.last_processed_position > position
+      ) {
+        return 2;
+      } else {
+        return 2;
       }
     }
-  });
+  } else {
+    try {
+      await db.command(
+        sql(
+          `INSERT INTO ${subscriptionsTable.name} (subscription_id, version, last_processed_position, partition) VALUES (?, ?, ?, ?)`,
+        ),
+        [processorId, version, position!.toString(), partition],
+      );
+      return 1;
+    } catch (err) {
+      if (!(isSQLiteError(err) && (err.errno === 19 || err.errno === 2067))) {
+        throw err;
+      }
+
+      const current = await singleOrNull(
+        db.query<{ last_processed_position: bigint }>(
+          sql(
+            `SELECT last_processed_position FROM ${subscriptionsTable.name} WHERE subscription_id = ? AND partition = ?`,
+          ),
+          [processorId, partition],
+        ),
+      );
+      if (current?.last_processed_position === position) {
+        return 0;
+      } else {
+        return 2;
+      }
+    }
+  }
 }
 
 export type StoreLastProcessedProcessorPositionResult<

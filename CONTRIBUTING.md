@@ -108,6 +108,10 @@ The source codes are located in [src](./src/) folder. Packages are nested under 
 
 For documentation Emmett is using [Vitepress](https://vitepress.dev). Documentation is located under [./src/docs](./src/docs/) folder.
 
+## Contributing to the documentation
+
+Contributions to the documentation are more than welcome. The Emmett documentation is generated using [Vitepress](https://vitepress.dev/) and the default theme.
+
 To build documentation locally, run in `src` folder:
 
 ```shell
@@ -115,6 +119,38 @@ npm run docs:dev
 ```
 
 See also other helpful scripts in [./src/package.json](./src/package.json).
+
+### Frontmatter convention
+
+As per [Vitepress documentation on frontmatter](https://vitepress.dev/guide/frontmatter) the keys for the frontmatter should be in `camelCase`.
+
+### Using the Diataxis documentation system
+
+Emmett uses [Diataxis](https://diataxis.fr) as a guide towards first-class user experience (see [PR#203](https://github.com/event-driven-io/emmett/pull/200)) for its documentation.
+
+Please note that Diataxis is not [prescriptive about the structure of the documentation](https://diataxis.fr/how-to-use-diataxis/#don-t-worry-about-structure). In facto it endorses organic growth towards adapting the documentation system.
+
+### Documentation type
+
+In Diataxis each type of documentation comes with specific language and guidelines. To make the intent of the document clear for contributors,
+the type of documentation is defined by the `documentationType` field in the [frontmatter](https://vitepress.dev/guide/frontmatter) of each markdown file:
+
+```md
+---
+documentationType: tutorial #One of: tutorial, how-to-guide, reference, explanation
+---
+
+Lorem ipsum doloret sit amet
+```
+
+The possible values for `documentation-type` [correspond to the Diataxis types](https://diataxis.fr/start-here/) as follows:
+
+- `tutorial` for [tutorials](https://diataxis.fr/tutorials/). _A tutorial is an experience that takes place under the guidance of a tutor. A tutorial is always learning-oriented._
+- `how-to-guide` for [how-to guides](https://diataxis.fr/how-to-guides/). _How-to guides are directions that guide the reader through a problem or towards a result. How-to guides are goal-oriented._
+- `reference` for [reference documentation](https://diataxis.fr/reference/). _Reference guides are technical descriptions of the machinery and how to operate it. Reference material is information-oriented._
+- `explanation` for [explanations](https://diataxis.fr/explanation/)._Explanation is a discursive treatment of a subject, that permits reflection. Explanation is understanding-oriented._
+
+It is recommended to take a look at [the Diataxis compass](https://diataxis.fr/compass/) when unsure which type might be most appropriate for a document.
 
 ## Working with the Git
 

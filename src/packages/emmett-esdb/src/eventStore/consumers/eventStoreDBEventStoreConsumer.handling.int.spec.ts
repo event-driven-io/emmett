@@ -45,8 +45,224 @@ void describe('EventStoreDB event store started consumer', () => {
     ['stream', (streamName) => ({ stream: streamName })],
   ];
 
-  consumeFrom.forEach(([displayName, from]) => {
-    void describe('eachMessage', () => {
+  void describe('eachMessage', () => {
+    void it(
+      `handles ONLY events from single streams for subscription to stream`,
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${otherGuestId}`;
+        const otherStreamName = `guestStay-${guestId}`;
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        const appendResult = await eventStore.appendToStream(
+          streamName,
+          events,
+        );
+        await eventStore.appendToStream(otherStreamName, events);
+
+        const result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = eventStoreDBEventStoreConsumer({
+          connectionString,
+          from: { stream: streamName },
+        });
+        consumer.processor<GuestStayEvent>({
+          processorId: uuid(),
+          stopAfter: (event) =>
+            event.metadata.globalPosition ===
+            appendResult.lastEventGlobalPosition,
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        try {
+          await consumer.start();
+
+          assertThatArray(result).containsElementsMatching(events);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
+    void it(
+      `handles all events from $all streams for subscription to stream`,
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${otherGuestId}`;
+        const otherStreamName = `guestStay-${guestId}`;
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, events);
+        const appendResult = await eventStore.appendToStream(
+          otherStreamName,
+          events,
+        );
+
+        const result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = eventStoreDBEventStoreConsumer({
+          connectionString,
+          from: { stream: $all },
+        });
+
+        consumer.processor<GuestStayEvent>({
+          processorId: uuid(),
+          stopAfter: (event) =>
+            event.metadata.globalPosition ===
+            appendResult.lastEventGlobalPosition,
+          eachMessage: (event) => {
+            if (
+              event.metadata.streamName === streamName ||
+              event.metadata.streamName === otherStreamName
+            )
+              result.push(event);
+          },
+        });
+
+        try {
+          await consumer.start();
+
+          assertThatArray(result).hasSize(events.length * 2);
+
+          assertThatArray(result).containsElementsMatching([
+            ...events,
+            ...events,
+          ]);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
+    void it(
+      `handles ONLY events from stream AFTER provided global position`,
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        const { nextExpectedStreamVersion: startPosition } =
+          await eventStore.appendToStream(streamName, initialEvents);
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const result: GuestStayEvent[] = [];
+        let stopAfterPosition: bigint | undefined = undefined;
+
+        // When
+        const consumer = eventStoreDBEventStoreConsumer({
+          connectionString,
+          from: { stream: streamName },
+        });
+        consumer.processor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: { position: startPosition },
+          stopAfter: (event) =>
+            event.metadata.streamPosition === stopAfterPosition,
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        try {
+          const consumerPromise = consumer.start();
+
+          const appendResult = await eventStore.appendToStream(
+            streamName,
+            events,
+          );
+          stopAfterPosition = appendResult.nextExpectedStreamVersion;
+
+          await consumerPromise;
+
+          assertThatArray(result).containsOnlyElementsMatching(events);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
+    void it(
+      `handles ONLY events from $all AFTER provided global position`,
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        const { lastEventGlobalPosition: startPosition } =
+          await eventStore.appendToStream(streamName, initialEvents);
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const result: GuestStayEvent[] = [];
+        let stopAfterPosition: bigint | undefined = undefined;
+
+        // When
+        const consumer = eventStoreDBEventStoreConsumer({
+          connectionString,
+          from: { stream: $all },
+        });
+        consumer.processor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: { position: startPosition },
+          stopAfter: (event) =>
+            event.metadata.globalPosition === stopAfterPosition,
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        try {
+          const consumerPromise = consumer.start();
+
+          const appendResult = await eventStore.appendToStream(
+            streamName,
+            events,
+          );
+          stopAfterPosition = appendResult.lastEventGlobalPosition;
+
+          await consumerPromise;
+
+          assertThatArray(result).containsOnlyElementsMatching(events);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
+    consumeFrom.forEach(([displayName, from]) => {
       void it(
         `handles all events from ${displayName} appended to event store BEFORE processor was started`,
         withDeadline,
@@ -133,63 +349,6 @@ void describe('EventStoreDB event store started consumer', () => {
             await consumerPromise;
 
             assertThatArray(result).containsElementsMatching(events);
-          } finally {
-            await consumer.close();
-          }
-        },
-      );
-
-      void it(
-        `handles ONLY events from ${displayName} AFTER provided global position`,
-        withDeadline,
-        async () => {
-          // Given
-          const guestId = uuid();
-          const otherGuestId = uuid();
-          const streamName = `guestStay-${guestId}`;
-
-          const initialEvents: GuestStayEvent[] = [
-            { type: 'GuestCheckedIn', data: { guestId } },
-            { type: 'GuestCheckedOut', data: { guestId } },
-          ];
-          const { lastEventGlobalPosition: startPosition } =
-            await eventStore.appendToStream(streamName, initialEvents);
-
-          const events: GuestStayEvent[] = [
-            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
-            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
-          ];
-
-          const result: GuestStayEvent[] = [];
-          let stopAfterPosition: bigint | undefined = undefined;
-
-          // When
-          const consumer = eventStoreDBEventStoreConsumer({
-            connectionString,
-            from: from(streamName),
-          });
-          consumer.processor<GuestStayEvent>({
-            processorId: uuid(),
-            startFrom: { position: startPosition },
-            stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
-            eachMessage: (event) => {
-              result.push(event);
-            },
-          });
-
-          try {
-            const consumerPromise = consumer.start();
-
-            const appendResult = await eventStore.appendToStream(
-              streamName,
-              events,
-            );
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
-
-            await consumerPromise;
-
-            assertThatArray(result).containsOnlyElementsMatching(events);
           } finally {
             await consumer.close();
           }
