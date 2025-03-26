@@ -15,17 +15,5 @@
   },
   "dependencies": {
     "@event-driven-io/emmett": "^0.34.0"
-  },
-  "include": [
-    "./index.ts"
-  ],
-  "ts-node": {
-    "esm": true
-  },
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ]
+  }
 }
