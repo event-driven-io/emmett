@@ -283,7 +283,17 @@ ItemRemoved(name: Ice Cream) // ShoppingCart(items: Pizza)
 ```
 
 Why does it look that way?
-Initially there is only one event in the stream, then two, then three, then four. Whenever an event is appended to the stream, the whole stream is re-read to calculate the next state.
+Initially there is only one event in the stream, then two, then three, then four. Whenever an event is appended to the stream, _the whole stream is re-read_ to calculate the next state.
+
+One key aspect is that this behavior allows us to change the code for calculating the current state of the shopping cart (e.g. to just count the number of items in the cart) without any negative side effects.
+
+### Business perspective
+
+In the final round, the ice cream was added and then removed again. In a traditional state-sourced database, it is impossible to see from the cart state that the ice cream has been in the cart.
+
+In event sourced applications we keep a record of all events that are relevant to the business. In this case we might want to change the code to send a newsletter with a 50 % discount on ice cream to people who removed it from the cart to increase ice cream sales.
+
+Moreover we can implement such a feature retroactively by replaying all events from the event store for all events that were recorded before our feature existed. That means we can defer these kinds of decisions to when they become necessary from a business perspective without severe drawbacks.
 
 ## Summary
 
