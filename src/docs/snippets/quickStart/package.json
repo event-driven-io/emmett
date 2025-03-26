@@ -1,0 +1,31 @@
+{
+  "name": "emmett-quick-start",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "",
+  "scripts": {
+    "start": "tsx ./index.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "@event-driven-io/emmett": "^0.34.0"
+  },
+  "include": [
+    "./index.ts"
+  ],
+  "ts-node": {
+    "esm": true
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ]
+}
