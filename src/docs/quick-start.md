@@ -1,7 +1,9 @@
 ---
-title: Quick start
 documentationType: tutorial
+outline: 'deep'
 ---
+
+# Quick start
 
 In this tutorial we will create an application that can add and remove items to/from a shopping cart. Along this way you will experience the fundamental mechanics and basic building blocks of Emmett.
 
@@ -70,7 +72,7 @@ About to write to /home/tobias/projekte/emmett-quick-start/package.json:
 Is this OK? (yes)
 ```
 
-## Add TypeScript
+### Add TypeScript support
 
 Now install TypeScript and `tsx` as dev dependencies for running our code:
 
@@ -113,7 +115,9 @@ You can learn more at https://aka.ms/tsconfig
 
 :::
 
-Then add the `start` target to your package.json:
+### Running your applicatoon
+
+Add the `start` target to your package.json:
 
 <<< @/snippets/quickStart/package.json{7}
 
@@ -123,10 +127,7 @@ Let us add an empty `index.ts` file as entrypoint for our application:
 touch index.ts
 ```
 
-> [!TIP]
-> In this example we are going to add all our source code to just `index.ts`. For real-life applications, we might want to consider improving the project structure, e.g. by having a separate source folder later on.
-
-Test your configuration by running
+To run your application, use the following command:
 
 ::: code-group
 
@@ -144,7 +145,7 @@ $ npm run build:ts
 
 :::
 
-## Add Emmett as dependency
+### Add Emmett as dependency
 
 ::: code-group
 
@@ -214,7 +215,7 @@ Before we can put things together, we need to define our _item added_ event. Als
 
 We use this type to record that our item has been added to (or removed from) the shopping cart.
 
-### Turning commands into events
+### Recording events
 
 Now we need to put the commands and events together using _command handler_ functions:
 
@@ -226,7 +227,7 @@ Emmett promotes the following _decider_ pattern that is easily extensible for mo
 
 <<< @/snippets/quickStart/index.ts#decider
 
-This calls the correct _command handler_ function based on the `type` of the command.
+This calls the correct _command handler_ function based on the `type` of the command and returns an event which is going to be _recorded_ to the event store further below.
 
 ### Calculating the next shopping cart
 
