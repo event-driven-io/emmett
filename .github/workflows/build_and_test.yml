@@ -6,12 +6,14 @@ on:
     branches: [main]
     paths:
       - "src/**"
+      - "!src/docs/**"
       - "./.github/workflows/build_and_test.yml"
 
   # run it during pull request
   pull_request:
     paths:
       - "src/**"
+      - "!src/docs/**"
       - "./.github/workflows/build_and_test.yml"
 
   # Allows you to run this workflow manually from the Actions tab

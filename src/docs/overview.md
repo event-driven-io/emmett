@@ -1,39 +1,87 @@
 # Overview
 
-Everything you need to know about Emmett and Event Sourcing.
+Welcome to Emmett's documentation!
+
+![Emmett logo](/logo.png)
+
+## What is Emmett?
+
+**Emmett is an opinionated yet flexible framework that implements Event Sourcing for Node.js applications.** It focuses on composition rather than magic, providing lightweight abstractions and clear patterns that make Event Sourcing accessible and maintainable.
+
+## Main Features
+
+| Feature                           | Description                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------- |
+| **Event-Centric Modeling**        | Structured approach to modeling business processes through events                     |
+| **Multiple Event Stores**         | Built-in support for PostgreSQL, EventStoreDB, MongoDB, SQLite, and In-Memory storage |
+| **Command Handling Patterns**     | Standardized approach to command processing and event handling                        |
+| **Building read models**          | Built-in projections to build read models from recorded events.                       |
+| **Type Safety**                   | First-class TypeScript support with structural typing                                 |
+| **Express.js Integration**        | Seamless integration with Express.js, including conventional error handling etc.      |
+| **Comprehensive Testing Support** | Tools for unit, integration, and E2E testing with BDD-style syntax                    |
+| **Lightweight Design**            | Focused on composition over replacement, allowing integration with existing systems   |
+| **Docker Testing Integration**    | Support for TestContainers to simplify database setup in tests                        |
+
+## Why Use Emmett?
+
+Nowadays, storage is cheap, but the information is priceless.
+
+Event Sourcing, keeps all the facts that happened in our system as events. That provides an observability of the business process and enabling event-driven capabilities like building read models, easier integration between components.
+
+**However, implementing Event Sourcing can be challenging due to:**
+
+- additional learning curves for new developers,
+- knowing how to structure your code,
+- implementing event storage,
+- difficulty in setting up proper testing strategies,
+- integrating with existing frameworks and infrastructure.
+
+**Emmett solves these problems by:**
+
+- Reducing boilerplate with pragmatic abstractions,
+- Providing clear patterns for common operations,
+- Supporting multiple testing approaches with built-in utilities,
+- Including ready-to-use event store implementations,
+- Offering simple integration with Express.js.
 
 ## First steps
 
-If you are new to Emmett or Event Sourcing, no problem.
+If you are new to Emmett or Event Sourcing, that is no problem, we've got you covered!
 
-The [Getting Started](/getting-started) guide will help you with your first Emmett project.
+Check the [Quick Intro](/quick-intro) tutorial to familiarise you with basic concepts.
+
+Then, the [Getting Started](/getting-started) guide will help you set up the first real application with Emmett.
+
+You can also watch a full introduction video on how to build application:
+
+<YouTubeEmbed id="SDXdcymKv-8" />
 
 ## Getting help
 
-If you need help or got stuck, feel free to ask on the [Emmett Community Discord Server](https://discord.gg/fTpqUTMmVa).
+If you need help or get stuck, feel free to ask on the [Emmett Community Discord Server](https://discord.gg/fTpqUTMmVa).
 
 ## API reference
 
-The [API reference](/api-reference/) provides you with definitions and insights of Emmetts core building blocks:
+The [API reference](/api-reference/) provides you with definitions and insights into Emmett's core building blocks:
 
-- **Events** are the centerpiece of event-sourced systems. They represent both critical points of the business process but are also used as the state.
+- **Events** are the centrepiece of event-sourced systems. They represent both critical points of the business process but are also used as the state.
 - **Commands** represent the intent to perform a business operation.
 - **Event Store** for recording events
 - **Command Handlers** are responsible for handling business logic. They read events from the event store for specific events and build a decision model. Then, check business rules and perform the intended business operation, resulting in one or more events to record the change.
 
-## How the documenantation is organized
+## How the documentation is organized
 
-Currently documentation for Emmett is spread across several places: This website, the [Emmett Discord](https://discord.gg/fTpqUTMmVa) and [quite a few blog articles](/overview#further-reading).
-At the moment we are in the process of consolidating and refactoring these into a single documentation on this website.
+Currently, documentation for Emmett is spread across several places: This website, the [Emmett Discord](https://discord.gg/fTpqUTMmVa) and [quite a few blog articles](/overview#further-reading).
+We are currently in the process of consolidating and refactoring these into a single document on this website.
 
-Our aim is that each part of the documenation roughly falls into one of these four categories:
+Our aim is that each part of the documentation roughly falls into one of these four categories:
 
-- **Tutorials** are lessons that take you by the hand, guiding you step-by-step towards building your own applications with Emmett. Start here if you are new to Emmett, Event Sourcing or writing applications with Typescript. Our [Getting Started](/getting-started) guide is a good place to look at.
-- **Topic guides** discuss key topics and concepts at a fairly high level and provide useful background information and explanation.
-- **Reference guides** contain technical reference for APIs and other aspects of Emmett. They describe how it works and how to use it, but assume that you have a basic understanding of key concepts.
+- **Tutorials** are lessons that take you by the hand, guiding you step-by-step towards building your own applications with Emmett. Start here if you are new to Emmett, Event Sourcing or writing applications with Typescript. Our [Getting Started](/getting-started) guide is a good place to look.
+- **Topic guides** discuss key topics and concepts fairly well and provide useful background information and explanation.
+- **Reference guides** contain technical references for APIs and other aspects of Emmett. They describe how it works and how to use it, but assume you have a basic understanding of key concepts.
 - **How-to guides** are recipes. They guide you through the steps involved in addressing key problems and use-cases. They are more advanced than tutorials and assume some knowledge of how Emmett works.
 
-In fact, we aim at using [Diataxis](https://diataxis.fr) and its [workflow](https://diataxis.fr/how-to-use-diataxis/) as a systematic, user-centric approach to documentation.
+We aim to use [Diataxis](https://diataxis.fr) and its [workflow](https://diataxis.fr/how-to-use-diataxis/) as a systematic, user-centric approach to documentation.
 
 ## Further reading
 

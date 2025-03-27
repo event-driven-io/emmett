@@ -10,6 +10,9 @@ hero:
     src: /logo.png
     alt: Emmett logo
   actions:
+    - theme: alt
+      text: Overview
+      link: /overview
     - theme: brand
       text: Getting Started
       link: /getting-started
