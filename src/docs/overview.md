@@ -15,8 +15,9 @@ Welcome to Emmett's documentation!
 | **Event-Centric Modeling**        | Structured approach to modeling business processes through events                     |
 | **Multiple Event Stores**         | Built-in support for PostgreSQL, EventStoreDB, MongoDB, SQLite, and In-Memory storage |
 | **Command Handling Patterns**     | Standardized approach to command processing and event handling                        |
+| **Building read models**          | Built-in projections to build read models from recorded events.                       |
 | **Type Safety**                   | First-class TypeScript support with structural typing                                 |
-| **Express.js Integration**        | Seamless integration with Express.js, including problem details middleware (RFC 9457) |
+| **Express.js Integration**        | Seamless integration with Express.js, including conventional error handling etc.      |
 | **Comprehensive Testing Support** | Tools for unit, integration, and E2E testing with BDD-style syntax                    |
 | **Lightweight Design**            | Focused on composition over replacement, allowing integration with existing systems   |
 | **Docker Testing Integration**    | Support for TestContainers to simplify database setup in tests                        |
@@ -49,7 +50,7 @@ If you are new to Emmett or Event Sourcing, that is no problem, we've got you co
 
 Check the [Quick Intro](/quick-intro) tutorial to familiarise you with basic concepts.
 
-Then, the [Getting Started](/getting-started) guide will help you set up the first real Emmett project.
+Then, the [Getting Started](/getting-started) guide will help you set up the first real application with Emmett.
 
 You can also watch a full introduction video on how to build application:
 
