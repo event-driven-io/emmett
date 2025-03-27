@@ -2,9 +2,9 @@
 import {
   CommandHandler,
   EmmettError,
+  IllegalStateError,
   type Command,
   type Event,
-  type IllegalStateError,
 } from '@event-driven-io/emmett';
 
 // #region state-definition
