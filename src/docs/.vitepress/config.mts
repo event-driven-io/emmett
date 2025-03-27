@@ -8,6 +8,20 @@ export default defineConfig({
   lang: 'en-GB',
   title: 'Emmett',
   description: 'Event Sourcing made simple',
+  // Add this Vite configuration
+  vite: {
+    vue: {
+      template: {
+        compilerOptions: {
+          isCustomElement: (tag) => tag.includes('-'),
+        },
+      },
+    },
+  },
+  rewrites: {
+    'quick-intro.md': 'quick-start.md',
+  },
+
   themeConfig: {
     logo: '/logo.png',
     // https://vitepress.dev/reference/default-theme-config
@@ -36,14 +50,21 @@ export default defineConfig({
         text: 'Documentation',
         items: [
           { text: 'Overview', link: '/overview' },
-          { text: 'Quick Start', link: '/quick-start' },
+          { text: 'Quick Intro', link: '/quick-intro' },
           { text: 'Getting Started', link: '/getting-started' },
-          { text: 'API reference', link: '/api-reference', items: [
-            { text: 'Event', link: '/api-reference/event' },
-            { text: 'Command', link: '/api-reference/command' },
-            { text: 'Event Store', link: '/api-reference/eventstore' },
-            { text: 'Command Handler', link: '/api-reference/commandhandler' },
-          ] },
+          {
+            text: 'API reference',
+            link: '/api-reference',
+            items: [
+              { text: 'Event', link: '/api-reference/event' },
+              { text: 'Command', link: '/api-reference/command' },
+              { text: 'Event Store', link: '/api-reference/eventstore' },
+              {
+                text: 'Command Handler',
+                link: '/api-reference/commandhandler',
+              },
+            ],
+          },
         ],
       },
     ],

@@ -4,15 +4,52 @@
 
 # Emmett - Event Sourcing development made simple
 
+**Emmett is an opinionated yet flexible framework that implements Event Sourcing for Node.js applications.** It focuses on composition rather than magic, providing lightweight abstractions and clear patterns that make Event Sourcing accessible and maintainable.
+
+## Why Use Emmett?
+
 Nowadays, storage is cheap, but the information is priceless.
 
-Event Sourcing, contrary to the standard approach, keeps all the facts that happened in our system. To do that, it needs an event store: a database designed for its needs.
+Event Sourcing, keeps all the facts that happened in our system as events. That provides an observability of the business process and enabling event-driven capabilities like building read models, easier integration between components.
 
-**Take your event-driven applications back to the future!**
+**However, implementing Event Sourcing can be challenging due to:**
+
+- additional learning curves for new developers,
+- knowing how to structure your code,
+- implementing event storage,
+- difficulty in setting up proper testing strategies,
+- integrating with existing frameworks and infrastructure.
+
+**Emmett solves these problems by:**
+
+- Reducing boilerplate with pragmatic abstractions,
+- Providing clear patterns for common operations,
+- Supporting multiple testing approaches with built-in utilities,
+- Including ready-to-use event store implementations,
+- Offering simple integration with Express.js.
+
+**Check Emmett and take your event-driven applications back to the future!**
+
+## Features
+
+| Feature                           | Description                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------- |
+| **Event-Centric Modeling**        | Structured approach to modeling business processes through events                     |
+| **Multiple Event Stores**         | Built-in support for PostgreSQL, EventStoreDB, MongoDB, SQLite, and In-Memory storage |
+| **Command Handling Patterns**     | Standardized approach to command processing and event handling                        |
+| **Type Safety**                   | First-class TypeScript support with structural typing                                 |
+| **Express.js Integration**        | Seamless integration with Express.js, including problem details middleware (RFC 9457) |
+| **Comprehensive Testing Support** | Tools for unit, integration, and E2E testing with BDD-style syntax                    |
+| **Lightweight Design**            | Focused on composition over replacement, allowing integration with existing systems   |
+| **Docker Testing Integration**    | Support for TestContainers to simplify database setup in tests                        |
 
 ## Documentation and Resources
 
 Read more in [documentation](https://event-driven-io.github.io/emmett/getting-started.html), join our [Discord Channel](https://discord.gg/fTpqUTMmVa) and ask any question.
+
+See the video tutorial to learn how to build a full application with it:
+
+<a href="https://www.youtube.com/watch?v=SDXdcymKv-8" target="_blank"><img src="https://img.youtube.com/vi/SDXdcymKv-8/0.jpg" alt="Practical introduction to Event Sourcing with Spring Boot and EventStoreDB" width="320" height="240" border="10" /></a>
 
 Check also my blog articles on Emmett:
 
@@ -35,17 +72,6 @@ I like its minimalistic approach and flexibility, plus TypeScript is an excellen
 ### Why is it named Emmett?
 
 [Because](https://en.m.wikipedia.org/wiki/Emmett_Brown).
-
-### **What features it has?**
-
-Essential building blocks for designing and running business and application logic like:
-
-- typings around events, commands, Deciders, Workflows, etc.
-- command handling wrappers for application layer,
-- implementation of event store using PostgreSQL, SQLite, EventStoreDB, MongoDB, and in-memory version,
-- abstractions for building read models,
-- building blocks for the Web Apis with Event Sourcing and CQRS,
-- serverless-friendly runtime model,
 
 ### **What features will it have?**
 
