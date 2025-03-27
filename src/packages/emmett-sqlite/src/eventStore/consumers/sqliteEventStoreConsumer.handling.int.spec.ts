@@ -18,7 +18,7 @@ const withDeadline = { timeout: 5000 };
 
 void describe('SQLite event store started consumer', () => {
   const testDatabasePath = path.dirname(fileURLToPath(import.meta.url));
-  const fileName = path.resolve(testDatabasePath, `test.db`);
+  const fileName = path.resolve(testDatabasePath, `test.connection`);
 
   const config: SQLiteEventStoreOptions = {
     schema: {

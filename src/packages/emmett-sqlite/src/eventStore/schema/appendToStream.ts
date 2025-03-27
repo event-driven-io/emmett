@@ -31,7 +31,7 @@ export type AppendEventResult =
   | { success: false };
 
 export const appendToStream = async <MessageType extends Message>(
-  db: SQLiteConnection,
+  connection: SQLiteConnection,
   streamName: string,
   streamType: string,
   messages: MessageType[],
@@ -39,7 +39,7 @@ export const appendToStream = async <MessageType extends Message>(
     partition?: string;
     onBeforeCommit?: BeforeEventStoreCommitHandler<
       SQLiteEventStore,
-      { db: SQLiteConnection }
+      { connection: SQLiteConnection }
     >;
   },
 ): Promise<AppendEventResult> => {
@@ -71,9 +71,9 @@ export const appendToStream = async <MessageType extends Message>(
 
   let result: AppendEventResult;
 
-  return await db.withTransaction(async () => {
+  return await connection.withTransaction(async () => {
     result = await appendToStreamRaw(
-      db,
+      connection,
       streamName,
       streamType,
       messagesToAppend,
@@ -83,7 +83,7 @@ export const appendToStream = async <MessageType extends Message>(
     );
 
     if (options?.onBeforeCommit)
-      await options.onBeforeCommit(messagesToAppend, { db });
+      await options.onBeforeCommit(messagesToAppend, { connection });
 
     return result;
   });
@@ -106,7 +106,7 @@ const toExpectedVersion = (
 };
 
 const appendToStreamRaw = async (
-  db: SQLiteConnection,
+  connection: SQLiteConnection,
   streamId: string,
   streamType: string,
   messages: RecordedMessage[],
@@ -123,7 +123,7 @@ const appendToStreamRaw = async (
 
     if (expectedStreamVersion == null) {
       expectedStreamVersion = await getLastStreamPosition(
-        db,
+        connection,
         streamId,
         expectedStreamVersion,
       );
@@ -132,7 +132,7 @@ const appendToStreamRaw = async (
     let position: { stream_position: string } | null;
 
     if (expectedStreamVersion === 0n) {
-      position = await db.querySingle<{
+      position = await connection.querySingle<{
         stream_position: string;
       } | null>(
         `INSERT INTO ${streamsTable.name}
@@ -155,7 +155,7 @@ const appendToStreamRaw = async (
         ],
       );
     } else {
-      position = await db.querySingle<{
+      position = await connection.querySingle<{
         stream_position: string;
       } | null>(
         `UPDATE ${streamsTable.name}
@@ -196,7 +196,7 @@ const appendToStreamRaw = async (
       options?.partition?.toString() ?? defaultTag,
     );
 
-    const returningIds = await db.query<{
+    const returningIds = await connection.query<{
       global_position: string;
     } | null>(sqlString, values);
 
@@ -232,11 +232,13 @@ const isOptimisticConcurrencyError = (error: SQLiteError): boolean => {
 };
 
 async function getLastStreamPosition(
-  db: SQLiteConnection,
+  connection: SQLiteConnection,
   streamId: string,
   expectedStreamVersion: bigint | null,
 ): Promise<bigint> {
-  const result = await db.querySingle<{ stream_position: string } | null>(
+  const result = await connection.querySingle<{
+    stream_position: string;
+  } | null>(
     `SELECT CAST(stream_position AS VARCHAR) AS stream_position FROM ${streamsTable.name} WHERE stream_id = ?`,
     [streamId],
   );

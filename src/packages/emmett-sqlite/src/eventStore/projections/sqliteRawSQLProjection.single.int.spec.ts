@@ -202,7 +202,7 @@ const shoppingCartShortInfoProjection = sqliteRawSQLProjection(
     event: EventType,
     context: SQLiteProjectionHandlerContext,
     documentId: string,
-  ): Promise<string> => {
+  ): string => {
     switch (event.type) {
       case 'ProductItemAdded': {
         const productItemsCount = event.data.productItem.quantity;
@@ -258,7 +258,7 @@ const shoppingCartShortInfoProjection = sqliteRawSQLProjection(
       }
       default:
         throw new Error(
-          `Unknown event type: ${event.type} for ${shoppingCartShortInfoProjection.name}`,
+          `Unknown event type for ${shoppingCartShortInfoProjection.name}`,
         );
     }
   },
