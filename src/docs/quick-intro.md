@@ -226,6 +226,8 @@ Now we need to put the commands and events together using _command handler_ func
 
 This function is responsible for deciding the command's outcome using business rules (e.g., items may not be added more than once). Currently, there are none, so we simply pass the name using the `data.name` property of the `command`.
 
+<<< @/snippets/quickStart/index.ts#command-handler-functions
+
 You can group all commands into a unified function that is easily extensible when you add more commands:
 
 <<< @/snippets/quickStart/index.ts#decider
@@ -308,12 +310,12 @@ This tutorial has shown you the fundamental building blocks of Emmett. However, 
 
 **Check the [Getting Started guide](/getting-started) to learn more about building a real web API with PostgreSQL storage.**
 
+You can also watch a full introduction video on how to build application:
+
+<YouTubeEmbed id="SDXdcymKv-8" />
+
 ## Full implementation
 
 Here is the full source code for reference:
 
 <<< @/snippets/quickStart/index.ts
-
-You can also watch a full introduction video on how to build application:
-
-<YouTubeEmbed id="SDXdcymKv-8" />

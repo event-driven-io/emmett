@@ -4,6 +4,7 @@ import {
   EmmettError,
   type Command,
   type Event,
+  type IllegalStateError,
 } from '@event-driven-io/emmett';
 
 // #region state-definition
@@ -84,6 +85,11 @@ export function removeItem(
   command: RemoveItem,
   state: ShoppingCart,
 ): ItemRemoved {
+  if (!state.items.has(command.data.name))
+    throw new IllegalStateError(
+      `Item ${command.data.name} does not exist in the shopping cart`,
+    );
+
   return {
     type: 'ItemRemoved',
     data: {
@@ -124,12 +130,15 @@ export function evolve(
         ...state,
         items: new Set([...state.items, data.name]),
       };
+
       // Print the event data and the contents of the changed shopping cart
       console.log(
         `${type}(name: ${data.name}) // ShoppingCart(items: ${Array.from(nextState.items.values()).join(', ')})`,
       );
+
       return nextState;
     }
+
     case 'ItemRemoved': {
       const items = new Set(state.items);
       items.delete(data.name);
@@ -137,10 +146,12 @@ export function evolve(
         ...state,
         items,
       };
+
       // Print the event data and the contents of the changed shopping cart
       console.log(
         `${type}(name: ${data.name}) // ShoppingCart(items: ${Array.from(nextState.items.values()).join(', ')})`,
       );
+
       return nextState;
     }
     default: {
@@ -193,7 +204,8 @@ const removeIceCream: RemoveItem = {
 //#endregion example-commands
 
 //#region handle-example-commands
-// Use a constant cart id for this example. In real life applications, this should be a real cart id.
+// Use a constant cart id for this example.
+// In real life applications, this should be a real cart id.
 const shoppingCartId = '1';
 
 // 2. Handle command
