@@ -201,12 +201,12 @@ Let us first create a command to add an item in `index.ts` and another to remove
 
 <<< @/snippets/quickStart/index.ts#commands
 
-This declares a command whose type is `AddItem` (or `RemiveUten`) and whose payload has a `name` property of type `string`. This `name` property specifies the name of the item that should be added to or removed from the cart.
+This declares a command whose type is `AddItem` (or `RemoveItem`) and whose payload has a `name` property of type `string`. This `name` property specifies the item's name that should be added to or removed from the cart.
 
 Last but not least, we define a type `ShoppingCartCommand` that accomodates all commands. This way we can easily extend the list of possible commands using union types without having to change the code in other places.
 
 > [!NOTE]
-> The command is only a _request_ to perform the operation, e.g. to add an item to the cart. Depending on the outcome, this request can be successful or not.
+> The command is only an _intention_ to perform the operation, e.g. to add an item to the cart. Depending on the outcome, this request can be successful or not.
 
 ### Events
 
@@ -226,11 +226,11 @@ Now we need to put the commands and events together using _command handler_ func
 
 This function is responsible for deciding the outcome of the command using business rules (e.g. items may not be added more than once). Currently there are none, so we simply pass the name using the `data.name` property of the `command`.
 
-Emmett promotes the following _decider_ pattern that is easily extensible for more commands:
+You can group all commands into a unified function that is easily extensible when you add more commands:
 
 <<< @/snippets/quickStart/index.ts#decider
 
-This calls the correct _command handler_ function based on the `type` of the command and returns an event which is going to be _recorded_ to the event store further below.
+This calls the correct _command handler_ function based on the command's `type` and returns an event (or an array of events) that will be recorded and stored in the event store further below.
 
 ### Calculating the next shopping cart
 
@@ -244,9 +244,9 @@ Finally we can declare the _command handler_ itself:
 
 ### Putting it all together with an event store
 
-The _Event Store_ records a series of all the events that occurred in our application, similar to a cassette tape.
+The _Event Store_ is logically a key-value database that records a series of events that happened in our application. It logically groups events in streams. In the traditional approach, a stream represents a record. Each instance of the process or entity will have its own stream. That means that it also has its own ID, and the value is a sequence of events recorded for this process or entity (e.g., all the events for a certain shopping cart).
 
-Starting from the initial state, it collates all events using the `evolve` function (basically left reducing the event stream).
+Starting from the initial state, it folds all events using the `evolve` function (basically left reducing the event stream).
 
 For example:
 
@@ -285,7 +285,7 @@ ItemRemoved(name: Ice Cream) // ShoppingCart(items: Pizza)
 Why does it look that way?
 Initially there is only one event in the stream, then two, then three, then four. Whenever an event is appended to the stream, _the whole stream is re-read_ to calculate the next state.
 
-One key aspect is that this behavior allows us to change the code for calculating the current state of the shopping cart (e.g. to just count the number of items in the cart) without any negative side effects.
+One key aspect is that this behavior allows us to change the code for building the current state of the shopping cart (e.g. to just count the number of items in the cart) without any negative side effects.
 
 ### Business perspective
 
