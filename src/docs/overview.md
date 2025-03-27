@@ -1,14 +1,59 @@
 # Overview
 
-Everything you need to know to start with Emmett and Event Sourcing.
+Welcome to Emmett's documentation!
+
+![Emmett logo](/logo.png)
+
+## What is Emmett?
+
+**Emmett is an opinionated yet flexible framework that implements Event Sourcing for Node.js applications.** It focuses on composition rather than magic, providing lightweight abstractions and clear patterns that make Event Sourcing accessible and maintainable.
+
+## Main Features
+
+| Feature                           | Description                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------- |
+| **Event-Centric Modeling**        | Structured approach to modeling business processes through events                     |
+| **Multiple Event Stores**         | Built-in support for PostgreSQL, EventStoreDB, MongoDB, SQLite, and In-Memory storage |
+| **Command Handling Patterns**     | Standardized approach to command processing and event handling                        |
+| **Type Safety**                   | First-class TypeScript support with structural typing                                 |
+| **Express.js Integration**        | Seamless integration with Express.js, including problem details middleware (RFC 9457) |
+| **Comprehensive Testing Support** | Tools for unit, integration, and E2E testing with BDD-style syntax                    |
+| **Lightweight Design**            | Focused on composition over replacement, allowing integration with existing systems   |
+| **Docker Testing Integration**    | Support for TestContainers to simplify database setup in tests                        |
+
+## Why Use Emmett?
+
+Nowadays, storage is cheap, but the information is priceless.
+
+Event Sourcing, keeps all the facts that happened in our system as events. That provides an observability of the business process and enabling event-driven capabilities like building read models, easier integration between components.
+
+**However, implementing Event Sourcing can be challenging due to:**
+
+- additional learning curves for new developers,
+- knowing how to structure your code,
+- implementing event storage,
+- difficulty in setting up proper testing strategies,
+- integrating with existing frameworks and infrastructure.
+
+**Emmett solves these problems by:**
+
+- Reducing boilerplate with pragmatic abstractions,
+- Providing clear patterns for common operations,
+- Supporting multiple testing approaches with built-in utilities,
+- Including ready-to-use event store implementations,
+- Offering simple integration with Express.js.
 
 ## First steps
 
-If you are new to Emmett or Event Sourcing, that is no problem.
+If you are new to Emmett or Event Sourcing, that is no problem, we've got you covered!
 
-Check the [Quick Start](/quick-start) tutorial to familiarise you with basic concepts.
+Check the [Quick Intro](/quick-intro) tutorial to familiarise you with basic concepts.
 
 Then, the [Getting Started](/getting-started) guide will help you set up the first real Emmett project.
+
+You can also watch a full introduction video on how to build application:
+
+<YouTubeEmbed id="SDXdcymKv-8" />
 
 ## Getting help
 

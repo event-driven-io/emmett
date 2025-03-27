@@ -3,7 +3,7 @@ documentationType: tutorial
 outline: 'deep'
 ---
 
-# Quick start
+# Quick intro
 
 In this tutorial, we will create an application that can add and remove items from a shopping cart. Along the way, you will experience the fundamental mechanics and basic building blocks of Emmett.
 
@@ -13,8 +13,8 @@ Before installing and using Emmett, we need to set up a Node.js project and add 
 To do so, first create a project directory and switch to it:
 
 ```sh
-mkdir emmett-quick-start
-cd emmett-quick-start
+mkdir emmett-quick-intro
+cd emmett-quick-intro
 ```
 
 ::: code-group
@@ -45,7 +45,7 @@ For now, just accept the defaults.
 The output should look similar to this:
 
 ```text
-package name: (emmett-quick-start)
+package name: (emmett-quick-intro)
 version: (1.0.0)
 description:
 entry point: (index.js) dist/index.js
@@ -54,10 +54,10 @@ git repository:
 keywords:
 author:
 license: (ISC)
-About to write to /home/tobias/projekte/emmett-quick-start/package.json:
+About to write to /home/tobias/projekte/emmett-quick-intro/package.json:
 
 {
-  "name": "emmett-quick-start",
+  "name": "emmett-quick-intro",
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
@@ -141,7 +141,7 @@ npm run start
 ```txt [View output]
 $ npm run build:ts
 
-> emmett-quick-start@1.0.0 start
+> emmett-quick-intro@1.0.0 start
 > tsx ./index.ts
 
 ```
@@ -244,7 +244,12 @@ Finally, we can declare the _command handler_ itself:
 
 ### Putting it all together with an event store
 
-[The _event store_ is logically a key-value database](https://event-driven.io/en/event_stores_are_key_value_stores/?utm_source=emmett) that records series of events that happened in our application. It logically groups events in streams. In the traditional approach, a stream represents a record. Each instance of the process or entity will have its own stream. That means that it also has its own ID, and the value is a sequence of events recorded for this process or entity (e.g., all the events for a certain shopping cart).
+[The _event store_ is logically a key-value database](https://event-driven.io/en/event_stores_are_key_value_stores/?utm_source=emmett) that records a series of events that happened in our application. It logically groups events in streams. An event stream is an ordered sequence of events and a representation of a specific process or entity. Event stream id equals the entity id (e.g. shopping cart id). To get the current state from events, we need to:
+
+- read all that has been recorded so far.
+- take the initial state and apply it one by one to get the current state at the time.
+
+Yes, the state we'll use in business logic to validate our business rules.
 
 Starting from the initial state, it folds all events using the `evolve` function (basically left reducing the event stream).
 
@@ -308,3 +313,7 @@ This tutorial has shown you the fundamental building blocks of Emmett. However, 
 Here is the full source code for reference:
 
 <<< @/snippets/quickStart/index.ts
+
+You can also watch a full introduction video on how to build application:
+
+<YouTubeEmbed id="SDXdcymKv-8" />
