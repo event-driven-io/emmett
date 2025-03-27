@@ -18,9 +18,6 @@ export default defineConfig({
       },
     },
   },
-  rewrites: {
-    'quick-intro.md': 'quick-start.md',
-  },
 
   themeConfig: {
     logo: '/logo.png',
