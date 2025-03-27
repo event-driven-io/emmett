@@ -27,7 +27,7 @@ export type SQLiteEventStoreConsumerOptions<
   ConsumerEventType extends Event = Event,
 > = SQLiteEventStoreConsumerConfig<ConsumerEventType> & {
   fileName: string;
-  db?: SQLiteConnection;
+  connection?: SQLiteConnection;
 };
 
 export type SQLiteEventStoreConsumer<ConsumerEventType extends Event = Event> =
@@ -55,7 +55,8 @@ export const sqliteEventStoreConsumer = <
 
   let currentMessagePuller: SQLiteEventStoreMessageBatchPuller | undefined;
 
-  const db = options.db ?? sqliteConnection({ fileName: options.fileName });
+  const connection =
+    options.connection ?? sqliteConnection({ fileName: options.fileName });
 
   const eachBatch: SQLiteEventStoreMessagesBatchHandler<
     ConsumerEventType
@@ -71,7 +72,10 @@ export const sqliteEventStoreConsumer = <
     const result = await Promise.allSettled(
       activeProcessors.map((s) => {
         // TODO: Add here filtering to only pass messages that can be handled by processor
-        return s.handle(messagesBatch, { db, fileName: options.fileName });
+        return s.handle(messagesBatch, {
+          connection,
+          fileName: options.fileName,
+        });
       }),
     );
 
@@ -86,7 +90,7 @@ export const sqliteEventStoreConsumer = <
 
   const messagePooler = (currentMessagePuller =
     sqliteEventStoreMessageBatchPuller({
-      db,
+      connection,
       eachBatch,
       batchSize:
         pulling?.batchSize ?? DefaultSQLiteEventStoreProcessorBatchSize,
@@ -133,7 +137,7 @@ export const sqliteEventStoreConsumer = <
         isRunning = true;
 
         const startFrom = zipSQLiteEventStoreMessageBatchPullerStartFrom(
-          await Promise.all(processors.map((o) => o.start(db))),
+          await Promise.all(processors.map((o) => o.start(connection))),
         );
 
         return messagePooler.start({ startFrom });
@@ -145,7 +149,7 @@ export const sqliteEventStoreConsumer = <
     close: async () => {
       await stop();
 
-      db.close();
+      connection.close();
 
       await new Promise((resolve) => setTimeout(resolve, 250));
     },

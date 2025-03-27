@@ -196,7 +196,7 @@ export const newEventsInStream = eventsInStream;
 
 export const assertSQLQueryResultMatches =
   <T extends QueryResultRow>(sql: string, rows: T[]): SQLiteProjectionAssert =>
-  async (connection: SQLiteConnection) => {
+  async ({ connection }: { connection: SQLiteConnection }): Promise<void> => {
     const result = await connection.query<T>(sql);
 
     assertThatArray(rows).containsExactlyInAnyOrder(result);

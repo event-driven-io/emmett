@@ -42,12 +42,6 @@ export const handleProjections = async <EventType extends Event = Event>(
 
   const eventTypes = events.map((e) => e.type);
 
-  // each event
-  // for (const eventType of eventTypes) {
-  // const projections = allProjections.filter((p) => {
-  //   return p.canHandle.includes(eventType);
-  // });
-
   for (const projection of allProjections) {
     if (!projection.canHandle.some((type) => eventTypes.includes(type))) {
       continue;
@@ -56,7 +50,6 @@ export const handleProjections = async <EventType extends Event = Event>(
       connection,
     });
   }
-  // }
 };
 
 export const sqliteProjection = <EventType extends Event>(

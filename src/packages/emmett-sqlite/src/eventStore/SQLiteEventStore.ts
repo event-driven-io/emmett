@@ -114,7 +114,7 @@ export const getSQLiteEventStore = (
   };
 
   const withConnection = async <Result>(
-    handler: (db: SQLiteConnection) => Promise<Result>,
+    handler: (connection: SQLiteConnection) => Promise<Result>,
   ): Promise<Result> => {
     if (database == null) {
       database = createConnection();
@@ -170,8 +170,8 @@ export const getSQLiteEventStore = (
         database = createConnection();
       }
 
-      const result = await withConnection((db) =>
-        readStream<EventType>(db, streamName, options.read),
+      const result = await withConnection((connection) =>
+        readStream<EventType>(connection, streamName, options.read),
       );
 
       const currentStreamVersion = result.currentStreamVersion;
@@ -200,7 +200,10 @@ export const getSQLiteEventStore = (
       options?: ReadStreamOptions<BigIntStreamPosition>,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
-    > => withConnection((db) => readStream<EventType>(db, streamName, options)),
+    > =>
+      withConnection((connection) =>
+        readStream<EventType>(connection, streamName, options),
+      ),
 
     appendToStream: async <EventType extends Event>(
       streamName: string,
@@ -217,8 +220,8 @@ export const getSQLiteEventStore = (
       const streamType =
         firstPart && rest.length > 0 ? firstPart : 'emt:unknown';
 
-      const appendResult = await withConnection((db) =>
-        appendToStream(db, streamName, streamType, events, {
+      const appendResult = await withConnection((connection) =>
+        appendToStream(connection, streamName, streamType, events, {
           ...options,
           onBeforeCommit: async (messages, context) => {
             if (inlineProjections.length > 0)

@@ -14,19 +14,19 @@ export type SQLiteProcessorEventsBatch<EventType extends Event = Event> = {
 };
 
 export type SQLiteProcessorHandlerContext = {
-  db: SQLiteConnection;
+  connection: SQLiteConnection;
   fileName: string;
 };
 
 export type SQLiteProcessor<EventType extends Event = Event> = {
   id: string;
   start: (
-    db: SQLiteConnection,
+    connection: SQLiteConnection,
   ) => Promise<SQLiteEventStoreMessageBatchPullerStartFrom | undefined>;
   isActive: boolean;
   handle: (
     messagesBatch: SQLiteProcessorEventsBatch<EventType>,
-    context: { db?: SQLiteConnection; fileName?: string },
+    context: { connection?: SQLiteConnection; fileName?: string },
   ) => Promise<SQLiteProcessorMessageHandlerResult>;
 };
 
@@ -74,7 +74,7 @@ export type SQLiteProcessorStartFrom =
 
 export type SQLiteProcessorConnectionOptions = {
   fileName: string;
-  db?: SQLiteConnection;
+  connection?: SQLiteConnection;
 };
 
 export type GenericSQLiteProcessorOptions<EventType extends Event = Event> = {
@@ -114,35 +114,38 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
   //let lastProcessedPosition: number | null = null;
 
   const getDb = (context: {
-    db?: SQLiteConnection;
+    connection?: SQLiteConnection;
     fileName?: string;
-  }): { db: SQLiteConnection; fileName: string } => {
+  }): { connection: SQLiteConnection; fileName: string } => {
     const fileName = context.fileName ?? options.connectionOptions?.fileName;
     if (!fileName)
       throw new EmmettError(
         `SQLite processor '${options.processorId}' is missing file name. Ensure that you passed it through options`,
       );
 
-    const db =
-      context.db ??
-      options.connectionOptions?.db ??
+    const connection =
+      context.connection ??
+      options.connectionOptions?.connection ??
       sqliteConnection({ fileName });
 
-    return { db, fileName };
+    return { connection, fileName };
   };
 
   return {
     id: options.processorId,
     start: async (
-      db: SQLiteConnection,
+      connection: SQLiteConnection,
     ): Promise<SQLiteEventStoreMessageBatchPullerStartFrom | undefined> => {
       isActive = true;
       if (options.startFrom !== 'CURRENT') return options.startFrom;
 
-      const { lastProcessedPosition } = await readProcessorCheckpoint(db, {
-        processorId: options.processorId,
-        partition: options.partition,
-      });
+      const { lastProcessedPosition } = await readProcessorCheckpoint(
+        connection,
+        {
+          processorId: options.processorId,
+          partition: options.partition,
+        },
+      );
 
       if (lastProcessedPosition === null) return 'BEGINNING';
 
@@ -157,9 +160,9 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
     ): Promise<SQLiteProcessorMessageHandlerResult> => {
       if (!isActive) return;
 
-      const { db, fileName } = getDb(context);
+      const { connection, fileName } = getDb(context);
 
-      return db.withTransaction(async () => {
+      return connection.withTransaction(async () => {
         let result: SQLiteProcessorMessageHandlerResult | undefined = undefined;
 
         let lastProcessedPosition: bigint | null = null;
@@ -171,12 +174,12 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
           >;
 
           const messageProcessingResult = await eachMessage(typedMessage, {
-            db,
+            connection,
             fileName,
           });
 
           // TODO: Add correct handling of the storing checkpoint
-          await storeProcessorCheckpoint(db, {
+          await storeProcessorCheckpoint(connection, {
             processorId: options.processorId,
             version: options.version,
             lastProcessedPosition,
@@ -223,7 +226,7 @@ export const sqliteProjectionProcessor = <EventType extends Event = Event>(
     eachMessage: async (event, context) => {
       if (!projection.canHandle.includes(event.type)) return;
 
-      await projection.handle([event], context);
+      await projection.handle([event], { connection: context.connection });
     },
     ...options,
   });

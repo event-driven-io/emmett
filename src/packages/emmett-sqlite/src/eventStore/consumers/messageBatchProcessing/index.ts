@@ -35,7 +35,7 @@ export type SQLiteEventStoreMessagesBatchHandler<
 export type SQLiteEventStoreMessageBatchPullerOptions<
   EventType extends Event = Event,
 > = {
-  db: SQLiteConnection;
+  connection: SQLiteConnection;
   pullingFrequencyInMs: number;
   batchSize: number;
   eachBatch: SQLiteEventStoreMessagesBatchHandler<EventType>;
@@ -59,7 +59,7 @@ export type SQLiteEventStoreMessageBatchPuller = {
 export const sqliteEventStoreMessageBatchPuller = <
   EventType extends Event = Event,
 >({
-  db,
+  connection,
   batchSize,
   eachBatch,
   pullingFrequencyInMs,
@@ -75,8 +75,8 @@ export const sqliteEventStoreMessageBatchPuller = <
       options.startFrom === 'BEGINNING'
         ? 0n
         : options.startFrom === 'END'
-          ? ((await readLastMessageGlobalPosition(db)).currentGlobalPosition ??
-            0n)
+          ? ((await readLastMessageGlobalPosition(connection))
+              .currentGlobalPosition ?? 0n)
           : options.startFrom.globalPosition;
 
     const readMessagesOptions: ReadMessagesBatchOptions = {
@@ -88,7 +88,7 @@ export const sqliteEventStoreMessageBatchPuller = <
 
     do {
       const { messages, currentGlobalPosition, areEventsLeft } =
-        await readMessagesBatch<EventType>(db, readMessagesOptions);
+        await readMessagesBatch<EventType>(connection, readMessagesOptions);
 
       if (messages.length > 0) {
         const result = await eachBatch({ messages });
