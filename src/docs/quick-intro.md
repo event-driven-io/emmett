@@ -310,9 +310,7 @@ This tutorial has shown you the fundamental building blocks of Emmett. However, 
 
 **Check the [Getting Started guide](/getting-started) to learn more about building a real web API with PostgreSQL storage.**
 
-You can also watch a full introduction video on how to build application:
-
-<YouTubeEmbed id="SDXdcymKv-8" />
+You can also watch a [full introduction video on how to build applications with Emmett](https://www.youtube.com/watch?v=SDXdcymKv-8).
 
 ## Full implementation
 
