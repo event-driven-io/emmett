@@ -1,5 +1,5 @@
 import type { EventStore } from '../eventStore';
-import type { Command, Event } from '../typing';
+import { type Command, type Event } from '../typing';
 import type { Decider } from '../typing/decider';
 import {
   CommandHandler,
@@ -23,15 +23,19 @@ export const DeciderCommandHandler =
   async <Store extends EventStore>(
     eventStore: Store,
     id: string,
-    command: CommandType,
+    commands: CommandType | CommandType[],
     handleOptions?: HandleOptions<Store>,
   ) => {
     const { decide, ...rest } = options;
 
+    const deciders = (Array.isArray(commands) ? commands : [commands]).map(
+      (command) => (state: State) => decide(command, state),
+    );
+
     return CommandHandler<State, StreamEvent>(rest)(
       eventStore,
       id,
-      (state) => decide(command, state),
+      deciders,
       handleOptions,
     );
   };
