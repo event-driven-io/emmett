@@ -75,6 +75,10 @@ export type HandleOptions<Store extends EventStore> = Parameters<
       }
   );
 
+type CommandHandlerFunction<State, StreamEvent extends Event> = (
+  state: State,
+) => StreamEvent | StreamEvent[] | Promise<StreamEvent | StreamEvent[]>;
+
 export const CommandHandler =
   <State, StreamEvent extends Event>(
     options: CommandHandlerOptions<State, StreamEvent>,
@@ -82,9 +86,9 @@ export const CommandHandler =
   async <Store extends EventStore>(
     store: Store,
     id: string,
-    handle: (
-      state: State,
-    ) => StreamEvent | StreamEvent[] | Promise<StreamEvent | StreamEvent[]>,
+    handle:
+      | CommandHandlerFunction<State, StreamEvent>
+      | CommandHandlerFunction<State, StreamEvent>[],
     handleOptions?: HandleOptions<Store>,
   ): Promise<CommandHandlerResult<State, StreamEvent, Store>> =>
     asyncRetry(
@@ -120,19 +124,33 @@ export const CommandHandler =
           // 2. Use the aggregate state
 
           const {
-            state,
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             currentStreamVersion,
             streamExists: _streamExists,
             ...restOfAggregationResult
           } = aggregationResult;
 
+          let state = aggregationResult.state;
+
+          const handlers = Array.isArray(handle) ? handle : [handle];
+          let eventsToAppend: StreamEvent[] = [];
+
           // 3. Run business logic
-          const result = await handle(state);
+          for (const handler of handlers) {
+            const result = await handler(state);
 
-          const newEvents = Array.isArray(result) ? result : [result];
+            const newEvents = Array.isArray(result) ? result : [result];
 
-          if (newEvents.length === 0) {
+            if (newEvents.length > 0) {
+              state = newEvents.reduce(evolve, state);
+            }
+
+            eventsToAppend = [...eventsToAppend, ...newEvents];
+          }
+
+          //const newEvents = Array.isArray(result) ? result : [result];
+
+          if (eventsToAppend.length === 0) {
             return {
               ...restOfAggregationResult,
               newEvents: [],
@@ -161,7 +179,7 @@ export const CommandHandler =
           // 4. Append result to the stream
           const appendResult = await eventStore.appendToStream(
             streamName,
-            newEvents,
+            eventsToAppend,
             {
               ...handleOptions,
               expectedStreamVersion,
@@ -171,8 +189,8 @@ export const CommandHandler =
           // 5. Return result with updated state
           return {
             ...appendResult,
-            newEvents,
-            newState: newEvents.reduce(evolve, state),
+            newEvents: eventsToAppend,
+            newState: state,
           } as unknown as CommandHandlerResult<State, StreamEvent, Store>;
         });
 

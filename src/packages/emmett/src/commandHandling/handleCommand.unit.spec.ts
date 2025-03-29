@@ -203,6 +203,35 @@ void describe('Command Handler', () => {
     assertEqual(version2, 2n);
   });
 
+  void it('can handle multiple commands at once', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = randomUUID();
+    const command: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem },
+    };
+
+    const { newState: state1, nextExpectedStreamVersion } = await handleCommand(
+      eventStore,
+      shoppingCartId,
+      [
+        (state) => addProductItem(command, state),
+        (state) => addProductItem(command, state),
+      ],
+    );
+
+    assertDeepEqual(state1, {
+      productItems: [productItem, productItem],
+      totalAmount: productItem.price * productItem.quantity * 2,
+    });
+    assertEqual(nextExpectedStreamVersion, 2n);
+  });
+
   void it('Does not create a new stream if no events are produced on first command', async () => {
     const entityId = randomUUID();
 
