@@ -415,19 +415,19 @@ Let's start by adding some flavour and finally use a real database, so PostgreSQ
 ::: code-group
 
 ```sh [npm]
-$ npm add @event-driven-io/@event-driven-io/emmett-postgresql
+$ npm add @event-driven-io/emmett-postgresql
 ```
 
 ```sh [pnpm]
-$ pnpm add @event-driven-io/@event-driven-io/emmett-postgresql
+$ pnpm add @event-driven-io/emmett-postgresql
 ```
 
 ```sh [yarn]
-$ yarn add @event-driven-io/@event-driven-io/emmett-postgresql
+$ yarn add @event-driven-io/emmett-postgresql
 ```
 
 ```sh [bun]
-$ bun add @event-driven-io/@event-driven-io/emmett-postgresql
+$ bun add @event-driven-io/emmett-postgresql
 ```
 
 :::
