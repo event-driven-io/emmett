@@ -69,7 +69,9 @@ void describe('EventStoreDB event store consumer', () => {
         processors: [dummyProcessor],
       });
     });
-    afterEach(() => consumer.stop());
+    afterEach(() => {
+      return consumer.stop();
+    });
 
     void it('subscribes to existing event store', () => {
       consumer.start().catch(() => assertFails());
