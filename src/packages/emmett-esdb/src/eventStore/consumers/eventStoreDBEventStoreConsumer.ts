@@ -1,4 +1,8 @@
-import { EmmettError, type Event } from '@event-driven-io/emmett';
+import {
+  EmmettError,
+  type AsyncRetryOptions,
+  type Event,
+} from '@event-driven-io/emmett';
 import {
   EventStoreDBClient,
   type SubscribeToAllOptions,
@@ -13,8 +17,8 @@ import {
   DefaultEventStoreDBEventStoreProcessorBatchSize,
   eventStoreDBSubscription,
   zipEventStoreDBEventStoreMessageBatchPullerStartFrom,
-  type EventStoreDBEventStoreMessageBatchPuller,
   type EventStoreDBEventStoreMessagesBatchHandler,
+  type EventStoreDBSubscription,
 } from './subscriptions';
 
 export type EventStoreDBEventStoreConsumerConfig<
@@ -24,6 +28,9 @@ export type EventStoreDBEventStoreConsumerConfig<
   processors?: EventStoreDBEventStoreProcessor<ConsumerEventType>[];
   pulling?: {
     batchSize?: number;
+  };
+  resilience?: {
+    resubscribeOptions?: AsyncRetryOptions;
   };
 };
 
@@ -74,7 +81,7 @@ export const eventStoreDBEventStoreConsumer = <
 
   let start: Promise<void>;
 
-  let currentSubscription: EventStoreDBEventStoreMessageBatchPuller | undefined;
+  let currentSubscription: EventStoreDBSubscription | undefined;
 
   const client =
     'client' in options
@@ -114,6 +121,7 @@ export const eventStoreDBEventStoreConsumer = <
     eachBatch,
     batchSize:
       pulling?.batchSize ?? DefaultEventStoreDBEventStoreProcessorBatchSize,
+    resilience: options.resilience,
   }));
 
   const stop = async () => {

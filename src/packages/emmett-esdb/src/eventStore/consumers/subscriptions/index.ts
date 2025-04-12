@@ -1,8 +1,10 @@
-import type {
-  EmmettError,
-  Event,
-  ReadEvent,
-  ReadEventMetadataWithGlobalPosition,
+import {
+  asyncRetry,
+  type AsyncRetryOptions,
+  type EmmettError,
+  type Event,
+  type ReadEvent,
+  type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import {
   END,
@@ -47,6 +49,9 @@ export type EventStoreDBSubscriptionOptions<EventType extends Event = Event> = {
   client: EventStoreDBClient;
   batchSize: number;
   eachBatch: EventStoreDBEventStoreMessagesBatchHandler<EventType>;
+  resilience?: {
+    resubscribeOptions?: AsyncRetryOptions;
+  };
 };
 
 export type EventStoreDBSubscriptionStartFrom =
@@ -58,7 +63,7 @@ export type EventStoreDBSubscriptionStartOptions = {
   startFrom: EventStoreDBSubscriptionStartFrom;
 };
 
-export type EventStoreDBEventStoreMessageBatchPuller = {
+export type EventStoreDBSubscription = {
   isRunning: boolean;
   start(options: EventStoreDBSubscriptionStartOptions): Promise<void>;
   stop(): Promise<void>;
@@ -97,49 +102,88 @@ const subscribe = (
         ...(from.options ?? {}),
       });
 
+export const isDatabaseUnavailableError = (error: unknown) =>
+  error instanceof Error &&
+  'type' in error &&
+  error.type === 'unavailable' &&
+  'code' in error &&
+  error.code === 14;
+
+export const EventStoreDBResubscribeDefaultOptions: AsyncRetryOptions = {
+  forever: true,
+  minTimeout: 100,
+  factor: 1.5,
+  shouldRetryError: (error) => !isDatabaseUnavailableError(error),
+};
+
 export const eventStoreDBSubscription = <EventType extends Event = Event>({
   client,
   from,
   //batchSize,
   eachBatch,
-}: EventStoreDBSubscriptionOptions<EventType>): EventStoreDBEventStoreMessageBatchPuller => {
+  resilience,
+}: EventStoreDBSubscriptionOptions<EventType>): EventStoreDBSubscription => {
   let isRunning = false;
 
   let start: Promise<void>;
 
   let subscription: StreamSubscription<EventType>;
 
-  const pullMessages = async (
-    options: EventStoreDBSubscriptionStartOptions,
-  ) => {
+  const resubscribeOptions: AsyncRetryOptions =
+    resilience?.resubscribeOptions ?? {
+      ...EventStoreDBResubscribeDefaultOptions,
+      shouldRetryResult: () => isRunning,
+      shouldRetryError: (error) =>
+        isRunning &&
+        EventStoreDBResubscribeDefaultOptions.shouldRetryError!(error),
+    };
+
+  const pipeMessages = (options: EventStoreDBSubscriptionStartOptions) => {
     subscription = subscribe(client, from, options);
 
-    return new Promise<void>((resolve, reject) => {
-      finished(
-        subscription.on('data', async (resolvedEvent) => {
-          if (!resolvedEvent.event) return;
+    return asyncRetry(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          finished(
+            subscription.on('data', async (resolvedEvent) => {
+              if (!resolvedEvent.event) return;
 
-          const event = mapFromESDBEvent(
-            resolvedEvent.event as JSONRecordedEvent<EventType>,
+              const event = mapFromESDBEvent(
+                resolvedEvent.event as JSONRecordedEvent<EventType>,
+              );
+
+              const result = await eachBatch({ messages: [event] });
+
+              if (result && result.type === 'STOP') {
+                isRunning = false;
+                await subscription.unsubscribe();
+              }
+
+              from = {
+                stream: from?.stream ?? $all,
+                options: {
+                  ...(from?.options ?? {}),
+                  ...(!from || from?.stream === $all
+                    ? {
+                        fromPosition: resolvedEvent.event.position,
+                      }
+                    : { fromRevision: resolvedEvent.event.revision }),
+                },
+              };
+            }) as unknown as Readable,
+            (error) => {
+              if (error) {
+                console.error(`Received error: ${JSON.stringify(error)}.`);
+                reject(error);
+                return;
+              }
+              console.info(`Stopping subscription.`);
+              resolve();
+            },
           );
-
-          const result = await eachBatch({ messages: [event] });
-
-          if (result && result.type === 'STOP') {
-            await subscription.unsubscribe();
-          }
-        }) as unknown as Readable,
-        (error) => {
-          if (!error) {
-            console.info(`Stopping subscription.`);
-            resolve();
-            return;
-          }
-          console.error(`Received error: ${JSON.stringify(error)}.`);
-          reject(error);
-        },
-      );
-    });
+        }),
+      resubscribeOptions,
+    );
   };
 
   return {
@@ -152,7 +196,7 @@ export const eventStoreDBSubscription = <EventType extends Event = Event>({
       start = (async () => {
         isRunning = true;
 
-        return pullMessages(options);
+        return pipeMessages(options);
       })();
 
       return start;
