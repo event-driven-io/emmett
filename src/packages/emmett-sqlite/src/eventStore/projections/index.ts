@@ -78,11 +78,9 @@ export const sqliteRawBatchSQLProjection = <EventType extends Event>(
   });
 
 export const sqliteRawSQLProjection = <EventType extends Event>(
-  getDocumentId: (event: EventType) => string,
   handle: (
     event: EventType,
     context: SQLiteProjectionHandlerContext,
-    documentId: string,
   ) => Promise<string> | string,
   ...canHandle: CanHandle<EventType>
 ): SQLiteProjectionDefinition<EventType> =>
@@ -91,7 +89,7 @@ export const sqliteRawSQLProjection = <EventType extends Event>(
       const sqls: string[] = [];
 
       for (const event of events) {
-        sqls.push(await handle(event, context, getDocumentId(event)));
+        sqls.push(await handle(event, context));
       }
       return sqls;
     },

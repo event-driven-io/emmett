@@ -197,12 +197,7 @@ const rowExists = async <T>({
 };
 
 const shoppingCartShortInfoProjection = sqliteRawSQLProjection(
-  (event: EventType) => event.metadata?.streamName ?? '',
-  (
-    event: EventType,
-    context: SQLiteProjectionHandlerContext,
-    documentId: string,
-  ): string => {
+  (event: EventType, _context: SQLiteProjectionHandlerContext): string => {
     switch (event.type) {
       case 'ProductItemAdded': {
         const productItemsCount = event.data.productItem.quantity;
@@ -217,7 +212,7 @@ const shoppingCartShortInfoProjection = sqliteRawSQLProjection(
             totalAmount, 
             discountsApplied
           ) VALUES (
-            "${documentId}", 
+            "${event.metadata.streamName}", 
             "${productItemsCount}", 
             "${totalAmount}", 
             "[]"
@@ -237,7 +232,7 @@ const shoppingCartShortInfoProjection = sqliteRawSQLProjection(
             totalAmount, 
             discountsApplied
           ) VALUES (
-            "${documentId}", 
+            "${event.metadata.streamName}", 
             0, 
             0, 
             "[]"
@@ -254,6 +249,7 @@ const shoppingCartShortInfoProjection = sqliteRawSQLProjection(
                     SELECT 1 FROM json_each(discountsApplied) 
                     WHERE json_each.value = '${event.data.couponId}'
                   )`;
+
         return sql;
       }
       default:
