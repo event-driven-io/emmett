@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/emmett",
   "type": "module",
-  "version": "0.36.0",
+  "version": "0.37.0",
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "build": "tsup",

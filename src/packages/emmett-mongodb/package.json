@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/emmett-mongodb",
   "type": "module",
-  "version": "0.36.0",
+  "version": "0.37.0",
   "description": "Emmett - MongoDB - Event Sourcing development made simple",
   "scripts": {
     "build": "tsup",
@@ -47,11 +47,11 @@
     "dist"
   ],
   "devDependencies": {
-    "@event-driven-io/emmett-testcontainers": "0.36.0",
+    "@event-driven-io/emmett-testcontainers": "0.37.0",
     "@testcontainers/mongodb": "^10.13.2"
   },
   "peerDependencies": {
-    "@event-driven-io/emmett": "0.36.0",
+    "@event-driven-io/emmett": "0.37.0",
     "mongodb": "^6.10.0"
   }
 }
