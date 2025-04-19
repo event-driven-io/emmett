@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   InMemorySQLiteDatabase,
   sqliteConnection,
@@ -25,13 +25,13 @@ const tableExists = async (
 void describe('createEventStoreSchema', () => {
   let db: SQLiteConnection;
 
-  before(async () => {
+  beforeAll(async () => {
     db = sqliteConnection({ fileName: InMemorySQLiteDatabase });
 
     await createEventStoreSchema(db);
   });
 
-  after(() => {
+  afterAll(() => {
     db.close();
   });
 
