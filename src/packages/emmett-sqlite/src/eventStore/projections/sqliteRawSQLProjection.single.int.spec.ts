@@ -1,9 +1,9 @@
 import { assertDeepEqual, JSONParser } from '@event-driven-io/emmett';
 import fs from 'fs';
-import { afterEach, beforeEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import { sqliteRawSQLProjection, type SQLiteProjectionHandlerContext } from '.';
 import { sqliteConnection, type SQLiteConnection } from '../../connection';
 import {

@@ -3,8 +3,8 @@ import {
   assertThrowsAsync,
   EmmettError,
 } from '@event-driven-io/emmett';
-import { afterEach, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import { InMemorySQLiteDatabase } from '../../connection';
 import {
   sqliteEventStoreConsumer,
