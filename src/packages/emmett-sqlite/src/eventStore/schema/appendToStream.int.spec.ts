@@ -2,12 +2,13 @@ import {
   assertEqual,
   assertFalse,
   assertIsNotNull,
+  assertThrowsAsync,
   assertTrue,
   type Event,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
-import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { createEventStoreSchema } from '.';
 import {
   InMemorySQLiteDatabase,
@@ -43,12 +44,12 @@ export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 void describe('appendEvent', () => {
   let db: SQLiteConnection;
 
-  before(async () => {
+  beforeAll(async () => {
     db = sqliteConnection({ fileName: InMemorySQLiteDatabase });
     await createEventStoreSchema(db);
   });
 
-  after(() => {
+  afterAll(() => {
     db.close();
   });
 
@@ -280,15 +281,16 @@ void describe('appendEvent', () => {
   void it('should be allowed to throw exception inline and everything, including the events being stored are rolled back', async () => {
     const streamId = uuid();
 
-    try {
-      await appendToStream(db, streamId, 'shopping_cart', events, {
-        onBeforeCommit: (_: RecordedMessage[]): void => {
-          throw new Error('fake error');
-        },
-      });
-    } catch (err: unknown) {
-      assertEqual((err as Error).message, 'fake error');
-    }
+    await assertThrowsAsync(
+      async () => {
+        await appendToStream(db, streamId, 'shopping_cart', events, {
+          onBeforeCommit: (_: RecordedMessage[]): void => {
+            throw new Error('fake error');
+          },
+        });
+      },
+      (err) => err?.message === 'fake error',
+    );
 
     const resultEvents = await db.query(
       'SELECT * FROM emt_messages WHERE stream_id = $1',

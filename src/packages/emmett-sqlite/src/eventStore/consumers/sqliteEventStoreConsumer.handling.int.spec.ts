@@ -1,15 +1,15 @@
 import { assertThatArray, type Event } from '@event-driven-io/emmett';
 import fs from 'fs';
-import { afterEach, beforeEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import { sqliteConnection } from '../../connection';
 import { createEventStoreSchema } from '../schema';
 import {
-  getSQLiteEventStore,
-  type SQLiteEventStore,
-  type SQLiteEventStoreOptions,
+    getSQLiteEventStore,
+    type SQLiteEventStore,
+    type SQLiteEventStoreOptions,
 } from '../SQLiteEventStore';
 import { sqliteEventStoreConsumer } from './sqliteEventStoreConsumer';
 import type { SQLiteProcessorOptions } from './sqliteProcessor';
