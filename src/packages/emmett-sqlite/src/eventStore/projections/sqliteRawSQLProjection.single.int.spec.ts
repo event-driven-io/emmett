@@ -7,14 +7,14 @@ import { afterEach, beforeEach, describe, it } from 'vitest';
 import { sqliteRawSQLProjection, type SQLiteProjectionHandlerContext } from '.';
 import { sqliteConnection, type SQLiteConnection } from '../../connection';
 import {
-    type DiscountApplied,
-    type ProductItemAdded,
+  type DiscountApplied,
+  type ProductItemAdded,
 } from '../../testing/shoppingCart.domain';
 import {
-    eventInStream,
-    eventsInStream,
-    newEventsInStream,
-    SQLiteProjectionSpec,
+  eventInStream,
+  eventsInStream,
+  newEventsInStream,
+  SQLiteProjectionSpec,
 } from './sqliteProjectionSpec';
 
 type EventType =
