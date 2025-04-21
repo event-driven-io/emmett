@@ -1,193 +1,250 @@
-import { ok, strictEqual } from 'node:assert';
-import { describe, it } from 'node:test';
-import { getInMemoryDatabase } from '../../../database/inMemoryDatabase';
-import { projections } from '../../../projections';
-import type { Event } from '../../../typing';
-import { getInMemoryEventStore } from '../../inMemoryEventStore';
-import { inMemoryMultiStreamProjection, inMemorySingleStreamProjection } from './inMemoryProjection';
+import { beforeEach, describe, it } from 'node:test';
+import { v4 as uuid } from 'uuid';
+import {
+  documentExists,
+  eventInStream,
+  eventsInStream,
+  expectInMemoryDocuments,
+  inMemoryMultiStreamProjection,
+  InMemoryProjectionSpec,
+  inMemorySingleStreamProjection,
+  newEventsInStream,
+} from '.';
+import {
+  type DiscountApplied,
+  type ProductItemAdded,
+} from '../../../testing/shoppingCart.domain';
 
-// Sample event types for testing - using Emmett event structure
-interface ProductItemAdded {
-  type: 'ProductItemAdded';
-  data: {
-    productId: string;
-  };
-  metadata: {
-    streamName: string;
-  };
-}
-
-interface DiscountApplied {
-  type: 'DiscountApplied';
-  data: {
-    discount: number;
-  };
-  metadata: {
-    streamName: string;
-  };
-}
-
-// Union type of all cart events
-type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
-
-// Sample document type for projection
-type ShoppingCartInfo = {
-  _id?: string;
-  _version?: bigint;
-  cartId: string;
-  totalItems: number;
-  discount?: number;
+type ShoppingCartShortInfo = {
+  productItemsCount: number;
+  totalAmount: number;
+  appliedDiscounts: string[];
 };
 
-void describe('InMemory projections', () => {
-  void it('should create and update a document with single stream projection', async () => {
-    // Define a projection
-    const shoppingCartProjection = inMemorySingleStreamProjection<ShoppingCartInfo, ShoppingCartEvent>({
-      canHandle: ['ProductItemAdded', 'DiscountApplied'],
-      collectionName: 'shoppingCarts',
-      initialState: () => ({
-        cartId: '',
-        totalItems: 0
-      }),
-      evolve: (document, { type, data: event, metadata }) => {
-        switch (type) {
-          case 'ProductItemAdded':
-            return {
-              ...(document || { totalItems: 0 }),
-              cartId: metadata.streamName,
-              totalItems: (document?.totalItems || 0) + 1
-            };
-          case 'DiscountApplied':
-            return {
-              ...(document || { cartId: '', totalItems: 0 }),
-              discount: event.discount
-            };
-          default:
-            return document;
-        }
-      }
+const shoppingCartShortInfoCollectionName = 'shoppingCartShortInfo';
+
+const evolve = (
+  document: ShoppingCartShortInfo | null,
+  { type, data: event }: ProductItemAdded | DiscountApplied,
+): ShoppingCartShortInfo | null => {
+  if (!document) {
+    document = {
+      productItemsCount: 0,
+      totalAmount: 0,
+      appliedDiscounts: [],
+    };
+  }
+  switch (type) {
+    case 'ProductItemAdded':
+      return {
+        ...document,
+        totalAmount:
+          document.totalAmount +
+          event.productItem.price * event.productItem.quantity,
+        productItemsCount:
+          document.productItemsCount + event.productItem.quantity,
+      };
+    case 'DiscountApplied':
+      // idempotence check
+      if (document.appliedDiscounts.includes(event.couponId)) return document;
+
+      return {
+        ...document,
+        totalAmount: (document.totalAmount * (100 - event.percent)) / 100,
+        appliedDiscounts: [...document.appliedDiscounts, event.couponId],
+      };
+    default:
+      return document;
+  }
+};
+
+const shoppingCartShortInfoProjection = inMemorySingleStreamProjection({
+  collectionName: shoppingCartShortInfoCollectionName,
+  evolve,
+  canHandle: ['ProductItemAdded', 'DiscountApplied'],
+  initialState: () => ({
+    productItemsCount: 0,
+    totalAmount: 0,
+    appliedDiscounts: [],
+  }),
+});
+
+void describe('InMemory Projections', () => {
+  let given: ReturnType<
+    typeof InMemoryProjectionSpec.for<ProductItemAdded | DiscountApplied>
+  >;
+  let shoppingCartId: string;
+
+  beforeEach(() => {
+    shoppingCartId = `shoppingCart:${uuid()}`;
+
+    given = InMemoryProjectionSpec.for({
+      projection: shoppingCartShortInfoProjection,
     });
-
-    // Get a shared database instance
-    const database = getInMemoryDatabase();
-    
-    // Create event store with the projection
-    const eventStore = getInMemoryEventStore({
-      projections: projections.inline([shoppingCartProjection])
-    });
-    
-    // Explicitly pass the database to projections through the context
-    (eventStore as any).database = database;
-
-    // Create some test events
-    const cartId = 'cart-123';
-    const events: ShoppingCartEvent[] = [
-      {
-        type: 'ProductItemAdded',
-        data: {
-          productId: 'product-1'
-        },
-        metadata: {
-          streamName: cartId
-        }
-      },
-      {
-        type: 'DiscountApplied',
-        data: {
-          discount: 10
-        },
-        metadata: {
-          streamName: cartId
-        }
-      }
-    ];
-
-    // Append events to the stream
-    await eventStore.appendToStream(cartId, events);
-
-    // Use the same database instance to check results
-    const collection = database.collection<ShoppingCartInfo>('shoppingCarts');
-    const document = collection.findOne((doc) => doc.cartId === cartId);
-
-    ok(document, 'Document should exist');
-    strictEqual(document!.cartId, cartId);
-    strictEqual(document!.totalItems, 1);
-    strictEqual(document!.discount, 10);
   });
 
-  void it('should create and update a document with multi-stream projection', async () => {
-    // Define a multi-stream projection
-    const allCartsProjection = inMemoryMultiStreamProjection<ShoppingCartInfo, ShoppingCartEvent>({
+  void it('with empty given and raw when', () =>
+    given([])
+      .when([
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { price: 100, productId: 'shoes', quantity: 100 },
+          },
+          metadata: {
+            streamName: shoppingCartId,
+          },
+        },
+      ])
+      .then(
+        documentExists<ShoppingCartShortInfo>(
+          {
+            productItemsCount: 100,
+            totalAmount: 10000,
+            appliedDiscounts: [],
+          },
+          {
+            inCollection: shoppingCartShortInfoCollectionName,
+            withId: shoppingCartId,
+          },
+        ),
+      ));
+
+  void it('with empty given and when eventsInStream', () =>
+    given([])
+      .when([
+        eventInStream(shoppingCartId, {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { price: 100, productId: 'shoes', quantity: 100 },
+          },
+        }),
+      ])
+      .then(
+        expectInMemoryDocuments
+          .fromCollection<ShoppingCartShortInfo>(
+            shoppingCartShortInfoCollectionName,
+          )
+          .withId(shoppingCartId)
+          .toBeEqual({
+            productItemsCount: 100,
+            totalAmount: 10000,
+            appliedDiscounts: [],
+          }),
+      ));
+
+  void it('with empty given and multiple when events', () => {
+    const couponId = uuid();
+
+    return given(
+      eventsInStream<ProductItemAdded>(shoppingCartId, [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { price: 100, productId: 'shoes', quantity: 100 },
+          },
+        },
+      ]),
+    )
+      .when(
+        newEventsInStream(shoppingCartId, [
+          {
+            type: 'DiscountApplied',
+            data: { percent: 10, couponId },
+          },
+        ]),
+      )
+      .then(
+        expectInMemoryDocuments
+          .fromCollection<ShoppingCartShortInfo>(
+            shoppingCartShortInfoCollectionName,
+          )
+          .withId(shoppingCartId)
+          .toBeEqual({
+            productItemsCount: 100,
+            totalAmount: 9000,
+            appliedDiscounts: [couponId],
+          }),
+      );
+  });
+
+  void it('with idempotency check', () => {
+    const couponId = uuid();
+
+    return given(
+      eventsInStream<ProductItemAdded>(shoppingCartId, [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { price: 100, productId: 'shoes', quantity: 100 },
+          },
+        },
+      ]),
+    )
+      .when(
+        newEventsInStream(shoppingCartId, [
+          {
+            type: 'DiscountApplied',
+            data: { percent: 10, couponId },
+          },
+        ]),
+        { numberOfTimes: 2 },
+      )
+      .then(
+        expectInMemoryDocuments
+          .fromCollection<ShoppingCartShortInfo>(
+            shoppingCartShortInfoCollectionName,
+          )
+          .withId(shoppingCartId)
+          .toBeEqual({
+            productItemsCount: 100,
+            totalAmount: 9000,
+            appliedDiscounts: [couponId],
+          }),
+      );
+  });
+
+  void it('should work with multi-stream projection', () => {
+    const customProjection = inMemoryMultiStreamProjection<
+      ShoppingCartShortInfo,
+      ProductItemAdded | DiscountApplied
+    >({
       canHandle: ['ProductItemAdded', 'DiscountApplied'],
       collectionName: 'allCarts',
       getDocumentId: (event) => `cart-summary-${event.metadata.streamName}`,
       initialState: () => ({
-        cartId: '',
-        totalItems: 0
+        productItemsCount: 0,
+        totalAmount: 0,
+        appliedDiscounts: [],
       }),
-      evolve: (document, { type, data: event, metadata }) => {
-        switch (type) {
-          case 'ProductItemAdded':
-            return {
-              ...(document || { totalItems: 0 }),
-              cartId: metadata.streamName,
-              totalItems: (document?.totalItems || 0) + 1
-            };
-          case 'DiscountApplied':
-            return {
-              ...(document || { cartId: '', totalItems: 0 }),
-              discount: event.discount
-            };
-          default:
-            return document;
-        }
-      }
+      evolve,
     });
 
-    // Get a shared database instance
-    const database = getInMemoryDatabase();
-    
-    // Create event store with the projection
-    const eventStore = getInMemoryEventStore({
-      projections: projections.inline([allCartsProjection])
+    const givenWithCustomProjection = InMemoryProjectionSpec.for({
+      projection: customProjection,
     });
-    
-    // Explicitly pass the database to projections through the context
-    (eventStore as any).database = database;
 
-    // Create some test events
-    const cartId = 'cart-456';
-    const events: ShoppingCartEvent[] = [
-      {
-        type: 'ProductItemAdded',
-        data: {
-          productId: 'product-1'
-        },
-        metadata: {
-          streamName: cartId
-        }
-      },
-      {
-        type: 'DiscountApplied',
-        data: {
-          discount: 15
-        },
-        metadata: {
-          streamName: cartId
-        }
-      }
-    ];
+    const cartId = `custom-cart-${uuid()}`;
+    const docId = `cart-summary-${cartId}`;
 
-    // Append events to the stream
-    await eventStore.appendToStream(cartId, events);
-
-    // Use the same database instance to check results
-    const collection = database.collection<ShoppingCartInfo>('allCarts');
-    const document = collection.findOne((doc) => doc.cartId === cartId);
-
-    ok(document, 'Document should exist');
-    strictEqual(document!.cartId, cartId);
-    strictEqual(document!.totalItems, 1);
-    strictEqual(document!.discount, 15);
+    return givenWithCustomProjection([])
+      .when([
+        eventInStream(cartId, {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { price: 100, productId: 'shoes', quantity: 100 },
+          },
+        }),
+      ])
+      .then(
+        expectInMemoryDocuments
+          .fromCollection<ShoppingCartShortInfo>('allCarts')
+          .withId(docId)
+          .toBeEqual({
+            productItemsCount: 100,
+            totalAmount: 10000,
+            appliedDiscounts: [],
+          }),
+      );
   });
 });
