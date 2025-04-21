@@ -168,7 +168,7 @@ export const eventsInStream = <EventType extends Event>(
 export const newEventsInStream = eventsInStream;
 
 // Assertion helpers for checking documents
-export function documentExists<T extends object>(
+export function documentExists<T extends object & { [key: string]: any }>(
   expected: Partial<T>,
   options: { inCollection: string; withId: string | number },
 ): InMemoryProjectionAssert {
