@@ -1,33 +1,39 @@
-import type {
-  CanHandle,
-  Event,
-  ReadEvent,
-} from '../../../typing';
+import {
+  getInMemoryDatabase,
+  type Database,
+} from '../../../database/inMemoryDatabase';
 import type {
   ProjectionDefinition,
   TruncateProjection,
 } from '../../../projections';
-import { getInMemoryDatabase, type Database } from '../../../database/inMemoryDatabase';
-import { type InMemoryReadEventMetadata, type InMemoryProjectionHandlerContext } from '../../inMemoryEventStore';
+import type { CanHandle, Event, ReadEvent } from '../../../typing';
+import {
+  type InMemoryProjectionHandlerContext,
+  type InMemoryReadEventMetadata,
+} from '../../inMemoryEventStore';
 
-export type InMemoryProjectionDefinition<EventType extends Event> = ProjectionDefinition<
-  EventType,
-  InMemoryReadEventMetadata,
-  InMemoryProjectionHandlerContext
->;
+export type InMemoryProjectionDefinition<EventType extends Event> =
+  ProjectionDefinition<
+    EventType,
+    InMemoryReadEventMetadata,
+    InMemoryProjectionHandlerContext
+  >;
 
-export type InMemoryProjectionHandlerOptions<EventType extends Event = Event> = {
-  projections: InMemoryProjectionDefinition<EventType>[];
-  events: ReadEvent<EventType, InMemoryReadEventMetadata>[];
-  database: Database;
-  eventStore: InMemoryProjectionHandlerContext['eventStore'];
-};
+export type InMemoryProjectionHandlerOptions<EventType extends Event = Event> =
+  {
+    projections: InMemoryProjectionDefinition<EventType>[];
+    events: ReadEvent<EventType, InMemoryReadEventMetadata>[];
+    database: Database;
+    eventStore: InMemoryProjectionHandlerContext['eventStore'];
+  };
 
 /**
  * Handles projections for the InMemoryEventStore
  * Similar to the PostgreSQL implementation, this processes events through projections
  */
-export const handleInMemoryProjections = async <EventType extends Event = Event>(
+export const handleInMemoryProjections = async <
+  EventType extends Event = Event,
+>(
   options: InMemoryProjectionHandlerOptions<EventType>,
 ): Promise<void> => {
   const { projections, events, database, eventStore } = options;
@@ -49,7 +55,10 @@ export const handleInMemoryProjections = async <EventType extends Event = Event>
   }
 };
 
-export type InMemoryDocumentEvolve<DocumentType extends Record<string, unknown>, EventType extends Event> = (
+export type InMemoryDocumentEvolve<
+  DocumentType extends Record<string, unknown>,
+  EventType extends Event,
+> = (
   document: DocumentType | null,
   event: ReadEvent<EventType, InMemoryReadEventMetadata>,
 ) => DocumentType | null;
@@ -60,7 +69,9 @@ export type InMemoryProjectionOptions<EventType extends Event> = {
     context: InMemoryProjectionHandlerContext & { database: Database },
   ) => Promise<void>;
   canHandle: CanHandle<EventType>;
-  truncate?: TruncateProjection<InMemoryProjectionHandlerContext & { database: Database }>;
+  truncate?: TruncateProjection<
+    InMemoryProjectionHandlerContext & { database: Database }
+  >;
 };
 
 /**
@@ -95,7 +106,10 @@ export const inMemoryProjection = <EventType extends Event>({
 /**
  * Creates a multi-stream projection for InMemoryDatabase
  */
-export type InMemoryMultiStreamProjectionOptions<DocumentType extends Record<string, unknown>, EventType extends Event> = {
+export type InMemoryMultiStreamProjectionOptions<
+  DocumentType extends Record<string, unknown>,
+  EventType extends Event,
+> = {
   canHandle: CanHandle<EventType>;
   collectionName: string;
   getDocumentId: (event: ReadEvent<EventType>) => string;
@@ -112,46 +126,48 @@ export type InMemoryMultiStreamProjectionOptions<DocumentType extends Record<str
 /**
  * Creates a projection that handles events across multiple streams
  */
-export const inMemoryMultiStreamProjection = <DocumentType extends Record<string, unknown>, EventType extends Event>(
+export const inMemoryMultiStreamProjection = <
+  DocumentType extends Record<string, unknown>,
+  EventType extends Event,
+>(
   options: InMemoryMultiStreamProjectionOptions<DocumentType, EventType>,
 ): InMemoryProjectionDefinition<EventType> => {
   const { collectionName, getDocumentId, canHandle } = options;
 
   return inMemoryProjection({
-    handle: async (events: ReadEvent<EventType, InMemoryReadEventMetadata>[], { database }) => {
+    handle: async (
+      events: ReadEvent<EventType, InMemoryReadEventMetadata>[],
+      { database },
+    ) => {
       const collection = database.collection<DocumentType>(collectionName);
 
       for (const event of events) {
         collection.handle(getDocumentId(event), (document) => {
           if ('initialState' in options) {
-            return options.evolve(
-              document ?? options.initialState(),
-              event as ReadEvent<EventType, InMemoryReadEventMetadata>
-            );
+            return options.evolve(document ?? options.initialState(), event);
           } else {
-            return options.evolve(
-              document,
-              event as ReadEvent<EventType, InMemoryReadEventMetadata>
-            );
+            return options.evolve(document, event);
           }
         });
       }
     },
     canHandle,
-    truncate: ({ database }: InMemoryProjectionHandlerContext & { database: Database }) => {
+    truncate: ({
+      database,
+    }: InMemoryProjectionHandlerContext & { database: Database }) => {
       return new Promise<void>((resolve) => {
         // For InMemory database, we can't directly truncate a collection
         // So we'll delete all documents from the collection
         const collection = database.collection<DocumentType>(collectionName);
         const documents = collection.find();
-        
+
         for (const doc of documents) {
           if (doc && '_id' in doc) {
             const id = doc._id;
             collection.deleteOne((d) => d._id === id);
           }
         }
-        
+
         resolve();
       });
     },
@@ -161,7 +177,10 @@ export const inMemoryMultiStreamProjection = <DocumentType extends Record<string
 /**
  * Creates a single-stream projection for InMemoryDatabase
  */
-export type InMemorySingleStreamProjectionOptions<DocumentType extends Record<string, unknown>, EventType extends Event> = {
+export type InMemorySingleStreamProjectionOptions<
+  DocumentType extends Record<string, unknown>,
+  EventType extends Event,
+> = {
   canHandle: CanHandle<EventType>;
   getDocumentId?: (event: ReadEvent<EventType>) => string;
   collectionName: string;
@@ -178,7 +197,10 @@ export type InMemorySingleStreamProjectionOptions<DocumentType extends Record<st
 /**
  * Creates a projection that handles events from a single stream
  */
-export const inMemorySingleStreamProjection = <DocumentType extends Record<string, unknown>, EventType extends Event>(
+export const inMemorySingleStreamProjection = <
+  DocumentType extends Record<string, unknown>,
+  EventType extends Event,
+>(
   options: InMemorySingleStreamProjectionOptions<DocumentType, EventType>,
 ): InMemoryProjectionDefinition<EventType> => {
   return inMemoryMultiStreamProjection<DocumentType, EventType>({
