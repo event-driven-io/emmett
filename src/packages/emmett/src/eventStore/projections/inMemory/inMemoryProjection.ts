@@ -1,15 +1,15 @@
-import {
-  getInMemoryDatabase,
-  type Database,
-} from '../../../database/inMemoryDatabase';
+import type { CanHandle, Event, ReadEvent } from '../../../typing';
 import type {
   ProjectionDefinition,
   TruncateProjection,
 } from '../../../projections';
-import type { CanHandle, Event, ReadEvent } from '../../../typing';
 import {
-  type InMemoryProjectionHandlerContext,
+  getInMemoryDatabase,
+  type Database,
+} from '../../../database/inMemoryDatabase';
+import {
   type InMemoryReadEventMetadata,
+  type InMemoryProjectionHandlerContext,
 } from '../../inMemoryEventStore';
 
 export type InMemoryProjectionDefinition<EventType extends Event> =

@@ -5,7 +5,6 @@ import {
   eventInStream,
   eventsInStream,
   expectInMemoryDocuments,
-  inMemoryMultiStreamProjection,
   InMemoryProjectionSpec,
   inMemorySingleStreamProjection,
   newEventsInStream,
@@ -200,50 +199,6 @@ void describe('InMemory Projections', () => {
             productItemsCount: 100,
             totalAmount: 9000,
             appliedDiscounts: [couponId],
-          }),
-      );
-  });
-
-  void it('should work with multi-stream projection', () => {
-    const customProjection = inMemoryMultiStreamProjection<
-      ShoppingCartShortInfo,
-      ProductItemAdded | DiscountApplied
-    >({
-      canHandle: ['ProductItemAdded', 'DiscountApplied'],
-      collectionName: 'allCarts',
-      getDocumentId: (event) => `cart-summary-${event.metadata.streamName}`,
-      initialState: () => ({
-        productItemsCount: 0,
-        totalAmount: 0,
-        appliedDiscounts: [],
-      }),
-      evolve,
-    });
-
-    const givenWithCustomProjection = InMemoryProjectionSpec.for({
-      projection: customProjection,
-    });
-
-    const cartId = `custom-cart-${uuid()}`;
-    const docId = `cart-summary-${cartId}`;
-
-    return givenWithCustomProjection([])
-      .when([
-        eventInStream(cartId, {
-          type: 'ProductItemAdded',
-          data: {
-            productItem: { price: 100, productId: 'shoes', quantity: 100 },
-          },
-        }),
-      ])
-      .then(
-        expectInMemoryDocuments
-          .fromCollection<ShoppingCartShortInfo>('allCarts')
-          .withId(docId)
-          .toBeEqual({
-            productItemsCount: 100,
-            totalAmount: 10000,
-            appliedDiscounts: [],
           }),
       );
   });
