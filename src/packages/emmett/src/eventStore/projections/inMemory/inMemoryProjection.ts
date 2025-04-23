@@ -3,14 +3,14 @@ import type {
   ProjectionDefinition,
   TruncateProjection,
 } from '../../../projections';
-import {
-  getInMemoryDatabase,
-  type Database,
-} from '../../../database/inMemoryDatabase';
+import type { Database } from '../../../database/inMemoryDatabase';
 import {
   type InMemoryReadEventMetadata,
   type InMemoryProjectionHandlerContext,
 } from '../../inMemoryEventStore';
+
+export const DATABASE_REQUIRED_ERROR_MESSAGE =
+  'Database is required in context for InMemory projections';
 
 export type InMemoryProjectionDefinition<EventType extends Event> =
   ProjectionDefinition<
@@ -84,20 +84,22 @@ export const inMemoryProjection = <EventType extends Event>({
 }: InMemoryProjectionOptions<EventType>): InMemoryProjectionDefinition<EventType> => ({
   canHandle,
   handle: async (events, context) => {
-    // Use the database from context if provided, otherwise create a new one
-    const database = context.database || getInMemoryDatabase();
+    if (!context.database) {
+      throw new Error(DATABASE_REQUIRED_ERROR_MESSAGE);
+    }
     await handle(events, {
       ...context,
-      database,
+      database: context.database,
     });
   },
   truncate: truncate
     ? (context) => {
-        // Use the database from context if provided, otherwise create a new one
-        const database = context.database || getInMemoryDatabase();
+        if (!context.database) {
+          throw new Error(DATABASE_REQUIRED_ERROR_MESSAGE);
+        }
         return truncate({
           ...context,
-          database,
+          database: context.database,
         });
       }
     : undefined,
@@ -141,15 +143,23 @@ export const inMemoryMultiStreamProjection = <
     ) => {
       const collection = database.collection<DocumentType>(collectionName);
 
-      for (const event of events) {
-        collection.handle(getDocumentId(event), (document) => {
-          if ('initialState' in options) {
-            return options.evolve(document ?? options.initialState(), event);
-          } else {
-            return options.evolve(document, event);
-          }
-        });
-      }
+      // Process each event and wrap in a promise to properly use async/await
+      await Promise.all(
+        events.map((event) => {
+          return Promise.resolve(
+            collection.handle(getDocumentId(event), (document) => {
+              if ('initialState' in options) {
+                return options.evolve(
+                  document ?? options.initialState(),
+                  event,
+                );
+              } else {
+                return options.evolve(document, event);
+              }
+            }),
+          );
+        }),
+      );
     },
     canHandle,
     truncate: ({
