@@ -29,7 +29,9 @@ import { handleInMemoryProjections } from './projections/inMemory';
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
 
 export type InMemoryEventStore =
-  EventStore<ReadEventMetadataWithGlobalPosition>;
+  EventStore<ReadEventMetadataWithGlobalPosition> & {
+    database: Database;
+  };
 
 export type InMemoryReadEventMetadata = ReadEventMetadataWithGlobalPosition;
 
@@ -45,6 +47,7 @@ export type InMemoryEventStoreOptions =
       InMemoryReadEventMetadata,
       InMemoryProjectionHandlerContext
     >[];
+    database?: Database;
   };
 
 export type InMemoryReadEvent<EventType extends Event = Event> = ReadEvent<
@@ -68,7 +71,7 @@ export const getInMemoryEventStore = (
   };
 
   // Get the database instance to be used for projections
-  const database = getInMemoryDatabase();
+  const database = eventStoreOptions?.database || getInMemoryDatabase();
 
   // Extract inline projections from options
   const inlineProjections = (eventStoreOptions?.projections ?? [])
@@ -77,6 +80,7 @@ export const getInMemoryEventStore = (
 
   // Create the event store object
   const eventStore: InMemoryEventStore = {
+    database,
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
       options: AggregateStreamOptions<
@@ -198,13 +202,10 @@ export const getInMemoryEventStore = (
 
       // Process projections if there are any registered
       if (inlineProjections.length > 0) {
-        // Use the database explicitly set on the event store if available, or fall back to the default one
-        const projectionDatabase = (eventStore as any).database || database;
-
         await handleInMemoryProjections({
           projections: inlineProjections,
           events: newEvents,
-          database: projectionDatabase,
+          database: eventStore.database,
           eventStore,
         });
       }
@@ -225,9 +226,6 @@ export const getInMemoryEventStore = (
 
     //streamEvents: streamingCoordinator.stream,
   };
-
-  // Add the database to the event store for access in projections
-  (eventStore as any).database = database;
 
   return eventStore;
 };
