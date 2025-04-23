@@ -1,6 +1,13 @@
-/* eslint-disable */
-// @ts-nocheck - This is a test utility file with intentionally relaxed type checking
-import { strict as assert } from 'assert';
+import {
+  assertFails,
+  AssertionError,
+  assertTrue,
+  isErrorConstructor,
+  type CombinedReadEventMetadata,
+  type Event,
+  type ReadEvent,
+  type ThenThrows,
+} from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import {
   handleInMemoryProjections,
@@ -10,19 +17,38 @@ import {
   getInMemoryDatabase,
   type Database,
 } from '../../../database/inMemoryDatabase';
-import { type Event, type ReadEvent } from '../../../typing';
-import type { InMemoryReadEventMetadata } from '../../inMemoryEventStore';
+import type { Document } from '../../../database/types';
+import type {
+  InMemoryEventStore,
+  InMemoryReadEventMetadata,
+} from '../../inMemoryEventStore';
 
-// Define minimal type for the mock eventStore used in testing
-type _MockEventStore = {
-  database: Database;
-};
+// Define a more specific type for T that extends Document
+type DocumentWithId = Document & { _id?: string | number };
 
-export type InMemoryProjectionSpecEvent<EventType extends Event> = EventType & {
-  metadata?: Partial<InMemoryReadEventMetadata>;
+export type InMemoryProjectionSpecEvent<
+  EventType extends Event,
+  EventMetaDataType extends
+    InMemoryReadEventMetadata = InMemoryReadEventMetadata,
+> = EventType & {
+  metadata?: Partial<EventMetaDataType>;
 };
 
 export type InMemoryProjectionSpecWhenOptions = { numberOfTimes: number };
+
+export type InMemoryProjectionSpec<EventType extends Event> = (
+  givenEvents: InMemoryProjectionSpecEvent<EventType>[],
+) => {
+  when: (
+    events: InMemoryProjectionSpecEvent<EventType>[],
+    options?: InMemoryProjectionSpecWhenOptions,
+  ) => {
+    then: (assert: InMemoryProjectionAssert, message?: string) => Promise<void>;
+    thenThrows: <ErrorType extends Error = Error>(
+      ...args: Parameters<ThenThrows<ErrorType>>
+    ) => Promise<void>;
+  };
+};
 
 export type InMemoryProjectionAssert = (options: {
   database: Database;
@@ -35,7 +61,7 @@ export type InMemoryProjectionSpecOptions<EventType extends Event> = {
 export const InMemoryProjectionSpec = {
   for: <EventType extends Event>(
     options: InMemoryProjectionSpecOptions<EventType>,
-  ) => {
+  ): InMemoryProjectionSpec<EventType> => {
     const { projection } = options;
 
     return (givenEvents: InMemoryProjectionSpecEvent<EventType>[]) => {
@@ -62,23 +88,49 @@ export const InMemoryProjectionSpec = {
                 messageId: uuid(),
               };
 
-              // @ts-expect-error - Simplifying type casting for test code, intentional for testing
               allEvents.push({
                 ...event,
                 kind: 'Event',
                 metadata: {
                   ...metadata,
                   ...('metadata' in event ? (event.metadata ?? {}) : {}),
-                },
+                } as CombinedReadEventMetadata<
+                  EventType,
+                  InMemoryReadEventMetadata
+                >,
               });
             }
 
-            // @ts-expect-error - Using any for test code, intentional for testing
+            // Create a minimal mock EventStore implementation
+            const mockEventStore = {
+              database,
+              aggregateStream: async () => {
+                return Promise.resolve({
+                  state: {},
+                  currentStreamVersion: 0n,
+                  streamExists: false,
+                });
+              },
+              readStream: async () => {
+                return Promise.resolve({
+                  events: [],
+                  currentStreamVersion: 0n,
+                  streamExists: false,
+                });
+              },
+              appendToStream: async () => {
+                return Promise.resolve({
+                  nextExpectedStreamVersion: 0n,
+                  createdNewStream: false,
+                });
+              },
+            } as InMemoryEventStore;
+
             await handleInMemoryProjections({
               events: allEvents,
               projections: [projection],
               database,
-              eventStore: { database } as any,
+              eventStore: mockEventStore,
             });
           };
 
@@ -88,58 +140,47 @@ export const InMemoryProjectionSpec = {
               message?: string,
             ): Promise<void> => {
               const database = getInMemoryDatabase();
-              try {
-                await run(database);
+              await run(database);
 
-                const succeeded = await assertFn({ database });
+              const succeeded = await assertFn({ database });
 
-                if (succeeded !== undefined && succeeded === false)
-                  assert.fail(
-                    message ??
-                      "Projection specification didn't match the criteria",
-                  );
-              } catch (error) {
-                throw error;
+              if (succeeded !== undefined && succeeded === false) {
+                assertFails(
+                  message ??
+                    "Projection specification didn't match the criteria",
+                );
               }
             },
-            thenThrows: async <_ErrorType extends Error>(
-              errorTypeOrPredicate: any,
-              predicate?: (error: any) => boolean,
+            thenThrows: async <ErrorType extends Error = Error>(
+              ...args: Parameters<ThenThrows<ErrorType>>
             ): Promise<void> => {
               const database = getInMemoryDatabase();
               try {
                 await run(database);
-                throw new assert.AssertionError({
-                  message: 'Handler did not fail as expected',
-                });
+                throw new AssertionError('Handler did not fail as expected');
               } catch (error) {
-                if (error instanceof assert.AssertionError) throw error;
+                if (error instanceof AssertionError) throw error;
 
-                if (!errorTypeOrPredicate) return;
+                if (args.length === 0) return;
 
-                // Handle either error type constructor or predicate function
-                if (typeof errorTypeOrPredicate === 'function') {
-                  if (errorTypeOrPredicate.prototype instanceof Error) {
-                    // It's a constructor
-                    if (!(error instanceof errorTypeOrPredicate)) {
-                      assert.fail(
-                        `Error is not an instance of expected type: ${error}`,
-                      );
-                    }
+                if (!isErrorConstructor(args[0])) {
+                  assertTrue(
+                    args[0](error as ErrorType),
+                    `Error didn't match the error condition: ${error?.toString()}`,
+                  );
+                  return;
+                }
 
-                    if (predicate && !predicate(error)) {
-                      assert.fail(
-                        `Error didn't match the error condition: ${error}`,
-                      );
-                    }
-                  } else {
-                    // It's a predicate function
-                    if (!errorTypeOrPredicate(error)) {
-                      assert.fail(
-                        `Error didn't match the error condition: ${error}`,
-                      );
-                    }
-                  }
+                assertTrue(
+                  error instanceof args[0],
+                  `Caught error is not an instance of the expected type: ${error?.toString()}`,
+                );
+
+                if (args[1]) {
+                  assertTrue(
+                    args[1](error as ErrorType),
+                    `Error didn't match the error condition: ${error?.toString()}`,
+                  );
                 }
               }
             },
@@ -151,46 +192,53 @@ export const InMemoryProjectionSpec = {
 };
 
 // Helper functions for creating events in stream
-export const eventInStream = <EventType extends Event>(
+export const eventInStream = <
+  EventType extends Event = Event,
+  EventMetaDataType extends
+    InMemoryReadEventMetadata = InMemoryReadEventMetadata,
+>(
   streamName: string,
-  event: InMemoryProjectionSpecEvent<EventType>,
-): InMemoryProjectionSpecEvent<EventType> => {
+  event: InMemoryProjectionSpecEvent<EventType, EventMetaDataType>,
+): InMemoryProjectionSpecEvent<EventType, EventMetaDataType> => {
   return {
     ...event,
     metadata: {
       ...(event.metadata ?? {}),
       streamName: event.metadata?.streamName ?? streamName,
-    },
+    } as Partial<EventMetaDataType>,
   };
 };
 
-export const eventsInStream = <EventType extends Event>(
+export const eventsInStream = <
+  EventType extends Event = Event,
+  EventMetaDataType extends
+    InMemoryReadEventMetadata = InMemoryReadEventMetadata,
+>(
   streamName: string,
-  events: InMemoryProjectionSpecEvent<EventType>[],
-): InMemoryProjectionSpecEvent<EventType>[] => {
+  events: InMemoryProjectionSpecEvent<EventType, EventMetaDataType>[],
+): InMemoryProjectionSpecEvent<EventType, EventMetaDataType>[] => {
   return events.map((e) => eventInStream(streamName, e));
 };
 
 export const newEventsInStream = eventsInStream;
 
 // Assertion helpers for checking documents
-export function documentExists<T extends object & { [key: string]: any }>(
+export function documentExists<T extends DocumentWithId>(
   expected: Partial<T>,
   options: { inCollection: string; withId: string | number },
 ): InMemoryProjectionAssert {
+  // eslint-disable-next-line @typescript-eslint/require-await
   return async ({ database }) => {
-    // @ts-expect-error - Safe to use for testing database collections
     const collection = database.collection<T>(options.inCollection);
-    // @ts-expect-error - Safe to use for testing document finding
+
     const document = collection.findOne((doc) => {
-      // Handle both string IDs and numeric IDs
-      // @ts-expect-error - Document structure varies, this is intentional for testing
-      const docId = doc._id ?? doc.id;
+      // Handle both string IDs and numeric IDs in a type-safe way
+      const docId = '_id' in doc ? doc._id : undefined;
       return docId === options.withId;
     });
 
     if (!document) {
-      assert.fail(
+      assertFails(
         `Document with ID ${options.withId} does not exist in collection ${options.inCollection}`,
       );
       return false;
@@ -198,12 +246,12 @@ export function documentExists<T extends object & { [key: string]: any }>(
 
     // Check that all expected properties exist with expected values
     for (const [key, value] of Object.entries(expected)) {
-      // @ts-expect-error - Property access on dynamic keys in test code
+      const propKey = key as keyof typeof document;
       if (
-        document[key] === undefined ||
-        JSON.stringify(document[key]) !== JSON.stringify(value)
+        !(key in document) ||
+        JSON.stringify(document[propKey]) !== JSON.stringify(value)
       ) {
-        assert.fail(`Property ${key} doesn't match the expected value`);
+        assertFails(`Property ${key} doesn't match the expected value`);
         return false;
       }
     }
@@ -214,7 +262,7 @@ export function documentExists<T extends object & { [key: string]: any }>(
 
 // Helper for checking document contents
 export const expectInMemoryDocuments = {
-  fromCollection: <T extends object>(collectionName: string) => ({
+  fromCollection: <T extends DocumentWithId>(collectionName: string) => ({
     withId: (id: string | number) => ({
       toBeEqual: (expected: Partial<T>): InMemoryProjectionAssert =>
         documentExists<T>(expected, {
