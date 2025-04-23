@@ -20,7 +20,10 @@ import {
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
 import { StreamingCoordinator } from './subscriptions';
 import type { ProjectionRegistration } from '../projections';
-import { getInMemoryDatabase, type Database } from '../database/inMemoryDatabase';
+import {
+  getInMemoryDatabase,
+  type Database,
+} from '../database/inMemoryDatabase';
 import { handleInMemoryProjections } from './projections/inMemory';
 
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
@@ -66,7 +69,7 @@ export const getInMemoryEventStore = (
 
   // Get the database instance to be used for projections
   const database = getInMemoryDatabase();
-  
+
   // Extract inline projections from options
   const inlineProjections = (eventStoreOptions?.projections ?? [])
     .filter(({ type }) => type === 'inline')
@@ -192,19 +195,19 @@ export const getInMemoryEventStore = (
 
       streams.set(streamName, [...currentEvents, ...newEvents]);
       await streamingCoordinator.notify(newEvents);
-      
-  // Process projections if there are any registered
-  if (inlineProjections.length > 0) {
-    // Use the database explicitly set on the event store if available, or fall back to the default one
-    const projectionDatabase = (eventStore as any).database || database;
-    
-    await handleInMemoryProjections({
-      projections: inlineProjections,
-      events: newEvents,
-      database: projectionDatabase,
-      eventStore,
-    });
-  }
+
+      // Process projections if there are any registered
+      if (inlineProjections.length > 0) {
+        // Use the database explicitly set on the event store if available, or fall back to the default one
+        const projectionDatabase = (eventStore as any).database || database;
+
+        await handleInMemoryProjections({
+          projections: inlineProjections,
+          events: newEvents,
+          database: projectionDatabase,
+          eventStore,
+        });
+      }
 
       const result: AppendToStreamResult = {
         nextExpectedStreamVersion: positionOfLastEventInTheStream,
@@ -222,9 +225,9 @@ export const getInMemoryEventStore = (
 
     //streamEvents: streamingCoordinator.stream,
   };
-  
+
   // Add the database to the event store for access in projections
   (eventStore as any).database = database;
-  
+
   return eventStore;
 };
