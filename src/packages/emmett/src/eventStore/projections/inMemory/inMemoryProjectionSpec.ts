@@ -227,8 +227,7 @@ export function documentExists<T extends DocumentWithId>(
   expected: Partial<T>,
   options: { inCollection: string; withId: string | number },
 ): InMemoryProjectionAssert {
-  // eslint-disable-next-line @typescript-eslint/require-await
-  return async ({ database }) => {
+  return ({ database }) => {
     const collection = database.collection<T>(options.inCollection);
 
     const document = collection.findOne((doc) => {
@@ -241,7 +240,7 @@ export function documentExists<T extends DocumentWithId>(
       assertFails(
         `Document with ID ${options.withId} does not exist in collection ${options.inCollection}`,
       );
-      return false;
+      return Promise.resolve(false);
     }
 
     // Check that all expected properties exist with expected values
@@ -252,11 +251,11 @@ export function documentExists<T extends DocumentWithId>(
         JSON.stringify(document[propKey]) !== JSON.stringify(value)
       ) {
         assertFails(`Property ${key} doesn't match the expected value`);
-        return false;
+        return Promise.resolve(false);
       }
     }
 
-    return true;
+    return Promise.resolve(true);
   };
 }
 
