@@ -1,18 +1,18 @@
 import { v7 as uuid } from 'uuid';
 import { deepEquals } from '../utils';
 import {
+  type DatabaseHandleOptionErrors,
+  type DatabaseHandleOptions,
+  type DatabaseHandleResult,
   type DeleteResult,
   type Document,
   type DocumentHandler,
-  type HandleOptionErrors,
-  type HandleOptions,
-  type HandleResult,
   type InsertOneResult,
   type OptionalUnlessRequiredIdAndVersion,
   type ReplaceOneOptions,
   type UpdateResult,
-  type WithoutId,
   type WithIdAndVersion,
+  type WithoutId,
 } from './types';
 import { expectedVersionValue, operationResult } from './utils';
 
@@ -20,8 +20,8 @@ export interface DocumentsCollection<T extends Document> {
   handle: (
     id: string,
     handle: DocumentHandler<T>,
-    options?: HandleOptions,
-  ) => HandleResult<T>;
+    options?: DatabaseHandleOptions,
+  ) => DatabaseHandleResult<T>;
   findOne: (predicate?: Predicate<T>) => T | null;
   find: (predicate?: Predicate<T>) => T[];
   insertOne: (
@@ -49,7 +49,7 @@ export const getInMemoryDatabase = (): Database => {
     collection: <T extends Document, CollectionName extends string>(
       collectionName: CollectionName,
       collectionOptions: {
-        errors?: HandleOptionErrors;
+        errors?: DatabaseHandleOptionErrors;
       } = {},
     ): DocumentsCollection<T> => {
       const ensureCollectionCreated = () => {
@@ -235,8 +235,8 @@ export const getInMemoryDatabase = (): Database => {
         handle: (
           id: string,
           handle: DocumentHandler<T>,
-          options?: HandleOptions,
-        ): HandleResult<T> => {
+          options?: DatabaseHandleOptions,
+        ): DatabaseHandleResult<T> => {
           const { expectedVersion: version, ...operationOptions } =
             options ?? {};
           ensureCollectionCreated();
@@ -252,7 +252,7 @@ export const getInMemoryDatabase = (): Database => {
               expectedVersion !== null &&
               existing._version !== expectedVersion)
           ) {
-            return operationResult<HandleResult<T>>(
+            return operationResult<DatabaseHandleResult<T>>(
               {
                 successful: false,
                 document: existing as WithIdAndVersion<T>,
@@ -264,7 +264,7 @@ export const getInMemoryDatabase = (): Database => {
           const result = handle(existing !== null ? { ...existing } : null);
 
           if (deepEquals(existing, result))
-            return operationResult<HandleResult<T>>(
+            return operationResult<DatabaseHandleResult<T>>(
               {
                 successful: true,
                 document: existing as WithIdAndVersion<T>,
@@ -310,7 +310,7 @@ export const getInMemoryDatabase = (): Database => {
             };
           }
 
-          return operationResult<HandleResult<T>>(
+          return operationResult<DatabaseHandleResult<T>>(
             {
               successful: true,
               document: existing as WithIdAndVersion<T>,
