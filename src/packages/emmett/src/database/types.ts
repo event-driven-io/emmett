@@ -40,7 +40,7 @@ export type ExpectedDocumentVersion = bigint | ExpectedDocumentVersionGeneral;
 
 export type ExpectedDocumentVersionValue = bigint;
 
-export type HandleOptions = {
+export type DatabaseHandleOptions = {
   expectedVersion?: ExpectedDocumentVersion;
 };
 
@@ -81,13 +81,13 @@ export interface DeleteManyResult extends OperationResult {
   deletedCount: number;
 }
 
-export type HandleResult<T> =
+export type DatabaseHandleResult<T> =
   | (InsertOneResult & { document: WithIdAndVersion<T> })
   | (UpdateResult & { document: WithIdAndVersion<T> })
   | (DeleteResult & { document: null })
   | (OperationResult & { document: null });
 
-export type HandleOptionErrors =
+export type DatabaseHandleOptionErrors =
   | { throwOnOperationFailures?: boolean }
   | undefined;
 

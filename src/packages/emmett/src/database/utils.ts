@@ -1,10 +1,10 @@
 import { ConcurrencyInMemoryDatabaseError } from '../errors';
 import { JSONParser } from '../serialization';
 import type {
+  DatabaseHandleOptionErrors,
   ExpectedDocumentVersion,
   ExpectedDocumentVersionGeneral,
   ExpectedDocumentVersionValue,
-  HandleOptionErrors,
   OperationResult,
 } from './types';
 
@@ -30,7 +30,7 @@ export const operationResult = <T extends OperationResult>(
   options: {
     operationName: string;
     collectionName: string;
-    errors?: HandleOptionErrors;
+    errors?: DatabaseHandleOptionErrors;
   },
 ): T => {
   const operationResult: T = {

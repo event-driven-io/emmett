@@ -1,13 +1,3 @@
-import {
-  assertFails,
-  AssertionError,
-  assertTrue,
-  isErrorConstructor,
-  type CombinedReadEventMetadata,
-  type Event,
-  type ReadEvent,
-  type ThenThrows,
-} from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import {
   handleInMemoryProjections,
@@ -16,8 +6,17 @@ import {
 import {
   getInMemoryDatabase,
   type Database,
-} from '../../../database/inMemoryDatabase';
-import type { Document } from '../../../database/types';
+  type Document,
+} from '../../../database';
+import { isErrorConstructor } from '../../../errors';
+import {
+  assertFails,
+  AssertionError,
+  assertTrue,
+  type ThenThrows,
+} from '../../../testing';
+import type { CombinedReadEventMetadata, ReadEvent } from '../../../typing';
+import { type Event } from '../../../typing';
 import type {
   InMemoryEventStore,
   InMemoryReadEventMetadata,
