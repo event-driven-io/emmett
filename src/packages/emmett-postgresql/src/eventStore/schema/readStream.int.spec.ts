@@ -1,4 +1,4 @@
-import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
+import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
 import {
   assertDeepEqual,
   assertEqual,
@@ -6,6 +6,7 @@ import {
   assertIsNotNull,
   assertMatches,
   assertTrue,
+  asyncRetry,
   type Event,
 } from '@event-driven-io/emmett';
 import {
@@ -14,7 +15,7 @@ import {
 } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
-import { createEventStoreSchema } from '.';
+import { createEventStoreSchema, defaultTag } from '.';
 import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
 import { appendToStream } from './appendToStream';
 import { readStream } from './readStream';
@@ -43,7 +44,7 @@ export type DiscountApplied = Event<
 
 export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
-void describe('appendEvent', () => {
+void describe('readStream', () => {
   let postgres: StartedPostgreSqlContainer;
   let pool: Dumbo;
 
@@ -117,5 +118,37 @@ void describe('appendEvent', () => {
     );
     assertDeepEqual([], result.events);
     assertFalse(result.streamExists);
+  });
+
+  void it('reads event in order based on the stream position', async () => {
+    // Given
+    const streamId = uuid();
+
+    const indexes = [...Array(100).keys()].map((i) => i + 1);
+    const randomizedIndexes = [...indexes].sort(() => Math.random() - 0.5);
+
+    await Promise.all(
+      randomizedIndexes.map((index) =>
+        asyncRetry(
+          () =>
+            pool.withTransaction((tx) =>
+              tx.execute.command(SQL`INSERT INTO "emt_messages"
+          (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_kind, message_id, transaction_id)
+        VALUES          
+           (${streamId}, ${index}, ${defaultTag}, '{}'::jsonb, '{}'::jsonb, '1', 'test${index}', 'C', ${uuid()}, pg_current_xact_id())`),
+            ),
+          { forever: true },
+        ),
+      ),
+    );
+
+    // When
+    const result = await readStream(pool.execute, streamId);
+
+    // Then
+    assertDeepEqual(
+      result.events.map((e) => e.metadata.streamPosition),
+      indexes.map((i) => BigInt(i)),
+    );
   });
 });
