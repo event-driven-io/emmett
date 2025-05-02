@@ -178,7 +178,8 @@ export type PostgreSQLProjectorOptions<EventType extends Event = Event> =
 
 export type PostgreSQLProcessorOptions<MessageType extends Message = Message> =
   | PostgreSQLReactorOptions<MessageType>
-  // @ts-expect-error I don't know how to fix it for  now
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore I don't know how to fix it for  now
   | PostgreSQLProjectorOptions<MessageType>;
 
 const postgreSQLProcessingScope = (options: {
