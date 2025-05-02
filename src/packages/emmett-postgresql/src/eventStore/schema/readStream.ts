@@ -53,7 +53,8 @@ export const readStream = async <EventType extends Event>(
         sql(
           `SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
            FROM ${messagesTable.name}
-           WHERE stream_id = %L AND partition = %L AND is_archived = FALSE ${fromCondition} ${toCondition}`,
+           WHERE stream_id = %L AND partition = %L AND is_archived = FALSE ${fromCondition} ${toCondition}
+           ORDER BY stream_position ASC`,
           streamId,
           options?.partition ?? defaultTag,
         ),
