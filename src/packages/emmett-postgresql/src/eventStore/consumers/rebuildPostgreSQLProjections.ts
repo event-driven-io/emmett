@@ -2,7 +2,7 @@ import type {
   AnyEvent,
   ProjectorOptions,
   ReadEventMetadataWithGlobalPosition,
-} from '@event-driven-io/emmett/src';
+} from '@event-driven-io/emmett';
 import { v7 as uuid } from 'uuid';
 import type { PostgreSQLProjectionDefinition } from '../projections';
 import {
