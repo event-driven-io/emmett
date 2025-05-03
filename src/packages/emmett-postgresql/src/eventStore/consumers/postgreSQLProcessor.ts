@@ -14,6 +14,7 @@ import {
   MessageProcessor,
   projector,
   reactor,
+  type AnyEvent,
   type AnyMessage,
   type BatchRecordedMessageHandlerWithContext,
   type Checkpointer,
@@ -168,7 +169,7 @@ type PostgreSQLReactorOptions<MessageType extends Message = Message> =
   > &
     PostgreSQLConnectionOptions;
 
-export type PostgreSQLProjectorOptions<EventType extends Event = Event> =
+export type PostgreSQLProjectorOptions<EventType extends AnyEvent = AnyEvent> =
   ProjectorOptions<
     EventType,
     ReadEventMetadataWithGlobalPosition,
@@ -176,7 +177,9 @@ export type PostgreSQLProjectorOptions<EventType extends Event = Event> =
   > &
     PostgreSQLConnectionOptions;
 
-export type PostgreSQLProcessorOptions<MessageType extends Message = Message> =
+export type PostgreSQLProcessorOptions<
+  MessageType extends AnyMessage = AnyMessage,
+> =
   | PostgreSQLReactorOptions<MessageType>
   // @ts-expect-error I don't know how to fix it for  now
   | PostgreSQLProjectorOptions<MessageType>;
