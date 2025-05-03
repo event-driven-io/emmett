@@ -9,11 +9,9 @@ const streamsPolyfill = { ReadableStream, WritableStream, TransformStream };
 // https://github.com/jsdom/jsdom/issues/1537#issuecomment-229405327
 
 const isJsDom = (): boolean => {
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore global object check
+  // @ts-expect-error global object check
   const globalWindow = window as { name: string };
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore global object check
+  // @ts-expect-error global object check
   const globalNavigator = navigator as { userAgent: string };
 
   return (
@@ -27,8 +25,7 @@ const isJsDom = (): boolean => {
 };
 
 const isDeno = (): boolean => {
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore global object check
+  // @ts-expect-error global object check
   const globalDeno = Deno as { version: { deno: unknown } };
 
   return (
@@ -64,8 +61,7 @@ export default streams;
 export type * from 'web-streams-polyfill';
 
 const isBrowser = (): boolean => {
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore global object check
+  // @ts-expect-error global object check
   const globalWindow = window as { document: unknown };
 
   return (
@@ -80,8 +76,7 @@ const isNode = (): boolean =>
   process.versions.node != null;
 
 const isWebWorker = (): boolean => {
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore global object check
+  // @ts-expect-error global object check
   const globalSelf = self as { constructor: { name: unknown } | undefined };
 
   return (
