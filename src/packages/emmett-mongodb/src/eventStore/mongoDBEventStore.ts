@@ -656,8 +656,7 @@ export function prependMongoFilterWithProjectionPrefix<T, Result = T>(
   }
 
   for (const key in obj) {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore we're forcing `k` to be a key of `T`
+    // @ts-expect-error we're forcing `k` to be a key of `T`
     const k: keyof typeof obj = addProjectionPrefixToMongoKey(key, prefix);
     if (k !== key) {
       obj[k] = obj[key as keyof typeof obj];
