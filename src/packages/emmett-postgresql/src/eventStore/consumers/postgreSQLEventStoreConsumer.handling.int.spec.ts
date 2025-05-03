@@ -10,7 +10,7 @@ import {
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
-import { type PostgreSQLProcessorOptions } from './postgreSQLProcessor';
+import type { PostgreSQLReactorOptions } from './postgreSQLProcessor';
 
 const withDeadline = { timeout: 5000 };
 
@@ -37,7 +37,7 @@ void describe('PostgreSQL event store started consumer', () => {
 
   void describe('eachMessage', () => {
     void it(
-      'handles all events appended to event store BEFORE processor was started',
+      'handles all events appended to event store BEFORE reactor was started',
       withDeadline,
       async () => {
         // Given
@@ -58,7 +58,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           stopAfter: (event) =>
             event.metadata.globalPosition ===
@@ -79,7 +79,7 @@ void describe('PostgreSQL event store started consumer', () => {
     );
 
     void it(
-      'handles all events appended to event store AFTER processor was started',
+      'handles all events appended to event store AFTER reactor was started',
       withDeadline,
       async () => {
         // Given
@@ -91,7 +91,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
@@ -153,7 +153,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           startFrom: { lastCheckpoint: startPosition },
           stopAfter: (event) =>
@@ -209,7 +209,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
@@ -270,7 +270,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
@@ -331,7 +331,7 @@ void describe('PostgreSQL event store started consumer', () => {
         let result: GuestStayEvent[] = [];
         let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
 
-        const processorOptions: PostgreSQLProcessorOptions<GuestStayEvent> = {
+        const processorOptions: PostgreSQLReactorOptions<GuestStayEvent> = {
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
@@ -346,7 +346,7 @@ void describe('PostgreSQL event store started consumer', () => {
           connectionString,
         });
         try {
-          consumer.processor<GuestStayEvent>(processorOptions);
+          consumer.reactor<GuestStayEvent>(processorOptions);
 
           await consumer.start();
         } finally {
@@ -360,7 +360,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const newConsumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        newConsumer.processor<GuestStayEvent>(processorOptions);
+        newConsumer.reactor<GuestStayEvent>(processorOptions);
 
         try {
           const consumerPromise = newConsumer.start();

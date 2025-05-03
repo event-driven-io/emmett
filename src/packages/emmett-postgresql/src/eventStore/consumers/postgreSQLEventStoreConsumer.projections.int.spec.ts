@@ -21,7 +21,7 @@ import {
 } from '../postgreSQLEventStore';
 import { pongoSingleStreamProjection } from '../projections';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
-import type { PostgreSQLProcessorOptions } from './postgreSQLProcessor';
+import type { PostgreSQLProjectorOptions } from './postgreSQLProcessor';
 
 const withDeadline = { timeout: 5000 };
 
@@ -55,7 +55,7 @@ void describe('PostgreSQL event store started consumer', () => {
 
   void describe('eachMessage', () => {
     void it(
-      'handles all events appended to event store BEFORE processor was started',
+      'handles all events appended to event store BEFORE projector was started',
       withDeadline,
       async () => {
         // Given
@@ -74,7 +74,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const consumer = postgreSQLEventStoreConsumer<ShoppingCartEvent>({
           connectionString,
         });
-        consumer.processor<ShoppingCartSummaryEvent>({
+        consumer.projector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           stopAfter: (event) =>
@@ -100,7 +100,7 @@ void describe('PostgreSQL event store started consumer', () => {
     );
 
     void it(
-      'handles all events appended to event store AFTER processor was started',
+      'handles all events appended to event store AFTER projector was started',
       withDeadline,
       async () => {
         // Given
@@ -110,7 +110,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor({
+        consumer.projector({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           stopAfter: (event) =>
@@ -186,7 +186,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor({
+        consumer.projector({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           startFrom: { lastCheckpoint: startPosition },
@@ -248,7 +248,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor({
+        consumer.projector({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           startFrom: 'CURRENT',
@@ -312,7 +312,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        consumer.processor({
+        consumer.projector({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           startFrom: 'CURRENT',
@@ -377,7 +377,7 @@ void describe('PostgreSQL event store started consumer', () => {
 
         let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
 
-        const processorOptions: PostgreSQLProcessorOptions<ShoppingCartSummaryEvent> =
+        const processorOptions: PostgreSQLProjectorOptions<ShoppingCartSummaryEvent> =
           {
             processorId: uuid(),
             projection: shoppingCartsSummaryProjection,
@@ -391,7 +391,7 @@ void describe('PostgreSQL event store started consumer', () => {
           connectionString,
         });
         try {
-          consumer.processor<ShoppingCartSummaryEvent>(processorOptions);
+          consumer.projector<ShoppingCartSummaryEvent>(processorOptions);
 
           await consumer.start();
         } finally {
@@ -403,7 +403,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const newConsumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
-        newConsumer.processor<ShoppingCartSummaryEvent>(processorOptions);
+        newConsumer.projector<ShoppingCartSummaryEvent>(processorOptions);
 
         try {
           const consumerPromise = newConsumer.start();
