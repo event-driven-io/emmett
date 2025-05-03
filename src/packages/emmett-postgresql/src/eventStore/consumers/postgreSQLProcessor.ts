@@ -161,7 +161,7 @@ type PostgreSQLConnectionOptions = {
   connectionOptions?: PostgreSQLProcessorConnectionOptions;
 };
 
-type PostgreSQLReactorOptions<MessageType extends Message = Message> =
+export type PostgreSQLReactorOptions<MessageType extends Message = Message> =
   ReactorOptions<
     MessageType,
     ReadEventMetadataWithGlobalPosition,
@@ -181,8 +181,7 @@ export type PostgreSQLProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
 > =
   | PostgreSQLReactorOptions<MessageType>
-  // @ts-expect-error I don't know how to fix it for  now
-  | PostgreSQLProjectorOptions<MessageType>;
+  | PostgreSQLProjectorOptions<MessageType & AnyEvent>;
 
 const postgreSQLProcessingScope = (options: {
   pool: Dumbo | null;
@@ -330,7 +329,7 @@ export const postgreSQLReactor = <MessageType extends Message = Message>(
 };
 
 export const postgreSQLMessageProcessor = <
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
 >(
   options: PostgreSQLProcessorOptions<MessageType>,
 ): PostgreSQLProcessor<MessageType> => {

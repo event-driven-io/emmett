@@ -67,7 +67,7 @@ export const rebuildPostgreSQLProjections = <
       : [options];
 
   for (const projectionDefinition of projections) {
-    consumer.processor({
+    consumer.projector({
       ...projectionDefinition,
       processorId:
         projectionDefinition.processorId ??

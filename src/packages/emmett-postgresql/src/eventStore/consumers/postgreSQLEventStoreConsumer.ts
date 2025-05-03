@@ -2,6 +2,7 @@ import { dumbo, type Dumbo, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   EmmettError,
   MessageProcessor,
+  type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
   type BatchRecordedMessageHandlerWithoutContext,
@@ -20,9 +21,11 @@ import {
   type PostgreSQLEventStoreMessageBatchPuller,
 } from './messageBatchProcessing';
 import {
-  postgreSQLMessageProcessor,
+  postgreSQLProjector,
+  postgreSQLReactor,
   type PostgreSQLProcessor,
-  type PostgreSQLProcessorOptions,
+  type PostgreSQLProjectorOptions,
+  type PostgreSQLReactorOptions,
 } from './postgreSQLProcessor';
 
 export type PostgreSQLConsumerContext = {
@@ -58,13 +61,22 @@ export type PostgreSQLEventStoreConsumerOptions<
 
 export type PostgreSQLEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ConsumerMessageType extends Message = any,
+  ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<ConsumerMessageType> &
   Readonly<{
-    processor: <MessageType extends Message = ConsumerMessageType>(
-      options: PostgreSQLProcessorOptions<MessageType>,
+    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+      options: PostgreSQLReactorOptions<MessageType>,
     ) => PostgreSQLProcessor<MessageType>;
-  }>;
+  }> &
+  (AnyEvent extends ConsumerMessageType
+    ? Readonly<{
+        projector: <
+          EventType extends AnyEvent = ConsumerMessageType & AnyEvent,
+        >(
+          options: PostgreSQLProjectorOptions<EventType>,
+        ) => PostgreSQLProcessor<EventType>;
+      }>
+    : object);
 
 export const postgreSQLEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
@@ -146,10 +158,26 @@ export const postgreSQLEventStoreConsumer = <
       return isRunning;
     },
     processors,
-    processor: <MessageType extends Message = ConsumerMessageType>(
-      options: PostgreSQLProcessorOptions<MessageType>,
+    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+      options: PostgreSQLReactorOptions<MessageType>,
     ): PostgreSQLProcessor<MessageType> => {
-      const processor = postgreSQLMessageProcessor(options);
+      const processor = postgreSQLReactor(options);
+
+      processors.push(
+        // TODO: change that
+        processor as unknown as MessageProcessor<
+          ConsumerMessageType,
+          AnyRecordedMessageMetadata,
+          DefaultRecord
+        >,
+      );
+
+      return processor;
+    },
+    projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
+      options: PostgreSQLProjectorOptions<EventType>,
+    ): PostgreSQLProcessor<EventType> => {
+      const processor = postgreSQLProjector(options);
 
       processors.push(
         // TODO: change that
