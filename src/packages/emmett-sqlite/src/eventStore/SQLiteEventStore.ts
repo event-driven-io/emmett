@@ -3,7 +3,6 @@ import type {
   AppendToStreamResultWithGlobalPosition,
   BeforeEventStoreCommitHandler,
   BigIntStreamPosition,
-  Event,
   ProjectionRegistration,
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
@@ -39,7 +38,7 @@ import { createEventStoreSchema } from './schema';
 import { appendToStream } from './schema/appendToStream';
 import { readStream } from './schema/readStream';
 
-export type EventHandler<E extends AnyEvent = Event> = (
+export type EventHandler<E extends AnyEvent = AnyEvent> = (
   eventEnvelope: ReadEvent<E>,
 ) => void;
 

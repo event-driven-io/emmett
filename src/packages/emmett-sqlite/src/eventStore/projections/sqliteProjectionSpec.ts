@@ -7,7 +7,6 @@ import {
   isErrorConstructor,
   type AnyEvent,
   type CombinedReadEventMetadata,
-  type Event,
   type ReadEvent,
   type ThenThrows,
 } from '@event-driven-io/emmett';
@@ -168,7 +167,7 @@ export const SQLiteProjectionSpec = {
 };
 
 export const eventInStream = <
-  EventType extends AnyEvent = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends SQLiteReadEventMetadata = SQLiteReadEventMetadata,
 >(
   streamName: string,
@@ -184,7 +183,7 @@ export const eventInStream = <
 };
 
 export const eventsInStream = <
-  EventType extends AnyEvent = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends SQLiteReadEventMetadata = SQLiteReadEventMetadata,
 >(
   streamName: string,

@@ -18,7 +18,9 @@ export interface CommandSender {
 }
 
 export interface EventsPublisher {
-  publish<EventType extends AnyEvent = Event>(event: EventType): Promise<void>;
+  publish<EventType extends AnyEvent = AnyEvent>(
+    event: EventType,
+  ): Promise<void>;
 }
 
 export type ScheduleOptions = { afterInMs: number } | { at: Date };
@@ -91,7 +93,7 @@ export const getInMemoryMessageBus = (): MessageBus &
       await commandHandler(command);
     },
 
-    publish: async <EventType extends AnyEvent = Event>(
+    publish: async <EventType extends AnyEvent = AnyEvent>(
       event: EventType,
     ): Promise<void> => {
       const handlers = allHandlers.get(event.type as string) ?? [];

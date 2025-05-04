@@ -8,7 +8,6 @@ import type {
   AnyEvent,
   BigIntStreamPosition,
   CombinedReadEventMetadata,
-  Event,
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
 } from '../typing';
@@ -51,17 +50,15 @@ export type InMemoryEventStoreOptions =
     database?: Database;
   };
 
-export type InMemoryReadEvent<EventType extends AnyEvent = Event> = ReadEvent<
-  EventType,
-  ReadEventMetadataWithGlobalPosition
->;
+export type InMemoryReadEvent<EventType extends AnyEvent = AnyEvent> =
+  ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>;
 
 export const getInMemoryEventStore = (
   eventStoreOptions?: InMemoryEventStoreOptions,
 ): InMemoryEventStore => {
   const streams = new Map<
     string,
-    ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[]
+    ReadEvent<AnyEvent, ReadEventMetadataWithGlobalPosition>[]
   >();
   const streamingCoordinator = StreamingCoordinator();
 
@@ -98,11 +95,7 @@ export const getInMemoryEventStore = (
 
       return {
         currentStreamVersion: BigInt(events.length),
-        state: events.reduce(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (state, e) => evolve(state, e as any as EventType),
-          initialState(),
-        ),
+        state: events.reduce(evolve, initialState()),
         streamExists: result.streamExists,
       };
     },
@@ -138,7 +131,7 @@ export const getInMemoryEventStore = (
           ? events
               .map(
                 (e) =>
-                  e as ReadEvent<
+                  e as unknown as ReadEvent<
                     EventType,
                     ReadEventMetadataWithGlobalPosition
                   >,

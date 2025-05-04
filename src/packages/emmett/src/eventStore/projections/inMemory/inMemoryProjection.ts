@@ -3,7 +3,7 @@ import type {
   ProjectionDefinition,
   TruncateProjection,
 } from '../../../projections';
-import type { AnyEvent, CanHandle, Event, ReadEvent } from '../../../typing';
+import type { AnyEvent, CanHandle, ReadEvent } from '../../../typing';
 import {
   type InMemoryProjectionHandlerContext,
   type InMemoryReadEventMetadata,
@@ -20,7 +20,7 @@ export type InMemoryProjectionDefinition<EventType extends AnyEvent> =
   >;
 
 export type InMemoryProjectionHandlerOptions<
-  EventType extends AnyEvent = Event,
+  EventType extends AnyEvent = AnyEvent,
 > = {
   projections: InMemoryProjectionDefinition<EventType>[];
   events: ReadEvent<EventType, InMemoryReadEventMetadata>[];
@@ -33,7 +33,7 @@ export type InMemoryProjectionHandlerOptions<
  * Similar to the PostgreSQL implementation, this processes events through projections
  */
 export const handleInMemoryProjections = async <
-  EventType extends AnyEvent = Event,
+  EventType extends AnyEvent = AnyEvent,
 >(
   options: InMemoryProjectionHandlerOptions<EventType>,
 ): Promise<void> => {

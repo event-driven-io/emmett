@@ -75,9 +75,10 @@ export type RecordedMessage<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
-> = CombineMetadata<MessageType, MessageMetaDataType> & {
-  kind: NonNullable<MessageKindOf<Message>>;
-};
+> = MessageType & CombineMetadata<MessageType, MessageMetaDataType>;
+//  & {
+//   kind: NonNullable<MessageKindOf<Message>>;
+// };
 
 export type CommonRecordedMessageMetadata<
   StreamPosition = BigIntStreamPosition,

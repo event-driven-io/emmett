@@ -7,7 +7,6 @@ import {
   type AppendToStreamOptions,
   type BeforeEventStoreCommitHandler,
   type ExpectedStreamVersion,
-  type Event as Message,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
@@ -55,12 +54,13 @@ export const appendToStream = async <MessageType extends AnyMessage>(
     SQLiteReadEventMetadata
   >[] = messages.map(
     (
-      m: Message,
+      m: AnyMessage,
       i: number,
     ): RecordedMessage<MessageType, SQLiteReadEventMetadata> =>
       ({
         ...m,
         kind: m.kind ?? 'Event',
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         metadata: {
           streamName,
           messageId: uuid(),
@@ -77,7 +77,7 @@ export const appendToStream = async <MessageType extends AnyMessage>(
       connection,
       streamName,
       streamType,
-      messagesToAppend,
+      messagesToAppend as RecordedMessage[],
       {
         expectedStreamVersion,
       },

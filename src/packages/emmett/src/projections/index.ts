@@ -6,7 +6,6 @@ import type {
   BatchRecordedMessageHandlerWithContext,
   CanHandle,
   DefaultRecord,
-  Event,
 } from '../typing';
 import { arrayUtils } from '../utils';
 
@@ -85,7 +84,7 @@ export const filterProjections = <
 };
 
 export const projection = <
-  EventType extends AnyEvent = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 >(

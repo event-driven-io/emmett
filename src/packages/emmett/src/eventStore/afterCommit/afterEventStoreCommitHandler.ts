@@ -1,8 +1,8 @@
 import {
+  type AnyEvent,
   type BatchRecordedMessageHandlerWithContext,
   type BatchRecordedMessageHandlerWithoutContext,
   type DefaultRecord,
-  type Event,
   type ReadEvent,
 } from '../../typing';
 import type { EventStore, EventStoreReadEventMetadata } from '../eventStore';
@@ -12,11 +12,11 @@ export type AfterEventStoreCommitHandler<
   HandlerContext extends DefaultRecord | undefined = undefined,
 > = HandlerContext extends undefined
   ? BatchRecordedMessageHandlerWithoutContext<
-      Event,
+      AnyEvent,
       EventStoreReadEventMetadata<Store>
     >
   : BatchRecordedMessageHandlerWithContext<
-      Event,
+      AnyEvent,
       EventStoreReadEventMetadata<Store>,
       NonNullable<HandlerContext>
     >;
@@ -26,11 +26,11 @@ export type BeforeEventStoreCommitHandler<
   HandlerContext extends DefaultRecord | undefined = undefined,
 > = HandlerContext extends undefined
   ? BatchRecordedMessageHandlerWithoutContext<
-      Event,
+      AnyEvent,
       EventStoreReadEventMetadata<Store>
     >
   : BatchRecordedMessageHandlerWithContext<
-      Event,
+      AnyEvent,
       EventStoreReadEventMetadata<Store>,
       NonNullable<HandlerContext>
     >;
@@ -43,14 +43,14 @@ type TryPublishMessagesAfterCommitOptions<
 };
 
 export async function tryPublishMessagesAfterCommit<Store extends EventStore>(
-  messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
+  messages: ReadEvent<AnyEvent, EventStoreReadEventMetadata<Store>>[],
   options: TryPublishMessagesAfterCommitOptions<Store, undefined> | undefined,
 ): Promise<boolean>;
 export async function tryPublishMessagesAfterCommit<
   Store extends EventStore,
   HandlerContext extends DefaultRecord | undefined = undefined,
 >(
-  messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
+  messages: ReadEvent<AnyEvent, EventStoreReadEventMetadata<Store>>[],
   options:
     | TryPublishMessagesAfterCommitOptions<Store, HandlerContext>
     | undefined,
@@ -60,7 +60,7 @@ export async function tryPublishMessagesAfterCommit<
   Store extends EventStore,
   HandlerContext extends DefaultRecord | undefined = undefined,
 >(
-  messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
+  messages: ReadEvent<AnyEvent, EventStoreReadEventMetadata<Store>>[],
   options:
     | TryPublishMessagesAfterCommitOptions<Store, HandlerContext>
     | undefined,

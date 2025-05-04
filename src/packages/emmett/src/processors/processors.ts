@@ -8,7 +8,6 @@ import {
   type BatchRecordedMessageHandlerWithContext,
   type CanHandle,
   type DefaultRecord,
-  type Event,
   type GlobalPositionTypeOfRecordedMessageMetadata,
   type MessageHandlerResult,
   type RecordedMessage,
@@ -374,7 +373,7 @@ export const reactor = <
 };
 
 export const projector = <
-  EventType extends AnyEvent = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,

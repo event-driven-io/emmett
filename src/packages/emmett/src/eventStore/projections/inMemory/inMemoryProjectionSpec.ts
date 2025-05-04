@@ -20,7 +20,6 @@ import type {
   CombinedReadEventMetadata,
   ReadEvent,
 } from '../../../typing';
-import { type Event } from '../../../typing';
 import type {
   InMemoryEventStore,
   InMemoryReadEventMetadata,
@@ -196,7 +195,7 @@ export const InMemoryProjectionSpec = {
 
 // Helper functions for creating events in stream
 export const eventInStream = <
-  EventType extends AnyEvent = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends
     InMemoryReadEventMetadata = InMemoryReadEventMetadata,
 >(
@@ -213,7 +212,7 @@ export const eventInStream = <
 };
 
 export const eventsInStream = <
-  EventType extends AnyEvent = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends
     InMemoryReadEventMetadata = InMemoryReadEventMetadata,
 >(
