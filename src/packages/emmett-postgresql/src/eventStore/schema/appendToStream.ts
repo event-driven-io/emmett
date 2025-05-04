@@ -153,7 +153,6 @@ export const appendToStream = (
         },
       })) as RecordedMessage[];
 
-      // TODO: return global positions from append raw and other generated data
       const {
         success,
         next_stream_position,
@@ -169,20 +168,48 @@ export const appendToStream = (
         },
       );
 
+      if (
+        !success ||
+        next_stream_position === null ||
+        global_positions === null ||
+        global_positions.length === 0 ||
+        transaction_id == null
+      ) {
+        return {
+          success: false,
+
+          result: { success: false },
+        };
+      }
+
+      const nextStreamPosition = BigInt(next_stream_position);
+
+      const globalPositions = global_positions.map(BigInt);
+
+      globalPositions.forEach((globalPosition, index) => {
+        messagesToAppend[index]!.metadata = {
+          ...messagesToAppend[index]!.metadata,
+          streamName,
+          streamPosition:
+            nextStreamPosition -
+            BigInt(messagesToAppend.length) +
+            BigInt(index + 1),
+          globalPosition,
+        };
+      });
+
       if (options?.beforeCommitHook)
         await options.beforeCommitHook(messagesToAppend, { transaction });
 
       return {
-        success,
-        result:
-          success && next_stream_position && global_positions && transaction_id
-            ? {
-                success: true,
-                nextStreamPosition: BigInt(next_stream_position),
-                globalPositions: global_positions.map(BigInt),
-                transactionId: transaction_id,
-              }
-            : { success: false },
+        success: true,
+
+        result: {
+          success: true,
+          nextStreamPosition,
+          globalPositions,
+          transactionId: transaction_id,
+        },
       };
     } catch (error) {
       if (!isOptimisticConcurrencyError(error)) throw error;
@@ -248,7 +275,10 @@ const appendEventsRaw = (
         messages.map((e) => sql('%L', e.metadata.messageId)).join(','),
         messages.map((e) => sql('%L', JSONParser.stringify(e.data))).join(','),
         messages
-          .map((e) => sql('%L', JSONParser.stringify(e.metadata ?? {})))
+          .map((e) => {
+            const { messageId: _messageId, ...rawMetadata } = e.metadata;
+            return sql('%L', JSONParser.stringify(rawMetadata));
+          })
           .join(','),
         messages.map(() => `'1'`).join(','),
         messages.map((e) => sql('%L', e.type)).join(','),
