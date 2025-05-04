@@ -1,108 +1,108 @@
-import type { Command } from './command';
-import type { Event } from './event';
+import type { AnyCommand } from './command';
+import type { AnyEvent } from './event';
 
 /// Inspired by https://blog.bittacklr.be/the-workflow-pattern.html
 
 export type Workflow<
-  Input extends Event | Command,
+  Input extends AnyEvent | AnyCommand,
   State,
-  Output extends Event | Command,
+  Output extends AnyEvent | AnyCommand,
 > = {
   decide: (command: Input, state: State) => WorkflowOutput<Output>[];
   evolve: (currentState: State, event: WorkflowEvent<Output>) => State;
   initialState: () => State;
 };
 
-export type WorkflowEvent<Output extends Command | Event> = Extract<
+export type WorkflowEvent<Output extends AnyEvent | AnyCommand> = Extract<
   Output,
-  { __brand?: 'Event' }
+  { kind?: 'Event' }
 >;
 
-export type WorkflowCommand<Output extends Command | Event> = Extract<
+export type WorkflowCommand<Output extends AnyEvent | AnyCommand> = Extract<
   Output,
-  { __brand?: 'Command' }
+  { kind?: 'Command' }
 >;
 
-export type WorkflowOutput<TOutput extends Command | Event> =
-  | { kind: 'Reply'; message: TOutput }
-  | { kind: 'Send'; message: WorkflowCommand<TOutput> }
-  | { kind: 'Publish'; message: WorkflowEvent<TOutput> }
+export type WorkflowOutput<TOutput extends AnyEvent | AnyCommand> =
+  | { action: 'Reply'; message: TOutput }
+  | { action: 'Send'; message: WorkflowCommand<TOutput> }
+  | { action: 'Publish'; message: WorkflowEvent<TOutput> }
   | {
-      kind: 'Schedule';
+      action: 'Schedule';
       message: TOutput;
       when: { afterInMs: number } | { at: Date };
     }
-  | { kind: 'Complete' }
-  | { kind: 'Accept' }
-  | { kind: 'Ignore'; reason: string }
-  | { kind: 'Error'; reason: string };
+  | { action: 'Complete' }
+  | { action: 'Accept' }
+  | { action: 'Ignore'; reason: string }
+  | { action: 'Error'; reason: string };
 
-export const reply = <TOutput extends Command | Event>(
+export const reply = <TOutput extends AnyEvent | AnyCommand>(
   message: TOutput,
 ): WorkflowOutput<TOutput> => {
   return {
-    kind: 'Reply',
+    action: 'Reply',
     message,
   };
 };
 
-export const send = <TOutput extends Command | Event>(
+export const send = <TOutput extends AnyEvent | AnyCommand>(
   message: WorkflowCommand<TOutput>,
 ): WorkflowOutput<TOutput> => {
   return {
-    kind: 'Send',
+    action: 'Send',
     message,
   };
 };
 
-export const publish = <TOutput extends Command | Event>(
+export const publish = <TOutput extends AnyEvent | AnyCommand>(
   message: WorkflowEvent<TOutput>,
 ): WorkflowOutput<TOutput> => {
   return {
-    kind: 'Publish',
+    action: 'Publish',
     message,
   };
 };
 
-export const schedule = <TOutput extends Command | Event>(
+export const schedule = <TOutput extends AnyEvent | AnyCommand>(
   message: TOutput,
   when: { afterInMs: number } | { at: Date },
 ): WorkflowOutput<TOutput> => {
   return {
-    kind: 'Schedule',
+    action: 'Schedule',
     message,
     when,
   };
 };
 
 export const complete = <
-  TOutput extends Command | Event,
+  TOutput extends AnyEvent | AnyCommand,
 >(): WorkflowOutput<TOutput> => {
   return {
-    kind: 'Complete',
+    action: 'Complete',
   };
 };
 
-export const ignore = <TOutput extends Command | Event>(
+export const ignore = <TOutput extends AnyEvent | AnyCommand>(
   reason: string,
 ): WorkflowOutput<TOutput> => {
   return {
-    kind: 'Ignore',
+    action: 'Ignore',
     reason,
   };
 };
 
-export const error = <TOutput extends Command | Event>(
+export const error = <TOutput extends AnyEvent | AnyCommand>(
   reason: string,
 ): WorkflowOutput<TOutput> => {
   return {
-    kind: 'Error',
+    action: 'Error',
     reason,
   };
 };
 
 export const accept = <
-  TOutput extends Command | Event,
+  TOutput extends AnyEvent | AnyCommand,
 >(): WorkflowOutput<TOutput> => {
-  return { kind: 'Accept' };
+  return { action: 'Accept' };
 };
