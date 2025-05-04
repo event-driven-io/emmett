@@ -296,9 +296,7 @@ export const reactor = <
               processorId: processorId,
               partition: partition,
             },
-            startOptions as HandlerContext & {
-              startFrom: MessageProcessorStartFrom<CheckpointType>;
-            },
+            { ...startOptions, ...context },
           );
           lastCheckpoint = readResult.lastCheckpoint;
         }

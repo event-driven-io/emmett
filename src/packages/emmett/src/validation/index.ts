@@ -9,6 +9,10 @@ export const enum ValidationErrors {
 export const isNumber = (val: unknown): val is number =>
   typeof val === 'number' && val === val;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const isBigint = (val: any): val is bigint =>
+  typeof val === 'bigint' && val === val;
+
 export const isString = (val: unknown): val is string =>
   typeof val === 'string';
 
