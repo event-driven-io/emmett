@@ -103,6 +103,50 @@ void describe('appendEvent', () => {
     assertOk(result.transactionId);
   });
 
+  void it('should increment stream position in events correctly without expected stream position', async () => {
+    let result = await appendToStream(
+      pool,
+      uuid(),
+      'shopping_cart',
+      events,
+      {},
+    );
+
+    assertTrue(result.success);
+    assertEqual(result.nextStreamPosition, 2n);
+
+    result = await appendToStream(pool, uuid(), 'shopping_cart', events, {});
+
+    assertTrue(result.success);
+    assertEqual(4n, result.nextStreamPosition);
+    assertIsNotNull(result.lastGlobalPosition);
+    assertTrue(result.lastGlobalPosition > 0n);
+    assertOk(result.transactionId);
+  });
+
+  void it('should increment stream position in events correctly with expected stream position', async () => {
+    let result = await appendToStream(
+      pool,
+      uuid(),
+      'shopping_cart',
+      events,
+      {},
+    );
+
+    assertTrue(result.success);
+    assertEqual(result.nextStreamPosition, 2n);
+
+    result = await appendToStream(pool, uuid(), 'shopping_cart', events, {
+      expectedStreamVersion: result.nextStreamPosition,
+    });
+
+    assertTrue(result.success);
+    assertEqual(4n, result.nextStreamPosition);
+    assertIsNotNull(result.lastGlobalPosition);
+    assertTrue(result.lastGlobalPosition > 0n);
+    assertOk(result.transactionId);
+  });
+
   void it('should handle stream position conflict correctly when two streams are created', async () => {
     // Given
     const streamId = uuid();

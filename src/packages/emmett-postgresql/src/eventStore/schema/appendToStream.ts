@@ -139,26 +139,27 @@ export const appendToStream = (
     if (messages.length === 0)
       return { success: false, result: { success: false } };
 
-    let appendResult: AppendToStreamSqlResult;
-
     try {
       const expectedStreamVersion = toExpectedVersion(
         options?.expectedStreamVersion,
       );
 
-      const messagesToAppend: RecordedMessage[] = messages.map((e, i) => ({
+      const messagesToAppend: RecordedMessage[] = messages.map((e) => ({
         ...e,
         kind: e.kind ?? 'Event',
         metadata: {
-          streamName,
           messageId: uuid(),
-          streamPosition: BigInt(i),
           ...('metadata' in e ? (e.metadata ?? {}) : {}),
         },
       })) as RecordedMessage[];
 
       // TODO: return global positions from append raw and other generated data
-      appendResult = await appendEventsRaw(
+      const {
+        success,
+        next_stream_position,
+        last_global_position,
+        transaction_id,
+      } = await appendEventsRaw(
         execute,
         streamName,
         streamType,
@@ -170,39 +171,30 @@ export const appendToStream = (
 
       if (options?.beforeCommitHook)
         await options.beforeCommitHook(messagesToAppend, { transaction });
+
+      return {
+        success,
+        result:
+          success &&
+          next_stream_position &&
+          last_global_position &&
+          transaction_id
+            ? {
+                success: true,
+                nextStreamPosition: BigInt(next_stream_position),
+                lastGlobalPosition: BigInt(last_global_position),
+                transactionId: transaction_id,
+              }
+            : { success: false },
+      };
     } catch (error) {
       if (!isOptimisticConcurrencyError(error)) throw error;
 
-      appendResult = {
+      return {
         success: false,
-        last_global_position: null,
-        next_stream_position: null,
-        transaction_id: null,
+        result: { success: false },
       };
     }
-
-    const {
-      success,
-      next_stream_position,
-      last_global_position,
-      transaction_id,
-    } = appendResult;
-
-    return {
-      success,
-      result:
-        success &&
-        next_stream_position &&
-        last_global_position &&
-        transaction_id
-          ? {
-              success: true,
-              nextStreamPosition: BigInt(next_stream_position),
-              lastGlobalPosition: BigInt(last_global_position),
-              transactionId: transaction_id,
-            }
-          : { success: false },
-    };
   });
 
 const toExpectedVersion = (
