@@ -7,6 +7,7 @@ import {
   assertThatArray,
   assertTrue,
   type Event,
+  type RecordedMessage,
 } from '@event-driven-io/emmett';
 import {
   PostgreSqlContainer,
@@ -15,7 +16,12 @@ import {
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import { createEventStoreSchema } from '.';
-import { appendToStream } from './appendToStream';
+import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
+import {
+  appendToStream,
+  type AppendToStreamBeforeCommitHook,
+} from './appendToStream';
+import type { ShoppingCartEvent } from './readStream.int.spec';
 
 export type PricedProductItem = {
   productId: string;
@@ -109,9 +115,11 @@ void describe('appendEvent', () => {
   });
 
   void it('should increment stream position in events correctly without expected stream position', async () => {
+    const streamId = uuid();
+
     let result = await appendToStream(
       pool,
-      uuid(),
+      streamId,
       'shopping_cart',
       events,
       {},
@@ -120,7 +128,7 @@ void describe('appendEvent', () => {
     assertTrue(result.success);
     assertEqual(result.nextStreamPosition, 2n);
 
-    result = await appendToStream(pool, uuid(), 'shopping_cart', events, {});
+    result = await appendToStream(pool, streamId, 'shopping_cart', events, {});
 
     assertTrue(result.success);
     assertEqual(4n, result.nextStreamPosition);
@@ -131,10 +139,49 @@ void describe('appendEvent', () => {
     assertOk(result.transactionId);
   });
 
+  void it('should increment stream position in events from beforeCommitHook correctly without expected stream position', async () => {
+    let messagesFromHook: RecordedMessage<
+      ShoppingCartEvent,
+      PostgresReadEventMetadata
+    >[] = [];
+
+    const beforeCommitHook: AppendToStreamBeforeCommitHook = (messages) => {
+      messagesFromHook = [
+        ...messagesFromHook,
+        ...(messages as RecordedMessage<
+          ShoppingCartEvent,
+          PostgresReadEventMetadata
+        >[]),
+      ];
+      return Promise.resolve();
+    };
+
+    const streamId = uuid();
+
+    let result = await appendToStream(pool, streamId, 'shopping_cart', events, {
+      beforeCommitHook,
+    });
+
+    assertTrue(result.success);
+    assertEqual(result.nextStreamPosition, 2n);
+
+    result = await appendToStream(pool, streamId, 'shopping_cart', events, {
+      beforeCommitHook,
+    });
+
+    assertTrue(result.success);
+    assertEqual(4n, result.nextStreamPosition);
+    assertThatArray(
+      messagesFromHook.map((m) => m.metadata.streamPosition),
+    ).containsElements([1n, 2n, 3n, 4n]);
+  });
+
   void it('should increment stream position in events correctly with expected stream position', async () => {
+    const streamId = uuid();
+
     let result = await appendToStream(
       pool,
-      uuid(),
+      streamId,
       'shopping_cart',
       events,
       {},
@@ -143,7 +190,7 @@ void describe('appendEvent', () => {
     assertTrue(result.success);
     assertEqual(result.nextStreamPosition, 2n);
 
-    result = await appendToStream(pool, uuid(), 'shopping_cart', events, {
+    result = await appendToStream(pool, streamId, 'shopping_cart', events, {
       expectedStreamVersion: result.nextStreamPosition,
     });
 
