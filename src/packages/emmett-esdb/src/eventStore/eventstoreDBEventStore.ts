@@ -6,6 +6,7 @@ import {
   assertExpectedVersionMatchesCurrent,
   type AggregateStreamOptions,
   type AggregateStreamResultWithGlobalPosition,
+  type AnyEvent,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
   type Event,
@@ -222,7 +223,7 @@ export const getEventStoreDBEventStore = (
   };
 };
 
-export const mapFromESDBEvent = <EventType extends Event = Event>(
+export const mapFromESDBEvent = <EventType extends AnyEvent = AnyEvent>(
   event: JSONRecordedEvent<EventType>,
 ): ReadEvent<EventType, EventStoreDBReadEventMetadata> => {
   return <ReadEvent<EventType, EventStoreDBReadEventMetadata>>{

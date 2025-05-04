@@ -194,8 +194,6 @@ export const appendToStream = (
         // messagesToAppend[index]!.metadata.;
       });
 
-      let r: RecordedMessage<AnyMessage, PostgresReadEventMetadata>;
-
       if (options?.beforeCommitHook)
         await options.beforeCommitHook(messagesToAppend, { transaction });
 

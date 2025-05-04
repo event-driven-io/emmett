@@ -103,7 +103,7 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
   postgreSQLProjection<EventType>({
     canHandle,
     handle: async (events, context) => {
-      const sqls: SQL[] = await handle(events, context);
+      const sqls: SQL[] = await handle(events as EventType[], context);
 
       await context.execute.batchCommand(sqls);
     },

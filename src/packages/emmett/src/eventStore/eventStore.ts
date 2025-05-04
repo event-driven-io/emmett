@@ -1,5 +1,6 @@
 //import type { ReadableStream } from 'web-streams-polyfill';
 import type {
+  AnyEvent,
   AnyReadEventMetadata,
   BigIntGlobalPosition,
   BigIntStreamPosition,
@@ -130,7 +131,7 @@ export type ReadStreamResult<
 
 type Evolve<
   State,
-  EventType extends Event,
+  EventType extends AnyEvent,
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
 > =
   | ((currentState: State, event: EventType) => State)
@@ -142,7 +143,7 @@ type Evolve<
 
 export type AggregateStreamOptions<
   State,
-  EventType extends Event,
+  EventType extends AnyEvent,
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
 > = {
   evolve: Evolve<State, EventType, ReadEventMetadataType>;

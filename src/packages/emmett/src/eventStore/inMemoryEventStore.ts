@@ -1,4 +1,9 @@
 import { v4 as uuid } from 'uuid';
+import {
+  getInMemoryDatabase,
+  type Database,
+} from '../database/inMemoryDatabase';
+import type { ProjectionRegistration } from '../projections';
 import type {
   BigIntStreamPosition,
   CombinedReadEventMetadata,
@@ -18,13 +23,8 @@ import {
   type ReadStreamResult,
 } from './eventStore';
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
-import { StreamingCoordinator } from './subscriptions';
-import type { ProjectionRegistration } from '../projections';
-import {
-  getInMemoryDatabase,
-  type Database,
-} from '../database/inMemoryDatabase';
 import { handleInMemoryProjections } from './projections/inMemory';
+import { StreamingCoordinator } from './subscriptions';
 
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
 
@@ -97,7 +97,10 @@ export const getInMemoryEventStore = (
 
       return {
         currentStreamVersion: BigInt(events.length),
-        state: events.reduce(evolve, initialState()),
+        state: events.reduce(
+          (state, e) => evolve(state, e as any as EventType),
+          initialState(),
+        ),
         streamExists: result.streamExists,
       };
     },

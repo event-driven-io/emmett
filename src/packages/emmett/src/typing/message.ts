@@ -49,17 +49,17 @@ export const message = <MessageType extends Message<string, any, any>>(
     : ({ type, data, kind } as MessageType);
 };
 
+type IsAny<T> = 0 extends 1 & T ? true : false;
+
 export type CombinedMessageMetadata<
   MessageType extends Message = Message,
   MessageMetaDataType extends DefaultRecord = DefaultRecord,
 > =
-  MessageMetaDataOf<MessageType> extends undefined
+  IsAny<MessageMetaDataOf<MessageType>> extends true
     ? MessageMetaDataType
-    : MessageMetaDataOf<MessageType> extends never
+    : MessageMetaDataOf<MessageType> extends undefined
       ? MessageMetaDataType
-      : unknown extends MessageMetaDataOf<MessageType> // This catches 'any' and 'unknown'
-        ? MessageMetaDataType
-        : MessageMetaDataOf<MessageType> & MessageMetaDataType;
+      : MessageMetaDataOf<MessageType> & MessageMetaDataType;
 
 // MessageMetaDataOf<MessageType> extends undefined
 //   ? MessageMetaDataType
@@ -68,12 +68,17 @@ export type CombinedMessageMetadata<
 export type CombineMetadata<
   MessageType extends Message = Message,
   MessageMetaDataType extends DefaultRecord = DefaultRecord,
-> = MessageType & {
-  metadata: CombinedMessageMetadata<MessageType, MessageMetaDataType>;
-};
+> =
+  IsAny<MessageMetaDataOf<MessageType>> extends true
+    ? Omit<MessageType, 'metadata'> & {
+        metadata: CombinedMessageMetadata<MessageType, MessageMetaDataType>;
+      }
+    : MessageType & {
+        metadata: CombinedMessageMetadata<MessageType, MessageMetaDataType>;
+      };
 
 export type RecordedMessage<
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
   MessageMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
 > = CombineMetadata<MessageType, MessageMetaDataType> & {
