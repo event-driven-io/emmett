@@ -1,12 +1,12 @@
-import type { CanHandle, Event, ReadEvent } from '../../../typing';
+import type { Database } from '../../../database/inMemoryDatabase';
 import type {
   ProjectionDefinition,
   TruncateProjection,
 } from '../../../projections';
-import type { Database } from '../../../database/inMemoryDatabase';
+import type { CanHandle, Event, ReadEvent } from '../../../typing';
 import {
-  type InMemoryReadEventMetadata,
   type InMemoryProjectionHandlerContext,
+  type InMemoryReadEventMetadata,
 } from '../../inMemoryEventStore';
 
 export const DATABASE_REQUIRED_ERROR_MESSAGE =
@@ -24,7 +24,7 @@ export type InMemoryProjectionHandlerOptions<EventType extends Event = Event> =
     projections: InMemoryProjectionDefinition<EventType>[];
     events: ReadEvent<EventType, InMemoryReadEventMetadata>[];
     database: Database;
-    eventStore: InMemoryProjectionHandlerContext['eventStore'];
+    eventStore?: InMemoryProjectionHandlerContext['eventStore'];
   };
 
 /**
@@ -55,13 +55,28 @@ export const handleInMemoryProjections = async <
   }
 };
 
-export type InMemoryDocumentEvolve<
+export type InMemoryWithNotNullDocumentEvolve<
+  DocumentType extends Record<string, unknown>,
+  EventType extends Event,
+> = (
+  document: DocumentType,
+  event: ReadEvent<EventType, InMemoryReadEventMetadata>,
+) => DocumentType | null;
+
+export type InMemoryWithNullableDocumentEvolve<
   DocumentType extends Record<string, unknown>,
   EventType extends Event,
 > = (
   document: DocumentType | null,
   event: ReadEvent<EventType, InMemoryReadEventMetadata>,
 ) => DocumentType | null;
+
+export type InMemoryDocumentEvolve<
+  DocumentType extends Record<string, unknown>,
+  EventType extends Event,
+> =
+  | InMemoryWithNotNullDocumentEvolve<DocumentType, EventType>
+  | InMemoryWithNullableDocumentEvolve<DocumentType, EventType>;
 
 export type InMemoryProjectionOptions<EventType extends Event> = {
   handle: (
@@ -117,10 +132,10 @@ export type InMemoryMultiStreamProjectionOptions<
   getDocumentId: (event: ReadEvent<EventType>) => string;
 } & (
   | {
-      evolve: InMemoryDocumentEvolve<DocumentType, EventType>;
+      evolve: InMemoryWithNullableDocumentEvolve<DocumentType, EventType>;
     }
   | {
-      evolve: InMemoryDocumentEvolve<DocumentType, EventType>;
+      evolve: InMemoryWithNotNullDocumentEvolve<DocumentType, EventType>;
       initialState: () => DocumentType;
     }
 );
@@ -196,10 +211,10 @@ export type InMemorySingleStreamProjectionOptions<
   collectionName: string;
 } & (
   | {
-      evolve: InMemoryDocumentEvolve<DocumentType, EventType>;
+      evolve: InMemoryWithNullableDocumentEvolve<DocumentType, EventType>;
     }
   | {
-      evolve: InMemoryDocumentEvolve<DocumentType, EventType>;
+      evolve: InMemoryWithNotNullDocumentEvolve<DocumentType, EventType>;
       initialState: () => DocumentType;
     }
 );

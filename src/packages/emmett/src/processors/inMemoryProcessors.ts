@@ -4,11 +4,11 @@ import {
   type AnyEvent,
   type AnyMessage,
   type BatchRecordedMessageHandlerWithContext,
-  type Message,
   type MessageHandlerResult,
   type ReadEventMetadataWithGlobalPosition,
   type SingleRecordedMessageHandlerWithContext,
 } from '../typing';
+import { isBigint } from '../validation';
 import {
   MessageProcessor,
   projector,
@@ -23,7 +23,7 @@ export type InMemoryProcessorHandlerContext = {
   database: Database;
 };
 
-export type InMemoryProcessor<MessageType extends Message = AnyMessage> =
+export type InMemoryProcessor<MessageType extends AnyMessage = AnyMessage> =
   MessageProcessor<
     MessageType,
     // TODO: generalize this to support other metadata types
@@ -32,7 +32,7 @@ export type InMemoryProcessor<MessageType extends Message = AnyMessage> =
   > & { database: Database };
 
 export type InMemoryProcessorEachMessageHandler<
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
 > = SingleRecordedMessageHandlerWithContext<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
@@ -40,7 +40,7 @@ export type InMemoryProcessorEachMessageHandler<
 >;
 
 export type InMemoryProcessorEachBatchHandler<
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
 > = BatchRecordedMessageHandlerWithContext<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
@@ -64,7 +64,7 @@ export type InMemoryCheckpointer<MessageType extends AnyMessage = AnyMessage> =
   >;
 
 export const inMemoryCheckpointer = <
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
 >(): InMemoryCheckpointer<MessageType> => {
   return {
     read: ({ processorId }, { database }) => {
@@ -77,13 +77,7 @@ export const inMemoryCheckpointer = <
       });
     },
     store: (
-      {
-        processorId,
-        lastCheckpoint,
-        message: {
-          metadata: { globalPosition: newCheckpoint },
-        },
-      },
+      { processorId, lastCheckpoint, message: { metadata } },
       { database },
     ) => {
       const checkpoints = database.collection<CheckpointDocument>(
@@ -93,19 +87,29 @@ export const inMemoryCheckpointer = <
       const checkpoint = checkpoints.findOne((d) => d._id === processorId);
 
       const currentPosition = checkpoint?.lastCheckpoint ?? null;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const newCheckpoint: bigint =
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        'globalPosition' in metadata && isBigint(metadata.globalPosition)
+          ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            metadata.globalPosition
+          : null;
 
       if (
-        currentPosition === lastCheckpoint ||
-        (currentPosition && lastCheckpoint && currentPosition > lastCheckpoint)
+        currentPosition &&
+        (currentPosition === newCheckpoint ||
+          currentPosition !== lastCheckpoint)
       )
         return Promise.resolve({
           success: false,
-          reason: currentPosition === lastCheckpoint ? 'IGNORED' : 'MISMATCH',
+          reason: currentPosition === newCheckpoint ? 'IGNORED' : 'MISMATCH',
         });
 
-      checkpoints.replaceOne((d) => d._id === processorId, {
+      checkpoints.handle(processorId, (existing) => ({
+        ...(existing ?? {}),
+        _id: processorId,
         lastCheckpoint: newCheckpoint,
-      });
+      }));
 
       return Promise.resolve({ success: true, newCheckpoint });
     },
@@ -116,13 +120,14 @@ type InMemoryConnectionOptions = {
   connectionOptions?: InMemoryProcessorConnectionOptions;
 };
 
-export type InMemoryReactorOptions<MessageType extends Message = Message> =
-  ReactorOptions<
-    MessageType,
-    ReadEventMetadataWithGlobalPosition,
-    InMemoryProcessorHandlerContext
-  > &
-    InMemoryConnectionOptions;
+export type InMemoryReactorOptions<
+  MessageType extends AnyMessage = AnyMessage,
+> = ReactorOptions<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  InMemoryProcessorHandlerContext
+> &
+  InMemoryConnectionOptions;
 
 export type InMemoryProjectorOptions<EventType extends AnyEvent = AnyEvent> =
   ProjectorOptions<
@@ -198,7 +203,7 @@ export const inMemoryProjector = <EventType extends AnyEvent = AnyEvent>(
   };
 };
 
-export const inMemoryReactor = <MessageType extends Message = Message>(
+export const inMemoryReactor = <MessageType extends AnyMessage = AnyMessage>(
   options: InMemoryReactorOptions<MessageType>,
 ): InMemoryProcessor<MessageType> => {
   const database = options.connectionOptions?.database ?? getInMemoryDatabase();
