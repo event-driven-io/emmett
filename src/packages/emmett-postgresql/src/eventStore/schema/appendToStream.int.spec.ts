@@ -4,6 +4,7 @@ import {
   assertFalse,
   assertIsNotNull,
   assertOk,
+  assertThatArray,
   assertTrue,
   type Event,
 } from '@event-driven-io/emmett';
@@ -82,8 +83,10 @@ void describe('appendEvent', () => {
 
     assertTrue(result.success);
     assertEqual(result.nextStreamPosition, 2n);
-    assertIsNotNull(result.lastGlobalPosition);
-    assertTrue(result.lastGlobalPosition > 0n);
+    assertIsNotNull(result.globalPositions);
+    assertThatArray(result.globalPositions).isNotEmpty();
+    assertThatArray(result.globalPositions).hasSize(events.length);
+    assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
     assertOk(result.transactionId);
   });
 
@@ -98,8 +101,10 @@ void describe('appendEvent', () => {
 
     assertTrue(result.success);
     assertEqual(result.nextStreamPosition, 2n);
-    assertIsNotNull(result.lastGlobalPosition);
-    assertTrue(result.lastGlobalPosition > 0n);
+    assertIsNotNull(result.globalPositions);
+    assertThatArray(result.globalPositions).isNotEmpty();
+    assertThatArray(result.globalPositions).hasSize(events.length);
+    assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
     assertOk(result.transactionId);
   });
 
@@ -119,8 +124,10 @@ void describe('appendEvent', () => {
 
     assertTrue(result.success);
     assertEqual(4n, result.nextStreamPosition);
-    assertIsNotNull(result.lastGlobalPosition);
-    assertTrue(result.lastGlobalPosition > 0n);
+    assertIsNotNull(result.globalPositions);
+    assertThatArray(result.globalPositions).isNotEmpty();
+    assertThatArray(result.globalPositions).hasSize(events.length);
+    assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
     assertOk(result.transactionId);
   });
 
@@ -142,8 +149,10 @@ void describe('appendEvent', () => {
 
     assertTrue(result.success);
     assertEqual(4n, result.nextStreamPosition);
-    assertIsNotNull(result.lastGlobalPosition);
-    assertTrue(result.lastGlobalPosition > 0n);
+    assertIsNotNull(result.globalPositions);
+    assertThatArray(result.globalPositions).isNotEmpty();
+    assertThatArray(result.globalPositions).hasSize(events.length);
+    assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
     assertOk(result.transactionId);
   });
 
