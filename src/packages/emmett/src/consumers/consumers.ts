@@ -1,9 +1,9 @@
 import type { MessageProcessor } from '../processors';
-import type { Message } from '../typing';
+import type { AnyMessage } from '../typing';
 
 export type MessageConsumerOptions<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ConsumerMessageType extends Message = any,
+  ConsumerMessageType extends AnyMessage = any,
 > = {
   consumerId?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -12,7 +12,7 @@ export type MessageConsumerOptions<
 
 export type MessageConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ConsumerMessageType extends Message = any,
+  ConsumerMessageType extends AnyMessage = any,
 > = Readonly<{
   consumerId: string;
   isRunning: boolean;

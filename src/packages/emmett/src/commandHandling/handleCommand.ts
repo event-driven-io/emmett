@@ -10,7 +10,7 @@ import {
   type ExpectedStreamVersion,
   type StreamPositionTypeOfEventStore,
 } from '../eventStore';
-import type { Event } from '../typing';
+import type { AnyEvent } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
 
 export const CommandHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
@@ -47,14 +47,14 @@ const fromCommandHandlerRetryOptions = (
 // #region command-handler
 export type CommandHandlerResult<
   State,
-  StreamEvent extends Event,
+  StreamEvent extends AnyEvent,
   Store extends EventStore,
 > = AppendStreamResultOfEventStore<Store> & {
   newState: State;
   newEvents: StreamEvent[];
 };
 
-export type CommandHandlerOptions<State, StreamEvent extends Event> = {
+export type CommandHandlerOptions<State, StreamEvent extends AnyEvent> = {
   evolve: (state: State, event: StreamEvent) => State;
   initialState: () => State;
   mapToStreamId?: (id: string) => string;
@@ -75,12 +75,12 @@ export type HandleOptions<Store extends EventStore> = Parameters<
       }
   );
 
-type CommandHandlerFunction<State, StreamEvent extends Event> = (
+type CommandHandlerFunction<State, StreamEvent extends AnyEvent> = (
   state: State,
 ) => StreamEvent | StreamEvent[] | Promise<StreamEvent | StreamEvent[]>;
 
 export const CommandHandler =
-  <State, StreamEvent extends Event>(
+  <State, StreamEvent extends AnyEvent>(
     options: CommandHandlerOptions<State, StreamEvent>,
   ) =>
   async <Store extends EventStore>(

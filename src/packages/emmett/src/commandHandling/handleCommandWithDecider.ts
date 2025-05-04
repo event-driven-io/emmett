@@ -1,5 +1,5 @@
 import type { EventStore } from '../eventStore';
-import { type Command, type Event } from '../typing';
+import { type AnyCommand, type AnyEvent } from '../typing';
 import type { Decider } from '../typing/decider';
 import {
   CommandHandler,
@@ -11,13 +11,13 @@ import {
 
 export type DeciderCommandHandlerOptions<
   State,
-  CommandType extends Command,
-  StreamEvent extends Event,
+  CommandType extends AnyCommand,
+  StreamEvent extends AnyEvent,
 > = CommandHandlerOptions<State, StreamEvent> &
   Decider<State, CommandType, StreamEvent>;
 
 export const DeciderCommandHandler =
-  <State, CommandType extends Command, StreamEvent extends Event>(
+  <State, CommandType extends AnyCommand, StreamEvent extends AnyEvent>(
     options: DeciderCommandHandlerOptions<State, CommandType, StreamEvent>,
   ) =>
   async <Store extends EventStore>(

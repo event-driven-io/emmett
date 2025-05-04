@@ -15,7 +15,11 @@ import {
   assertTrue,
   type ThenThrows,
 } from '../../../testing';
-import type { CombinedReadEventMetadata, ReadEvent } from '../../../typing';
+import type {
+  AnyEvent,
+  CombinedReadEventMetadata,
+  ReadEvent,
+} from '../../../typing';
 import { type Event } from '../../../typing';
 import type {
   InMemoryEventStore,
@@ -26,7 +30,7 @@ import type {
 type DocumentWithId = Document & { _id?: string | number };
 
 export type InMemoryProjectionSpecEvent<
-  EventType extends Event,
+  EventType extends AnyEvent,
   EventMetaDataType extends
     InMemoryReadEventMetadata = InMemoryReadEventMetadata,
 > = EventType & {
@@ -35,7 +39,7 @@ export type InMemoryProjectionSpecEvent<
 
 export type InMemoryProjectionSpecWhenOptions = { numberOfTimes: number };
 
-export type InMemoryProjectionSpec<EventType extends Event> = (
+export type InMemoryProjectionSpec<EventType extends AnyEvent> = (
   givenEvents: InMemoryProjectionSpecEvent<EventType>[],
 ) => {
   when: (
@@ -53,12 +57,12 @@ export type InMemoryProjectionAssert = (options: {
   database: Database;
 }) => Promise<void | boolean>;
 
-export type InMemoryProjectionSpecOptions<EventType extends Event> = {
+export type InMemoryProjectionSpecOptions<EventType extends AnyEvent> = {
   projection: InMemoryProjectionDefinition<EventType>;
 };
 
 export const InMemoryProjectionSpec = {
-  for: <EventType extends Event>(
+  for: <EventType extends AnyEvent>(
     options: InMemoryProjectionSpecOptions<EventType>,
   ): InMemoryProjectionSpec<EventType> => {
     const { projection } = options;
@@ -192,7 +196,7 @@ export const InMemoryProjectionSpec = {
 
 // Helper functions for creating events in stream
 export const eventInStream = <
-  EventType extends Event = Event,
+  EventType extends AnyEvent = Event,
   EventMetaDataType extends
     InMemoryReadEventMetadata = InMemoryReadEventMetadata,
 >(
@@ -209,7 +213,7 @@ export const eventInStream = <
 };
 
 export const eventsInStream = <
-  EventType extends Event = Event,
+  EventType extends AnyEvent = Event,
   EventMetaDataType extends
     InMemoryReadEventMetadata = InMemoryReadEventMetadata,
 >(

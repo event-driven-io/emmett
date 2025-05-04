@@ -1,8 +1,8 @@
 import {
   asyncRetry,
+  type AnyEvent,
   type AsyncRetryOptions,
   type EmmettError,
-  type Event,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
@@ -25,7 +25,7 @@ export const DefaultEventStoreDBEventStoreProcessorBatchSize = 100;
 export const DefaultEventStoreDBEventStoreProcessorPullingFrequencyInMs = 50;
 
 export type EventStoreDBEventStoreMessagesBatch<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
 > = {
   messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
 };
@@ -37,14 +37,16 @@ export type EventStoreDBEventStoreMessagesBatchHandlerResult = void | {
 };
 
 export type EventStoreDBEventStoreMessagesBatchHandler<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
 > = (
   messagesBatch: EventStoreDBEventStoreMessagesBatch<EventType>,
 ) =>
   | Promise<EventStoreDBEventStoreMessagesBatchHandlerResult>
   | EventStoreDBEventStoreMessagesBatchHandlerResult;
 
-export type EventStoreDBSubscriptionOptions<EventType extends Event = Event> = {
+export type EventStoreDBSubscriptionOptions<
+  EventType extends AnyEvent = AnyEvent,
+> = {
   from?: EventStoreDBEventStoreConsumerType;
   client: EventStoreDBClient;
   batchSize: number;
@@ -116,7 +118,9 @@ export const EventStoreDBResubscribeDefaultOptions: AsyncRetryOptions = {
   shouldRetryError: (error) => !isDatabaseUnavailableError(error),
 };
 
-export const eventStoreDBSubscription = <EventType extends Event = Event>({
+export const eventStoreDBSubscription = <
+  EventType extends AnyEvent = AnyEvent,
+>({
   client,
   from,
   //batchSize,

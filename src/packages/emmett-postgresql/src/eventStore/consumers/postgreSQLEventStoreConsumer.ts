@@ -7,7 +7,6 @@ import {
   type AnyRecordedMessageMetadata,
   type BatchRecordedMessageHandlerWithoutContext,
   type DefaultRecord,
-  type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
   type ReadEventMetadataWithGlobalPosition,
@@ -41,7 +40,7 @@ export type ExtendableContext = Partial<PostgreSQLConsumerContext> &
 
 export type PostgreSQLEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ConsumerMessageType extends Message = any,
+  ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumerOptions<ConsumerMessageType> & {
   stopWhen?: {
     noMessagesLeft?: boolean;
@@ -53,7 +52,7 @@ export type PostgreSQLEventStoreConsumerConfig<
 };
 
 export type PostgreSQLEventStoreConsumerOptions<
-  ConsumerMessageType extends Message = Message,
+  ConsumerMessageType extends AnyMessage = AnyMessage,
 > = PostgreSQLEventStoreConsumerConfig<ConsumerMessageType> & {
   connectionString: string;
   pool?: Dumbo;
@@ -79,7 +78,7 @@ export type PostgreSQLEventStoreConsumer<
     : object);
 
 export const postgreSQLEventStoreConsumer = <
-  ConsumerMessageType extends Message = AnyMessage,
+  ConsumerMessageType extends AnyMessage = AnyMessage,
 >(
   options: PostgreSQLEventStoreConsumerOptions<ConsumerMessageType>,
 ): PostgreSQLEventStoreConsumer<ConsumerMessageType> => {

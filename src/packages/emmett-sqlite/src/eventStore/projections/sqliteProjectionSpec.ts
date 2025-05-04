@@ -5,6 +5,7 @@ import {
   assertThatArray,
   assertTrue,
   isErrorConstructor,
+  type AnyEvent,
   type CombinedReadEventMetadata,
   type Event,
   type ReadEvent,
@@ -16,7 +17,7 @@ import { type SQLiteConnection } from '../../connection';
 import { type SQLiteReadEventMetadata } from '../SQLiteEventStore';
 
 export type SQLiteProjectionSpecEvent<
-  EventType extends Event,
+  EventType extends AnyEvent,
   EventMetaDataType extends SQLiteReadEventMetadata = SQLiteReadEventMetadata,
 > = EventType & {
   metadata?: Partial<EventMetaDataType>;
@@ -26,7 +27,7 @@ export type SQLiteProjectionSpecWhenOptions = {
   numberOfTimes: number;
 };
 
-export type SQLiteProjectionSpec<EventType extends Event> = (
+export type SQLiteProjectionSpec<EventType extends AnyEvent> = (
   givenEvents: SQLiteProjectionSpecEvent<EventType>[],
 ) => {
   when: (
@@ -44,13 +45,13 @@ export type SQLiteProjectionAssert = (options: {
   connection: SQLiteConnection;
 }) => Promise<void | boolean>;
 
-export type SQLiteProjectionSpecOptions<EventType extends Event> = {
+export type SQLiteProjectionSpecOptions<EventType extends AnyEvent> = {
   connection: SQLiteConnection;
   projection: SQLiteProjectionDefinition<EventType>;
 };
 
 export const SQLiteProjectionSpec = {
-  for: <EventType extends Event>(
+  for: <EventType extends AnyEvent>(
     options: SQLiteProjectionSpecOptions<EventType>,
   ): SQLiteProjectionSpec<EventType> => {
     {
@@ -167,7 +168,7 @@ export const SQLiteProjectionSpec = {
 };
 
 export const eventInStream = <
-  EventType extends Event = Event,
+  EventType extends AnyEvent = Event,
   EventMetaDataType extends SQLiteReadEventMetadata = SQLiteReadEventMetadata,
 >(
   streamName: string,
@@ -183,7 +184,7 @@ export const eventInStream = <
 };
 
 export const eventsInStream = <
-  EventType extends Event = Event,
+  EventType extends AnyEvent = Event,
   EventMetaDataType extends SQLiteReadEventMetadata = SQLiteReadEventMetadata,
 >(
   streamName: string,

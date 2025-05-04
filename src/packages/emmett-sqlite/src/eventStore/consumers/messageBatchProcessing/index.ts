@@ -1,6 +1,6 @@
 import type {
+  AnyEvent,
   EmmettError,
-  Event,
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
@@ -14,7 +14,9 @@ import {
 export const DefaultSQLiteEventStoreProcessorBatchSize = 100;
 export const DefaultSQLiteEventStoreProcessorPullingFrequencyInMs = 50;
 
-export type SQLiteEventStoreMessagesBatch<EventType extends Event = Event> = {
+export type SQLiteEventStoreMessagesBatch<
+  EventType extends AnyEvent = AnyEvent,
+> = {
   messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
 };
 
@@ -25,7 +27,7 @@ export type SQLiteEventStoreMessagesBatchHandlerResult = void | {
 };
 
 export type SQLiteEventStoreMessagesBatchHandler<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
 > = (
   messagesBatch: SQLiteEventStoreMessagesBatch<EventType>,
 ) =>
@@ -33,7 +35,7 @@ export type SQLiteEventStoreMessagesBatchHandler<
   | SQLiteEventStoreMessagesBatchHandlerResult;
 
 export type SQLiteEventStoreMessageBatchPullerOptions<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
 > = {
   connection: SQLiteConnection;
   pullingFrequencyInMs: number;
@@ -57,7 +59,7 @@ export type SQLiteEventStoreMessageBatchPuller = {
 };
 
 export const sqliteEventStoreMessageBatchPuller = <
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
 >({
   connection,
   batchSize,

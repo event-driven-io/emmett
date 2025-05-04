@@ -1,10 +1,10 @@
-import { type Event } from '@event-driven-io/emmett';
 import type { Collection, Db, MongoClient } from 'mongodb';
 import {
   toStreamCollectionName,
   type EventStream,
   type StreamType,
 } from '../mongoDBEventStore';
+import type { AnyEvent } from '@event-driven-io/emmett/src';
 
 export type MongoDBEventStoreCollectionPerStreamTypeStorageOptions = {
   /**
@@ -54,7 +54,7 @@ export const DefaultMongoDBEventStoreStorageOptions =
   'COLLECTION_PER_STREAM_TYPE';
 
 export type MongoDBEventStoreStorage = {
-  collectionFor: <T extends StreamType, EventType extends Event = Event>(
+  collectionFor: <T extends StreamType, EventType extends AnyEvent = AnyEvent>(
     streamType: T,
   ) => Promise<Collection<EventStream<EventType>>>;
 };
@@ -121,7 +121,7 @@ const getDB = async (options: {
   return db;
 };
 
-const collectionFor = async <EventType extends Event = Event>(options: {
+const collectionFor = async <EventType extends AnyEvent = AnyEvent>(options: {
   collectionName: string;
   streamCollections: Map<string, Collection<EventStream>>;
   db: Db;
@@ -159,7 +159,7 @@ export const mongoDBEventStoreStorage = (options: {
   return {
     collectionFor: async <
       T extends StreamType,
-      EventType extends Event = Event,
+      EventType extends AnyEvent = AnyEvent,
     >(
       streamType: T,
     ): Promise<Collection<EventStream<EventType>>> => {

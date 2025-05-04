@@ -10,7 +10,6 @@ import {
   type DefaultRecord,
   type Event,
   type GlobalPositionTypeOfRecordedMessageMetadata,
-  type Message,
   type MessageHandlerResult,
   type RecordedMessage,
   type SingleMessageHandlerWithContext,
@@ -211,7 +210,7 @@ export type StoreProcessorCheckpointResult<CheckpointType = unknown> =
   | { success: false; reason: 'IGNORED' | 'MISMATCH' };
 
 export type StoreProcessorCheckpoint<
-  MessageType extends Message = AnyMessage,
+  MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   CheckpointType = unknown,
   HandlerContext extends DefaultRecord | undefined = undefined,
@@ -238,7 +237,7 @@ export type StoreProcessorCheckpoint<
     ) => Promise<StoreProcessorCheckpointResult<CheckpointType>>);
 
 export const reactor = <
-  MessageType extends Message = AnyMessage,
+  MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
@@ -375,7 +374,7 @@ export const reactor = <
 };
 
 export const projector = <
-  EventType extends Event = Event,
+  EventType extends AnyEvent = Event,
   EventMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,

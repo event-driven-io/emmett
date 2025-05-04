@@ -7,8 +7,8 @@ import {
 } from '@event-driven-io/dumbo';
 import {
   projection,
+  type AnyEvent,
   type CanHandle,
-  type Event,
   type ProjectionDefinition,
   type ProjectionHandler,
   type ReadEvent,
@@ -26,7 +26,7 @@ export type PostgreSQLProjectionHandlerContext = {
 };
 
 export type PostgreSQLProjectionHandler<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends
     PostgresReadEventMetadata = PostgresReadEventMetadata,
 > = ProjectionHandler<
@@ -35,15 +35,16 @@ export type PostgreSQLProjectionHandler<
   PostgreSQLProjectionHandlerContext
 >;
 
-export type PostgreSQLProjectionDefinition<EventType extends Event = Event> =
-  ProjectionDefinition<
-    EventType,
-    PostgresReadEventMetadata,
-    PostgreSQLProjectionHandlerContext
-  >;
+export type PostgreSQLProjectionDefinition<
+  EventType extends AnyEvent = AnyEvent,
+> = ProjectionDefinition<
+  EventType,
+  PostgresReadEventMetadata,
+  PostgreSQLProjectionHandlerContext
+>;
 
 export type PostgreSQLProjectionHandlerOptions<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
 > = {
   events: ReadEvent<EventType, PostgresReadEventMetadata>[];
   projections: PostgreSQLProjectionDefinition<EventType>[];
@@ -54,7 +55,7 @@ export type PostgreSQLProjectionHandlerOptions<
   };
 };
 
-export const handleProjections = async <EventType extends Event = Event>(
+export const handleProjections = async <EventType extends AnyEvent = AnyEvent>(
   options: PostgreSQLProjectionHandlerOptions<EventType>,
 ): Promise<void> => {
   const {
@@ -84,7 +85,7 @@ export const handleProjections = async <EventType extends Event = Event>(
   }
 };
 
-export const postgreSQLProjection = <EventType extends Event>(
+export const postgreSQLProjection = <EventType extends AnyEvent>(
   definition: PostgreSQLProjectionDefinition<EventType>,
 ): PostgreSQLProjectionDefinition<EventType> =>
   projection<
@@ -93,7 +94,7 @@ export const postgreSQLProjection = <EventType extends Event>(
     PostgreSQLProjectionHandlerContext
   >(definition);
 
-export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
+export const postgreSQLRawBatchSQLProjection = <EventType extends AnyEvent>(
   handle: (
     events: EventType[],
     context: PostgreSQLProjectionHandlerContext,
@@ -109,7 +110,7 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
     },
   });
 
-export const postgreSQLRawSQLProjection = <EventType extends Event>(
+export const postgreSQLRawSQLProjection = <EventType extends AnyEvent>(
   handle: (
     event: EventType,
     context: PostgreSQLProjectionHandlerContext,

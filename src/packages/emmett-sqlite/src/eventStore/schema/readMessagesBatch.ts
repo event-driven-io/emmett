@@ -1,7 +1,7 @@
 import {
   JSONParser,
+  type AnyEvent,
   type CombinedReadEventMetadata,
-  type Event,
   type ReadEvent,
   type ReadEventMetadata,
   type ReadEventMetadataWithGlobalPosition,
@@ -36,7 +36,7 @@ export type ReadMessagesBatchOptions =
   | { from: bigint; to: bigint };
 
 export type ReadMessagesBatchResult<
-  EventType extends Event,
+  EventType extends AnyEvent,
   ReadEventMetadataType extends ReadEventMetadata = ReadEventMetadata,
 > = {
   currentGlobalPosition: bigint;
@@ -45,7 +45,7 @@ export type ReadMessagesBatchResult<
 };
 
 export const readMessagesBatch = async <
-  MessageType extends Event,
+  MessageType extends AnyEvent,
   ReadEventMetadataType extends
     ReadEventMetadataWithGlobalPosition = ReadEventMetadataWithGlobalPosition,
 >(

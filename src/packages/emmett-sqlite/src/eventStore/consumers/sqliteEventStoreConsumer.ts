@@ -1,4 +1,4 @@
-import { EmmettError, type Event } from '@event-driven-io/emmett';
+import { EmmettError, type AnyEvent } from '@event-driven-io/emmett';
 import { sqliteConnection, type SQLiteConnection } from '../../connection';
 import {
   DefaultSQLiteEventStoreProcessorBatchSize,
@@ -15,7 +15,7 @@ import {
 } from './sqliteProcessor';
 
 export type SQLiteEventStoreConsumerConfig<
-  ConsumerEventType extends Event = Event,
+  ConsumerEventType extends AnyEvent = AnyEvent,
 > = {
   processors?: SQLiteProcessor<ConsumerEventType>[];
   pulling?: {
@@ -24,26 +24,27 @@ export type SQLiteEventStoreConsumerConfig<
   };
 };
 export type SQLiteEventStoreConsumerOptions<
-  ConsumerEventType extends Event = Event,
+  ConsumerEventType extends AnyEvent = AnyEvent,
 > = SQLiteEventStoreConsumerConfig<ConsumerEventType> & {
   fileName: string;
   connection?: SQLiteConnection;
 };
 
-export type SQLiteEventStoreConsumer<ConsumerEventType extends Event = Event> =
-  Readonly<{
-    isRunning: boolean;
-    processors: SQLiteProcessor<ConsumerEventType>[];
-    processor: <EventType extends ConsumerEventType = ConsumerEventType>(
-      options: SQLiteProcessorOptions<EventType>,
-    ) => SQLiteProcessor<EventType>;
-    start: () => Promise<void>;
-    stop: () => Promise<void>;
-    close: () => Promise<void>;
-  }>;
+export type SQLiteEventStoreConsumer<
+  ConsumerEventType extends AnyEvent = AnyEvent,
+> = Readonly<{
+  isRunning: boolean;
+  processors: SQLiteProcessor<ConsumerEventType>[];
+  processor: <EventType extends ConsumerEventType = ConsumerEventType>(
+    options: SQLiteProcessorOptions<EventType>,
+  ) => SQLiteProcessor<EventType>;
+  start: () => Promise<void>;
+  stop: () => Promise<void>;
+  close: () => Promise<void>;
+}>;
 
 export const sqliteEventStoreConsumer = <
-  ConsumerEventType extends Event = Event,
+  ConsumerEventType extends AnyEvent = AnyEvent,
 >(
   options: SQLiteEventStoreConsumerOptions<ConsumerEventType>,
 ): SQLiteEventStoreConsumer<ConsumerEventType> => {

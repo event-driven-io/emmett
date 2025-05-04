@@ -11,8 +11,8 @@ import {
   assertThatArray,
   assertTrue,
   isErrorConstructor,
+  type AnyEvent,
   type CombinedReadEventMetadata,
-  type Event,
   type ReadEvent,
   type ThenThrows,
 } from '@event-driven-io/emmett';
@@ -21,7 +21,7 @@ import { handleProjections, type PostgreSQLProjectionDefinition } from '.';
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 
 export type PostgreSQLProjectionSpecEvent<
-  EventType extends Event,
+  EventType extends AnyEvent,
   EventMetaDataType extends
     PostgresReadEventMetadata = PostgresReadEventMetadata,
 > = EventType & {
@@ -30,7 +30,7 @@ export type PostgreSQLProjectionSpecEvent<
 
 export type PostgreSQLProjectionSpecWhenOptions = { numberOfTimes: number };
 
-export type PostgreSQLProjectionSpec<EventType extends Event> = (
+export type PostgreSQLProjectionSpec<EventType extends AnyEvent> = (
   givenEvents: PostgreSQLProjectionSpecEvent<EventType>[],
 ) => {
   when: (
@@ -52,12 +52,12 @@ export type PostgreSQLProjectionAssert = (options: {
   connectionString: string;
 }) => Promise<void | boolean>;
 
-export type PostgreSQLProjectionSpecOptions<EventType extends Event> = {
+export type PostgreSQLProjectionSpecOptions<EventType extends AnyEvent> = {
   projection: PostgreSQLProjectionDefinition<EventType>;
 } & DumboOptions;
 
 export const PostgreSQLProjectionSpec = {
-  for: <EventType extends Event>(
+  for: <EventType extends AnyEvent>(
     options: PostgreSQLProjectionSpecOptions<EventType>,
   ): PostgreSQLProjectionSpec<EventType> => {
     {
@@ -178,7 +178,7 @@ export const PostgreSQLProjectionSpec = {
 };
 
 export const eventInStream = <
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends
     PostgresReadEventMetadata = PostgresReadEventMetadata,
 >(
@@ -189,13 +189,13 @@ export const eventInStream = <
     ...event,
     metadata: {
       ...(event.metadata ?? {}),
-      streamName: event.metadata?.streamName ?? streamName,
+      streamName: event.metadata.streamName ?? streamName,
     } as Partial<EventMetaDataType>,
   };
 };
 
 export const eventsInStream = <
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends
     PostgresReadEventMetadata = PostgresReadEventMetadata,
 >(

@@ -1,4 +1,4 @@
-import type { DefaultRecord } from './';
+import type { AnyRecord, DefaultRecord } from './';
 
 export type Command<
   CommandType extends string = string,
@@ -19,11 +19,11 @@ export type Command<
 > & { readonly kind?: 'Command' };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyCommand = Command<any, any, any>;
+export type AnyCommand = Command<any, AnyRecord, AnyRecord | undefined>;
 
-export type CommandTypeOf<T extends Command> = T['type'];
-export type CommandDataOf<T extends Command> = T['data'];
-export type CommandMetaDataOf<T extends Command> = T extends {
+export type CommandTypeOf<T extends AnyCommand> = T['type'];
+export type CommandDataOf<T extends AnyCommand> = T['data'];
+export type CommandMetaDataOf<T extends AnyCommand> = T extends {
   metadata: infer M;
 }
   ? M
@@ -47,8 +47,7 @@ export type CreateCommandType<
       }
 > & { readonly kind?: 'Command' };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const command = <CommandType extends Command<string, any, any>>(
+export const command = <CommandType extends AnyCommand>(
   ...args: CommandMetaDataOf<CommandType> extends undefined
     ? [
         type: CommandTypeOf<CommandType>,

@@ -1,4 +1,4 @@
-import type { DefaultRecord } from './';
+import type { AnyRecord, DefaultRecord } from './';
 import type {
   AnyRecordedMessageMetadata,
   CombinedMessageMetadata,
@@ -32,11 +32,13 @@ export type Event<
 > & { readonly kind?: 'Event' };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyEvent = Event<any, any, any>;
+export type AnyEvent = Event<any, AnyRecord, AnyRecord | undefined>;
 
-export type EventTypeOf<T extends Event> = T['type'];
-export type EventDataOf<T extends Event> = T['data'];
-export type EventMetaDataOf<T extends Event> = T extends { metadata: infer M }
+export type EventTypeOf<T extends AnyEvent> = T['type'];
+export type EventDataOf<T extends AnyEvent> = T['data'];
+export type EventMetaDataOf<T extends AnyEvent> = T extends {
+  metadata: infer M;
+}
   ? M
   : undefined;
 
@@ -57,8 +59,7 @@ export type CreateEventType<
       }
 > & { readonly kind?: 'Event' };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const event = <EventType extends Event<string, any, any>>(
+export const event = <EventType extends AnyEvent>(
   ...args: EventMetaDataOf<EventType> extends undefined
     ? [type: EventTypeOf<EventType>, data: EventDataOf<EventType>]
     : [
@@ -75,13 +76,13 @@ export const event = <EventType extends Event<string, any, any>>(
 };
 
 export type CombinedReadEventMetadata<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = Event,
   EventMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
 > = CombinedMessageMetadata<EventType, EventMetaDataType>;
 
 export type ReadEvent<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = Event,
   EventMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
 > = RecordedMessage<EventType, EventMetaDataType>;

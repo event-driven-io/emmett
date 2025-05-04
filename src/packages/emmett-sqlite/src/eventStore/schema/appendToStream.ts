@@ -3,6 +3,7 @@ import {
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
+  type AnyMessage,
   type AppendToStreamOptions,
   type BeforeEventStoreCommitHandler,
   type ExpectedStreamVersion,
@@ -30,7 +31,7 @@ export type AppendEventResult =
     }
   | { success: false };
 
-export const appendToStream = async <MessageType extends Message>(
+export const appendToStream = async <MessageType extends AnyMessage>(
   connection: SQLiteConnection,
   streamName: string,
   streamType: string,
@@ -66,7 +67,7 @@ export const appendToStream = async <MessageType extends Message>(
           streamPosition: BigInt(i + 1),
           ...('metadata' in m ? (m.metadata ?? {}) : {}),
         },
-      }) as RecordedMessage<MessageType, SQLiteReadEventMetadata>,
+      }) as unknown as RecordedMessage<MessageType, SQLiteReadEventMetadata>,
   );
 
   let result: AppendEventResult;

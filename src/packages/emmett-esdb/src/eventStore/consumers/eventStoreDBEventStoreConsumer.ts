@@ -1,7 +1,7 @@
 import {
   EmmettError,
+  type AnyEvent,
   type AsyncRetryOptions,
-  type Event,
 } from '@event-driven-io/emmett';
 import {
   EventStoreDBClient,
@@ -22,7 +22,7 @@ import {
 } from './subscriptions';
 
 export type EventStoreDBEventStoreConsumerConfig<
-  ConsumerEventType extends Event = Event,
+  ConsumerEventType extends AnyEvent = AnyEvent,
 > = {
   from?: EventStoreDBEventStoreConsumerType;
   processors?: EventStoreDBEventStoreProcessor<ConsumerEventType>[];
@@ -35,7 +35,7 @@ export type EventStoreDBEventStoreConsumerConfig<
 };
 
 export type EventStoreDBEventStoreConsumerOptions<
-  ConsumerEventType extends Event = Event,
+  ConsumerEventType extends AnyEvent = AnyEvent,
 > = EventStoreDBEventStoreConsumerConfig<ConsumerEventType> &
   (
     | {
@@ -58,7 +58,7 @@ export type EventStoreDBEventStoreConsumerType =
     };
 
 export type EventStoreDBEventStoreConsumer<
-  ConsumerEventType extends Event = Event,
+  ConsumerEventType extends AnyEvent = AnyEvent,
 > = Readonly<{
   isRunning: boolean;
   processors: EventStoreDBEventStoreProcessor<ConsumerEventType>[];
@@ -71,7 +71,7 @@ export type EventStoreDBEventStoreConsumer<
 }>;
 
 export const eventStoreDBEventStoreConsumer = <
-  ConsumerEventType extends Event = Event,
+  ConsumerEventType extends AnyEvent = AnyEvent,
 >(
   options: EventStoreDBEventStoreConsumerOptions<ConsumerEventType>,
 ): EventStoreDBEventStoreConsumer<ConsumerEventType> => {

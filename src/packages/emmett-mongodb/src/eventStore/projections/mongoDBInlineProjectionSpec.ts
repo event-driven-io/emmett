@@ -6,7 +6,7 @@ import {
   isErrorConstructor,
   isSubset,
   projections,
-  type Event,
+  type AnyEvent,
   type ThenThrows,
 } from '@event-driven-io/emmett';
 import { MongoClient, type Document } from 'mongodb';
@@ -24,7 +24,7 @@ import {
 
 export type MongoDBInlineProjectionSpecGivenEvents<
   StreamNameType extends StreamName,
-  EventType extends Event,
+  EventType extends AnyEvent,
 > = {
   streamName: StreamNameType;
   events: EventType[];
@@ -32,7 +32,7 @@ export type MongoDBInlineProjectionSpecGivenEvents<
 
 export type MongoDBInlineProjectionSpec<
   StreamNameType extends StreamName,
-  EventType extends Event,
+  EventType extends AnyEvent,
 > = (
   givenStream: MongoDBInlineProjectionSpecGivenEvents<
     StreamNameType,
@@ -68,7 +68,7 @@ export type MongoDBInlineProjectionSpecOptions = {
 } & MongoDBEventStoreConnectionOptions;
 
 export const MongoDBInlineProjectionSpec = {
-  for: <StreamNameType extends StreamName, EventType extends Event>(
+  for: <StreamNameType extends StreamName, EventType extends AnyEvent>(
     options: MongoDBInlineProjectionSpecOptions,
   ): MongoDBInlineProjectionSpec<StreamNameType, EventType> => {
     {
@@ -177,7 +177,7 @@ export const MongoDBInlineProjectionSpec = {
 
 export const eventInStream = <
   StreamNameType extends StreamName,
-  EventType extends Event,
+  EventType extends AnyEvent,
 >(
   streamName: StreamNameType,
   event: EventType,
@@ -188,7 +188,7 @@ export const eventInStream = <
 
 export const eventsInStream = <
   StreamNameType extends StreamName,
-  EventType extends Event,
+  EventType extends AnyEvent,
 >(
   streamName: StreamNameType,
   events: EventType[],

@@ -13,7 +13,7 @@ import { arrayUtils } from '../utils';
 export type ProjectionHandlingType = 'inline' | 'async';
 
 export type ProjectionHandler<
-  EventType extends Event = AnyEvent,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > = BatchRecordedMessageHandlerWithContext<
@@ -27,7 +27,7 @@ export type TruncateProjection<
 > = (context: ProjectionHandlerContext) => Promise<void>;
 
 export interface ProjectionDefinition<
-  EventType extends Event = AnyEvent,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > {
@@ -85,7 +85,7 @@ export const filterProjections = <
 };
 
 export const projection = <
-  EventType extends Event = Event,
+  EventType extends AnyEvent = Event,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 >(

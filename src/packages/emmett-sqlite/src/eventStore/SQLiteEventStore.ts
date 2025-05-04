@@ -1,4 +1,5 @@
 import type {
+  AnyEvent,
   AppendToStreamResultWithGlobalPosition,
   BeforeEventStoreCommitHandler,
   BigIntStreamPosition,
@@ -38,26 +39,26 @@ import { createEventStoreSchema } from './schema';
 import { appendToStream } from './schema/appendToStream';
 import { readStream } from './schema/readStream';
 
-export type EventHandler<E extends Event = Event> = (
+export type EventHandler<E extends AnyEvent = Event> = (
   eventEnvelope: ReadEvent<E>,
 ) => void;
 
 export const SQLiteEventStoreDefaultStreamVersion = 0n;
 
 export interface SQLiteEventStore extends EventStore<SQLiteReadEventMetadata> {
-  appendToStream<EventType extends Event>(
+  appendToStream<EventType extends AnyEvent>(
     streamName: string,
     events: EventType[],
     options?: AppendToStreamOptions,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
-  consumer<ConsumerEventType extends Event = Event>(
+  consumer<ConsumerEventType extends AnyEvent = AnyEvent>(
     options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
   ): SQLiteEventStoreConsumer<ConsumerEventType>;
 }
 
 export type SQLiteReadEventMetadata = ReadEventMetadataWithGlobalPosition;
 
-export type SQLiteReadEvent<EventType extends Event = Event> = ReadEvent<
+export type SQLiteReadEvent<EventType extends AnyEvent = AnyEvent> = ReadEvent<
   EventType,
   SQLiteReadEventMetadata
 >;
@@ -162,7 +163,7 @@ export const getSQLiteEventStore = (
   };
 
   return {
-    async aggregateStream<State, EventType extends Event>(
+    async aggregateStream<State, EventType extends AnyEvent>(
       streamName: string,
       options: AggregateStreamOptions<
         State,
@@ -209,7 +210,7 @@ export const getSQLiteEventStore = (
       };
     },
 
-    readStream: async <EventType extends Event>(
+    readStream: async <EventType extends AnyEvent>(
       streamName: string,
       options?: ReadStreamOptions<BigIntStreamPosition>,
     ): Promise<
@@ -219,7 +220,7 @@ export const getSQLiteEventStore = (
         readStream<EventType>(connection, streamName, options),
       ),
 
-    appendToStream: async <EventType extends Event>(
+    appendToStream: async <EventType extends AnyEvent>(
       streamName: string,
       events: EventType[],
       options?: AppendToStreamOptions,
@@ -263,7 +264,7 @@ export const getSQLiteEventStore = (
           appendResult.nextStreamPosition >= BigInt(events.length),
       };
     },
-    consumer: <ConsumerEventType extends Event = Event>(
+    consumer: <ConsumerEventType extends AnyEvent = AnyEvent>(
       options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
     ): SQLiteEventStoreConsumer<ConsumerEventType> =>
       sqliteEventStoreConsumer<ConsumerEventType>({

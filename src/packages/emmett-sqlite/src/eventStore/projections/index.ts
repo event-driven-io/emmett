@@ -1,7 +1,7 @@
 import {
   projection,
+  type AnyEvent,
   type CanHandle,
-  type Event,
   type ProjectionDefinition,
   type ProjectionHandler,
   type ReadEvent,
@@ -14,7 +14,7 @@ export type SQLiteProjectionHandlerContext = {
 };
 
 export type SQLiteProjectionHandler<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends SQLiteReadEventMetadata = SQLiteReadEventMetadata,
 > = ProjectionHandler<
   EventType,
@@ -22,20 +22,22 @@ export type SQLiteProjectionHandler<
   SQLiteProjectionHandlerContext
 >;
 
-export type SQLiteProjectionDefinition<EventType extends Event = Event> =
+export type SQLiteProjectionDefinition<EventType extends AnyEvent = AnyEvent> =
   ProjectionDefinition<
     EventType,
     SQLiteReadEventMetadata,
     SQLiteProjectionHandlerContext
   >;
 
-export type SQLiteProjectionHandlerOptions<EventType extends Event = Event> = {
+export type SQLiteProjectionHandlerOptions<
+  EventType extends AnyEvent = AnyEvent,
+> = {
   events: ReadEvent<EventType, SQLiteReadEventMetadata>[];
   projections: SQLiteProjectionDefinition<EventType>[];
   connection: SQLiteConnection;
 };
 
-export const handleProjections = async <EventType extends Event = Event>(
+export const handleProjections = async <EventType extends AnyEvent = AnyEvent>(
   options: SQLiteProjectionHandlerOptions<EventType>,
 ): Promise<void> => {
   const { projections: allProjections, events, connection } = options;
@@ -52,7 +54,7 @@ export const handleProjections = async <EventType extends Event = Event>(
   }
 };
 
-export const sqliteProjection = <EventType extends Event>(
+export const sqliteProjection = <EventType extends AnyEvent>(
   definition: SQLiteProjectionDefinition<EventType>,
 ): SQLiteProjectionDefinition<EventType> =>
   projection<
@@ -61,7 +63,7 @@ export const sqliteProjection = <EventType extends Event>(
     SQLiteProjectionHandlerContext
   >(definition);
 
-export const sqliteRawBatchSQLProjection = <EventType extends Event>(
+export const sqliteRawBatchSQLProjection = <EventType extends AnyEvent>(
   handle: (
     events: EventType[],
     context: SQLiteProjectionHandlerContext,
@@ -77,7 +79,7 @@ export const sqliteRawBatchSQLProjection = <EventType extends Event>(
     },
   });
 
-export const sqliteRawSQLProjection = <EventType extends Event>(
+export const sqliteRawSQLProjection = <EventType extends AnyEvent>(
   handle: (
     event: EventType,
     context: SQLiteProjectionHandlerContext,

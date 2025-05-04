@@ -3,7 +3,7 @@ import {
   assertEqual,
   assertFails,
   assertMatches,
-  type Event,
+  type AnyEvent,
   type EventStore,
   type TestEventStream,
 } from '@event-driven-io/emmett';
@@ -19,7 +19,7 @@ import type TestAgent from 'supertest/lib/agent';
 
 export type TestRequest = (request: TestAgent<supertest.Test>) => Test;
 
-export const existingStream = <EventType extends Event = Event>(
+export const existingStream = <EventType extends AnyEvent = AnyEvent>(
   streamId: string,
   events: EventType[],
 ): TestEventStream<EventType> => {
@@ -32,19 +32,19 @@ export const existingStream = <EventType extends Event = Event>(
 
 export type ResponseAssert = (response: Response) => boolean | void;
 
-export type ApiSpecificationAssert<EventType extends Event = Event> =
+export type ApiSpecificationAssert<EventType extends AnyEvent = AnyEvent> =
   | TestEventStream<EventType>[]
   | ResponseAssert
   | [ResponseAssert, ...TestEventStream<EventType>[]];
 
-export const expect = <EventType extends Event = Event>(
+export const expect = <EventType extends AnyEvent = AnyEvent>(
   streamId: string,
   events: EventType[],
 ): TestEventStream<EventType> => {
   return [streamId, events];
 };
 
-export const expectNewEvents = <EventType extends Event = Event>(
+export const expectNewEvents = <EventType extends AnyEvent = AnyEvent>(
   streamId: string,
   events: EventType[],
 ): TestEventStream<EventType> => {
@@ -76,7 +76,7 @@ export const expectError = (
 /////////// Api Specification
 ////////////////////////////////
 
-export type ApiSpecification<EventType extends Event = Event> = (
+export type ApiSpecification<EventType extends AnyEvent = AnyEvent> = (
   ...givenStreams: TestEventStream<EventType>[]
 ) => {
   when: (setupRequest: TestRequest) => {
@@ -85,7 +85,10 @@ export type ApiSpecification<EventType extends Event = Event> = (
 };
 
 export const ApiSpecification = {
-  for: <EventType extends Event = Event, Store extends EventStore = EventStore>(
+  for: <
+    EventType extends AnyEvent = AnyEvent,
+    Store extends EventStore = EventStore,
+  >(
     getEventStore: () => Store,
     getApplication: (eventStore: Store) => Application,
   ): ApiSpecification<EventType> => {

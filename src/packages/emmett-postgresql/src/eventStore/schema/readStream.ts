@@ -1,7 +1,7 @@
 import { mapRows, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
+  type AnyEvent,
   type CombinedReadEventMetadata,
-  type Event,
   type EventDataOf,
   type EventMetaDataOf,
   type EventTypeOf,
@@ -13,7 +13,7 @@ import {
 import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
 import { defaultTag, messagesTable } from './typing';
 
-type ReadStreamSqlResult<EventType extends Event> = {
+type ReadStreamSqlResult<EventType extends AnyEvent> = {
   stream_position: string;
   message_data: EventDataOf<EventType>;
   message_metadata: EventMetaDataOf<EventType>;
@@ -25,7 +25,7 @@ type ReadStreamSqlResult<EventType extends Event> = {
   created: string;
 };
 
-export const readStream = async <EventType extends Event>(
+export const readStream = async <EventType extends AnyEvent>(
   execute: SQLExecutor,
   streamId: string,
   options?: ReadStreamOptions & { partition?: string },

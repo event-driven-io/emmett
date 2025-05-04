@@ -16,19 +16,18 @@ export type Message<
 
 export type AnyMessage = AnyEvent | AnyCommand;
 
-export type MessageKindOf<T extends Message> = T['kind'];
-export type MessageTypeOf<T extends Message> = T['type'];
-export type MessageDataOf<T extends Message> = T['data'];
-export type MessageMetaDataOf<T extends Message> = T extends {
+export type MessageKindOf<T extends AnyMessage> = T['kind'];
+export type MessageTypeOf<T extends AnyMessage> = T['type'];
+export type MessageDataOf<T extends AnyMessage> = T['data'];
+export type MessageMetaDataOf<T extends AnyMessage> = T extends {
   metadata: infer M;
 }
   ? M
   : undefined;
 
-export type CanHandle<T extends Message> = MessageTypeOf<T>[];
+export type CanHandle<T extends AnyMessage> = MessageTypeOf<T>[];
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const message = <MessageType extends Message<string, any, any>>(
+export const message = <MessageType extends AnyMessage>(
   ...args: MessageMetaDataOf<MessageType> extends undefined
     ? [
         kind: MessageKindOf<MessageType>,
@@ -52,7 +51,7 @@ export const message = <MessageType extends Message<string, any, any>>(
 type IsAny<T> = 0 extends 1 & T ? true : false;
 
 export type CombinedMessageMetadata<
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
   MessageMetaDataType extends DefaultRecord = DefaultRecord,
 > =
   IsAny<MessageMetaDataOf<MessageType>> extends true
@@ -66,16 +65,11 @@ export type CombinedMessageMetadata<
 //   : MessageMetaDataOf<MessageType> & MessageMetaDataType;
 
 export type CombineMetadata<
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
   MessageMetaDataType extends DefaultRecord = DefaultRecord,
-> =
-  IsAny<MessageMetaDataOf<MessageType>> extends true
-    ? Omit<MessageType, 'metadata'> & {
-        metadata: CombinedMessageMetadata<MessageType, MessageMetaDataType>;
-      }
-    : MessageType & {
-        metadata: CombinedMessageMetadata<MessageType, MessageMetaDataType>;
-      };
+> = MessageType & {
+  metadata: CombinedMessageMetadata<MessageType, MessageMetaDataType>;
+};
 
 export type RecordedMessage<
   MessageType extends AnyMessage = AnyMessage,

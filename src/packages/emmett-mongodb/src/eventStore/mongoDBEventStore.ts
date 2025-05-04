@@ -5,11 +5,11 @@ import {
   tryPublishMessagesAfterCommit,
   type AggregateStreamOptions,
   type AggregateStreamResult,
+  type AnyEvent,
   type AppendToStreamOptions,
   type AppendToStreamResult,
   type Closeable,
   type DefaultEventStoreOptions,
-  type Event,
   type EventStore,
   type ProjectionRegistration,
   type ReadEvent,
@@ -69,7 +69,7 @@ export type MongoDBReadModel<Doc extends Document = Document> = Doc & {
 };
 
 export interface EventStream<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
 > {
   streamName: string;
@@ -87,7 +87,7 @@ export interface EventStream<
 export type MongoDBReadEventMetadata =
   ReadEventMetadataWithoutGlobalPosition<bigint>;
 
-export type MongoDBReadEvent<EventType extends Event = Event> = ReadEvent<
+export type MongoDBReadEvent<EventType extends AnyEvent = AnyEvent> = ReadEvent<
   EventType,
   MongoDBReadEventMetadata
 >;
@@ -185,7 +185,7 @@ export type MongoDBEventStoreOptions = {
 
 export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
   projections: ProjectionQueries<StreamType>;
-  collectionFor: <EventType extends Event>(
+  collectionFor: <EventType extends AnyEvent>(
     streamType: StreamType,
   ) => Promise<Collection<EventStream<EventType>>>;
 };
@@ -224,7 +224,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     };
   }
 
-  async readStream<EventType extends Event>(
+  async readStream<EventType extends AnyEvent>(
     streamName: StreamName,
     options?: ReadStreamOptions,
   ): Promise<
@@ -285,7 +285,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     };
   }
 
-  async aggregateStream<State, EventType extends Event>(
+  async aggregateStream<State, EventType extends AnyEvent>(
     streamName: StreamName,
     options: AggregateStreamOptions<State, EventType, MongoDBReadEventMetadata>,
   ): Promise<AggregateStreamResult<State>> {
@@ -299,7 +299,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     };
   }
 
-  async appendToStream<EventType extends Event>(
+  async appendToStream<EventType extends AnyEvent>(
     streamName: StreamName,
     events: EventType[],
     options?: AppendToStreamOptions,
@@ -409,7 +409,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     };
   }
 
-  collectionFor = async <EventType extends Event>(
+  collectionFor = async <EventType extends AnyEvent>(
     streamType: StreamType,
   ): Promise<Collection<EventStream<EventType>>> => {
     return this.storage.collectionFor(streamType);

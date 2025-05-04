@@ -6,7 +6,6 @@ import type {
   BigIntStreamPosition,
   CommonReadEventMetadata,
   DefaultRecord,
-  Event,
   GlobalPositionTypeOfReadEventMetadata,
   ReadEvent,
   ReadEventMetadata,
@@ -21,7 +20,7 @@ import type { ExpectedStreamVersion } from './expectedVersion';
 export interface EventStore<
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
 > {
-  aggregateStream<State, EventType extends Event>(
+  aggregateStream<State, EventType extends AnyEvent>(
     streamName: string,
     options: AggregateStreamOptions<State, EventType, ReadEventMetadataType>,
   ): Promise<
@@ -31,14 +30,14 @@ export interface EventStore<
     >
   >;
 
-  readStream<EventType extends Event>(
+  readStream<EventType extends AnyEvent>(
     streamName: string,
     options?: ReadStreamOptions<
       StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>
     >,
   ): Promise<ReadStreamResult<EventType, ReadEventMetadataType>>;
 
-  appendToStream<EventType extends Event>(
+  appendToStream<EventType extends AnyEvent>(
     streamName: string,
     events: EventType[],
     options?: AppendToStreamOptions<
@@ -117,7 +116,7 @@ export type ReadStreamOptions<StreamVersion = BigIntStreamPosition> = (
 };
 
 export type ReadStreamResult<
-  EventType extends Event,
+  EventType extends AnyEvent,
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
 > = {
   currentStreamVersion: StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>;

@@ -1,38 +1,39 @@
-import type { CanHandle, Event, ReadEvent } from '../../../typing';
+import type { Database } from '../../../database/inMemoryDatabase';
 import type {
   ProjectionDefinition,
   TruncateProjection,
 } from '../../../projections';
-import type { Database } from '../../../database/inMemoryDatabase';
+import type { AnyEvent, CanHandle, Event, ReadEvent } from '../../../typing';
 import {
-  type InMemoryReadEventMetadata,
   type InMemoryProjectionHandlerContext,
+  type InMemoryReadEventMetadata,
 } from '../../inMemoryEventStore';
 
 export const DATABASE_REQUIRED_ERROR_MESSAGE =
   'Database is required in context for InMemory projections';
 
-export type InMemoryProjectionDefinition<EventType extends Event> =
+export type InMemoryProjectionDefinition<EventType extends AnyEvent> =
   ProjectionDefinition<
     EventType,
     InMemoryReadEventMetadata,
     InMemoryProjectionHandlerContext
   >;
 
-export type InMemoryProjectionHandlerOptions<EventType extends Event = Event> =
-  {
-    projections: InMemoryProjectionDefinition<EventType>[];
-    events: ReadEvent<EventType, InMemoryReadEventMetadata>[];
-    database: Database;
-    eventStore: InMemoryProjectionHandlerContext['eventStore'];
-  };
+export type InMemoryProjectionHandlerOptions<
+  EventType extends AnyEvent = Event,
+> = {
+  projections: InMemoryProjectionDefinition<EventType>[];
+  events: ReadEvent<EventType, InMemoryReadEventMetadata>[];
+  database: Database;
+  eventStore: InMemoryProjectionHandlerContext['eventStore'];
+};
 
 /**
  * Handles projections for the InMemoryEventStore
  * Similar to the PostgreSQL implementation, this processes events through projections
  */
 export const handleInMemoryProjections = async <
-  EventType extends Event = Event,
+  EventType extends AnyEvent = Event,
 >(
   options: InMemoryProjectionHandlerOptions<EventType>,
 ): Promise<void> => {
@@ -57,13 +58,13 @@ export const handleInMemoryProjections = async <
 
 export type InMemoryDocumentEvolve<
   DocumentType extends Record<string, unknown>,
-  EventType extends Event,
+  EventType extends AnyEvent,
 > = (
   document: DocumentType | null,
   event: ReadEvent<EventType, InMemoryReadEventMetadata>,
 ) => DocumentType | null;
 
-export type InMemoryProjectionOptions<EventType extends Event> = {
+export type InMemoryProjectionOptions<EventType extends AnyEvent> = {
   handle: (
     events: ReadEvent<EventType, InMemoryReadEventMetadata>[],
     context: InMemoryProjectionHandlerContext & { database: Database },
@@ -77,7 +78,7 @@ export type InMemoryProjectionOptions<EventType extends Event> = {
 /**
  * Creates an InMemory projection
  */
-export const inMemoryProjection = <EventType extends Event>({
+export const inMemoryProjection = <EventType extends AnyEvent>({
   truncate,
   handle,
   canHandle,
@@ -110,7 +111,7 @@ export const inMemoryProjection = <EventType extends Event>({
  */
 export type InMemoryMultiStreamProjectionOptions<
   DocumentType extends Record<string, unknown>,
-  EventType extends Event,
+  EventType extends AnyEvent,
 > = {
   canHandle: CanHandle<EventType>;
   collectionName: string;
@@ -130,7 +131,7 @@ export type InMemoryMultiStreamProjectionOptions<
  */
 export const inMemoryMultiStreamProjection = <
   DocumentType extends Record<string, unknown>,
-  EventType extends Event,
+  EventType extends AnyEvent,
 >(
   options: InMemoryMultiStreamProjectionOptions<DocumentType, EventType>,
 ): InMemoryProjectionDefinition<EventType> => {
@@ -189,7 +190,7 @@ export const inMemoryMultiStreamProjection = <
  */
 export type InMemorySingleStreamProjectionOptions<
   DocumentType extends Record<string, unknown>,
-  EventType extends Event,
+  EventType extends AnyEvent,
 > = {
   canHandle: CanHandle<EventType>;
   getDocumentId?: (event: ReadEvent<EventType>) => string;
@@ -209,7 +210,7 @@ export type InMemorySingleStreamProjectionOptions<
  */
 export const inMemorySingleStreamProjection = <
   DocumentType extends Record<string, unknown>,
-  EventType extends Event,
+  EventType extends AnyEvent,
 >(
   options: InMemorySingleStreamProjectionOptions<DocumentType, EventType>,
 ): InMemoryProjectionDefinition<EventType> => {

@@ -1,7 +1,7 @@
 import { mapRows, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
+  type AnyMessage,
   type CombinedMessageMetadata,
-  type Message,
   type MessageDataOf,
   type MessageMetaDataOf,
   type MessageTypeOf,
@@ -11,7 +11,7 @@ import {
 } from '@event-driven-io/emmett';
 import { defaultTag, messagesTable } from './typing';
 
-type ReadMessagesBatchSqlResult<MessageType extends Message> = {
+type ReadMessagesBatchSqlResult<MessageType extends AnyMessage> = {
   stream_position: string;
   stream_id: string;
   message_data: MessageDataOf<MessageType>;
@@ -37,7 +37,7 @@ export type ReadMessagesBatchOptions =
   | { from: bigint; to: bigint };
 
 export type ReadMessagesBatchResult<
-  MessageType extends Message,
+  MessageType extends AnyMessage,
   MessageMetadataType extends RecordedMessageMetadata = RecordedMessageMetadata,
 > = {
   currentGlobalPosition: bigint;
@@ -46,7 +46,7 @@ export type ReadMessagesBatchResult<
 };
 
 export const readMessagesBatch = async <
-  MessageType extends Message,
+  MessageType extends AnyMessage,
   RecordedMessageMetadataType extends
     RecordedMessageMetadataWithGlobalPosition = RecordedMessageMetadataWithGlobalPosition,
 >(

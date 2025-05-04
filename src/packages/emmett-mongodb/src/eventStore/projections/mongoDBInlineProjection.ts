@@ -1,4 +1,5 @@
 import {
+  type AnyEvent,
   type CanHandle,
   type Event,
   type ProjectionDefinition,
@@ -16,7 +17,7 @@ import type {
 export const MongoDBDefaultInlineProjectionName = '_default';
 
 export type MongoDBProjectionInlineHandlerContext<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
 > = {
   document: MongoDBReadModel | null;
@@ -26,7 +27,7 @@ export type MongoDBProjectionInlineHandlerContext<
 };
 
 export type MongoDBInlineProjectionHandler<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
 > = ProjectionHandler<
   EventType,
@@ -35,7 +36,7 @@ export type MongoDBInlineProjectionHandler<
 >;
 
 export type MongoDBInlineProjectionDefinition<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
 > = ProjectionDefinition<
   EventType,
@@ -44,7 +45,7 @@ export type MongoDBInlineProjectionDefinition<
 > & { name: string };
 
 export type InlineProjectionHandlerOptions<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
 > = {
   readModels: Record<string, MongoDBReadModel>;
@@ -63,7 +64,7 @@ export type InlineProjectionHandlerOptions<
 };
 
 export const handleInlineProjections = async <
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
   EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
 >(
   options: InlineProjectionHandlerOptions<EventType, EventMetaDataType>,
@@ -95,7 +96,7 @@ export const handleInlineProjections = async <
 
 export type MongoDBWithNotNullDocumentEvolve<
   Doc extends Document,
-  EventType extends Event,
+  EventType extends AnyEvent,
   EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
 > =
   | ((
@@ -106,7 +107,7 @@ export type MongoDBWithNotNullDocumentEvolve<
 
 export type MongoDBWithNullableDocumentEvolve<
   Doc extends Document,
-  EventType extends Event,
+  EventType extends AnyEvent,
   EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
 > =
   | ((
@@ -120,7 +121,7 @@ export type MongoDBWithNullableDocumentEvolve<
 
 export type MongoDBInlineProjectionOptions<
   Doc extends Document,
-  EventType extends Event,
+  EventType extends AnyEvent,
   EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
 > = {
   name?: string;
@@ -146,7 +147,7 @@ export type MongoDBInlineProjectionOptions<
 
 export const mongoDBInlineProjection = <
   Doc extends Document,
-  EventType extends Event,
+  EventType extends AnyEvent,
   EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
 >(
   options: MongoDBInlineProjectionOptions<Doc, EventType, EventMetaDataType>,

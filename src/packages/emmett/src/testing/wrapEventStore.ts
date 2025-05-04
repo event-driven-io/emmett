@@ -9,16 +9,16 @@ import type {
   ReadStreamResult,
   StreamPositionTypeOfEventStore,
 } from '../eventStore';
-import { type Event, type EventMetaDataOf } from '../typing';
+import { type AnyEvent, type Event, type EventMetaDataOf } from '../typing';
 
-export type TestEventStream<EventType extends Event = Event> = [
+export type TestEventStream<EventType extends AnyEvent = Event> = [
   string,
   EventType[],
 ];
 
 export type EventStoreWrapper<Store extends EventStore> = Store & {
   appendedEvents: Map<string, TestEventStream>;
-  setup<EventType extends Event>(
+  setup<EventType extends AnyEvent>(
     streamName: string,
     events: EventType[],
   ): Promise<AppendToStreamResult<StreamPositionTypeOfEventStore<Store>>>;
@@ -31,7 +31,7 @@ export const WrapEventStore = <Store extends EventStore>(
 
   const wrapped = {
     ...eventStore,
-    aggregateStream<State, EventType extends Event>(
+    aggregateStream<State, EventType extends AnyEvent>(
       streamName: string,
       options: AggregateStreamOptions<State, EventType>,
     ): Promise<
@@ -40,7 +40,7 @@ export const WrapEventStore = <Store extends EventStore>(
       return eventStore.aggregateStream(streamName, options);
     },
 
-    async readStream<EventType extends Event>(
+    async readStream<EventType extends AnyEvent>(
       streamName: string,
       options?: ReadStreamOptions<StreamPositionTypeOfEventStore<Store>>,
     ): Promise<
@@ -58,7 +58,7 @@ export const WrapEventStore = <Store extends EventStore>(
       >;
     },
 
-    appendToStream: async <EventType extends Event>(
+    appendToStream: async <EventType extends AnyEvent>(
       streamName: string,
       events: EventType[],
       options?: AppendToStreamOptions<StreamPositionTypeOfEventStore<Store>>,
@@ -81,7 +81,7 @@ export const WrapEventStore = <Store extends EventStore>(
 
     appendedEvents,
 
-    setup: async <EventType extends Event>(
+    setup: async <EventType extends AnyEvent>(
       streamName: string,
       events: EventType[],
     ): Promise<AppendToStreamResult<StreamPositionTypeOfEventStore<Store>>> => {

@@ -1,6 +1,6 @@
 import {
   EmmettError,
-  type Event,
+  type AnyEvent,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
@@ -9,12 +9,14 @@ import { v7 as uuid } from 'uuid';
 import type { EventStoreDBSubscriptionStartFrom } from './subscriptions';
 
 export type EventStoreDBEventStoreProcessorEventsBatch<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
 > = {
   messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
 };
 
-export type EventStoreDBEventStoreProcessor<EventType extends Event = Event> = {
+export type EventStoreDBEventStoreProcessor<
+  EventType extends AnyEvent = AnyEvent,
+> = {
   id: string;
   start: (
     client: EventStoreDBClient,
@@ -50,7 +52,7 @@ export type EventStoreDBEventStoreProcessorMessageHandlerResult =
   | { type: 'STOP'; reason?: string; error?: EmmettError };
 
 export type EventStoreDBEventStoreProcessorEachMessageHandler<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
 > = (
   event: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
 ) =>
@@ -62,7 +64,7 @@ export type EventStoreDBEventStoreProcessorStartFrom =
   | 'CURRENT';
 
 export type EventStoreDBEventStoreProcessorOptions<
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
 > = {
   processorId?: string;
   version?: number;
@@ -75,7 +77,7 @@ export type EventStoreDBEventStoreProcessorOptions<
 };
 
 export const eventStoreDBEventStoreProcessor = <
-  EventType extends Event = Event,
+  EventType extends AnyEvent = AnyEvent,
 >(
   options: EventStoreDBEventStoreProcessorOptions<EventType>,
 ): EventStoreDBEventStoreProcessor<EventType> => {

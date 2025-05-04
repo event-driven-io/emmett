@@ -1,7 +1,7 @@
 import {
   JSONParser,
+  type AnyEvent,
   type CombinedReadEventMetadata,
-  type Event,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
@@ -22,7 +22,7 @@ type ReadStreamSqlResult = {
   created: string;
 };
 
-export const readStream = async <EventType extends Event>(
+export const readStream = async <EventType extends AnyEvent>(
   db: SQLiteConnection,
   streamId: string,
   options?: ReadStreamOptions & { partition?: string },

@@ -12,6 +12,7 @@ import {
   NO_CONCURRENCY_CHECK,
   type AggregateStreamOptions,
   type AggregateStreamResult,
+  type AnyEvent,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
   type Event,
@@ -45,12 +46,12 @@ import {
 export interface PostgresEventStore
   extends EventStore<PostgresReadEventMetadata>,
     EventStoreSessionFactory<PostgresEventStore> {
-  appendToStream<EventType extends Event>(
+  appendToStream<EventType extends AnyEvent>(
     streamName: string,
     events: EventType[],
     options?: AppendToStreamOptions,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
-  consumer<ConsumerEventType extends Event = Event>(
+  consumer<ConsumerEventType extends AnyEvent = AnyEvent>(
     options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
   ): PostgreSQLEventStoreConsumer<ConsumerEventType>;
   close(): Promise<void>;
@@ -63,10 +64,8 @@ export interface PostgresEventStore
 
 export type PostgresReadEventMetadata = ReadEventMetadataWithGlobalPosition;
 
-export type PostgresReadEvent<EventType extends Event = Event> = ReadEvent<
-  EventType,
-  PostgresReadEventMetadata
->;
+export type PostgresReadEvent<EventType extends AnyEvent = AnyEvent> =
+  ReadEvent<EventType, PostgresReadEventMetadata>;
 
 type PostgresEventStorePooledOptions =
   | {
@@ -204,7 +203,7 @@ export const getPostgreSQLEventStore = (
         await (migrateSchema = createEventStoreSchema(pool));
       },
     },
-    async aggregateStream<State, EventType extends Event>(
+    async aggregateStream<State, EventType extends AnyEvent>(
       streamName: string,
       options: AggregateStreamOptions<
         State,
@@ -240,7 +239,7 @@ export const getPostgreSQLEventStore = (
       };
     },
 
-    readStream: async <EventType extends Event>(
+    readStream: async <EventType extends AnyEvent>(
       streamName: string,
       options?: ReadStreamOptions,
     ): Promise<ReadStreamResult<EventType, PostgresReadEventMetadata>> => {
@@ -248,7 +247,7 @@ export const getPostgreSQLEventStore = (
       return readStream<EventType>(pool.execute, streamName, options);
     },
 
-    appendToStream: async <EventType extends Event>(
+    appendToStream: async <EventType extends AnyEvent>(
       streamName: string,
       events: EventType[],
       options?: AppendToStreamOptions,
@@ -284,7 +283,7 @@ export const getPostgreSQLEventStore = (
           appendResult.nextStreamPosition >= BigInt(events.length),
       };
     },
-    consumer: <ConsumerEventType extends Event = Event>(
+    consumer: <ConsumerEventType extends AnyEvent = AnyEvent>(
       options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
     ): PostgreSQLEventStoreConsumer<ConsumerEventType> =>
       postgreSQLEventStoreConsumer<ConsumerEventType>({

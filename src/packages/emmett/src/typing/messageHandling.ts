@@ -3,17 +3,16 @@ import type { EmmettError } from '../errors';
 import type {
   AnyMessage,
   AnyRecordedMessageMetadata,
-  Message,
   RecordedMessage,
 } from './message';
 export type SingleRawMessageHandlerWithoutContext<
-  MessageType extends Message = AnyMessage,
+  MessageType extends AnyMessage = AnyMessage,
 > = (
   message: MessageType,
 ) => Promise<MessageHandlerResult> | MessageHandlerResult;
 
 export type SingleRecordedMessageHandlerWithoutContext<
-  MessageType extends Message = AnyMessage,
+  MessageType extends AnyMessage = AnyMessage,
   MessageMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
 > = (
@@ -31,7 +30,7 @@ export type SingleMessageHandlerWithoutContext<
     >;
 
 export type SingleRawMessageHandlerWithContext<
-  MessageType extends Message = AnyMessage,
+  MessageType extends AnyMessage = AnyMessage,
   HandlerContext extends DefaultRecord | undefined = undefined,
 > = (
   message: MessageType,
@@ -39,7 +38,7 @@ export type SingleRawMessageHandlerWithContext<
 ) => Promise<MessageHandlerResult> | MessageHandlerResult;
 
 export type SingleRecordedMessageHandlerWithContext<
-  MessageType extends Message = AnyMessage,
+  MessageType extends AnyMessage = AnyMessage,
   MessageMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
@@ -61,7 +60,7 @@ export type SingleMessageHandlerWithContext<
     >;
 
 export type SingleMessageHandler<
-  MessageType extends Message = AnyMessage,
+  MessageType extends AnyMessage = AnyMessage,
   MessageMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
@@ -74,13 +73,13 @@ export type SingleMessageHandler<
   : SingleMessageHandlerWithoutContext<MessageType, MessageMetaDataType>;
 
 export type BatchRawMessageHandlerWithoutContext<
-  MessageType extends Message = AnyMessage,
+  MessageType extends AnyMessage = AnyMessage,
 > = (
   messages: MessageType[],
 ) => Promise<MessageHandlerResult> | MessageHandlerResult;
 
 export type BatchRecordedMessageHandlerWithoutContext<
-  MessageType extends Message = AnyMessage,
+  MessageType extends AnyMessage = AnyMessage,
   MessageMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
 > = (
@@ -96,7 +95,7 @@ export type BatchMessageHandlerWithoutContext<
   | BatchRecordedMessageHandlerWithoutContext<MessageType, MessageMetaDataType>;
 
 export type BatchRawMessageHandlerWithContext<
-  MessageType extends Message = AnyMessage,
+  MessageType extends AnyMessage = AnyMessage,
   HandlerContext extends DefaultRecord | undefined = undefined,
 > = (
   messages: MessageType[],
@@ -104,7 +103,7 @@ export type BatchRawMessageHandlerWithContext<
 ) => Promise<MessageHandlerResult> | MessageHandlerResult;
 
 export type BatchRecordedMessageHandlerWithContext<
-  MessageType extends Message = AnyMessage,
+  MessageType extends AnyMessage = AnyMessage,
   MessageMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
@@ -127,7 +126,7 @@ export type BatchMessageHandlerWithContext<
     >;
 
 export type BatchMessageHandler<
-  MessageType extends Message = AnyMessage,
+  MessageType extends AnyMessage = AnyMessage,
   MessageMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
@@ -140,7 +139,7 @@ export type BatchMessageHandler<
   : BatchMessageHandlerWithoutContext<MessageType, MessageMetaDataType>;
 
 export type MessageHandler<
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
   MessageMetaDataType extends
     AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,

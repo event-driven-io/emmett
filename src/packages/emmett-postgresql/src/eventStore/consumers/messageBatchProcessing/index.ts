@@ -1,8 +1,8 @@
 import { type SQLExecutor } from '@event-driven-io/dumbo';
 import type {
+  AnyMessage,
   BatchRecordedMessageHandlerWithoutContext,
   EmmettError,
-  Message,
   ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { readLastMessageGlobalPosition } from '../../schema/readLastMessageGlobalPosition';
@@ -21,7 +21,7 @@ export type PostgreSQLEventStoreMessagesBatchHandlerResult = void | {
 };
 
 export type PostgreSQLEventStoreMessageBatchPullerOptions<
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
 > = {
   executor: SQLExecutor;
   pullingFrequencyInMs: number;
@@ -53,7 +53,7 @@ export type PostgreSQLEventStoreMessageBatchPuller = {
 };
 
 export const postgreSQLEventStoreMessageBatchPuller = <
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
 >({
   executor,
   batchSize,

@@ -9,7 +9,6 @@ import {
   type AnyEvent,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
-  type Event,
   type EventStore,
   type ExpectedStreamVersion,
   type ReadEvent,
@@ -55,19 +54,17 @@ export const EventStoreDBEventStoreDefaultStreamVersion = -1n;
 
 export type EventStoreDBReadEventMetadata = ReadEventMetadataWithGlobalPosition;
 
-export type EventStoreDBReadEvent<EventType extends Event = Event> = ReadEvent<
-  EventType,
-  EventStoreDBReadEventMetadata
->;
+export type EventStoreDBReadEvent<EventType extends AnyEvent = AnyEvent> =
+  ReadEvent<EventType, EventStoreDBReadEventMetadata>;
 
 export interface EventStoreDBEventStore
   extends EventStore<EventStoreDBReadEventMetadata> {
-  appendToStream<EventType extends Event>(
+  appendToStream<EventType extends AnyEvent>(
     streamName: string,
     events: EventType[],
     options?: AppendToStreamOptions,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
-  consumer<ConsumerEventType extends Event = Event>(
+  consumer<ConsumerEventType extends AnyEvent = AnyEvent>(
     options?: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
   ): EventStoreDBEventStoreConsumer<ConsumerEventType>;
 }
@@ -76,7 +73,7 @@ export const getEventStoreDBEventStore = (
   eventStore: EventStoreDBClient,
 ): EventStoreDBEventStore => {
   return {
-    async aggregateStream<State, EventType extends Event>(
+    async aggregateStream<State, EventType extends AnyEvent>(
       streamName: string,
       options: AggregateStreamOptions<
         State,
@@ -136,7 +133,7 @@ export const getEventStoreDBEventStore = (
       }
     },
 
-    readStream: async <EventType extends Event>(
+    readStream: async <EventType extends AnyEvent>(
       streamName: string,
       options?: ReadStreamOptions,
     ): Promise<ReadStreamResult<EventType, EventStoreDBReadEventMetadata>> => {
@@ -172,7 +169,7 @@ export const getEventStoreDBEventStore = (
       }
     },
 
-    appendToStream: async <EventType extends Event>(
+    appendToStream: async <EventType extends AnyEvent>(
       streamName: string,
       events: EventType[],
       options?: AppendToStreamOptions,
@@ -211,7 +208,7 @@ export const getEventStoreDBEventStore = (
       }
     },
 
-    consumer: <ConsumerEventType extends Event = Event>(
+    consumer: <ConsumerEventType extends AnyEvent = AnyEvent>(
       options?: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
     ): EventStoreDBEventStoreConsumer<ConsumerEventType> =>
       eventStoreDBEventStoreConsumer<ConsumerEventType>({

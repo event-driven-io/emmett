@@ -19,7 +19,6 @@ import {
   type BatchRecordedMessageHandlerWithContext,
   type Checkpointer,
   type Event,
-  type Message,
   type MessageHandlerResult,
   type MessageProcessingScope,
   type ProjectorOptions,
@@ -41,7 +40,7 @@ export type PostgreSQLProcessorHandlerContext = {
   };
 };
 
-export type PostgreSQLProcessor<MessageType extends Message = AnyMessage> =
+export type PostgreSQLProcessor<MessageType extends AnyMessage = AnyMessage> =
   MessageProcessor<
     MessageType,
     ReadEventMetadataWithGlobalPosition,
@@ -49,7 +48,7 @@ export type PostgreSQLProcessor<MessageType extends Message = AnyMessage> =
   >;
 
 export type PostgreSQLProcessorEachMessageHandler<
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
 > = SingleRecordedMessageHandlerWithContext<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
@@ -57,7 +56,7 @@ export type PostgreSQLProcessorEachMessageHandler<
 >;
 
 export type PostgreSQLProcessorEachBatchHandler<
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
 > = BatchRecordedMessageHandlerWithContext<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
@@ -135,7 +134,7 @@ export type PostgreSQLCheckpointer<
 >;
 
 export const postgreSQLCheckpointer = <
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
 >(): PostgreSQLCheckpointer<MessageType> => ({
   read: async (options, context) => {
     const result = await readProcessorCheckpoint(context.execute, options);
@@ -161,13 +160,14 @@ type PostgreSQLConnectionOptions = {
   connectionOptions?: PostgreSQLProcessorConnectionOptions;
 };
 
-export type PostgreSQLReactorOptions<MessageType extends Message = Message> =
-  ReactorOptions<
-    MessageType,
-    ReadEventMetadataWithGlobalPosition,
-    PostgreSQLProcessorHandlerContext
-  > &
-    PostgreSQLConnectionOptions;
+export type PostgreSQLReactorOptions<
+  MessageType extends AnyMessage = AnyMessage,
+> = ReactorOptions<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  PostgreSQLProcessorHandlerContext
+> &
+  PostgreSQLConnectionOptions;
 
 export type PostgreSQLProjectorOptions<EventType extends AnyEvent = AnyEvent> =
   ProjectorOptions<
@@ -267,7 +267,7 @@ const getProcessorPool = (options: PostgreSQLConnectionOptions) => {
   };
 };
 
-export const postgreSQLProjector = <EventType extends Event = Event>(
+export const postgreSQLProjector = <EventType extends AnyEvent = AnyEvent>(
   options: PostgreSQLProjectorOptions<EventType>,
 ): PostgreSQLProcessor<EventType> => {
   const { pool, connectionString, close } = getProcessorPool(options);
@@ -300,7 +300,7 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
   });
 };
 
-export const postgreSQLReactor = <MessageType extends Message = Message>(
+export const postgreSQLReactor = <MessageType extends AnyMessage = AnyMessage>(
   options: PostgreSQLReactorOptions<MessageType>,
 ): PostgreSQLProcessor<MessageType> => {
   const { pool, connectionString, close } = getProcessorPool(options);

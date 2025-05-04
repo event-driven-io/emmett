@@ -5,6 +5,7 @@ import {
 } from '../database/inMemoryDatabase';
 import type { ProjectionRegistration } from '../projections';
 import type {
+  AnyEvent,
   BigIntStreamPosition,
   CombinedReadEventMetadata,
   Event,
@@ -50,7 +51,7 @@ export type InMemoryEventStoreOptions =
     database?: Database;
   };
 
-export type InMemoryReadEvent<EventType extends Event = Event> = ReadEvent<
+export type InMemoryReadEvent<EventType extends AnyEvent = Event> = ReadEvent<
   EventType,
   ReadEventMetadataWithGlobalPosition
 >;
@@ -81,7 +82,7 @@ export const getInMemoryEventStore = (
   // Create the event store object
   const eventStore: InMemoryEventStore = {
     database,
-    async aggregateStream<State, EventType extends Event>(
+    async aggregateStream<State, EventType extends AnyEvent>(
       streamName: string,
       options: AggregateStreamOptions<
         State,
@@ -98,6 +99,7 @@ export const getInMemoryEventStore = (
       return {
         currentStreamVersion: BigInt(events.length),
         state: events.reduce(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (state, e) => evolve(state, e as any as EventType),
           initialState(),
         ),
@@ -105,7 +107,7 @@ export const getInMemoryEventStore = (
       };
     },
 
-    readStream: <EventType extends Event>(
+    readStream: <EventType extends AnyEvent>(
       streamName: string,
       options?: ReadStreamOptions<BigIntStreamPosition>,
     ): Promise<
@@ -156,7 +158,7 @@ export const getInMemoryEventStore = (
       return Promise.resolve(result);
     },
 
-    appendToStream: async <EventType extends Event>(
+    appendToStream: async <EventType extends AnyEvent>(
       streamName: string,
       events: EventType[],
       options?: AppendToStreamOptions,

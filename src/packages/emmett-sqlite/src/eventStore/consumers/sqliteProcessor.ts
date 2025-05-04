@@ -1,7 +1,6 @@
 import {
   EmmettError,
   type AnyEvent,
-  type Event,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
@@ -10,16 +9,17 @@ import type { SQLiteProjectionDefinition } from '../projections';
 import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
 import type { SQLiteEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 
-export type SQLiteProcessorEventsBatch<EventType extends Event = Event> = {
-  messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
-};
+export type SQLiteProcessorEventsBatch<EventType extends AnyEvent = AnyEvent> =
+  {
+    messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
+  };
 
 export type SQLiteProcessorHandlerContext = {
   connection: SQLiteConnection;
   fileName: string;
 };
 
-export type SQLiteProcessor<EventType extends Event = Event> = {
+export type SQLiteProcessor<EventType extends AnyEvent = AnyEvent> = {
   id: string;
   start: (
     connection: SQLiteConnection,
@@ -54,15 +54,18 @@ export type SQLiteProcessorMessageHandlerResult =
   | { type: 'SKIP'; reason?: string }
   | { type: 'STOP'; reason?: string; error?: EmmettError };
 
-export type SQLiteProcessorEachMessageHandler<EventType extends Event = Event> =
-  (
-    event: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
-    context: SQLiteProcessorHandlerContext,
-  ) =>
-    | Promise<SQLiteProcessorMessageHandlerResult>
-    | SQLiteProcessorMessageHandlerResult;
+export type SQLiteProcessorEachMessageHandler<
+  EventType extends AnyEvent = AnyEvent,
+> = (
+  event: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
+  context: SQLiteProcessorHandlerContext,
+) =>
+  | Promise<SQLiteProcessorMessageHandlerResult>
+  | SQLiteProcessorMessageHandlerResult;
 
-export type SQLiteProcessorEachBatchHandler<EventType extends Event = Event> = (
+export type SQLiteProcessorEachBatchHandler<
+  EventType extends AnyEvent = AnyEvent,
+> = (
   event: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[],
   context: SQLiteProcessorHandlerContext,
 ) =>
@@ -78,7 +81,9 @@ export type SQLiteProcessorConnectionOptions = {
   connection?: SQLiteConnection;
 };
 
-export type GenericSQLiteProcessorOptions<EventType extends Event = Event> = {
+export type GenericSQLiteProcessorOptions<
+  EventType extends AnyEvent = AnyEvent,
+> = {
   processorId: string;
   version?: number;
   partition?: string;
@@ -91,17 +96,18 @@ export type GenericSQLiteProcessorOptions<EventType extends Event = Event> = {
   // TODO: Add eachBatch
 };
 
-export type SQLiteProjectionProcessorOptions<EventType extends Event = Event> =
-  {
-    processorId?: string;
-    version?: number;
-    projection: SQLiteProjectionDefinition<EventType>;
-    partition?: string;
-    startFrom?: SQLiteProcessorStartFrom;
-    stopAfter?: (
-      message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
-    ) => boolean;
-  };
+export type SQLiteProjectionProcessorOptions<
+  EventType extends AnyEvent = AnyEvent,
+> = {
+  processorId?: string;
+  version?: number;
+  projection: SQLiteProjectionDefinition<EventType>;
+  partition?: string;
+  startFrom?: SQLiteProcessorStartFrom;
+  stopAfter?: (
+    message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
+  ) => boolean;
+};
 
 export type SQLiteProcessorOptions<EventType extends AnyEvent = AnyEvent> =
   | GenericSQLiteProcessorOptions<EventType>
