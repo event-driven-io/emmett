@@ -55,7 +55,15 @@ export type CombinedMessageMetadata<
 > =
   MessageMetaDataOf<MessageType> extends undefined
     ? MessageMetaDataType
-    : MessageMetaDataOf<MessageType> & MessageMetaDataType;
+    : MessageMetaDataOf<MessageType> extends never
+      ? MessageMetaDataType
+      : unknown extends MessageMetaDataOf<MessageType> // This catches 'any' and 'unknown'
+        ? MessageMetaDataType
+        : MessageMetaDataOf<MessageType> & MessageMetaDataType;
+
+// MessageMetaDataOf<MessageType> extends undefined
+//   ? MessageMetaDataType
+//   : MessageMetaDataOf<MessageType> & MessageMetaDataType;
 
 export type CombineMetadata<
   MessageType extends Message = Message,

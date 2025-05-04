@@ -1,5 +1,6 @@
 import {
   EmmettError,
+  type AnyEvent,
   type Event,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -102,13 +103,13 @@ export type SQLiteProjectionProcessorOptions<EventType extends Event = Event> =
     ) => boolean;
   };
 
-export type SQLiteProcessorOptions<EventType extends Event = Event> =
+export type SQLiteProcessorOptions<EventType extends AnyEvent = AnyEvent> =
   | GenericSQLiteProcessorOptions<EventType>
   | SQLiteProjectionProcessorOptions<EventType>;
 
-const genericSQLiteProcessor = <EventType extends Event = Event>(
+const genericSQLiteProcessor = <EventType extends AnyEvent = AnyEvent>(
   options: GenericSQLiteProcessorOptions<EventType>,
-): SQLiteProcessor => {
+): SQLiteProcessor<EventType> => {
   const { eachMessage } = options;
   let isActive = true;
   //let lastProcessedPosition: number | null = null;
@@ -168,10 +169,7 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
         let lastProcessedPosition: bigint | null = null;
 
         for (const message of messages) {
-          const typedMessage = message as ReadEvent<
-            EventType,
-            ReadEventMetadataWithGlobalPosition
-          >;
+          const typedMessage = message;
 
           const messageProcessingResult = await eachMessage(typedMessage, {
             connection,
@@ -216,9 +214,11 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
   };
 };
 
-export const sqliteProjectionProcessor = <EventType extends Event = Event>(
+export const sqliteProjectionProcessor = <
+  EventType extends AnyEvent = AnyEvent,
+>(
   options: SQLiteProjectionProcessorOptions<EventType>,
-): SQLiteProcessor => {
+): SQLiteProcessor<EventType> => {
   const projection = options.projection;
 
   return genericSQLiteProcessor<EventType>({
@@ -232,9 +232,9 @@ export const sqliteProjectionProcessor = <EventType extends Event = Event>(
   });
 };
 
-export const sqliteProcessor = <EventType extends Event = Event>(
+export const sqliteProcessor = <EventType extends AnyEvent = AnyEvent>(
   options: SQLiteProcessorOptions<EventType>,
-): SQLiteProcessor => {
+): SQLiteProcessor<EventType> => {
   if ('projection' in options) {
     return sqliteProjectionProcessor(options);
   }

@@ -119,7 +119,9 @@ export const sqliteEventStoreConsumer = <
     ): SQLiteProcessor<EventType> => {
       const processor = sqliteProcessor<EventType>(options);
 
-      processors.push(processor);
+      processors.push(
+        processor as unknown as SQLiteProcessor<ConsumerEventType>,
+      );
 
       return processor;
     },

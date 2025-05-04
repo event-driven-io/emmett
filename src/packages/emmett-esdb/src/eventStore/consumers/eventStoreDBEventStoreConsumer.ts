@@ -144,7 +144,9 @@ export const eventStoreDBEventStoreConsumer = <
     ): EventStoreDBEventStoreProcessor<EventType> => {
       const processor = eventStoreDBEventStoreProcessor<EventType>(options);
 
-      processors.push(processor);
+      processors.push(
+        processor as unknown as EventStoreDBEventStoreProcessor<ConsumerEventType>,
+      );
 
       return processor;
     },

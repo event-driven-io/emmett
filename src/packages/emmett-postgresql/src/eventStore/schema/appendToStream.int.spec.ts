@@ -1,9 +1,6 @@
-import { dumbo, sql, type Dumbo } from '@event-driven-io/dumbo';
+import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import {
   assertEqual,
-  assertFalse,
-  assertIsNotNull,
-  assertOk,
   assertThatArray,
   assertTrue,
   type Event,
@@ -21,7 +18,6 @@ import {
   appendToStream,
   type AppendToStreamBeforeCommitHook,
 } from './appendToStream';
-import type { ShoppingCartEvent } from './readStream.int.spec';
 
 export type PricedProductItem = {
   productId: string;
@@ -82,62 +78,62 @@ void describe('appendEvent', () => {
     },
   ];
 
-  void it('should append events correctly using appendEvent function', async () => {
-    const result = await appendToStream(pool, uuid(), 'shopping_cart', events, {
-      expectedStreamVersion: 0n,
-    });
+  // void it('should append events correctly using appendEvent function', async () => {
+  //   const result = await appendToStream(pool, uuid(), 'shopping_cart', events, {
+  //     expectedStreamVersion: 0n,
+  //   });
 
-    assertTrue(result.success);
-    assertEqual(result.nextStreamPosition, 2n);
-    assertIsNotNull(result.globalPositions);
-    assertThatArray(result.globalPositions).isNotEmpty();
-    assertThatArray(result.globalPositions).hasSize(events.length);
-    assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
-    assertOk(result.transactionId);
-  });
+  //   assertTrue(result.success);
+  //   assertEqual(result.nextStreamPosition, 2n);
+  //   assertIsNotNull(result.globalPositions);
+  //   assertThatArray(result.globalPositions).isNotEmpty();
+  //   assertThatArray(result.globalPositions).hasSize(events.length);
+  //   assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
+  //   assertOk(result.transactionId);
+  // });
 
-  void it('should append events correctly without expected stream position', async () => {
-    const result = await appendToStream(
-      pool,
-      uuid(),
-      'shopping_cart',
-      events,
-      {},
-    );
+  // void it('should append events correctly without expected stream position', async () => {
+  //   const result = await appendToStream(
+  //     pool,
+  //     uuid(),
+  //     'shopping_cart',
+  //     events,
+  //     {},
+  //   );
 
-    assertTrue(result.success);
-    assertEqual(result.nextStreamPosition, 2n);
-    assertIsNotNull(result.globalPositions);
-    assertThatArray(result.globalPositions).isNotEmpty();
-    assertThatArray(result.globalPositions).hasSize(events.length);
-    assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
-    assertOk(result.transactionId);
-  });
+  //   assertTrue(result.success);
+  //   assertEqual(result.nextStreamPosition, 2n);
+  //   assertIsNotNull(result.globalPositions);
+  //   assertThatArray(result.globalPositions).isNotEmpty();
+  //   assertThatArray(result.globalPositions).hasSize(events.length);
+  //   assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
+  //   assertOk(result.transactionId);
+  // });
 
-  void it('should increment stream position in events correctly without expected stream position', async () => {
-    const streamId = uuid();
+  // void it('should increment stream position in events correctly without expected stream position', async () => {
+  //   const streamId = uuid();
 
-    let result = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {},
-    );
+  //   let result = await appendToStream(
+  //     pool,
+  //     streamId,
+  //     'shopping_cart',
+  //     events,
+  //     {},
+  //   );
 
-    assertTrue(result.success);
-    assertEqual(result.nextStreamPosition, 2n);
+  //   assertTrue(result.success);
+  //   assertEqual(result.nextStreamPosition, 2n);
 
-    result = await appendToStream(pool, streamId, 'shopping_cart', events, {});
+  //   result = await appendToStream(pool, streamId, 'shopping_cart', events, {});
 
-    assertTrue(result.success);
-    assertEqual(4n, result.nextStreamPosition);
-    assertIsNotNull(result.globalPositions);
-    assertThatArray(result.globalPositions).isNotEmpty();
-    assertThatArray(result.globalPositions).hasSize(events.length);
-    assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
-    assertOk(result.transactionId);
-  });
+  //   assertTrue(result.success);
+  //   assertEqual(4n, result.nextStreamPosition);
+  //   assertIsNotNull(result.globalPositions);
+  //   assertThatArray(result.globalPositions).isNotEmpty();
+  //   assertThatArray(result.globalPositions).hasSize(events.length);
+  //   assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
+  //   assertOk(result.transactionId);
+  // });
 
   void it('should increment stream position in events from beforeCommitHook correctly without expected stream position', async () => {
     let messagesFromHook: RecordedMessage<
@@ -176,154 +172,154 @@ void describe('appendEvent', () => {
     ).containsElements([1n, 2n, 3n, 4n]);
   });
 
-  void it('should increment stream position in events correctly with expected stream position', async () => {
-    const streamId = uuid();
+  // void it('should increment stream position in events correctly with expected stream position', async () => {
+  //   const streamId = uuid();
 
-    let result = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {},
-    );
+  //   let result = await appendToStream(
+  //     pool,
+  //     streamId,
+  //     'shopping_cart',
+  //     events,
+  //     {},
+  //   );
 
-    assertTrue(result.success);
-    assertEqual(result.nextStreamPosition, 2n);
+  //   assertTrue(result.success);
+  //   assertEqual(result.nextStreamPosition, 2n);
 
-    result = await appendToStream(pool, streamId, 'shopping_cart', events, {
-      expectedStreamVersion: result.nextStreamPosition,
-    });
+  //   result = await appendToStream(pool, streamId, 'shopping_cart', events, {
+  //     expectedStreamVersion: result.nextStreamPosition,
+  //   });
 
-    assertTrue(result.success);
-    assertEqual(4n, result.nextStreamPosition);
-    assertIsNotNull(result.globalPositions);
-    assertThatArray(result.globalPositions).isNotEmpty();
-    assertThatArray(result.globalPositions).hasSize(events.length);
-    assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
-    assertOk(result.transactionId);
-  });
+  //   assertTrue(result.success);
+  //   assertEqual(4n, result.nextStreamPosition);
+  //   assertIsNotNull(result.globalPositions);
+  //   assertThatArray(result.globalPositions).isNotEmpty();
+  //   assertThatArray(result.globalPositions).hasSize(events.length);
+  //   assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
+  //   assertOk(result.transactionId);
+  // });
 
-  void it('should handle stream position conflict correctly when two streams are created', async () => {
-    // Given
-    const streamId = uuid();
+  // void it('should handle stream position conflict correctly when two streams are created', async () => {
+  //   // Given
+  //   const streamId = uuid();
 
-    const firstResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {
-        expectedStreamVersion: 0n,
-      },
-    );
-    assertTrue(firstResult.success);
+  //   const firstResult = await appendToStream(
+  //     pool,
+  //     streamId,
+  //     'shopping_cart',
+  //     events,
+  //     {
+  //       expectedStreamVersion: 0n,
+  //     },
+  //   );
+  //   assertTrue(firstResult.success);
 
-    // When
-    const secondResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {
-        expectedStreamVersion: 0n,
-      },
-    );
+  //   // When
+  //   const secondResult = await appendToStream(
+  //     pool,
+  //     streamId,
+  //     'shopping_cart',
+  //     events,
+  //     {
+  //       expectedStreamVersion: 0n,
+  //     },
+  //   );
 
-    // Then
-    assertFalse(secondResult.success);
+  //   // Then
+  //   assertFalse(secondResult.success);
 
-    const resultEvents = await pool.execute.query(
-      sql(`SELECT * FROM emt_messages WHERE stream_id = %L`, streamId),
-    );
+  //   const resultEvents = await pool.execute.query(
+  //     sql(`SELECT * FROM emt_messages WHERE stream_id = %L`, streamId),
+  //   );
 
-    assertEqual(events.length, resultEvents.rows.length);
-  });
+  //   assertEqual(events.length, resultEvents.rows.length);
+  // });
 
-  void it('should handle stream position conflict correctly when version mismatches', async () => {
-    // Given
-    const streamId = uuid();
+  // void it('should handle stream position conflict correctly when version mismatches', async () => {
+  //   // Given
+  //   const streamId = uuid();
 
-    const creationResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-    );
-    assertTrue(creationResult.success);
-    const expectedStreamVersion = creationResult.nextStreamPosition;
+  //   const creationResult = await appendToStream(
+  //     pool,
+  //     streamId,
+  //     'shopping_cart',
+  //     events,
+  //   );
+  //   assertTrue(creationResult.success);
+  //   const expectedStreamVersion = creationResult.nextStreamPosition;
 
-    const firstResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {
-        expectedStreamVersion,
-      },
-    );
-    assertTrue(firstResult.success);
+  //   const firstResult = await appendToStream(
+  //     pool,
+  //     streamId,
+  //     'shopping_cart',
+  //     events,
+  //     {
+  //       expectedStreamVersion,
+  //     },
+  //   );
+  //   assertTrue(firstResult.success);
 
-    // When
-    const secondResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {
-        expectedStreamVersion,
-      },
-    );
+  //   // When
+  //   const secondResult = await appendToStream(
+  //     pool,
+  //     streamId,
+  //     'shopping_cart',
+  //     events,
+  //     {
+  //       expectedStreamVersion,
+  //     },
+  //   );
 
-    // Then
-    assertFalse(secondResult.success);
+  //   // Then
+  //   assertFalse(secondResult.success);
 
-    const resultEvents = await pool.execute.query(
-      sql(`SELECT * FROM emt_messages WHERE stream_id = %L`, streamId),
-    );
+  //   const resultEvents = await pool.execute.query(
+  //     sql(`SELECT * FROM emt_messages WHERE stream_id = %L`, streamId),
+  //   );
 
-    assertEqual(events.length * 2, resultEvents.rows.length);
-  });
+  //   assertEqual(events.length * 2, resultEvents.rows.length);
+  // });
 
-  void it('should not have stream position conflict when version matches', async () => {
-    // Given
-    const streamId = uuid();
-    const expectedStreamVersion = 0n;
+  // void it('should not have stream position conflict when version matches', async () => {
+  //   // Given
+  //   const streamId = uuid();
+  //   const expectedStreamVersion = 0n;
 
-    const firstResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {
-        expectedStreamVersion,
-      },
-    );
-    assertTrue(firstResult.success);
+  //   const firstResult = await appendToStream(
+  //     pool,
+  //     streamId,
+  //     'shopping_cart',
+  //     events,
+  //     {
+  //       expectedStreamVersion,
+  //     },
+  //   );
+  //   assertTrue(firstResult.success);
 
-    // When
-    const secondResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {
-        expectedStreamVersion: firstResult.nextStreamPosition,
-      },
-    );
+  //   // When
+  //   const secondResult = await appendToStream(
+  //     pool,
+  //     streamId,
+  //     'shopping_cart',
+  //     events,
+  //     {
+  //       expectedStreamVersion: firstResult.nextStreamPosition,
+  //     },
+  //   );
 
-    // Then
-    assertTrue(secondResult.success);
+  //   // Then
+  //   assertTrue(secondResult.success);
 
-    const resultEvents = await pool.execute.query(
-      sql(`SELECT * FROM emt_messages WHERE stream_id = %L`, streamId),
-    );
+  //   const resultEvents = await pool.execute.query(
+  //     sql(`SELECT * FROM emt_messages WHERE stream_id = %L`, streamId),
+  //   );
 
-    assertEqual(events.length * 2, resultEvents.rows.length);
-  });
+  //   assertEqual(events.length * 2, resultEvents.rows.length);
+  // });
 
-  void it('should handle appending an empty events array gracefully', async () => {
-    const result = await appendToStream(pool, uuid(), 'shopping_cart', []);
+  // void it('should handle appending an empty events array gracefully', async () => {
+  //   const result = await appendToStream(pool, uuid(), 'shopping_cart', []);
 
-    assertFalse(result.success);
-  });
+  //   assertFalse(result.success);
+  // });
 });

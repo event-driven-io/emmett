@@ -11,12 +11,14 @@ import {
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
+  type AnyMessage,
   type AppendToStreamOptions,
   type ExpectedStreamVersion,
   type Message,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
+import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 import { defaultTag, messagesTable, streamsTable } from './typing';
 
 export const appendToStreamSQL = rawSql(
@@ -144,14 +146,17 @@ export const appendToStream = (
         options?.expectedStreamVersion,
       );
 
-      const messagesToAppend: RecordedMessage[] = messages.map((e) => ({
+      const messagesToAppend: RecordedMessage<
+        AnyMessage,
+        PostgresReadEventMetadata
+      >[] = messages.map((e) => ({
         ...e,
         kind: e.kind ?? 'Event',
         metadata: {
           messageId: uuid(),
           ...('metadata' in e ? (e.metadata ?? {}) : {}),
         },
-      })) as RecordedMessage[];
+      })) as RecordedMessage<AnyMessage, PostgresReadEventMetadata>[];
 
       // TODO: return global positions from append raw and other generated data
       const {
@@ -169,20 +174,39 @@ export const appendToStream = (
         },
       );
 
+      if (
+        !success ||
+        next_stream_position === null ||
+        global_positions === null ||
+        global_positions.length === 0 ||
+        transaction_id == null
+      ) {
+        return {
+          success: false,
+          result: { success: false },
+        };
+      }
+
+      const nextStreamPosition = BigInt(next_stream_position);
+      const globalPositions = global_positions.map(BigInt);
+
+      globalPositions.forEach((globalPosition, index) => {
+        // messagesToAppend[index]!.metadata.;
+      });
+
+      let r: RecordedMessage<AnyMessage, PostgresReadEventMetadata>;
+
       if (options?.beforeCommitHook)
         await options.beforeCommitHook(messagesToAppend, { transaction });
 
       return {
-        success,
-        result:
-          success && next_stream_position && global_positions && transaction_id
-            ? {
-                success: true,
-                nextStreamPosition: BigInt(next_stream_position),
-                globalPositions: global_positions.map(BigInt),
-                transactionId: transaction_id,
-              }
-            : { success: false },
+        success: true,
+        result: {
+          success: true,
+          nextStreamPosition,
+          globalPositions,
+          transactionId: transaction_id,
+        },
       };
     } catch (error) {
       if (!isOptimisticConcurrencyError(error)) throw error;

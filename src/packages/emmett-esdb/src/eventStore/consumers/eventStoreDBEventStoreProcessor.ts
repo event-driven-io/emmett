@@ -78,7 +78,7 @@ export const eventStoreDBEventStoreProcessor = <
   EventType extends Event = Event,
 >(
   options: EventStoreDBEventStoreProcessorOptions<EventType>,
-): EventStoreDBEventStoreProcessor => {
+): EventStoreDBEventStoreProcessor<EventType> => {
   const { eachMessage } = options;
   let isActive = true;
   //let lastProcessedPosition: bigint | null = null;
@@ -122,10 +122,7 @@ export const eventStoreDBEventStoreProcessor = <
       //let lastProcessedPosition: bigint | null = null;
 
       for (const message of messages) {
-        const typedMessage = message as ReadEvent<
-          EventType,
-          ReadEventMetadataWithGlobalPosition
-        >;
+        const typedMessage = message;
 
         const messageProcessingResult = await eachMessage(typedMessage);
 

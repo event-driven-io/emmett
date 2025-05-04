@@ -37,7 +37,7 @@ export const rebuildPostgreSQLProjections = <
         >
     ),
 ): PostgreSQLEventStoreConsumer<EventType> => {
-  const consumer = postgreSQLEventStoreConsumer({
+  const consumer = postgreSQLEventStoreConsumer<EventType>({
     ...options,
     stopWhen: { noMessagesLeft: true },
   });
