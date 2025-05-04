@@ -34,7 +34,7 @@ export const appendToStreamSQL = rawSql(
   ) RETURNS TABLE (
       success boolean,
       next_stream_position bigint,
-      last_global_position bigint,
+      global_positions bigint[],
       transaction_id xid8
   ) LANGUAGE plpgsql
   AS $$
@@ -43,7 +43,7 @@ export const appendToStreamSQL = rawSql(
       v_position bigint;
       v_updated_rows int;
       v_transaction_id xid8;
-      v_last_global_position bigint;
+      v_global_positions bigint[];
   BEGIN
       v_transaction_id := pg_current_xact_id();
 
@@ -68,7 +68,7 @@ export const appendToStreamSQL = rawSql(
           get diagnostics v_updated_rows = row_count;
 
           IF v_updated_rows = 0 THEN
-              RETURN QUERY SELECT FALSE, NULL::bigint, NULL::bigint, NULL::xid8;
+              RETURN QUERY SELECT FALSE, NULL::bigint, NULL::bigint[], NULL::xid8;
               RETURN;
           END IF;
       END IF;
@@ -97,11 +97,11 @@ export const appendToStreamSQL = rawSql(
           RETURNING global_position
       )
       SELECT 
-          max(global_position) INTO v_last_global_position 
+          array_agg(global_position ORDER BY global_position) INTO v_global_positions
       FROM 
           all_messages_insert;
 
-      RETURN QUERY SELECT TRUE, v_next_stream_position, v_last_global_position, v_transaction_id;
+      RETURN QUERY SELECT TRUE, v_next_stream_position, v_global_positions, v_transaction_id;
   END;
   $$;
   `,
@@ -111,7 +111,7 @@ type AppendToStreamResult =
   | {
       success: true;
       nextStreamPosition: bigint;
-      lastGlobalPosition: bigint;
+      globalPositions: bigint[];
       transactionId: string;
     }
   | { success: false };
@@ -157,7 +157,7 @@ export const appendToStream = (
       const {
         success,
         next_stream_position,
-        last_global_position,
+        global_positions,
         transaction_id,
       } = await appendEventsRaw(
         execute,
@@ -175,14 +175,11 @@ export const appendToStream = (
       return {
         success,
         result:
-          success &&
-          next_stream_position &&
-          last_global_position &&
-          transaction_id
+          success && next_stream_position && global_positions && transaction_id
             ? {
                 success: true,
                 nextStreamPosition: BigInt(next_stream_position),
-                lastGlobalPosition: BigInt(last_global_position),
+                globalPositions: global_positions.map(BigInt),
                 transactionId: transaction_id,
               }
             : { success: false },
@@ -219,7 +216,7 @@ const isOptimisticConcurrencyError = (error: unknown): boolean =>
 type AppendToStreamSqlResult = {
   success: boolean;
   next_stream_position: string | null;
-  last_global_position: string | null;
+  global_positions: string[] | null;
   transaction_id: string | null | undefined;
 };
 

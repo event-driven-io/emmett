@@ -279,7 +279,7 @@ export const getPostgreSQLEventStore = (
 
       return {
         nextExpectedStreamVersion: appendResult.nextStreamPosition,
-        lastEventGlobalPosition: appendResult.lastGlobalPosition,
+        lastEventGlobalPosition: appendResult.globalPositions[0]!,
         createdNewStream:
           appendResult.nextStreamPosition >= BigInt(events.length),
       };
