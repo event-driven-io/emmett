@@ -270,6 +270,8 @@ export const reactor = <
   const processingScope =
     options.processingScope ?? defaultProcessingMessageProcessingScope;
 
+  let lastCheckpoint: CheckpointType | null = null;
+
   return {
     id: options.processorId,
     type: options.type ?? MessageProcessorType.REACTOR,
@@ -280,6 +282,11 @@ export const reactor = <
     ): Promise<CurrentMessageProcessorPosition<CheckpointType> | undefined> => {
       isActive = true;
 
+      if (lastCheckpoint !== null)
+        return {
+          lastCheckpoint,
+        };
+
       return await processingScope(async (context) => {
         if (options.hooks?.onStart) {
           await options.hooks?.onStart(context);
@@ -287,8 +294,6 @@ export const reactor = <
 
         if (options.startFrom !== 'CURRENT' && options.startFrom)
           return options.startFrom;
-
-        let lastCheckpoint: CheckpointType | null = null;
 
         if (checkpoints) {
           const readResult = await checkpoints?.read(
@@ -305,7 +310,7 @@ export const reactor = <
 
         return {
           lastCheckpoint,
-        } as CurrentMessageProcessorPosition<CheckpointType>;
+        };
       }, startOptions);
     },
     get isActive() {
@@ -319,8 +324,6 @@ export const reactor = <
 
       return await processingScope(async (context) => {
         let result: MessageHandlerResult = undefined;
-
-        let lastCheckpoint: CheckpointType | null = null;
 
         for (const message of messages) {
           const messageProcessingResult = await eachMessage(message, context);

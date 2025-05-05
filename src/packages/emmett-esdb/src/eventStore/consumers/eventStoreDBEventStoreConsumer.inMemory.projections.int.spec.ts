@@ -7,9 +7,9 @@ import {
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+  EventStoreDBContainer,
+  type StartedEventStoreDBContainer,
+} from '@event-driven-io/emmett-testcontainers';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import type {
@@ -17,34 +17,32 @@ import type {
   ShoppingCartConfirmed,
 } from '../../testing/shoppingCart.domain';
 import {
-  getPostgreSQLEventStore,
-  type PostgresEventStore,
-} from '../postgreSQLEventStore';
-import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
+  getEventStoreDBEventStore,
+  type EventStoreDBEventStore,
+} from '../eventstoreDBEventStore';
+import { eventStoreDBEventStoreConsumer } from './eventStoreDBEventStoreConsumer';
 
 const withDeadline = { timeout: 5000 };
 
-void describe('PostgreSQL event store started consumer', () => {
-  let postgres: StartedPostgreSqlContainer;
+void describe('EventStoreDB event store started consumer', () => {
+  let eventStoreDB: StartedEventStoreDBContainer;
   let connectionString: string;
-  let eventStore: PostgresEventStore;
+  let eventStore: EventStoreDBEventStore;
   let summaries: DocumentsCollection<ShoppingCartSummary>;
   const productItem = { price: 10, productId: uuid(), quantity: 10 };
   const confirmedAt = new Date();
   const database = getInMemoryDatabase();
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
-    connectionString = postgres.getConnectionUri();
-    eventStore = getPostgreSQLEventStore(connectionString);
+    eventStoreDB = await new EventStoreDBContainer().start();
+    connectionString = eventStoreDB.getConnectionString();
+    eventStore = getEventStoreDBEventStore(eventStoreDB.getClient());
     summaries = database.collection(shoppingCartsSummaryCollectionName);
-    await eventStore.schema.migrate();
   });
 
   after(async () => {
     try {
-      await eventStore.close();
-      await postgres.stop();
+      await eventStoreDB.stop();
     } catch (error) {
       console.log(error);
     }
@@ -77,12 +75,11 @@ void describe('PostgreSQL event store started consumer', () => {
         });
 
         // When
-        const consumer = postgreSQLEventStoreConsumer<ShoppingCartSummaryEvent>(
-          {
+        const consumer =
+          eventStoreDBEventStoreConsumer<ShoppingCartSummaryEvent>({
             connectionString,
             processors: [inMemoryProcessor],
-          },
-        );
+          });
 
         try {
           await consumer.start();
@@ -116,12 +113,11 @@ void describe('PostgreSQL event store started consumer', () => {
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
         });
-        const consumer = postgreSQLEventStoreConsumer<ShoppingCartSummaryEvent>(
-          {
+        const consumer =
+          eventStoreDBEventStoreConsumer<ShoppingCartSummaryEvent>({
             connectionString,
             processors: [inMemoryProcessor],
-          },
-        );
+          });
 
         // When
         const shoppingCartId = `shoppingCart:${uuid()}`;
@@ -198,12 +194,11 @@ void describe('PostgreSQL event store started consumer', () => {
             event.metadata.globalPosition === stopAfterPosition,
         });
 
-        const consumer = postgreSQLEventStoreConsumer<ShoppingCartSummaryEvent>(
-          {
+        const consumer =
+          eventStoreDBEventStoreConsumer<ShoppingCartSummaryEvent>({
             connectionString,
             processors: [inMemoryProcessor],
-          },
-        );
+          });
 
         // When
         try {
@@ -265,12 +260,11 @@ void describe('PostgreSQL event store started consumer', () => {
             event.metadata.globalPosition === stopAfterPosition,
         });
 
-        const consumer = postgreSQLEventStoreConsumer<ShoppingCartSummaryEvent>(
-          {
+        const consumer =
+          eventStoreDBEventStoreConsumer<ShoppingCartSummaryEvent>({
             connectionString,
             processors: [inMemoryProcessor],
-          },
-        );
+          });
 
         // When
 
@@ -335,12 +329,11 @@ void describe('PostgreSQL event store started consumer', () => {
             event.metadata.globalPosition === stopAfterPosition,
         });
 
-        const consumer = postgreSQLEventStoreConsumer<ShoppingCartSummaryEvent>(
-          {
+        const consumer =
+          eventStoreDBEventStoreConsumer<ShoppingCartSummaryEvent>({
             connectionString,
             processors: [inMemoryProcessor],
-          },
-        );
+          });
 
         // When
         await consumer.start();
@@ -409,12 +402,11 @@ void describe('PostgreSQL event store started consumer', () => {
             event.metadata.globalPosition === stopAfterPosition,
         });
 
-        const consumer = postgreSQLEventStoreConsumer<ShoppingCartSummaryEvent>(
-          {
+        const consumer =
+          eventStoreDBEventStoreConsumer<ShoppingCartSummaryEvent>({
             connectionString,
             processors: [inMemoryProcessor],
-          },
-        );
+          });
 
         // When
         try {
@@ -425,7 +417,7 @@ void describe('PostgreSQL event store started consumer', () => {
 
         stopAfterPosition = undefined;
 
-        const newConsumer = postgreSQLEventStoreConsumer({
+        const newConsumer = eventStoreDBEventStoreConsumer({
           connectionString,
           processors: [inMemoryProcessor],
         });
