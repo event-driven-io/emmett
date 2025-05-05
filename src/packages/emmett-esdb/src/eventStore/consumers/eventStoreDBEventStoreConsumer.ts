@@ -1,31 +1,40 @@
 import {
   EmmettError,
+  inMemoryProjector,
+  inMemoryReactor,
+  MessageProcessor,
+  type AnyEvent,
+  type AnyMessage,
+  type AnyRecordedMessageMetadata,
   type AsyncRetryOptions,
-  type Event,
+  type BatchRecordedMessageHandlerWithoutContext,
+  type DefaultRecord,
+  type InMemoryProcessor,
+  type InMemoryProjectorOptions,
+  type InMemoryReactorOptions,
+  type Message,
+  type MessageConsumer,
+  type MessageConsumerOptions,
 } from '@event-driven-io/emmett';
 import {
   EventStoreDBClient,
   type SubscribeToAllOptions,
   type SubscribeToStreamOptions,
 } from '@eventstore/db-client';
-import {
-  eventStoreDBEventStoreProcessor,
-  type EventStoreDBEventStoreProcessor,
-  type EventStoreDBEventStoreProcessorOptions,
-} from './eventStoreDBEventStoreProcessor';
+import { v7 as uuid } from 'uuid';
+import type { EventStoreDBReadEventMetadata } from '../eventstoreDBEventStore';
 import {
   DefaultEventStoreDBEventStoreProcessorBatchSize,
   eventStoreDBSubscription,
   zipEventStoreDBEventStoreMessageBatchPullerStartFrom,
-  type EventStoreDBEventStoreMessagesBatchHandler,
   type EventStoreDBSubscription,
 } from './subscriptions';
 
 export type EventStoreDBEventStoreConsumerConfig<
-  ConsumerEventType extends Event = Event,
-> = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends Message = any,
+> = MessageConsumerOptions<ConsumerMessageType> & {
   from?: EventStoreDBEventStoreConsumerType;
-  processors?: EventStoreDBEventStoreProcessor<ConsumerEventType>[];
   pulling?: {
     batchSize?: number;
   };
@@ -35,13 +44,14 @@ export type EventStoreDBEventStoreConsumerConfig<
 };
 
 export type EventStoreDBEventStoreConsumerOptions<
-  ConsumerEventType extends Event = Event,
+  ConsumerEventType extends Message = Message,
 > = EventStoreDBEventStoreConsumerConfig<ConsumerEventType> &
   (
     | {
         connectionString: string;
+        client?: never;
       }
-    | { client: EventStoreDBClient }
+    | { client: EventStoreDBClient; connectionString?: never }
   );
 
 export type $all = '$all';
@@ -58,23 +68,29 @@ export type EventStoreDBEventStoreConsumerType =
     };
 
 export type EventStoreDBEventStoreConsumer<
-  ConsumerEventType extends Event = Event,
-> = Readonly<{
-  isRunning: boolean;
-  processors: EventStoreDBEventStoreProcessor<ConsumerEventType>[];
-  processor: <EventType extends ConsumerEventType = ConsumerEventType>(
-    options: EventStoreDBEventStoreProcessorOptions<EventType>,
-  ) => EventStoreDBEventStoreProcessor<EventType>;
-  start: () => Promise<void>;
-  stop: () => Promise<void>;
-  close: () => Promise<void>;
-}>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = MessageConsumer<ConsumerMessageType> &
+  Readonly<{
+    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+      options: InMemoryReactorOptions<MessageType>,
+    ) => InMemoryProcessor<MessageType>;
+  }> &
+  (AnyEvent extends ConsumerMessageType
+    ? Readonly<{
+        projector: <
+          EventType extends AnyEvent = ConsumerMessageType & AnyEvent,
+        >(
+          options: InMemoryProjectorOptions<EventType>,
+        ) => InMemoryProcessor<EventType>;
+      }>
+    : object);
 
 export const eventStoreDBEventStoreConsumer = <
-  ConsumerEventType extends Event = Event,
+  ConsumerMessageType extends Message = AnyMessage,
 >(
-  options: EventStoreDBEventStoreConsumerOptions<ConsumerEventType>,
-): EventStoreDBEventStoreConsumer<ConsumerEventType> => {
+  options: EventStoreDBEventStoreConsumerOptions<ConsumerMessageType>,
+): EventStoreDBEventStoreConsumer<ConsumerMessageType> => {
   let isRunning = false;
   const { pulling } = options;
   const processors = options.processors ?? [];
@@ -84,12 +100,13 @@ export const eventStoreDBEventStoreConsumer = <
   let currentSubscription: EventStoreDBSubscription | undefined;
 
   const client =
-    'client' in options
+    'client' in options && options.client
       ? options.client
       : EventStoreDBClient.connectionString(options.connectionString);
 
-  const eachBatch: EventStoreDBEventStoreMessagesBatchHandler<
-    ConsumerEventType
+  const eachBatch: BatchRecordedMessageHandlerWithoutContext<
+    ConsumerMessageType,
+    EventStoreDBReadEventMetadata
   > = async (messagesBatch) => {
     const activeProcessors = processors.filter((s) => s.isActive);
 
@@ -135,16 +152,40 @@ export const eventStoreDBEventStoreConsumer = <
   };
 
   return {
-    processors,
+    consumerId: options.consumerId ?? uuid(),
     get isRunning() {
       return isRunning;
     },
-    processor: <EventType extends ConsumerEventType = ConsumerEventType>(
-      options: EventStoreDBEventStoreProcessorOptions<EventType>,
-    ): EventStoreDBEventStoreProcessor<EventType> => {
-      const processor = eventStoreDBEventStoreProcessor<EventType>(options);
+    processors,
+    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+      options: InMemoryReactorOptions<MessageType>,
+    ): InMemoryProcessor<MessageType> => {
+      const processor = inMemoryReactor(options);
 
-      processors.push(processor);
+      processors.push(
+        // TODO: change that
+        processor as unknown as MessageProcessor<
+          ConsumerMessageType,
+          AnyRecordedMessageMetadata,
+          DefaultRecord
+        >,
+      );
+
+      return processor;
+    },
+    projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
+      options: InMemoryProjectorOptions<EventType>,
+    ): InMemoryProcessor<EventType> => {
+      const processor = inMemoryProjector(options);
+
+      processors.push(
+        // TODO: change that
+        processor as unknown as MessageProcessor<
+          ConsumerMessageType,
+          AnyRecordedMessageMetadata,
+          DefaultRecord
+        >,
+      );
 
       return processor;
     },

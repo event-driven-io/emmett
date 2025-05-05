@@ -4,6 +4,7 @@ import {
   assertThrowsAsync,
   assertTrue,
   EmmettError,
+  type MessageProcessor,
 } from '@event-driven-io/emmett';
 import {
   EventStoreDBContainer,
@@ -15,14 +16,15 @@ import {
   eventStoreDBEventStoreConsumer,
   type EventStoreDBEventStoreConsumer,
 } from './eventStoreDBEventStoreConsumer';
-import type { EventStoreDBEventStoreProcessor } from './eventStoreDBEventStoreProcessor';
 
 void describe('EventStoreDB event store consumer', () => {
   let eventStoreDB: StartedEventStoreDBContainer;
   let connectionString: string;
-  const dummyProcessor: EventStoreDBEventStoreProcessor = {
+  const dummyProcessor: MessageProcessor = {
+    type: 'reactor',
     id: uuid(),
     start: () => Promise.resolve('BEGINNING'),
+    close: () => Promise.resolve(),
     handle: () => Promise.resolve(),
     isActive: false,
   };

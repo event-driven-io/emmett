@@ -1,4 +1,9 @@
-import { assertThatArray, type Event } from '@event-driven-io/emmett';
+import {
+  assertThatArray,
+  getInMemoryDatabase,
+  type Event,
+  type InMemoryReactorOptions,
+} from '@event-driven-io/emmett';
 import {
   EventStoreDBContainer,
   StartedEventStoreDBContainer,
@@ -6,15 +11,14 @@ import {
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
-  type EventStoreDBEventStore,
   getEventStoreDBEventStore,
+  type EventStoreDBEventStore,
 } from '../eventstoreDBEventStore';
 import {
   $all,
   eventStoreDBEventStoreConsumer,
   type EventStoreDBEventStoreConsumerType,
 } from './eventStoreDBEventStoreConsumer';
-import type { EventStoreDBEventStoreProcessorOptions } from './eventStoreDBEventStoreProcessor';
 
 const withDeadline = { timeout: 5000 };
 
@@ -22,6 +26,7 @@ void describe('EventStoreDB event store started consumer', () => {
   let eventStoreDB: StartedEventStoreDBContainer;
   let connectionString: string;
   let eventStore: EventStoreDBEventStore;
+  const database = getInMemoryDatabase();
 
   before(async () => {
     eventStoreDB = await new EventStoreDBContainer().start();
@@ -72,7 +77,7 @@ void describe('EventStoreDB event store started consumer', () => {
           connectionString,
           from: { stream: streamName },
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           stopAfter: (event) =>
             event.metadata.globalPosition ===
@@ -119,7 +124,7 @@ void describe('EventStoreDB event store started consumer', () => {
           from: { stream: $all },
         });
 
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           stopAfter: (event) =>
             event.metadata.globalPosition ===
@@ -177,9 +182,9 @@ void describe('EventStoreDB event store started consumer', () => {
           connectionString,
           from: { stream: streamName },
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
-          startFrom: { position: startPosition },
+          startFrom: { lastCheckpoint: startPosition },
           stopAfter: (event) =>
             event.metadata.streamPosition === stopAfterPosition,
           eachMessage: (event) => {
@@ -234,9 +239,9 @@ void describe('EventStoreDB event store started consumer', () => {
           connectionString,
           from: { stream: $all },
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
-          startFrom: { position: startPosition },
+          startFrom: { lastCheckpoint: startPosition },
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
@@ -286,7 +291,7 @@ void describe('EventStoreDB event store started consumer', () => {
             connectionString,
             from: from(streamName),
           });
-          consumer.processor<GuestStayEvent>({
+          consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             stopAfter: (event) =>
               event.metadata.globalPosition ===
@@ -323,7 +328,7 @@ void describe('EventStoreDB event store started consumer', () => {
             connectionString,
             from: from(streamName),
           });
-          consumer.processor<GuestStayEvent>({
+          consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             stopAfter: (event) =>
               event.metadata.globalPosition === stopAfterPosition,
@@ -384,7 +389,7 @@ void describe('EventStoreDB event store started consumer', () => {
             connectionString,
             from: from(streamName),
           });
-          consumer.processor<GuestStayEvent>({
+          consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             startFrom: 'CURRENT',
             stopAfter: (event) =>
@@ -446,7 +451,7 @@ void describe('EventStoreDB event store started consumer', () => {
             connectionString,
             from: from(streamName),
           });
-          consumer.processor<GuestStayEvent>({
+          consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             startFrom: 'CURRENT',
             stopAfter: (event) =>
@@ -507,16 +512,16 @@ void describe('EventStoreDB event store started consumer', () => {
           let result: GuestStayEvent[] = [];
           let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
 
-          const processorOptions: EventStoreDBEventStoreProcessorOptions<GuestStayEvent> =
-            {
-              processorId: uuid(),
-              startFrom: 'CURRENT',
-              stopAfter: (event) =>
-                event.metadata.globalPosition === stopAfterPosition,
-              eachMessage: (event) => {
-                result.push(event);
-              },
-            };
+          const processorOptions: InMemoryReactorOptions<GuestStayEvent> = {
+            processorId: uuid(),
+            startFrom: 'CURRENT',
+            stopAfter: (event) =>
+              event.metadata.globalPosition === stopAfterPosition,
+            eachMessage: (event) => {
+              result.push(event);
+            },
+            connectionOptions: { database },
+          };
 
           // When
           const consumer = eventStoreDBEventStoreConsumer({
@@ -524,7 +529,7 @@ void describe('EventStoreDB event store started consumer', () => {
             from: from(streamName),
           });
           try {
-            consumer.processor<GuestStayEvent>(processorOptions);
+            consumer.reactor<GuestStayEvent>(processorOptions);
 
             await consumer.start();
           } finally {
@@ -539,7 +544,7 @@ void describe('EventStoreDB event store started consumer', () => {
             connectionString,
             from: from(streamName),
           });
-          newConsumer.processor<GuestStayEvent>(processorOptions);
+          newConsumer.reactor<GuestStayEvent>(processorOptions);
 
           try {
             const consumerPromise = newConsumer.start();

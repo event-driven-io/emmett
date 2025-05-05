@@ -6,6 +6,7 @@ import {
   assertExpectedVersionMatchesCurrent,
   type AggregateStreamOptions,
   type AggregateStreamResultWithGlobalPosition,
+  type AnyMessage,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
   type Event,
@@ -15,6 +16,7 @@ import {
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
+  type RecordedMessage,
 } from '@event-driven-io/emmett';
 import {
   ANY,
@@ -222,10 +224,10 @@ export const getEventStoreDBEventStore = (
   };
 };
 
-export const mapFromESDBEvent = <EventType extends Event = Event>(
-  event: JSONRecordedEvent<EventType>,
-): ReadEvent<EventType, EventStoreDBReadEventMetadata> => {
-  return <ReadEvent<EventType, EventStoreDBReadEventMetadata>>{
+export const mapFromESDBEvent = <MessageType extends AnyMessage = AnyMessage>(
+  event: JSONRecordedEvent<MessageType>,
+): RecordedMessage<MessageType, EventStoreDBReadEventMetadata> => {
+  return <RecordedMessage<MessageType, EventStoreDBReadEventMetadata>>{
     type: event.type,
     data: event.data,
     metadata: {
