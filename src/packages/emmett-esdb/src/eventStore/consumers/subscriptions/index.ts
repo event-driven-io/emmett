@@ -1,10 +1,10 @@
 import {
   asyncRetry,
+  type AnyMessage,
   type AsyncRetryOptions,
+  type BatchRecordedMessageHandlerWithoutContext,
   type EmmettError,
-  type Event,
-  type ReadEvent,
-  type ReadEventMetadataWithGlobalPosition,
+  type Message,
 } from '@event-driven-io/emmett';
 import {
   END,
@@ -15,7 +15,10 @@ import {
   type StreamSubscription,
 } from '@eventstore/db-client';
 import { finished, Readable } from 'stream';
-import { mapFromESDBEvent } from '../../eventstoreDBEventStore';
+import {
+  mapFromESDBEvent,
+  type EventStoreDBReadEventMetadata,
+} from '../../eventstoreDBEventStore';
 import {
   $all,
   type EventStoreDBEventStoreConsumerType,
@@ -24,38 +27,29 @@ import {
 export const DefaultEventStoreDBEventStoreProcessorBatchSize = 100;
 export const DefaultEventStoreDBEventStoreProcessorPullingFrequencyInMs = 50;
 
-export type EventStoreDBEventStoreMessagesBatch<
-  EventType extends Event = Event,
-> = {
-  messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
-};
-
 export type EventStoreDBEventStoreMessagesBatchHandlerResult = void | {
   type: 'STOP';
   reason?: string;
   error?: EmmettError;
 };
 
-export type EventStoreDBEventStoreMessagesBatchHandler<
-  EventType extends Event = Event,
-> = (
-  messagesBatch: EventStoreDBEventStoreMessagesBatch<EventType>,
-) =>
-  | Promise<EventStoreDBEventStoreMessagesBatchHandlerResult>
-  | EventStoreDBEventStoreMessagesBatchHandlerResult;
-
-export type EventStoreDBSubscriptionOptions<EventType extends Event = Event> = {
+export type EventStoreDBSubscriptionOptions<
+  MessageType extends Message = Message,
+> = {
   from?: EventStoreDBEventStoreConsumerType;
   client: EventStoreDBClient;
   batchSize: number;
-  eachBatch: EventStoreDBEventStoreMessagesBatchHandler<EventType>;
+  eachBatch: BatchRecordedMessageHandlerWithoutContext<
+    MessageType,
+    EventStoreDBReadEventMetadata
+  >;
   resilience?: {
     resubscribeOptions?: AsyncRetryOptions;
   };
 };
 
 export type EventStoreDBSubscriptionStartFrom =
-  | { position: bigint }
+  | { lastCheckpoint: bigint }
   | 'BEGINNING'
   | 'END';
 
@@ -75,8 +69,8 @@ const toGlobalPosition = (startFrom: EventStoreDBSubscriptionStartFrom) =>
     : startFrom === 'END'
       ? END
       : {
-          prepare: startFrom.position,
-          commit: startFrom.position,
+          prepare: startFrom.lastCheckpoint,
+          commit: startFrom.lastCheckpoint,
         };
 
 const toStreamPosition = (startFrom: EventStoreDBSubscriptionStartFrom) =>
@@ -84,7 +78,7 @@ const toStreamPosition = (startFrom: EventStoreDBSubscriptionStartFrom) =>
     ? START
     : startFrom === 'END'
       ? END
-      : startFrom.position;
+      : startFrom.lastCheckpoint;
 
 const subscribe = (
   client: EventStoreDBClient,
@@ -116,18 +110,20 @@ export const EventStoreDBResubscribeDefaultOptions: AsyncRetryOptions = {
   shouldRetryError: (error) => !isDatabaseUnavailableError(error),
 };
 
-export const eventStoreDBSubscription = <EventType extends Event = Event>({
+export const eventStoreDBSubscription = <
+  MessageType extends AnyMessage = AnyMessage,
+>({
   client,
   from,
   //batchSize,
   eachBatch,
   resilience,
-}: EventStoreDBSubscriptionOptions<EventType>): EventStoreDBSubscription => {
+}: EventStoreDBSubscriptionOptions<MessageType>): EventStoreDBSubscription => {
   let isRunning = false;
 
   let start: Promise<void>;
 
-  let subscription: StreamSubscription<EventType>;
+  let subscription: StreamSubscription<MessageType>;
 
   const resubscribeOptions: AsyncRetryOptions =
     resilience?.resubscribeOptions ?? {
@@ -148,11 +144,11 @@ export const eventStoreDBSubscription = <EventType extends Event = Event>({
             subscription.on('data', async (resolvedEvent) => {
               if (!resolvedEvent.event) return;
 
-              const event = mapFromESDBEvent(
-                resolvedEvent.event as JSONRecordedEvent<EventType>,
+              const message = mapFromESDBEvent(
+                resolvedEvent.event as JSONRecordedEvent<MessageType>,
               );
 
-              const result = await eachBatch({ messages: [event] });
+              const result = await eachBatch([message]);
 
               if (result && result.type === 'STOP') {
                 isRunning = false;
