@@ -9,12 +9,14 @@ import {
   type AsyncRetryOptions,
   type BatchRecordedMessageHandlerWithoutContext,
   type DefaultRecord,
+  type GetCheckpoint,
   type InMemoryProcessor,
   type InMemoryProjectorOptions,
   type InMemoryReactorOptions,
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
+  type RecordedMessage,
 } from '@event-driven-io/emmett';
 import {
   EventStoreDBClient,
@@ -86,6 +88,13 @@ export type EventStoreDBEventStoreConsumer<
       }>
     : object);
 
+export const getStreamPositionAsCheckpoint = <
+  MessageType extends AnyMessage = AnyMessage,
+>(
+  message: RecordedMessage<MessageType, EventStoreDBReadEventMetadata>,
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
+): bigint => message.metadata.streamPosition;
+
 export const eventStoreDBEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
 >(
@@ -104,6 +113,13 @@ export const eventStoreDBEventStoreConsumer = <
       ? options.client
       : EventStoreDBClient.connectionString(options.connectionString);
 
+  const getCheckpoint:
+    | GetCheckpoint<ConsumerMessageType, EventStoreDBReadEventMetadata, bigint>
+    | undefined =
+    options.from?.stream && options.from.stream !== $all
+      ? getStreamPositionAsCheckpoint
+      : undefined;
+
   const eachBatch: BatchRecordedMessageHandlerWithoutContext<
     ConsumerMessageType,
     EventStoreDBReadEventMetadata
@@ -118,8 +134,9 @@ export const eventStoreDBEventStoreConsumer = <
 
     const result = await Promise.allSettled(
       activeProcessors.map((s) => {
-        // TODO: Add here filtering to only pass messages that can be handled by processor
-        return s.handle(messagesBatch, { client });
+        // TODO: Add here filtering to only pass messages that can be handled by
+        // TODO: Try to add typing for getCheckpoint
+        return s.handle(messagesBatch, { client, getCheckpoint });
       }),
     );
 

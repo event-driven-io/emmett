@@ -8,8 +8,8 @@ import {
   type ReadEventMetadataWithGlobalPosition,
   type SingleRecordedMessageHandlerWithContext,
 } from '../typing';
-import { isBigint } from '../validation';
 import {
+  getCheckpoint,
   MessageProcessor,
   projector,
   reactor,
@@ -76,10 +76,8 @@ export const inMemoryCheckpointer = <
         lastCheckpoint: checkpoint?.lastCheckpoint ?? null,
       });
     },
-    store: (
-      { processorId, lastCheckpoint, message: { metadata } },
-      { database },
-    ) => {
+    store: (context, { database }) => {
+      const { message, processorId, lastCheckpoint } = context;
       const checkpoints = database.collection<CheckpointDocument>(
         'emt_processor_checkpoints',
       );
@@ -87,13 +85,9 @@ export const inMemoryCheckpointer = <
       const checkpoint = checkpoints.findOne((d) => d._id === processorId);
 
       const currentPosition = checkpoint?.lastCheckpoint ?? null;
+
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const newCheckpoint: bigint =
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        'globalPosition' in metadata && isBigint(metadata.globalPosition)
-          ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            metadata.globalPosition
-          : null;
+      const newCheckpoint: bigint | null = getCheckpoint(message, context);
 
       if (
         currentPosition &&
@@ -164,7 +158,7 @@ const inMemoryProcessingScope = (options: {
         `InMemory processor '${options.processorId}' is missing database. Ensure that you passed it through options`,
       );
 
-    return handler({ database });
+    return handler({ ...partialContext, database });
   };
 
   return processingScope;
