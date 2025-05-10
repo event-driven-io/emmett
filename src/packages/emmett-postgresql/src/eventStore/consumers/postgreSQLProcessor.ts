@@ -11,6 +11,7 @@ import {
 } from '@event-driven-io/dumbo';
 import {
   EmmettError,
+  getCheckpoint,
   MessageProcessor,
   projector,
   reactor,
@@ -143,9 +144,11 @@ export const postgreSQLCheckpointer = <
     return { lastCheckpoint: result?.lastProcessedPosition };
   },
   store: async (options, context) => {
+    const newPosition: bigint | null = getCheckpoint(options.message, options);
+
     const result = await storeProcessorCheckpoint(context.execute, {
       lastProcessedPosition: options.lastCheckpoint,
-      newPosition: options.message.metadata.globalPosition,
+      newPosition,
       processorId: options.processorId,
       partition: options.partition,
       version: options.version,
@@ -224,6 +227,7 @@ const postgreSQLProcessingScope = (options: {
       const client =
         (await transaction.connection.open()) as NodePostgresClient;
       return handler({
+        ...partialContext,
         execute: transaction.execute,
         connection: {
           connectionString,

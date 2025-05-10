@@ -16,12 +16,69 @@ import {
   type SingleMessageHandlerWithContext,
   type SingleRecordedMessageHandlerWithContext,
 } from '../typing';
+import { isBigint } from '../validation';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type CurrentMessageProcessorPosition<CheckpointType = any> =
   | { lastCheckpoint: CheckpointType }
   | 'BEGINNING'
   | 'END';
+
+export type GetCheckpoint<
+  MessageType extends AnyMessage = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+> = (
+  message: RecordedMessage<MessageType, MessageMetadataType>,
+) => CheckpointType | null;
+
+export const contextualGetCheckpoint = <
+  MessageType extends AnyMessage = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+>(
+  context: DefaultRecord,
+):
+  | GetCheckpoint<MessageType, MessageMetadataType, CheckpointType>
+  | undefined =>
+  'getCheckpoint' in context &&
+  context.getCheckpoint &&
+  typeof context.getCheckpoint === 'function'
+    ? (context.getCheckpoint as GetCheckpoint<
+        MessageType,
+        MessageMetadataType,
+        CheckpointType
+      >)
+    : undefined;
+
+export const getCheckpoint = <
+  MessageType extends AnyMessage = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+>(
+  message: RecordedMessage<MessageType, MessageMetadataType>,
+  context: DefaultRecord,
+): CheckpointType | null => {
+  const getCheckpoint = contextualGetCheckpoint<
+    MessageType,
+    MessageMetadataType,
+    CheckpointType
+  >(context);
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return getCheckpoint
+    ? getCheckpoint(message)
+    : 'globalPosition' in message.metadata &&
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        isBigint(message.metadata.globalPosition)
+      ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        message.metadata.globalPosition
+      : 'streamPosition' in message.metadata &&
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          isBigint(message.metadata.streamPosition)
+        ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          message.metadata.streamPosition
+        : null;
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type MessageProcessorStartFrom<CheckpointType = any> =
@@ -223,6 +280,11 @@ export type StoreProcessorCheckpoint<
         version: number | undefined;
         lastCheckpoint: CheckpointType | null;
         partition?: string;
+        getCheckpoint?: GetCheckpoint<
+          MessageType,
+          MessageMetadataType,
+          CheckpointType
+        >;
       },
       context: HandlerContext,
     ) => Promise<StoreProcessorCheckpointResult<CheckpointType | null>>)
@@ -233,6 +295,11 @@ export type StoreProcessorCheckpoint<
         version: number | undefined;
         lastCheckpoint: CheckpointType | null;
         partition?: string;
+        getCheckpoint?: GetCheckpoint<
+          MessageType,
+          MessageMetadataType,
+          CheckpointType
+        >;
       },
       context: HandlerContext,
     ) => Promise<StoreProcessorCheckpointResult<CheckpointType>>);
@@ -337,6 +404,7 @@ export const reactor = <
                   message,
                   lastCheckpoint,
                   partition: options.partition,
+                  getCheckpoint: contextualGetCheckpoint(context),
                 },
                 context,
               );

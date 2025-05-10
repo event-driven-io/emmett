@@ -486,7 +486,7 @@ void describe('EventStoreDB event store started consumer', () => {
         },
       );
 
-      void it.skip(
+      void it(
         `handles only new events when CURRENT position is stored for a new consumer from ${displayName}`,
         withDeadline,
         async () => {

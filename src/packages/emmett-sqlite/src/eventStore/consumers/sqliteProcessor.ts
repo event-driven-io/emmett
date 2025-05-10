@@ -1,5 +1,6 @@
 import {
   EmmettError,
+  getCheckpoint,
   type Event,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -178,12 +179,17 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
             fileName,
           });
 
+          const newPosition: bigint | null = getCheckpoint(
+            typedMessage,
+            context,
+          );
+
           // TODO: Add correct handling of the storing checkpoint
           await storeProcessorCheckpoint(connection, {
             processorId: options.processorId,
             version: options.version,
             lastProcessedPosition,
-            newPosition: typedMessage.metadata.globalPosition,
+            newPosition,
             partition: options.partition,
           });
 
