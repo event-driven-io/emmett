@@ -16,7 +16,7 @@ import {
 } from './types';
 import { expectedVersionValue, operationResult } from './utils';
 
-export interface DocumentsCollection<T extends Document> {
+export interface InMemoryDocumentsCollection<T extends Document> {
   handle: (
     id: string,
     handle: DocumentHandler<T>,
@@ -35,14 +35,16 @@ export interface DocumentsCollection<T extends Document> {
   ) => Promise<UpdateResult>;
 }
 
-export interface Database {
-  collection: <T extends Document>(name: string) => DocumentsCollection<T>;
+export interface InMemoryDatabase {
+  collection: <T extends Document>(
+    name: string,
+  ) => InMemoryDocumentsCollection<T>;
 }
 
 type Predicate<T> = (item: T) => boolean;
 type CollectionName = string;
 
-export const getInMemoryDatabase = (): Database => {
+export const getInMemoryDatabase = (): InMemoryDatabase => {
   const storage = new Map<CollectionName, WithIdAndVersion<Document>[]>();
 
   return {
@@ -51,7 +53,7 @@ export const getInMemoryDatabase = (): Database => {
       collectionOptions: {
         errors?: DatabaseHandleOptionErrors;
       } = {},
-    ): DocumentsCollection<T> => {
+    ): InMemoryDocumentsCollection<T> => {
       const ensureCollectionCreated = () => {
         if (!storage.has(collectionName)) storage.set(collectionName, []);
       };

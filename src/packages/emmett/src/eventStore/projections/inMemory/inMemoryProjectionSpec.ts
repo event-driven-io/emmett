@@ -5,8 +5,8 @@ import {
 } from '.';
 import {
   getInMemoryDatabase,
-  type Database,
   type Document,
+  type InMemoryDatabase,
 } from '../../../database';
 import { isErrorConstructor } from '../../../errors';
 import {
@@ -50,7 +50,7 @@ export type InMemoryProjectionSpec<EventType extends Event> = (
 };
 
 export type InMemoryProjectionAssert = (options: {
-  database: Database;
+  database: InMemoryDatabase;
 }) => Promise<void | boolean>;
 
 export type InMemoryProjectionSpecOptions<EventType extends Event> = {
@@ -72,7 +72,7 @@ export const InMemoryProjectionSpec = {
           const allEvents: ReadEvent<EventType, InMemoryReadEventMetadata>[] =
             [];
 
-          const run = async (database: Database) => {
+          const run = async (database: InMemoryDatabase) => {
             let globalPosition = 0n;
             const numberOfTimes = options?.numberOfTimes ?? 1;
 
@@ -226,10 +226,10 @@ export function documentExists<T extends DocumentWithId>(
   expected: Partial<T>,
   options: { inCollection: string; withId: string | number },
 ): InMemoryProjectionAssert {
-  return ({ database }) => {
+  return async ({ database }) => {
     const collection = database.collection<T>(options.inCollection);
 
-    const document = collection.findOne((doc) => {
+    const document = await collection.findOne((doc) => {
       // Handle both string IDs and numeric IDs in a type-safe way
       const docId = '_id' in doc ? doc._id : undefined;
       return docId === options.withId;

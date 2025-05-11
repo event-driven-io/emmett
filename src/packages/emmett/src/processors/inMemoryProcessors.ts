@@ -1,4 +1,4 @@
-import { getInMemoryDatabase, type Database } from '../database';
+import { getInMemoryDatabase, type InMemoryDatabase } from '../database';
 import { EmmettError } from '../errors';
 import {
   type AnyEvent,
@@ -20,7 +20,7 @@ import {
 } from './processors';
 
 export type InMemoryProcessorHandlerContext = {
-  database: Database;
+  database: InMemoryDatabase;
 };
 
 export type InMemoryProcessor<MessageType extends AnyMessage = AnyMessage> =
@@ -29,7 +29,7 @@ export type InMemoryProcessor<MessageType extends AnyMessage = AnyMessage> =
     // TODO: generalize this to support other metadata types
     ReadEventMetadataWithGlobalPosition,
     InMemoryProcessorHandlerContext
-  > & { database: Database };
+  > & { database: InMemoryDatabase };
 
 export type InMemoryProcessorEachMessageHandler<
   MessageType extends AnyMessage = AnyMessage,
@@ -48,7 +48,7 @@ export type InMemoryProcessorEachBatchHandler<
 >;
 
 export type InMemoryProcessorConnectionOptions = {
-  database?: Database;
+  database?: InMemoryDatabase;
 };
 
 type CheckpointDocument = {
@@ -100,7 +100,7 @@ export const inMemoryCheckpointer = <
           reason: currentPosition === newCheckpoint ? 'IGNORED' : 'MISMATCH',
         });
 
-      checkpoints.handle(processorId, (existing) => ({
+      await checkpoints.handle(processorId, (existing) => ({
         ...(existing ?? {}),
         _id: processorId,
         lastCheckpoint: newCheckpoint,
@@ -139,7 +139,7 @@ export type InMemoryProcessorOptions<
   | InMemoryProjectorOptions<MessageType & AnyEvent>;
 
 const inMemoryProcessingScope = (options: {
-  database: Database | null;
+  database: InMemoryDatabase | null;
   processorId: string;
 }): MessageProcessingScope<InMemoryProcessorHandlerContext> => {
   const processorDatabase = options.database;

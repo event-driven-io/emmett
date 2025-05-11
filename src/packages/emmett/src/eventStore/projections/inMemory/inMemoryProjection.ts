@@ -1,4 +1,4 @@
-import type { Database } from '../../../database/inMemoryDatabase';
+import type { InMemoryDatabase } from '../../../database/inMemoryDatabase';
 import type {
   ProjectionDefinition,
   TruncateProjection,
@@ -23,7 +23,7 @@ export type InMemoryProjectionHandlerOptions<EventType extends Event = Event> =
   {
     projections: InMemoryProjectionDefinition<EventType>[];
     events: ReadEvent<EventType, InMemoryReadEventMetadata>[];
-    database: Database;
+    database: InMemoryDatabase;
     eventStore?: InMemoryProjectionHandlerContext['eventStore'];
   };
 
@@ -81,11 +81,11 @@ export type InMemoryDocumentEvolve<
 export type InMemoryProjectionOptions<EventType extends Event> = {
   handle: (
     events: ReadEvent<EventType, InMemoryReadEventMetadata>[],
-    context: InMemoryProjectionHandlerContext & { database: Database },
+    context: InMemoryProjectionHandlerContext & { database: InMemoryDatabase },
   ) => Promise<void>;
   canHandle: CanHandle<EventType>;
   truncate?: TruncateProjection<
-    InMemoryProjectionHandlerContext & { database: Database }
+    InMemoryProjectionHandlerContext & { database: InMemoryDatabase }
   >;
 };
 
@@ -158,28 +158,20 @@ export const inMemoryMultiStreamProjection = <
     ) => {
       const collection = database.collection<DocumentType>(collectionName);
 
-      // Process each event and wrap in a promise to properly use async/await
-      await Promise.all(
-        events.map((event) => {
-          return Promise.resolve(
-            collection.handle(getDocumentId(event), (document) => {
-              if ('initialState' in options) {
-                return options.evolve(
-                  document ?? options.initialState(),
-                  event,
-                );
-              } else {
-                return options.evolve(document, event);
-              }
-            }),
-          );
-        }),
-      );
+      for (const event of events) {
+        await collection.handle(getDocumentId(event), (document) => {
+          if ('initialState' in options) {
+            return options.evolve(document ?? options.initialState(), event);
+          } else {
+            return options.evolve(document, event);
+          }
+        });
+      }
     },
     canHandle,
     truncate: async ({
       database,
-    }: InMemoryProjectionHandlerContext & { database: Database }) => {
+    }: InMemoryProjectionHandlerContext & { database: InMemoryDatabase }) => {
       // For InMemory database, we can't directly truncate a collection
       // So we'll delete all documents from the collection
       const collection = database.collection<DocumentType>(collectionName);

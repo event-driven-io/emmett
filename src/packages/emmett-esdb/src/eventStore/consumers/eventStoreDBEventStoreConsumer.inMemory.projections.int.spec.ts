@@ -3,7 +3,7 @@ import {
   getInMemoryDatabase,
   inMemoryProjector,
   inMemorySingleStreamProjection,
-  type DocumentsCollection,
+  type InMemoryDocumentsCollection,
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import {
@@ -28,7 +28,7 @@ void describe('EventStoreDB event store started consumer', () => {
   let eventStoreDB: StartedEventStoreDBContainer;
   let connectionString: string;
   let eventStore: EventStoreDBEventStore;
-  let summaries: DocumentsCollection<ShoppingCartSummary>;
+  let summaries: InMemoryDocumentsCollection<ShoppingCartSummary>;
   const productItem = { price: 10, productId: uuid(), quantity: 10 };
   const confirmedAt = new Date();
   const database = getInMemoryDatabase();
@@ -84,7 +84,7 @@ void describe('EventStoreDB event store started consumer', () => {
         try {
           await consumer.start();
 
-          const summary = summaries.findOne((d) => d._id === streamName);
+          const summary = await summaries.findOne((d) => d._id === streamName);
 
           assertMatches(summary, {
             _id: streamName,
@@ -146,7 +146,7 @@ void describe('EventStoreDB event store started consumer', () => {
 
           await consumerPromise;
 
-          const summary = summaries.findOne((d) => d._id === streamName);
+          const summary = await summaries.findOne((d) => d._id === streamName);
 
           assertMatches(summary, {
             _id: streamName,
@@ -212,7 +212,7 @@ void describe('EventStoreDB event store started consumer', () => {
 
           await consumerPromise;
 
-          const summary = summaries.findOne((d) => d._id === streamName);
+          const summary = await summaries.findOne((d) => d._id === streamName);
 
           assertMatches(summary, {
             _id: streamName,
@@ -279,7 +279,7 @@ void describe('EventStoreDB event store started consumer', () => {
 
           await consumerPromise;
 
-          const summary = summaries.findOne((d) => d._id === streamName);
+          const summary = await summaries.findOne((d) => d._id === streamName);
 
           assertMatches(summary, {
             _id: streamName,
@@ -352,7 +352,7 @@ void describe('EventStoreDB event store started consumer', () => {
 
           await consumerPromise;
 
-          const summary = summaries.findOne((d) => d._id === streamName);
+          const summary = await summaries.findOne((d) => d._id === streamName);
 
           assertMatches(summary, {
             _id: streamName,
@@ -433,7 +433,7 @@ void describe('EventStoreDB event store started consumer', () => {
 
           await consumerPromise;
 
-          const summary = summaries.findOne((d) => d._id === streamName);
+          const summary = await summaries.findOne((d) => d._id === streamName);
 
           assertMatches(summary, {
             _id: streamName,
