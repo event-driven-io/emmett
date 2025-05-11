@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
+import { assertDeepEqual, assertEqual, assertOk } from '../testing';
 import { getInMemoryDatabase } from './inMemoryDatabase';
-import { deepStrictEqual, equal, ok } from 'node:assert';
 
 type TestUser = {
   name: string;
@@ -8,128 +8,128 @@ type TestUser = {
 };
 
 void describe('inMemoryDatabase', () => {
-  void it('should correctly insertOne document', () => {
+  void it('should correctly insertOne document', async () => {
     const db = getInMemoryDatabase();
 
     const collection = db.collection<TestUser>('test');
 
-    const result = collection.insertOne({ age: 10, name: 'test' });
+    const result = await collection.insertOne({ age: 10, name: 'test' });
 
-    ok(result.successful);
+    assertOk(result.successful);
   });
 
-  void it('should not allow inserting one with id that already is there', () => {
+  void it('should not allow inserting one with id that already is there', async () => {
     const db = getInMemoryDatabase();
 
     const collection = db.collection<TestUser>('test');
 
-    const result = collection.insertOne({ age: 10, name: 'test' });
+    const result = await collection.insertOne({ age: 10, name: 'test' });
 
-    const result2 = collection.insertOne({
+    const result2 = await collection.insertOne({
       age: 10,
       name: 'test',
       _id: result.insertedId!,
     });
 
-    equal(result2.successful, false);
+    assertEqual(result2.successful, false);
   });
 
-  void it('return first record found when using findOne without parameters', () => {
+  void it('return first record found when using findOne without parameters', async () => {
     const db = getInMemoryDatabase();
 
     const collection = db.collection<TestUser>('test');
 
-    collection.insertOne({ age: 10, name: 'test' });
-    collection.insertOne({ age: 15, name: 'test2' });
+    await collection.insertOne({ age: 10, name: 'test' });
+    await collection.insertOne({ age: 15, name: 'test2' });
 
-    const result = collection.findOne();
+    const result = await collection.findOne();
 
-    equal(result!.name, 'test');
+    assertEqual(result?.name, 'test');
   });
 
-  void it('should return the correct one found', () => {
+  void it('should return the correct one found', async () => {
     const db = getInMemoryDatabase();
 
     const collection = db.collection<TestUser>('test');
 
-    collection.insertOne({ age: 10, name: 'test' });
-    collection.insertOne({ age: 15, name: 'test2' });
+    await collection.insertOne({ age: 10, name: 'test' });
+    await collection.insertOne({ age: 15, name: 'test2' });
 
-    const result = collection.findOne((c) => c.age === 15);
+    const result = await collection.findOne((c) => c.age === 15);
 
-    equal(result!.name, 'test2');
+    assertEqual(result?.name, 'test2');
   });
 
-  void it('should return null when not found', () => {
+  void it('should return null when not found', async () => {
     const db = getInMemoryDatabase();
 
     const collection = db.collection<TestUser>('test');
 
-    collection.insertOne({ age: 10, name: 'test' });
-    collection.insertOne({ age: 15, name: 'test2' });
+    await collection.insertOne({ age: 10, name: 'test' });
+    await collection.insertOne({ age: 15, name: 'test2' });
 
-    const result = collection.findOne((c) => c.age === 20);
+    const result = await collection.findOne((c) => c.age === 20);
 
-    equal(result, null);
+    assertEqual(result, null);
   });
 
-  void it('should return empty array when find no results matching found', () => {
+  void it('should return empty array when find no results matching found', async () => {
     const db = getInMemoryDatabase();
 
     const collection = db.collection<TestUser>('test');
 
-    collection.insertOne({ age: 10, name: 'test' });
-    collection.insertOne({ age: 15, name: 'test2' });
+    await collection.insertOne({ age: 10, name: 'test' });
+    await collection.insertOne({ age: 15, name: 'test2' });
 
-    const result = collection.find((c) => c.age === 20);
+    const result = await collection.find((c) => c.age === 20);
 
-    equal(result.length, 0);
+    assertEqual(result.length, 0);
   });
 
-  void it('should return all results matching found', () => {
+  void it('should return all results matching found', async () => {
     const db = getInMemoryDatabase();
 
     const collection = db.collection<TestUser>('test');
 
-    collection.insertOne({ _id: 'test', age: 10, name: 'test' });
-    collection.insertOne({ _id: 'test2', age: 15, name: 'test2' });
-    collection.insertOne({ _id: 'test3', age: 20, name: 'test3' });
+    await collection.insertOne({ _id: 'test', age: 10, name: 'test' });
+    await collection.insertOne({ _id: 'test2', age: 15, name: 'test2' });
+    await collection.insertOne({ _id: 'test3', age: 20, name: 'test3' });
 
-    const result = collection.find((c) => c.age > 10);
+    const result = await collection.find((c) => c.age > 10);
 
-    deepStrictEqual(result, [
-      { _id: 'test2', _version: 1n, age: 15, name: 'test2' },
-      { _id: 'test3', _version: 1n, age: 20, name: 'test3' },
+    assertDeepEqual(result, [
+      { _id: 'test2', _version: 1n, age: 15, name: 'test2' } as TestUser,
+      { _id: 'test3', _version: 1n, age: 20, name: 'test3' } as TestUser,
     ]);
   });
 
-  void it('should correctly delete one', () => {
+  void it('should correctly delete one', async () => {
     const db = getInMemoryDatabase();
 
     const collection = db.collection<TestUser>('test');
 
-    collection.insertOne({ age: 10, name: 'test' });
-    collection.insertOne({ age: 15, name: 'test2' });
+    await collection.insertOne({ age: 10, name: 'test' });
+    await collection.insertOne({ age: 15, name: 'test2' });
 
-    const deleteResult = collection.deleteOne((c) => c.age === 15);
-    const found = collection.findOne((c) => c.age === 15);
+    const deleteResult = await collection.deleteOne((c) => c.age === 15);
+    const found = await collection.findOne((c) => c.age === 15);
 
-    equal(deleteResult.deletedCount, 1);
-    equal(found, null);
+    assertEqual(deleteResult.deletedCount, 1);
+    assertEqual(found, null);
   });
 
-  void it('should delete first one when no parameter passed to deleteOne', () => {
+  void it('should delete first one when no parameter passed to deleteOne', async () => {
     const db = getInMemoryDatabase();
 
     const collection = db.collection<TestUser>('test');
 
-    collection.insertOne({ age: 10, name: 'test' });
-    collection.insertOne({ age: 15, name: 'test2' });
+    await collection.insertOne({ age: 10, name: 'test' });
+    await collection.insertOne({ age: 15, name: 'test2' });
 
-    const deleteResult = collection.deleteOne();
-    const found = collection.findOne((c) => c.age === 10);
+    const deleteResult = await collection.deleteOne();
+    const found = await collection.findOne((c) => c.age === 10);
 
-    equal(deleteResult.deletedCount, 1);
-    equal(found, null);
+    assertEqual(deleteResult.deletedCount, 1);
+    assertEqual(found, null);
   });
 });

@@ -21,18 +21,18 @@ export interface DocumentsCollection<T extends Document> {
     id: string,
     handle: DocumentHandler<T>,
     options?: DatabaseHandleOptions,
-  ) => DatabaseHandleResult<T>;
-  findOne: (predicate?: Predicate<T>) => T | null;
-  find: (predicate?: Predicate<T>) => T[];
+  ) => Promise<DatabaseHandleResult<T>>;
+  findOne: (predicate?: Predicate<T>) => Promise<T | null>;
+  find: (predicate?: Predicate<T>) => Promise<T[]>;
   insertOne: (
     document: OptionalUnlessRequiredIdAndVersion<T>,
-  ) => InsertOneResult;
-  deleteOne: (predicate?: Predicate<T>) => DeleteResult;
+  ) => Promise<InsertOneResult>;
+  deleteOne: (predicate?: Predicate<T>) => Promise<DeleteResult>;
   replaceOne: (
     predicate: Predicate<T>,
     document: WithoutId<T>,
     options?: ReplaceOneOptions,
-  ) => UpdateResult;
+  ) => Promise<UpdateResult>;
 }
 
 export interface Database {
@@ -60,15 +60,15 @@ export const getInMemoryDatabase = (): Database => {
 
       const collection = {
         collectionName,
-        insertOne: (
+        insertOne: async (
           document: OptionalUnlessRequiredIdAndVersion<T>,
-        ): InsertOneResult => {
+        ): Promise<InsertOneResult> => {
           ensureCollectionCreated();
 
           const _id = (document._id as string | undefined | null) ?? uuid();
           const _version = document._version ?? 1n;
 
-          const existing = collection.findOne((c) => c._id === _id);
+          const existing = await collection.findOne((c) => c._id === _id);
 
           if (existing) {
             return operationResult<InsertOneResult>(
@@ -95,7 +95,7 @@ export const getInMemoryDatabase = (): Database => {
             { operationName: 'insertOne', collectionName, errors },
           );
         },
-        findOne: (predicate?: Predicate<T>): T | null => {
+        findOne: (predicate?: Predicate<T>): Promise<T | null> => {
           ensureCollectionCreated();
 
           const documentsInCollection = storage.get(collectionName);
@@ -105,9 +105,9 @@ export const getInMemoryDatabase = (): Database => {
 
           const firstOne = filteredDocuments?.[0] ?? null;
 
-          return firstOne as T | null;
+          return Promise.resolve(firstOne as T | null);
         },
-        find: (predicate?: Predicate<T>): T[] => {
+        find: (predicate?: Predicate<T>): Promise<T[]> => {
           ensureCollectionCreated();
 
           const documentsInCollection = storage.get(collectionName);
@@ -115,9 +115,9 @@ export const getInMemoryDatabase = (): Database => {
             ? documentsInCollection?.filter((doc) => predicate(doc as T))
             : documentsInCollection;
 
-          return filteredDocuments as T[];
+          return Promise.resolve(filteredDocuments as T[]);
         },
-        deleteOne: (predicate?: Predicate<T>): DeleteResult => {
+        deleteOne: (predicate?: Predicate<T>): Promise<DeleteResult> => {
           ensureCollectionCreated();
 
           const documentsInCollection = storage.get(collectionName)!;
@@ -128,13 +128,15 @@ export const getInMemoryDatabase = (): Database => {
             );
 
             if (foundIndex === -1) {
-              return operationResult<DeleteResult>(
-                {
-                  successful: false,
-                  matchedCount: 0,
-                  deletedCount: 0,
-                },
-                { operationName: 'deleteOne', collectionName, errors },
+              return Promise.resolve(
+                operationResult<DeleteResult>(
+                  {
+                    successful: false,
+                    matchedCount: 0,
+                    deletedCount: 0,
+                  },
+                  { operationName: 'deleteOne', collectionName, errors },
+                ),
               );
             } else {
               const newCollection = documentsInCollection.toSpliced(
@@ -144,13 +146,15 @@ export const getInMemoryDatabase = (): Database => {
 
               storage.set(collectionName, newCollection);
 
-              return operationResult<DeleteResult>(
-                {
-                  successful: true,
-                  matchedCount: 1,
-                  deletedCount: 1,
-                },
-                { operationName: 'deleteOne', collectionName, errors },
+              return Promise.resolve(
+                operationResult<DeleteResult>(
+                  {
+                    successful: true,
+                    matchedCount: 1,
+                    deletedCount: 1,
+                  },
+                  { operationName: 'deleteOne', collectionName, errors },
+                ),
               );
             }
           }
@@ -159,20 +163,22 @@ export const getInMemoryDatabase = (): Database => {
 
           storage.set(collectionName, newCollection);
 
-          return operationResult<DeleteResult>(
-            {
-              successful: true,
-              matchedCount: 1,
-              deletedCount: 1,
-            },
-            { operationName: 'deleteOne', collectionName, errors },
+          return Promise.resolve(
+            operationResult<DeleteResult>(
+              {
+                successful: true,
+                matchedCount: 1,
+                deletedCount: 1,
+              },
+              { operationName: 'deleteOne', collectionName, errors },
+            ),
           );
         },
         replaceOne: (
           predicate: Predicate<T>,
           document: WithoutId<T>,
           options?: ReplaceOneOptions,
-        ): UpdateResult => {
+        ): Promise<UpdateResult> => {
           ensureCollectionCreated();
 
           const documentsInCollection = storage.get(collectionName)!;
@@ -184,14 +190,16 @@ export const getInMemoryDatabase = (): Database => {
           const firstIndex = foundIndexes[0];
 
           if (firstIndex === undefined || firstIndex === -1) {
-            return operationResult<UpdateResult>(
-              {
-                successful: false,
-                matchedCount: 0,
-                modifiedCount: 0,
-                nextExpectedVersion: 0n,
-              },
-              { operationName: 'replaceOne', collectionName, errors },
+            return Promise.resolve(
+              operationResult<UpdateResult>(
+                {
+                  successful: false,
+                  matchedCount: 0,
+                  modifiedCount: 0,
+                  nextExpectedVersion: 0n,
+                },
+                { operationName: 'replaceOne', collectionName, errors },
+              ),
             );
           }
 
@@ -201,14 +209,16 @@ export const getInMemoryDatabase = (): Database => {
             typeof options?.expectedVersion === 'bigint' &&
             existing._version !== options.expectedVersion
           ) {
-            return operationResult<UpdateResult>(
-              {
-                successful: false,
-                matchedCount: 1,
-                modifiedCount: 0,
-                nextExpectedVersion: existing._version,
-              },
-              { operationName: 'replaceOne', collectionName, errors },
+            return Promise.resolve(
+              operationResult<UpdateResult>(
+                {
+                  successful: false,
+                  matchedCount: 1,
+                  modifiedCount: 0,
+                  nextExpectedVersion: existing._version,
+                },
+                { operationName: 'replaceOne', collectionName, errors },
+              ),
             );
           }
 
@@ -222,25 +232,27 @@ export const getInMemoryDatabase = (): Database => {
 
           storage.set(collectionName, newCollection);
 
-          return operationResult<UpdateResult>(
-            {
-              successful: true,
-              modifiedCount: 1,
-              matchedCount: foundIndexes.length,
-              nextExpectedVersion: newVersion,
-            },
-            { operationName: 'replaceOne', collectionName, errors },
+          return Promise.resolve(
+            operationResult<UpdateResult>(
+              {
+                successful: true,
+                modifiedCount: 1,
+                matchedCount: foundIndexes.length,
+                nextExpectedVersion: newVersion,
+              },
+              { operationName: 'replaceOne', collectionName, errors },
+            ),
           );
         },
-        handle: (
+        handle: async (
           id: string,
           handle: DocumentHandler<T>,
           options?: DatabaseHandleOptions,
-        ): DatabaseHandleResult<T> => {
+        ): Promise<DatabaseHandleResult<T>> => {
           const { expectedVersion: version, ...operationOptions } =
             options ?? {};
           ensureCollectionCreated();
-          const existing = collection.findOne(({ _id }) => _id === id);
+          const existing = await collection.findOne(({ _id }) => _id === id);
 
           const expectedVersion = expectedVersionValue(version);
 
@@ -274,7 +286,7 @@ export const getInMemoryDatabase = (): Database => {
 
           if (!existing && result) {
             const newDoc = { ...result, _id: id };
-            const insertResult = collection.insertOne({
+            const insertResult = await collection.insertOne({
               ...newDoc,
               _id: id,
             } as OptionalUnlessRequiredIdAndVersion<T>);
@@ -288,12 +300,14 @@ export const getInMemoryDatabase = (): Database => {
           }
 
           if (existing && !result) {
-            const deleteResult = collection.deleteOne(({ _id }) => id === _id);
+            const deleteResult = await collection.deleteOne(
+              ({ _id }) => id === _id,
+            );
             return { ...deleteResult, document: null };
           }
 
           if (existing && result) {
-            const replaceResult = collection.replaceOne(
+            const replaceResult = await collection.replaceOne(
               ({ _id }) => id === _id,
               result,
               {
