@@ -1,7 +1,7 @@
 import { deepStrictEqual, equal, ok } from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 import {
-  type DocumentsCollection,
+  type InMemoryDocumentsCollection,
   getInMemoryDatabase,
 } from './inMemoryDatabase';
 
@@ -23,7 +23,7 @@ type User = {
 };
 
 void describe('InMemoryDatabase Handle Operations', () => {
-  let users: DocumentsCollection<User>;
+  let users: InMemoryDocumentsCollection<User>;
 
   beforeEach(() => {
     const db = getInMemoryDatabase();

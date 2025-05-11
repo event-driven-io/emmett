@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import {
   getInMemoryDatabase,
-  type Database,
+  type InMemoryDatabase,
 } from '../database/inMemoryDatabase';
 import type { ProjectionRegistration } from '../projections';
 import type {
@@ -30,14 +30,14 @@ export const InMemoryEventStoreDefaultStreamVersion = 0n;
 
 export type InMemoryEventStore =
   EventStore<ReadEventMetadataWithGlobalPosition> & {
-    database: Database;
+    database: InMemoryDatabase;
   };
 
 export type InMemoryReadEventMetadata = ReadEventMetadataWithGlobalPosition;
 
 export type InMemoryProjectionHandlerContext = {
   eventStore?: InMemoryEventStore;
-  database?: Database;
+  database?: InMemoryDatabase;
 };
 
 export type InMemoryEventStoreOptions =
@@ -47,7 +47,7 @@ export type InMemoryEventStoreOptions =
       InMemoryReadEventMetadata,
       InMemoryProjectionHandlerContext
     >[];
-    database?: Database;
+    database?: InMemoryDatabase;
   };
 
 export type InMemoryReadEvent<EventType extends Event = Event> = ReadEvent<
