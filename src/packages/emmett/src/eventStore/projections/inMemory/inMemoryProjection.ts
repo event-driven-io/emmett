@@ -177,24 +177,20 @@ export const inMemoryMultiStreamProjection = <
       );
     },
     canHandle,
-    truncate: ({
+    truncate: async ({
       database,
     }: InMemoryProjectionHandlerContext & { database: Database }) => {
-      return new Promise<void>((resolve) => {
-        // For InMemory database, we can't directly truncate a collection
-        // So we'll delete all documents from the collection
-        const collection = database.collection<DocumentType>(collectionName);
-        const documents = collection.find();
+      // For InMemory database, we can't directly truncate a collection
+      // So we'll delete all documents from the collection
+      const collection = database.collection<DocumentType>(collectionName);
+      const documents = await collection.find();
 
-        for (const doc of documents) {
-          if (doc && '_id' in doc) {
-            const id = doc._id;
-            collection.deleteOne((d) => d._id === id);
-          }
+      for (const doc of documents) {
+        if (doc && '_id' in doc) {
+          const id = doc._id;
+          await collection.deleteOne((d) => d._id === id);
         }
-
-        resolve();
-      });
+      }
     },
   });
 };

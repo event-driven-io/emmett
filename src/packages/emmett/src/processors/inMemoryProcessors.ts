@@ -67,8 +67,8 @@ export const inMemoryCheckpointer = <
   MessageType extends AnyMessage = AnyMessage,
 >(): InMemoryCheckpointer<MessageType> => {
   return {
-    read: ({ processorId }, { database }) => {
-      const checkpoint = database
+    read: async ({ processorId }, { database }) => {
+      const checkpoint = await database
         .collection<CheckpointDocument>('emt_processor_checkpoints')
         .findOne((d) => d._id === processorId);
 
@@ -76,17 +76,18 @@ export const inMemoryCheckpointer = <
         lastCheckpoint: checkpoint?.lastCheckpoint ?? null,
       });
     },
-    store: (context, { database }) => {
+    store: async (context, { database }) => {
       const { message, processorId, lastCheckpoint } = context;
       const checkpoints = database.collection<CheckpointDocument>(
         'emt_processor_checkpoints',
       );
 
-      const checkpoint = checkpoints.findOne((d) => d._id === processorId);
+      const checkpoint = await checkpoints.findOne(
+        (d) => d._id === processorId,
+      );
 
       const currentPosition = checkpoint?.lastCheckpoint ?? null;
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const newCheckpoint: bigint | null = getCheckpoint(message, context);
 
       if (
