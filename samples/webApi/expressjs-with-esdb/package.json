@@ -38,10 +38,10 @@
   },
   "homepage": "https://github.com/event-driven-io/emmett#readme",
   "dependencies": {
-    "@event-driven-io/emmett": "0.38.0-alpha.7",
-    "@event-driven-io/emmett-esdb": "0.38.0-alpha.7",
-    "@event-driven-io/emmett-expressjs": "0.38.0-alpha.7",
-    "@event-driven-io/emmett-testcontainers": "0.38.0-alpha.7"
+    "@event-driven-io/emmett": "0.38.0",
+    "@event-driven-io/emmett-esdb": "0.38.0",
+    "@event-driven-io/emmett-expressjs": "0.38.0",
+    "@event-driven-io/emmett-testcontainers": "0.38.0"
   },
   "devDependencies": {
     "@types/node": "20.11.30",
