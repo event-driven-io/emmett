@@ -11,7 +11,7 @@ import {
   type StartedMongoDBContainer,
 } from '@testcontainers/mongodb';
 import { MongoClient, type Collection } from 'mongodb';
-import { after, before, describe, it } from 'node:test';
+import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
   getMongoDBEventStore,
@@ -22,6 +22,7 @@ import {
   type MongoDBEventStore,
 } from '../';
 import {
+  type DeletedShoppingCart,
   type DiscountApplied,
   type PricedProductItem,
   type ProductItemAdded,
@@ -73,6 +74,10 @@ void describe('MongoDBEventStore', () => {
     } catch (error) {
       console.log(error);
     }
+  });
+
+  beforeEach(async () => {
+    await collection.deleteMany({});
   });
 
   void it('should append events and add projection using appendEvent function', async () => {
@@ -529,6 +534,72 @@ void describe('MongoDBEventStore', () => {
 
     assertEqual(projectionsCount, numberOfProjections);
   });
+
+  void it('should return the total count of projections and ignore any null, default projections using projections.inline.count', async () => {
+    const numberOfNonDeletedProjections = 100;
+    const nonDeletedShoppingCartIds = Array.from({
+      length: numberOfNonDeletedProjections,
+    })
+      .map(() => uuid())
+      .sort();
+    const nonDeletedStreamNames = nonDeletedShoppingCartIds.map((id) =>
+      toStreamName(streamType, id),
+    );
+
+    const numberOfDeletedProjections = 100;
+    const deletedShoppingCartIds = Array.from({
+      length: numberOfDeletedProjections,
+    })
+      .map(() => uuid())
+      .sort();
+    const deletedStreamNames = deletedShoppingCartIds.map((id) =>
+      toStreamName(streamType, id),
+    );
+
+    const nonDeletedEvents: ShoppingCartEvent[] = [
+      { type: 'ProductItemAdded', data: { productItem } },
+      { type: 'ProductItemAdded', data: { productItem } },
+      {
+        type: 'DiscountApplied',
+        data: { percent: discount, couponId: uuid() },
+      },
+    ];
+
+    const deletedEvents: ShoppingCartEvent[] = [
+      { type: 'ProductItemAdded', data: { productItem } },
+      {
+        type: 'DeletedShoppingCart',
+        data: {
+          deletedAt: new Date(),
+          reason: 'User requested deletion',
+        },
+      },
+    ];
+
+    for (const streamName of nonDeletedStreamNames) {
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        streamName,
+        nonDeletedEvents,
+        { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+      );
+    }
+
+    for (const streamName of deletedStreamNames) {
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        streamName,
+        deletedEvents,
+        { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+      );
+    }
+
+    const projectionsCount =
+      await eventStore.projections.inline.count<ShoppingCartShortInfo>(
+        { streamType },
+        {},
+      );
+
+    assertEqual(numberOfNonDeletedProjections, projectionsCount);
+  });
 });
 
 type ShoppingCartShortInfo = {
@@ -538,24 +609,26 @@ type ShoppingCartShortInfo = {
 
 const evolve = (
   document: ShoppingCartShortInfo | null,
-  { type, data: event }: ProductItemAdded | DiscountApplied,
+  event: ProductItemAdded | DiscountApplied | DeletedShoppingCart,
 ): ShoppingCartShortInfo | null => {
   document = document ?? { productItemsCount: 0, totalAmount: 0 };
 
-  switch (type) {
+  switch (event.type) {
     case 'ProductItemAdded':
       return {
         totalAmount:
           document.totalAmount +
-          event.productItem.price * event.productItem.quantity,
+          event.data.productItem.price * event.data.productItem.quantity,
         productItemsCount:
-          document.productItemsCount + event.productItem.quantity,
+          document.productItemsCount + event.data.productItem.quantity,
       };
     case 'DiscountApplied':
       return {
         ...document,
-        totalAmount: (document.totalAmount * (100 - event.percent)) / 100,
+        totalAmount: (document.totalAmount * (100 - event.data.percent)) / 100,
       };
+    case 'DeletedShoppingCart':
+      return null;
     default:
       return document;
   }
