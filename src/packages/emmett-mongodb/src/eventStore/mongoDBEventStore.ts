@@ -486,7 +486,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     >(projectionQuery, prefix);
 
     const filters: Filter<EventStream>[] = [
-      { [`projections.${projectionName}`]: { $exists: true } },
+      { [`projections.${projectionName}`]: { $ne: null } },
     ];
 
     if (projectionFilter) {
@@ -549,7 +549,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     >(projectionQuery, prefix);
 
     const filters: Filter<EventStream>[] = [
-      { [`projections.${projectionName}`]: { $exists: true } },
+      { [`projections.${projectionName}`]: { $ne: null } },
     ];
 
     if (projectionFilter) {
