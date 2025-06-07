@@ -11,7 +11,6 @@ import {
   EventStoreDBClient,
   excludeSystemEvents,
   START,
-  type JSONRecordedEvent,
   type StreamSubscription,
 } from '@eventstore/db-client';
 import { finished, Readable } from 'stream';
@@ -144,9 +143,7 @@ export const eventStoreDBSubscription = <
             subscription.on('data', async (resolvedEvent) => {
               if (!resolvedEvent.event) return;
 
-              const message = mapFromESDBEvent(
-                resolvedEvent.event as JSONRecordedEvent<MessageType>,
-              );
+              const message = mapFromESDBEvent(resolvedEvent, from);
 
               const result = await eachBatch([message]);
 
@@ -163,7 +160,11 @@ export const eventStoreDBSubscription = <
                     ? {
                         fromPosition: resolvedEvent.event.position,
                       }
-                    : { fromRevision: resolvedEvent.event.revision }),
+                    : {
+                        fromRevision:
+                          resolvedEvent.link?.revision ??
+                          resolvedEvent.event.revision,
+                      }),
                 },
               };
             }) as unknown as Readable,
