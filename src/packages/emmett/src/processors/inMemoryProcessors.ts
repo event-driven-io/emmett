@@ -88,7 +88,7 @@ export const inMemoryCheckpointer = <
 
       const currentPosition = checkpoint?.lastCheckpoint ?? null;
 
-      const newCheckpoint: bigint | null = getCheckpoint(message, context);
+      const newCheckpoint: bigint | null = getCheckpoint(message);
 
       if (
         currentPosition &&

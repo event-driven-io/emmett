@@ -179,10 +179,7 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
             fileName,
           });
 
-          const newPosition: bigint | null = getCheckpoint(
-            typedMessage,
-            context,
-          );
+          const newPosition: bigint | null = getCheckpoint(typedMessage);
 
           // TODO: Add correct handling of the storing checkpoint
           await storeProcessorCheckpoint(connection, {

@@ -28,12 +28,14 @@ import {
   jsonEvent,
   type AppendExpectedRevision,
   type ReadStreamOptions as ESDBReadStreamOptions,
-  type JSONRecordedEvent,
+  type ResolvedEvent,
 } from '@eventstore/db-client';
 import {
+  $all,
   eventStoreDBEventStoreConsumer,
   type EventStoreDBEventStoreConsumer,
   type EventStoreDBEventStoreConsumerConfig,
+  type EventStoreDBEventStoreConsumerType,
 } from './consumers';
 
 const toEventStoreDBReadOptions = (
@@ -95,13 +97,14 @@ export const getEventStoreDBEventStore = (
       let lastEventGlobalPosition: bigint | undefined = undefined;
 
       try {
-        for await (const { event } of eventStore.readStream<EventType>(
+        for await (const resolvedEvent of eventStore.readStream<EventType>(
           streamName,
           toEventStoreDBReadOptions(options.read),
         )) {
+          const { event } = resolvedEvent;
           if (!event) continue;
 
-          state = evolve(state, mapFromESDBEvent<EventType>(event));
+          state = evolve(state, mapFromESDBEvent<EventType>(resolvedEvent));
           currentStreamVersion = event.revision;
           lastEventGlobalPosition = event.position?.commit;
         }
@@ -147,12 +150,13 @@ export const getEventStoreDBEventStore = (
         EventStoreDBEventStoreDefaultStreamVersion;
 
       try {
-        for await (const { event } of eventStore.readStream<EventType>(
+        for await (const resolvedEvent of eventStore.readStream<EventType>(
           streamName,
           toEventStoreDBReadOptions(options),
         )) {
+          const { event } = resolvedEvent;
           if (!event) continue;
-          events.push(mapFromESDBEvent(event));
+          events.push(mapFromESDBEvent(resolvedEvent));
           currentStreamVersion = event.revision;
         }
         return {
@@ -224,9 +228,21 @@ export const getEventStoreDBEventStore = (
   };
 };
 
+const getCheckpoint = <MessageType extends AnyMessage = AnyMessage>(
+  resolvedEvent: ResolvedEvent<MessageType>,
+  from?: EventStoreDBEventStoreConsumerType,
+): bigint => {
+  return !from || from?.stream === $all
+    ? (resolvedEvent.link?.position?.commit ??
+        resolvedEvent.event?.position?.commit)!
+    : (resolvedEvent.link?.revision ?? resolvedEvent.event!.revision);
+};
+
 export const mapFromESDBEvent = <MessageType extends AnyMessage = AnyMessage>(
-  event: JSONRecordedEvent<MessageType>,
+  resolvedEvent: ResolvedEvent<MessageType>,
+  from?: EventStoreDBEventStoreConsumerType,
 ): RecordedMessage<MessageType, EventStoreDBReadEventMetadata> => {
+  const event = resolvedEvent.event!;
   return <RecordedMessage<MessageType, EventStoreDBReadEventMetadata>>{
     type: event.type,
     data: event.data,
@@ -237,6 +253,7 @@ export const mapFromESDBEvent = <MessageType extends AnyMessage = AnyMessage>(
       streamName: event.streamId,
       streamPosition: event.revision,
       globalPosition: event.position!.commit,
+      checkpoint: getCheckpoint(resolvedEvent, from),
     },
   };
 };

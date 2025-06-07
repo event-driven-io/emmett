@@ -3,6 +3,7 @@ import {
   getInMemoryDatabase,
   type Event,
   type InMemoryReactorOptions,
+  type RecordedMessage,
 } from '@event-driven-io/emmett';
 import {
   EventStoreDBContainer,
@@ -48,9 +49,134 @@ void describe('EventStoreDB event store started consumer', () => {
   ][] = [
     ['all', () => ({ stream: $all })],
     ['stream', (streamName) => ({ stream: streamName })],
+    [
+      'category',
+      () => ({ stream: '$ce-guestStay', options: { resolveLinkTos: true } }),
+    ],
   ];
 
   void describe('eachMessage', () => {
+    void it(
+      `handles all events from $ce stream for subscription to stream`,
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${otherGuestId}`;
+        const otherStreamName = `guestStay-${guestId}`;
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, events);
+        const appendResult = await eventStore.appendToStream(
+          otherStreamName,
+          events,
+        );
+
+        const result: RecordedMessage<GuestStayEvent>[] = [];
+
+        // When
+        const consumer = eventStoreDBEventStoreConsumer({
+          connectionString,
+          from: { stream: '$ce-guestStay', options: { resolveLinkTos: true } },
+        });
+
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          stopAfter: (event) =>
+            event.metadata.globalPosition ===
+            appendResult.lastEventGlobalPosition,
+          eachMessage: (event) => {
+            if (
+              event.metadata.streamName === streamName ||
+              event.metadata.streamName === otherStreamName
+            )
+              result.push(event);
+          },
+        });
+
+        try {
+          await consumer.start();
+
+          const expectedEvents: RecordedMessage<GuestStayEvent>[] = [
+            ...events,
+            ...events,
+          ].map(
+            (e, i) =>
+              ({
+                ...e,
+                metadata: {
+                  checkpoint: BigInt(i),
+                },
+              }) as unknown as RecordedMessage<GuestStayEvent>,
+          );
+
+          assertThatArray(result).hasSize(expectedEvents.length);
+          assertThatArray(result).containsElementsMatching(expectedEvents);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
+    void it(
+      `handles all events from $ce streams for subscription to stream`,
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${otherGuestId}`;
+        const otherStreamName = `guestStay-${guestId}`;
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, events);
+        const appendResult = await eventStore.appendToStream(
+          otherStreamName,
+          events,
+        );
+
+        const result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = eventStoreDBEventStoreConsumer({
+          connectionString,
+          from: { stream: $all },
+        });
+
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          stopAfter: (event) =>
+            event.metadata.globalPosition ===
+            appendResult.lastEventGlobalPosition,
+          eachMessage: (event) => {
+            if (
+              event.metadata.streamName === streamName ||
+              event.metadata.streamName === otherStreamName
+            )
+              result.push(event);
+          },
+        });
+
+        try {
+          await consumer.start();
+
+          assertThatArray(result).hasSize(events.length * 2);
+
+          assertThatArray(result).containsElementsMatching([
+            ...events,
+            ...events,
+          ]);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
     void it(
       `handles ONLY events from single streams for subscription to stream`,
       withDeadline,
