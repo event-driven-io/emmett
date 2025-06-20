@@ -1,5 +1,6 @@
 import {
   asyncRetry,
+  getCheckpoint,
   type AnyMessage,
   type AsyncRetryOptions,
   type BatchRecordedMessageHandlerWithoutContext,
@@ -11,9 +12,10 @@ import {
   EventStoreDBClient,
   excludeSystemEvents,
   START,
+  type ResolvedEvent,
   type StreamSubscription,
 } from '@eventstore/db-client';
-import { finished, Readable } from 'stream';
+import { finished, Readable, Writable, type WritableOptions } from 'stream';
 import {
   mapFromESDBEvent,
   type EventStoreDBReadEventMetadata,
@@ -86,13 +88,13 @@ const subscribe = (
 ) =>
   from == undefined || from.stream == $all
     ? client.subscribeToAll({
+        ...(from?.options ?? {}),
         fromPosition: toGlobalPosition(options.startFrom),
         filter: excludeSystemEvents(),
-        ...(from?.options ?? {}),
       })
     : client.subscribeToStream(from.stream, {
-        fromRevision: toStreamPosition(options.startFrom),
         ...(from.options ?? {}),
+        fromRevision: toStreamPosition(options.startFrom),
       });
 
 export const isDatabaseUnavailableError = (error: unknown) =>
@@ -109,12 +111,61 @@ export const EventStoreDBResubscribeDefaultOptions: AsyncRetryOptions = {
   shouldRetryError: (error) => !isDatabaseUnavailableError(error),
 };
 
+type SubscriptionSequentialHandlerOptions<
+  MessageType extends AnyMessage = AnyMessage,
+> = EventStoreDBSubscriptionOptions<MessageType> &
+  WritableOptions & {
+    onStop: () => Promise<void>;
+  };
+
+class SubscriptionSequentialHandler<
+  MessageType extends AnyMessage = AnyMessage,
+> extends Writable {
+  private options: SubscriptionSequentialHandlerOptions<MessageType>;
+  public lastCheckpoint: bigint | undefined;
+  private from: EventStoreDBEventStoreConsumerType | undefined;
+
+  constructor(options: SubscriptionSequentialHandlerOptions<MessageType>) {
+    super({ objectMode: true, ...options });
+    this.options = options;
+    this.from = options.from;
+  }
+
+  async _write(
+    resolvedEvent: ResolvedEvent<MessageType>,
+    _encoding: BufferEncoding,
+    callback: (error?: Error | null) => void,
+  ): Promise<void> {
+    try {
+      if (!resolvedEvent.event) return;
+
+      const message = mapFromESDBEvent(resolvedEvent, this.from);
+      const messageCheckpoint = getCheckpoint(message);
+
+      const result = await this.options.eachBatch([message]);
+
+      if (result && result.type === 'STOP') {
+        await this.options.onStop();
+
+        callback();
+        return;
+      }
+
+      this.lastCheckpoint = messageCheckpoint!;
+
+      callback();
+    } catch (error) {
+      callback(error as Error);
+    }
+  }
+}
+
 export const eventStoreDBSubscription = <
   MessageType extends AnyMessage = AnyMessage,
 >({
   client,
   from,
-  //batchSize,
+  batchSize,
   eachBatch,
   resilience,
 }: EventStoreDBSubscriptionOptions<MessageType>): EventStoreDBSubscription => {
@@ -123,6 +174,7 @@ export const eventStoreDBSubscription = <
   let start: Promise<void>;
 
   let subscription: StreamSubscription<MessageType>;
+  let processor: SubscriptionSequentialHandler<MessageType>;
 
   const resubscribeOptions: AsyncRetryOptions =
     resilience?.resubscribeOptions ?? {
@@ -134,50 +186,61 @@ export const eventStoreDBSubscription = <
     };
 
   const pipeMessages = (options: EventStoreDBSubscriptionStartOptions) => {
-    subscription = subscribe(client, from, options);
-
     return asyncRetry(
       () =>
         new Promise<void>((resolve, reject) => {
-          finished(
-            subscription.on('data', async (resolvedEvent) => {
-              if (!resolvedEvent.event) return;
+          subscription = subscribe(client, from, options);
 
-              const message = mapFromESDBEvent(resolvedEvent, from);
+          processor = new SubscriptionSequentialHandler({
+            client,
+            from,
+            batchSize,
+            eachBatch,
+            resilience,
+            onStop: async () => {
+              if (processor.lastCheckpoint)
+                options.startFrom = {
+                  lastCheckpoint: processor.lastCheckpoint,
+                };
 
-              const result = await eachBatch([message]);
-
-              if (result && result.type === 'STOP') {
-                isRunning = false;
-                await subscription.unsubscribe();
-              }
-
-              from = {
-                stream: from?.stream ?? $all,
-                options: {
-                  ...(from?.options ?? {}),
-                  ...(!from || from?.stream === $all
-                    ? {
-                        fromPosition: resolvedEvent.event.position,
-                      }
-                    : {
-                        fromRevision:
-                          resolvedEvent.link?.revision ??
-                          resolvedEvent.event.revision,
-                      }),
-                },
-              };
-            }) as unknown as Readable,
-            (error) => {
-              if (error) {
-                console.error(`Received error: ${JSON.stringify(error)}.`);
-                reject(error);
-                return;
-              }
-              console.info(`Stopping subscription.`);
-              resolve();
+              isRunning = false;
+              await subscription.unsubscribe();
             },
-          );
+          });
+
+          processor.on('error', (error) => {
+            console.error(`Processor error: ${error}`);
+            reject(error);
+          });
+
+          subscription.pipe(processor);
+
+          finished(subscription as unknown as Readable, (error) => {
+            console.info(`Stopping subscription.`);
+            if (processor.lastCheckpoint)
+              options.startFrom = { lastCheckpoint: processor.lastCheckpoint };
+
+            if (!error) {
+              resolve();
+              return;
+            }
+
+            try {
+              subscription
+                .unsubscribe()
+                .catch((error) => {
+                  console.error('Error during unsubscribe.%s', error);
+                  // Ignore errors during end
+                })
+                .finally(() => {
+                  console.error(`Received error: ${JSON.stringify(error)}.`);
+                  reject(error);
+                });
+              //processor.end();
+            } catch {
+              // Ignore errors during end
+            }
+          });
         }),
       resubscribeOptions,
     );
@@ -202,6 +265,7 @@ export const eventStoreDBSubscription = <
       if (!isRunning) return;
       isRunning = false;
       await subscription?.unsubscribe();
+      processor.end();
       await start;
     },
   };
