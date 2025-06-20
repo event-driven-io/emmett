@@ -29,6 +29,7 @@ export const asyncRetry = async <T>(
       } catch (error) {
         if (opts?.shouldRetryError && !opts.shouldRetryError(error)) {
           bail(error as Error);
+          return undefined as unknown as T;
         }
         throw error;
       }

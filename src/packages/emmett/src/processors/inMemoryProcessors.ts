@@ -94,11 +94,12 @@ export const inMemoryCheckpointer = <
         currentPosition &&
         (currentPosition === newCheckpoint ||
           currentPosition !== lastCheckpoint)
-      )
-        return Promise.resolve({
+      ) {
+        return {
           success: false,
           reason: currentPosition === newCheckpoint ? 'IGNORED' : 'MISMATCH',
-        });
+        };
+      }
 
       await checkpoints.handle(processorId, (existing) => ({
         ...(existing ?? {}),
@@ -106,7 +107,7 @@ export const inMemoryCheckpointer = <
         lastCheckpoint: newCheckpoint,
       }));
 
-      return Promise.resolve({ success: true, newCheckpoint });
+      return { success: true, newCheckpoint };
     },
   };
 };

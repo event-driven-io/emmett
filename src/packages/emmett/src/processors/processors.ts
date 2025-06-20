@@ -58,6 +58,27 @@ export const getCheckpoint = <
         : null;
 };
 
+export const wasMessageHandled = <
+  MessageType extends AnyMessage = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+>(
+  message: RecordedMessage<MessageType, MessageMetadataType>,
+  checkpoint: CheckpointType | null,
+): boolean => {
+  //TODO Make it smarter
+  const messageCheckpoint = getCheckpoint(message);
+  const checkpointBigint = checkpoint as bigint | null;
+
+  return (
+    messageCheckpoint !== null &&
+    messageCheckpoint !== undefined &&
+    checkpointBigint !== null &&
+    checkpointBigint !== undefined &&
+    messageCheckpoint <= checkpointBigint
+  );
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type MessageProcessorStartFrom<CheckpointType = any> =
   | CurrentMessageProcessorPosition<CheckpointType>
@@ -361,6 +382,8 @@ export const reactor = <
         let result: MessageHandlerResult = undefined;
 
         for (const message of messages) {
+          if (wasMessageHandled(message, lastCheckpoint)) continue;
+
           const messageProcessingResult = await eachMessage(message, context);
 
           if (checkpoints) {
@@ -376,7 +399,7 @@ export const reactor = <
                 context,
               );
 
-            if (storeCheckpointResult && storeCheckpointResult.success) {
+            if (storeCheckpointResult.success) {
               // TODO: Add correct handling of the storing checkpoint
               lastCheckpoint = storeCheckpointResult.newCheckpoint;
             }

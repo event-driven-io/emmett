@@ -185,11 +185,9 @@ export const getInMemoryDatabase = (): InMemoryDatabase => {
 
           const documentsInCollection = storage.get(collectionName)!;
 
-          const foundIndexes = documentsInCollection
-            .filter((doc) => predicate(doc as T))
-            .map((_, index) => index);
-
-          const firstIndex = foundIndexes[0];
+          const firstIndex = documentsInCollection.findIndex((doc) =>
+            predicate(doc as T),
+          );
 
           if (firstIndex === undefined || firstIndex === -1) {
             return Promise.resolve(
@@ -239,7 +237,7 @@ export const getInMemoryDatabase = (): InMemoryDatabase => {
               {
                 successful: true,
                 modifiedCount: 1,
-                matchedCount: foundIndexes.length,
+                matchedCount: firstIndex,
                 nextExpectedVersion: newVersion,
               },
               { operationName: 'replaceOne', collectionName, errors },
