@@ -15,7 +15,8 @@ import {
   type ResolvedEvent,
   type StreamSubscription,
 } from '@eventstore/db-client';
-import { finished, Readable, Writable, type WritableOptions } from 'stream';
+import { pipeline, Writable, type WritableOptions } from 'stream';
+import { promisify } from 'util';
 import {
   mapFromESDBEvent,
   type EventStoreDBReadEventMetadata,
@@ -24,6 +25,8 @@ import {
   $all,
   type EventStoreDBEventStoreConsumerType,
 } from '../eventStoreDBEventStoreConsumer';
+
+const asyncPipeline = promisify(pipeline);
 
 export const DefaultEventStoreDBEventStoreProcessorBatchSize = 100;
 export const DefaultEventStoreDBEventStoreProcessorPullingFrequencyInMs = 50;
@@ -213,34 +216,38 @@ export const eventStoreDBSubscription = <
             reject(error);
           });
 
-          subscription.pipe(processor);
+          asyncPipeline(subscription, processor)
+            .then(() => {
+              if (processor.lastCheckpoint)
+                options.startFrom = {
+                  lastCheckpoint: processor.lastCheckpoint,
+                };
 
-          finished(subscription as unknown as Readable, (error) => {
-            console.info(`Stopping subscription.`);
-            if (processor.lastCheckpoint)
-              options.startFrom = { lastCheckpoint: processor.lastCheckpoint };
-
-            if (!error) {
               resolve();
-              return;
-            }
+            })
+            .catch((error) => {
+              console.info(`Stopping subscription.`);
+              if (processor.lastCheckpoint)
+                options.startFrom = {
+                  lastCheckpoint: processor.lastCheckpoint,
+                };
 
-            try {
-              subscription
-                .unsubscribe()
-                .catch((error) => {
-                  console.error('Error during unsubscribe.%s', error);
-                  // Ignore errors during end
-                })
-                .finally(() => {
-                  console.error(`Received error: ${JSON.stringify(error)}.`);
-                  reject(error);
-                });
-              //processor.end();
-            } catch {
-              // Ignore errors during end
-            }
-          });
+              try {
+                subscription
+                  .unsubscribe()
+                  .catch((error) => {
+                    console.error('Error during unsubscribe.%s', error);
+                    // Ignore errors during end
+                  })
+                  .finally(() => {
+                    console.error(`Received error: ${JSON.stringify(error)}.`);
+                    reject(error as Error);
+                  });
+                //processor.end();
+              } catch {
+                // Ignore errors during end
+              }
+            });
         }),
       resubscribeOptions,
     );
