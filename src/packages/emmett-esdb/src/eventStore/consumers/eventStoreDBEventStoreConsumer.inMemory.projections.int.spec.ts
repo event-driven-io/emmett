@@ -217,7 +217,7 @@ void describe('EventStoreDB event store started consumer', () => {
           assertMatches(summary, {
             _id: streamName,
             status: 'confirmed',
-            //_version: 2n,
+            _version: 2n,
             productItemsCount: productItem.quantity,
           });
         } finally {
