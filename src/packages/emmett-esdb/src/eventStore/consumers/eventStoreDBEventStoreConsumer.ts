@@ -123,12 +123,17 @@ export const eventStoreDBEventStoreConsumer = <
       }),
     );
 
+    const error = result.find((r) => r.status === 'rejected')?.reason as
+      | Error
+      | undefined;
+
     return result.some(
       (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
     )
       ? undefined
       : {
           type: 'STOP',
+          error: error ? EmmettError.mapFrom(error) : undefined,
         };
   };
 

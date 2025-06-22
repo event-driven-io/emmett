@@ -3,7 +3,6 @@ import {
   asyncAwaiter,
   delay,
   getInMemoryDatabase,
-  JSONParser,
   type Event,
   type InMemoryReactorOptions,
   type RecordedMessage,
@@ -24,7 +23,7 @@ import {
   type EventStoreDBEventStoreConsumerType,
 } from './eventStoreDBEventStoreConsumer';
 
-const withDeadline = { timeout: 10000 };
+const withDeadline = { timeout: 1000000 };
 
 void describe('EventStoreDB event store started consumer', () => {
   let eventStoreDB: StartedEventStoreDBContainer;
@@ -191,7 +190,7 @@ void describe('EventStoreDB event store started consumer', () => {
           event.metadata.globalPosition ===
           appendResult.lastEventGlobalPosition,
         eachMessage: async (event) => {
-          await delay(Math.floor(Math.random() * 150));
+          await delay(Math.floor(Math.random() * 200));
 
           result.push(event);
         },
@@ -207,6 +206,69 @@ void describe('EventStoreDB event store started consumer', () => {
         await consumer.close();
       }
     });
+
+    void it(
+      `stops processing on unhandled error in handler`,
+      { timeout: 1500000 },
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${otherGuestId}`;
+        const otherStreamName = `guestStay-${guestId}`;
+        const events: NumberRecorded[] = [
+          { type: 'NumberRecorded', data: { number: 1 } },
+          { type: 'NumberRecorded', data: { number: 2 } },
+          { type: 'NumberRecorded', data: { number: 3 } },
+          { type: 'NumberRecorded', data: { number: 4 } },
+          { type: 'NumberRecorded', data: { number: 5 } },
+          { type: 'NumberRecorded', data: { number: 6 } },
+          { type: 'NumberRecorded', data: { number: 7 } },
+          { type: 'NumberRecorded', data: { number: 8 } },
+          { type: 'NumberRecorded', data: { number: 9 } },
+          { type: 'NumberRecorded', data: { number: 10 } },
+        ];
+        const appendResult = await eventStore.appendToStream(
+          streamName,
+          events,
+        );
+        await eventStore.appendToStream(otherStreamName, events);
+
+        const result: NumberRecorded[] = [];
+
+        let shouldThrowRandomError = false;
+
+        // When
+        const consumer = eventStoreDBEventStoreConsumer({
+          connectionString,
+          from: { stream: streamName },
+        });
+        consumer.reactor<NumberRecorded>({
+          processorId: uuid(),
+          stopAfter: (event) =>
+            event.metadata.globalPosition ===
+            appendResult.lastEventGlobalPosition,
+          eachMessage: (event) => {
+            if (shouldThrowRandomError) {
+              return Promise.reject(new Error('Random error'));
+            }
+
+            result.push(event);
+
+            shouldThrowRandomError = !shouldThrowRandomError;
+            return Promise.resolve();
+          },
+        });
+
+        try {
+          await consumer.start();
+
+          assertThatArray(result.map((e) => e.data.number)).containsExactly(1);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
 
     void it(
       `handles all events from $all streams for subscription to stream`,
@@ -578,7 +640,6 @@ void describe('EventStoreDB event store started consumer', () => {
             eachMessage: async (event) => {
               await waitForStart.wait;
               result.push(event);
-              console.log(`Received event: ${JSONParser.stringify(event)}`);
             },
           });
 

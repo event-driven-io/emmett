@@ -123,11 +123,13 @@ class SubscriptionSequentialHandler<
 > extends Transform {
   private options: SubscriptionSequentialHandlerOptions<MessageType>;
   private from: EventStoreDBEventStoreConsumerType | undefined;
+  public isRunning: boolean;
 
   constructor(options: SubscriptionSequentialHandlerOptions<MessageType>) {
     super({ objectMode: true, ...options });
     this.options = options;
     this.from = options.from;
+    this.isRunning = true;
   }
 
   async _transform(
@@ -136,7 +138,10 @@ class SubscriptionSequentialHandler<
     callback: (error?: Error | null) => void,
   ): Promise<void> {
     try {
-      if (!resolvedEvent.event) return;
+      if (!this.isRunning || !resolvedEvent.event) {
+        callback();
+        return;
+      }
 
       const message = mapFromESDBEvent(resolvedEvent, this.from);
       const messageCheckpoint = getCheckpoint(message);
@@ -144,15 +149,16 @@ class SubscriptionSequentialHandler<
       const result = await this.options.eachBatch([message]);
 
       if (result && result.type === 'STOP') {
+        this.isRunning = false;
         if (!result.error) this.push(messageCheckpoint);
 
         this.push(result);
+        this.push(null);
         callback();
         return;
       }
 
       this.push(messageCheckpoint);
-
       callback();
     } catch (error) {
       callback(error as Error);
@@ -172,6 +178,7 @@ export const eventStoreDBSubscription = <
   let isRunning = false;
 
   let start: Promise<void>;
+  let processor: SubscriptionSequentialHandler<MessageType>;
 
   let subscription: StreamSubscription<MessageType>;
 
@@ -186,8 +193,12 @@ export const eventStoreDBSubscription = <
 
   const stopSubscription = (callback?: () => void): Promise<void> => {
     isRunning = false;
+    if (processor) processor.isRunning = false;
     return subscription
       .unsubscribe()
+      .then(() => {
+        subscription.destroy();
+      })
       .catch((err) => console.error('Error during unsubscribe.%s', err))
       .finally(callback ?? (() => {}));
   };
@@ -204,32 +215,47 @@ export const eventStoreDBSubscription = <
           );
           subscription = subscribe(client, from, options);
 
+          processor = new SubscriptionSequentialHandler({
+            client,
+            from,
+            batchSize,
+            eachBatch,
+            resilience,
+          });
+
+          const handler = new (class extends Writable {
+            async _write(
+              result: bigint | MessageHandlerResult,
+              _encoding: string,
+              done: () => void,
+            ) {
+              if (!isRunning) return;
+
+              if (isBigint(result)) {
+                options.startFrom = {
+                  lastCheckpoint: result,
+                };
+                done();
+                return;
+              }
+
+              if (result && result.type === 'STOP' && result.error) {
+                console.error(
+                  `Subscription stopped with error code: ${result.error.errorCode}, message: ${
+                    result.error.message
+                  }.`,
+                );
+              }
+
+              await stopSubscription();
+              done();
+            }
+          })({ objectMode: true });
+
           pipeline(
             subscription,
-            new SubscriptionSequentialHandler({
-              client,
-              from,
-              batchSize,
-              eachBatch,
-              resilience,
-            }),
-            new (class extends Writable {
-              async _write(
-                chunk: bigint | MessageHandlerResult,
-                _encoding: string,
-                done: () => void,
-              ) {
-                if (isBigint(chunk)) {
-                  options.startFrom = {
-                    lastCheckpoint: chunk,
-                  };
-                  done();
-                  return;
-                }
-
-                await stopSubscription(done);
-              }
-            })({ objectMode: true }),
+            processor,
+            handler,
             async (error: Error | null) => {
               console.info(`Stopping subscription.`);
               await stopSubscription(() => {

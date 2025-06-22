@@ -43,6 +43,24 @@ export class EmmettError extends Error {
     // 👇️ because we are extending a built-in class
     Object.setPrototypeOf(this, EmmettError.prototype);
   }
+
+  public static mapFrom(
+    error: Error | { message?: string; errorCode?: number },
+  ): EmmettError {
+    if (error instanceof EmmettError) {
+      return error;
+    }
+
+    return new EmmettError({
+      errorCode:
+        'errorCode' in error &&
+        error.errorCode !== undefined &&
+        error.errorCode !== null
+          ? error.errorCode
+          : 500,
+      message: error.message ?? 'An unknown error occurred',
+    });
+  }
 }
 
 export class ConcurrencyError extends EmmettError {
