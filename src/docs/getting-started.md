@@ -150,16 +150,6 @@ It brings you three most important methods:
 - `appendToStream` - appends new events at the end of the stream. All events should be appended as an atomic operation. You can specify the expected stream version for an [optimistic concurrency check](https://event-driven.io/en/optimistic_concurrency_for_pessimistic_times/). We're also getting the next stream version as a result.
 - `aggregateStream` - builds the current state from events. Internally, event store implementation should read all events in the stream based on the passed initial state and the `evolve` function. It also supports all the same options as the `readStream` method.
 
-**Emmett provides you with out-of-the-box support for the following storage:**
-
-- **PostgreSQL** with [emmett-postgresql](https://www.npmjs.com/package/@event-driven-io/emmett-postgresql) package,
-- **EventStoreDB** with [emmett-esdb](https://www.npmjs.com/package/@event-driven-io/emmett-esdb) package,
-- **MongoDB** with [emmett-mongodb](https://www.npmjs.com/package/@event-driven-io/emmett-mongodb) package,
-- **SQLite** with [emmett-sqlite](https://www.npmjs.com/package/@event-driven-io/emmett-sqlite) package,
-- **In-Memory** with regular [emmett](https://www.npmjs.com/package/@event-driven-io/emmett) package.
-
-Read more about how event stores are built in the [article](https://event-driven.io/en/lets_build_event_store_in_one_hour/).
-
 ## Command Handling
 
 **As you saw in [the unit tests example](#testing), Event Sourcing brings a repeatable pattern for handling business logic.** We can expand that to application logic.
@@ -402,15 +392,13 @@ We encourage you to watch Martin Thwaites' talk ["Building Operable Software wit
 
 :::
 
-## End-to-End Testing
+## Making it real
 
-You may say:
+See, we now have a fully working and tested web application. We can send requests, handle business logic, cool! Yet, we're missing a few steps to make it production-ready. Using an in-memory implementation is fine for prototyping, but you wouldn't want your data to disappear when the application restarts, would you?
 
-> _Those tests are cool, but I'd like to either test business logic with unit tests or run my end-to-end tests treating the WebApi as a black box._
+Let's start by adding more flavour and finally use a real database! Which one? The common answer nowadays is: "[Just use PostgreSQL!](https://www.amazingcto.com/postgres-for-everything/)", and that's what we're going to do!
 
-And we answer: sure, why not! We also give you help with that.
-
-Let's start by adding some flavour and finally use a real database, so PostgreSQL this time. We need to install two more packages. One for adding implementation of the PostgreSQL event store:
+We need to start by installing Emmett's PostgreSQL package:
 
 ::: code-group
 
@@ -432,11 +420,411 @@ $ bun add @event-driven-io/emmett-postgresql
 
 :::
 
-Now, we need to switch the in-memory implementation to PostgreSQL in WebApi setup. Updated will look as follows:
+Now, we need to switch the in-memory implementation to PostgreSQL in the WebApi setup. Updated will look as follows:
 
 <<< @/snippets/gettingStarted/webApi/apiSetupWithPostgreSQL.ts#getting-started-api-setup
 
 It's as simple as that; we're injecting just a different implementation.
+
+::: info **Emmett provides you with out-of-the-box support for the following storage:**
+
+- **PostgreSQL** with [emmett-postgresql](https://www.npmjs.com/package/@event-driven-io/emmett-postgresql) package,
+- **EventStoreDB** with [emmett-esdb](https://www.npmjs.com/package/@event-driven-io/emmett-esdb) package,
+- **MongoDB** with [emmett-mongodb](https://www.npmjs.com/package/@event-driven-io/emmett-mongodb) package,
+- **SQLite** with [emmett-sqlite](https://www.npmjs.com/package/@event-driven-io/emmett-sqlite) package,
+- **In-Memory** with regular [emmett](https://www.npmjs.com/package/@event-driven-io/emmett) package.
+
+We encourage you to select the one that you prefer; the setup will be similar. You simply need to install a specific package and set up a chosen event store accordingly.
+
+Read more about how event stores are built in the [article](https://event-driven.io/en/lets_build_event_store_in_one_hour/).
+
+:::
+
+We're also missing one more essential aspect...
+
+## Read Models
+
+**In Event Sourcing, we rebuild state by reading all events in a stream. That's fast for one shopping cart - maybe 10-50 events. But showing a list of all shopping carts?** If we tried to build it in memory, as we did for business logic, on the flight, we'd need to read events from potentially thousands of streams. Then rebuild each cart's state in memory, and filter them. Every page load would process hundreds of thousands of events.
+
+In our systems, most operations are queries. We need them to be performant and efficient. To do that, we need to materialise our data into read models.
+
+In Event Sourcing, that means applying our events and storing the result in database tables. Then we can filter, sort, and search efficiently. Projections are event handlers that update these tables when events happen.
+
+### Single Stream Projections with Pongo
+
+We could store our read models in PostgreSQL tables. Create columns for each field. Write UPDATE statements. Handle migrations when fields change. Map document structures to relational schemas.
+
+That's why we have Pongo. It stores documents as JSONB in PostgreSQL - structured data that PostgreSQL can index and query, not just text blobs. You can use powerful MongoDB-like query syntax.
+
+If you followed the PostgreSQL setup earlier, you already have Pongo installed (it comes as a peer dependency with `@event-driven-io/emmett-postgresql`).
+
+Let's say that we want to show the summary of the shopping cart, showing just the total items count and amount. This could be used, e.g., in the top menu bar, to give users quick feedback. It could be defined as:
+
+```ts
+type ShoppingCartSummary = {
+  _id?: string;
+  productItemsCount: number;
+  totalAmount: number;
+};
+```
+
+Now, let's define how we'd like to apply those events. The `evolve` function takes the current document state and an event, then returns the updated state:
+
+```ts
+const evolve = (
+  document: ShoppingCartSummary | null,
+  {
+    type,
+    data: event,
+  }: ProductItemAdded | ProductItemRemoved | DiscountApplied,
+): ShoppingCartSummary => {
+  document = document ?? { totalAmount: 0, productItemsCount: 0 };
+
+  switch (type) {
+    case 'ProductItemAdded':
+      return withAdjustedTotals({
+        document,
+        productItem: event.productItem,
+        by: 'adding',
+      });
+    case 'ProductItemRemoved':
+      return withAdjustedTotals({
+        document,
+        productItem: event.productItem,
+        by: 'removing',
+      });
+    case 'DiscountApplied':
+      return {
+        ...document,
+        totalAmount: (document.totalAmount * (100 - event.percent)) / 100,
+      };
+  }
+};
+
+const withAdjustedTotals = (options: {
+  document: ShoppingCartSummary;
+  productItem: PricedProductItem;
+  by: 'adding' | 'removing';
+}) => {
+  const { document, productItem, by } = options;
+  const plusOrMinus = by === 'adding' ? 1 : -1;
+
+  return {
+    ...document,
+    totalAmount:
+      document.totalAmount +
+      productItem.unitPrice * productItem.quantity * plusOrMinus,
+    productItemsCount:
+      document.productItemsCount + productItem.quantity * plusOrMinus,
+  };
+};
+```
+
+As you see, the transformation may not need to handle all event types. We don't need to know the status (whether it's confirmed or not); we just need information about totals.
+
+The next step is to define our Pongo projection. We do it by:
+
+```ts
+import { pongoSingleStreamProjection } from '@event-driven-io/emmett-postgresql';
+
+const collectionName = 'shopping_carts_summary';
+
+const shoppingCartSummaryProjection = pongoSingleStreamProjection({
+  canHandle: ['ProductItemAdded', 'ProductItemRemoved', 'DiscountApplied'],
+  collectionName,
+  evolve,
+});
+```
+
+By that we're handling the specified range of events, applying it using the evolve function and storing the result in the specified Pongo collection. Pongo collections are PostgreSQL tables with a JSONB column for your document data.
+
+Notice something? We didn't touch our business logic. We're interpreting events that already happened. Tomorrow, you might need a different view of the same data - just create a new projection.
+
+If you don't like getting a null document in the evolve function, then you can also provide the initial state:
+
+```ts
+const shoppingCartSummaryProjection = pongoSingleStreamProjection({
+  canHandle: ['ProductItemAdded', 'ProductItemRemoved', 'DiscountApplied'],
+  collectionName,
+  evolve,
+  initialState: () => ({ totalAmount: 0, productItemsCount: 0 }),
+});
+```
+
+Then your evolve can skip the setup step and look as follows:
+
+```ts
+const evolve = (
+  document: ShoppingCartSummary,
+  {
+    type,
+    data: event,
+  }: ProductItemAdded | ProductItemRemoved | DiscountApplied,
+): ShoppingCartSummary => {
+  switch (type) {
+    case 'ProductItemAdded':
+      return withAdjustedTotals({
+        document,
+        productItem: event.productItem,
+        by: 'adding',
+      });
+    case 'ProductItemRemoved':
+      return withAdjustedTotals({
+        document,
+        productItem: event.productItem,
+        by: 'removing',
+      });
+    case 'DiscountApplied':
+      return {
+        ...document,
+        totalAmount: (document.totalAmount * (100 - event.percent)) / 100,
+      };
+  }
+};
+```
+
+Emmett will provide the initial state if the document with id equal to the stream name doesn't exist.
+
+**We need to complete registration by passing it to event store options:**
+
+```ts
+const eventStore = getPostgreSQLEventStore(connectionString, {
+  projections: projections.inline([shoppingCartSummaryProjection]), // 👈
+});
+```
+
+**Inline registration means that projections run in the same database transaction as appending events.** Either both succeed or both fail. No inconsistency between your events and read models. Of course, you need to be careful with them, as they can slow your appends, but they're really useful. Async projections are also available; we'll document them soon.
+
+Sounds cool; now we can append a few events through regular event store append events api and query results using Pongo:
+
+```ts
+import { pongoClient } from '@event-driven-io/pongo';
+
+const connectionString =
+  process.env.POSTGRESQL_CONNECTION_STRING ??
+  'postgresql://localhost:5432/postgres';
+
+const pongo = pongoClient(connectionString);
+
+const shoppingCartsSummary = pongo.db().collection('shopping_carts_summary');
+
+const summary = await shoppingCartsSummary.findOne({
+  _id: 'shopping_cart-123',
+});
+```
+
+That's single-stream projection - one stream to one document.
+
+### Multi-Stream Projections
+
+So far, each shopping cart had its own stream of events, and we created one summary document per cart. The document ID matched the stream ID. Simple.
+
+But businesses need customer-level analytics. Total spent across all their carts. Number of abandoned versus confirmed carts. Average cart value. This data comes from multiple shopping cart streams, not just one.
+
+What if we'd like to have the read model that aggregates the general summary of client's pending, confirmed and cancelled shopping carts? It could be defined as:
+
+```ts
+export type ClientShoppingSummary = {
+  clientId: string;
+  pending: PendingSummary | undefined;
+  confirmed: ConfirmedSummary;
+  cancelled: CancelledSummary;
+};
+
+export type ShoppingSummary = {
+  productItemsCount: number;
+  totalAmount: number;
+};
+
+export type PendingSummary = ShoppingSummary & {
+  cartId: string;
+};
+
+export type ConfirmedSummary = ShoppingSummary & {
+  cartsCount: number;
+};
+
+export type CancelledSummary = ShoppingSummary & {
+  cartsCount: number;
+};
+```
+
+It contains the pending shopping cart information (if there's such a thing) plus the total number of confirmed and cancelled shopping carts, their total amounts, and total product item counts.
+
+**The id of our read model is equal to the client id. Every client will have a single summary.**
+
+To build this read model, we need to correlate events with respective records. We'll be applying events sequentially. We need to know which record they need to update. If our read model id is equal to the client id, then best if we have the client id in events. But besides the Product Item Added event, we don't.
+
+Of course, we could reconsider adding it to all the events, but we already discussed that we would not necessarily like to. So what should we do?
+
+**We could query some other read model (e.g. shopping cart details) and load the client id, but then we'd have an even worse problem.** Tying those two models together and decreasing scaling and isolation.
+
+**Still, if we think that business-wise, data should always be there, then we could use event metadata.** Events have two parts: data (the business facts) and metadata (context like who, when, where). Metadata is typically used for infrastructure concerns - correlation IDs, timestamps, user IDs. But if needed, projections can read it too. That's always a steep hill, and you better be careful not to make metadata a "bag for random data." This definitely can be a hidden trap. There are no hard rules here, but some good heuristics.
+
+**We can look at our endpoints and commands that initiate business logic, resulting in events.** For instance, if we look at:
+
+```
+POST /clients/:clientId/shopping-carts/current/product-items
+
+DELETE /clients/:clientId/shopping-carts/current/product-items
+
+POST /clients/:clientId/shopping-carts/current/confirm
+
+DELETE /clients/:clientId/shopping-carts/current
+
+GET /clients/:clientId/shopping-carts/current
+```
+
+Then, we see that all of them are in the current shopping cart context and the specific client. That can lead to the conclusion that we already have this client context in our requests. Maybe it's used for authorisation, maybe for tenancy reasons.
+
+If that's not visible in endpoints, we can check on our authorisation rules and middleware. They typically need some data based on the currently authenticated user.
+
+Having that, we could consider making the client id a part of the shopping cart event metadata. As we now have the client ID in metadata, we could use it for the event to read model correlation. For instance:
+
+```ts
+const clientShoppingSummaryCollectionName = 'ClientShoppingSummary';
+
+export const clientShoppingSummaryProjection = pongoMultiStreamProjection({
+  collectionName: clientShoppingSummaryCollectionName,
+  // 👇 See what we did here
+  getDocumentId: (event) => event.metadata.clientId,
+  evolve,
+  canHandle: [
+    'ProductItemAddedToShoppingCart',
+    'ProductItemRemovedFromShoppingCart',
+    'ShoppingCartConfirmed',
+    'ShoppingCartCancelled',
+  ],
+});
+```
+
+We're saying that to find the document ID for each shopping cart event, you can use _event.metadata.clientId_.
+
+Then, the projection definition can look as follows:
+
+```ts
+const evolve = (
+  document: ClientShoppingSummary | null,
+  { type, data: event, metadata }: ShoppingCartEvent,
+): ClientShoppingSummary | null => {
+  const summary: ClientShoppingSummary = document ?? {
+    clientId: metadata!.clientId,
+    pending: undefined,
+    confirmed: initialSummary,
+    cancelled: initialSummary,
+  };
+
+  switch (type) {
+    case 'ProductItemAddedToShoppingCart':
+      return {
+        ...summary,
+        pending: {
+          cartId: event.shoppingCartId,
+          ...withAdjustedTotals({
+            summary: summary.pending,
+            with: event.productItem,
+            by: 'adding',
+          }),
+        },
+      };
+    case 'ProductItemRemovedFromShoppingCart':
+      return {
+        ...summary,
+        pending: {
+          cartId: event.shoppingCartId,
+          ...withAdjustedTotals({
+            summary: summary.pending,
+            with: event.productItem,
+            by: 'removing',
+          }),
+        },
+      };
+    case 'ShoppingCartConfirmed':
+      return {
+        ...summary,
+        pending: undefined,
+        confirmed: {
+          cartsCount: summary.confirmed.cartsCount + 1,
+          ...withAdjustedTotals({
+            summary: summary.confirmed,
+            with: summary.pending!,
+            by: 'adding',
+          }),
+        },
+      };
+    case 'ShoppingCartCancelled':
+      return {
+        ...summary,
+        pending: undefined,
+        cancelled: {
+          cartsCount: summary.confirmed.cartsCount + 1,
+          ...withAdjustedTotals({
+            summary: summary.confirmed,
+            with: summary.pending!,
+            by: 'adding',
+          }),
+        },
+      };
+    default:
+      return summary;
+  }
+};
+
+const initialSummary = {
+  cartsCount: 0,
+  productItemsCount: 0,
+  totalAmount: 0,
+};
+
+const withAdjustedTotals = (options: {
+  summary: ShoppingSummary | undefined;
+  with: PricedProductItem | ShoppingSummary;
+  by: 'adding' | 'removing';
+}) => {
+  const { summary: document, by } = options;
+
+  const totalAmount =
+    'totalAmount' in options.with
+      ? options.with.totalAmount
+      : options.with.unitPrice * options.with.quantity;
+  const productItemsCount =
+    'productItemsCount' in options.with
+      ? options.with.productItemsCount
+      : options.with.quantity;
+
+  const plusOrMinus = by === 'adding' ? 1 : -1;
+
+  return {
+    ...document,
+    totalAmount: (document?.totalAmount ?? 0) + totalAmount * plusOrMinus,
+    productItemsCount:
+      (document?.productItemsCount ?? 0) + productItemsCount * plusOrMinus,
+  };
+};
+```
+
+We also need to register our projection registration in event store options:
+
+```ts
+const eventStore = getPostgreSQLEventStore(connectionString, {
+  projections: projections.inline([
+    shoppingCartSummaryProjection,
+    clientShoppingSummaryProjection, // 👈
+  ]),
+});
+```
+
+### When to Use Which?
+
+**Single-stream projections** work when your read model represents one entity. Shopping cart summary. Order details. User profile. The document ID is the stream ID.
+
+**Multi-stream projections** combine events from different streams into a single document. Customer analytics from all their orders. Product statistics from all carts. System-wide dashboards. You tell the projection how to find the right document for each event.
+
+Think about your queries. If you're showing one cart, use single-stream. If you're showing customer behavior, use multi-stream.
+
+### Testing projections
+
+**Projection tests should be tested against the real database.** Both querying and update capabilities and serialisation can play tricks, so it is better to be certain that it really works. Tests that don't give us such assurance are useless. And we don't want them to be such.
 
 As PostgreSQL is a real database, we need to set it up for our tests. The simplest option is to use a Docker container. You can do it in multiple ways, but the fastest can be using [TestContainers](https://node.testcontainers.org/). The library allows us to easily set up containers for our tests. It automatically randomise ports, helps in teardown etc.
 
@@ -466,7 +854,330 @@ Emmett provides the package with additional test containers like the one for [Ev
 
 :::
 
-Having that, we can set our test container with:
+Now, let's start with the setup:
+
+```ts
+import { PostgreSQLProjectionSpec } from '@event-driven-io/emmett-postgresql';
+import {
+  PostgreSqlContainer,
+  StartedPostgreSqlContainer,
+} from '@testcontainers/postgresql';
+import { after, before, beforeEach, describe, it } from 'node:test';
+import { v4 as uuid } from 'uuid';
+
+void describe('Shopping carts summary', () => {
+  let postgres: StartedPostgreSqlContainer;
+  let connectionString: string;
+  let given: PostgreSQLProjectionSpec<
+    ProductItemAdded | ProductItemRemoved | DiscountApplied
+  >;
+  let shoppingCartId: string;
+
+  before(async () => {
+    postgres = await new PostgreSqlContainer().start();
+    connectionString = postgres.getConnectionUri();
+
+    given = PostgreSQLProjectionSpec.for({
+      projection: shoppingCartShortInfoProjection,
+      connectionString,
+    });
+  });
+
+  beforeEach(() => (shoppingCartId = `shoppingCart-${uuid()}`));
+});
+```
+
+We're setting up the PostgreSQL test container and projection specification. We'll use it to run our tests. The first one could look as follows:
+
+```ts
+import { expectPongoDocuments } from '@event-driven-io/emmett-postgresql';
+
+void describe('Shopping carts summary', () => {
+  // (...) test setup
+
+  void it('first added product creates document', () =>
+    given([])
+      .when([
+        {
+          type: 'ProductItemAddedToShoppingCart',
+          data: {
+            productItem: { unitPrice: 100, productId: 'shoes', quantity: 100 },
+          },
+          metadata: {
+            streamName: shoppingCartId,
+          },
+        },
+      ])
+      .then(
+        expectPongoDocuments
+          .fromCollection<ShoppingCartSummary>('shopping_carts_summary')
+          .withId(shoppingCartId)
+          .toBeEqual({
+            productItemsCount: 100,
+            totalAmount: 10000,
+            appliedDiscounts: [],
+          }),
+      ));
+});
+```
+
+We're again using theBehaviour-Driven Design style:
+
+- **Given** existing stream of events,
+- **When** new events are added,
+- **Then** read model is updated.
+
+We do it this way, as we expect read models to be ONLY updated through upcoming events.
+
+Emmett gives you also out-of-the-box test assertion helpers to make testing Pongo easier.
+
+You may have noticed that our Given is empty, so let's fix it!
+
+```ts
+import {
+  eventsInStream,
+  newEventsInStream,
+} from '@event-driven-io/emmett-postgresql';
+
+void describe('Shopping carts summary', () => {
+  // (...) test setup
+
+  void it('applies discount for existing shopping cart with product', () => {
+    const couponId = uuid();
+
+    return given(
+      eventsInStream(shoppingCartId, [
+        {
+          type: 'ProductItemAddedToShoppingCart',
+          data: {
+            productItem: { unitPrice: 100, productId: 'shoes', quantity: 100 },
+          },
+        },
+      ]),
+    )
+      .when(
+        newEventsInStream(shoppingCartId, [
+          {
+            type: 'DiscountApplied',
+            data: { percent: 10, couponId },
+          },
+        ]),
+      )
+      .then(
+        expectPongoDocuments
+          .fromCollection<ShoppingCartShortInfo>(
+            shoppingCartShortInfoCollectionName,
+          )
+          .withId(shoppingCartId)
+          .toBeEqual({
+            productItemsCount: 100,
+            totalAmount: 9000,
+          }),
+      );
+  });
+});
+```
+
+You probably noticed the next helpers: _eventsInStream_ and _newEventsInStream_. They're responsible for shortening the setup. Depending on your preferences, you can use the raw events setup, including manual metadata assignment, or a more explicit intention helper. My preference would be to use the helper, but it's up to you to decide!
+
+### Deleting documents
+
+**Can read model data be only updated? Not only that, you can also delete it.** Let's imagine that the confirming cart should clear its read model, as we expect a new, empty shopping cart to be created when the new buying process starts.
+
+To have that, we need to update our evolve function by adding _ShopingCartConfirmed_ event:
+
+```ts
+const evolve = (
+  document: ShoppingCartSummary,
+  { type, data: event }: ShoppingCartEvent,
+): ShoppingCartSummary | null => {
+  // <= see here
+  switch (type) {
+    case 'ProductItemAdded':
+      return withAdjustedTotals({
+        document,
+        productItem: event.productItem,
+        by: 'adding',
+      });
+    case 'ProductItemRemoved':
+      return withAdjustedTotals({
+        document,
+        productItem: event.productItem,
+        by: 'removing',
+      });
+    case 'DiscountApplied':
+      return {
+        ...document,
+        totalAmount: (document.totalAmount * (100 - event.percent)) / 100,
+      };
+
+    case 'ShoppingCartConfirmed':
+      return null; // <= and here
+  }
+};
+```
+
+We made the shopping cart confirmed event return null. In Pongo, returning null means "delete this document." Emmett is using the Pongo's _handle_ method internally:
+
+```typescript
+const collection = pongo.db().collection<Document>(collectionName);
+
+for (const event of events) {
+  await collection.handle(getDocumentId(event), async (document) => {
+    return await evolve(document, event);
+  });
+}
+```
+
+Pongo's handle method loads the document if it exists, runs your function, then:
+
+- If you return a document, it inserts or updates
+- If you return null, it deletes
+- All in one atomic operation
+
+It's a bit sneaky, but pretty useful, isn't it?
+
+This flexibility is Event Sourcing at work. Events stay immutable. Projections interpret them however they need. Changed your mind about when to delete documents? Update the projection and rebuild from events.
+
+The test checking will look as follows:
+
+```ts
+void describe('Shopping carts summary', () => {
+  let given: PostgreSQLProjectionSpec<ShoppingCartEvent>;
+  // (...) test setup
+
+  void it('confirmed event removes read mode for shopping cart with applied discount', () => {
+    const couponId = uuid();
+
+    return given(
+      eventsInStream(shoppingCartId, [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { unitPrice: 100, productId: 'shoes', quantity: 100 },
+          },
+        },
+        {
+          type: 'DiscountApplied',
+          data: { percent: 10, couponId },
+        },
+      ]),
+    )
+      .when(
+        newEventsInStream(shoppingCartId, [
+          {
+            type: 'ShoppingCartConfirmed',
+            data: { confirmedAt: new Date() },
+          },
+        ]),
+      )
+      .then(
+        expectPongoDocuments
+          .fromCollection<ShoppingCartShortInfo>(
+            shoppingCartShortInfoCollectionName,
+          )
+          .withId(shoppingCartId)
+          .notToExist(), // <= see this
+      );
+  });
+});
+```
+
+The pattern looks the same, but the assertion is different.
+
+**I hope that this shows you how powerful the combination of Emmett, Pongo, and PostgreSQL is.** We want to give you certainty and trust in the software you're building. Having built-in support for tests should help you with that.
+
+### Querying Read Models in the Web API
+
+Now that we have projections running, let's make them available through our API. Update your shopping cart API setup to include Pongo:
+
+```ts
+export const shoppingCartApi =
+  (
+    eventStore: EventStore,
+    pongo: PongoClient,
+    getUnitPrice: (productId: string) => Promise<number>,
+  ): WebApiSetup =>
+  (router: Router) => {
+    const handle = CommandHandler(shoppingCartHandlers, eventStore);
+    const shoppingCartsSummary = pongo
+      .db()
+      .collection<ShoppingCartSummary>('shopping_carts_summary');
+
+    // ... existing endpoints for commands ...
+
+    // Get shopping cart summary
+    router.get(
+      '/clients/:clientId/shopping-carts/:shoppingCartId/summary',
+      on(async (request: Request) => {
+        const shoppingCartId = assertNotEmptyString(
+          request.params.shoppingCartId,
+        );
+
+        const summary = await shoppingCartsSummary.findOne({
+          _id: shoppingCartId,
+        });
+
+        if (!summary) {
+          return notFound({ detail: 'Shopping cart not found' });
+        }
+
+        return ok(summary);
+      }),
+    );
+
+    // List all shopping carts with filters
+    router.get(
+      '/clients/:clientId/shopping-carts',
+      on(async (request: Request) => {
+        const minAmount = request.query.minAmount
+          ? parseFloat(request.query.minAmount as string)
+          : undefined;
+
+        const query = minAmount ? { totalAmount: { $gte: minAmount } } : {};
+
+        const carts = await shoppingCartsSummary.find(query).toArray();
+
+        return ok({ carts });
+      }),
+    );
+  };
+```
+
+Remember to inject Pongo when setting up your API:
+
+```ts
+import { pongoClient } from '@event-driven-io/pongo';
+
+const connectionString =
+  process.env.POSTGRESQL_CONNECTION_STRING ??
+  'postgresql://localhost:5432/postgres';
+
+const pongo = pongoClient(connectionString);
+
+const eventStore = getPostgreSQLEventStore(connectionString, {
+  projections: projections.inline([
+    shoppingCartSummaryProjection,
+    clientShoppingSummaryProjection,
+  ]),
+});
+
+const application = getApplication({
+  apis: [
+    shoppingCartApi(
+      eventStore,
+      pongo, // 👈
+      getUnitPrice,
+    ),
+  ],
+});
+```
+
+## End-to-End Testing
+
+Now, let met show you the final bit, so running end-to-end tests treating the WebApi as a black box.
+
+Let's start with setting up our TestContainer again:
 
 <<< @/snippets/gettingStarted/webApi/apiBDDE2EGiven.ts#test-container
 
