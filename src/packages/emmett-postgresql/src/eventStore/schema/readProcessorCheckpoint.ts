@@ -2,6 +2,8 @@ import { singleOrNull, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import { defaultTag, subscriptionsTable } from './typing';
 
 type ReadProcessorCheckpointSqlResult = {
+  subscriptionId: string;
+  partitionId: string | null;
   last_processed_position: string;
 };
 
