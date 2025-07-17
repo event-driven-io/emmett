@@ -1,5 +1,5 @@
-import type { AnyCommand } from './command';
-import type { AnyEvent } from './event';
+import type { AnyCommand } from '../typing/command';
+import type { AnyEvent } from '../typing/event';
 
 /// Inspired by https://blog.bittacklr.be/the-workflow-pattern.html
 

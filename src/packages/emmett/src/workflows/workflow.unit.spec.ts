@@ -1,5 +1,5 @@
-import type { Command } from './command';
-import type { Event } from './event';
+import type { Command } from '../typing/command';
+import type { Event } from '../typing/event';
 import {
   accept,
   complete,
