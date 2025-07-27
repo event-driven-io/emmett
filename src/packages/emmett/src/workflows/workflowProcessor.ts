@@ -34,6 +34,9 @@ export type WorkflowOptions<
   'type' | 'canHandle'
 > & {
   workflow: Workflow<Input, State, Output>;
+  getWorkflowId: (
+    input: RecordedMessage<Input, MessageMetadataType>,
+  ) => string | null;
   inputs: {
     commands: CanHandle<WorkflowCommand<Input>>;
     events: CanHandle<WorkflowEvent<Input>>;
