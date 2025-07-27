@@ -1,16 +1,11 @@
-import type { Command } from './command';
-import type { Event } from './event';
+import { type Command } from '../typing/command';
+import type { Event } from '../typing/event';
 import {
-  accept,
-  complete,
-  error,
-  ignore,
-  publish,
-  send,
   type Workflow,
   type WorkflowEvent,
   type WorkflowOutput,
-} from './workflow';
+} from '../workflows/workflow';
+import { workflowProcessor } from './workflowProcessor';
 
 export type CheckOut = Command<
   'CheckOut',
@@ -107,7 +102,7 @@ export type GroupCheckoutTimedOut = Event<
 >;
 
 ////////////////////////////////////////////
-////////// Entity
+////////// State
 ///////////////////////////////////////////
 
 export type GroupCheckout =
@@ -131,7 +126,7 @@ export enum GuestStayStatus {
 }
 
 ////////////////////////////////////////////
-////////// Workflow Definition
+////////// Workflow Inputs & Outputs
 ///////////////////////////////////////////
 
 export type GroupCheckoutInput =
@@ -146,118 +141,6 @@ export type GroupCheckoutOutput =
   | GroupCheckoutCompleted
   | GroupCheckoutFailed
   | GroupCheckoutTimedOut;
-
-export enum IgnoredReason {
-  GroupCheckoutAlreadyInitiated = 'GroupCheckoutAlreadyInitiated',
-  GuestCheckoutWasNotPartOfGroupCheckout = 'GuestCheckoutWasNotPartOfGroupCheckout',
-  GuestCheckoutAlreadyFinished = 'GuestCheckoutAlreadyFinished',
-  GroupCheckoutAlreadyFinished = 'GroupCheckoutAlreadyFinished',
-  GroupCheckoutDoesNotExist = 'GroupCheckoutDoesNotExist',
-}
-
-export type ErrorReason = 'UnknownInputType';
-
-////////////////////////////////////////////
-////////// Decide
-///////////////////////////////////////////
-
-export const decide = (
-  input: GroupCheckoutInput,
-  state: GroupCheckout,
-): WorkflowOutput<GroupCheckoutOutput>[] => {
-  const { type, data } = input;
-
-  switch (type) {
-    case 'InitiateGroupCheckout': {
-      if (state.status !== 'NotExisting')
-        return [ignore(IgnoredReason.GroupCheckoutAlreadyInitiated)];
-
-      const checkoutGuestStays = data.guestStayAccountIds.map((id) => {
-        return send<GroupCheckoutOutput>({
-          type: 'CheckOut',
-          data: {
-            guestStayAccountId: id,
-            groupCheckoutId: data.groupCheckoutId,
-          },
-          metadata: {
-            now: data.now,
-          },
-        });
-      });
-
-      return [
-        ...checkoutGuestStays,
-        publish<GroupCheckoutOutput>({
-          type: 'GroupCheckoutInitiated',
-          data: {
-            groupCheckoutId: data.groupCheckoutId,
-            guestStayAccountIds: data.guestStayAccountIds,
-            initiatedAt: data.now,
-            clerkId: data.clerkId,
-          },
-        }),
-      ];
-    }
-    case 'GuestCheckedOut':
-    case 'GuestCheckoutFailed': {
-      if (!data.groupCheckoutId)
-        return [ignore(IgnoredReason.GuestCheckoutWasNotPartOfGroupCheckout)];
-
-      if (state.status === 'NotExisting')
-        return [ignore(IgnoredReason.GroupCheckoutDoesNotExist)];
-
-      if (state.status === 'Finished')
-        return [ignore(IgnoredReason.GuestCheckoutAlreadyFinished)];
-
-      const { guestStayAccountId, groupCheckoutId } = data;
-
-      const guestCheckoutStatus =
-        state.guestStayAccountIds.get(guestStayAccountId);
-
-      if (isAlreadyClosed(guestCheckoutStatus))
-        return [ignore(IgnoredReason.GuestCheckoutAlreadyFinished)];
-
-      const guestStayAccountIds = state.guestStayAccountIds.set(
-        guestStayAccountId,
-        type === 'GuestCheckedOut'
-          ? GuestStayStatus.Completed
-          : GuestStayStatus.Failed,
-      );
-
-      const now =
-        type === 'GuestCheckedOut' ? data.checkedOutAt : data.failedAt;
-
-      return areAnyOngoingCheckouts(guestStayAccountIds)
-        ? [accept()]
-        : [
-            publish(finished(groupCheckoutId, state.guestStayAccountIds, now)),
-            complete(),
-          ];
-    }
-    case 'TimeoutGroupCheckout': {
-      if (state.status === 'NotExisting')
-        return [ignore(IgnoredReason.GroupCheckoutDoesNotExist)];
-
-      if (state.status === 'Finished')
-        return [ignore(IgnoredReason.GroupCheckoutAlreadyFinished)];
-
-      return [
-        publish(
-          timedOut(
-            data.groupCheckoutId,
-            state.guestStayAccountIds,
-            data.timeOutAt,
-          ),
-        ),
-        complete(),
-      ];
-    }
-    default: {
-      const _notExistingEventType: never = type;
-      return [error('UnknownInputType')];
-    }
-  }
-};
 
 ////////////////////////////////////////////
 ////////// Evolve
@@ -312,6 +195,34 @@ export const evolve = (
   }
 };
 
+////////////////////////////////////////////
+////////// Decide
+///////////////////////////////////////////
+
+export const decide = (
+  input: GroupCheckoutInput,
+  state: GroupCheckout,
+): WorkflowOutput<GroupCheckoutOutput> => {
+  const { type } = input;
+
+  switch (type) {
+    case 'InitiateGroupCheckout': {
+      return initiateGroupCheckout(input, state);
+    }
+    case 'GuestCheckedOut':
+    case 'GuestCheckoutFailed': {
+      return onCheckoutFinished(input, state);
+    }
+    case 'TimeoutGroupCheckout': {
+      return timedOut(input, state);
+    }
+  }
+};
+
+////////////////////////////////////////////
+////////// Workflow Definition
+////////////////////////////////////////////
+
 export const GroupCheckoutWorkflow: Workflow<
   GroupCheckoutInput,
   GroupCheckout,
@@ -322,25 +233,119 @@ export const GroupCheckoutWorkflow: Workflow<
   initialState,
 };
 
-export const isAlreadyClosed = (status: GuestStayStatus | undefined) =>
-  status === GuestStayStatus.Completed || status === GuestStayStatus.Failed;
+////////////////////////////////////////////
+////////// Workflow Processor
+////////////////////////////////////////////
 
-const areAnyOngoingCheckouts = (
-  guestStayAccounts: Map<string, GuestStayStatus>,
-) => [...guestStayAccounts.values()].some((status) => !isAlreadyClosed(status));
+export const groupCheckoutWorkflowProcessor = workflowProcessor({
+  processorId: 'GroupCheckoutWorkflow',
+  workflow: GroupCheckoutWorkflow,
+  inputs: {
+    commands: ['InitiateGroupCheckout', 'TimeoutGroupCheckout'],
+    events: ['GuestCheckedOut', 'GuestCheckoutFailed'],
+  },
+  outputs: {
+    commands: ['CheckOut'],
+    events: [
+      'GroupCheckoutCompleted',
+      'GroupCheckoutFailed',
+      'GroupCheckoutTimedOut',
+    ],
+  },
+});
 
-const areAllCompleted = (guestStayAccounts: Map<string, GuestStayStatus>) =>
-  [...guestStayAccounts.values()].some(
-    (status) => status === GuestStayStatus.Completed,
+////////////////////////////////////////////
+////////// Logic
+///////////////////////////////////////////
+
+const initiateGroupCheckout = (
+  { data }: InitiateGroupCheckout,
+  state: GroupCheckout,
+): [GroupCheckoutInitiated, ...CheckOut[]] | [] => {
+  if (state.status !== 'NotExisting') return [];
+
+  const checkoutGuestStays: CheckOut[] = data.guestStayAccountIds.map((id) => ({
+    type: 'CheckOut',
+    data: {
+      guestStayAccountId: id,
+      groupCheckoutId: data.groupCheckoutId,
+    },
+    metadata: {
+      now: data.now,
+    },
+  }));
+
+  return [
+    {
+      type: 'GroupCheckoutInitiated',
+      data: {
+        groupCheckoutId: data.groupCheckoutId,
+        guestStayAccountIds: data.guestStayAccountIds,
+        initiatedAt: data.now,
+        clerkId: data.clerkId,
+      },
+    },
+    ...checkoutGuestStays,
+  ];
+};
+
+const onCheckoutFinished = (
+  { type, data }: GuestCheckedOut | GuestCheckoutFailed,
+  state: GroupCheckout,
+): GroupCheckoutCompleted | GroupCheckoutFailed | [] => {
+  if (
+    !data.groupCheckoutId ||
+    state.status === 'NotExisting' ||
+    state.status === 'Finished'
+  )
+    return [];
+
+  const { guestStayAccountId, groupCheckoutId } = data;
+
+  const guestCheckoutStatus = state.guestStayAccountIds.get(guestStayAccountId);
+
+  if (isAlreadyClosed(guestCheckoutStatus)) return [];
+
+  const guestStayAccountIds = state.guestStayAccountIds.set(
+    guestStayAccountId,
+    type === 'GuestCheckedOut'
+      ? GuestStayStatus.Completed
+      : GuestStayStatus.Failed,
   );
 
-const checkoutsWith = (
-  guestStayAccounts: Map<string, GuestStayStatus>,
-  status: GuestStayStatus,
-): string[] =>
-  [...guestStayAccounts.entries()]
-    .filter((s) => s[1] === status)
-    .map((s) => s[0]);
+  const now = type === 'GuestCheckedOut' ? data.checkedOutAt : data.failedAt;
+
+  return areAnyOngoingCheckouts(guestStayAccountIds)
+    ? []
+    : finished(groupCheckoutId, state.guestStayAccountIds, now);
+};
+
+const timedOut = (
+  command: TimeoutGroupCheckout,
+  state: GroupCheckout,
+): GroupCheckoutTimedOut | [] => {
+  if (state.status === 'NotExisting' || state.status === 'Finished') return [];
+
+  return {
+    type: 'GroupCheckoutTimedOut',
+    data: {
+      groupCheckoutId: command.data.groupCheckoutId,
+      incompleteCheckouts: checkoutsWith(
+        state.guestStayAccountIds,
+        GuestStayStatus.Pending,
+      ),
+      completedCheckouts: checkoutsWith(
+        state.guestStayAccountIds,
+        GuestStayStatus.Completed,
+      ),
+      failedCheckouts: checkoutsWith(
+        state.guestStayAccountIds,
+        GuestStayStatus.Failed,
+      ),
+      timedOutAt: command.data.timeOutAt,
+    },
+  };
+};
 
 const finished = (
   groupCheckoutId: string,
@@ -373,25 +378,22 @@ const finished = (
       };
 };
 
-const timedOut = (
-  groupCheckoutId: string,
+export const isAlreadyClosed = (status: GuestStayStatus | undefined) =>
+  status === GuestStayStatus.Completed || status === GuestStayStatus.Failed;
+
+const areAnyOngoingCheckouts = (
   guestStayAccounts: Map<string, GuestStayStatus>,
-  now: Date,
-): GroupCheckoutTimedOut => {
-  return {
-    type: 'GroupCheckoutTimedOut',
-    data: {
-      groupCheckoutId,
-      incompleteCheckouts: checkoutsWith(
-        guestStayAccounts,
-        GuestStayStatus.Pending,
-      ),
-      completedCheckouts: checkoutsWith(
-        guestStayAccounts,
-        GuestStayStatus.Completed,
-      ),
-      failedCheckouts: checkoutsWith(guestStayAccounts, GuestStayStatus.Failed),
-      timedOutAt: now,
-    },
-  };
-};
+) => [...guestStayAccounts.values()].some((status) => !isAlreadyClosed(status));
+
+const areAllCompleted = (guestStayAccounts: Map<string, GuestStayStatus>) =>
+  [...guestStayAccounts.values()].some(
+    (status) => status === GuestStayStatus.Completed,
+  );
+
+const checkoutsWith = (
+  guestStayAccounts: Map<string, GuestStayStatus>,
+  status: GuestStayStatus,
+): string[] =>
+  [...guestStayAccounts.entries()]
+    .filter((s) => s[1] === status)
+    .map((s) => s[0]);
