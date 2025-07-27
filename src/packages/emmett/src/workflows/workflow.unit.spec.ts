@@ -1,9 +1,9 @@
-import { type Command } from '../typing/command';
+import type { Command } from '../typing/command';
 import type { Event } from '../typing/event';
-import {
-  type Workflow,
-  type WorkflowEvent,
-  type WorkflowOutput,
+import type {
+  Workflow,
+  WorkflowEvent,
+  WorkflowOutput,
 } from '../workflows/workflow';
 import { workflowProcessor } from './workflowProcessor';
 
@@ -211,7 +211,7 @@ export const decide = (
     }
     case 'GuestCheckedOut':
     case 'GuestCheckoutFailed': {
-      return onCheckoutFinished(input, state);
+      return completeGroupCheckout(input, state);
     }
     case 'TimeoutGroupCheckout': {
       return timedOut(input, state);
@@ -228,6 +228,7 @@ export const GroupCheckoutWorkflow: Workflow<
   GroupCheckout,
   GroupCheckoutOutput
 > = {
+  name: 'GroupCheckoutWorkflow',
   decide,
   evolve,
   initialState,
@@ -238,8 +239,8 @@ export const GroupCheckoutWorkflow: Workflow<
 ////////////////////////////////////////////
 
 export const groupCheckoutWorkflowProcessor = workflowProcessor({
-  processorId: 'GroupCheckoutWorkflow',
   workflow: GroupCheckoutWorkflow,
+  getWorkflowId: (input) => input.data.groupCheckoutId ?? null,
   inputs: {
     commands: ['InitiateGroupCheckout', 'TimeoutGroupCheckout'],
     events: ['GuestCheckedOut', 'GuestCheckoutFailed'],
@@ -289,7 +290,7 @@ const initiateGroupCheckout = (
   ];
 };
 
-const onCheckoutFinished = (
+const completeGroupCheckout = (
   { type, data }: GuestCheckedOut | GuestCheckoutFailed,
   state: GroupCheckout,
 ): GroupCheckoutCompleted | GroupCheckoutFailed | [] => {

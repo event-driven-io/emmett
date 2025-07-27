@@ -9,7 +9,7 @@ export type Workflow<
   State,
   Output extends AnyEvent | AnyCommand,
 > = {
-  name?: string;
+  name: string;
   decide: (command: Input, state: State) => WorkflowOutput<Output>;
   evolve: (currentState: State, event: WorkflowEvent<Input | Output>) => State;
   initialState: () => State;
@@ -26,7 +26,8 @@ export type WorkflowCommand<Output extends AnyEvent | AnyCommand> = Extract<
 >;
 
 export type WorkflowOutput<Output extends AnyEvent | AnyCommand | EmmettError> =
-  Output | Output[];
+  | Output
+  | Output[];
 
 export const Workflow = <
   Input extends AnyEvent | AnyCommand,

@@ -1,5 +1,5 @@
+import type { MessageProcessor } from '../processors';
 import {
-  MessageProcessor,
   MessageProcessorType,
   reactor,
   type BaseMessageProcessorOptions,
@@ -11,7 +11,6 @@ import type {
   AnyRecordedMessageMetadata,
   CanHandle,
   DefaultRecord,
-  GlobalPositionTypeOfRecordedMessageMetadata,
   MessageTypeOf,
   RecordedMessage,
 } from '../typing';
@@ -23,17 +22,14 @@ export type WorkflowOptions<
   Output extends AnyEvent | AnyCommand,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = Omit<
-  BaseMessageProcessorOptions<
-    Input,
-    MessageMetadataType,
-    HandlerContext,
-    CheckpointType
-  >,
-  'type' | 'canHandle'
-> & {
+  BaseMessageProcessorOptions<Input, MessageMetadataType, HandlerContext>,
+  'type' | 'canHandle' | 'processorId'
+> & { processorId?: string } & {
   workflow: Workflow<Input, State, Output>;
+  getWorkflowId: (
+    input: RecordedMessage<Input, MessageMetadataType>,
+  ) => string | null;
   inputs: {
     commands: CanHandle<WorkflowCommand<Input>>;
     events: CanHandle<WorkflowEvent<Input>>;
@@ -44,27 +40,25 @@ export type WorkflowOptions<
   };
 };
 
+export const getWorkflowId = (options: { workflowName: string }): string =>
+  `emt:processor:workflow:${options.workflowName}`;
+
 export const workflowProcessor = <
   Input extends AnyEvent | AnyCommand,
   State,
   Output extends AnyEvent | AnyCommand,
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MetaDataType>,
 >(
-  options: WorkflowOptions<
-    Input,
-    State,
-    Output,
-    MetaDataType,
-    HandlerContext,
-    CheckpointType
-  >,
-): MessageProcessor<Input, MetaDataType, HandlerContext, CheckpointType> => {
+  options: WorkflowOptions<Input, State, Output, MetaDataType, HandlerContext>,
+): MessageProcessor<Input, MetaDataType, HandlerContext> => {
   const { workflow: _workflow, ...rest } = options;
 
-  return reactor<Input, MetaDataType, HandlerContext, CheckpointType>({
+  return reactor<Input, MetaDataType, HandlerContext>({
     ...rest,
+    processorId:
+      options.processorId ??
+      getWorkflowId({ workflowName: options.workflow.name }),
     canHandle: [...options.inputs.commands, ...options.inputs.events],
     type: MessageProcessorType.PROJECTOR,
     eachMessage: async (
