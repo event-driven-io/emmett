@@ -8,6 +8,8 @@ We're adding a workflow processing engine to Emmett for coordinating multi-step/
 
 ## Problem
 
+We need a way to coordinate multi-step business processes that span across different parts of our system. These processes need to handle failures gracefully, maintain state between steps, and provide visibility into what's happening. Think of them as orchestrators that ensure a complex business operation completes successfully, even when individual steps fail or systems restart.
+
 Multi-step processes are everywhere in business applications, not just the typical order-fulfilment examples:
 
 - Hotel group checkout coordinating multiple room settlements,
@@ -22,12 +24,10 @@ These processes need to survive more than we often realise. A group checkout may
 
 When things fail, and they will, we need to know exactly where we stopped and why. A network blip shouldn't cause an in-progress checkout to be dropped in the middle. A service restart shouldn't forget which steps it passed. A bug fix shouldn't require manually tracking down stuck processes.
 
-Of course, you could implement your own processing based on the existing abstractions in Emmett, like command handlers, consumers and async processors, but...
-
 DIY solutions always have gaps. We handle the happy path, add some retry logic, then discover edge cases in production:
 
 - Messages lost during deployment
-- Processes stuck after partial failures  
+- Processes stuck after partial failures
 - No way to resume after fixing bugs
 - Can't answer "what happened to order X?"
 
@@ -58,6 +58,8 @@ Traditional approaches use state machines with database tables, workflow engines
 ### Event Sourcing: Built-in Durability
 
 Event sourcing stores every business decision as an immutable event. For workflows, this means every input received and output produced becomes an event in a stream. This isn't just storage - it's the recovery mechanism. We can expand this model and use the event store as the message store, storing all messages. This allows us to store both commands (intention to run business logic) and events (facts about what has happened, which can be used as triggers for next steps in the workflow).
+
+In practice, commands and events live in the same table with a message type column. During state rebuilding, we filter out commands using a simple WHERE clause, ensuring only events contribute to state evolution. This unified storage simplifies the infrastructure while maintaining clear semantics.
 
 Consider the following scenario:
 
@@ -107,7 +109,7 @@ Workflows in Emmett follow the same mental model as [command handlers](https://e
 The pattern has three functions:
 
 - `decide`: Business logic that takes input + state and returns outputs
-- `evolve`: Builds state based on events (both inputs and outputs)  
+- `evolve`: Builds state based on events (both inputs and outputs)
 - `initialState`: Starting state for new workflow instances
 
 Each workflow instance gets its own event stream. This stream serves as both an inbox (recording inputs) and an outbox (recording outputs). This self-contained design means everything about a workflow instance lives in one place.
@@ -144,7 +146,7 @@ sequenceDiagram
  participant Processor as Workflow Processor
  participant WStream as Workflow Stream<br/>(Inbox & Outbox)
  participant Output as Output Handler
-   
+
  Source->>Consumer: GuestCheckedOut event
  Consumer->>Processor: Forwards event
  Processor->>WStream: Store as input
@@ -155,19 +157,21 @@ sequenceDiagram
  Consumer->>Output: Process outputs
 ```
 
+The system provides at-least-once delivery by default. For transactional event stores like PostgreSQL or SQLite, we can achieve exactly-once delivery by storing checkpoints in the same transaction as processed messages. To prevent concurrent execution of the same workflow instance, we use advisory locks in PostgreSQL or optimistic concurrency with retry policies for other stores.
+
 ### Code Example - Group Checkout
 
 Let's see how this works with a group checkout workflow that coordinates multiple individual checkouts:
 
 ```typescript
-export const GroupCheckoutWorkflow: Workflow
- GroupCheckoutInput,
- GroupCheckout,
- GroupCheckoutOutput
+export const GroupCheckoutWorkflow: Workflow<
+  GroupCheckoutInput,
+  GroupCheckout,
+  GroupCheckoutOutput
 > = {
- decide,
- evolve,
- initialState,
+  decide,
+  evolve,
+  initialState,
 };
 ```
 
@@ -206,6 +210,10 @@ export const decide = (
   }
 };
 ```
+
+The decide function can return multiple commands when needed. For instance, initiating a group checkout might dispatch checkout commands for all guests simultaneously. The output handler can process these in parallel when appropriate.
+
+For workflows requiring complex conditions (waiting for multiple events before proceeding), the state tracks what conditions have been met. When an event arrives, the workflow checks if all required conditions are satisfied before proceeding. This pattern handles out-of-order event arrival naturally.
 
 and state evolution:
 
@@ -277,27 +285,27 @@ export const groupCheckoutWorkflowProcessor = workflowProcessor({
 });
 ```
 
-Inputs and outputs has to be registered explicitly. We cannot detect them from types, as they're erased on the JavaScript runtime. Still, they will have a proper intellisense and get compiler help not allowing to register more types than allowed.
+Inputs and outputs must be registered explicitly. We cannot detect them from types, as they're erased during JavaScript runtime. However, these aren't plain strings - they're strongly typed using TypeScript's type system. The types are constrained to Commands and Events providing full intellisense support and compile-time validation.
 
-We're having an explicit registration for commands and events to make API explicit, and also not require additional wrapper functions in the `decide` method.
+We'll use a bit of TypeScript magic to extract message types as string literals while maintaining type safety. This gives us natural string syntax with full type checking - refactoring tools catch changes, and you can't register message types that don't exist in your domain. The explicit registration also serves as documentation, making it clear which messages the workflow handles without diving into the implementation.
 
 ### Stream Structure
 
-The workflow's stream name comes from the `getWorkflowId` function. Here's what the stream contains as the workflow executes:
+The workflow's stream name comes from the `getWorkflowId` function. Each workflow instance has its own dedicated stream where only that workflow writes. Here's what the stream contains as the workflow executes:
 
 ```
 Workflow Stream Contents:
 Pos | Kind| Direction | Message
 ----|---------|-----------|------------------------------------------
-1   | Command | Input     | InitiateGroupCheckout {groupId: '123'}
-2   | Event   | Output    | GroupCheckoutInitiated
-3   | Command | Output    | CheckOut {guestId: 'g1'}
-4   | Command | Output    | CheckOut {guestId: 'g2'}
-5   | Command | Output    | CheckOut {guestId: 'g3'}
-6   | Event   | Input     | GuestCheckedOut {guestId: 'g1'}
-7   | Event   | Input     | GuestCheckoutFailed {guestId: 'g2'}
-8   | Event   | Input     | GuestCheckedOut {guestId: 'g3'}
-9   | Event   | Output    | GroupCheckoutFailed
+1   | Command | Input     | InitiateGroupCheckout {groupId: '123'}
+2   | Event   | Output    | GroupCheckoutInitiated
+3   | Command | Output    | CheckOut {guestId: 'g1'}
+4   | Command | Output    | CheckOut {guestId: 'g2'}
+5   | Command | Output    | CheckOut {guestId: 'g3'}
+6   | Event   | Input     | GuestCheckedOut {guestId: 'g1'}
+7   | Event   | Input     | GuestCheckoutFailed {guestId: 'g2'}
+8   | Event   | Input     | GuestCheckedOut {guestId: 'g3'}
+9   | Event   | Output    | GroupCheckoutFailed
 ```
 
 Notice how inputs and outputs interleave. The workflow receives inputs (positions 1, 6, 7, 8) and produces outputs (positions 2, 3, 4, 5, 9). Inputs can be either commands sent sequentially from the API, other message processing, or events recorded in regular streams.
@@ -321,7 +329,7 @@ graph LR
  InputWorkflow["Command or Event"]
  Evolve["evolve()"]
  end
-   
+
  Input[Input Messages] --> Stream
  Stream --> Evolve --> State
  State --> Decide
@@ -402,6 +410,8 @@ For background processes, this extra hop is negligible compared to the business 
 
 Future versions could make this configurable, allowing for direct processing for low-latency needs and a double-hop approach for full observability. We'd need community feedback on whether this flexibility matters.
 
+For transactional event stores, we're considering an optimization where the input message is stored directly in the workflow stream during the original transaction, eliminating one hop while maintaining durability guarantees.
+
 ### Storage: Everything Twice
 
 Messages exist in both source streams and workflow streams. A `GuestCheckedOut` event appears in:
@@ -426,6 +436,16 @@ This design is based on Yves Reynhout's Workflow Pattern, which has proven itsel
 
 ## Future Possibilities
 
+### Workflow Versioning and Migration
+
+As workflows evolve, handling in-flight instances becomes critical. The event sourcing foundation provides flexibility:
+
+- **Stream migration**: Copy the workflow stream, filtering or transforming messages as needed
+- **Versioned handlers**: Run multiple workflow versions side-by-side
+- **Upgrade events**: Inject migration events to transform state
+
+The global ordering within each workflow stream is preserved, though cross-stream ordering may change. Metadata tracks which version processed each event, maintaining transparency about system evolution.
+
 ### Other Workflow Patterns
 
 The current design provides a simpler alternative to traditional process managers. We could add Saga as a stateless router with compensation logic and simple event handlers for choreography.
@@ -441,6 +461,12 @@ Currently, we always store inputs first for full observability. Some workflows m
 - **Hybrid**: Configure per message type
 
 This needs careful design to maintain durability guarantees.
+
+### Side Effects and External Communication
+
+For workflows needing external data or services, we recommend keeping the decide function pure. External interactions happen through message handlers that process workflow outputs. This separation ensures workflows remain testable and deterministic.
+
+For cases where async operations are unavoidable, we might allow async decide functions with the understanding that retries would re-execute side effects. The request/response pattern (workflow emits query, waits for response event) provides another option for external communication.
 
 ### Enrichment Patterns
 
@@ -482,6 +508,10 @@ Future versions could:
 - Configure retry policies per workflow
 - Dead letter handling for poison messages
 - Timeout escalation strategies
+
+### Scheduled Message Support
+
+Scheduling delayed messages is a common workflow need. We're planning to support this through optional metadata fields on messages, allowing workflows to schedule future actions naturally within the existing pattern.
 
 ### Paid Tools (Making Emmett Sustainable)
 
