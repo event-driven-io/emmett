@@ -132,12 +132,12 @@ const createChangeStream = <EventType extends Event = Event>(
 ) => {
   //: Partial<MongoDBSubscriptionDocument<EventStream<EventType>>>
   const $match = {
-    'ns.coll': { $regex: /^emt:/ },
+    'ns.coll': { $regex: /^emt:/, $ne: 'emt:processors' },
     $or: [
       { operationType: 'insert' },
       {
         operationType: 'update',
-        'updateDescription.updatedFields.messages': { $exists: true },
+        // 'updateDescription.updatedFields.messages': { $exists: true },
       },
     ],
     // 'fullDocument.partitionKey': partitionKey,
@@ -190,7 +190,4 @@ const zipMongoDBMessageBatchPullerStartFrom = (
   return sorted[0]!;
 };
 
-export {
-  subscribe,
-  zipMongoDBMessageBatchPullerStartFrom as zipMongoDBEventStoreMessageBatchPullerStartFrom,
-};
+export { subscribe, zipMongoDBMessageBatchPullerStartFrom };

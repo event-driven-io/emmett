@@ -3,6 +3,7 @@ import {
   type AnyMessage,
   type Checkpointer,
   type Event,
+  type GlobalPositionTypeOfRecordedMessageMetadata,
   type Message,
   type MessageHandlerResult,
   type MessageProcessingScope,
@@ -10,13 +11,11 @@ import {
   type ProjectorOptions,
   type ReactorOptions,
   type RecordedMessage,
-  type StreamPositionTypeOfRecordedMessageMetadata,
   projector,
   reactor,
 } from '@event-driven-io/emmett';
 import { MongoClient } from 'mongodb';
 import type {
-  MongoDBRecordedMessageMetadata,
   ReadEventMetadataWithGlobalPosition,
   StringStreamPosition,
 } from '../event';
@@ -91,17 +90,17 @@ export type MongoDBProjectorOptions<EventType extends AnyEvent = AnyEvent> =
   > &
     MongoDBConnectionOptions;
 
-const isResumeToken = (value: object): value is MongoDBResumeToken =>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const isResumeToken = (value: any): value is MongoDBResumeToken =>
   '_data' in value &&
-  typeof value._data === 'string' &&
-  typeof value._data.trim === 'function' &&
-  value._data.trim() !== '';
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+  typeof value._data === 'string';
 
 export const getCheckpoint = <
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends
-    MongoDBRecordedMessageMetadata = MongoDBRecordedMessageMetadata,
-  CheckpointType = StreamPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+    ReadEventMetadataWithGlobalPosition = ReadEventMetadataWithGlobalPosition,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 >(
   message: RecordedMessage<MessageType, MessageMetadataType>,
 ): CheckpointType | null => {

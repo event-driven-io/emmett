@@ -7,9 +7,9 @@ import type { MongoDBResumeToken } from './consumers/subscriptions/types';
 export type StringStreamPosition = MongoDBResumeToken;
 export type StringGlobalPosition = MongoDBResumeToken;
 export type ReadEventMetadataWithGlobalPosition<
-  GlobalPosition = StringGlobalPosition,
+  GlobalPosition extends StringGlobalPosition = StringGlobalPosition,
 > = RecordedMessageMetadataWithGlobalPosition<GlobalPosition>;
 export type MongoDBRecordedMessageMetadata = RecordedMessageMetadata<
-  undefined,
-  StringStreamPosition
+  StringGlobalPosition,
+  undefined
 >;
