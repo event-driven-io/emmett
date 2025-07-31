@@ -8,6 +8,7 @@ import {
   type GlobalPositionTypeOfRecordedMessageMetadata,
   type Message,
   type MessageConsumer,
+  type ReadEvent,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { ChangeStream, MongoClient, type MongoClientOptions } from 'mongodb';
@@ -16,7 +17,10 @@ import type {
   MongoDBRecordedMessageMetadata,
   ReadEventMetadataWithGlobalPosition,
 } from '../event';
-import type { EventStream } from '../mongoDBEventStore';
+import type {
+  EventStream,
+  MongoDBReadEventMetadata,
+} from '../mongoDBEventStore';
 import {
   changeStreamReactor,
   mongoDBProjector,
@@ -26,7 +30,7 @@ import {
 } from './mongoDBProcessor';
 import {
   subscribe as _subscribe,
-  zipMongoDBEventStoreMessageBatchPullerStartFrom,
+  zipMongoDBMessageBatchPullerStartFrom,
   type ChangeStreamFullDocumentValuePolicy,
   type MongoDBSubscriptionDocument,
 } from './subscriptions';
@@ -117,6 +121,30 @@ export type EventStoreDBEventStoreConsumer<
       }>
     : object);
 
+type MessageArrayElement = `messages.${string}`;
+type UpdateDescription<T> = {
+  updateDescription: {
+    updatedFields: Record<MessageArrayElement, T> & {
+      'metadata.streamPosition': number;
+      'metadata.updatedAt': Date;
+    };
+  };
+};
+type FullDocument<
+  EventType extends Event = Event,
+  EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
+  T extends EventStream = EventStream<EventType, EventMetaDataType>,
+> = {
+  fullDocument: T;
+};
+type OplogChange<
+  EventType extends Event = Event,
+  EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
+  T extends EventStream = EventStream<EventType, EventMetaDataType>,
+> =
+  | FullDocument<EventType, EventMetaDataType, T>
+  | UpdateDescription<ReadEvent<EventType, EventMetaDataType>>;
+
 export const mongoDBEventsConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
 >(
@@ -180,15 +208,29 @@ export const mongoDBEventsConsumer = <
         const positions = await Promise.all(
           processors.map((o) => o.start(options)),
         );
-        const startFrom =
-          zipMongoDBEventStoreMessageBatchPullerStartFrom(positions);
+        const startFrom = zipMongoDBMessageBatchPullerStartFrom(positions);
 
-        stream = subscribe();
+        stream = subscribe(
+          typeof startFrom !== 'string' ? startFrom.lastCheckpoint : void 0,
+        );
         stream.on('change', async (change) => {
           const resumeToken = change._id;
-          const streamChange = (
-            change as unknown as { fullDocument: EventStream }
-          ).fullDocument;
+          const typedChange = change as OplogChange;
+          const streamChange =
+            'updateDescription' in typedChange
+              ? {
+                  messages: Object.entries(
+                    typedChange.updateDescription.updatedFields,
+                  )
+                    .filter(([key]) => key.startsWith('messages.'))
+                    .map(([, value]) => value as ReadEvent),
+                }
+              : typedChange.fullDocument;
+
+          if (!streamChange) {
+            return;
+          }
+
           const messages = streamChange.messages.map((message) => {
             return {
               kind: message.kind,

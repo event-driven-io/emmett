@@ -79,23 +79,7 @@ void describe('MongoDBEventStore subscription', () => {
       client,
       changeStreamFullDocumentPolicy:
         versionPolicy.changeStreamFullDocumentValuePolicy,
-      onHandleEnd: () => {
-        messageProcessingPromise.resolve();
-        return Promise.resolve();
-      },
     });
-
-    consumer.reactor<ProductItemAdded>({
-      processorId: v4(),
-      eachMessage: (event) => {
-        console.log(event);
-      },
-      connectionOptions: {
-        client,
-      },
-    });
-
-    await consumer.start();
   });
 
   after(async () => {
@@ -115,28 +99,81 @@ void describe('MongoDBEventStore subscription', () => {
   });
 
   void it('should create a new stream with metadata with appendToStream', async () => {
-    const productItem: PricedProductItem = {
-      productId: '123',
-      quantity: 10,
-      price: 3,
-    };
+    const productItem = (productId: string) =>
+      ({
+        productId,
+        quantity: 10,
+        price: 3,
+      }) as PricedProductItem;
     const shoppingCartId = uuid();
     const streamType = 'shopping_cart';
     const streamName = toStreamName(streamType, shoppingCartId);
+    const lastProductItemId = '789';
+    const expectedProductItemIds = ['123', '456', lastProductItemId] as const;
+    let receivedMessageCount: 0 | 1 | 2 = 0;
+
+    consumer.reactor<ProductItemAdded>({
+      processorId: v4(),
+      eachMessage: (event) => {
+        assertTrue(receivedMessageCount <= 2);
+        assertEqual(
+          expectedProductItemIds[receivedMessageCount],
+          event.data.productItem.productId,
+        );
+
+        if (event.data.productItem.productId === lastProductItemId) {
+          messageProcessingPromise.resolve();
+        }
+
+        receivedMessageCount++;
+      },
+      connectionOptions: {
+        client,
+      },
+    });
+
+    await consumer.start();
 
     await eventStore.appendToStream<ShoppingCartEvent>(
       streamName,
-      [{ type: 'ProductItemAdded', data: { productItem } }],
+      [
+        {
+          type: 'ProductItemAdded',
+          data: { productItem: productItem(expectedProductItemIds[0]) },
+        },
+      ],
       { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+    );
+    await eventStore.appendToStream<ShoppingCartEvent>(
+      streamName,
+      [
+        {
+          type: 'ProductItemAdded',
+          data: { productItem: productItem(expectedProductItemIds[1]) },
+        },
+      ],
+      { expectedStreamVersion: 1n },
+    );
+    await eventStore.appendToStream<ShoppingCartEvent>(
+      streamName,
+      [
+        {
+          type: 'ProductItemAdded',
+          data: { productItem: productItem(expectedProductItemIds[2]) },
+        },
+      ],
+      { expectedStreamVersion: 2n },
     );
 
     const stream = await collection.findOne(
       { streamName },
       { useBigInt64: true },
     );
+
     await timeoutGuard(() => messageProcessingPromise);
+
     assertIsNotNull(stream);
-    assertEqual(1n, stream.metadata.streamPosition);
+    assertEqual(3n, stream.metadata.streamPosition);
     assertEqual(shoppingCartId, stream.metadata.streamId);
     assertEqual(streamType, stream.metadata.streamType);
     assertTrue(stream.metadata.createdAt instanceof Date);
