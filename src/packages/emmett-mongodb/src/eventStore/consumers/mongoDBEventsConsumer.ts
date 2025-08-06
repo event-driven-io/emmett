@@ -147,7 +147,7 @@ type OplogChange<
   | FullDocument<EventType, EventMetaDataType, T>
   | UpdateDescription<ReadEvent<EventType, EventMetaDataType>>;
 
-export const mongoDBEventsConsumer = <
+export const mongoDBMessagesConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
   MessageMetadataType extends
     MongoDBRecordedMessageMetadata = MongoDBRecordedMessageMetadata,

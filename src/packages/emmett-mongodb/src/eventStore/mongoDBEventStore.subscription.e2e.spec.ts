@@ -25,7 +25,7 @@ import {
 } from '../testing';
 import { CancellationPromise } from './consumers/CancellablePromise';
 import {
-  mongoDBEventsConsumer,
+  mongoDBMessagesConsumer,
   type MongoDBEventStoreConsumer,
 } from './consumers/mongoDBEventsConsumer';
 import { changeStreamReactor } from './consumers/mongoDBProcessor';
@@ -76,7 +76,7 @@ void describe('MongoDBEventStore subscription', () => {
     });
     const versionPolicy = await generateVersionPolicies(db);
 
-    consumer = mongoDBEventsConsumer<ShoppingCartEvent>({
+    consumer = mongoDBMessagesConsumer<ShoppingCartEvent>({
       client,
       changeStreamFullDocumentPolicy:
         versionPolicy.changeStreamFullDocumentValuePolicy,
