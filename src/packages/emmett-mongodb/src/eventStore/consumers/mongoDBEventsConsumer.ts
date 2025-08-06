@@ -96,35 +96,11 @@ export type MongoDBConsumerOptions<
         connectionString: string;
         clientOptions?: MongoClientOptions;
         client?: never;
-        onHandleStart?: (
-          messages: RecordedMessage<
-            ConsumerEventType,
-            ReadEventMetadataWithGlobalPosition
-          >[],
-        ) => Promise<void>;
-        onHandleEnd?: (
-          messages: RecordedMessage<
-            ConsumerEventType,
-            ReadEventMetadataWithGlobalPosition
-          >[],
-        ) => Promise<void>;
       }
     | {
         client: MongoClient;
         connectionString?: never;
         clientOptions?: never;
-        onHandleStart?: (
-          messages: RecordedMessage<
-            ConsumerEventType,
-            ReadEventMetadataWithGlobalPosition
-          >[],
-        ) => Promise<void>;
-        onHandleEnd?: (
-          messages: RecordedMessage<
-            ConsumerEventType,
-            ReadEventMetadataWithGlobalPosition
-          >[],
-        ) => Promise<void>;
       }
   );
 
@@ -202,8 +178,6 @@ export const mongoDBEventsConsumer = <
     options.changeStreamFullDocumentPolicy,
     client.db(),
   );
-  const onHandleStart = options.onHandleStart || noop;
-  const onHandleEnd = options.onHandleEnd || noop;
 
   return {
     consumerId: options.consumerId ?? uuid(),
@@ -295,15 +269,11 @@ export const mongoDBEventsConsumer = <
             >;
           });
 
-          await onHandleStart(messages);
-
           for (const processor of processors.filter(
             ({ isActive }) => isActive,
           )) {
             await processor.handle(messages, { client });
           }
-
-          await onHandleEnd(messages);
         });
       })();
 
