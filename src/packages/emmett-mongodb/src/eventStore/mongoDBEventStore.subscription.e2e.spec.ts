@@ -28,6 +28,7 @@ import {
   mongoDBEventsConsumer,
   type MongoDBEventStoreConsumer,
 } from './consumers/mongoDBEventsConsumer';
+import { changeStreamReactor } from './consumers/mongoDBProcessor';
 import { generateVersionPolicies } from './consumers/subscriptions';
 
 void describe('MongoDBEventStore subscription', () => {
@@ -111,7 +112,25 @@ void describe('MongoDBEventStore subscription', () => {
     const lastProductItemId = '789';
     const expectedProductItemIds = ['123', '456', lastProductItemId] as const;
     let receivedMessageCount: 0 | 1 | 2 = 0;
+    changeStreamReactor<ProductItemAdded>({
+      connectionOptions: {
+        client,
+      },
+      processorId: v4(),
+      eachMessage: (event) => {
+        assertTrue(receivedMessageCount <= 2);
+        assertEqual(
+          expectedProductItemIds[receivedMessageCount],
+          event.data.productItem.productId,
+        );
 
+        if (event.data.productItem.productId === lastProductItemId) {
+          messageProcessingPromise.resolve();
+        }
+
+        receivedMessageCount++;
+      },
+    });
     consumer.reactor<ProductItemAdded>({
       processorId: v4(),
       eachMessage: (event) => {
