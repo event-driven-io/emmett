@@ -1,9 +1,11 @@
 import {
   EmmettError,
+  MessageProcessor,
   type AnyEvent,
   type AnyMessage,
   type AsyncRetryOptions,
   type CommonRecordedMessageMetadata,
+  type DefaultRecord,
   type Event,
   type GlobalPositionTypeOfRecordedMessageMetadata,
   type Message,
@@ -41,17 +43,32 @@ export type MessageConsumerOptions<
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends
     MongoDBRecordedMessageMetadata = MongoDBRecordedMessageMetadata,
+  HandlerContext extends DefaultRecord | undefined = undefined,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = {
   consumerId?: string;
 
-  processors?: MongoDBProcessor<MessageType>[];
+  processors?: MessageProcessor<
+    MessageType,
+    MessageMetadataType,
+    HandlerContext,
+    CheckpointType
+  >[];
 };
 
 export type MongoDBEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
-> = MessageConsumerOptions<ConsumerMessageType> & {
+  MessageMetadataType extends
+    MongoDBRecordedMessageMetadata = MongoDBRecordedMessageMetadata,
+  HandlerContext extends DefaultRecord | undefined = undefined,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+> = MessageConsumerOptions<
+  ConsumerMessageType,
+  MessageMetadataType,
+  HandlerContext,
+  CheckpointType
+> & {
   // from?: any;
   pulling?: {
     batchSize?: number;
@@ -64,7 +81,16 @@ export type MongoDBEventStoreConsumerConfig<
 
 export type MongoDBConsumerOptions<
   ConsumerEventType extends Message = Message,
-> = MongoDBEventStoreConsumerConfig<ConsumerEventType> &
+  MessageMetadataType extends
+    MongoDBRecordedMessageMetadata = MongoDBRecordedMessageMetadata,
+  HandlerContext extends DefaultRecord | undefined = undefined,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+> = MongoDBEventStoreConsumerConfig<
+  ConsumerEventType,
+  MessageMetadataType,
+  HandlerContext,
+  CheckpointType
+> &
   (
     | {
         connectionString: string;
@@ -147,8 +173,17 @@ type OplogChange<
 
 export const mongoDBEventsConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
+  MessageMetadataType extends
+    MongoDBRecordedMessageMetadata = MongoDBRecordedMessageMetadata,
+  HandlerContext extends DefaultRecord | undefined = undefined,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 >(
-  options: MongoDBConsumerOptions<ConsumerMessageType>,
+  options: MongoDBConsumerOptions<
+    ConsumerMessageType,
+    MessageMetadataType,
+    HandlerContext,
+    CheckpointType
+  >,
 ): MongoDBEventStoreConsumer<ConsumerMessageType> => {
   let start: Promise<void>;
   let stream: ChangeStream<
@@ -181,7 +216,14 @@ export const mongoDBEventsConsumer = <
     ): MongoDBProcessor<MessageType> => {
       const processor = changeStreamReactor(options);
 
-      processors.push(processor as unknown as MongoDBProcessor);
+      processors.push(
+        processor as unknown as MessageProcessor<
+          ConsumerMessageType,
+          MessageMetadataType,
+          HandlerContext,
+          CheckpointType
+        >,
+      );
 
       return processor;
     },
@@ -190,11 +232,18 @@ export const mongoDBEventsConsumer = <
     ): MongoDBProcessor<EventType> => {
       const processor = mongoDBProjector(options);
 
-      processors.push(processor as unknown as MongoDBProcessor);
+      processors.push(
+        processor as unknown as MessageProcessor<
+          ConsumerMessageType,
+          MessageMetadataType,
+          HandlerContext,
+          CheckpointType
+        >,
+      );
 
       return processor;
     },
-    start: () => {
+    start: (context: Partial<HandlerContext>) => {
       start = (async () => {
         if (processors.length === 0)
           return Promise.reject(
@@ -206,7 +255,7 @@ export const mongoDBEventsConsumer = <
         isRunning = true;
 
         const positions = await Promise.all(
-          processors.map((o) => o.start(options)),
+          processors.map((o) => o.start(context)),
         );
         const startFrom = zipMongoDBMessageBatchPullerStartFrom(positions);
 
