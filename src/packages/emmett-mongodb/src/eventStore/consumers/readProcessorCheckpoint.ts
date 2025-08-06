@@ -1,9 +1,9 @@
 import type { MongoClient } from 'mongodb';
+import type { MongoDBResumeToken } from './subscriptions/types';
 import {
   DefaultProcessotCheckpointCollectionName,
   type ReadProcessorCheckpointSqlResult,
 } from './types';
-import type { MongoDBResumeToken } from './subscriptions/types';
 
 export type ReadProcessorCheckpointResult = {
   lastProcessedPosition: MongoDBResumeToken | null;
@@ -11,10 +11,15 @@ export type ReadProcessorCheckpointResult = {
 
 export const readProcessorCheckpoint = async (
   client: MongoClient,
-  options: { processorId: string; partition?: string; collectionName?: string },
+  options: {
+    processorId: string;
+    partition?: string;
+    collectionName?: string;
+    databaseName?: string;
+  },
 ): Promise<ReadProcessorCheckpointResult> => {
   const result = await client
-    .db()
+    .db(options.databaseName)
     .collection<ReadProcessorCheckpointSqlResult>(
       options.collectionName || DefaultProcessotCheckpointCollectionName,
     )
