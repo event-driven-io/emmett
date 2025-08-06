@@ -26,7 +26,7 @@ import {
 import { CancellationPromise } from './consumers/CancellablePromise';
 import {
   mongoDBEventsConsumer,
-  type EventStoreDBEventStoreConsumer,
+  type MongoDBEventStoreConsumer,
 } from './consumers/mongoDBEventsConsumer';
 import { generateVersionPolicies } from './consumers/subscriptions';
 
@@ -35,7 +35,7 @@ void describe('MongoDBEventStore subscription', () => {
   let eventStore: MongoDBEventStore;
   let client: MongoClient;
   let collection: Collection<EventStream>;
-  let consumer: EventStoreDBEventStoreConsumer<ShoppingCartEvent>;
+  let consumer: MongoDBEventStoreConsumer<ShoppingCartEvent>;
   let messageProcessingPromise = new CancellationPromise<void>();
 
   const noop = () => {};

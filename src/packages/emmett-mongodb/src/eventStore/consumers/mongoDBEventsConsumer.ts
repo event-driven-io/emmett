@@ -48,7 +48,7 @@ export type MessageConsumerOptions<
   processors?: MongoDBProcessor<MessageType>[];
 };
 
-export type EventStoreDBEventStoreConsumerConfig<
+export type MongoDBEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
 > = MessageConsumerOptions<ConsumerMessageType> & {
@@ -64,7 +64,7 @@ export type EventStoreDBEventStoreConsumerConfig<
 
 export type MongoDBConsumerOptions<
   ConsumerEventType extends Message = Message,
-> = EventStoreDBEventStoreConsumerConfig<ConsumerEventType> &
+> = MongoDBEventStoreConsumerConfig<ConsumerEventType> &
   (
     | {
         connectionString: string;
@@ -102,7 +102,7 @@ export type MongoDBConsumerOptions<
       }
   );
 
-export type EventStoreDBEventStoreConsumer<
+export type MongoDBEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<ConsumerMessageType> &
@@ -149,7 +149,7 @@ export const mongoDBEventsConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
 >(
   options: MongoDBConsumerOptions<ConsumerMessageType>,
-): EventStoreDBEventStoreConsumer<ConsumerMessageType> => {
+): MongoDBEventStoreConsumer<ConsumerMessageType> => {
   let start: Promise<void>;
   let stream: ChangeStream<
     EventStream<Event, CommonRecordedMessageMetadata>,

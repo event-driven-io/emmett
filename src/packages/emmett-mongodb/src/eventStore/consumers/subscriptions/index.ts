@@ -20,7 +20,7 @@ import type { MongoDBResumeToken } from './types';
 
 export type MongoDBSubscriptionOptions<MessageType extends Message = Message> =
   {
-    // from?: EventStoreDBEventStoreConsumerType;
+    // from?: MongoDBEventStoreConsumerType;
     client: MongoClient;
     batchSize: number;
     eachBatch: BatchRecordedMessageHandlerWithoutContext<
@@ -65,7 +65,7 @@ export type MongoDBSubscriptionStartOptions = {
   startFrom: MongoDBSubscriptionStartFrom;
 };
 
-// export type EventStoreDBEventStoreConsumerType =
+// export type MongoDBEventStoreConsumerType =
 //   | {
 //       stream: $all;
 //       options?: Exclude<SubscribeToAllOptions, 'fromPosition'>;
