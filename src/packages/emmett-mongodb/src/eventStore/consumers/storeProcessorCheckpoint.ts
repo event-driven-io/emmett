@@ -2,8 +2,8 @@ import type { MongoClient } from 'mongodb';
 import { compareTwoTokens } from './subscriptions';
 import type { MongoDBResumeToken } from './subscriptions/types';
 import {
-  DefaultProcessotCheckpointCollectionName,
   type ReadProcessorCheckpointSqlResult,
+  DefaultProcessotCheckpointCollectionName,
 } from './types';
 
 export type StoreLastProcessedProcessorPositionResult<
@@ -17,7 +17,15 @@ export type StoreLastProcessedProcessorPositionResult<
 
 export const storeProcessorCheckpoint = async <Position extends string | null>(
   client: MongoClient,
-  options: {
+  {
+    processorId,
+    version,
+    newPosition,
+    lastProcessedPosition,
+    partition,
+    collectionName,
+    dbName,
+  }: {
     processorId: string;
     version: number;
     newPosition: null extends Position
@@ -35,81 +43,46 @@ export const storeProcessorCheckpoint = async <Position extends string | null>(
 > => {
   try {
     const checkpoints = client
-      .db(options.dbName)
+      .db(dbName)
       .collection<ReadProcessorCheckpointSqlResult>(
-        options.collectionName || DefaultProcessotCheckpointCollectionName,
+        collectionName || DefaultProcessotCheckpointCollectionName,
       );
-    const currentCheckpoint = await checkpoints.findOne({
-      subscriptionId: options.processorId,
-      partitionId: options.partition || null,
-    });
-    const matchedCheckpoint = await checkpoints.findOne({
-      subscriptionId: options.processorId,
-      partitionId: options.partition || null,
-      lastProcessedToken: options.lastProcessedPosition,
-    });
 
-    if (currentCheckpoint && !matchedCheckpoint) {
-      return {
-        success: false,
-        reason: 'MISMATCH',
-      };
+    const filter = {
+      subscriptionId: processorId,
+      partitionId: partition || null,
+    };
+
+    const current = await checkpoints.findOne(filter);
+
+    // MISMATCH: we have a checkpoint but lastProcessedPosition doesn’t match
+    if (
+      current &&
+      current.lastProcessedToken?._data !== lastProcessedPosition?._data
+    ) {
+      return { success: false, reason: 'MISMATCH' };
     }
 
-    if (matchedCheckpoint?.lastProcessedToken && options?.newPosition) {
-      const comparison = compareTwoTokens(
-        matchedCheckpoint.lastProcessedToken,
-        options.newPosition,
-      );
-
-      // if the tokens are the same or
-      // the `currentCheckpoint.lastProcessedToken` is later than the `options.newPosition`.
-      if (comparison !== -1) {
-        return {
-          success: false,
-          reason: 'IGNORED',
-        };
+    // IGNORED: same or earlier position
+    if (current?.lastProcessedToken && newPosition) {
+      if (compareTwoTokens(current.lastProcessedToken, newPosition) !== -1) {
+        return { success: false, reason: 'IGNORED' };
       }
     }
 
-    const result = currentCheckpoint
-      ? await checkpoints.findOneAndUpdate(
-          {
-            subscriptionId: options.processorId,
-            partitionId: options.partition || null,
-            lastProcessedToken: options.lastProcessedPosition,
-          },
-          {
-            $set: {
-              lastProcessedToken: options.newPosition,
-              version: options.version,
-            },
-          },
-          {
-            returnDocument: 'after',
-          },
-        )
-      : await checkpoints.insertOne({
-          subscriptionId: options.processorId,
-          partitionId: options.partition || null,
-          lastProcessedToken: options.newPosition,
-          version: options.version,
-        });
+    const updateResult = await checkpoints.updateOne(
+      { ...filter, lastProcessedToken: lastProcessedPosition },
+      { $set: { lastProcessedToken: newPosition, version } },
+      { upsert: true },
+    );
 
-    return (result &&
-      'acknowledged' in result &&
-      result.acknowledged &&
-      result.insertedId) ||
-      (result &&
-        'lastProcessedToken' in result &&
-        result.lastProcessedToken?._data === options.newPosition?._data)
-      ? { success: true, newPosition: options.newPosition }
-      : {
-          success: false,
-          reason: 'MISMATCH',
-        };
+    if (updateResult.matchedCount > 0 || updateResult.upsertedCount > 0) {
+      return { success: true, newPosition };
+    }
+
+    return { success: false, reason: 'MISMATCH' };
   } catch (error) {
-    console.log(error);
+    console.error(error);
     throw error;
   }
 };
