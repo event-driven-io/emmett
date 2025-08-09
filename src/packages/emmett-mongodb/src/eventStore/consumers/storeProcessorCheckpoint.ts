@@ -1,21 +1,18 @@
 import type { MongoClient } from 'mongodb';
 import { compareTwoTokens } from './subscriptions';
-import type { MongoDBResumeToken } from './subscriptions/types';
 import {
   type ReadProcessorCheckpointSqlResult,
   DefaultProcessotCheckpointCollectionName,
 } from './types';
 
-export type StoreLastProcessedProcessorPositionResult<
-  Position extends MongoDBResumeToken | null = MongoDBResumeToken,
-> =
+export type StoreLastProcessedProcessorPositionResult<Position = unknown> =
   | {
       success: true;
       newPosition: Position;
     }
   | { success: false; reason: 'IGNORED' | 'MISMATCH' };
 
-export const storeProcessorCheckpoint = async <Position extends string | null>(
+export const storeProcessorCheckpoint = async <Position>(
   client: MongoClient,
   {
     processorId,
@@ -28,17 +25,15 @@ export const storeProcessorCheckpoint = async <Position extends string | null>(
   }: {
     processorId: string;
     version: number;
-    newPosition: null extends Position
-      ? MongoDBResumeToken | null
-      : MongoDBResumeToken;
-    lastProcessedPosition: MongoDBResumeToken | null;
+    newPosition: Position;
+    lastProcessedPosition: Position | null;
     partition?: string;
     collectionName?: string;
     dbName?: string;
   },
 ): Promise<
   StoreLastProcessedProcessorPositionResult<
-    null extends Position ? MongoDBResumeToken | null : MongoDBResumeToken
+    null extends Position ? Position | null : Position
   >
 > => {
   try {
@@ -58,7 +53,7 @@ export const storeProcessorCheckpoint = async <Position extends string | null>(
     // MISMATCH: we have a checkpoint but lastProcessedPosition doesn’t match
     if (
       current &&
-      current.lastProcessedToken?._data !== lastProcessedPosition?._data
+      compareTwoTokens(current.lastProcessedToken, lastProcessedPosition) !== 0
     ) {
       return { success: false, reason: 'MISMATCH' };
     }
