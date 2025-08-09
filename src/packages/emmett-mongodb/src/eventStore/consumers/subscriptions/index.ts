@@ -163,6 +163,22 @@ const subscribe =
     return createChangeStream<EventType>(getFullDocumentValue, db, resumeToken);
   };
 
+/**
+ * Compares two MongoDB Resume Tokens.
+ * @param token1 Token 1.
+ * @param token2 Token 2.
+ * @returns 0 - if the tokens are the same, 1 - if the token1 is later, -1 - is the token1 is earlier.
+ */
+const compareTwoTokens = (
+  token1: MongoDBResumeToken,
+  token2: MongoDBResumeToken,
+) => {
+  const bufA = Buffer.from(token1._data, 'hex');
+  const bufB = Buffer.from(token2._data, 'hex');
+
+  return Buffer.compare(bufA, bufB);
+};
+
 const zipMongoDBMessageBatchPullerStartFrom = (
   options: (MongoDBSubscriptionStartFrom | undefined)[],
 ): MongoDBSubscriptionStartFrom => {
@@ -182,12 +198,10 @@ const zipMongoDBMessageBatchPullerStartFrom = (
   );
 
   const sorted = positionTokens.sort((a, b) => {
-    const bufA = Buffer.from(a.lastCheckpoint._data, 'hex'); // or 'base64', depending on encoding
-    const bufB = Buffer.from(b.lastCheckpoint._data, 'hex');
-    return Buffer.compare(bufA, bufB);
+    return compareTwoTokens(a.lastCheckpoint, b.lastCheckpoint);
   });
 
   return sorted[0]!;
 };
 
-export { subscribe, zipMongoDBMessageBatchPullerStartFrom };
+export { compareTwoTokens, subscribe, zipMongoDBMessageBatchPullerStartFrom };
