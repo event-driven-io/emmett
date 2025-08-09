@@ -1,9 +1,10 @@
-import type {
-  AsyncRetryOptions,
-  BatchRecordedMessageHandlerWithoutContext,
-  Event,
-  Message,
-  ReadEventMetadataWithGlobalPosition,
+import {
+  IllegalStateError,
+  type AsyncRetryOptions,
+  type BatchRecordedMessageHandlerWithoutContext,
+  type Event,
+  type Message,
+  type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import type {
   ChangeStreamDeleteDocument,
@@ -16,7 +17,7 @@ import type {
   ResumeToken,
 } from 'mongodb';
 import type { EventStream } from '../../mongoDBEventStore';
-import type { MongoDBResumeToken } from './types';
+import { isMongoDBResumeToken, type MongoDBResumeToken } from './types';
 
 export type MongoDBSubscriptionOptions<MessageType extends Message = Message> =
   {
@@ -169,7 +170,7 @@ const subscribe =
  * @param token2 Token 2.
  * @returns 0 - if the tokens are the same, 1 - if the token1 is later, -1 - is the token1 is earlier.
  */
-const compareTwoTokens = (
+const compareTwoMongoDBTokens = (
   token1: MongoDBResumeToken,
   token2: MongoDBResumeToken,
 ) => {
@@ -177,6 +178,26 @@ const compareTwoTokens = (
   const bufB = Buffer.from(token2._data, 'hex');
 
   return Buffer.compare(bufA, bufB);
+};
+
+const compareTwoTokens = (token1: unknown, token2: unknown) => {
+  if (token1 === null && token2) {
+    return -1;
+  }
+
+  if (token1 && token2 === null) {
+    return 1;
+  }
+
+  if (token1 === null && token2 === null) {
+    return 0;
+  }
+
+  if (isMongoDBResumeToken(token1) && isMongoDBResumeToken(token2)) {
+    return compareTwoMongoDBTokens(token1, token2);
+  }
+
+  throw new IllegalStateError(`Type of tokens is not comparable`);
 };
 
 const zipMongoDBMessageBatchPullerStartFrom = (
@@ -198,10 +219,15 @@ const zipMongoDBMessageBatchPullerStartFrom = (
   );
 
   const sorted = positionTokens.sort((a, b) => {
-    return compareTwoTokens(a.lastCheckpoint, b.lastCheckpoint);
+    return compareTwoMongoDBTokens(a.lastCheckpoint, b.lastCheckpoint);
   });
 
   return sorted[0]!;
 };
 
-export { compareTwoTokens, subscribe, zipMongoDBMessageBatchPullerStartFrom };
+export {
+  compareTwoMongoDBTokens,
+  compareTwoTokens,
+  subscribe,
+  zipMongoDBMessageBatchPullerStartFrom,
+};
