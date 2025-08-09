@@ -37,8 +37,6 @@ import {
   type MongoDBSubscriptionDocument,
 } from './subscriptions';
 
-const noop = () => Promise.resolve();
-
 export type MessageConsumerOptions<
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends

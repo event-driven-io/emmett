@@ -3,23 +3,15 @@ import {
   MongoDBContainer,
   type StartedMongoDBContainer,
 } from '@testcontainers/mongodb';
-import { MongoClient, type Collection } from 'mongodb';
+import { MongoClient } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
-import {
-  getMongoDBEventStore,
-  toStreamCollectionName,
-  type EventStream,
-  type MongoDBEventStore,
-} from '../mongoDBEventStore';
 import { readProcessorCheckpoint } from './readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from './storeProcessorCheckpoint';
 import type { MongoDBResumeToken } from './subscriptions/types';
 
 void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () => {
   let mongodb: StartedMongoDBContainer;
-  let eventStore: MongoDBEventStore;
   let client: MongoClient;
-  let collection: Collection<EventStream>;
 
   const processorId = 'processorId-1';
   const resumeToken1: MongoDBResumeToken = {
@@ -42,14 +34,6 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
     });
 
     await client.connect();
-    const db = client.db();
-    collection = db.collection<EventStream>(
-      toStreamCollectionName('shopping_cart'),
-    );
-
-    eventStore = getMongoDBEventStore({
-      client,
-    });
   });
 
   after(async () => {
