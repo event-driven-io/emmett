@@ -15,10 +15,7 @@ import {
 } from '@event-driven-io/emmett';
 import { ChangeStream, MongoClient, type MongoClientOptions } from 'mongodb';
 import { v4 as uuid } from 'uuid';
-import type {
-  MongoDBRecordedMessageMetadata,
-  ReadEventMetadataWithGlobalPosition,
-} from '../event';
+import type { MongoDBRecordedMessageMetadata } from '../event';
 import type {
   EventStream,
   MongoDBReadEventMetadata,
@@ -145,11 +142,15 @@ type OplogChange<
   | FullDocument<EventType, EventMetaDataType, T>
   | UpdateDescription<ReadEvent<EventType, EventMetaDataType>>;
 
+export type MongoDBConsumerHandlerContext = {
+  client?: MongoClient;
+};
 export const mongoDBMessagesConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
   MessageMetadataType extends
     MongoDBRecordedMessageMetadata = MongoDBRecordedMessageMetadata,
-  HandlerContext extends DefaultRecord | undefined = undefined,
+  HandlerContext extends
+    MongoDBConsumerHandlerContext = MongoDBConsumerHandlerContext,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 >(
   options: MongoDBConsumerOptions<
@@ -215,7 +216,7 @@ export const mongoDBMessagesConsumer = <
 
       return processor;
     },
-    start: (context: Partial<HandlerContext>) => {
+    start: () => {
       start = (async () => {
         if (processors.length === 0)
           return Promise.reject(
@@ -227,13 +228,13 @@ export const mongoDBMessagesConsumer = <
         isRunning = true;
 
         const positions = await Promise.all(
-          processors.map((o) => o.start(context)),
+          processors.map((o) => o.start({ client } as Partial<HandlerContext>)),
         );
-        const startFrom = zipMongoDBMessageBatchPullerStartFrom(positions);
+        const startFrom =
+          zipMongoDBMessageBatchPullerStartFrom<CheckpointType>(positions);
 
-        stream = subscribe(
-          typeof startFrom !== 'string' ? startFrom.lastCheckpoint : void 0,
-        );
+        stream = subscribe<Event, CheckpointType>(startFrom);
+
         stream.on('change', async (change) => {
           const resumeToken = change._id;
           const typedChange = change as OplogChange;
@@ -263,14 +264,14 @@ export const mongoDBMessagesConsumer = <
               },
             } as unknown as RecordedMessage<
               ConsumerMessageType,
-              ReadEventMetadataWithGlobalPosition
+              MessageMetadataType
             >;
           });
 
           for (const processor of processors.filter(
             ({ isActive }) => isActive,
           )) {
-            await processor.handle(messages, { client });
+            await processor.handle(messages, { client } as Partial<HandlerContext>);
           }
         });
       })();
@@ -278,10 +279,12 @@ export const mongoDBMessagesConsumer = <
       return start;
     },
     stop: async () => {
-      return Promise.resolve();
+      await stream.close();
+      isRunning = false;
     },
     close: async () => {
       await stream.close();
+      isRunning = false;
     },
   };
 };

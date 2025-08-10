@@ -15,10 +15,7 @@ import {
   reactor,
 } from '@event-driven-io/emmett';
 import { MongoClient } from 'mongodb';
-import type {
-  ReadEventMetadataWithGlobalPosition,
-  StringStreamPosition,
-} from '../event';
+import type { ReadEventMetadataWithGlobalPosition } from '../event';
 import type { MongoDBEventStoreConnectionOptions } from '../mongoDBEventStore';
 import { readProcessorCheckpoint } from './readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from './storeProcessorCheckpoint';
@@ -30,22 +27,14 @@ type MongoDBConnectionOptions = {
 
 export type MongoDBProcessorHandlerContext = {
   client: MongoClient;
-  // execute: SQLExecutor;
-  // connection: {
-  //   connectionString: string;
-  //   client: NodePostgresClient;
-  //   transaction: NodePostgresTransaction;
-  //   pool: Dumbo;
-  // };
 };
 
-export type CommonRecordedMessageMetadata<
-  StreamPosition = StringStreamPosition,
-> = Readonly<{
-  messageId: string;
-  streamPosition: StreamPosition;
-  streamName: string;
-}>;
+export type CommonRecordedMessageMetadata<StreamPosition = MongoDBResumeToken> =
+  Readonly<{
+    messageId: string;
+    streamPosition: StreamPosition;
+    streamName: string;
+  }>;
 
 export type WithGlobalPosition<GlobalPosition> = Readonly<{
   globalPosition: GlobalPosition;
@@ -53,7 +42,7 @@ export type WithGlobalPosition<GlobalPosition> = Readonly<{
 
 export type RecordedMessageMetadata<
   GlobalPosition = undefined,
-  StreamPosition = StringStreamPosition,
+  StreamPosition = MongoDBResumeToken,
 > = CommonRecordedMessageMetadata<StreamPosition> &
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   (GlobalPosition extends undefined ? {} : WithGlobalPosition<GlobalPosition>);

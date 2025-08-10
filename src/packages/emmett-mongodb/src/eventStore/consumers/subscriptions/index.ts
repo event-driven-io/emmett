@@ -2,19 +2,20 @@ import {
   IllegalStateError,
   type AsyncRetryOptions,
   type BatchRecordedMessageHandlerWithoutContext,
+  type CurrentMessageProcessorPosition,
   type Event,
   type Message,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import type {
-  ChangeStreamDeleteDocument,
-  ChangeStreamInsertDocument,
-  ChangeStreamReplaceDocument,
-  ChangeStreamUpdateDocument,
-  Db,
-  Document,
-  MongoClient,
-  ResumeToken,
+import {
+  Timestamp,
+  type ChangeStreamDeleteDocument,
+  type ChangeStreamInsertDocument,
+  type ChangeStreamReplaceDocument,
+  type ChangeStreamUpdateDocument,
+  type Db,
+  type Document,
+  type MongoClient,
 } from 'mongodb';
 import type { EventStream } from '../../mongoDBEventStore';
 import { isMongoDBResumeToken, type MongoDBResumeToken } from './types';
@@ -58,23 +59,12 @@ export type BuildInfo = {
   ok: number;
 };
 export type MongoDBSubscriptionStartFrom =
-  | { lastCheckpoint: MongoDBResumeToken }
-  | 'BEGINNING'
-  | 'END';
+  CurrentMessageProcessorPosition<MongoDBResumeToken>;
 
 export type MongoDBSubscriptionStartOptions = {
   startFrom: MongoDBSubscriptionStartFrom;
 };
 
-// export type MongoDBEventStoreConsumerType =
-//   | {
-//       stream: $all;
-//       options?: Exclude<SubscribeToAllOptions, 'fromPosition'>;
-//     }
-//   | {
-//       stream: string;
-//       options?: Exclude<SubscribeToStreamOptions, 'fromRevision'>;
-//     };
 const REGEXP =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 
@@ -124,21 +114,22 @@ export const generateVersionPolicies = async (db: Db) => {
   };
 };
 
-const createChangeStream = <EventType extends Event = Event>(
+const DEFAULT_PARTITION_KEY_NAME = 'default';
+const createChangeStream = <
+  EventType extends Event = Event,
+  CheckpointType = any,
+>(
   getFullDocumentValue: ChangeStreamFullDocumentValuePolicy,
   db: Db,
-  // messages: Collection<EventStream<EventType>>,
-  // partitionKey: string,
-  resumeToken?: ResumeToken,
+  resumeToken?: CurrentMessageProcessorPosition<CheckpointType>,
+  partitionKey: string = DEFAULT_PARTITION_KEY_NAME,
 ) => {
-  //: Partial<MongoDBSubscriptionDocument<EventStream<EventType>>>
   const $match = {
     'ns.coll': { $regex: /^emt:/, $ne: 'emt:processors' },
     $or: [
       { operationType: 'insert' },
       {
         operationType: 'update',
-        // 'updateDescription.updatedFields.messages': { $exists: true },
       },
     ],
     // 'fullDocument.partitionKey': partitionKey,
@@ -154,13 +145,31 @@ const createChangeStream = <EventType extends Event = Event>(
     MongoDBSubscriptionDocument<EventStream<EventType>>
   >(pipeline, {
     fullDocument: getFullDocumentValue(),
-    startAfter: resumeToken,
+    ...(resumeToken === 'BEGINNING'
+      ? {
+          /*
+            The MongoDB's API is designed around starting from now or resuming from a known position
+            (resumeAfter, startAfter, or startAtOperationTime).
+            By passing a date set a long time ago (year 2000), we force MongoDB to start
+            from the earliest possible position in the oplog.
+            If the retention is 48 hours, then it will be 24 hours back.
+          */
+          startAtOperationTime: new Timestamp({
+            t: 946684800,
+            i: 0,
+          }),
+        }
+      : resumeToken === 'END'
+        ? void 0
+        : resumeToken?.lastCheckpoint),
   });
 };
 
 const subscribe =
   (getFullDocumentValue: ChangeStreamFullDocumentValuePolicy, db: Db) =>
-  <EventType extends Event = Event>(resumeToken?: ResumeToken) => {
+  <EventType extends Event = Event, CheckpointType = any>(
+    resumeToken?: CurrentMessageProcessorPosition<CheckpointType>,
+  ) => {
     return createChangeStream<EventType>(getFullDocumentValue, db, resumeToken);
   };
 
@@ -200,9 +209,9 @@ const compareTwoTokens = (token1: unknown, token2: unknown) => {
   throw new IllegalStateError(`Type of tokens is not comparable`);
 };
 
-const zipMongoDBMessageBatchPullerStartFrom = (
-  options: (MongoDBSubscriptionStartFrom | undefined)[],
-): MongoDBSubscriptionStartFrom => {
+const zipMongoDBMessageBatchPullerStartFrom = <CheckpointType = any>(
+  options: (CurrentMessageProcessorPosition<CheckpointType> | undefined)[],
+): CurrentMessageProcessorPosition<CheckpointType> => {
   if (
     options.length === 0 ||
     options.some((o) => o === undefined || o === 'BEGINNING')
@@ -219,7 +228,7 @@ const zipMongoDBMessageBatchPullerStartFrom = (
   );
 
   const sorted = positionTokens.sort((a, b) => {
-    return compareTwoMongoDBTokens(a.lastCheckpoint, b.lastCheckpoint);
+    return compareTwoTokens(a.lastCheckpoint, b.lastCheckpoint);
   });
 
   return sorted[0]!;

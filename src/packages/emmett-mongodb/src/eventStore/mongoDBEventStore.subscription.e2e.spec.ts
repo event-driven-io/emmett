@@ -184,12 +184,14 @@ void describe('MongoDBEventStore subscription', () => {
       { expectedStreamVersion: 2n },
     );
 
+    await timeoutGuard(() => messageProcessingPromise);
+
     const stream = await collection.findOne(
       { streamName },
       { useBigInt64: true },
     );
 
-    await timeoutGuard(() => messageProcessingPromise);
+    await consumer.stop();
 
     assertIsNotNull(stream);
     assertEqual(3n, stream.metadata.streamPosition);
