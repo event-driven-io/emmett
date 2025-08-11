@@ -114,15 +114,16 @@ export const generateVersionPolicies = async (db: Db) => {
   };
 };
 
-const DEFAULT_PARTITION_KEY_NAME = 'default';
+// const DEFAULT_PARTITION_KEY_NAME = 'default';
 const createChangeStream = <
   EventType extends Event = Event,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   CheckpointType = any,
 >(
   getFullDocumentValue: ChangeStreamFullDocumentValuePolicy,
   db: Db,
   resumeToken?: CurrentMessageProcessorPosition<CheckpointType>,
-  partitionKey: string = DEFAULT_PARTITION_KEY_NAME,
+  // partitionKey: string = DEFAULT_PARTITION_KEY_NAME,
 ) => {
   const $match = {
     'ns.coll': { $regex: /^emt:/, $ne: 'emt:processors' },
@@ -167,6 +168,7 @@ const createChangeStream = <
 
 const subscribe =
   (getFullDocumentValue: ChangeStreamFullDocumentValuePolicy, db: Db) =>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   <EventType extends Event = Event, CheckpointType = any>(
     resumeToken?: CurrentMessageProcessorPosition<CheckpointType>,
   ) => {
@@ -209,6 +211,7 @@ const compareTwoTokens = (token1: unknown, token2: unknown) => {
   throw new IllegalStateError(`Type of tokens is not comparable`);
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const zipMongoDBMessageBatchPullerStartFrom = <CheckpointType = any>(
   options: (CurrentMessageProcessorPosition<CheckpointType> | undefined)[],
 ): CurrentMessageProcessorPosition<CheckpointType> => {

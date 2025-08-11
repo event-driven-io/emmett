@@ -25,7 +25,7 @@ export const storeProcessorCheckpoint = async <Position>(
   }: {
     processorId: string;
     version: number;
-    newPosition: Position;
+    newPosition: Position | null;
     lastProcessedPosition: Position | null;
     partition?: string;
     collectionName?: string;
@@ -36,48 +36,43 @@ export const storeProcessorCheckpoint = async <Position>(
     null extends Position ? Position | null : Position
   >
 > => {
-  try {
-    const checkpoints = client
-      .db(dbName)
-      .collection<ReadProcessorCheckpointSqlResult>(
-        collectionName || DefaultProcessotCheckpointCollectionName,
-      );
-
-    const filter = {
-      subscriptionId: processorId,
-      partitionId: partition || null,
-    };
-
-    const current = await checkpoints.findOne(filter);
-
-    // MISMATCH: we have a checkpoint but lastProcessedPosition doesn’t match
-    if (
-      current &&
-      compareTwoTokens(current.lastProcessedToken, lastProcessedPosition) !== 0
-    ) {
-      return { success: false, reason: 'MISMATCH' };
-    }
-
-    // IGNORED: same or earlier position
-    if (current?.lastProcessedToken && newPosition) {
-      if (compareTwoTokens(current.lastProcessedToken, newPosition) !== -1) {
-        return { success: false, reason: 'IGNORED' };
-      }
-    }
-
-    const updateResult = await checkpoints.updateOne(
-      { ...filter, lastProcessedToken: lastProcessedPosition },
-      { $set: { lastProcessedToken: newPosition, version } },
-      { upsert: true },
+  const checkpoints = client
+    .db(dbName)
+    .collection<ReadProcessorCheckpointSqlResult>(
+      collectionName || DefaultProcessotCheckpointCollectionName,
     );
 
-    if (updateResult.matchedCount > 0 || updateResult.upsertedCount > 0) {
-      return { success: true, newPosition };
-    }
+  const filter = {
+    subscriptionId: processorId,
+    partitionId: partition || null,
+  };
 
+  const current = await checkpoints.findOne(filter);
+
+  // MISMATCH: we have a checkpoint but lastProcessedPosition doesn’t match
+  if (
+    current &&
+    compareTwoTokens(current.lastProcessedToken, lastProcessedPosition) !== 0
+  ) {
     return { success: false, reason: 'MISMATCH' };
-  } catch (error) {
-    console.error(error);
-    throw error;
   }
+
+  // IGNORED: same or earlier position
+  if (current?.lastProcessedToken && newPosition) {
+    if (compareTwoTokens(current.lastProcessedToken, newPosition) !== -1) {
+      return { success: false, reason: 'IGNORED' };
+    }
+  }
+
+  const updateResult = await checkpoints.updateOne(
+    { ...filter, lastProcessedToken: lastProcessedPosition },
+    { $set: { lastProcessedToken: newPosition, version } },
+    { upsert: true },
+  );
+
+  if (updateResult.matchedCount > 0 || updateResult.upsertedCount > 0) {
+    return { success: true, newPosition };
+  }
+
+  return { success: false, reason: 'MISMATCH' };
 };

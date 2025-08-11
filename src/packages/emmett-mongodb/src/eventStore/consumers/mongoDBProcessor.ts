@@ -3,7 +3,6 @@ import {
   type AnyMessage,
   type Checkpointer,
   type Event,
-  type GlobalPositionTypeOfRecordedMessageMetadata,
   type Message,
   type MessageHandlerResult,
   type MessageProcessingScope,
@@ -64,12 +63,16 @@ export type MongoDBProcessorOptions<MessageType extends Message = Message> =
     MongoDBProcessorHandlerContext
   > & { connectionOptions: MongoDBEventStoreConnectionOptions };
 
-export type MongoDBCheckpointer<MessageType extends AnyMessage = AnyMessage> =
-  Checkpointer<
-    MessageType,
-    ReadEventMetadataWithGlobalPosition,
-    MongoDBProcessorHandlerContext
-  >;
+export type MongoDBCheckpointer<
+  MessageType extends AnyMessage = AnyMessage,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  CheckpointType = any,
+> = Checkpointer<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition<CheckpointType>,
+  MongoDBProcessorHandlerContext,
+  CheckpointType
+>;
 
 export type MongoDBProjectorOptions<EventType extends AnyEvent = AnyEvent> =
   ProjectorOptions<
@@ -87,9 +90,10 @@ const isResumeToken = (value: any): value is MongoDBResumeToken =>
 
 export const getCheckpoint = <
   MessageType extends AnyMessage = AnyMessage,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  CheckpointType = any,
   MessageMetadataType extends
-    ReadEventMetadataWithGlobalPosition = ReadEventMetadataWithGlobalPosition,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+    ReadEventMetadataWithGlobalPosition<CheckpointType> = ReadEventMetadataWithGlobalPosition<CheckpointType>,
 >(
   message: RecordedMessage<MessageType, MessageMetadataType>,
 ): CheckpointType | null => {
@@ -114,24 +118,32 @@ export const getCheckpoint = <
 
 export const mongoDBCheckpointer = <
   MessageType extends Message = Message,
->(): MongoDBCheckpointer<MessageType> => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  CheckpointType = any,
+>(): MongoDBCheckpointer<MessageType, CheckpointType> => ({
   read: async (options, context) => {
-    const result = await readProcessorCheckpoint(context.client, options);
+    const result = await readProcessorCheckpoint<CheckpointType>(
+      context.client,
+      options,
+    );
 
     return { lastCheckpoint: result?.lastProcessedPosition };
   },
   store: async (options, context) => {
-    const newPosition: MongoDBResumeToken | null = getCheckpoint(
+    const newPosition = getCheckpoint<MessageType, CheckpointType>(
       options.message,
     );
 
-    const result = await storeProcessorCheckpoint(context.client, {
-      lastProcessedPosition: options.lastCheckpoint,
-      newPosition,
-      processorId: options.processorId,
-      partition: options.partition,
-      version: options.version,
-    });
+    const result = await storeProcessorCheckpoint<CheckpointType>(
+      context.client,
+      {
+        lastProcessedPosition: options.lastCheckpoint,
+        newPosition,
+        processorId: options.processorId,
+        partition: options.partition,
+        version: options.version || 0,
+      },
+    );
 
     return result.success
       ? { success: true, newCheckpoint: result.newPosition }

@@ -271,7 +271,9 @@ export const mongoDBMessagesConsumer = <
           for (const processor of processors.filter(
             ({ isActive }) => isActive,
           )) {
-            await processor.handle(messages, { client } as Partial<HandlerContext>);
+            await processor.handle(messages, {
+              client,
+            } as Partial<HandlerContext>);
           }
         });
       })();
