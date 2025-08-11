@@ -1,15 +1,16 @@
 import type { MongoClient } from 'mongodb';
-import type { MongoDBResumeToken } from './subscriptions/types';
 import {
   DefaultProcessotCheckpointCollectionName,
   type ReadProcessorCheckpointSqlResult,
 } from './types';
 
-export type ReadProcessorCheckpointResult = {
-  lastProcessedPosition: MongoDBResumeToken | null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ReadProcessorCheckpointResult<CheckpointType = any> = {
+  lastProcessedPosition: CheckpointType | null;
 };
 
-export const readProcessorCheckpoint = async (
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const readProcessorCheckpoint = async <CheckpointType = any>(
   client: MongoClient,
   options: {
     processorId: string;
@@ -17,10 +18,10 @@ export const readProcessorCheckpoint = async (
     collectionName?: string;
     databaseName?: string;
   },
-): Promise<ReadProcessorCheckpointResult> => {
+): Promise<ReadProcessorCheckpointResult<CheckpointType>> => {
   const result = await client
     .db(options.databaseName)
-    .collection<ReadProcessorCheckpointSqlResult>(
+    .collection<ReadProcessorCheckpointSqlResult<CheckpointType>>(
       options.collectionName || DefaultProcessotCheckpointCollectionName,
     )
     .findOne({
