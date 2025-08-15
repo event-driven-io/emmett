@@ -71,7 +71,7 @@ export const storeProcessorCheckpoint = async <Position>(
   );
 
   if (updateResult.matchedCount > 0 || updateResult.upsertedCount > 0) {
-    return { success: true, newPosition };
+    return { success: true, newPosition: newPosition! };
   }
 
   return { success: false, reason: 'MISMATCH' };

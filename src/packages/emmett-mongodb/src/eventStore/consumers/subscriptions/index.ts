@@ -1,4 +1,5 @@
 import {
+  EmmettError,
   IllegalStateError,
   type AsyncRetryOptions,
   type BatchRecordedMessageHandlerWithoutContext,
@@ -84,11 +85,9 @@ export const generateVersionPolicies = async (db: Db) => {
   const semver = parseSemVer(buildInfo.version);
   const major = semver.major || 0;
   const throwNotSupportedError = (): never => {
-    throw new Error();
-    // throw new NotSupportedMongoVersionError({
-    //   currentVersion: buildInfo.version,
-    //   supportedVersions: SupportedMajorMongoVersions,
-    // });
+    throw new EmmettError(
+      `Not supported MongoDB version: ${buildInfo.version}.`,
+    );
   };
 
   const supportedVersionCheckPolicy = () => {
