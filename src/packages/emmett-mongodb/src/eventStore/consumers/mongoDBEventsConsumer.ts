@@ -20,6 +20,7 @@ import type {
   EventStream,
   MongoDBReadEventMetadata,
 } from '../mongoDBEventStore';
+import { CancellationPromise } from './CancellablePromise';
 import {
   changeStreamReactor,
   mongoDBProjector,
@@ -168,6 +169,7 @@ export const mongoDBMessagesConsumer = <
     >
   >;
   let isRunning = false;
+  let runningPromise = new CancellationPromise<null>();
   const client =
     'client' in options && options.client
       ? options.client
@@ -227,6 +229,8 @@ export const mongoDBMessagesConsumer = <
 
         isRunning = true;
 
+        runningPromise = new CancellationPromise<null>();
+
         const positions = await Promise.all(
           processors.map((o) => o.start({ client } as Partial<HandlerContext>)),
         );
@@ -235,58 +239,104 @@ export const mongoDBMessagesConsumer = <
 
         stream = subscribe<Event, CheckpointType>(startFrom);
 
-        stream.on('change', async (change) => {
-          const resumeToken = change._id;
-          const typedChange = change as OplogChange;
-          const streamChange =
-            'updateDescription' in typedChange
-              ? {
-                  messages: Object.entries(
-                    typedChange.updateDescription.updatedFields,
-                  )
-                    .filter(([key]) => key.startsWith('messages.'))
-                    .map(([, value]) => value as ReadEvent),
-                }
-              : typedChange.fullDocument;
+        void (async () => {
+          while (!stream.closed && isRunning) {
+            const hasNext = await Promise.race([
+              stream.hasNext(),
+              runningPromise,
+            ]);
 
-          if (!streamChange) {
-            return;
+            if (hasNext === null) {
+              break;
+            }
+
+            if (!hasNext) {
+              continue;
+            }
+
+            const change = await stream.next();
+            const resumeToken = change._id;
+            const typedChange = change as OplogChange;
+            const streamChange =
+              'updateDescription' in typedChange
+                ? {
+                    messages: Object.entries(
+                      typedChange.updateDescription.updatedFields,
+                    )
+                      .filter(([key]) => key.startsWith('messages.'))
+                      .map(([, value]) => value as ReadEvent),
+                  }
+                : typedChange.fullDocument;
+
+            if (!streamChange) {
+              return;
+            }
+
+            const messages = streamChange.messages.map((message) => {
+              return {
+                kind: message.kind,
+                type: message.type,
+                data: message.data,
+                metadata: {
+                  ...message.metadata,
+                  globalPosition: resumeToken,
+                },
+              } as unknown as RecordedMessage<
+                ConsumerMessageType,
+                MessageMetadataType
+              >;
+            });
+
+            for (const processor of processors.filter(
+              ({ isActive }) => isActive,
+            )) {
+              await processor.handle(messages, {
+                client,
+              } as Partial<HandlerContext>);
+            }
           }
 
-          const messages = streamChange.messages.map((message) => {
-            return {
-              kind: message.kind,
-              type: message.type,
-              data: message.data,
-              metadata: {
-                ...message.metadata,
-                streamPosition: resumeToken,
-              },
-            } as unknown as RecordedMessage<
-              ConsumerMessageType,
-              MessageMetadataType
-            >;
-          });
-
-          for (const processor of processors.filter(
-            ({ isActive }) => isActive,
-          )) {
-            await processor.handle(messages, {
-              client,
-            } as Partial<HandlerContext>);
-          }
-        });
+          console.log('END');
+        })();
       })();
 
       return start;
     },
     stop: async () => {
-      await stream.close();
-      isRunning = false;
+      if (stream) {
+        await stream.close();
+        isRunning = false;
+        runningPromise.resolve(null);
+      }
     },
     close: async () => {
-      await stream.close();
-      isRunning = false;
+      if (stream) {
+        await stream.close();
+        isRunning = false;
+        runningPromise.resolve(null);
+      }
     },
   };
 };
+
+export const mongoDBChangeStreamMessagesConsumer = <
+  ConsumerMessageType extends Message = AnyMessage,
+  MessageMetadataType extends
+    MongoDBRecordedMessageMetadata = MongoDBRecordedMessageMetadata,
+  HandlerContext extends
+    MongoDBConsumerHandlerContext = MongoDBConsumerHandlerContext,
+  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+>(
+  options: MongoDBConsumerOptions<
+    ConsumerMessageType,
+    MessageMetadataType,
+    HandlerContext,
+    CheckpointType
+  >,
+): MongoDBEventStoreConsumer<ConsumerMessageType> =>
+  mongoDBMessagesConsumer<
+    ConsumerMessageType,
+    MessageMetadataType,
+    HandlerContext,
+    CheckpointType
+  >(options);
