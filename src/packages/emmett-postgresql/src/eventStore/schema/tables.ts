@@ -18,7 +18,7 @@ export const streamsTableSQL = rawSql(
       PRIMARY KEY (stream_id, partition, is_archived)
   ) PARTITION BY LIST (partition);
    
-  CREATE UNIQUE INDEX idx_streams_unique 
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_streams_unique 
   ON ${streamsTable.name}(stream_id, partition, is_archived) 
   INCLUDE (stream_position);`,
 );
