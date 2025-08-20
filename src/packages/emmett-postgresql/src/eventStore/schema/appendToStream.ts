@@ -48,9 +48,15 @@ export const appendToStreamSQL = rawSql(
       v_transaction_id := pg_current_xact_id();
 
       IF v_expected_stream_position IS NULL THEN
-          SELECT COALESCE(stream_position, 0) INTO v_expected_stream_position
-          FROM ${streamsTable.name}
-          WHERE stream_id = v_stream_id AND partition = v_partition AND is_archived = FALSE;
+          SELECT COALESCE(
+            (SELECT stream_position 
+            FROM ${streamsTable.name}
+            WHERE stream_id = v_stream_id 
+              AND partition = v_partition 
+              AND is_archived = FALSE
+            LIMIT 1), 
+            0
+        ) INTO v_expected_stream_position;
       END IF;
 
       v_next_stream_position := v_expected_stream_position + array_upper(v_messages_data, 1);
