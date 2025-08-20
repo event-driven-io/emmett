@@ -11,7 +11,7 @@ import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
-import { after, before, describe, it } from 'node:test';
+import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
   getPostgreSQLEventStore,
@@ -26,22 +26,48 @@ void describe('EventStoreDBEventStore', () => {
   let connectionString: string;
   let pongo: PongoClient;
 
+  const productItem: PricedProductItem = {
+    productId: '123',
+    quantity: 10,
+    price: 3,
+  };
+  let clientId: string;
+  let shoppingCartId: string;
+  let schemaHookCreationHookCalls = 0;
+
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
     connectionString = postgres.getConnectionUri();
+    pongo = pongoClient(connectionString);
+  });
+
+  beforeEach(() => {
     eventStore = getPostgreSQLEventStore(connectionString, {
       projections: projections.inline([
         shoppingCartShortInfoProjection,
         customProjection,
       ]),
+      hooks: {
+        onAfterSchemaCreated: () => {
+          schemaHookCreationHookCalls++;
+        },
+      },
     });
-    pongo = pongoClient(connectionString);
-    return eventStore;
+    clientId = uuid();
+    shoppingCartId = `shopping_cart-${clientId}`;
+    schemaHookCreationHookCalls = 0;
+  });
+
+  afterEach(async () => {
+    try {
+      await eventStore.close();
+    } catch (error) {
+      console.log(error);
+    }
   });
 
   after(async () => {
     try {
-      await eventStore.close();
       await pongo.close();
       await postgres.stop();
     } catch (error) {
@@ -49,15 +75,48 @@ void describe('EventStoreDBEventStore', () => {
     }
   });
 
+  void it('should create schema only once ', async () => {
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      {
+        type: 'ProductItemAdded',
+        data: { productItem },
+        metadata: { clientId },
+      },
+    ]);
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      {
+        type: 'ProductItemAdded',
+        data: { productItem },
+        metadata: { clientId },
+      },
+    ]);
+
+    assertEqual(1, schemaHookCreationHookCalls);
+  });
+
+  void it('should create schema only once with session', async () => {
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      {
+        type: 'ProductItemAdded',
+        data: { productItem },
+        metadata: { clientId },
+      },
+    ]);
+    await eventStore.withSession(({ eventStore: session }) =>
+      session.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+        {
+          type: 'ProductItemAdded',
+          data: { productItem },
+          metadata: { clientId },
+        },
+      ]),
+    );
+
+    assertEqual(1, schemaHookCreationHookCalls);
+  });
+
   void it('should append events correctly using appendEvent function', async () => {
-    const productItem: PricedProductItem = {
-      productId: '123',
-      quantity: 10,
-      price: 3,
-    };
     const discount = 10;
-    const clientId = uuid();
-    const shoppingCartId = `shopping_cart-${clientId}`;
     handledEventsInCustomProjection = [];
 
     await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
