@@ -15,9 +15,12 @@ export const streamsTableSQL = rawSql(
       stream_type       TEXT                      NOT NULL,
       stream_metadata   JSONB                     NOT NULL,
       is_archived       BOOLEAN                   NOT NULL DEFAULT FALSE,
-      PRIMARY KEY (stream_id, stream_position, partition, is_archived),
-      UNIQUE (stream_id, partition, is_archived)
-  ) PARTITION BY LIST (partition);`,
+      PRIMARY KEY (stream_id, partition, is_archived)
+  ) PARTITION BY LIST (partition);
+   
+  CREATE UNIQUE INDEX idx_streams_unique 
+  ON ${streamsTable.name}(stream_id, partition, is_archived) 
+  INCLUDE (stream_position);`,
 );
 
 export const messagesTableSQL = rawSql(
