@@ -58,17 +58,9 @@ jobs:
       - name: Test Vitest
         run: npm run test:vitest
 
-      # - name: Pack Emmett Shims locally to tar file
-      #   shell: bash
-      #   run: echo "PACKAGE_FILENAME_SHIMS=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett-shims | jq -r '.[] | .filename')" >> $GITHUB_ENV
-
       - name: Pack Emmett locally to tar file
         shell: bash
         run: echo "PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq -r '.[] | .filename')" >> $GITHUB_ENV
-
-      # - name: Use Emmett shims in the compatibility test project
-      #   working-directory: ./src/e2e/esmCompatibility
-      #   run: npm install ${{ env.PACKAGE_FILENAME_SHIMS }}
 
       - name: Use Emmett in the compatibility test project
         working-directory: ./src/e2e/esmCompatibility
@@ -87,10 +79,6 @@ jobs:
           else
             echo "No errors found, proceeding..."
           fi
-
-      # - name: Use Emmett shims in the browser compatibility test project
-      #   working-directory: ./src/e2e/browser
-      #   run: npm install ../esmCompatibility/${{ env.PACKAGE_FILENAME_SHIMS }}
 
       - name: Use Emmett in the browser compatibility test project
         working-directory: ./src/e2e/browser

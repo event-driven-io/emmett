@@ -1,6 +1,7 @@
 import {
   rawSql,
   single,
+  SQL,
   sql,
   type NodePostgresPool,
   type NodePostgresTransaction,
@@ -48,9 +49,15 @@ export const appendToStreamSQL = rawSql(
       v_transaction_id := pg_current_xact_id();
 
       IF v_expected_stream_position IS NULL THEN
-          SELECT COALESCE(max(stream_position), 0) INTO v_expected_stream_position
-          FROM ${streamsTable.name}
-          WHERE stream_id = v_stream_id AND partition = v_partition;
+          SELECT COALESCE(
+            (SELECT stream_position 
+            FROM ${streamsTable.name}
+            WHERE stream_id = v_stream_id 
+              AND partition = v_partition 
+              AND is_archived = FALSE
+            LIMIT 1), 
+            0
+        ) INTO v_expected_stream_position;
       END IF;
 
       v_next_stream_position := v_expected_stream_position + array_upper(v_messages_data, 1);
@@ -106,6 +113,30 @@ export const appendToStreamSQL = rawSql(
   $$;
   `,
 );
+
+export const dropOldAppendToSQLWithoutGlobalPositions = SQL`
+  DO $$
+  DECLARE
+      v_current_return_type text;
+  BEGIN
+      -- Get the current return type definition as text
+      SELECT pg_get_function_result(p.oid)
+      INTO v_current_return_type
+      FROM pg_proc p
+      JOIN pg_namespace n ON p.pronamespace = n.oid
+      WHERE n.nspname = current_schema()  -- or specify your schema
+      AND p.proname = 'emt_append_to_stream'
+      AND p.pronargs = 10;  -- number of arguments
+      
+      -- Check if it contains the old column name
+      IF v_current_return_type IS NOT NULL AND 
+        v_current_return_type LIKE '%last_global_position%' AND 
+        v_current_return_type NOT LIKE '%global_positions%' THEN
+          DROP FUNCTION emt_append_to_stream(text[], jsonb[], jsonb[], text[], text[], text[], text, text, bigint, text);
+          RAISE NOTICE 'Old version of function dropped. Return type was: %', v_current_return_type;
+      END IF;
+  END $$;
+`;
 
 type AppendToStreamResult =
   | {

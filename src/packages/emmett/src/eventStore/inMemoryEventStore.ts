@@ -24,7 +24,6 @@ import {
 } from './eventStore';
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
 import { handleInMemoryProjections } from './projections/inMemory';
-import { StreamingCoordinator } from './subscriptions';
 
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
 
@@ -62,7 +61,6 @@ export const getInMemoryEventStore = (
     string,
     ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[]
   >();
-  const streamingCoordinator = StreamingCoordinator();
 
   const getAllEventsCount = () => {
     return Array.from<ReadEvent[]>(streams.values())
@@ -198,7 +196,6 @@ export const getInMemoryEventStore = (
       );
 
       streams.set(streamName, [...currentEvents, ...newEvents]);
-      await streamingCoordinator.notify(newEvents);
 
       // Process projections if there are any registered
       if (inlineProjections.length > 0) {
@@ -223,8 +220,6 @@ export const getInMemoryEventStore = (
 
       return result;
     },
-
-    //streamEvents: streamingCoordinator.stream,
   };
 
   return eventStore;

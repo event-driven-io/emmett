@@ -143,6 +143,12 @@ export type PostgresEventStoreOptions = {
   >[];
   schema?: { autoMigration?: MigrationStyle };
   connectionOptions?: PostgresEventStoreConnectionOptions;
+  hooks?: {
+    /**
+     * This hook will be called **AFTER** event store schema was created
+     */
+    onAfterSchemaCreated?: () => Promise<void> | void;
+  };
 };
 
 export const defaultPostgreSQLOptions: PostgresEventStoreOptions = {
@@ -161,7 +167,7 @@ export const getPostgreSQLEventStore = (
     ...(options.connectionOptions ? options.connectionOptions : {}),
   };
   const pool = 'dumbo' in poolOptions ? poolOptions.dumbo : dumbo(poolOptions);
-  let migrateSchema: Promise<void>;
+  let migrateSchema: Promise<void> | undefined = undefined;
 
   const autoGenerateSchema =
     options.schema?.autoMigration === undefined ||
@@ -171,7 +177,11 @@ export const getPostgreSQLEventStore = (
     if (!autoGenerateSchema) return Promise.resolve();
 
     if (!migrateSchema) {
-      migrateSchema = createEventStoreSchema(pool);
+      migrateSchema = createEventStoreSchema(pool).then(async () => {
+        if (options.hooks?.onAfterSchemaCreated) {
+          await options.hooks.onAfterSchemaCreated();
+        }
+      });
     }
     return migrateSchema;
   };
@@ -306,6 +316,10 @@ export const getPostgreSQLEventStore = (
           connectionOptions: {
             connection,
           },
+          schema: {
+            ...(options.schema ?? {}),
+            autoMigration: 'None',
+          },
         };
 
         const eventStore = getPostgreSQLEventStore(
@@ -313,10 +327,12 @@ export const getPostgreSQLEventStore = (
           storeOptions,
         );
 
-        return callback({
-          eventStore,
-          close: () => Promise.resolve(),
-        });
+        return ensureSchemaExists().then(() =>
+          callback({
+            eventStore,
+            close: () => Promise.resolve(),
+          }),
+        );
       });
     },
   };

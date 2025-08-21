@@ -6,7 +6,6 @@
   "compilerOptions": {
     "noEmit": true /* Do not emit outputs. */,
     "paths": {
-      "@event-driven-io/emmett-shims": ["./packages/emmett-shims/src"],
       "@event-driven-io/emmett": ["./packages/emmett/src"],
       "@event-driven-io/emmett-expressjs": ["./packages/emmett-expressjs/src"],
       "@event-driven-io/emmett-postgresql": [
@@ -20,9 +19,6 @@
     }
   },
   "references": [
-    {
-      "path": "./packages/emmett-shims/"
-    },
     {
       "path": "./packages/emmett/"
     },

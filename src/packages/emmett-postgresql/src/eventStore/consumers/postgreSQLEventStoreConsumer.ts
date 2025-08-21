@@ -108,9 +108,9 @@ export const postgreSQLEventStoreConsumer = <
       };
 
     const result = await Promise.allSettled(
-      activeProcessors.map((s) => {
+      activeProcessors.map(async (s) => {
         // TODO: Add here filtering to only pass messages that can be handled by processor
-        return s.handle(messagesBatch, {
+        return await s.handle(messagesBatch, {
           connection: {
             connectionString: options.connectionString,
             pool,

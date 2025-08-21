@@ -19,6 +19,14 @@ export const isErrorConstructor = <ErrorType extends Error>(
 };
 
 export class EmmettError extends Error {
+  public static readonly Codes = {
+    ValidationError: 400,
+    IllegalStateError: 403,
+    NotFoundError: 404,
+    ConcurrencyError: 412,
+    InternalServerError: 500,
+  };
+
   public errorCode: number;
 
   constructor(
@@ -29,7 +37,7 @@ export class EmmettError extends Error {
         ? options.errorCode
         : isNumber(options)
           ? options
-          : 500;
+          : EmmettError.Codes.InternalServerError;
     const message =
       options && typeof options === 'object' && 'message' in options
         ? options.message
@@ -47,7 +55,7 @@ export class EmmettError extends Error {
   public static mapFrom(
     error: Error | { message?: string; errorCode?: number },
   ): EmmettError {
-    if (error instanceof EmmettError) {
+    if (EmmettError.isInstanceOf(error)) {
       return error;
     }
 
@@ -57,9 +65,22 @@ export class EmmettError extends Error {
         error.errorCode !== undefined &&
         error.errorCode !== null
           ? error.errorCode
-          : 500,
+          : EmmettError.Codes.InternalServerError,
       message: error.message ?? 'An unknown error occurred',
     });
+  }
+
+  public static isInstanceOf<ErrorType extends EmmettError = EmmettError>(
+    error: unknown,
+    errorCode?: (typeof EmmettError.Codes)[keyof typeof EmmettError.Codes],
+  ): error is ErrorType {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'errorCode' in error &&
+      isNumber(error.errorCode) &&
+      (errorCode === undefined || error.errorCode === errorCode)
+    );
   }
 }
 
@@ -70,7 +91,7 @@ export class ConcurrencyError extends EmmettError {
     message?: string,
   ) {
     super({
-      errorCode: 412,
+      errorCode: EmmettError.Codes.ConcurrencyError,
       message:
         message ??
         `Expected version ${expected.toString()} does not match current ${current?.toString()}`,
@@ -81,10 +102,12 @@ export class ConcurrencyError extends EmmettError {
   }
 }
 
+// TODO: Make it derive from ConcurrencyError to avoid code duplication
+// Or add additional type to distinguinsh both errors
 export class ConcurrencyInMemoryDatabaseError extends EmmettError {
   constructor(message?: string) {
     super({
-      errorCode: 412,
+      errorCode: EmmettError.Codes.ConcurrencyError,
       message: message ?? `Expected document state does not match current one!`,
     });
 
@@ -96,7 +119,7 @@ export class ConcurrencyInMemoryDatabaseError extends EmmettError {
 export class ValidationError extends EmmettError {
   constructor(message?: string) {
     super({
-      errorCode: 400,
+      errorCode: EmmettError.Codes.ValidationError,
       message: message ?? `Validation Error ocurred during Emmett processing`,
     });
 
@@ -108,7 +131,7 @@ export class ValidationError extends EmmettError {
 export class IllegalStateError extends EmmettError {
   constructor(message?: string) {
     super({
-      errorCode: 403,
+      errorCode: EmmettError.Codes.IllegalStateError,
       message: message ?? `Illegal State ocurred during Emmett processing`,
     });
 
@@ -120,7 +143,7 @@ export class IllegalStateError extends EmmettError {
 export class NotFoundError extends EmmettError {
   constructor(options?: { id: string; type: string; message?: string }) {
     super({
-      errorCode: 404,
+      errorCode: EmmettError.Codes.NotFoundError,
       message:
         options?.message ??
         (options?.id
