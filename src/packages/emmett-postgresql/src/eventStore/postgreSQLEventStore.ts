@@ -143,6 +143,12 @@ export type PostgresEventStoreOptions = {
   >[];
   schema?: { autoMigration?: MigrationStyle };
   connectionOptions?: PostgresEventStoreConnectionOptions;
+  hooks?: {
+    /**
+     * This hook will be called **AFTER** event store schema was created
+     */
+    onAfterSchemaCreated?: () => Promise<void> | void;
+  };
 };
 
 export const defaultPostgreSQLOptions: PostgresEventStoreOptions = {
@@ -161,7 +167,7 @@ export const getPostgreSQLEventStore = (
     ...(options.connectionOptions ? options.connectionOptions : {}),
   };
   const pool = 'dumbo' in poolOptions ? poolOptions.dumbo : dumbo(poolOptions);
-  let migrateSchema: Promise<void>;
+  let migrateSchema: Promise<void> | undefined = undefined;
 
   const autoGenerateSchema =
     options.schema?.autoMigration === undefined ||
@@ -171,7 +177,11 @@ export const getPostgreSQLEventStore = (
     if (!autoGenerateSchema) return Promise.resolve();
 
     if (!migrateSchema) {
-      migrateSchema = createEventStoreSchema(pool);
+      migrateSchema = createEventStoreSchema(pool).then(async () => {
+        if (options.hooks?.onAfterSchemaCreated) {
+          await options.hooks.onAfterSchemaCreated();
+        }
+      });
     }
     return migrateSchema;
   };
@@ -301,10 +311,27 @@ export const getPostgreSQLEventStore = (
       callback: (session: EventStoreSession<PostgresEventStore>) => Promise<T>,
     ): Promise<T> {
       return await pool.withConnection(async (connection) => {
+        const autoMigration: MigrationStyle = migrateSchema
+          ? 'None'
+          : (options.schema?.autoMigration ?? 'CreateOrUpdate');
+
         const storeOptions: PostgresEventStoreOptions = {
           ...options,
           connectionOptions: {
             connection,
+          },
+          schema: {
+            autoMigration,
+          },
+          hooks: {
+            ...(options.hooks ?? {}),
+            onAfterSchemaCreated: async () => {
+              migrateSchema = Promise.resolve();
+
+              if (options.hooks?.onAfterSchemaCreated) {
+                await options.hooks.onAfterSchemaCreated();
+              }
+            },
           },
         };
 

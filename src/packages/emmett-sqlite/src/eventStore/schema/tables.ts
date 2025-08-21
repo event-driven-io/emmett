@@ -16,7 +16,7 @@ export const streamsTableSQL = sql(
       stream_type       TEXT                      NOT NULL,
       stream_metadata   JSONB                     NOT NULL,
       is_archived       BOOLEAN                   NOT NULL DEFAULT FALSE,
-      PRIMARY KEY (stream_id, stream_position, partition, is_archived),
+      PRIMARY KEY (stream_id, partition, is_archived),
       UNIQUE (stream_id, partition, is_archived)
   );`,
 );
