@@ -311,27 +311,14 @@ export const getPostgreSQLEventStore = (
       callback: (session: EventStoreSession<PostgresEventStore>) => Promise<T>,
     ): Promise<T> {
       return await pool.withConnection(async (connection) => {
-        const autoMigration: MigrationStyle = migrateSchema
-          ? 'None'
-          : (options.schema?.autoMigration ?? 'CreateOrUpdate');
-
         const storeOptions: PostgresEventStoreOptions = {
           ...options,
           connectionOptions: {
             connection,
           },
           schema: {
-            autoMigration,
-          },
-          hooks: {
-            ...(options.hooks ?? {}),
-            onAfterSchemaCreated: async () => {
-              migrateSchema = Promise.resolve();
-
-              if (options.hooks?.onAfterSchemaCreated) {
-                await options.hooks.onAfterSchemaCreated();
-              }
-            },
+            ...(options.schema ?? {}),
+            autoMigration: 'None',
           },
         };
 
@@ -340,10 +327,12 @@ export const getPostgreSQLEventStore = (
           storeOptions,
         );
 
-        return callback({
-          eventStore,
-          close: () => Promise.resolve(),
-        });
+        return ensureSchemaExists().then(() =>
+          callback({
+            eventStore,
+            close: () => Promise.resolve(),
+          }),
+        );
       });
     },
   };
