@@ -115,6 +115,50 @@ void describe('EventStoreDBEventStore', () => {
     assertEqual(1, schemaHookCreationHookCalls);
   });
 
+  void it('should create schema only once with session before a regular append', async () => {
+    await eventStore.withSession(({ eventStore: session }) =>
+      session.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+        {
+          type: 'ProductItemAdded',
+          data: { productItem },
+          metadata: { clientId },
+        },
+      ]),
+    );
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      {
+        type: 'ProductItemAdded',
+        data: { productItem },
+        metadata: { clientId },
+      },
+    ]);
+
+    assertEqual(1, schemaHookCreationHookCalls);
+  });
+
+  void it('should create schema only once with two sessions', async () => {
+    await eventStore.withSession(({ eventStore: session }) =>
+      session.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+        {
+          type: 'ProductItemAdded',
+          data: { productItem },
+          metadata: { clientId },
+        },
+      ]),
+    );
+    await eventStore.withSession(({ eventStore: session }) =>
+      session.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+        {
+          type: 'ProductItemAdded',
+          data: { productItem },
+          metadata: { clientId },
+        },
+      ]),
+    );
+
+    assertEqual(1, schemaHookCreationHookCalls);
+  });
+
   void it('should append events correctly using appendEvent function', async () => {
     const discount = 10;
     handledEventsInCustomProjection = [];
