@@ -2,7 +2,6 @@ const compareArrays = <T>(left: T[], right: T[]): boolean => {
   if (left.length !== right.length) {
     return false;
   }
-  // Check for sparse arrays - ensure same indices exist
   for (let i = 0; i < left.length; i++) {
     const leftHas = i in left;
     const rightHas = i in right;
@@ -21,7 +20,6 @@ const compareRegExps = (left: RegExp, right: RegExp): boolean => {
 };
 
 const compareErrors = (left: Error, right: Error): boolean => {
-  // Compare basic error properties including stack
   if (
     left.message !== right.message ||
     left.name !== right.name ||
@@ -29,7 +27,6 @@ const compareErrors = (left: Error, right: Error): boolean => {
   ) {
     return false;
   }
-  // Then compare any custom properties
   const leftKeys = Object.keys(left);
   const rightKeys = Object.keys(right);
   if (leftKeys.length !== rightKeys.length) return false;
@@ -58,12 +55,9 @@ const compareMaps = (
 const compareSets = (left: Set<unknown>, right: Set<unknown>): boolean => {
   if (left.size !== right.size) return false;
 
-  // For sets, we need to check if all elements exist in both
-  // This is tricky because Set uses SameValueZero equality
   const leftArray = Array.from(left);
   const rightArray = Array.from(right);
 
-  // Check if every element in left exists in right with deepEquals
   for (const leftItem of leftArray) {
     let found = false;
     for (const rightItem of rightArray) {
@@ -82,6 +76,17 @@ const compareArrayBuffers = (
   right: ArrayBuffer,
 ): boolean => {
   return left.byteLength === right.byteLength;
+};
+
+const compareTypedArrays = (
+  left: ArrayBufferView,
+  right: ArrayBufferView,
+): boolean => {
+  if (left.constructor !== right.constructor) return false;
+  return compareObjects(
+    left as unknown as Record<string, unknown>,
+    right as unknown as Record<string, unknown>,
+  );
 };
 
 const compareObjects = (
@@ -119,7 +124,6 @@ const getType = (value: unknown): string => {
   const primitiveType = typeof value;
   if (primitiveType !== 'object') return primitiveType;
 
-  // Check for specific object types
   if (Array.isArray(value)) return 'array';
   if (value instanceof Date) return 'date';
   if (value instanceof RegExp) return 'regexp';
@@ -131,14 +135,12 @@ const getType = (value: unknown): string => {
   if (value instanceof WeakMap) return 'weakmap';
   if (value instanceof WeakSet) return 'weakset';
 
-  // TypedArrays
   if (ArrayBuffer.isView(value)) return 'typedarray';
 
   return 'object';
 };
 
 export const deepEquals = <T>(left: T, right: T): boolean => {
-  // Handle equatable objects first
   if (isEquatable(left)) {
     return left.equals(right);
   }
@@ -146,10 +148,8 @@ export const deepEquals = <T>(left: T, right: T): boolean => {
   const leftType = getType(left);
   const rightType = getType(right);
 
-  // Different types are never equal
   if (leftType !== rightType) return false;
 
-  // Handle each type
   switch (leftType) {
     case 'null':
     case 'undefined':
@@ -188,14 +188,12 @@ export const deepEquals = <T>(left: T, right: T): boolean => {
     case 'dataview':
     case 'weakmap':
     case 'weakset':
-      // These types can't be properly compared
       return false;
 
     case 'typedarray':
-      // TypedArrays are compared as objects with numeric indices
-      return compareObjects(
-        left as Record<string, unknown>,
-        right as Record<string, unknown>,
+      return compareTypedArrays(
+        left as ArrayBufferView,
+        right as ArrayBufferView,
       );
 
     case 'object':

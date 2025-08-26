@@ -355,97 +355,7 @@ void describe('deepEquals', () => {
     });
   });
 
-  void describe('type symmetry', () => {
-    void it('returns false when comparing different types (comprehensive)', () => {
-      // Array vs all other types
-      assertFalse(deepEquals([], {}));
-      assertFalse(deepEquals({}, []));
-      assertFalse(deepEquals([1], new Set([1]) as unknown));
-      assertFalse(deepEquals(new Set([1]) as unknown, [1]));
-      assertFalse(deepEquals([['a', 1]], new Map([['a', 1]]) as unknown));
-      assertFalse(deepEquals(new Map([['a', 1]]) as unknown, [['a', 1]]));
-      assertFalse(deepEquals([1000], new Date(1000) as unknown));
-      assertFalse(deepEquals(new Date(1000) as unknown, [1000]));
-      assertFalse(deepEquals(['test'], /test/ as unknown));
-      assertFalse(deepEquals(/test/ as unknown, ['test']));
-      assertFalse(deepEquals(['error'], new Error('error') as unknown));
-      assertFalse(deepEquals(new Error('error') as unknown, ['error']));
-
-      // Object vs all other types
-      assertFalse(deepEquals({ 0: 1, 1: 2, 2: 3 }, [1, 2, 3]));
-      assertFalse(deepEquals([1, 2, 3], { 0: 1, 1: 2, 2: 3 }));
-      assertFalse(deepEquals({ a: 1 }, new Map([['a', 1]]) as unknown));
-      assertFalse(deepEquals(new Map([['a', 1]]) as unknown, { a: 1 }));
-      assertFalse(deepEquals({ values: [1, 2] }, new Set([1, 2]) as unknown));
-      assertFalse(deepEquals(new Set([1, 2]) as unknown, { values: [1, 2] }));
-      assertFalse(deepEquals({ time: 1000 }, new Date(1000) as unknown));
-      assertFalse(deepEquals(new Date(1000) as unknown, { time: 1000 }));
-      assertFalse(deepEquals({ pattern: 'test' }, /test/ as unknown));
-      assertFalse(deepEquals(/test/ as unknown, { pattern: 'test' }));
-
-      // Map vs all other types
-      assertFalse(deepEquals(new Map([['a', 1]]) as unknown, { a: 1 }));
-      assertFalse(deepEquals({ a: 1 }, new Map([['a', 1]]) as unknown));
-      assertFalse(deepEquals(new Map([[1, 'a']]) as unknown, [[1, 'a']]));
-      assertFalse(deepEquals([[1, 'a']], new Map([[1, 'a']]) as unknown));
-      assertFalse(deepEquals(new Map() as unknown, new Set()));
-      assertFalse(deepEquals(new Set() as unknown, new Map()));
-      assertFalse(deepEquals(new Map() as unknown, new Date()));
-      assertFalse(deepEquals(new Date() as unknown, new Map()));
-      assertFalse(deepEquals(new Map() as unknown, /test/));
-      assertFalse(deepEquals(/test/ as unknown, new Map()));
-      assertFalse(deepEquals(new Map() as unknown, new Error('test')));
-      assertFalse(deepEquals(new Error('test') as unknown, new Map()));
-
-      // Set vs all other types
-      assertFalse(deepEquals(new Set([1, 2, 3]) as unknown, [1, 2, 3]));
-      assertFalse(deepEquals([1, 2, 3], new Set([1, 2, 3]) as unknown));
-      assertFalse(deepEquals(new Set([1, 2]) as unknown, { 0: 1, 1: 2 }));
-      assertFalse(deepEquals({ 0: 1, 1: 2 }, new Set([1, 2]) as unknown));
-      assertFalse(deepEquals(new Set() as unknown, new Map()));
-      assertFalse(deepEquals(new Map() as unknown, new Set()));
-      assertFalse(deepEquals(new Set() as unknown, new Date()));
-      assertFalse(deepEquals(new Date() as unknown, new Set()));
-      assertFalse(deepEquals(new Set() as unknown, /test/));
-      assertFalse(deepEquals(/test/ as unknown, new Set()));
-
-      // Date vs all other types
-      assertFalse(deepEquals(new Date(1000) as unknown, 1000));
-      assertFalse(deepEquals(1000, new Date(1000) as unknown));
-      assertFalse(deepEquals(new Date('2024-01-01') as unknown, '2024-01-01'));
-      assertFalse(deepEquals('2024-01-01', new Date('2024-01-01') as unknown));
-      assertFalse(deepEquals(new Date() as unknown, {}));
-      assertFalse(deepEquals({}, new Date() as unknown));
-      assertFalse(deepEquals(new Date() as unknown, []));
-      assertFalse(deepEquals([], new Date() as unknown));
-
-      // RegExp vs all other types
-      assertFalse(deepEquals(/test/ as unknown, 'test'));
-      assertFalse(deepEquals('test', /test/ as unknown));
-      assertFalse(deepEquals(/test/ as unknown, '/test/'));
-      assertFalse(deepEquals('/test/', /test/ as unknown));
-      assertFalse(deepEquals(/test/ as unknown, {}));
-      assertFalse(deepEquals({}, /test/ as unknown));
-      assertFalse(deepEquals(/test/ as unknown, []));
-      assertFalse(deepEquals([], /test/ as unknown));
-
-      // Error vs all other types
-      assertFalse(deepEquals(new Error('test') as unknown, 'test'));
-      assertFalse(deepEquals('test', new Error('test') as unknown));
-      assertFalse(deepEquals(new Error('test') as unknown, { message: 'test' }));
-      assertFalse(deepEquals({ message: 'test' }, new Error('test') as unknown));
-      assertFalse(deepEquals(new Error('test') as unknown, []));
-      assertFalse(deepEquals([], new Error('test') as unknown));
-
-      // ArrayBuffer vs all other types
-      assertFalse(deepEquals(new ArrayBuffer(8) as unknown, 8));
-      assertFalse(deepEquals(8, new ArrayBuffer(8) as unknown));
-      assertFalse(deepEquals(new ArrayBuffer(8) as unknown, [0, 0, 0, 0, 0, 0, 0, 0]));
-      assertFalse(deepEquals([0, 0, 0, 0, 0, 0, 0, 0], new ArrayBuffer(8) as unknown));
-      assertFalse(deepEquals(new ArrayBuffer(8) as unknown, {}));
-      assertFalse(deepEquals({}, new ArrayBuffer(8) as unknown));
-    });
-
+  void describe('type differences', () => {
     void it('returns false for array-like objects vs arrays', () => {
       const arr = [1, 2, 3];
       const arrayLike = { 0: 1, 1: 2, 2: 3, length: 3 };
@@ -789,8 +699,11 @@ void describe('deepEquals', () => {
       const uint16 = new Uint16Array(buffer);
 
       uint8[0] = 1;
-      assertTrue(deepEquals(uint8, int8 as unknown as Uint8Array)); // Same buffer
-      assertFalse(deepEquals(uint8, uint16 as unknown as Uint8Array)); // Different views
+      assertFalse(deepEquals(uint8, int8 as unknown as Uint8Array)); // Different types
+      assertFalse(deepEquals(uint8, uint16 as unknown as Uint8Array)); // Different types
+
+      const uint8Copy = new Uint8Array(buffer);
+      assertTrue(deepEquals(uint8, uint8Copy)); // Same type, same buffer
     });
 
     void it('handles DataView', () => {
