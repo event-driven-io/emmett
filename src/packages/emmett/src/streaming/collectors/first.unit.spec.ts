@@ -100,7 +100,7 @@ void describe('Stream Utility Functions', () => {
 
       await assertRejects(
         first(stream),
-        new EmmettError('Value was undefined!'),
+        new EmmettError('Cannot read first item as stream was empty!'),
       );
     });
   });

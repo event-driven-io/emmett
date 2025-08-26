@@ -1,3 +1,16 @@
+const isPrimitive = (value: unknown): boolean => {
+  const type = typeof value;
+  return (
+    value === null ||
+    value === undefined ||
+    type === 'boolean' ||
+    type === 'number' ||
+    type === 'string' ||
+    type === 'symbol' ||
+    type === 'bigint'
+  );
+};
+
 const compareArrays = <T>(left: T[], right: T[]): boolean => {
   if (left.length !== right.length) {
     return false;
@@ -20,18 +33,15 @@ const compareRegExps = (left: RegExp, right: RegExp): boolean => {
 };
 
 const compareErrors = (left: Error, right: Error): boolean => {
-  if (
-    left.message !== right.message ||
-    left.name !== right.name ||
-    left.stack !== right.stack
-  ) {
+  if (left.message !== right.message || left.name !== right.name) {
     return false;
   }
   const leftKeys = Object.keys(left);
   const rightKeys = Object.keys(right);
   if (leftKeys.length !== rightKeys.length) return false;
+  const rightKeySet = new Set(rightKeys);
   for (const key of leftKeys) {
-    if (!rightKeys.includes(key)) return false;
+    if (!rightKeySet.has(key)) return false;
     // @ts-expect-error - accessing dynamic keys
     if (!deepEquals(left[key], right[key])) return false;
   }
@@ -45,8 +55,19 @@ const compareMaps = (
   if (left.size !== right.size) return false;
 
   for (const [key, value] of left) {
-    if (!right.has(key) || !deepEquals(value, right.get(key))) {
-      return false;
+    if (isPrimitive(key)) {
+      if (!right.has(key) || !deepEquals(value, right.get(key))) {
+        return false;
+      }
+    } else {
+      let found = false;
+      for (const [rightKey, rightValue] of right) {
+        if (deepEquals(key, rightKey) && deepEquals(value, rightValue)) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) return false;
     }
   }
   return true;
@@ -55,18 +76,19 @@ const compareMaps = (
 const compareSets = (left: Set<unknown>, right: Set<unknown>): boolean => {
   if (left.size !== right.size) return false;
 
-  const leftArray = Array.from(left);
-  const rightArray = Array.from(right);
-
-  for (const leftItem of leftArray) {
-    let found = false;
-    for (const rightItem of rightArray) {
-      if (deepEquals(leftItem, rightItem)) {
-        found = true;
-        break;
+  for (const leftItem of left) {
+    if (isPrimitive(leftItem)) {
+      if (!right.has(leftItem)) return false;
+    } else {
+      let found = false;
+      for (const rightItem of right) {
+        if (deepEquals(leftItem, rightItem)) {
+          found = true;
+          break;
+        }
       }
+      if (!found) return false;
     }
-    if (!found) return false;
   }
   return true;
 };
@@ -75,7 +97,13 @@ const compareArrayBuffers = (
   left: ArrayBuffer,
   right: ArrayBuffer,
 ): boolean => {
-  return left.byteLength === right.byteLength;
+  if (left.byteLength !== right.byteLength) return false;
+  const leftView = new Uint8Array(left);
+  const rightView = new Uint8Array(right);
+  for (let i = 0; i < leftView.length; i++) {
+    if (leftView[i] !== rightView[i]) return false;
+  }
+  return true;
 };
 
 const compareTypedArrays = (
@@ -83,10 +111,23 @@ const compareTypedArrays = (
   right: ArrayBufferView,
 ): boolean => {
   if (left.constructor !== right.constructor) return false;
-  return compareObjects(
-    left as unknown as Record<string, unknown>,
-    right as unknown as Record<string, unknown>,
+  if (left.byteLength !== right.byteLength) return false;
+
+  const leftArray = new Uint8Array(
+    left.buffer,
+    left.byteOffset,
+    left.byteLength,
   );
+  const rightArray = new Uint8Array(
+    right.buffer,
+    right.byteOffset,
+    right.byteLength,
+  );
+
+  for (let i = 0; i < leftArray.length; i++) {
+    if (leftArray[i] !== rightArray[i]) return false;
+  }
+  return true;
 };
 
 const compareObjects = (
@@ -96,14 +137,11 @@ const compareObjects = (
   const keys1 = Object.keys(left);
   const keys2 = Object.keys(right);
 
-  if (
-    keys1.length !== keys2.length ||
-    !keys1.every((key) => keys2.includes(key))
-  ) {
+  if (keys1.length !== keys2.length) {
     return false;
   }
 
-  for (const key in left) {
+  for (const key of keys1) {
     if (left[key] instanceof Function && right[key] instanceof Function) {
       continue;
     }
@@ -125,6 +163,9 @@ const getType = (value: unknown): string => {
   if (primitiveType !== 'object') return primitiveType;
 
   if (Array.isArray(value)) return 'array';
+  if (value instanceof Boolean) return 'boxed-boolean';
+  if (value instanceof Number) return 'boxed-number';
+  if (value instanceof String) return 'boxed-string';
   if (value instanceof Date) return 'date';
   if (value instanceof RegExp) return 'regexp';
   if (value instanceof Error) return 'error';
@@ -141,6 +182,8 @@ const getType = (value: unknown): string => {
 };
 
 export const deepEquals = <T>(left: T, right: T): boolean => {
+  if (left === right) return true;
+
   if (isEquatable(left)) {
     return left.equals(right);
   }
@@ -195,6 +238,15 @@ export const deepEquals = <T>(left: T, right: T): boolean => {
         left as ArrayBufferView,
         right as ArrayBufferView,
       );
+
+    case 'boxed-boolean':
+      return (left as boolean).valueOf() === (right as boolean).valueOf();
+
+    case 'boxed-number':
+      return (left as number).valueOf() === (right as number).valueOf();
+
+    case 'boxed-string':
+      return (left as string).valueOf() === (right as string).valueOf();
 
     case 'object':
       return compareObjects(
