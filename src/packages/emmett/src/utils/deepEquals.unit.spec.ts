@@ -186,11 +186,14 @@ void describe('deepEquals', () => {
 
     void it('handles arrays with mixed types', () => {
       assertTrue(deepEquals([1, 'two', true, null], [1, 'two', true, null]));
-      assertTrue(
+      assertFalse(
         deepEquals(
           [undefined, NaN, Infinity, -0],
           [undefined, NaN, Infinity, -0],
         ),
+      ); // NaN !== NaN
+      assertTrue(
+        deepEquals([undefined, Infinity, -0], [undefined, Infinity, -0]),
       );
       assertFalse(
         deepEquals([1, 'two', true, null], [1, 'two', true, undefined]),
@@ -352,12 +355,95 @@ void describe('deepEquals', () => {
     });
   });
 
-  void describe('objects vs arrays', () => {
-    void it('returns false when comparing objects and arrays', () => {
+  void describe('type symmetry', () => {
+    void it('returns false when comparing different types (comprehensive)', () => {
+      // Array vs all other types
       assertFalse(deepEquals([], {}));
       assertFalse(deepEquals({}, []));
-      assertFalse(deepEquals([1, 2, 3], { 0: 1, 1: 2, 2: 3 }));
+      assertFalse(deepEquals([1], new Set([1]) as unknown));
+      assertFalse(deepEquals(new Set([1]) as unknown, [1]));
+      assertFalse(deepEquals([['a', 1]], new Map([['a', 1]]) as unknown));
+      assertFalse(deepEquals(new Map([['a', 1]]) as unknown, [['a', 1]]));
+      assertFalse(deepEquals([1000], new Date(1000) as unknown));
+      assertFalse(deepEquals(new Date(1000) as unknown, [1000]));
+      assertFalse(deepEquals(['test'], /test/ as unknown));
+      assertFalse(deepEquals(/test/ as unknown, ['test']));
+      assertFalse(deepEquals(['error'], new Error('error') as unknown));
+      assertFalse(deepEquals(new Error('error') as unknown, ['error']));
+
+      // Object vs all other types
       assertFalse(deepEquals({ 0: 1, 1: 2, 2: 3 }, [1, 2, 3]));
+      assertFalse(deepEquals([1, 2, 3], { 0: 1, 1: 2, 2: 3 }));
+      assertFalse(deepEquals({ a: 1 }, new Map([['a', 1]]) as unknown));
+      assertFalse(deepEquals(new Map([['a', 1]]) as unknown, { a: 1 }));
+      assertFalse(deepEquals({ values: [1, 2] }, new Set([1, 2]) as unknown));
+      assertFalse(deepEquals(new Set([1, 2]) as unknown, { values: [1, 2] }));
+      assertFalse(deepEquals({ time: 1000 }, new Date(1000) as unknown));
+      assertFalse(deepEquals(new Date(1000) as unknown, { time: 1000 }));
+      assertFalse(deepEquals({ pattern: 'test' }, /test/ as unknown));
+      assertFalse(deepEquals(/test/ as unknown, { pattern: 'test' }));
+
+      // Map vs all other types
+      assertFalse(deepEquals(new Map([['a', 1]]) as unknown, { a: 1 }));
+      assertFalse(deepEquals({ a: 1 }, new Map([['a', 1]]) as unknown));
+      assertFalse(deepEquals(new Map([[1, 'a']]) as unknown, [[1, 'a']]));
+      assertFalse(deepEquals([[1, 'a']], new Map([[1, 'a']]) as unknown));
+      assertFalse(deepEquals(new Map() as unknown, new Set()));
+      assertFalse(deepEquals(new Set() as unknown, new Map()));
+      assertFalse(deepEquals(new Map() as unknown, new Date()));
+      assertFalse(deepEquals(new Date() as unknown, new Map()));
+      assertFalse(deepEquals(new Map() as unknown, /test/));
+      assertFalse(deepEquals(/test/ as unknown, new Map()));
+      assertFalse(deepEquals(new Map() as unknown, new Error('test')));
+      assertFalse(deepEquals(new Error('test') as unknown, new Map()));
+
+      // Set vs all other types
+      assertFalse(deepEquals(new Set([1, 2, 3]) as unknown, [1, 2, 3]));
+      assertFalse(deepEquals([1, 2, 3], new Set([1, 2, 3]) as unknown));
+      assertFalse(deepEquals(new Set([1, 2]) as unknown, { 0: 1, 1: 2 }));
+      assertFalse(deepEquals({ 0: 1, 1: 2 }, new Set([1, 2]) as unknown));
+      assertFalse(deepEquals(new Set() as unknown, new Map()));
+      assertFalse(deepEquals(new Map() as unknown, new Set()));
+      assertFalse(deepEquals(new Set() as unknown, new Date()));
+      assertFalse(deepEquals(new Date() as unknown, new Set()));
+      assertFalse(deepEquals(new Set() as unknown, /test/));
+      assertFalse(deepEquals(/test/ as unknown, new Set()));
+
+      // Date vs all other types
+      assertFalse(deepEquals(new Date(1000) as unknown, 1000));
+      assertFalse(deepEquals(1000, new Date(1000) as unknown));
+      assertFalse(deepEquals(new Date('2024-01-01') as unknown, '2024-01-01'));
+      assertFalse(deepEquals('2024-01-01', new Date('2024-01-01') as unknown));
+      assertFalse(deepEquals(new Date() as unknown, {}));
+      assertFalse(deepEquals({}, new Date() as unknown));
+      assertFalse(deepEquals(new Date() as unknown, []));
+      assertFalse(deepEquals([], new Date() as unknown));
+
+      // RegExp vs all other types
+      assertFalse(deepEquals(/test/ as unknown, 'test'));
+      assertFalse(deepEquals('test', /test/ as unknown));
+      assertFalse(deepEquals(/test/ as unknown, '/test/'));
+      assertFalse(deepEquals('/test/', /test/ as unknown));
+      assertFalse(deepEquals(/test/ as unknown, {}));
+      assertFalse(deepEquals({}, /test/ as unknown));
+      assertFalse(deepEquals(/test/ as unknown, []));
+      assertFalse(deepEquals([], /test/ as unknown));
+
+      // Error vs all other types
+      assertFalse(deepEquals(new Error('test') as unknown, 'test'));
+      assertFalse(deepEquals('test', new Error('test') as unknown));
+      assertFalse(deepEquals(new Error('test') as unknown, { message: 'test' }));
+      assertFalse(deepEquals({ message: 'test' }, new Error('test') as unknown));
+      assertFalse(deepEquals(new Error('test') as unknown, []));
+      assertFalse(deepEquals([], new Error('test') as unknown));
+
+      // ArrayBuffer vs all other types
+      assertFalse(deepEquals(new ArrayBuffer(8) as unknown, 8));
+      assertFalse(deepEquals(8, new ArrayBuffer(8) as unknown));
+      assertFalse(deepEquals(new ArrayBuffer(8) as unknown, [0, 0, 0, 0, 0, 0, 0, 0]));
+      assertFalse(deepEquals([0, 0, 0, 0, 0, 0, 0, 0], new ArrayBuffer(8) as unknown));
+      assertFalse(deepEquals(new ArrayBuffer(8) as unknown, {}));
+      assertFalse(deepEquals({}, new ArrayBuffer(8) as unknown));
     });
 
     void it('returns false for array-like objects vs arrays', () => {
@@ -522,7 +608,7 @@ void describe('deepEquals', () => {
       const invalid2 = new Date('invalid');
       const valid = new Date('2024-01-01');
 
-      assertTrue(deepEquals(invalid1, invalid2)); // Both NaN
+      assertFalse(deepEquals(invalid1, invalid2)); // NaN !== NaN
       assertFalse(deepEquals(invalid1, valid));
     });
 
@@ -567,17 +653,58 @@ void describe('deepEquals', () => {
         ['a', 1],
         ['b', 2],
       ]);
+      const map3 = new Map([
+        ['a', 1],
+        ['b', 3],
+      ]);
+      const map4 = new Map([
+        ['b', 2],
+        ['a', 1],
+      ]);
 
-      // Maps don't have enumerable properties, so they're not equal
-      assertFalse(deepEquals(map1, map2));
+      assertTrue(deepEquals(map1, map2));
+      assertFalse(deepEquals(map1, map3)); // Different value
+      assertTrue(deepEquals(map1, map4)); // Different insertion order, still equal
+    });
+
+    void it('handles nested Maps', () => {
+      const map1 = new Map<string, unknown>([
+        ['nested', new Map([['inner', 'value']])],
+        ['number', 42],
+      ]);
+      const map2 = new Map<string, unknown>([
+        ['nested', new Map([['inner', 'value']])],
+        ['number', 42],
+      ]);
+      const map3 = new Map<string, unknown>([
+        ['nested', new Map([['inner', 'different']])],
+        ['number', 42],
+      ]);
+
+      assertTrue(deepEquals(map1, map2));
+      assertFalse(deepEquals(map1, map3));
     });
 
     void it('handles Set objects', () => {
       const set1 = new Set([1, 2, 3]);
       const set2 = new Set([1, 2, 3]);
+      const set3 = new Set([1, 2, 4]);
+      const set4 = new Set([3, 2, 1]); // Different insertion order
 
-      // Sets don't have enumerable properties, so they're not equal
-      assertFalse(deepEquals(set1, set2));
+      assertTrue(deepEquals(set1, set2));
+      assertFalse(deepEquals(set1, set3)); // Different element
+      assertTrue(deepEquals(set1, set4)); // Order doesn't matter for equality
+    });
+
+    void it('handles Sets with complex objects', () => {
+      const set1 = new Set([{ a: 1 }, { b: 2 }]);
+      const set2 = new Set([{ a: 1 }, { b: 2 }]);
+      const set3 = new Set([{ b: 2 }, { a: 1 }]); // Different order
+      const set4 = new Set([{ a: 1 }, { b: 3 }]);
+
+      assertTrue(deepEquals(set1, set2));
+      assertTrue(deepEquals(set1, set3)); // Order doesn't matter
+      assertFalse(deepEquals(set1, set4));
     });
 
     void it('handles WeakMap and WeakSet', () => {
@@ -586,6 +713,7 @@ void describe('deepEquals', () => {
       const ws1 = new WeakSet();
       const ws2 = new WeakSet();
 
+      // WeakMap and WeakSet can't be iterated, so can't be compared
       assertFalse(deepEquals(wm1, wm2));
       assertFalse(deepEquals(ws1, ws2));
     });
@@ -617,6 +745,8 @@ void describe('deepEquals', () => {
     void it('handles custom error properties', () => {
       const error1 = new Error('Test');
       const error2 = new Error('Test');
+      error1.stack = 'stack'; // Set same stack for comparison
+      error2.stack = 'stack';
       (error1 as Error & { code?: string }).code = 'ERR_001';
       (error2 as Error & { code?: string }).code = 'ERR_001';
 
