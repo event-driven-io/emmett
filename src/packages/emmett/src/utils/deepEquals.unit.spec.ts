@@ -355,7 +355,56 @@ void describe('deepEquals', () => {
     });
   });
 
-  void describe('type differences', () => {
+  void describe('type symmetry matrix', () => {
+    const typeInstances = [
+      { name: 'null', value: null },
+      { name: 'undefined', value: undefined },
+      { name: 'boolean', value: true },
+      { name: 'number', value: 42 },
+      { name: 'string', value: 'test' },
+      { name: 'array', value: [1, 2, 3] },
+      { name: 'object', value: { a: 1 } },
+      { name: 'Date', value: new Date('2024-01-01') },
+      { name: 'RegExp', value: /test/gi },
+      { name: 'Map', value: new Map([['key', 'value']]) },
+      { name: 'Set', value: new Set([1, 2, 3]) },
+      {
+        name: 'Error',
+        value: (() => {
+          const e = new Error('test');
+          e.stack = 'stack';
+          return e;
+        })(),
+      },
+      { name: 'function', value: () => {} },
+      { name: 'symbol', value: Symbol('test') },
+      { name: 'bigint', value: BigInt(123) },
+      { name: 'ArrayBuffer', value: new ArrayBuffer(8) },
+      { name: 'DataView', value: new DataView(new ArrayBuffer(8)) },
+      { name: 'Int8Array', value: new Int8Array([1, 2, 3]) },
+      { name: 'Uint8Array', value: new Uint8Array([1, 2, 3]) },
+      { name: 'WeakMap', value: new WeakMap() },
+      { name: 'WeakSet', value: new WeakSet() },
+    ];
+
+    for (let i = 0; i < typeInstances.length; i++) {
+      for (let j = i + 1; j < typeInstances.length; j++) {
+        const type1 = typeInstances[i]!;
+        const type2 = typeInstances[j]!;
+
+        void it(`${type1.name} vs ${type2.name} - both directions return false`, () => {
+          assertFalse(
+            deepEquals(type1.value as unknown, type2.value as unknown),
+            `Expected ${type1.name} not to equal ${type2.name}`,
+          );
+          assertFalse(
+            deepEquals(type2.value as unknown, type1.value as unknown),
+            `Expected ${type2.name} not to equal ${type1.name} (reverse)`,
+          );
+        });
+      }
+    }
+
     void it('returns false for array-like objects vs arrays', () => {
       const arr = [1, 2, 3];
       const arrayLike = { 0: 1, 1: 2, 2: 3, length: 3 };
@@ -1038,6 +1087,104 @@ void describe('deepEquals', () => {
       state2.ui.sidebar.items[0].active = false;
       assertFalse(deepEquals(state1, state2));
     });
+  });
+});
+
+void describe('property-based testing', () => {
+  void it('reflexivity: x equals x', () => {
+    const values = [
+      null,
+      undefined,
+      true,
+      42,
+      'test',
+      [1, 2, 3],
+      { a: 1, b: { c: 2 } },
+      new Date('2024-01-01'),
+      new Map([['a', 1]]),
+      new Set([1, 2, 3]),
+    ];
+
+    values.forEach((value) => {
+      assertTrue(deepEquals(value, value));
+    });
+  });
+
+  void it('symmetry: if x equals y, then y equals x', () => {
+    const pairs: Array<[unknown, unknown]> = [
+      [{ a: 1 }, { a: 1 }],
+      [
+        [1, 2],
+        [1, 2],
+      ],
+      [new Date('2024-01-01'), new Date('2024-01-01')],
+      [new Map([['a', 1]]), new Map([['a', 1]])],
+    ];
+
+    pairs.forEach(([x, y]) => {
+      const xEqualsY = deepEquals(x, y);
+      const yEqualsX = deepEquals(y, x);
+      assertTrue(xEqualsY === yEqualsX, 'Equality should be symmetric');
+    });
+  });
+
+  void it('transitivity: if x equals y and y equals z, then x equals z', () => {
+    const triplets: Array<[unknown, unknown, unknown]> = [
+      [{ a: 1 }, { a: 1 }, { a: 1 }],
+      [
+        [1, 2],
+        [1, 2],
+        [1, 2],
+      ],
+      ['test', 'test', 'test'],
+    ];
+
+    triplets.forEach(([x, y, z]) => {
+      if (deepEquals(x, y) && deepEquals(y, z)) {
+        assertTrue(deepEquals(x, z), 'Equality should be transitive');
+      }
+    });
+  });
+
+  void it('consistency: multiple calls return same result', () => {
+    const pairs: Array<[unknown, unknown]> = [
+      [
+        { a: 1, b: 2 },
+        { a: 1, b: 2 },
+      ],
+      [
+        [1, [2, 3]],
+        [1, [2, 3]],
+      ],
+      [new Set([1, 2, 3]), new Set([3, 2, 1])],
+    ];
+
+    pairs.forEach(([x, y]) => {
+      const result1 = deepEquals(x, y);
+      const result2 = deepEquals(x, y);
+      const result3 = deepEquals(x, y);
+
+      assertTrue(
+        result1 === result2 && result2 === result3,
+        'Multiple calls should return same result',
+      );
+    });
+  });
+
+  void it('null safety: comparing with null/undefined', () => {
+    const values = [0, false, '', [], {}, new Date()];
+
+    values.forEach((value) => {
+      assertFalse(deepEquals(value, null as unknown));
+      assertFalse(deepEquals(null as unknown, value));
+      assertFalse(deepEquals(value, undefined as unknown));
+      assertFalse(deepEquals(undefined as unknown, value));
+    });
+
+    assertTrue(deepEquals(null, null));
+    assertTrue(deepEquals(undefined, undefined));
+    assertFalse(deepEquals(null, undefined));
+    assertFalse(deepEquals(undefined, null));
   });
 });
 
