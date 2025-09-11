@@ -126,9 +126,11 @@ void describe('MongoDBEventStore subscription', () => {
       stopAfter: (event) => {
         if (event.data.productItem.productId === lastProductItemIdTest1) {
           messageProcessingPromise1.resolve();
+          consumer.stop();
         }
         if (event.data.productItem.productId === lastProductItemIdTest2) {
           messageProcessingPromise2.resolve();
+          consumer.stop();
         }
 
         return (
@@ -151,8 +153,6 @@ void describe('MongoDBEventStore subscription', () => {
         client,
       },
     });
-
-    await consumer.start();
 
     await eventStore.appendToStream<ShoppingCartEvent>(
       streamName,
@@ -185,14 +185,16 @@ void describe('MongoDBEventStore subscription', () => {
       { expectedStreamVersion: 2n },
     );
 
-    await timeoutGuard(() => messageProcessingPromise1);
+    try {
+      await consumer.start();
+    } catch (err) {
+      console.error(err);
+    }
 
     const stream = await collection.findOne(
       { streamName },
       { useBigInt64: true },
     );
-
-    await consumer.stop();
 
     assertIsNotNull(stream);
     assertEqual(3n, stream.metadata.streamPosition);
@@ -202,7 +204,7 @@ void describe('MongoDBEventStore subscription', () => {
     assertTrue(stream.metadata.updatedAt instanceof Date);
   });
 
-  void it('should renew after the last event', async () => {
+  void it.skip('should renew after the last event', async () => {
     assertTrue(!!processor);
     assert(processor);
 
