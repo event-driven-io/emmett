@@ -1,4 +1,5 @@
 import type {
+  BigIntStreamPosition,
   RecordedMessageMetadata,
   RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
@@ -9,5 +10,5 @@ export type ReadEventMetadataWithGlobalPosition<
 > = RecordedMessageMetadataWithGlobalPosition<GlobalPosition>;
 export type MongoDBRecordedMessageMetadata = RecordedMessageMetadata<
   MongoDBResumeToken,
-  undefined
+  BigIntStreamPosition
 >;
