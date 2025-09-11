@@ -84,6 +84,7 @@ export type MongoDBProjectorOptions<EventType extends AnyEvent = AnyEvent> =
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const isResumeToken = (value: any): value is MongoDBResumeToken =>
+  typeof value === 'object' &&
   '_data' in value &&
   // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
   typeof value._data === 'string';
@@ -91,7 +92,7 @@ const isResumeToken = (value: any): value is MongoDBResumeToken =>
 export const getCheckpoint = <
   MessageType extends AnyMessage = AnyMessage,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  CheckpointType = any,
+  CheckpointType = MongoDBCheckpointer,
   MessageMetadataType extends
     ReadEventMetadataWithGlobalPosition<CheckpointType> = ReadEventMetadataWithGlobalPosition<CheckpointType>,
 >(

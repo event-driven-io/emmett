@@ -4,22 +4,16 @@ import {
   type AnyEvent,
   type AnyMessage,
   type AsyncRetryOptions,
-  type CommonRecordedMessageMetadata,
   type DefaultRecord,
-  type Event,
   type GlobalPositionTypeOfRecordedMessageMetadata,
   type Message,
   type MessageConsumer,
-  type ReadEvent,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
-import { ChangeStream, MongoClient, type MongoClientOptions } from 'mongodb';
+import { MongoClient, type MongoClientOptions } from 'mongodb';
 import { v4 as uuid } from 'uuid';
 import type { MongoDBRecordedMessageMetadata } from '../event';
-import type {
-  EventStream,
-  MongoDBReadEventMetadata,
-} from '../mongoDBEventStore';
+import type { MongoDBReadEventMetadata } from '../mongoDBEventStore';
 import { CancellationPromise } from './CancellablePromise';
 import {
   changeStreamReactor,
@@ -29,16 +23,18 @@ import {
   type MongoDBProjectorOptions,
 } from './mongoDBProcessor';
 import {
-  subscribe as _subscribe,
+  generateVersionPolicies,
+  mongoDBSubscription,
   zipMongoDBMessageBatchPullerStartFrom,
   type ChangeStreamFullDocumentValuePolicy,
-  type MongoDBSubscriptionDocument,
+  type MongoDBSubscription,
 } from './subscriptions';
+import type { MongoDBResumeToken } from './subscriptions/types';
 
 export type MessageConsumerOptions<
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends
-    MongoDBRecordedMessageMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = {
@@ -56,7 +52,7 @@ export type MongoDBEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
   MessageMetadataType extends
-    MongoDBRecordedMessageMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = MessageConsumerOptions<
@@ -78,7 +74,7 @@ export type MongoDBEventStoreConsumerConfig<
 export type MongoDBConsumerOptions<
   ConsumerEventType extends Message = Message,
   MessageMetadataType extends
-    MongoDBRecordedMessageMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = MongoDBEventStoreConsumerConfig<
@@ -119,40 +115,17 @@ export type MongoDBEventStoreConsumer<
       }>
     : object);
 
-type MessageArrayElement = `messages.${string}`;
-type UpdateDescription<T> = {
-  updateDescription: {
-    updatedFields: Record<MessageArrayElement, T> & {
-      'metadata.streamPosition': number;
-      'metadata.updatedAt': Date;
-    };
-  };
-};
-type FullDocument<
-  EventType extends Event = Event,
-  EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
-  T extends EventStream = EventStream<EventType, EventMetaDataType>,
-> = {
-  fullDocument: T;
-};
-type OplogChange<
-  EventType extends Event = Event,
-  EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
-  T extends EventStream = EventStream<EventType, EventMetaDataType>,
-> =
-  | FullDocument<EventType, EventMetaDataType, T>
-  | UpdateDescription<ReadEvent<EventType, EventMetaDataType>>;
-
 export type MongoDBConsumerHandlerContext = {
   client?: MongoClient;
 };
+
 export const mongoDBMessagesConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
   MessageMetadataType extends
-    MongoDBRecordedMessageMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
   HandlerContext extends
     MongoDBConsumerHandlerContext = MongoDBConsumerHandlerContext,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+  CheckpointType = MongoDBResumeToken,
 >(
   options: MongoDBConsumerOptions<
     ConsumerMessageType,
@@ -162,12 +135,7 @@ export const mongoDBMessagesConsumer = <
   >,
 ): MongoDBEventStoreConsumer<ConsumerMessageType> => {
   let start: Promise<void>;
-  let stream: ChangeStream<
-    EventStream<Event, CommonRecordedMessageMetadata>,
-    MongoDBSubscriptionDocument<
-      EventStream<Event, CommonRecordedMessageMetadata>
-    >
-  >;
+  let stream: MongoDBSubscription<CheckpointType>;
   let isRunning = false;
   let runningPromise = new CancellationPromise<null>();
   const client =
@@ -175,10 +143,6 @@ export const mongoDBMessagesConsumer = <
       ? options.client
       : new MongoClient(options.connectionString, options.clientOptions);
   const processors = options.processors ?? [];
-  const subscribe = _subscribe(
-    options.changeStreamFullDocumentPolicy,
-    client.db(),
-  );
 
   return {
     consumerId: options.consumerId ?? uuid(),
@@ -237,56 +201,19 @@ export const mongoDBMessagesConsumer = <
         const startFrom =
           zipMongoDBMessageBatchPullerStartFrom<CheckpointType>(positions);
 
-        stream = subscribe<Event, CheckpointType>(startFrom);
-
-        void (async () => {
-          while (!stream.closed && isRunning) {
-            const hasNext = await Promise.race([
-              stream.hasNext(),
-              runningPromise,
-            ]);
-
-            if (hasNext === null) {
-              break;
-            }
-
-            if (!hasNext) {
-              continue;
-            }
-
-            const change = await stream.next();
-            const resumeToken = change._id;
-            const typedChange = change as OplogChange;
-            const streamChange =
-              'updateDescription' in typedChange
-                ? {
-                    messages: Object.entries(
-                      typedChange.updateDescription.updatedFields,
-                    )
-                      .filter(([key]) => key.startsWith('messages.'))
-                      .map(([, value]) => value as ReadEvent),
-                  }
-                : typedChange.fullDocument;
-
-            if (!streamChange) {
-              return;
-            }
-
-            const messages = streamChange.messages.map((message) => {
-              return {
-                kind: message.kind,
-                type: message.type,
-                data: message.data,
-                metadata: {
-                  ...message.metadata,
-                  globalPosition: resumeToken,
-                },
-              } as unknown as RecordedMessage<
-                ConsumerMessageType,
-                MessageMetadataType
-              >;
-            });
-
+        stream = mongoDBSubscription<
+          ConsumerMessageType,
+          MessageMetadataType,
+          CheckpointType
+        >({
+          client,
+          from: startFrom,
+          eachBatch: async (
+            messages: RecordedMessage<
+              ConsumerMessageType,
+              MessageMetadataType
+            >[],
+          ) => {
             for (const processor of processors.filter(
               ({ isActive }) => isActive,
             )) {
@@ -294,24 +221,31 @@ export const mongoDBMessagesConsumer = <
                 client,
               } as Partial<HandlerContext>);
             }
-          }
+          },
+        });
 
-          console.log('END');
-        })();
+        // TODO: Remember to fix.
+        const policy = (await generateVersionPolicies(options.client?.db()!))
+          .changeStreamFullDocumentValuePolicy;
+
+        await stream.start({
+          getFullDocumentValue: policy,
+          startFrom,
+        });
       })();
 
       return start;
     },
     stop: async () => {
-      if (stream) {
-        await stream.close();
+      if (stream.isRunning) {
+        await stream.stop();
         isRunning = false;
         runningPromise.resolve(null);
       }
     },
     close: async () => {
-      if (stream) {
-        await stream.close();
+      if (stream.isRunning) {
+        await stream.stop();
         isRunning = false;
         runningPromise.resolve(null);
       }
@@ -322,7 +256,7 @@ export const mongoDBMessagesConsumer = <
 export const mongoDBChangeStreamMessagesConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
   MessageMetadataType extends
-    MongoDBRecordedMessageMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
   HandlerContext extends
     MongoDBConsumerHandlerContext = MongoDBConsumerHandlerContext,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
