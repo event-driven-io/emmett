@@ -126,8 +126,8 @@ const emmettRelationship = <
   Target extends AnyEmmettArchModule,
 >(
   source: Source,
-  target: Target,
   type: EmmettRelationshipType,
+  target: Target,
   description?: string,
 ): EmmettRelationship<Source, Target> => ({
   source: source.name,

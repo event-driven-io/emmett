@@ -10,6 +10,12 @@ const reservations = emmettArch.component('reservations', {
   components: { groupReservations },
 });
 
+const rel1 = emmettArch.relationship(
+  reservations,
+  'reads guest information from',
+  guests,
+);
+
 const ccc = reservations.components.groupReservations;
 
 const hotelManagement = emmettArch.container('hotel-management', {
