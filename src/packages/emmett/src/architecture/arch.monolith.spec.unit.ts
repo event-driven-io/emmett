@@ -1,24 +1,22 @@
 import { emmettArch } from '.';
 
-const guests = emmettArch.component('guests');
+const { component, container, relationship } = emmettArch;
 
-const pricing = emmettArch.component('pricing');
+const guests = component('guests');
 
-const groupReservations = emmettArch.component('group-reservations');
+const pricing = component('pricing');
 
-const reservations = emmettArch.component('reservations', {
+const groupReservations = component('group-reservations');
+
+const reservations = component('reservations', {
   components: { groupReservations },
 });
 
-const rel1 = emmettArch.relationship(
-  reservations,
-  'reads guest information from',
-  guests,
-);
+const rel1 = relationship(reservations, 'reads guest information from', guests);
 
 const ccc = reservations.components.groupReservations;
 
-const hotelManagement = emmettArch.container('hotel-management', {
+const hotelManagement = container('hotel-management', {
   guests,
   reservations,
   pricing,
