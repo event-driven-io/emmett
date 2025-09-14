@@ -1,13 +1,21 @@
 export type EmmettRelationshipType = string;
 
-export interface EmmettArchModule {
-  name: string;
-}
+export type PortRequirements = Record<string, unknown>;
 
-export type AnyEmmettArchModule =
-  | EmmettSystem
-  | EmmettContainer
-  | EmmettComponent;
+export type EmmettArchModule<
+  Requires extends PortRequirements | undefined = undefined,
+  Exposes extends PortRequirements | undefined = undefined,
+> = {
+  name: string;
+} & (Requires extends undefined
+  ? Exposes extends undefined
+    ? { ports?: undefined } // both undefined: ports optional
+    : { ports: { exposes: Exposes } } // only Exposes defined
+  : Exposes extends undefined
+    ? { ports: { requires: Requires } } // only Requires defined
+    : { ports: { requires: Requires; exposes: Exposes } }); // both defined
+
+export type AnyEmmettArchModule = EmmettArchModule<any, any>;
 
 export interface EmmettRelationship<
   Source extends AnyEmmettArchModule = AnyEmmettArchModule,
@@ -28,13 +36,12 @@ export type EmmettComponent<
   NestedComponents extends
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     Record<string, EmmettComponent<any>> | undefined = undefined,
-> = EmmettArchModule &
+  Requires extends PortRequirements | undefined = undefined,
+  Exposes extends PortRequirements | undefined = undefined,
+> = EmmettArchModule<Requires, Exposes> &
   (NestedComponents extends undefined
-    ? // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-      {}
-    : {
-        components: NestedComponents;
-      });
+    ? { components?: undefined }
+    : { components: NestedComponents });
 
 export interface EmmettContainer<
   T extends Record<string, EmmettComponent> = Record<string, EmmettComponent>,
@@ -79,24 +86,31 @@ export type ComponentsOf<T extends EmmettComponent> = T extends {
   ? M
   : undefined;
 
-export const emmettComponent = <
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  Config extends Omit<EmmettComponent<any>, 'name'>,
+export function emmettComponent<
+  const Config extends {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    components?: Record<string, EmmettComponent<any>>;
+    ports?: {
+      requires?: PortRequirements;
+      exposes?: PortRequirements;
+    };
+  },
 >(
-  ...args: Config extends {
-    components: infer M;
-  }
-    ? [name: string, config: Config & { components: M }]
-    : [name: string]
-): EmmettComponent & {
-  components: Config extends { components: infer M } ? M : never;
-} => {
-  const [name, config] = args;
-
-  return config !== undefined
-    ? ({ name, ...config } satisfies EmmettComponent)
-    : ({ name } satisfies EmmettComponent);
-};
+  name: string,
+  config?: Config,
+): {
+  name: string;
+  components: Config extends { components: infer C } ? C : undefined;
+  ports: Config extends { ports: infer P } ? P : undefined;
+} {
+  return {
+    name,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
+    components: config?.components as any,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
+    ports: config?.ports as any,
+  };
+}
 
 // ({
 //   name,
@@ -128,6 +142,9 @@ const emmettRelationship = <
   source: Source,
   type: EmmettRelationshipType,
   target: Target,
+  bundle?: (
+    target: Target['ports']['exposes'],
+  ) => Partial<Source['ports']['requires']>,
   description?: string,
 ): EmmettRelationship<Source, Target> => ({
   source: source.name,
@@ -151,7 +168,7 @@ export const moduleBuilder = <Source extends AnyEmmettArchModule>(
     target: Target,
     type: EmmettRelationshipType,
     description?: string,
-  ) => emmettRelationship(ctx, target, type, description),
+  ) => emmettRelationship(ctx, type, target, undefined, description),
 });
 
 export const emmettArch = {
