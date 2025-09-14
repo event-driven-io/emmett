@@ -1,10 +1,7 @@
 export type EmmettRelationshipType = string;
 
-export interface EmmettArchModule<
-  Relationships extends AnyEmmettArchModule = never,
-> {
+export interface EmmettArchModule {
   name: string;
-  relationships: EmmettRelationshipsMap<this, Relationships>;
 }
 
 export type AnyEmmettArchModule =
@@ -27,22 +24,27 @@ export type EmmettRelationshipsMap<
   Target extends AnyEmmettArchModule = AnyEmmettArchModule,
 > = Record<Target['name'], EmmettRelationship<Source, Target>>;
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface EmmettComponent<
-  Relationships extends AnyEmmettArchModule = AnyEmmettArchModule,
-> extends EmmettArchModule<Relationships> {}
+export type EmmettComponent<
+  NestedComponents extends
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Record<string, EmmettComponent<any>> | undefined = undefined,
+> = EmmettArchModule &
+  (NestedComponents extends undefined
+    ? // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+      {}
+    : {
+        components: NestedComponents;
+      });
 
 export interface EmmettContainer<
   T extends Record<string, EmmettComponent> = Record<string, EmmettComponent>,
-  Relationships extends AnyEmmettArchModule = AnyEmmettArchModule,
-> extends EmmettArchModule<Relationships> {
+> extends EmmettArchModule {
   components?: T;
 }
 
 export interface EmmettSystem<
   T extends Record<string, EmmettContainer> = Record<string, EmmettContainer>,
-  Relationships extends AnyEmmettArchModule = AnyEmmettArchModule,
-> extends EmmettArchModule<Relationships> {
+> extends EmmettArchModule {
   containers?: T;
 }
 
@@ -64,20 +66,38 @@ export type EmmettSystemsMap<T extends Record<string, EmmettSystem>> = {
   >;
 };
 
-const emmettComponent = <
-  Relationships extends AnyEmmettArchModule = AnyEmmettArchModule,
-  TReturn extends
-    EmmettComponent<Relationships> = EmmettComponent<Relationships>,
+// const emmettComponent = <T extends Omit<EmmettComponent<any>, 'name'>>(
+//   name: string,
+//   config?: T,
+// ) => {
+//   return { name, ...config } satisfies EmmettComponent;
+// };
+
+export type ComponentsOf<T extends EmmettComponent> = T extends {
+  components: infer M;
+}
+  ? M
+  : undefined;
+
+export const emmettComponent = <
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Config extends Omit<EmmettComponent<any>, 'name'>,
 >(
-  name: string,
-  config?: (builder: ModuleBuilder<TReturn>) => Omit<TReturn, 'name'>,
-): TReturn => {
-  const defaultConfig = { name } as TReturn;
+  ...args: Config extends {
+    components: infer M;
+  }
+    ? [name: string, config: Config & { components: M }]
+    : [name: string]
+): EmmettComponent & {
+  components: Config extends { components: infer M } ? M : never;
+} => {
+  const [name, config] = args;
 
-  if (!config) return defaultConfig;
-
-  return Object.assign(defaultConfig, config(moduleBuilder(defaultConfig)));
+  return config !== undefined
+    ? ({ name, ...config } satisfies EmmettComponent)
+    : ({ name } satisfies EmmettComponent);
 };
+
 // ({
 //   name,
 //   relationships: config?.relationships ? config.relationships : undefined,
@@ -90,7 +110,6 @@ function emmettContainer<T extends Record<string, EmmettComponent>>(
   return {
     name,
     components,
-    relationships: {},
   };
 }
 
@@ -100,7 +119,6 @@ const emmettSystem = <T extends Record<string, EmmettContainer>>(
 ): EmmettSystem<T> => ({
   name,
   containers,
-  relationships: {},
 });
 
 const emmettRelationship = <
@@ -126,7 +144,7 @@ type ModuleBuilder<Source extends AnyEmmettArchModule> = {
   ) => EmmettRelationship<Source, Target>;
 };
 
-const moduleBuilder = <Source extends AnyEmmettArchModule>(
+export const moduleBuilder = <Source extends AnyEmmettArchModule>(
   ctx: Source,
 ): ModuleBuilder<Source> => ({
   relationship: <Target extends AnyEmmettArchModule>(
