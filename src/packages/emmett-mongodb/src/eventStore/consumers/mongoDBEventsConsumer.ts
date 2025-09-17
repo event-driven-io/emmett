@@ -62,9 +62,9 @@ export type MongoDBEventStoreConsumerConfig<
   CheckpointType
 > & {
   // from?: any;
-  pulling?: {
-    batchSize?: number;
-  };
+  // pulling?: {
+  //   batchSize?: number;
+  // };
   resilience?: {
     resubscribeOptions?: AsyncRetryOptions;
   };
@@ -224,9 +224,15 @@ export const mongoDBMessagesConsumer = <
           },
         });
 
+        const db = options.client?.db?.();
+
+        if (!db) {
+          throw new EmmettError('MongoDB client is not connected');
+        }
+
         // TODO: Remember to fix.
-        const policy = (await generateVersionPolicies(options.client?.db()!))
-          .changeStreamFullDocumentValuePolicy;
+        const versionPolicies = await generateVersionPolicies(db);
+        const policy = versionPolicies.changeStreamFullDocumentValuePolicy;
 
         await stream.start({
           getFullDocumentValue: policy,
