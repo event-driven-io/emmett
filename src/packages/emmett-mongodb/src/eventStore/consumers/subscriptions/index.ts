@@ -36,11 +36,13 @@ export type MongoDBSubscriptionOptions<
   MessageType extends Message = Message,
   MessageMetadataType extends
     MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
-  CheckpointType = MongoDBResumeToken,
+  // CheckpointType = MongoDBResumeToken,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  CheckpointType = any,
 > = {
   from?: CurrentMessageProcessorPosition<CheckpointType>;
   client: MongoClient;
-  batchSize: number;
+  // batchSize: number;
   eachBatch: BatchRecordedMessageHandlerWithoutContext<
     MessageType,
     MessageMetadataType
@@ -346,7 +348,6 @@ const createChangeStream = <
 
 const subscribe =
   (getFullDocumentValue: ChangeStreamFullDocumentValuePolicy, db: Db) =>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   <EventType extends Message = AnyMessage, CheckpointType = MongoDBResumeToken>(
     resumeToken?: MongoDBSubscriptionStartFrom<CheckpointType>,
   ) => {
@@ -361,7 +362,7 @@ export const mongoDBSubscription = <
 >({
   client,
   from,
-  batchSize,
+  // batchSize,
   eachBatch,
   resilience,
 }: MongoDBSubscriptionOptions<
@@ -396,14 +397,18 @@ export const mongoDBSubscription = <
           callback?.();
           resolve();
         } catch (error) {
-          reject(error);
+          reject(
+            error instanceof Error
+              ? error
+              : typeof error === 'string'
+                ? new Error(error)
+                : new Error('Unknown error'),
+          );
         }
       });
     } else {
       try {
         await subscription.close();
-      } catch (error) {
-        throw error;
       } finally {
         callback?.();
       }
@@ -434,7 +439,7 @@ export const mongoDBSubscription = <
           >({
             client,
             from,
-            batchSize,
+            // batchSize,
             eachBatch,
             resilience,
           });
@@ -449,7 +454,7 @@ export const mongoDBSubscription = <
 
               if (isMongoDBResumeToken(result)) {
                 options.startFrom = {
-                  lastCheckpoint: result,
+                  lastCheckpoint: result as ResumeToken,
                 };
                 done();
                 return;
@@ -513,8 +518,7 @@ export const mongoDBSubscription = <
 
       start = (async () => {
         isRunning = true;
-        const a = pipeMessages(options);
-        return a;
+        return pipeMessages(options);
       })();
 
       return start;
