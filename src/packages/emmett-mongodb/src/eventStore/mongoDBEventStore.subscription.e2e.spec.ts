@@ -67,24 +67,6 @@ void describe('MongoDBEventStore subscription', () => {
       quantity: 10,
       price: 3,
     }) as PricedProductItem;
-  const timeoutGuard = async (
-    action: () => Promise<void>,
-    timeoutAfterMs = 1000,
-  ) => {
-    return new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error('timeout'));
-        clearTimeout(timer);
-      }, timeoutAfterMs);
-
-      action()
-        .catch(noop)
-        .finally(() => {
-          clearTimeout(timer);
-          resolve();
-        });
-    });
-  };
 
   before(async () => {
     mongodb = await new MongoDBContainer('mongo:8.0.10').start();
@@ -126,11 +108,11 @@ void describe('MongoDBEventStore subscription', () => {
       stopAfter: (event) => {
         if (event.data.productItem.productId === lastProductItemIdTest1) {
           messageProcessingPromise1.resolve();
-          consumer.stop();
+          consumer.stop().catch(noop);
         }
         if (event.data.productItem.productId === lastProductItemIdTest2) {
           messageProcessingPromise2.resolve();
-          consumer.stop();
+          consumer.stop().catch(noop);
         }
 
         return (
@@ -185,11 +167,7 @@ void describe('MongoDBEventStore subscription', () => {
       { expectedStreamVersion: 2n },
     );
 
-    try {
-      await consumer.start();
-    } catch (err) {
-      console.error(err);
-    }
+    await consumer.start();
 
     const stream = await collection.findOne(
       { streamName },
@@ -204,7 +182,7 @@ void describe('MongoDBEventStore subscription', () => {
     assertTrue(stream.metadata.updatedAt instanceof Date);
   });
 
-  void it.skip('should renew after the last event', async () => {
+  void it('should renew after the last event', async () => {
     assertTrue(!!processor);
     assert(processor);
 
@@ -214,8 +192,6 @@ void describe('MongoDBEventStore subscription', () => {
     );
     assertIsNotNull(stream);
     assertEqual(3n, stream.metadata.streamPosition);
-
-    await consumer.start();
 
     const position = await processor.start({ client });
 
@@ -230,6 +206,10 @@ void describe('MongoDBEventStore subscription', () => {
       compareTwoMongoDBTokens(position.lastCheckpoint, lastResumeToken!),
     );
 
+    const consumerPromise = consumer.start();
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     await eventStore.appendToStream<ShoppingCartEvent>(
       streamName,
       [
@@ -241,7 +221,7 @@ void describe('MongoDBEventStore subscription', () => {
       { expectedStreamVersion: 3n },
     );
 
-    await timeoutGuard(() => messageProcessingPromise2);
+    await consumerPromise;
 
     stream = await collection.findOne({ streamName }, { useBigInt64: true });
     assertIsNotNull(stream);

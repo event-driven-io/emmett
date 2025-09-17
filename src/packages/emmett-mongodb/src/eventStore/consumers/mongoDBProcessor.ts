@@ -91,7 +91,6 @@ const isResumeToken = (value: any): value is MongoDBResumeToken =>
 
 export const getCheckpoint = <
   MessageType extends AnyMessage = AnyMessage,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   CheckpointType = MongoDBCheckpointer,
   MessageMetadataType extends
     ReadEventMetadataWithGlobalPosition<CheckpointType> = ReadEventMetadataWithGlobalPosition<CheckpointType>,
