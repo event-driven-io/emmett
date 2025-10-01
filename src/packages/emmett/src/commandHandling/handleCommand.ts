@@ -114,6 +114,7 @@ export const CommandHandler =
             evolve,
             initialState,
             read: {
+              ...(handleOptions ? handleOptions : {}),
               // expected stream version is passed to fail fast
               // if stream is in the wrong state
               expectedStreamVersion:
