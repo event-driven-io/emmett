@@ -171,9 +171,15 @@ export const moduleBuilder = <Source extends AnyEmmettArchModule>(
   ) => emmettRelationship(ctx, type, target, undefined, description),
 });
 
+const emmettQuery =
+  <Input, Output>() =>
+  (_input: Input) =>
+    Promise.resolve<Output>({} as Output);
+
 export const emmettArch = {
   system: emmettSystem,
   container: emmettContainer,
   component: emmettComponent,
   relationship: emmettRelationship,
+  query: emmettQuery,
 };

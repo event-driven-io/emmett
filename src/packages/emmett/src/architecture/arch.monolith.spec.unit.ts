@@ -1,11 +1,6 @@
 import { emmettArch } from '.';
 
-const { component, container, relationship } = emmettArch;
-
-const query =
-  <Input, Output>() =>
-  (_input: Input) =>
-    Promise.resolve<Output>({} as Output);
+const { component, container, relationship, query } = emmettArch;
 
 const getGuestByExternalId = (_externalId: string): Promise<string> =>
   Promise.resolve(_externalId);
@@ -50,7 +45,9 @@ const reservationsToGuests = relationship(
 );
 
 const hotelManagement = container('hotel-management', {
-  guests,
-  reservations,
-  pricing,
+  components: {
+    guests,
+    reservations,
+    pricing,
+  },
 });
