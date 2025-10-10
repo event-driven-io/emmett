@@ -1,6 +1,7 @@
 import {
   dumbo,
   type MigrationStyle,
+  type NodePostgresClient,
   type NodePostgresClientConnection,
   type NodePostgresConnector,
   type NodePostgresPool,
@@ -100,13 +101,13 @@ type PostgresEventStoreNotPooledOptions =
       connectionString?: string;
       database?: string;
       pooled: false;
-      client: pg.Client;
+      client: NodePostgresClient;
     }
   | {
       connector?: NodePostgresConnector;
       connectionString?: string;
       database?: string;
-      client: pg.Client;
+      client: NodePostgresClient;
     }
   | {
       connector?: NodePostgresConnector;
@@ -190,23 +191,7 @@ export const getPostgreSQLEventStore = (
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
 
-  const beforeCommitHook: AppendToStreamBeforeCommitHook | undefined =
-    inlineProjections.length > 0
-      ? (events, { transaction }) =>
-          handleProjections({
-            projections: inlineProjections,
-            connection: {
-              connectionString,
-              pool,
-              transaction,
-            },
-            // TODO: Add proper handling of global data
-            // Currently it's not available as append doesn't return array of global position but just the last one
-            events: events as ReadEvent<Event, PostgresReadEventMetadata>[],
-          })
-      : undefined;
-
-  return {
+  const eventStore = {
     schema: {
       sql: () => schemaSQL.join(''),
       print: () => console.log(schemaSQL.join('')),
@@ -336,4 +321,23 @@ export const getPostgreSQLEventStore = (
       });
     },
   };
+
+  const beforeCommitHook: AppendToStreamBeforeCommitHook | undefined =
+    inlineProjections.length > 0
+      ? (events, { transaction }) =>
+          handleProjections({
+            projections: inlineProjections,
+            connection: {
+              connectionString,
+              pool,
+              transaction,
+              eventStore,
+            },
+            // TODO: Add proper handling of global data
+            // Currently it's not available as append doesn't return array of global position but just the last one
+            events: events as ReadEvent<Event, PostgresReadEventMetadata>[],
+          })
+      : undefined;
+
+  return eventStore;
 };

@@ -1,34 +1,54 @@
 # When Events Arrive Out of Order: A Pragmatic Guide to Read Models
 
-Your fraud detection system just flagged a payment as high-risk. The only problem? That payment doesn't exist yet in your system. The fraud alert arrived thirty milliseconds before the payment creation event, and now your carefully designed event-sourced aggregate is throwing exceptions because you're trying to apply a fraud score to a non-existent payment.
+Business processes run in parallel. When you process a payment, fraud checking, risk assessment, and merchant validation happen simultaneously. That's efficient business, not a flaw.
 
-Your bank runs verification checks simultaneously: fraud detection, credit history, spending limits, merchant validation. Payment processors call these "simultaneous verification protocols" because parallel processing is faster than sequential checks.
+These parallel processes involve different systems communicating through message queues. Your fraud service publishes to one queue. Risk assessment to another. The payment gateway to a third. Messages arrive in the order they were received by your system, not the order they were created. Your fraud detection service flags a high-risk payment at 10:00:01. The payment initiation event from the gateway, created at 10:00:00, arrives at 10:00:02. The fraud score arrives before the payment exists in your system.
 
-This parallel processing creates a coordination problem.
+This happens with RabbitMQ when you have multiple consumers racing for messages. It happens with SQS which only guarantees best-effort ordering. It happens when your outbox pattern deletes processed messages and loses sequence. It happens when network delays shuffle carefully ordered streams. A colleague recently struggled with this exact problem - events from external systems arriving through multiple queues, out of order due to race conditions between modules.
 
-Ordering is preserved within a service's event stream—events for the same payment follow sequence when published to the same partition or topic. Ordering breaks when coordinating across services. Your fraud service publishes to one topic, the payment gateway to another, risk assessment to a third. These independent streams arrive interleaved. Network delays, retry logic, and clock drift scramble the sequence further. Some transports like SQS or Google Pub/Sub only provide "best effort" ordering even within a topic.
+When you store these events as they arrive in your event store, you read them back in the order they were appended, not the order they were created. The business process happened in one sequence. Your event store records a different sequence. Your aggregates expect the first sequence and break on the second.
 
-You can try to force ordering through message brokers, sequence numbers, or complex choreography. But coordination across distributed systems requires exponential message exchanges. Three servers need 3 message exchanges; 100 servers need 4,950. The performance penalty grows quickly, and perfect ordering across independent services isn't achievable.
+## Why Naive Solutions Don't Work
 
-So what do you do when you need to build reliable systems on unreliable ordering?
+You might think sorting by timestamp solves this. It doesn't. Clock skew between services means timestamps lie. Network delays mean creation time and arrival time diverge. My colleague tried this approach. Events still arrived scrambled, and rebuilding projections failed.
 
-Read models store events as they arrive, regardless of order. Each event updates the fields it knows about.
+Waiting for all events blocks your system. What if the risk assessment service is down? Do you hold the payment for minutes? Hours? What defines "all events" when services can fail, retry, or send duplicates?
 
-## The Problem with Perfect Order
+Rejecting out-of-order events loses data. Your fraud service diligently calculates a high-risk score. You reject it because the payment doesn't exist yet. Five milliseconds later the payment arrives, gets approved, and you've lost critical risk information.
 
-Event Sourcing replays events in order to rebuild state. When `FraudScoreCalculated` arrives before `PaymentInitiated`, you can't apply the fraud score. The payment doesn't exist. Your business logic throws null reference exceptions.
+## How Traditional Approaches Break
 
-Cross-service coordination breaks ordering guarantees. Each service publishes to its own topic. Messages from different topics have no ordering relationship. Even within a service, some patterns create ordering issues: outbox implementations that delete processed messages, RabbitMQ with multiple consumers racing for messages, transports that prioritize throughput over strict ordering.
+Event Sourcing assumes aggregates can rebuild state by replaying events in sequence. When `FraudScoreCalculated` arrives before `PaymentInitiated`, the aggregate doesn't exist. You can't apply a fraud score to nothing. Your carefully designed domain model throws exceptions.
 
-The payment gateway sends your system a `PaymentInitiated` event. Your system triggers verification services. Fraud analysis finishes in milliseconds. Risk assessment queries credit bureaus. Merchant checks call external APIs. Results arrive scrambled: fraud score before payment creation, approval before risk assessment.
+This isn't specific to Event Sourcing. Even if you just update read models directly from events, you have the same problem. Your read model update handler for `FraudScoreCalculated` looks for a payment document to update. No document exists. The update fails.
 
-## Read Models for Unordered Events
+### Understanding Event Stores and Read Models
 
-The read model stores whatever data arrives. FraudScoreCalculated creates a record with fraud data. PaymentInitiated adds payment details to the existing record. Make decisions with available data.
+An event store is a database that stores events. Events arrive from your message broker, get appended to the store. The store preserves the order events were appended, not the order they were created.
 
-## Payment Orchestration: When Order Breaks Down
+Read models are documents or tables built from those events. A projection processes each event and updates documents. In PostgreSQL, it's a table with payment data. In MongoDB, it's a document collection. The projection is the function that transforms events into document updates.
 
-A payment orchestration system coordinates verification services. External gateways send payment events. Internal services calculate fraud scores, check limits, assess risk.
+Traditional projections assume events arrive in business order. They fail when that assumption breaks.
+
+## The Right Solution You Often Can't Use
+
+The proper fix is topology design. Use predictable identifiers to route related events to the same partition. Ensure ordering at the infrastructure level. I've written about this in ["Predictable Identifiers: Enabling Proper Partitioning and Ordering in Event-Driven Systems"](https://www.architecture-weekly.com/p/predictable-identifiers-enabling).
+
+But you often can't fix topology. External systems publish events their way, not yours. Other teams own their messaging patterns. Legacy integrations constrain your options. Organizational boundaries limit your influence.
+
+Physics also fights you. Network partitions happen. Services fail independently. The coordination overhead grows exponentially - 3 servers need 3 message exchanges, 100 servers need 4,950. Perfect ordering across distributed systems isn't achievable at scale. I covered this in ["The Order of Things: Why You Can't Cheat Physics in Distributed Systems"](https://www.architecture-weekly.com/p/the-order-of-things-why-you-cant).
+
+Sometimes you've got to do what you've got to do. When you can't control the messaging topology, you need to handle the chaos on your side.
+
+## The Pragmatic Solution: Read Models as Anti-Corruption Layer
+
+My colleague's events were arriving out of order from external systems. I advised him: Don't try to sort them. Store data as it arrives and "denoise" on your side. Treat external events as "rumors" - interpret them and save your own "facts". Use an Anti-Corruption Layer pattern to protect from external chaos.
+
+Read models excel at this. A read model document can have partial state - optional fields that get filled as events arrive. The evolve function processes each event, updating whatever fields it can, ignoring what it can't, making decisions with available data.
+
+## Payment Orchestration Example
+
+A payment orchestration system shows this pattern in action. External gateways send payment events. Internal services calculate fraud scores, check limits, assess risk.
 
 ```typescript
 type PaymentOrchestrationEvent =
@@ -40,7 +60,7 @@ type PaymentOrchestrationEvent =
   | { type: 'PaymentDeclined'; data: { paymentId: string; reason: string; declinedAt: Date } };
 ```
 
-Events should arrive in sequence: initiation, then verifications, then approval. They don't:
+Events from these services race through your message queues:
 
 ```
 10:15:32.123 - FraudScoreCalculated (score: 85, high risk)
@@ -50,11 +70,11 @@ Events should arrive in sequence: initiation, then verifications, then approval.
 10:15:32.234 - MerchantLimitsChecked (within limits)
 ```
 
-The fraud system flagged the payment as high-risk before the payment existed. Approval happened before risk assessment completed. Traditional Event Sourcing can't apply events to non-existent aggregates.
+The fraud system flagged the payment as high-risk before the payment existed in your system. Approval happened before risk assessment completed. Aggregates can't apply events to non-existent entities. Traditional read model handlers fail to find documents to update.
 
-## Building a Read Model for Unordered Events
+## Building a Read Model That Handles Chaos
 
-The read model for payment orchestration:
+A read model is a document in your database. Each document represents a payment's verification state. The document has optional fields because you don't know which event arrives first. The evolve function processes each event and updates this document, creating it if necessary.
 
 ```typescript
 type Payment = {
@@ -102,9 +122,11 @@ type PaymentVerification = {
 };
 ```
 
-## Building the Evolve Function
+## The Evolve Function: Processing Events in Any Order
 
-Payment initiation when other events might have already arrived:
+The evolve function is a projection. It takes the current document (might be null if no events arrived yet) and an incoming event, then returns the updated document.
+
+Payment initiation when fraud scoring might have already completed:
 
 ```typescript
 const evolve = (
@@ -276,17 +298,20 @@ const recalculateStatus = (view: PaymentVerification): Partial<PaymentVerificati
   const quality = determineDataQuality(view);
 
   // Can make decisions with partial data if critical factors are present
-  if (view.fraudScore && view.withinLimits !== undefined && !view.approvalDecision) {
-    const canApprove = view.riskLevel !== 'high' && view.withinLimits;
+  if (view.fraudAssessment?.score && view.merchantLimits?.withinLimits !== undefined && !view.decision) {
+    const canApprove = view.fraudAssessment.riskLevel !== 'high' && view.merchantLimits.withinLimits;
 
     return {
       completionPercentage: completion,
       dataQuality: quality,
       status: canApprove ? 'approved' : 'declined',
-      approvalDecision: canApprove ? 'approve' : 'decline',
-      decisionReason: canApprove
-        ? `Auto-approved: low fraud risk (${view.fraudScore}) and within limits`
-        : `Auto-declined: ${view.riskLevel === 'high' ? 'high fraud risk' : 'limit exceeded'}`,
+      decision: {
+        approval: canApprove ? 'approve' : 'decline',
+        reason: canApprove
+          ? `Auto-approved: low fraud risk (${view.fraudAssessment.score}) and within limits`
+          : `Auto-declined: ${view.fraudAssessment.riskLevel === 'high' ? 'high fraud risk' : 'limit exceeded'}`,
+        decidedAt: new Date()
+      }
     };
   }
 
@@ -323,23 +348,27 @@ const determineDataQuality = (view: PaymentVerification): 'partial' | 'sufficien
 
 Your fraud service processes a payment and sends `FraudScoreCalculated`. The `PaymentInitiated` event never arrives - stuck in a queue or the external gateway is having issues.
 
-If you require the payment aggregate to exist first, you can't process the fraud score. The read model stores it anyway:
+Aggregates require the payment to exist first. They can't process the fraud score. The evolve function creates a document with the fraud data:
 
 ```typescript
 // Fraud score arrives first
 { type: 'FraudScoreCalculated', data: { paymentId: 'pay_123', score: 85, riskLevel: 'high', calculatedAt: new Date() } }
 
-// Creates initial view with fraud data but no payment details
+// Creates initial document with fraud data but no payment details
 {
   paymentId: 'pay_123',
-  fraudScore: 85,
-  riskLevel: 'high',
-  fraudAssessedAt: '2024-01-15T10:15:32Z',
+  fraudAssessment: {
+    score: 85,
+    riskLevel: 'high',
+    assessedAt: '2024-01-15T10:15:32Z'
+  },
   status: 'declined',  // High fraud risk auto-declines
-  approvalDecision: 'decline',
-  decisionReason: 'High fraud risk detected: score 85',
-  amount: undefined,   // Still unknown
-  currency: undefined,
+  decision: {
+    approval: 'decline',
+    reason: 'High fraud risk detected: score 85',
+    decidedAt: '2024-01-15T10:15:32Z'
+  },
+  payment: undefined,   // Still unknown
   completionPercentage: 0.25,
   dataQuality: 'partial'
 }
@@ -359,11 +388,17 @@ PaymentApproved → RiskAssessmentCompleted (high risk factors)
 {
   paymentId: 'pay_456',
   status: 'approved',              // Decision stands
-  approvalDecision: 'approve',
-  riskScore: 87,                   // New risk data recorded
-  riskFactors: ['velocity_spike', 'unusual_location'],
+  decision: {
+    approval: 'approve',
+    reason: 'Approved by automated system (risk assessment completed post-approval)',
+    decidedAt: '2024-01-15T10:15:32Z'
+  },
+  riskEvaluation: {
+    score: 87,
+    factors: ['velocity_spike', 'unusual_location'],
+    assessedAt: '2024-01-15T10:15:33Z'
+  },
   dataQuality: 'complete',         // All data now available
-  decisionReason: 'Approved by automated system (risk assessment completed post-approval)'
 }
 ```
 
@@ -381,9 +416,12 @@ A payment gets declined by an external service before your system knows the paym
 {
   paymentId: 'pay_789',
   status: 'declined',
-  approvalDecision: 'decline',
-  decisionReason: 'Insufficient funds',
-  amount: undefined,          // Payment details unknown
+  decision: {
+    approval: 'decline',
+    reason: 'Insufficient funds',
+    decidedAt: '2024-01-15T10:15:32Z'
+  },
+  payment: undefined,          // Payment details unknown
   completionPercentage: 0.25,
   dataQuality: 'partial'
 }
@@ -418,7 +456,7 @@ Downstream systems need reliable event streams. They shouldn't deal with out-of-
 
 External events arrive unordered from systems you don't control: `PaymentInitiated` from the gateway, `FraudScoreCalculated` from a third-party service, `MerchantLimitsChecked` from your internal API.
 
-The read model collects these, builds state, waits for required data. When verification completes, publish clean internal events.
+The projection processes these events, builds state from whatever arrives, waits for required data. When verification completes, publish clean internal events.
 
 The evolve function returns events to publish:
 
@@ -492,9 +530,9 @@ if (wasIncomplete && nowComplete) {
 
 The first event that completes verification publishes. The retry finds both pieces already existed, returns the updated document without publishing events.
 
-## Business Operations
+## Business Operations and Anti-Patterns
 
-Don't trigger operations in the evolve function:
+Read models maintain state. Business operations happen elsewhere. Don't trigger side effects in the evolve function:
 
 ```typescript
 case 'PaymentApproved': {
@@ -508,11 +546,13 @@ case 'PaymentApproved': {
 }
 ```
 
-The evolve function builds state. Downstream systems subscribe to clean internal events (`PaymentVerified`, `PaymentVerificationFailed`) and trigger operations independently.
+The evolve function builds state. Each event updates the document with whatever information it carries. Downstream systems subscribe to clean internal events (`PaymentVerified`, `PaymentVerificationFailed`) and trigger operations independently.
+
+Side effects in projections create problems. If the projection fails after sending an email but before saving the document, you send duplicate emails on retry. If multiple instances process the same event stream, you trigger operations multiple times. Keep projections pure - they transform events into state, nothing more.
 
 ## The Emmett Implementation
 
-`pongoSingleStreamProjection` connects the evolve function to PostgreSQL:
+`pongoSingleStreamProjection` creates a projection that maintains one document per payment ID. Events with the same payment ID update the same document:
 
 ```typescript
 import { pongoSingleStreamProjection } from '@event-driven-io/emmett-postgresql';
@@ -557,9 +597,9 @@ export const getPaymentsRequiringReview = async (
     .collection<PaymentVerification>('paymentVerification')
     .find({
       $or: [
-        { riskLevel: 'high', status: 'approved' },     // High risk but approved
+        { 'fraudAssessment.riskLevel': 'high', status: 'approved' },     // High risk but approved
         { dataQuality: 'partial', status: 'processing' }, // Incomplete data
-        { fraudScore: { $gte: 75 }, status: 'approved' }  // High fraud score but approved
+        { 'fraudAssessment.score': { $gte: 75 }, status: 'approved' }  // High fraud score but approved
       ]
     })
     .toArray();
@@ -603,4 +643,14 @@ This approach struggles when:
 
 **Users can't tolerate uncertainty**: Some interfaces need to show definitive status immediately, not "processing" or "partial data available."
 
-Build read models that store partial data. Make decisions with available information. Publish clean events when verification completes.
+## Conclusion: Embracing the Chaos
+
+My colleague struggled with events arriving out of order from external systems. He tried sorting by timestamp. He tried waiting for all events. Nothing worked reliably.
+
+The solution was to stop fighting the chaos. External events are rumors about what happened in other systems. Your read model documents store the facts you derive from those rumors. The evolve function processes whatever arrives, in whatever order, building state incrementally.
+
+This isn't a workaround. It's an acknowledgment that distributed systems don't guarantee order across boundaries. When you can't control the topology, you adapt on your side. Store data as it arrives. Denoise in your projections. Create clean internal events for downstream systems.
+
+Sometimes the proper solution is fixing your message topology. Route related events to the same partition. Use predictable identifiers for correlation. But when external systems constrain your options, when organizational boundaries limit your control, when legacy integrations force your hand - you've got to do what you've got to do.
+
+Build read models where documents handle partial state. Process events in any order. Make decisions with available data. That's how you build reliable systems on unreliable foundations.

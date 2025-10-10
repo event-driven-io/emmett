@@ -29,6 +29,10 @@ import {
   type SingleRecordedMessageHandlerWithContext,
 } from '@event-driven-io/emmett';
 import pg from 'pg';
+import {
+  getPostgreSQLEventStore,
+  type PostgresEventStore,
+} from '../postgreSQLEventStore';
 import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
 import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 
@@ -39,6 +43,7 @@ export type PostgreSQLProcessorHandlerContext = {
     client: NodePostgresClient;
     transaction: NodePostgresTransaction;
     pool: Dumbo;
+    eventStore: PostgresEventStore;
   };
 };
 
@@ -234,6 +239,10 @@ const postgreSQLProcessingScope = (options: {
           pool,
           client,
           transaction,
+          eventStore: getPostgreSQLEventStore(connectionString, {
+            connectionOptions: { client },
+            schema: { autoMigration: 'None' },
+          }),
         },
       });
     });

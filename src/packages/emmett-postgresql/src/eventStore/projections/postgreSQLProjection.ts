@@ -13,7 +13,11 @@ import {
   type ProjectionHandler,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
+import {
+  getPostgreSQLEventStore,
+  type PostgresEventStore,
+  type PostgresReadEventMetadata,
+} from '../postgreSQLEventStore';
 
 export type PostgreSQLProjectionHandlerContext = {
   execute: SQLExecutor;
@@ -22,6 +26,7 @@ export type PostgreSQLProjectionHandlerContext = {
     client: NodePostgresClient;
     transaction: NodePostgresTransaction;
     pool: Dumbo;
+    eventStore: PostgresEventStore;
   };
 };
 
@@ -51,6 +56,7 @@ export type PostgreSQLProjectionHandlerOptions<
     connectionString: string;
     transaction: NodePostgresTransaction;
     pool: Dumbo;
+    eventStore: PostgresEventStore;
   };
 };
 
@@ -78,6 +84,10 @@ export const handleProjections = async <EventType extends Event = Event>(
         pool,
         client,
         transaction,
+        eventStore: getPostgreSQLEventStore(connectionString, {
+          connectionOptions: { client },
+          schema: { autoMigration: 'None' },
+        }),
       },
       execute: transaction.execute,
     });

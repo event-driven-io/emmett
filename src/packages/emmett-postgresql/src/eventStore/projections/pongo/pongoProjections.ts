@@ -21,35 +21,46 @@ export type PongoProjectionHandlerContext =
     pongo: PongoClient;
   };
 
+export type PongoEvolveResult<
+  Document extends PongoDocument,
+  EventType extends Event,
+> = Document | { document: Document; events: EventType[] } | null;
+
 export type PongoWithNotNullDocumentEvolve<
   Document extends PongoDocument,
   EventType extends Event,
   EventMetaDataType extends
     PostgresReadEventMetadata = PostgresReadEventMetadata,
+  ResultEvent extends Event = EventType,
 > =
   | ((
       document: Document,
       event: ReadEvent<EventType, EventMetaDataType>,
-    ) => Document | null)
+      context: PongoProjectionHandlerContext,
+    ) => PongoEvolveResult<Document, ResultEvent>)
   | ((
       document: Document,
       event: ReadEvent<EventType>,
-    ) => Promise<Document | null>);
+      context: PongoProjectionHandlerContext,
+    ) => Promise<PongoEvolveResult<Document, ResultEvent>>);
 
 export type PongoWithNullableDocumentEvolve<
   Document extends PongoDocument,
   EventType extends Event,
   EventMetaDataType extends
     PostgresReadEventMetadata = PostgresReadEventMetadata,
+  ResultEvent extends Event = EventType,
 > =
   | ((
       document: Document | null,
       event: ReadEvent<EventType, EventMetaDataType>,
-    ) => Document | null)
+      context: PongoProjectionHandlerContext,
+    ) => PongoEvolveResult<Document, ResultEvent>)
   | ((
       document: Document | null,
       event: ReadEvent<EventType>,
-    ) => Promise<Document | null>);
+      context: PongoProjectionHandlerContext,
+    ) => Promise<PongoEvolveResult<Document, ResultEvent>>);
 
 export type PongoDocumentEvolve<
   Document extends PongoDocument,
@@ -147,20 +158,38 @@ export const pongoMultiStreamProjection = <
   const { collectionName, getDocumentId, canHandle } = options;
 
   return pongoProjection({
-    handle: async (events, { pongo }) => {
+    handle: async (events, context) => {
+      const {
+        pongo,
+        connection: { eventStore },
+      } = context;
       const collection = pongo.db().collection<Document>(collectionName);
 
       for (const event of events) {
         await collection.handle(getDocumentId(event), async (document) => {
-          return 'initialState' in options
-            ? await options.evolve(
-                document ?? options.initialState(),
-                event as ReadEvent<EventType, EventMetaDataType>,
-              )
-            : await options.evolve(
-                document,
-                event as ReadEvent<EventType, EventMetaDataType>,
-              );
+          const result =
+            'initialState' in options
+              ? await options.evolve(
+                  document ?? options.initialState(),
+                  event as ReadEvent<EventType, EventMetaDataType>,
+                  context,
+                )
+              : await options.evolve(
+                  document,
+                  event as ReadEvent<EventType, EventMetaDataType>,
+                  context,
+                );
+
+          const resultDocument =
+            result && 'document' in result ? result.document : result;
+
+          const events = result && 'events' in result ? result.events : [];
+
+          if (events.length > 0) {
+            await eventStore.appendToStream(event.metadata.streamName, events);
+          }
+
+          return resultDocument;
         });
       }
     },
