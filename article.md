@@ -4,7 +4,7 @@ Your fraud detection system just flagged a payment as high-risk. The only proble
 
 Parallel business processes are natural and expected. When you swipe your card at a coffee shop, your bank doesn't verify things one by one. While you're waiting for approval, multiple checks happen simultaneously: Is this a fraudulent transaction? Does the customer have good credit history? Are they within their spending limits? Is the merchant legitimate? Payment processors like Stripe document these as "multiple simultaneous verification protocols" because parallel processing is faster than checking each item sequentially.
 
-This parallel processing creates a coordination problem we'll explore in detail.
+This parallel processing creates a coordination problem.
 
 The technical implementation creates ordering problems. Events arrive out of sequence because of multiple queues, multiple service instances, transport mechanisms that don't guarantee ordering, retry logic creating duplicate events with different timestamps, and clock synchronization issues across services. You can't control external teams' messaging topology, and some transports like SQS or Google Pub/Sub only provide "best effort" ordering.
 
@@ -23,13 +23,13 @@ But Event Sourcing assumes you can rebuild state by replaying events in order. W
 This becomes problematic when:
 
 - **Multiple services** generate events independently
-- **Multiple queues** and POD instances process events separately
+- **Multiple queues** and service instances process events separately
 - **Transport mechanisms** don't guarantee ordering (outbox patterns, RabbitMQ with multiple consumers, SQS)
 - **Retry logic** creates duplicate events with different timestamps
 - **Clock synchronization** across services is imperfect
 - **External systems** use messaging topologies you can't control
 
-Let's look at what happens behind that coffee shop payment. The payment gateway sends your system a `PaymentInitiated` event. Your system now coordinates those verification checks we mentioned.
+Behind that coffee shop payment, the payment gateway sends your system a `PaymentInitiated` event. Your system coordinates verification checks.
 
 Each verification happens independently. Fraud analysis runs automated models and finishes quickly. Risk assessment evaluates credit history and takes longer. Limit checking queries a database. Merchant verification calls external APIs. Each completes on its own timeline.
 
@@ -44,8 +44,6 @@ Traditional Event Sourcing can't handle this disorder. It requires ordered event
 Read models change the approach. Instead of trying to enforce order, they accept that events may arrive out of sequence and build consistent views anyway.
 
 Treat incoming events as partial information rather than complete facts. A fraud score arriving before payment creation tells you something about a payment that might exist. Store it, correlate it when the payment arrives, and build decisions from whatever data you have.
-
-Let me show you how this works with a concrete example.
 
 ## Payment Orchestration: When Order Breaks Down
 
@@ -122,9 +120,9 @@ type PaymentOrchestrationView = {
 
 The read model accepts that information might be incomplete. Payment amount might be unknown while fraud score is already calculated. Approval might happen while risk assessment is still pending.
 
-Now we need to handle the coordination problem. This is where projections and their `evolve` functions become essential.
+## Understanding Projections and the Evolve Function
 
-In Emmett, projections build views by processing events through an `evolve` function. The evolve function takes the current state and an incoming event, then returns updated state. Normally, this works like:
+Projections build views from event streams. The `evolve` function takes the current state and an incoming event, then returns updated state. Normally, this works like:
 
 ```typescript
 // Traditional evolve: expects events in order
@@ -138,9 +136,9 @@ const evolve = (current: PaymentView, event: PaymentEvent) => {
 };
 ```
 
-This works when `PaymentApproved` always arrives after `PaymentInitiated`. But our coordination problem means events arrive out of order. We need an evolve function that can handle missing context and build useful state anyway.
+This works when `PaymentApproved` always arrives after `PaymentInitiated`. But events arrive out of order. The evolve function must handle missing context and build useful state anyway.
 
-Let's see how this works with our payment verification scenario.
+Start with the simplest case - handling payment initiation:
 
 ```typescript
 const evolve = (
@@ -149,7 +147,7 @@ const evolve = (
 ): PaymentOrchestrationView | null => {
   switch (type) {
     case 'PaymentInitiated': {
-      // This might arrive late - merge with existing data if available
+      // Payment details might arrive after other events
       const existing = current ?? createInitialView(event.paymentId);
 
       return {
@@ -159,131 +157,84 @@ const evolve = (
         gatewayId: event.gatewayId,
         initiatedAt: event.initiatedAt,
         lastUpdated: event.initiatedAt,
-        ...recalculateStatus(existing),
       };
     }
-
-    case 'FraudScoreCalculated': {
-      // This might arrive before PaymentInitiated - that's fine
-      const existing = current ?? createInitialView(event.paymentId);
-
-      // Only update if this is newer fraud data
-      if (existing.fraudAssessedAt && event.calculatedAt <= existing.fraudAssessedAt) {
-        return existing;
-      }
-
-      const updated = {
-        ...existing,
-        fraudScore: event.score,
-        riskLevel: event.riskLevel,
-        fraudAssessedAt: event.calculatedAt,
-        lastUpdated: event.calculatedAt,
-      };
-
-      // High fraud risk immediately declines, regardless of other factors
-      if (event.riskLevel === 'high') {
-        return {
-          ...updated,
-          status: 'declined',
-          approvalDecision: 'decline',
-          decisionReason: `High fraud risk detected: score ${event.score}`,
-          ...recalculateStatus(updated),
-        };
-      }
-
-      return recalculateStatus(updated);
-    }
-
-    case 'PaymentApproved': {
-      const existing = current ?? createInitialView(event.paymentId);
-
-      // Check if this approval conflicts with existing risk data
-      if (existing.riskLevel === 'high') {
-        // Log this conflict but don't override fraud decision
-        return {
-          ...existing,
-          decisionReason: `Approval attempted but overridden by fraud (score: ${existing.fraudScore})`,
-          lastUpdated: event.approvedAt,
-        };
-      }
-
-      return {
-        ...existing,
-        status: 'approved',
-        approvalDecision: 'approve',
-        decisionReason: `Approved by ${event.approvedBy}`,
-        lastUpdated: event.approvedAt,
-        ...recalculateStatus(existing),
-      };
-    }
-
-    case 'RiskAssessmentCompleted': {
-      const existing = current ?? createInitialView(event.paymentId);
-
-      // Risk assessment might complete after approval - update but don't override decisions
-      const updated = {
-        ...existing,
-        riskScore: event.riskScore,
-        riskFactors: event.factors,
-        riskAssessedAt: event.assessedAt,
-        lastUpdated: event.assessedAt,
-      };
-
-      // If payment is already decided, don't change decision but update data quality
-      if (existing.status === 'approved' || existing.status === 'declined') {
-        return recalculateStatus(updated);
-      }
-
-      return recalculateStatus(updated);
-    }
-
-    case 'MerchantLimitsChecked': {
-      const existing = current ?? createInitialView(event.paymentId);
-
-      const updated = {
-        ...existing,
-        withinLimits: event.withinLimits,
-        dailyRemaining: event.dailyRemaining,
-        limitsCheckedAt: event.checkedAt,
-        lastUpdated: event.checkedAt,
-      };
-
-      // Limit violations decline payments regardless of other factors
-      if (!event.withinLimits) {
-        return {
-          ...updated,
-          status: 'declined',
-          approvalDecision: 'decline',
-          decisionReason: `Merchant daily limit exceeded. Remaining: $${event.dailyRemaining}`,
-          ...recalculateStatus(updated),
-        };
-      }
-
-      return recalculateStatus(updated);
-    }
-
-    case 'PaymentDeclined': {
-      const existing = current ?? createInitialView(event.paymentId);
-
-      return {
-        ...existing,
-        status: 'declined',
-        approvalDecision: 'decline',
-        decisionReason: event.reason,
-        lastUpdated: event.declinedAt,
-        ...recalculateStatus(existing),
-      };
-    }
-
-    default:
-      return current;
   }
 };
 ```
 
-The `evolve` function embodies the core principle: accept unordered events, store what you can, make decisions with available data.
+The key insight: `current` might be `null`, but it might also contain data from events that arrived earlier. If fraud scoring completed before payment initiation, `current` already has fraud data. The payment initiation handler merges payment details into existing state.
 
-Let's look at the helper functions that make this work:
+This pattern handles the race condition where verification events arrive before the payment exists.
+
+Now add fraud scoring, which might arrive first:
+
+```typescript
+case 'FraudScoreCalculated': {
+  // Fraud score can arrive before PaymentInitiated
+  const existing = current ?? createInitialView(event.paymentId);
+
+  // Only update if this is newer fraud data
+  if (existing.fraudAssessedAt && event.calculatedAt <= existing.fraudAssessedAt) {
+    return existing; // Ignore older/duplicate data
+  }
+
+  const updated = {
+    ...existing,
+    fraudScore: event.score,
+    riskLevel: event.riskLevel,
+    fraudAssessedAt: event.calculatedAt,
+    lastUpdated: event.calculatedAt,
+  };
+
+  // High fraud risk immediately declines
+  if (event.riskLevel === 'high') {
+    return {
+      ...updated,
+      status: 'declined',
+      approvalDecision: 'decline',
+      decisionReason: `High fraud risk detected: score ${event.score}`,
+    };
+  }
+
+  return updated;
+}
+```
+
+The fraud handler makes business decisions with partial data. High fraud risk declines the payment immediately, even without knowing the payment amount or merchant details.
+
+The timestamp check prevents retrograde updates from retries or duplicate events. Only newer fraud scores update the view.
+
+Add payment approval, which might conflict with fraud data:
+
+```typescript
+case 'PaymentApproved': {
+  const existing = current ?? createInitialView(event.paymentId);
+
+  // Approval can't override fraud decisions
+  if (existing.riskLevel === 'high') {
+    return {
+      ...existing,
+      decisionReason: `Approval attempted but overridden by fraud (score: ${existing.fraudScore})`,
+      lastUpdated: event.approvedAt,
+    };
+  }
+
+  return {
+    ...existing,
+    status: 'approved',
+    approvalDecision: 'approve',
+    decisionReason: `Approved by ${event.approvedBy}`,
+    lastUpdated: event.approvedAt,
+  };
+}
+```
+
+Business rules determine priority. Fraud detection overrides approval decisions. The evolve function enforces this regardless of event order.
+
+Each handler follows the pattern: get existing state or create initial view, apply business logic with available data, return updated state. This works whether events arrive in sequence or scrambled.
+
+The helper functions support this pattern:
 
 ```typescript
 const createInitialView = (paymentId: string): PaymentOrchestrationView => ({
@@ -514,7 +465,124 @@ This preserves the separation between state modeling and business operations whi
 
 ## The Emmett Implementation
 
-Here's how this looks in practice with Emmett:
+Now that we've built the pattern incrementally, here's the complete evolve function handling all payment orchestration events:
+
+```typescript
+const evolve = (
+  current: PaymentOrchestrationView | null,
+  { type, data: event }: PaymentOrchestrationEvent
+): PaymentOrchestrationView | null => {
+  switch (type) {
+    case 'PaymentInitiated': {
+      const existing = current ?? createInitialView(event.paymentId);
+      return {
+        ...existing,
+        amount: event.amount,
+        currency: event.currency,
+        gatewayId: event.gatewayId,
+        initiatedAt: event.initiatedAt,
+        lastUpdated: event.initiatedAt,
+      };
+    }
+
+    case 'FraudScoreCalculated': {
+      const existing = current ?? createInitialView(event.paymentId);
+
+      if (existing.fraudAssessedAt && event.calculatedAt <= existing.fraudAssessedAt) {
+        return existing;
+      }
+
+      const updated = {
+        ...existing,
+        fraudScore: event.score,
+        riskLevel: event.riskLevel,
+        fraudAssessedAt: event.calculatedAt,
+        lastUpdated: event.calculatedAt,
+      };
+
+      if (event.riskLevel === 'high') {
+        return {
+          ...updated,
+          status: 'declined',
+          approvalDecision: 'decline',
+          decisionReason: `High fraud risk detected: score ${event.score}`,
+        };
+      }
+
+      return updated;
+    }
+
+    case 'RiskAssessmentCompleted': {
+      const existing = current ?? createInitialView(event.paymentId);
+      return {
+        ...existing,
+        riskScore: event.riskScore,
+        riskFactors: event.factors,
+        riskAssessedAt: event.assessedAt,
+        lastUpdated: event.assessedAt,
+      };
+    }
+
+    case 'MerchantLimitsChecked': {
+      const existing = current ?? createInitialView(event.paymentId);
+      const updated = {
+        ...existing,
+        withinLimits: event.withinLimits,
+        dailyRemaining: event.dailyRemaining,
+        limitsCheckedAt: event.checkedAt,
+        lastUpdated: event.checkedAt,
+      };
+
+      if (!event.withinLimits) {
+        return {
+          ...updated,
+          status: 'declined',
+          approvalDecision: 'decline',
+          decisionReason: `Merchant daily limit exceeded`,
+        };
+      }
+
+      return updated;
+    }
+
+    case 'PaymentApproved': {
+      const existing = current ?? createInitialView(event.paymentId);
+
+      if (existing.riskLevel === 'high') {
+        return {
+          ...existing,
+          decisionReason: `Approval attempted but overridden by fraud (score: ${existing.fraudScore})`,
+          lastUpdated: event.approvedAt,
+        };
+      }
+
+      return {
+        ...existing,
+        status: 'approved',
+        approvalDecision: 'approve',
+        decisionReason: `Approved by ${event.approvedBy}`,
+        lastUpdated: event.approvedAt,
+      };
+    }
+
+    case 'PaymentDeclined': {
+      const existing = current ?? createInitialView(event.paymentId);
+      return {
+        ...existing,
+        status: 'declined',
+        approvalDecision: 'decline',
+        decisionReason: event.reason,
+        lastUpdated: event.declinedAt,
+      };
+    }
+
+    default:
+      return current;
+  }
+};
+```
+
+Wiring this into Emmett:
 
 ```typescript
 import { pongoSingleStreamProjection } from '@event-driven-io/emmett-postgresql';
@@ -609,7 +677,7 @@ The key insight is recognizing that many business processes naturally work with 
 
 ## Lessons from the Trenches
 
-I learned these patterns while helping a colleague debug out-of-order event processing issues. His system was receiving events from multiple queues and POD instances, creating unpredictable ordering. Events arrived like: Credit Score → Phone Call Ended → Phone Status Updated, when the logical order should have been: Phone Called → Phone Status Updated → Phone Call Ended.
+I learned these patterns while helping a colleague debug out-of-order event processing issues. His system was receiving events from multiple queues and service instances, creating unpredictable ordering. Events arrived like: Credit Score → Phone Call Ended → Phone Status Updated, when the logical order should have been: Phone Called → Phone Status Updated → Phone Call Ended.
 
 His first instinct was to sort events by timestamp before processing. This failed for multiple reasons: timestamps across services weren't synchronized, retry logic created duplicate events with different timestamps, and some events legitimately occurred simultaneously.
 
