@@ -94,7 +94,7 @@ type Decision = {
   decidedAt: Date;
 };
 
-type PaymentOrchestrationView = {
+type PaymentVerification = {
   paymentId: string;
   payment?: Payment;
   fraudAssessment?: FraudAssessment;
@@ -131,9 +131,9 @@ Start with the simplest case - handling payment initiation:
 
 ```typescript
 const evolve = (
-  current: PaymentOrchestrationView | null,
+  current: PaymentVerification | null,
   { type, data: event }: PaymentOrchestrationEvent
-): PaymentOrchestrationView | null => {
+): PaymentVerification | null => {
   switch (type) {
     case 'PaymentInitiated': {
       const existing = current ?? { paymentId: event.paymentId, status: 'unknown' as const, completionPercentage: 0, lastUpdated: new Date(), dataQuality: 'partial' as const };
@@ -230,12 +230,85 @@ case 'PaymentApproved': {
 }
 ```
 
+## Waiting for Dependencies
+
+The examples above show immediate decisions with partial data. Sometimes you need specific pieces before proceeding. Payment verification might require BOTH fraud assessment AND merchant limits before making a final approval decision.
+
+The `MerchantLimitsChecked` handler demonstrates this pattern:
+
+```typescript
+case 'MerchantLimitsChecked': {
+  const existing = current ?? { paymentId: event.paymentId, status: 'unknown' as const, completionPercentage: 0, lastUpdated: new Date(), dataQuality: 'partial' as const };
+
+  const merchantLimits: MerchantLimits = {
+    withinLimits: event.withinLimits,
+    dailyRemaining: event.dailyRemaining,
+    checkedAt: event.checkedAt,
+  };
+
+  const updated = {
+    ...existing,
+    merchantLimits,
+    lastUpdated: event.checkedAt,
+  };
+
+  // Check if we now have BOTH critical pieces
+  if (updated.fraudAssessment && updated.merchantLimits) {
+    // Both present - can make final decision
+    if (updated.fraudAssessment.riskLevel === 'high') {
+      return {
+        ...updated,
+        status: 'declined',
+        decision: {
+          approval: 'decline',
+          reason: 'High fraud risk',
+          decidedAt: event.checkedAt,
+        },
+      };
+    }
+
+    if (!updated.merchantLimits.withinLimits) {
+      return {
+        ...updated,
+        status: 'declined',
+        decision: {
+          approval: 'decline',
+          reason: 'Exceeds merchant limits',
+          decidedAt: event.checkedAt,
+        },
+      };
+    }
+
+    // Both checks pass - approve
+    return {
+      ...updated,
+      status: 'approved',
+      decision: {
+        approval: 'approve',
+        reason: 'Verified',
+        decidedAt: event.checkedAt,
+      },
+    };
+  }
+
+  // Don't have both yet - stay in processing
+  return {
+    ...updated,
+    status: 'processing',
+  };
+}
+```
+
+The handler stores the merchant limits, then checks whether it has both fraud assessment and merchant limits. If both are present, it makes a final decision. If either is missing, it returns status `'processing'` and waits for the missing data.
+
+This pattern handles arrival in any order: fraud→limits, limits→fraud, or either arriving multiple times before the other shows up.
+
 Each handler follows the pattern: check for existing state, apply business logic with available data, return updated state.
 
 Helper functions calculate completion and data quality:
 
 ```typescript
-const recalculateStatus = (view: PaymentOrchestrationView): Partial<PaymentOrchestrationView> => {
+const recalculateStatus = (view: PaymentVerification): Partial<PaymentVerification> => {
   const completion = calculateCompletionPercentage(view);
   const quality = determineDataQuality(view);
 
@@ -261,7 +334,7 @@ const recalculateStatus = (view: PaymentOrchestrationView): Partial<PaymentOrche
   };
 };
 
-const calculateCompletionPercentage = (view: PaymentOrchestrationView): number => {
+const calculateCompletionPercentage = (view: PaymentVerification): number => {
   const factors = [
     view.payment !== undefined,
     view.fraudAssessment !== undefined,
@@ -272,7 +345,7 @@ const calculateCompletionPercentage = (view: PaymentOrchestrationView): number =
   return factors.filter(Boolean).length / factors.length;
 };
 
-const determineDataQuality = (view: PaymentOrchestrationView): 'partial' | 'sufficient' | 'complete' => {
+const determineDataQuality = (view: PaymentVerification): 'partial' | 'sufficient' | 'complete' => {
   const completion = calculateCompletionPercentage(view);
 
   if (completion === 1.0) return 'complete';
@@ -384,9 +457,107 @@ case 'FraudScoreCalculated': {
 
 This prevents retrograde updates while allowing legitimate score improvements.
 
+## The Ingress Pattern: Clean Internal Events
+
+So far we've shown a read model that accepts messy external events. But what happens downstream? Your notification service, fulfillment system, and analytics pipeline need reliable event streams. They shouldn't deal with out-of-order chaos, duplicate retries, or missing data.
+
+The ingress pattern separates concerns:
+
+**External events** (ingress): Unordered, unreliable, from systems you don't control. `PaymentInitiated` from the gateway, `FraudScoreCalculated` from a third-party service, `MerchantLimitsChecked` from your internal API.
+
+**Read model** (verification): Collects these external rumors, builds consistent state, waits for required data.
+
+**Internal events** (verified facts): Published when verification completes. These are clean, ordered, reliable events that downstream systems consume.
+
+The read model's evolve function can return events to publish:
+
+```typescript
+const evolve = async (
+  current: PaymentVerification | null,
+  event: ReadEvent<PaymentOrchestrationEvent>,
+  context: PongoProjectionHandlerContext
+): Promise<PaymentVerification | { document: PaymentVerification; events: VerificationEvent[] } | null> => {
+  // ... build updated state ...
+
+  const updated = { /* ... updated verification state ... */ };
+
+  // Check if verification just became complete
+  const wasIncomplete = !current?.fraudAssessment || !current?.merchantLimits;
+  const nowComplete = updated.fraudAssessment && updated.merchantLimits;
+
+  if (wasIncomplete && nowComplete) {
+    // We just got the last piece - publish clean internal event
+    if (updated.fraudAssessment.riskLevel === 'high') {
+      return {
+        document: updated,
+        events: [{
+          type: 'PaymentVerificationFailed',
+          data: {
+            paymentId: updated.paymentId,
+            reason: 'High fraud risk',
+            fraudScore: updated.fraudAssessment.score,
+            verifiedAt: new Date(),
+          },
+        }],
+      };
+    }
+
+    if (updated.merchantLimits.withinLimits) {
+      return {
+        document: updated,
+        events: [{
+          type: 'PaymentVerified',
+          data: {
+            paymentId: updated.paymentId,
+            amount: updated.payment!.amount,
+            currency: updated.payment!.currency,
+            fraudScore: updated.fraudAssessment.score,
+            verifiedAt: new Date(),
+          },
+        }],
+      };
+    }
+  }
+
+  return updated;
+};
+```
+
+The evolve function returns `{ document, events }` when it has something to publish. The framework appends these events to the event store in the same transaction as the document update. Downstream systems subscribe to `PaymentVerified` and `PaymentVerificationFailed` - clean events published exactly once, when verification completes.
+
+This solves several problems:
+
+**Idempotency**: The same external event arriving twice updates the read model idempotently. The internal event publishes only when transitioning from incomplete to complete.
+
+**Transaction safety**: Document update and event publishing happen atomically. Either both succeed or both fail.
+
+**Separation of concerns**: External chaos handled by ingress projection. Internal systems get clean, reliable events.
+
+## Handling Concurrent Updates
+
+What happens if two external events arrive simultaneously and both trigger the transition from incomplete to complete? Two fraud scores calculated by different providers, both arriving within milliseconds and both finding merchant limits already present?
+
+Both would try to publish `PaymentVerified`. You'd get duplicate events.
+
+The evolve function handles this by checking the transition, not just the end state:
+
+```typescript
+const wasIncomplete = !current?.fraudAssessment || !current?.merchantLimits;
+const nowComplete = updated.fraudAssessment && updated.merchantLimits;
+
+if (wasIncomplete && nowComplete) {
+  // Only publish when transitioning from incomplete to complete
+  return { document: updated, events: [/* ... */] };
+}
+```
+
+The first event to complete verification publishes the internal event. Subsequent events find `current` already complete (`wasIncomplete` is false), skip publishing, and just update the read model.
+
+This pattern ensures exactly-once publishing without requiring distributed locks or coordination. The transaction boundary and state transition check provide the guarantee.
+
 ## Business Operations: When to Act
 
-Read models excel at maintaining state, but business systems need to trigger operations - sending notifications, updating external systems, fulfilling orders. The question is: when and how?
+With clean internal events published, downstream systems can reliably trigger operations. Your notification service subscribes to `PaymentVerified`, fulfillment subscribes to `PaymentApproved`, fraud investigation subscribes to `PaymentVerificationFailed`.
 
 The naive approach triggers operations directly from the evolve function:
 
@@ -409,49 +580,7 @@ This creates problems:
 - **Testing**: Side effects make unit testing complex
 - **Separation of concerns**: Read models should model, not operate
 
-A better approach separates state management from business operations. The read model maintains state, and separate processes watch for state changes:
-
-```typescript
-const triggerBusinessOperations = (before: PaymentOrchestrationView | null, after: PaymentOrchestrationView) => {
-  // Only trigger on state transitions
-  if (before?.status !== after.status) {
-    switch (after.status) {
-      case 'approved':
-        if (after.dataQuality === 'sufficient' || after.dataQuality === 'complete') {
-          // Queue operations for reliable processing
-          operationsQueue.enqueue({
-            type: 'PaymentApprovalOperations',
-            paymentId: after.paymentId,
-            amount: after.amount,
-            approvedAt: after.lastUpdated,
-          });
-        }
-        break;
-
-      case 'declined':
-        operationsQueue.enqueue({
-          type: 'PaymentDeclineOperations',
-          paymentId: after.paymentId,
-          reason: after.decisionReason,
-          declinedAt: after.lastUpdated,
-        });
-        break;
-    }
-  }
-
-  // Trigger quality-based operations
-  if (before?.dataQuality !== after.dataQuality && after.dataQuality === 'complete') {
-    operationsQueue.enqueue({
-      type: 'DataCompletionOperations',
-      paymentId: after.paymentId,
-      finalRisk: after.riskScore,
-      completedAt: after.lastUpdated,
-    });
-  }
-};
-```
-
-This preserves the separation between state modeling and business operations while ensuring reliable operation execution.
+The ingress pattern solves this by publishing clean internal events when verification completes. Downstream systems subscribe to these events and trigger their operations independently. The read model stays focused on modeling state.
 
 ## The Emmett Implementation
 
@@ -460,8 +589,8 @@ Wire the evolve function into Emmett:
 ```typescript
 import { pongoSingleStreamProjection } from '@event-driven-io/emmett-postgresql';
 
-export const paymentOrchestrationProjection = pongoSingleStreamProjection({
-  collectionName: 'paymentOrchestration',
+export const paymentVerificationProjection = pongoSingleStreamProjection({
+  collectionName: 'paymentVerification',
   evolve,
   canHandle: [
     'PaymentInitiated',
@@ -477,27 +606,27 @@ export const paymentOrchestrationProjection = pongoSingleStreamProjection({
 export const getPaymentStatus = async (
   db: PongoDb,
   paymentId: string
-): Promise<PaymentOrchestrationView | null> => {
+): Promise<PaymentVerification | null> => {
   return db
-    .collection<PaymentOrchestrationView>('paymentOrchestration')
+    .collection<PaymentVerification>('paymentVerification')
     .findOne({ _id: paymentId });
 };
 
 export const getPaymentsByStatus = async (
   db: PongoDb,
   status: 'unknown' | 'processing' | 'approved' | 'declined'
-): Promise<PaymentOrchestrationView[]> => {
+): Promise<PaymentVerification[]> => {
   return db
-    .collection<PaymentOrchestrationView>('paymentOrchestration')
+    .collection<PaymentVerification>('paymentVerification')
     .find({ status })
     .toArray();
 };
 
 export const getPaymentsRequiringReview = async (
   db: PongoDb
-): Promise<PaymentOrchestrationView[]> => {
+): Promise<PaymentVerification[]> => {
   return db
-    .collection<PaymentOrchestrationView>('paymentOrchestration')
+    .collection<PaymentVerification>('paymentVerification')
     .find({
       $or: [
         { riskLevel: 'high', status: 'approved' },     // High risk but approved
@@ -518,7 +647,7 @@ const dashboard = {
   pendingReview: await getPaymentsRequiringReview(db),
   recentDeclines: await getPaymentsByStatus(db, 'declined')
     .filter(p => p.lastUpdated > yesterday),
-  dataQualityIssues: await db.collection('paymentOrchestration')
+  dataQualityIssues: await db.collection('paymentVerification')
     .find({ dataQuality: 'partial' })
     .toArray(),
 };
