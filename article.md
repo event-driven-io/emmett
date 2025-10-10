@@ -12,29 +12,23 @@ You can try to force ordering through message brokers, sequence numbers, or comp
 
 So what do you do when you need to build reliable systems on unreliable ordering?
 
-Read models can handle out-of-order events by building consistent views from inconsistent data streams. This approach accepts that events may arrive out of sequence and designs around that reality.
+Read models store events as they arrive, regardless of order. Each event updates the fields it knows about.
 
 ## The Problem with Perfect Order
 
-Event Sourcing works beautifully when events arrive in sequence. You replay them against your aggregate, each event building on the previous state, until you have a consistent snapshot of what happened.
-
-But Event Sourcing assumes you can rebuild state by replaying events in order. When `FraudScoreCalculated` arrives before `PaymentInitiated`, you have nowhere to apply that fraud score. The aggregate doesn't exist yet. Your business logic fails with null reference exceptions.
+Event Sourcing replays events in order to rebuild state. When `FraudScoreCalculated` arrives before `PaymentInitiated`, you can't apply the fraud score. The payment doesn't exist. Your business logic throws null reference exceptions.
 
 Cross-service coordination breaks ordering guarantees. Each service publishes to its own topic. Messages from different topics have no ordering relationship. Even within a service, some patterns create ordering issues: outbox implementations that delete processed messages, RabbitMQ with multiple consumers racing for messages, transports that prioritize throughput over strict ordering.
 
 The payment gateway sends your system a `PaymentInitiated` event. Your system triggers verification services. Fraud analysis finishes in milliseconds. Risk assessment queries credit bureaus. Merchant checks call external APIs. Results arrive scrambled: fraud score before payment creation, approval before risk assessment.
 
-## A Different Approach: Read Models for Unordered Events
+## Read Models for Unordered Events
 
-Read models change the approach. Instead of trying to enforce order, they accept that events may arrive out of sequence and build consistent views anyway.
-
-Treat incoming events as partial information rather than complete facts. A fraud score arriving before payment creation tells you something about a payment that might exist. Store it, correlate it when the payment arrives, and build decisions from whatever data you have.
+The read model stores whatever data arrives. FraudScoreCalculated creates a record with fraud data. PaymentInitiated adds payment details to the existing record. Make decisions with available data.
 
 ## Payment Orchestration: When Order Breaks Down
 
-Imagine you're building a payment orchestration system. External payment gateways send payment events, and you coordinate internal verification services to approve or decline transactions.
-
-Your events might look like this:
+A payment orchestration system coordinates verification services. External gateways send payment events. Internal services calculate fraud scores, check limits, assess risk.
 
 ```typescript
 type PaymentOrchestrationEvent =
@@ -46,7 +40,7 @@ type PaymentOrchestrationEvent =
   | { type: 'PaymentDeclined'; data: { paymentId: string; reason: string; declinedAt: Date } };
 ```
 
-Events should arrive in sequence: initiation, then verifications, then approval. Instead, you get this:
+Events should arrive in sequence: initiation, then verifications, then approval. They don't:
 
 ```
 10:15:32.123 - FraudScoreCalculated (score: 85, high risk)
@@ -60,7 +54,7 @@ The fraud system flagged the payment as high-risk before the payment existed. Ap
 
 ## Building a Read Model for Unordered Events
 
-Here's how you might structure a read model for payment orchestration:
+The read model for payment orchestration:
 
 ```typescript
 type Payment = {
@@ -108,26 +102,9 @@ type PaymentVerification = {
 };
 ```
 
+## Building the Evolve Function
 
-## Understanding Projections and the Evolve Function
-
-Projections build views from event streams. The `evolve` function takes the current state and an incoming event, then returns updated state. Normally, this works like:
-
-```typescript
-// Traditional evolve: expects events in order
-const evolve = (current: PaymentView, event: PaymentEvent) => {
-  switch (event.type) {
-    case 'PaymentInitiated':
-      return { id: event.paymentId, amount: event.amount, status: 'pending' };
-    case 'PaymentApproved':
-      return { ...current, status: 'approved' };
-  }
-};
-```
-
-This works when `PaymentApproved` always arrives after `PaymentInitiated`. But events arrive out of order. The evolve function must handle missing context and build useful state anyway.
-
-Start with the simplest case - handling payment initiation:
+Payment initiation when other events might have already arrived:
 
 ```typescript
 const evolve = (
@@ -153,11 +130,9 @@ const evolve = (
 };
 ```
 
-The key insight: `current` might be `null`, but it might also contain data from events that arrived earlier. If fraud scoring completed before payment initiation, `current` already has fraud data. The payment initiation handler merges payment details into existing state.
+If fraud scoring completed first, `current` already has fraud data. The handler merges payment details into existing state.
 
-This pattern handles the race condition where verification events arrive before the payment exists.
-
-Now add fraud scoring, which might arrive first:
+Fraud scoring might arrive first:
 
 ```typescript
 case 'FraudScoreCalculated': {
@@ -195,11 +170,7 @@ case 'FraudScoreCalculated': {
 }
 ```
 
-The fraud handler makes business decisions with partial data. High fraud risk declines the payment immediately, even without knowing the payment amount or merchant details.
-
-The timestamp check prevents retrograde updates from retries or duplicate events. Only newer fraud scores update the view.
-
-Add payment approval, which might conflict with fraud data:
+The timestamp check prevents retrograde updates from retries. Payment approval might conflict with fraud data:
 
 ```typescript
 case 'PaymentApproved': {
@@ -232,9 +203,7 @@ case 'PaymentApproved': {
 
 ## Waiting for Dependencies
 
-The examples above show immediate decisions with partial data. Sometimes you need specific pieces before proceeding. Payment verification might require BOTH fraud assessment AND merchant limits before making a final approval decision.
-
-The `MerchantLimitsChecked` handler demonstrates this pattern:
+Some decisions need multiple pieces. The `MerchantLimitsChecked` handler waits for both fraud assessment and merchant limits:
 
 ```typescript
 case 'MerchantLimitsChecked': {
@@ -299,12 +268,6 @@ case 'MerchantLimitsChecked': {
 }
 ```
 
-The handler stores the merchant limits, then checks whether it has both fraud assessment and merchant limits. If both are present, it makes a final decision. If either is missing, it returns status `'processing'` and waits for the missing data.
-
-This pattern handles arrival in any order: fraud→limits, limits→fraud, or either arriving multiple times before the other shows up.
-
-Each handler follows the pattern: check for existing state, apply business logic with available data, return updated state.
-
 Helper functions calculate completion and data quality:
 
 ```typescript
@@ -356,13 +319,11 @@ const determineDataQuality = (view: PaymentVerification): 'partial' | 'sufficien
 
 ## Handling the Edge Cases
 
-Real systems have edge cases that simple implementations don't handle. Let's walk through scenarios that break naive approaches.
-
 ### Case 1: The Missing Foundation
 
-Your fraud service processes a payment and sends `FraudScoreCalculated`. But the `PaymentInitiated` event never arrives - maybe it's stuck in a queue, maybe the external gateway is having issues.
+Your fraud service processes a payment and sends `FraudScoreCalculated`. The `PaymentInitiated` event never arrives - stuck in a queue or the external gateway is having issues.
 
-Traditional Event Sourcing would leave you with an orphaned fraud score and no way to process it. The read model approach handles this:
+If you require the payment aggregate to exist first, you can't process the fraud score. The read model stores it anyway:
 
 ```typescript
 // Fraud score arrives first
@@ -384,13 +345,11 @@ Traditional Event Sourcing would leave you with an orphaned fraud score and no w
 }
 ```
 
-The system can make a decision (decline high-risk payments) even without complete payment details. When `PaymentInitiated` eventually arrives, it fills in the missing data without changing the fraud-based decision.
+High fraud scores decline the payment. Payment details might arrive later or never.
 
 ### Case 2: The Late Override
 
-A payment gets approved by your automated system, then risk assessment completes and flags serious concerns. In Event Sourcing, this creates a conflict - you've already committed to approval but new information suggests you shouldn't have.
-
-The read model handles this by updating data quality but maintaining decision consistency:
+A payment gets approved, then risk assessment completes and flags serious concerns:
 
 ```typescript
 // Sequence: Approve first, then risk assessment
@@ -408,11 +367,11 @@ PaymentApproved → RiskAssessmentCompleted (high risk factors)
 }
 ```
 
-This gives you options. You might trigger additional review processes, flag the payment for monitoring, or implement business rules about post-approval risk discovery. The read model preserves both the decision timeline and the complete risk picture.
+The approval stands. Flag it for review based on the late-arriving risk data.
 
 ### Case 3: The Ending Before Beginning
 
-Sometimes you receive terminal events before initialization events. A payment might get declined by an external service before your system even knows the payment exists:
+A payment gets declined by an external service before your system knows the payment exists:
 
 ```typescript
 // PaymentDeclined arrives first
@@ -430,8 +389,6 @@ Sometimes you receive terminal events before initialization events. A payment mi
 }
 ```
 
-When `PaymentInitiated` eventually arrives, it adds details but doesn't change the outcome. The payment was already declined by an authoritative external system.
-
 ### Case 4: The Retry Storm
 
 Network issues cause services to retry operations, creating duplicate events with slight timestamp variations:
@@ -443,7 +400,7 @@ FraudScoreCalculated (score: 85, calculatedAt: 10:15:32.456)  // Retry
 FraudScoreCalculated (score: 87, calculatedAt: 10:15:33.001)  // Updated score
 ```
 
-The evolve function handles this by only accepting newer fraud data:
+The evolve function only accepts newer fraud data:
 
 ```typescript
 case 'FraudScoreCalculated': {
@@ -455,21 +412,15 @@ case 'FraudScoreCalculated': {
 }
 ```
 
-This prevents retrograde updates while allowing legitimate score improvements.
-
 ## The Ingress Pattern: Clean Internal Events
 
-So far we've shown a read model that accepts messy external events. But what happens downstream? Your notification service, fulfillment system, and analytics pipeline need reliable event streams. They shouldn't deal with out-of-order chaos, duplicate retries, or missing data.
+Downstream systems need reliable event streams. They shouldn't deal with out-of-order chaos.
 
-The ingress pattern separates concerns:
+External events arrive unordered from systems you don't control: `PaymentInitiated` from the gateway, `FraudScoreCalculated` from a third-party service, `MerchantLimitsChecked` from your internal API.
 
-**External events** (ingress): Unordered, unreliable, from systems you don't control. `PaymentInitiated` from the gateway, `FraudScoreCalculated` from a third-party service, `MerchantLimitsChecked` from your internal API.
+The read model collects these, builds state, waits for required data. When verification completes, publish clean internal events.
 
-**Read model** (verification): Collects these external rumors, builds consistent state, waits for required data.
-
-**Internal events** (verified facts): Published when verification completes. These are clean, ordered, reliable events that downstream systems consume.
-
-The read model's evolve function can return events to publish:
+The evolve function returns events to publish:
 
 ```typescript
 const evolve = async (
@@ -523,23 +474,11 @@ const evolve = async (
 };
 ```
 
-The evolve function returns `{ document, events }` when it has something to publish. The framework appends these events to the event store in the same transaction as the document update. Downstream systems subscribe to `PaymentVerified` and `PaymentVerificationFailed` - clean events published exactly once, when verification completes.
+The framework appends events to the event store in the same transaction as the document update. Downstream systems subscribe to `PaymentVerified` and `PaymentVerificationFailed` - clean events published exactly once.
 
-This solves several problems:
+## Preventing Duplicate Internal Events
 
-**Idempotency**: The same external event arriving twice updates the read model idempotently. The internal event publishes only when transitioning from incomplete to complete.
-
-**Transaction safety**: Document update and event publishing happen atomically. Either both succeed or both fail.
-
-**Separation of concerns**: External chaos handled by ingress projection. Internal systems get clean, reliable events.
-
-## Handling Concurrent Updates
-
-What happens if two external events arrive simultaneously and both trigger the transition from incomplete to complete? Two fraud scores calculated by different providers, both arriving within milliseconds and both finding merchant limits already present?
-
-Both would try to publish `PaymentVerified`. You'd get duplicate events.
-
-The evolve function handles this by checking the transition, not just the end state:
+The same event might arrive twice due to retries. The fraud service sends `FraudScoreCalculated`, then retries seconds later. If this completes verification (both fraud and limits now exist), you don't want duplicate `PaymentVerified` events.
 
 ```typescript
 const wasIncomplete = !current?.fraudAssessment || !current?.merchantLimits;
@@ -551,21 +490,17 @@ if (wasIncomplete && nowComplete) {
 }
 ```
 
-The first event to complete verification publishes the internal event. Subsequent events find `current` already complete (`wasIncomplete` is false), skip publishing, and just update the read model.
+The first event that completes verification publishes. The retry finds both pieces already existed, returns the updated document without publishing events.
 
-This pattern ensures exactly-once publishing without requiring distributed locks or coordination. The transaction boundary and state transition check provide the guarantee.
+## Business Operations
 
-## Business Operations: When to Act
-
-With clean internal events published, downstream systems can reliably trigger operations. Your notification service subscribes to `PaymentVerified`, fulfillment subscribes to `PaymentApproved`, fraud investigation subscribes to `PaymentVerificationFailed`.
-
-The naive approach triggers operations directly from the evolve function:
+Don't trigger operations in the evolve function:
 
 ```typescript
 case 'PaymentApproved': {
-  const updated = /* ... update logic ... */;
+  const updated = /* ... */;
 
-  // ❌ Anti-pattern: side effects in read model
+  // ❌ Don't do this
   await notificationService.sendApprovalEmail(updated.paymentId);
   await fulfillmentService.startProcessing(updated.paymentId);
 
@@ -573,18 +508,11 @@ case 'PaymentApproved': {
 }
 ```
 
-This creates problems:
-
-- **Performance**: The evolve function should be fast and predictable
-- **Reliability**: Network failures can cause inconsistent state
-- **Testing**: Side effects make unit testing complex
-- **Separation of concerns**: Read models should model, not operate
-
-The ingress pattern solves this by publishing clean internal events when verification completes. Downstream systems subscribe to these events and trigger their operations independently. The read model stays focused on modeling state.
+The evolve function builds state. Downstream systems subscribe to clean internal events (`PaymentVerified`, `PaymentVerificationFailed`) and trigger operations independently.
 
 ## The Emmett Implementation
 
-Wire the evolve function into Emmett:
+`pongoSingleStreamProjection` connects the evolve function to PostgreSQL:
 
 ```typescript
 import { pongoSingleStreamProjection } from '@event-driven-io/emmett-postgresql';
@@ -638,7 +566,7 @@ export const getPaymentsRequiringReview = async (
 };
 ```
 
-Dashboard queries become straightforward:
+Query the collection for dashboards:
 
 ```typescript
 // Real-time payment dashboard
@@ -655,7 +583,7 @@ const dashboard = {
 
 ## When This Approach Works (And When It Doesn't)
 
-Read models for out-of-order events aren't a silver bullet. They work well when:
+This approach works when:
 
 **Your business logic can handle partial data**: Payment approval can often proceed with fraud score and limits check, even if risk assessment is pending. E-commerce fulfillment can start when payment is confirmed, even if recommendation engine results are still processing.
 
@@ -675,28 +603,4 @@ This approach struggles when:
 
 **Users can't tolerate uncertainty**: Some interfaces need to show definitive status immediately, not "processing" or "partial data available."
 
-The key insight is recognizing that many business processes naturally work with incomplete information. Humans make decisions all the time with imperfect data, then refine those decisions as more information arrives. Your software can often do the same.
-
-## Patterns for Out-of-Order Events
-
-Cross-service coordination creates persistent ordering challenges. Payment authorization coordinates fraud detection (one service), risk assessment (another service), and merchant verification (a third service). Each publishes independently to different topics. No ordering relationship exists between these streams.
-
-The patterns for handling this:
-
-**Store first, validate later**: Accept events even when they arrive out of logical sequence. Reconcile when more information arrives.
-
-**Use timestamps for conflict resolution, not ordering**: Timestamps distinguish newer from older data when handling duplicates or retries. They don't establish sequence.
-
-**Make business logic tolerant of missing data**: Design decisions to work with available information rather than requiring complete datasets.
-
-**Publish clean events after reconciliation**: Process unordered events and build consistent state, then publish well-ordered events for downstream consumers.
-
-## Moving Forward
-
-Out-of-order events are common in distributed systems. You can spend considerable effort trying to enforce ordering, or you can build systems that handle unordered events effectively.
-
-Read models provide a practical way to handle out-of-order events without sacrificing system responsiveness or business functionality. They're not as clean as perfectly ordered event streams, but they work when multiple queues, retry logic, and independent services cause events to arrive out of sequence.
-
-The next time your fraud alert arrives before your payment exists, build a read model that can store that fraud alert, correlate it when the payment arrives, and make business decisions with available data.
-
-Your systems will be more resilient, and event disorder won't disrupt your business operations.
+Build read models that store partial data. Make decisions with available information. Publish clean events when verification completes.
