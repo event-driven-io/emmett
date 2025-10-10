@@ -6,7 +6,7 @@ Parallel business processes are natural and expected. When you swipe your card a
 
 This parallel processing creates a coordination problem we'll explore in detail.
 
-The technical implementation creates ordering problems. Events arrive out of sequence because of multiple queues, multiple POD instances, transport mechanisms that don't guarantee ordering, retry logic creating duplicate events with different timestamps, and clock synchronization issues across services. You can't control external teams' messaging topology, and some transports like SQS or Google Pub/Sub only provide "best effort" ordering.
+The technical implementation creates ordering problems. Events arrive out of sequence because of multiple queues, multiple service instances, transport mechanisms that don't guarantee ordering, retry logic creating duplicate events with different timestamps, and clock synchronization issues across services. You can't control external teams' messaging topology, and some transports like SQS or Google Pub/Sub only provide "best effort" ordering.
 
 You can try to force ordering through message brokers, sequence numbers, or complex choreography. But coordination across distributed systems requires exponential message exchanges. Three servers need 3 message exchanges; 100 servers need 4,950. The performance penalty grows quickly, and perfect ordering across independent services isn't achievable.
 
@@ -29,13 +29,13 @@ This becomes problematic when:
 - **Clock synchronization** across services is imperfect
 - **External systems** use messaging topologies you can't control
 
-Consider what happens behind that coffee shop payment. An external payment gateway sends your system a `PaymentInitiated` event. Your system now needs to coordinate those parallel verification checks: fraud analysis, risk assessment, limit validation, and merchant verification.
+Let's look at what happens behind that coffee shop payment. The payment gateway sends your system a `PaymentInitiated` event. Your system now coordinates those verification checks we mentioned.
 
-Each verification completes on its own timeline. Fraud analysis might finish in 50ms using automated models. Risk assessment could take 300ms while evaluating credit history. Limit checking finishes quickly with a database lookup. Merchant verification might require an external API call that takes 200ms.
+Each verification happens independently. Fraud analysis runs automated models and finishes quickly. Risk assessment evaluates credit history and takes longer. Limit checking queries a database. Merchant verification calls external APIs. Each completes on its own timeline.
 
-Here's the problem: these verifications complete independently, but queue processing, retry delays, and routing differences mean results don't arrive in order. Your 300ms risk assessment might arrive before your 50ms fraud check. The fraud analysis might even complete before your system receives the original `PaymentInitiated` event.
+The coordination challenge emerges from this independence. Results arrive in unpredictable order due to queue processing delays, network routing, and retry logic. Your risk assessment might arrive before your fraud check, even though fraud checking finished first. The fraud analysis might even complete before your system receives the original payment event.
 
-We'll examine how to build a system that handles this coordination challenge using read models, but first let's understand why traditional Event Sourcing approaches break down.
+This creates a fundamental problem for traditional event-driven approaches.
 
 Traditional Event Sourcing can't handle this disorder. It requires ordered events but operates in an environment where ordering isn't guaranteed.
 
@@ -122,14 +122,25 @@ type PaymentOrchestrationView = {
 
 The read model accepts that information might be incomplete. Payment amount might be unknown while fraud score is already calculated. Approval might happen while risk assessment is still pending.
 
-Now we need to handle the coordination problem. When events arrive out of order, we need logic that can:
+Now we need to handle the coordination problem. This is where projections and their `evolve` functions become essential.
 
-- Store fraud scores even when payments don't exist yet
-- Update risk assessments that arrive after approvals
-- Handle duplicate events from retries
-- Make business decisions with whatever data is available
+In Emmett, projections build views by processing events through an `evolve` function. The evolve function takes the current state and an incoming event, then returns updated state. Normally, this works like:
 
-This is where the `evolve` function becomes crucial. Instead of requiring events in sequence, it processes each event based on what information we currently have. Let's see how this works with specific examples, starting with the most common challenge: verification results arriving before payment creation.
+```typescript
+// Traditional evolve: expects events in order
+const evolve = (current: PaymentView, event: PaymentEvent) => {
+  switch (event.type) {
+    case 'PaymentInitiated':
+      return { id: event.paymentId, amount: event.amount, status: 'pending' };
+    case 'PaymentApproved':
+      return { ...current, status: 'approved' };
+  }
+};
+```
+
+This works when `PaymentApproved` always arrives after `PaymentInitiated`. But our coordination problem means events arrive out of order. We need an evolve function that can handle missing context and build useful state anyway.
+
+Let's see how this works with our payment verification scenario.
 
 ```typescript
 const evolve = (
