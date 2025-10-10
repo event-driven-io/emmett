@@ -6,7 +6,7 @@ These parallel processes involve different systems communicating through message
 
 This happens with RabbitMQ when you have multiple consumers racing for messages. It happens with SQS which only guarantees best-effort ordering. It happens when your outbox pattern deletes processed messages and loses sequence. It happens when network delays shuffle carefully ordered streams. A colleague recently struggled with this exact problem - events from external systems arriving through multiple queues, out of order due to race conditions between modules.
 
-When you store these events as they arrive in your event store, you read them back in the order they were appended, not the order they were created. The business process happened in one sequence. Your event store records a different sequence. Your aggregates expect the first sequence and break on the second.
+When you store these events as they arrive in your event store, you read them back in the order they were appended, not the order they were created. The business process happened in one sequence. Your event store records a different sequence. Your code tries to update a payment that doesn't exist yet. It fails.
 
 ## Why Naive Solutions Don't Work
 
@@ -18,7 +18,7 @@ Rejecting out-of-order events loses data. Your fraud service diligently calculat
 
 ## How Traditional Approaches Break
 
-Event Sourcing assumes aggregates can rebuild state by replaying events in sequence. When `FraudScoreCalculated` arrives before `PaymentInitiated`, the aggregate doesn't exist. You can't apply a fraud score to nothing. Your carefully designed domain model throws exceptions.
+Event Sourcing assumes you can rebuild state by replaying events in sequence. When `FraudScoreCalculated` arrives before `PaymentInitiated`, the payment doesn't exist. You can't apply a fraud score to nothing. Your carefully designed domain model throws exceptions.
 
 This isn't specific to Event Sourcing. Even if you just update read models directly from events, you have the same problem. Your read model update handler for `FraudScoreCalculated` looks for a payment document to update. No document exists. The update fails.
 
@@ -46,6 +46,8 @@ My colleague's events were arriving out of order from external systems. I advise
 
 Read models excel at this. A read model document can have partial state - optional fields that get filled as events arrive. The evolve function processes each event, updating whatever fields it can, ignoring what it can't, making decisions with available data.
 
+Read models act as an Anti-Corruption Layer. They accept events in any order and build consistent state from them.
+
 ## Payment Orchestration Example
 
 A payment orchestration system shows this pattern in action. External gateways send payment events. Internal services calculate fraud scores, check limits, assess risk.
@@ -70,7 +72,7 @@ Events from these services race through your message queues:
 10:15:32.234 - MerchantLimitsChecked (within limits)
 ```
 
-The fraud system flagged the payment as high-risk before the payment existed in your system. Approval happened before risk assessment completed. Aggregates can't apply events to non-existent entities. Traditional read model handlers fail to find documents to update.
+The fraud system flagged the payment as high-risk before the payment existed in your system. Approval happened before risk assessment completed. Traditional handlers can't process events for non-existent payments. They fail to find documents to update.
 
 ## Building a Read Model That Handles Chaos
 
@@ -348,7 +350,7 @@ const determineDataQuality = (view: PaymentVerification): 'partial' | 'sufficien
 
 Your fraud service processes a payment and sends `FraudScoreCalculated`. The `PaymentInitiated` event never arrives - stuck in a queue or the external gateway is having issues.
 
-Aggregates require the payment to exist first. They can't process the fraud score. The evolve function creates a document with the fraud data:
+Traditional approaches require the payment to exist first. They can't process the fraud score. The evolve function creates a document with the fraud data:
 
 ```typescript
 // Fraud score arrives first
@@ -443,7 +445,7 @@ The evolve function only accepts newer fraud data:
 ```typescript
 case 'FraudScoreCalculated': {
   // Only update if this is newer fraud data
-  if (existing.fraudAssessedAt && event.calculatedAt <= existing.fraudAssessedAt) {
+  if (existing.fraudAssessment?.assessedAt && event.calculatedAt <= existing.fraudAssessment.assessedAt) {
     return existing;  // Ignore older/duplicate data
   }
   // ... update with newer data
@@ -513,6 +515,8 @@ const evolve = async (
 ```
 
 The framework appends events to the event store in the same transaction as the document update. Downstream systems subscribe to `PaymentVerified` and `PaymentVerificationFailed` - clean events published exactly once.
+
+These internal events are based on your complete verification logic, not individual claims from external systems.
 
 ## Preventing Duplicate Internal Events
 
@@ -611,9 +615,9 @@ Query the collection for dashboards:
 ```typescript
 // Real-time payment dashboard
 const dashboard = {
-  totalPayments: await getPaymentsByStatus(db, 'approved').length,
+  totalPayments: (await getPaymentsByStatus(db, 'approved')).length,
   pendingReview: await getPaymentsRequiringReview(db),
-  recentDeclines: await getPaymentsByStatus(db, 'declined')
+  recentDeclines: (await getPaymentsByStatus(db, 'declined'))
     .filter(p => p.lastUpdated > yesterday),
   dataQualityIssues: await db.collection('paymentVerification')
     .find({ dataQuality: 'partial' })
