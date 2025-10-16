@@ -1,15 +1,15 @@
-import { after, before, describe, it } from 'node:test';
-import { v7 as uuid } from 'uuid';
-import { type Event, assertEqual } from '@event-driven-io/emmett';
-import {
-  getMongoDBEventStore,
-  type MongoDBReadEvent,
-} from './mongoDBEventStore';
+import { assertEqual, type Event } from '@event-driven-io/emmett';
 import {
   MongoDBContainer,
   StartedMongoDBContainer,
 } from '@testcontainers/mongodb';
 import { MongoClient } from 'mongodb';
+import { after, before, describe, it } from 'node:test';
+import { v7 as uuid } from 'uuid';
+import {
+  getMongoDBEventStore,
+  type MongoDBReadEvent,
+} from './mongoDBEventStore';
 
 type TestEvent = Event<'test', { counter: number }, { some: boolean }>;
 
