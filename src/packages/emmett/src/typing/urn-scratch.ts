@@ -270,3 +270,26 @@ export const test27Check: Test27 = false; // If this fails, FinalOrgURN is 'neve
 // Runtime test
 export const finalOrg1: FinalOrgURN = 'urn:org:acme';
 export const finalOrg2: FinalOrgURN = 'urn:org:acme:division';
+
+// ============================================================================
+// Step 10 GREEN: Literal pattern type
+// ============================================================================
+
+export type LiteralTeam = { type: 'literal'; value: 'team' };
+
+// Extract the literal value from the pattern
+export type TransformLiteral<T> = T extends { type: 'literal'; value: infer V }
+  ? V
+  : never;
+
+export type LiteralResult = TransformLiteral<LiteralTeam>;
+
+// Tests
+export type Test28 = Equals<LiteralResult, 'team'>; // Should be: true
+export type Test29 = Equals<LiteralResult, string>; // Should be: false
+export type Test30 = Equals<LiteralResult, never>; // Should be: false
+
+// Force evaluation
+export const test28Check: Test28 = true;
+export const test29Check: Test29 = false;
+export const test30Check: Test30 = false;
