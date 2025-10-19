@@ -169,3 +169,28 @@ export type Test18 = Equals<SimpleResult, string>; // Should be: true
 export const test16Check: Test16 = true;
 export const test17Check: Test17 = false;
 export const test18Check: Test18 = true;
+
+// ============================================================================
+// Step 7 GREEN: Array with single element
+// ============================================================================
+
+// Array extraction
+export type TransformArray<T> = T extends [{ type: 'segments' }]
+  ? string
+  : T extends readonly [{ type: 'segments' }]
+    ? string
+    : never;
+
+export type ArrayResult1 = TransformArray<[SegmentsObj]>;
+export type ArrayResult2 = TransformArray<readonly [SegmentsObj]>;
+export type ArrayResult3 = TransformArray<[SegmentsWithOpt]>;
+
+// Tests
+export type Test19 = Equals<ArrayResult1, string>; // Should be: true
+export type Test20 = Equals<ArrayResult2, string>; // Should be: true
+export type Test21 = Equals<ArrayResult3, string>; // Should be: true
+
+// Force evaluation
+export const test19Check: Test19 = true;
+export const test20Check: Test20 = true;
+export const test21Check: Test21 = true;
