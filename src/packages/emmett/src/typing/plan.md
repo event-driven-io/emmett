@@ -33,6 +33,7 @@ export const test1Check: Test1 = true;
 ## Steps 1-9: Basic Pattern Tests
 
 All isolated patterns worked correctly:
+
 - Template literals
 - Single/multiple segments
 - Objects with optional properties
@@ -73,6 +74,7 @@ export type Test33 = Equals<TeamURN, `urn:org:${string}:team`>;
 ### Step 15: Add comprehensive tests (REFACTOR)
 
 Tested all pattern combinations:
+
 - Single literal
 - Multiple literals
 - Literal + segments
@@ -86,8 +88,10 @@ Applied the same fix to the original `PatternToTemplate` implementation.
 ## Implementation
 
 **Files**:
+
 - `urn.ts`: Core type definitions and PatternToTemplate implementation
-- `urn.types.spec.ts`: Type tests (43 tests)
-- All runtime code preserved as comments for future TDD implementation
+- `urn.types.spec.ts`: Type tests with descriptive names testing real URN functionality
+- `test-utils.ts`: Reusable type testing utilities (Equals, IsNever, IsAny, IsUnknown)
+- All runtime code preserved as comments in urn.ts for future TDD implementation
 
 **Result**: All tests pass, 0 TypeScript errors.
