@@ -149,5 +149,41 @@ void describe('URN Builder Functions', () => {
         assert.strictEqual(taskURN.validate('urn:project:web:bug:123'), false);
       });
     });
+
+    void describe('create()', () => {
+      void it('creates URN with empty pattern (no arguments)', () => {
+        const emptyURN = defineURN(urnSchema('test', []));
+        const result = emptyURN.create();
+        assert.strictEqual(result, 'urn:test:');
+      });
+
+      void it('creates URN with single segment (one argument)', () => {
+        const singleURN = defineURN(urnSchema('user', [segment()]));
+        const result = singleURN.create('john');
+        assert.strictEqual(result, 'urn:user:john');
+      });
+
+      void it('creates URN with multiple segments (multiple arguments)', () => {
+        const multiURN = defineURN(urnSchema('org', [segments()]));
+        const result = multiURN.create('acme', 'emea', 'sales');
+        assert.strictEqual(result, 'urn:org:acme:emea:sales');
+      });
+
+      void it('creates URN with literals auto-inserted (not passed as args)', () => {
+        const teamURN = defineURN(
+          urnSchema('org', [segment(), literal('team'), segment()]),
+        );
+        const result = teamURN.create('acme', 'engineering');
+        assert.strictEqual(result, 'urn:org:acme:team:engineering');
+      });
+
+      void it('creates URN with complex pattern (segments, literal, segments)', () => {
+        const complexURN = defineURN(
+          urnSchema('org', [segments(), literal('team'), segments()]),
+        );
+        const result = complexURN.create(['acme', 'emea'], ['eng', 'backend']);
+        assert.strictEqual(result, 'urn:org:acme:emea:team:eng:backend');
+      });
+    });
   });
 });
