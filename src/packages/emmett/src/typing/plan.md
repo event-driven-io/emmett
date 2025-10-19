@@ -1,292 +1,139 @@
-# TDD Plan: Fix URN Types - Start from Single Segment
+# TDD Plan: Fix URN Types
 
 ## Problem Statement
 `OrgURN` should be `urn:org:${string}` but it's currently `never`.
-We need to understand WHY it's failing by building from the simplest possible case.
+Building from simplest cases to find where the type transformation breaks.
 
-## Testing Approach
-Since tsd isn't easily usable in this setup, we'll use TypeScript's compiler directly with our own type assertions.
+## Development Setup
 
-## How to Test Types Without tsd
+### TypeScript Watch Mode
+Run in background to monitor type errors:
+```bash
+cd src
+npm run build:ts:watch
+```
 
-We'll create type tests that:
-1. Should compile without errors (positive tests)
-2. Should produce specific TypeScript errors (negative tests with @ts-expect-error)
-3. Use conditional types to assert type equality
+### Linting
+Run after each step:
+```bash
+cd src
+npm run fix
+```
 
-## Step-by-Step Implementation
+### TDD Workflow: RED-GREEN-REFACTOR
+1. **RED**: Write failing test (undefined types cause errors)
+2. **GREEN**: Implement minimum code to pass
+3. **REFACTOR**: Add comprehensive tests
+4. **COMMIT**: Commit with concise message
 
-### Step 1: Test if Template Literals Work At All
+## Type Testing Approach
 
-**Create `urn-scratch.ts`:**
+Using TypeScript compiler directly with:
+- Type equality checker using conditional types
+- Const assertions to force type evaluation
+- Runtime tests to verify template literal behavior
+
 ```typescript
-// Test 1: Basic template literal
-export type BasicTemplate = `urn:org:${string}`;
-
 // Type equality checker
 export type Equals<A, B> =
-  (<T>() => T extends A ? 1 : 2) extends
-  (<T>() => T extends B ? 1 : 2) ? true : false;
+  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2)
+    ? true
+    : false;
 
-// Test that BasicTemplate is actually a template, not literal
-export type Test1 = Equals<BasicTemplate, `urn:org:${string}`>; // Should be: true
-export type Test2 = Equals<BasicTemplate, 'urn:org:'>; // Should be: false
-export type Test3 = Equals<BasicTemplate, never>; // Should be: false
-
-// Runtime tests (these should compile)
-export const valid1: BasicTemplate = 'urn:org:acme';
-export const valid2: BasicTemplate = 'urn:org:';
-export const valid3: BasicTemplate = 'urn:org:a:b:c';
-
-// These should NOT compile
-// @ts-expect-error - wrong prefix
-export const invalid1: BasicTemplate = 'urn:team:acme';
-// @ts-expect-error - no prefix
-export const invalid2: BasicTemplate = 'acme';
+// Force evaluation
+export const test1Check: Test1 = true; // Will error if Test1 is not true
 ```
 
-**Run:** `npx tsc --noEmit src/typing/urn-scratch.ts`
-- Check that no unexpected errors appear
-- Check that @ts-expect-error lines actually have errors
+## Steps 1-9: Basic Pattern Tests (COMPLETED ✓)
 
-### Step 2: Single Segment Pattern (NOT segments!)
+All tests pass! The isolated patterns work correctly:
 
-**Add to `urn-scratch.ts`:**
+### Step 1: Basic Template Literals ✓
+- `urn:org:${string}` works correctly
+
+### Step 2-3: Single Segment ✓
+- Transform `'segment'` → `string` works
+- Build `urn:${NS}:${string}` works
+
+### Step 4: Multiple Segments ✓
+- Transform `'segments'` → `string` works
+- `OrgURNSimple` produces `urn:org:${string}` (NOT never)
+
+### Step 5: Object Pattern ✓
+- `{type: 'segments'}` transforms correctly
+
+### Step 6: Optional Properties ✓
+- `{type: 'segments'; validator?: ...}` works correctly
+
+### Step 7: Arrays ✓
+- `[{type: 'segments'}]` and `readonly` variants work
+
+### Step 8: Destructuring with Infer ✓
+- `readonly [infer First, ...infer _Rest]` works
+- `First extends {type: 'segments'}` matches correctly
+- **Even with optional properties!**
+
+### Step 9: Full URN Pattern ✓
+- Complete pattern matches original code structure
+- `MakeURN<'org', readonly [SegmentsWithOpt]>` produces `urn:org:${string}`
+- **NOT never!**
+
+## Key Finding from Steps 1-9
+
+**The isolated single-element pattern works perfectly.**
+
+This means the bug is NOT caused by:
+- Template literals
+- Optional property matching
+- Array destructuring with `infer`
+- Basic pattern matching
+
+The bug must be in:
+- **Recursive pattern handling** (multiple elements in sequence)
+- **Interaction between different pattern types** (literal + segments)
+- **The Rest handling** after destructuring first element
+
+## Steps 10+: Nested Pattern Tests (IN PROGRESS)
+
+Testing patterns with multiple elements to find the bug.
+
+### Step 10: Literal After Segments (Team Pattern)
+Pattern: `[{type: 'segments'}, {type: 'literal', value: 'team'}, {type: 'segments'}]`
+Expected: `urn:org:${string}:team:${string}`
+
+This tests:
+- Recursive Rest processing
+- Switching between segments and literal types
+- Colons between pattern elements
+
+### Step 11: Full Recursive Pattern Transformer
+Implement recursive `PatternToTemplate` that handles:
+- Empty array base case
+- First element extraction with `infer First, ...infer Rest`
+- Recursion on `Rest`
+- Proper colon insertion between elements
+- Different handling for `segments` (consumes all remaining)
+
+### Step 12: Test Actual Schema-to-URN Pattern
+Use actual schema objects like the original code:
 ```typescript
-// Transform 'segment' (single) to string type
-export type TransformSegment<T> = T extends 'segment' ? string : never;
-
-// Tests
-export type SegmentResult = TransformSegment<'segment'>;
-export type Test4 = Equals<SegmentResult, string>; // Should be: true
-export type Test5 = Equals<SegmentResult, never>; // Should be: false
-
-// Test wrong input
-export type WrongResult = TransformSegment<'wrong'>;
-export type Test6 = Equals<WrongResult, never>; // Should be: true
-
-// Runtime test
-export const seg1: SegmentResult = 'anything';
-export const seg2: SegmentResult = '';
+const orgSchema = { namespace: 'org', pattern: [segments()] }
+const teamSchema = { namespace: 'org', pattern: [segments(), literal('team'), segments()] }
 ```
 
-**Run TypeScript and verify:**
-- `SegmentResult` is `string`, not `never`
+## Expected Bug Location
 
-### Step 3: Build URN with Single Segment
+Based on Steps 1-9, the bug is likely in the **recursive Rest handling** of `PatternToTemplate`.
 
-**Add to `urn-scratch.ts`:**
-```typescript
-// Build URN from single segment
-export type BuildURN<NS extends string, Pattern> =
-  Pattern extends 'segment'
-    ? `urn:${NS}:${string}`
-    : never;
+Specifically when:
+1. First element is `{type: 'segments'}`
+2. Rest is not empty (has literal or more segments)
+3. The recursion doesn't handle this correctly
 
-export type ProjectURN = BuildURN<'project', 'segment'>;
+## Next Steps
 
-// Tests
-export type Test7 = Equals<ProjectURN, `urn:project:${string}`>; // Should be: true
-export type Test8 = Equals<ProjectURN, 'urn:project:'>; // Should be: false
-export type Test9 = Equals<ProjectURN, never>; // Should be: false
-
-// Runtime
-export const proj1: ProjectURN = 'urn:project:myproject';
-export const proj2: ProjectURN = 'urn:project:';
-```
-
-### Step 4: Now Try 'segments' (Multiple)
-
-**Add to `urn-scratch.ts`:**
-```typescript
-// Transform 'segments' to string
-export type TransformSegments<T> = T extends 'segments' ? string : never;
-
-export type SegmentsResult = TransformSegments<'segments'>;
-export type Test10 = Equals<SegmentsResult, string>; // Should be: true
-
-// Build URN with segments
-export type BuildURNSegments<NS extends string, Pattern> =
-  Pattern extends 'segments'
-    ? `urn:${NS}:${string}`
-    : never;
-
-export type OrgURNSimple = BuildURNSegments<'org', 'segments'>;
-
-// CRITICAL TESTS
-export type Test11 = Equals<OrgURNSimple, `urn:org:${string}`>; // Should be: true
-export type Test12 = Equals<OrgURNSimple, 'urn:org:'>; // Should be: false
-export type Test13 = Equals<OrgURNSimple, never>; // Should be: false
-
-// Runtime
-export const org1: OrgURNSimple = 'urn:org:acme';
-export const org2: OrgURNSimple = 'urn:org:acme:division';
-export const org3: OrgURNSimple = 'urn:org:';
-```
-
-**If Test11 is false or Test13 is true, we've found the issue!**
-
-### Step 5: Object with Type Field
-
-**Add to `urn-scratch.ts`:**
-```typescript
-// Object pattern
-export type SegmentObj = { type: 'segment' };
-export type SegmentsObj = { type: 'segments' };
-
-export type TransformObj<T> =
-  T extends { type: 'segment' } ? string :
-  T extends { type: 'segments' } ? string :
-  never;
-
-export type ObjResult1 = TransformObj<SegmentObj>;
-export type ObjResult2 = TransformObj<SegmentsObj>;
-
-export type Test14 = Equals<ObjResult1, string>; // Should be: true
-export type Test15 = Equals<ObjResult2, string>; // Should be: true
-```
-
-### Step 6: Object with Optional Property
-
-**Add to `urn-scratch.ts`:**
-```typescript
-// With optional validator
-export type SegmentsWithOpt = {
-  type: 'segments';
-  validator?: (s: string) => boolean;
-};
-
-export type TransformWithOpt<T> =
-  T extends { type: 'segments'; validator?: any } ? string :
-  T extends { type: 'segments' } ? string :
-  never;
-
-export type OptResult = TransformWithOpt<SegmentsWithOpt>;
-export type Test16 = Equals<OptResult, string>; // Should be: true
-export type Test17 = Equals<OptResult, never>; // Should be: false
-
-// Also test without the optional property
-export type SimpleResult = TransformWithOpt<SegmentsObj>;
-export type Test18 = Equals<SimpleResult, string>; // Should be: true
-```
-
-### Step 7: Array with Single Element
-
-**Add to `urn-scratch.ts`:**
-```typescript
-// Array extraction
-export type TransformArray<T> =
-  T extends [{ type: 'segments' }] ? string :
-  T extends readonly [{ type: 'segments' }] ? string :
-  never;
-
-export type ArrayResult1 = TransformArray<[SegmentsObj]>;
-export type ArrayResult2 = TransformArray<readonly [SegmentsObj]>;
-export type ArrayResult3 = TransformArray<[SegmentsWithOpt]>;
-
-export type Test19 = Equals<ArrayResult1, string>; // Should be: true
-export type Test20 = Equals<ArrayResult2, string>; // Should be: true
-export type Test21 = Equals<ArrayResult3, string>; // Should be: true
-```
-
-### Step 8: Array with Destructuring
-
-**Add to `urn-scratch.ts`:**
-```typescript
-// Destructuring with inference
-export type TransformDestruct<T> =
-  T extends readonly [infer First, ...infer Rest]
-    ? First extends { type: 'segments' }
-      ? 'MATCH'
-      : 'NO_MATCH'
-    : 'NOT_ARRAY';
-
-export type DestructResult1 = TransformDestruct<readonly [SegmentsObj]>;
-export type DestructResult2 = TransformDestruct<readonly [SegmentsWithOpt]>;
-
-export type Test22 = Equals<DestructResult1, 'MATCH'>; // Should be: true
-export type Test23 = Equals<DestructResult2, 'MATCH'>; // Should be: true?
-
-// If Test23 fails, try checking what First becomes
-export type ExtractFirst<T> =
-  T extends readonly [infer First, ...infer Rest] ? First : never;
-export type WhatIsFirst = ExtractFirst<readonly [SegmentsWithOpt]>;
-// Hover over WhatIsFirst in IDE to see actual type
-```
-
-### Step 9: The Full Pattern Match
-
-**Add to `urn-scratch.ts`:**
-```typescript
-// The actual failing pattern from original code
-export type ActualTransform<T> =
-  T extends readonly [infer First, ...infer Rest]
-    ? First extends { type: 'segments'; validator?: unknown }
-      ? `${string}`
-      : never
-    : never;
-
-export type ActualResult = ActualTransform<readonly [SegmentsWithOpt]>;
-export type Test24 = Equals<ActualResult, `${string}`>; // Should be: true
-export type Test25 = Equals<ActualResult, never>; // Should be: false
-
-// Build full URN
-export type MakeURN<NS extends string, Pattern> =
-  Pattern extends readonly [infer First, ...infer Rest]
-    ? First extends { type: 'segments' }
-      ? `urn:${NS}:${string}`
-      : never
-    : never;
-
-export type FinalOrgURN = MakeURN<'org', readonly [SegmentsWithOpt]>;
-export type Test26 = Equals<FinalOrgURN, `urn:org:${string}`>; // Should be: true
-export type Test27 = Equals<FinalOrgURN, never>; // Should be: false
-```
-
-### Step 10: Debug Failed Tests
-
-For any test that fails (returns false when it should be true):
-
-1. **Hover over the type in IDE** to see what it actually is
-2. **Add intermediate types** to trace the transformation:
-   ```typescript
-   export type Debug1 = readonly [SegmentsWithOpt];
-   export type Debug2 = Debug1 extends readonly [infer First, ...infer Rest]
-     ? { first: First, rest: Rest }
-     : 'FAILED';
-   export type Debug3 = Debug2['first'] extends { type: 'segments' }
-     ? 'YES'
-     : 'NO';
-   ```
-
-3. **Try alternative approaches** based on where it fails:
-   - If array destructuring fails: Try indexed access `T[0]`
-   - If optional property matching fails: Try without optional check
-   - If template literal fails: Try with plain `string`
-
-## Commands to Run
-
-After each step:
-```bash
-cd /home/oskar/Repos/emmett/src/packages/emmett
-npx tsc --noEmit src/typing/urn-scratch.ts
-```
-
-Check:
-1. File compiles without unexpected errors
-2. @ts-expect-error lines have errors
-3. Hover over Test types to see if they're `true` or `false`
-
-## Success Criteria
-
-Find exactly where the type transformation breaks:
-- [ ] Template literals work (Step 1)
-- [ ] Single segment transforms (Step 2-3)
-- [ ] Multiple segments transform (Step 4)
-- [ ] Objects work (Step 5)
-- [ ] Optional properties work (Step 6)
-- [ ] Arrays work (Step 7)
-- [ ] Destructuring works (Step 8)
-- [ ] Full pattern works (Step 9)
-
-The step where tests fail tells us what to fix in the original `urn.ts`.
+1. Implement Step 10: Test pattern with literal after segments
+2. Implement Step 11: Full recursive PatternToTemplate
+3. Find exact line where type becomes `never`
+4. Fix the issue
+5. Verify all tests pass
