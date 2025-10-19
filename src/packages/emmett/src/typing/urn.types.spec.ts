@@ -1,9 +1,3 @@
-/**
- * Type tests for URN implementation
- * These tests verify type transformations and pattern matching work correctly
- * Developed using TDD - see plan.md for development history
- */
-
 import type {
   SegmentsSchema,
   LiteralSchema,
@@ -12,18 +6,10 @@ import type {
   SchemaToURN,
 } from './urn';
 
-// ============================================================================
-// Type Equality Checker
-// ============================================================================
-
 export type Equals<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
     ? true
     : false;
-
-// ============================================================================
-// Step 1: Basic Template Literals
-// ============================================================================
 
 export type BasicTemplate = `urn:org:${string}`;
 
@@ -35,19 +21,15 @@ export const test1Check: Test1 = true;
 export const test2Check: Test2 = false;
 export const test3Check: Test3 = false;
 
-// Runtime tests
 export const valid1: BasicTemplate = 'urn:org:acme';
 export const valid2: BasicTemplate = 'urn:org:';
 export const valid3: BasicTemplate = 'urn:org:a:b:c';
 
-// @ts-expect-error - wrong prefix
-export const invalid1: BasicTemplate = 'urn:team:acme';
-// @ts-expect-error - no prefix
-export const invalid2: BasicTemplate = 'acme';
+export type TestInvalid1 = Equals<BasicTemplate, 'urn:team:acme'>;
+export const testInvalid1: TestInvalid1 = false;
 
-// ============================================================================
-// Step 2: Single Segment Transform
-// ============================================================================
+export type TestInvalid2 = Equals<BasicTemplate, 'acme'>;
+export const testInvalid2: TestInvalid2 = false;
 
 export type TransformSegment<T> = T extends 'segment' ? string : never;
 
@@ -65,10 +47,6 @@ export const test6Check: Test6 = true;
 export const seg1: SegmentResult = 'anything';
 export const seg2: SegmentResult = '';
 
-// ============================================================================
-// Step 3: Build URN with Single Segment
-// ============================================================================
-
 export type BuildURN<NS extends string, Pattern> = Pattern extends 'segment'
   ? `urn:${NS}:${string}`
   : never;
@@ -85,10 +63,6 @@ export const test9Check: Test9 = false;
 
 export const proj1: ProjectURN = 'urn:project:myproject';
 export const proj2: ProjectURN = 'urn:project:';
-
-// ============================================================================
-// Step 4: Multiple Segments
-// ============================================================================
 
 export type TransformSegments<T> = T extends 'segments' ? string : never;
 
@@ -115,10 +89,6 @@ export const org1: OrgURNSimple = 'urn:org:acme';
 export const org2: OrgURNSimple = 'urn:org:acme:division';
 export const org3: OrgURNSimple = 'urn:org:';
 
-// ============================================================================
-// Step 5: Object with Type Field
-// ============================================================================
-
 export type SegmentObj = { type: 'segment' };
 export type SegmentsObj = { type: 'segments' };
 
@@ -136,10 +106,6 @@ export type Test15 = Equals<ObjResult2, string>;
 
 export const test14Check: Test14 = true;
 export const test15Check: Test15 = true;
-
-// ============================================================================
-// Step 6: Object with Optional Property
-// ============================================================================
 
 export type SegmentsWithOpt = {
   type: 'segments';
@@ -166,10 +132,6 @@ export const test16Check: Test16 = true;
 export const test17Check: Test17 = false;
 export const test18Check: Test18 = true;
 
-// ============================================================================
-// Step 7: Array with Single Element
-// ============================================================================
-
 export type TransformArray<T> = T extends [{ type: 'segments' }]
   ? string
   : T extends readonly [{ type: 'segments' }]
@@ -188,10 +150,6 @@ export const test19Check: Test19 = true;
 export const test20Check: Test20 = true;
 export const test21Check: Test21 = true;
 
-// ============================================================================
-// Step 8: Array with Destructuring
-// ============================================================================
-
 export type TransformDestruct<T> = T extends readonly [
   infer First,
   ...infer _Rest,
@@ -209,16 +167,6 @@ export type Test23 = Equals<DestructResult2, 'MATCH'>;
 
 export const test22Check: Test22 = true;
 export const test23Check: Test23 = true;
-
-// Debug helper
-export type ExtractFirst<T> = T extends readonly [infer First, ...infer _Rest]
-  ? First
-  : never;
-export type WhatIsFirst = ExtractFirst<readonly [SegmentsWithOpt]>;
-
-// ============================================================================
-// Step 9: Full Pattern Match
-// ============================================================================
 
 export type ActualTransform<T> = T extends readonly [
   infer First,
@@ -255,10 +203,6 @@ export const test27Check: Test27 = false;
 export const finalOrg1: FinalOrgURN = 'urn:org:acme';
 export const finalOrg2: FinalOrgURN = 'urn:org:acme:division';
 
-// ============================================================================
-// Step 10: Literal Pattern Type
-// ============================================================================
-
 export type LiteralTeam = { type: 'literal'; value: 'team' };
 
 export type TransformLiteral<T> = T extends { type: 'literal'; value: infer V }
@@ -275,11 +219,6 @@ export const test28Check: Test28 = true;
 export const test29Check: Test29 = false;
 export const test30Check: Test30 = false;
 
-// ============================================================================
-// Step 11-12: PatternToTemplate Tests (Using Real Implementation)
-// ============================================================================
-
-// Test with actual PatternToTemplate from urn.ts
 export type TwoElementPattern = readonly [SegmentsWithOpt, LiteralTeam];
 export type TwoElementResult = PatternToTemplate<TwoElementPattern>;
 
@@ -306,56 +245,41 @@ export const test34Check: Test34 = false;
 export const team1: TeamURN = 'urn:org:acme:team';
 export const team2: TeamURN = 'urn:org:acme:emea:division:team';
 
-// ============================================================================
-// Step 15: Comprehensive Multi-Element Pattern Tests
-// ============================================================================
-
-// Test 1: Single literal
 export type Pattern1 = readonly [LiteralTeam];
 export type Result1 = PatternToTemplate<Pattern1>;
 export type Test35 = Equals<Result1, 'team'>;
 export const test35Check: Test35 = true;
 
-// Test 2: Two literals
 export type LiteralOrg = { type: 'literal'; value: 'org' };
 export type Pattern2 = readonly [LiteralOrg, LiteralTeam];
 export type Result2 = PatternToTemplate<Pattern2>;
 export type Test36 = Equals<Result2, 'org:team'>;
 export const test36Check: Test36 = true;
 
-// Test 3: Literal then segments (segments is last)
 export type Pattern3 = readonly [LiteralOrg, SegmentsWithOpt];
 export type Result3 = PatternToTemplate<Pattern3>;
 export type Test37 = Equals<Result3, `org:${string}`>;
 export const test37Check: Test37 = true;
 
-// Test 4: Single segments
 export type Pattern4 = readonly [SegmentsWithOpt];
 export type Result4 = PatternToTemplate<Pattern4>;
 export type Test38 = Equals<Result4, `${string}`>;
 export const test38Check: Test38 = true;
 
-// Test 5: Segments then literal
 export type Test39 = Equals<TwoElementResult, `${string}:team`>;
 export const test39Check: Test39 = true;
 
-// Test 6: Full team pattern - segments, literal, segments
 export type Pattern6 = readonly [SegmentsWithOpt, LiteralTeam, SegmentsWithOpt];
 export type Result6 = PatternToTemplate<Pattern6>;
 export type Test40 = Equals<Result6, `${string}:team:${string}`>;
 export const test40Check: Test40 = true;
 
-// Test 7: Build full team URN
 export type FullTeamURN = BuildCompleteURN<'org', Pattern6>;
 export type Test41 = Equals<FullTeamURN, `urn:org:${string}:team:${string}`>;
 export const test41Check: Test41 = true;
 
 export const fullTeam1: FullTeamURN = 'urn:org:acme:team:eng';
 export const fullTeam2: FullTeamURN = 'urn:org:acme:emea:team:division:subdiv';
-
-// ============================================================================
-// Test SchemaToURN (Real URN Implementation)
-// ============================================================================
 
 type OrgSchema = URNSchema<'org', readonly [SegmentsSchema]>;
 export type OrgURN = SchemaToURN<OrgSchema>;

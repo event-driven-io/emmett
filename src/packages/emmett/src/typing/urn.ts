@@ -1,7 +1,3 @@
-// ============================================================================
-// Type definitions
-// ============================================================================
-
 export interface SegmentSchema<_T = string> {
   type: 'segment';
   validator?: (s: string) => boolean;
@@ -30,10 +26,6 @@ export interface URNSchema<
   pattern: P;
 }
 
-// ============================================================================
-// Pattern to Template Transformer (FIXED - see Steps 13-14 in typed tests)
-// ============================================================================
-
 export type PatternToTemplate<P> = P extends readonly []
   ? ''
   : P extends readonly [infer First, ...infer Rest]
@@ -48,54 +40,42 @@ export type PatternToTemplate<P> = P extends readonly []
         : First extends { type: 'segments'; validator?: unknown }
           ? Rest extends readonly []
             ? `${string}`
-            : `${string}:${PatternToTemplate<Rest>}` // FIXED: Continue recursion when Rest is not empty
+            : `${string}:${PatternToTemplate<Rest>}`
           : never
     : never;
-
-// ============================================================================
-// Schema to URN
-// ============================================================================
 
 export type SchemaToURN<S extends URNSchema> =
   S extends URNSchema<infer NS, infer P>
     ? P extends readonly []
-      ? `urn:${NS}:` // empty pattern
+      ? `urn:${NS}:`
       : `urn:${NS}:${PatternToTemplate<P>}`
     : never;
 
-// ============================================================================
-// FUTURE: Runtime Implementation (Commented - to be implemented with TDD)
-// ============================================================================
-
 // type URN<T extends `urn:${string}:${string}`> = T;
-
-// // Schema builder functions - like pongoSchema
+//
 // function segment<T = string>(
 //   validator?: (s: string) => boolean,
 // ): SegmentSchema<T> {
 //   return { type: 'segment', validator };
 // }
-
+//
 // function segments<T = string>(
 //   validator?: (s: string) => boolean,
 // ): SegmentsSchema<T> {
 //   return { type: 'segments', validator };
 // }
-
+//
 // function literal<T extends string>(value: T): LiteralSchema<T> {
 //   return { type: 'literal', value };
 // }
-
+//
 // function urnSchema<NS extends string, P extends readonly PatternElement[]>(
 //   namespace: NS,
 //   pattern: P,
 // ): URNSchema<NS, P> {
 //   return { namespace, pattern };
 // }
-
-// // ============================================================================
-// // URN Definition
-// // ============================================================================
+//
 // interface URNDefinition<
 //   U extends `urn:${string}:${string}`,
 //   S extends URNSchema = URNSchema,
@@ -207,10 +187,7 @@ export type SchemaToURN<S extends URNSchema> =
 //     getParent,
 //   };
 // }
-
-// // ============================================================================
-// // Extend URN from parent
-// // ============================================================================
+//
 // function extendURN<
 //   ParentSchema extends URNSchema,
 //   NewPattern extends readonly PatternElement[],
@@ -233,28 +210,23 @@ export type SchemaToURN<S extends URNSchema> =
 //     URNSchema<ParentSchema['namespace'], [...ParentSchema['pattern'], ...NewPattern]>
 //   >;
 // }
-
-// // ============================================================================
-// // Usage Examples
-// // ============================================================================
+//
 // const orgURN = defineURN(urnSchema('org', [segments()]));
-// type OrgURN = SchemaToURN<typeof orgURN.schema>; // `urn:org:${string}`
-
+// type OrgURN = SchemaToURN<typeof orgURN.schema>;
+//
 // const teamURN = defineURN(
 //   urnSchema('org', [segments(), literal('team'), segments()]),
 // );
-// type TeamURN = SchemaToURN<typeof teamURN.schema>; // `urn:org:${string}:team:${string}`
-
-// // Extending from parent
+// type TeamURN = SchemaToURN<typeof teamURN.schema>;
+//
 // const taskURN = extendURN(teamURN, [
 //   literal('task'),
 //   segment<number>((s) => /^\d+$/.test(s)),
 // ]);
-// type TaskURN = SchemaToURN<typeof taskURN.schema>; // `urn:org:${string}:team:${string}:task:${number}`
-
-// // Test
+// type TaskURN = SchemaToURN<typeof taskURN.schema>;
+//
 // const myOrg = orgURN.create('acme', 'emea');
-// console.log(orgURN.validate('urn:org:acme')); // true
-
+// console.log(orgURN.validate('urn:org:acme'));
+//
 // const myTask = taskURN.create('acme', 'team', 'eng', 'task', 123);
-// console.log(taskURN.validate('urn:org:acme:team:eng:task:123')); // true
+// console.log(taskURN.validate('urn:org:acme:team:eng:task:123'));
