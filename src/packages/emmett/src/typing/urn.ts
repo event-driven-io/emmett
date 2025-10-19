@@ -68,21 +68,23 @@
 //       : string;
 
 // // Fixed type inference - check for validator property to distinguish types
-// export type PatternToTemplate<P> = P extends readonly []
-//   ? ''
-//   : P extends readonly [infer First, ...infer Rest]
-//     ? First extends { type: 'literal'; value: infer V extends string }
-//       ? Rest extends readonly []
-//         ? V
-//         : `${V}:${PatternToTemplate<Rest>}`
-//       : First extends { type: 'segment'; validator?: unknown }
-//         ? Rest extends readonly []
-//           ? `${string}`
-//           : `${string}:${PatternToTemplate<Rest>}`
-//         : First extends { type: 'segments'; validator?: unknown }
-//           ? `${string}` // segments consumes all remaining
-//           : never
-//     : never;
+export type PatternToTemplate<P> = P extends readonly []
+  ? ''
+  : P extends readonly [infer First, ...infer Rest]
+    ? First extends { type: 'literal'; value: infer V extends string }
+      ? Rest extends readonly []
+        ? V
+        : `${V}:${PatternToTemplate<Rest>}`
+      : First extends { type: 'segment'; validator?: unknown }
+        ? Rest extends readonly []
+          ? `${string}`
+          : `${string}:${PatternToTemplate<Rest>}`
+        : First extends { type: 'segments'; validator?: unknown }
+          ? Rest extends readonly []
+            ? `${string}`
+            : `${string}:${PatternToTemplate<Rest>}`
+          : never
+    : never;
 
 // type SchemaToURN<S extends URNSchema> =
 //   S extends URNSchema<infer NS, infer P>
