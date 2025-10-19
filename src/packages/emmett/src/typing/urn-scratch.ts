@@ -293,3 +293,37 @@ export type Test30 = Equals<LiteralResult, never>; // Should be: false
 export const test28Check: Test28 = true;
 export const test29Check: Test29 = false;
 export const test30Check: Test30 = false;
+
+// ============================================================================
+// Step 11 GREEN: Two-element pattern [segments, literal]
+// ============================================================================
+
+// Recursive pattern transformer - like the original PatternToTemplate
+export type PatternToString<P> = P extends readonly []
+  ? ''
+  : P extends readonly [infer First, ...infer Rest]
+    ? First extends { type: 'literal'; value: infer V extends string }
+      ? Rest extends readonly []
+        ? V
+        : `${V}:${PatternToString<Rest>}`
+      : First extends { type: 'segment'; validator?: unknown }
+        ? Rest extends readonly []
+          ? `${string}`
+          : `${string}:${PatternToString<Rest>}`
+        : First extends { type: 'segments'; validator?: unknown }
+          ? `${string}` // segments consumes all remaining
+          : never
+    : never;
+
+// Pattern: segments followed by literal 'team'
+export type TwoElementPattern = readonly [SegmentsWithOpt, LiteralTeam];
+export type TwoElementResult = PatternToString<TwoElementPattern>;
+
+// CRITICAL TESTS - Does recursion work with segments?
+// According to the code, segments should consume all remaining, so 'team' should be ignored
+export type Test31 = Equals<TwoElementResult, `${string}`>; // Should be: true
+export type Test32 = Equals<TwoElementResult, never>; // Should be: false - IF TRUE, WE FOUND THE BUG!
+
+// Force evaluation
+export const test31Check: Test31 = true; // If this fails, segments doesn't consume rest
+export const test32Check: Test32 = false; // If this fails, result is never!
