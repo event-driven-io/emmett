@@ -226,3 +226,47 @@ export type ExtractFirst<T> = T extends readonly [infer First, ...infer _Rest]
   : never;
 export type WhatIsFirst = ExtractFirst<readonly [SegmentsWithOpt]>;
 // Hover over WhatIsFirst in IDE to see actual type
+
+// ============================================================================
+// Step 9 GREEN: Full pattern - Build URN exactly like original code
+// ============================================================================
+
+// The actual transform pattern from original code
+export type ActualTransform<T> = T extends readonly [
+  infer First,
+  ...infer _Rest,
+]
+  ? First extends { type: 'segments'; validator?: unknown }
+    ? `${string}`
+    : never
+  : never;
+
+export type ActualResult = ActualTransform<readonly [SegmentsWithOpt]>;
+
+// Build full URN with destructuring pattern
+export type MakeURN<NS extends string, Pattern> = Pattern extends readonly [
+  infer First,
+  ...infer _Rest,
+]
+  ? First extends { type: 'segments' }
+    ? `urn:${NS}:${string}`
+    : never
+  : never;
+
+export type FinalOrgURN = MakeURN<'org', readonly [SegmentsWithOpt]>;
+
+// FINAL CRITICAL TESTS - Does the full pattern work?
+export type Test24 = Equals<ActualResult, `${string}`>; // Should be: true
+export type Test25 = Equals<ActualResult, never>; // Should be: false
+export type Test26 = Equals<FinalOrgURN, `urn:org:${string}`>; // Should be: true - THE ULTIMATE TEST!
+export type Test27 = Equals<FinalOrgURN, never>; // Should be: false - If true, we replicated the bug!
+
+// Force evaluation
+export const test24Check: Test24 = true;
+export const test25Check: Test25 = false;
+export const test26Check: Test26 = true; // If this fails, we found where it breaks!
+export const test27Check: Test27 = false; // If this fails, FinalOrgURN is 'never'!
+
+// Runtime test
+export const finalOrg1: FinalOrgURN = 'urn:org:acme';
+export const finalOrg2: FinalOrgURN = 'urn:org:acme:division';
