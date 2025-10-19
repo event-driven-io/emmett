@@ -319,11 +319,35 @@ export type PatternToString<P> = P extends readonly []
 export type TwoElementPattern = readonly [SegmentsWithOpt, LiteralTeam];
 export type TwoElementResult = PatternToString<TwoElementPattern>;
 
-// CRITICAL TESTS - Does recursion work with segments?
-// According to the code, segments should consume all remaining, so 'team' should be ignored
-export type Test31 = Equals<TwoElementResult, `${string}`>; // Should be: true
-export type Test32 = Equals<TwoElementResult, never>; // Should be: false - IF TRUE, WE FOUND THE BUG!
+// CRITICAL TESTS - segments should NOT consume rest when followed by more patterns
+export type Test31 = Equals<TwoElementResult, `${string}:team`>; // Should be: true
+export type Test32 = Equals<TwoElementResult, never>; // Should be: false
 
 // Force evaluation
-export const test31Check: Test31 = true; // If this fails, segments doesn't consume rest
-export const test32Check: Test32 = false; // If this fails, result is never!
+export const test31Check: Test31 = true; // Will fail until we fix PatternToString
+export const test32Check: Test32 = false;
+
+// ============================================================================
+// Step 12 GREEN: Full Team URN with namespace
+// ============================================================================
+
+// Build complete URN: urn:${namespace}:${pattern}
+export type BuildCompleteURN<
+  NS extends string,
+  Pattern,
+> = `urn:${NS}:${PatternToString<Pattern>}`;
+
+// Build complete URN with namespace + pattern
+export type TeamURN = BuildCompleteURN<'org', TwoElementPattern>;
+
+// FINAL COMPREHENSIVE TESTS
+export type Test33 = Equals<TeamURN, `urn:org:${string}:team`>; // Should be: true
+export type Test34 = Equals<TeamURN, never>; // Should be: false
+
+// Force evaluation
+export const test33Check: Test33 = true; // Will fail until we fix PatternToString
+export const test34Check: Test34 = false;
+
+// Runtime test
+export const team1: TeamURN = 'urn:org:acme';
+export const team2: TeamURN = 'urn:org:acme:emea:division';
