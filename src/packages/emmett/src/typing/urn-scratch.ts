@@ -353,3 +353,51 @@ export const test34Check: Test34 = false;
 // Runtime test
 export const team1: TeamURN = 'urn:org:acme:team';
 export const team2: TeamURN = 'urn:org:acme:emea:division:team';
+
+// ============================================================================
+// Step 15 REFACTOR: Comprehensive multi-element pattern tests
+// ============================================================================
+
+// Test 1: Single literal
+export type Pattern1 = readonly [LiteralTeam];
+export type Result1 = PatternToString<Pattern1>;
+export type Test35 = Equals<Result1, 'team'>;
+export const test35Check: Test35 = true;
+
+// Test 2: Two literals
+export type LiteralOrg = { type: 'literal'; value: 'org' };
+export type Pattern2 = readonly [LiteralOrg, LiteralTeam];
+export type Result2 = PatternToString<Pattern2>;
+export type Test36 = Equals<Result2, 'org:team'>;
+export const test36Check: Test36 = true;
+
+// Test 3: Literal then segments (segments is last)
+export type Pattern3 = readonly [LiteralOrg, SegmentsWithOpt];
+export type Result3 = PatternToString<Pattern3>;
+export type Test37 = Equals<Result3, `org:${string}`>;
+export const test37Check: Test37 = true;
+
+// Test 4: Single segments
+export type Pattern4 = readonly [SegmentsWithOpt];
+export type Result4 = PatternToString<Pattern4>;
+export type Test38 = Equals<Result4, `${string}`>;
+export const test38Check: Test38 = true;
+
+// Test 5: Segments then literal (already tested as TwoElementPattern)
+export type Test39 = Equals<TwoElementResult, `${string}:team`>;
+export const test39Check: Test39 = true;
+
+// Test 6: Full team pattern - segments, literal, segments
+export type Pattern6 = readonly [SegmentsWithOpt, LiteralTeam, SegmentsWithOpt];
+export type Result6 = PatternToString<Pattern6>;
+export type Test40 = Equals<Result6, `${string}:team:${string}`>;
+export const test40Check: Test40 = true;
+
+// Test 7: Build full team URN
+export type FullTeamURN = BuildCompleteURN<'org', Pattern6>;
+export type Test41 = Equals<FullTeamURN, `urn:org:${string}:team:${string}`>;
+export const test41Check: Test41 = true;
+
+// Runtime tests for full team pattern
+export const fullTeam1: FullTeamURN = 'urn:org:acme:team:eng';
+export const fullTeam2: FullTeamURN = 'urn:org:acme:emea:team:division:subdiv';
