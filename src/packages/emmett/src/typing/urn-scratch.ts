@@ -6,7 +6,7 @@ export type BasicTemplate = `urn:org:${string}`;
 
 // Type equality checker for testing
 export type Equals<A, B> =
-  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2)
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
     ? true
     : false;
 
@@ -95,3 +95,20 @@ export type BuildURNSegments<
 > = Pattern extends 'segments' ? `urn:${NS}:${string}` : never;
 
 export type OrgURNSimple = BuildURNSegments<'org', 'segments'>;
+
+// CRITICAL TESTS - This is where we check if the bug exists!
+export type Test10 = Equals<SegmentsResult, string>; // Should be: true
+export type Test11 = Equals<OrgURNSimple, `urn:org:${string}`>; // Should be: true
+export type Test12 = Equals<OrgURNSimple, 'urn:org:'>; // Should be: false
+export type Test13 = Equals<OrgURNSimple, never>; // Should be: false - IF THIS IS TRUE, WE FOUND THE BUG!
+
+// Force evaluation
+export const test10Check: Test10 = true;
+export const test11Check: Test11 = true;
+export const test12Check: Test12 = false;
+export const test13Check: Test13 = false; // If this fails, OrgURN is 'never'!
+
+// Runtime tests
+export const org1: OrgURNSimple = 'urn:org:acme';
+export const org2: OrgURNSimple = 'urn:org:acme:division';
+export const org3: OrgURNSimple = 'urn:org:';
