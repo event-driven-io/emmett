@@ -80,6 +80,7 @@ export interface URNDefinition<
 > {
   schema: S;
   validate: (s: string) => s is U;
+  create: (...args: unknown[]) => U;
 }
 
 export function defineURN<S extends URNSchema>(
@@ -88,13 +89,7 @@ export function defineURN<S extends URNSchema>(
   type URNType = SchemaToURN<S>;
   const prefix = `urn:${schema.namespace}:`;
 
-  const validate = (s: string): s is URNType => {
-    if (!s.startsWith(prefix)) return false;
-
-    const remainder = s.slice(prefix.length);
-    if (!remainder) return false;
-
-    const parts = remainder.split(':');
+  const validateParts = (parts: string[]): boolean => {
     let partIndex = 0;
 
     for (let i = 0; i < schema.pattern.length; i++) {
@@ -121,11 +116,25 @@ export function defineURN<S extends URNSchema>(
           }
           partIndex = parts.length;
         } else {
-          if (partIndex >= parts.length) return false;
-          const part = parts[partIndex]!;
-          if (!part) return false;
-          if (pattern.validator && !pattern.validator(part)) return false;
-          partIndex++;
+          const nextPattern = schema.pattern[i + 1];
+          if (nextPattern && nextPattern.type === 'literal') {
+            const literalIndex = parts.indexOf(nextPattern.value, partIndex);
+            if (literalIndex === -1) return false;
+            const segmentParts = parts.slice(partIndex, literalIndex);
+            if (segmentParts.length === 0) return false;
+            if (pattern.validator) {
+              for (const part of segmentParts) {
+                if (!pattern.validator(part)) return false;
+              }
+            }
+            partIndex = literalIndex;
+          } else {
+            if (partIndex >= parts.length) return false;
+            const part = parts[partIndex]!;
+            if (!part) return false;
+            if (pattern.validator && !pattern.validator(part)) return false;
+            partIndex++;
+          }
         }
       }
     }
@@ -133,8 +142,63 @@ export function defineURN<S extends URNSchema>(
     return partIndex === parts.length;
   };
 
+  const validate = (s: string): s is URNType => {
+    if (!s.startsWith(prefix)) return false;
+
+    const remainder = s.slice(prefix.length);
+    if (schema.pattern.length === 0) {
+      return remainder === '';
+    }
+    if (!remainder) return false;
+
+    const parts = remainder.split(':');
+    return validateParts(parts);
+  };
+
+  const create = (...args: unknown[]): URNType => {
+    const nonLiteralPatterns = schema.pattern.filter(
+      (p) => p.type !== 'literal',
+    );
+
+    // If single non-literal pattern with multiple args, treat all args as values for that pattern
+    const parts: string[] = [];
+    if (nonLiteralPatterns.length === 1 && args.length > 1) {
+      for (const pattern of schema.pattern) {
+        if (pattern.type === 'literal') {
+          parts.push(pattern.value);
+        } else {
+          parts.push(
+            ...args.flatMap((arg): string[] =>
+              Array.isArray(arg) ? (arg as string[]) : [arg as string],
+            ),
+          );
+        }
+      }
+    } else {
+      let argIndex = 0;
+      for (const pattern of schema.pattern) {
+        if (pattern.type === 'literal') {
+          parts.push(pattern.value);
+        } else {
+          const arg = args[argIndex++];
+          if (Array.isArray(arg)) {
+            parts.push(...(arg as string[]));
+          } else {
+            parts.push(arg as string);
+          }
+        }
+      }
+    }
+
+    if (!validateParts(parts)) {
+      throw new Error(`Invalid URN parts: ${parts.join(':')}`);
+    }
+    return `${prefix}${parts.join(':')}` as URNType;
+  };
+
   return {
     schema,
     validate,
+    create,
   };
 }
