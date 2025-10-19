@@ -1,26 +1,32 @@
 # TDD Plan: Fix URN Types
 
 ## Problem Statement
+
 `OrgURN` should be `urn:org:${string}` but it's currently `never`.
 Building from simplest cases to find where the type transformation breaks.
 
 ## Development Setup
 
 ### TypeScript Watch Mode
+
 Run in background to monitor type errors:
+
 ```bash
 cd src
 npm run build:ts:watch
 ```
 
 ### Linting
+
 Run after each step:
+
 ```bash
 cd src
 npm run fix
 ```
 
 ### TDD Workflow: RED-GREEN-REFACTOR
+
 1. **RED**: Write failing test (undefined types cause errors)
 2. **GREEN**: Implement minimum code to pass
 3. **REFACTOR**: Add comprehensive tests
@@ -29,6 +35,7 @@ npm run fix
 ## Type Testing Approach
 
 Using TypeScript compiler directly with:
+
 - Type equality checker using conditional types
 - Const assertions to force type evaluation
 - Runtime tests to verify template literal behavior
@@ -36,7 +43,7 @@ Using TypeScript compiler directly with:
 ```typescript
 // Type equality checker
 export type Equals<A, B> =
-  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2)
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
     ? true
     : false;
 
@@ -49,31 +56,39 @@ export const test1Check: Test1 = true; // Will error if Test1 is not true
 All tests pass! The isolated patterns work correctly:
 
 ### Step 1: Basic Template Literals ✓
+
 - `urn:org:${string}` works correctly
 
 ### Step 2-3: Single Segment ✓
+
 - Transform `'segment'` → `string` works
 - Build `urn:${NS}:${string}` works
 
 ### Step 4: Multiple Segments ✓
+
 - Transform `'segments'` → `string` works
 - `OrgURNSimple` produces `urn:org:${string}` (NOT never)
 
 ### Step 5: Object Pattern ✓
+
 - `{type: 'segments'}` transforms correctly
 
 ### Step 6: Optional Properties ✓
+
 - `{type: 'segments'; validator?: ...}` works correctly
 
 ### Step 7: Arrays ✓
+
 - `[{type: 'segments'}]` and `readonly` variants work
 
 ### Step 8: Destructuring with Infer ✓
+
 - `readonly [infer First, ...infer _Rest]` works
 - `First extends {type: 'segments'}` matches correctly
 - **Even with optional properties!**
 
 ### Step 9: Full URN Pattern ✓
+
 - Complete pattern matches original code structure
 - `MakeURN<'org', readonly [SegmentsWithOpt]>` produces `urn:org:${string}`
 - **NOT never!**
@@ -83,12 +98,14 @@ All tests pass! The isolated patterns work correctly:
 **The isolated single-element pattern works perfectly.**
 
 This means the bug is NOT caused by:
+
 - Template literals
 - Optional property matching
 - Array destructuring with `infer`
 - Basic pattern matching
 
 The bug must be in:
+
 - **Recursive pattern handling** (multiple elements in sequence)
 - **Interaction between different pattern types** (literal + segments)
 - **The Rest handling** after destructuring first element
@@ -100,6 +117,7 @@ Initial implementation revealed the bug in segments handling.
 ### Step 10: Transform Literal Pattern Value
 
 **Add to `urn-scratch.ts`:**
+
 ```typescript
 export type LiteralTeam = { type: 'literal'; value: 'team' };
 
@@ -119,6 +137,7 @@ export type Test30 = Equals<LiteralResult, never>;
 ### Step 11: Recursive PatternToString Implementation
 
 **Add to `urn-scratch.ts`:**
+
 ```typescript
 export type PatternToString<P> = P extends readonly []
   ? ''
@@ -131,9 +150,9 @@ export type PatternToString<P> = P extends readonly []
         ? Rest extends readonly []
           ? `${string}`
           : `${string}:${PatternToString<Rest>}`
-      : First extends { type: 'segments'; validator?: unknown }
-        ? `${string}` // BUG: This always returns, ignoring Rest!
-        : never
+        : First extends { type: 'segments'; validator?: unknown }
+          ? `${string}` // BUG: This always returns, ignoring Rest!
+          : never
     : never;
 
 export type TwoElementPattern = readonly [SegmentsWithOpt, LiteralTeam];
@@ -145,9 +164,12 @@ export type TwoElementResult = PatternToString<TwoElementPattern>;
 ### Step 12: Full URN Builder
 
 **Add to `urn-scratch.ts`:**
+
 ```typescript
-export type BuildCompleteURN<NS extends string, Pattern> =
-  `urn:${NS}:${PatternToString<Pattern>}`;
+export type BuildCompleteURN<
+  NS extends string,
+  Pattern,
+> = `urn:${NS}:${PatternToString<Pattern>}`;
 
 export type TeamURN = BuildCompleteURN<'org', TwoElementPattern>;
 ```
@@ -159,6 +181,7 @@ export type TeamURN = BuildCompleteURN<'org', TwoElementPattern>;
 **Location:** PatternToString segments case (line 314 in urn-scratch.ts)
 
 **Current code:**
+
 ```typescript
 : First extends { type: 'segments'; validator?: unknown }
   ? `${string}` // segments consumes all remaining
@@ -167,8 +190,9 @@ export type TeamURN = BuildCompleteURN<'org', TwoElementPattern>;
 **Problem:** Always returns `${string}` regardless of Rest content, breaking recursion.
 
 **Evidence from original urn.ts usage (line 242-244):**
+
 ```typescript
-urnSchema('org', [segments(), literal('team'), segments()])
+urnSchema('org', [segments(), literal('team'), segments()]);
 // Should produce: `urn:org:${string}:team:${string}`
 // Currently produces: `urn:org:${string}` (literal and second segments ignored!)
 ```
@@ -180,6 +204,7 @@ urnSchema('org', [segments(), literal('team'), segments()])
 ### Step 13: Update Test Assertions to Expect Correct Behavior
 
 **Modify `urn-scratch.ts`:**
+
 ```typescript
 // OLD (wrong):
 export type Test31 = Equals<TwoElementResult, `${string}`>;
@@ -195,6 +220,7 @@ export type Test33 = Equals<TeamURN, `urn:org:${string}:team`>;
 ### Step 14: Fix PatternToString Segments Case
 
 **Modify `urn-scratch.ts`:**
+
 ```typescript
 // Change this:
 : First extends { type: 'segments'; validator?: unknown }
@@ -212,15 +238,22 @@ export type Test33 = Equals<TeamURN, `urn:org:${string}:team`>;
 ### Step 15: Add Comprehensive Multi-Element Pattern Tests
 
 **Add to `urn-scratch.ts`:**
+
 ```typescript
 // Test all pattern combinations
 export type Pattern1 = readonly [LiteralTeam];
 export type Result1 = PatternToString<Pattern1>; // 'team'
 
-export type Pattern2 = readonly [{ type: 'literal'; value: 'org' }, LiteralTeam];
+export type Pattern2 = readonly [
+  { type: 'literal'; value: 'org' },
+  LiteralTeam,
+];
 export type Result2 = PatternToString<Pattern2>; // 'org:team'
 
-export type Pattern3 = readonly [{ type: 'literal'; value: 'org' }, SegmentsWithOpt];
+export type Pattern3 = readonly [
+  { type: 'literal'; value: 'org' },
+  SegmentsWithOpt,
+];
 export type Result3 = PatternToString<Pattern3>; // 'org:${string}'
 
 export type Pattern4 = readonly [SegmentsWithOpt];
@@ -240,6 +273,7 @@ export type Result6 = PatternToString<Pattern6>; // '${string}:team:${string}'
 ### Step 16: Apply Fix to Original urn.ts
 
 **Modify `urn.ts` line 82-84:**
+
 ```typescript
 // Change:
 : First extends { type: 'segments'; validator?: unknown }

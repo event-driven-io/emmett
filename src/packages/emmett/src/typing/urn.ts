@@ -1,39 +1,75 @@
-// // ============================================================================
-// // Type definitions
-// // ============================================================================
+// ============================================================================
+// Type definitions
+// ============================================================================
+
+export interface SegmentSchema<_T = string> {
+  type: 'segment';
+  validator?: (s: string) => boolean;
+}
+
+export interface SegmentsSchema<_T = string> {
+  type: 'segments';
+  validator?: (s: string) => boolean;
+}
+
+export interface LiteralSchema<T extends string> {
+  type: 'literal';
+  value: T;
+}
+
+export type PatternElement =
+  | SegmentSchema<unknown>
+  | SegmentsSchema<unknown>
+  | LiteralSchema<string>;
+
+export interface URNSchema<
+  NS extends string = string,
+  P extends readonly PatternElement[] = readonly PatternElement[],
+> {
+  namespace: NS;
+  pattern: P;
+}
+
+// ============================================================================
+// Pattern to Template Transformer (FIXED - see Steps 13-14 in typed tests)
+// ============================================================================
+
+export type PatternToTemplate<P> = P extends readonly []
+  ? ''
+  : P extends readonly [infer First, ...infer Rest]
+    ? First extends { type: 'literal'; value: infer V extends string }
+      ? Rest extends readonly []
+        ? V
+        : `${V}:${PatternToTemplate<Rest>}`
+      : First extends { type: 'segment'; validator?: unknown }
+        ? Rest extends readonly []
+          ? `${string}`
+          : `${string}:${PatternToTemplate<Rest>}`
+        : First extends { type: 'segments'; validator?: unknown }
+          ? Rest extends readonly []
+            ? `${string}`
+            : `${string}:${PatternToTemplate<Rest>}` // FIXED: Continue recursion when Rest is not empty
+          : never
+    : never;
+
+// ============================================================================
+// Schema to URN
+// ============================================================================
+
+export type SchemaToURN<S extends URNSchema> =
+  S extends URNSchema<infer NS, infer P>
+    ? P extends readonly []
+      ? `urn:${NS}:` // empty pattern
+      : `urn:${NS}:${PatternToTemplate<P>}`
+    : never;
+
+// ============================================================================
+// FUTURE: Runtime Implementation (Commented - to be implemented with TDD)
+// ============================================================================
+
 // type URN<T extends `urn:${string}:${string}`> = T;
 
-// interface SegmentSchema<_T = string> {
-//   type: 'segment';
-//   validator?: (s: string) => boolean;
-// }
-
-// interface SegmentsSchema<_T = string> {
-//   type: 'segments';
-//   validator?: (s: string) => boolean;
-// }
-
-// interface LiteralSchema<T extends string> {
-//   type: 'literal';
-//   value: T;
-// }
-
-// type PatternElement =
-//   | SegmentSchema<any>
-//   | SegmentsSchema<any>
-//   | LiteralSchema<any>;
-
-// interface URNSchema<
-//   NS extends string = string,
-//   P extends readonly PatternElement[] = readonly PatternElement[],
-// > {
-//   namespace: NS;
-//   pattern: P;
-// }
-
-// // ============================================================================
 // // Schema builder functions - like pongoSchema
-// // ============================================================================
 // function segment<T = string>(
 //   validator?: (s: string) => boolean,
 // ): SegmentSchema<T> {
@@ -56,42 +92,6 @@
 // ): URNSchema<NS, P> {
 //   return { namespace, pattern };
 // }
-
-// // ============================================================================
-// // Type inference - extract types from schema
-// // ============================================================================
-// type InferSegmentType<S> =
-//   S extends SegmentSchema<infer T>
-//     ? T
-//     : S extends SegmentsSchema<infer T>
-//       ? T
-//       : string;
-
-// // Fixed type inference - check for validator property to distinguish types
-export type PatternToTemplate<P> = P extends readonly []
-  ? ''
-  : P extends readonly [infer First, ...infer Rest]
-    ? First extends { type: 'literal'; value: infer V extends string }
-      ? Rest extends readonly []
-        ? V
-        : `${V}:${PatternToTemplate<Rest>}`
-      : First extends { type: 'segment'; validator?: unknown }
-        ? Rest extends readonly []
-          ? `${string}`
-          : `${string}:${PatternToTemplate<Rest>}`
-        : First extends { type: 'segments'; validator?: unknown }
-          ? Rest extends readonly []
-            ? `${string}`
-            : `${string}:${PatternToTemplate<Rest>}`
-          : never
-    : never;
-
-// type SchemaToURN<S extends URNSchema> =
-//   S extends URNSchema<infer NS, infer P>
-//     ? P extends readonly []
-//       ? `urn:${NS}:` // empty pattern
-//       : `urn:${NS}:${PatternToTemplate<P>}`
-//     : never;
 
 // // ============================================================================
 // // URN Definition
@@ -235,7 +235,7 @@ export type PatternToTemplate<P> = P extends readonly []
 // }
 
 // // ============================================================================
-// // Usage - now with proper type inference!
+// // Usage Examples
 // // ============================================================================
 // const orgURN = defineURN(urnSchema('org', [segments()]));
 // type OrgURN = SchemaToURN<typeof orgURN.schema>; // `urn:org:${string}`
