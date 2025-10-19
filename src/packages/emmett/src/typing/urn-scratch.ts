@@ -311,7 +311,9 @@ export type PatternToString<P> = P extends readonly []
           ? `${string}`
           : `${string}:${PatternToString<Rest>}`
         : First extends { type: 'segments'; validator?: unknown }
-          ? `${string}` // segments consumes all remaining
+          ? Rest extends readonly []
+            ? `${string}`
+            : `${string}:${PatternToString<Rest>}`
           : never
     : never;
 
@@ -349,5 +351,5 @@ export const test33Check: Test33 = true; // Will fail until we fix PatternToStri
 export const test34Check: Test34 = false;
 
 // Runtime test
-export const team1: TeamURN = 'urn:org:acme';
-export const team2: TeamURN = 'urn:org:acme:emea:division';
+export const team1: TeamURN = 'urn:org:acme:team';
+export const team2: TeamURN = 'urn:org:acme:emea:division:team';
