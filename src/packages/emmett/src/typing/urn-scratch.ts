@@ -112,3 +112,28 @@ export const test13Check: Test13 = false; // If this fails, OrgURN is 'never'!
 export const org1: OrgURNSimple = 'urn:org:acme';
 export const org2: OrgURNSimple = 'urn:org:acme:division';
 export const org3: OrgURNSimple = 'urn:org:';
+
+// ============================================================================
+// Step 5 GREEN: Object with type field
+// ============================================================================
+
+// Object pattern
+export type SegmentObj = { type: 'segment' };
+export type SegmentsObj = { type: 'segments' };
+
+export type TransformObj<T> = T extends { type: 'segment' }
+  ? string
+  : T extends { type: 'segments' }
+    ? string
+    : never;
+
+export type ObjResult1 = TransformObj<SegmentObj>;
+export type ObjResult2 = TransformObj<SegmentsObj>;
+
+// Tests
+export type Test14 = Equals<ObjResult1, string>; // Should be: true
+export type Test15 = Equals<ObjResult2, string>; // Should be: true
+
+// Force evaluation
+export const test14Check: Test14 = true;
+export const test15Check: Test15 = true;
