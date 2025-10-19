@@ -137,3 +137,35 @@ export type Test15 = Equals<ObjResult2, string>; // Should be: true
 // Force evaluation
 export const test14Check: Test14 = true;
 export const test15Check: Test15 = true;
+
+// ============================================================================
+// Step 6 GREEN: Object with optional property
+// ============================================================================
+
+// With optional validator
+export type SegmentsWithOpt = {
+  type: 'segments';
+  validator?: (s: string) => boolean;
+};
+
+export type TransformWithOpt<T> = T extends {
+  type: 'segments';
+  validator?: unknown;
+}
+  ? string
+  : T extends { type: 'segments' }
+    ? string
+    : never;
+
+export type OptResult = TransformWithOpt<SegmentsWithOpt>;
+export type SimpleResult = TransformWithOpt<SegmentsObj>;
+
+// Tests
+export type Test16 = Equals<OptResult, string>; // Should be: true
+export type Test17 = Equals<OptResult, never>; // Should be: false
+export type Test18 = Equals<SimpleResult, string>; // Should be: true
+
+// Force evaluation
+export const test16Check: Test16 = true;
+export const test17Check: Test17 = false;
+export const test18Check: Test18 = true;
