@@ -93,47 +93,163 @@ The bug must be in:
 - **Interaction between different pattern types** (literal + segments)
 - **The Rest handling** after destructuring first element
 
-## Steps 10+: Nested Pattern Tests (IN PROGRESS)
+## Steps 10-12: Nested Pattern Tests (COMPLETED - BUG FOUND)
 
-Testing patterns with multiple elements to find the bug.
+Initial implementation revealed the bug in segments handling.
 
-### Step 10: Literal After Segments (Team Pattern)
-Pattern: `[{type: 'segments'}, {type: 'literal', value: 'team'}, {type: 'segments'}]`
-Expected: `urn:org:${string}:team:${string}`
+### Step 10: Transform Literal Pattern Value
 
-This tests:
-- Recursive Rest processing
-- Switching between segments and literal types
-- Colons between pattern elements
-
-### Step 11: Full Recursive Pattern Transformer
-Implement recursive `PatternToTemplate` that handles:
-- Empty array base case
-- First element extraction with `infer First, ...infer Rest`
-- Recursion on `Rest`
-- Proper colon insertion between elements
-- Different handling for `segments` (consumes all remaining)
-
-### Step 12: Test Actual Schema-to-URN Pattern
-Use actual schema objects like the original code:
+**Add to `urn-scratch.ts`:**
 ```typescript
-const orgSchema = { namespace: 'org', pattern: [segments()] }
-const teamSchema = { namespace: 'org', pattern: [segments(), literal('team'), segments()] }
+export type LiteralTeam = { type: 'literal'; value: 'team' };
+
+export type TransformLiteral<T> = T extends { type: 'literal'; value: infer V }
+  ? V
+  : never;
+
+export type LiteralResult = TransformLiteral<LiteralTeam>;
+
+export type Test28 = Equals<LiteralResult, 'team'>;
+export type Test29 = Equals<LiteralResult, string>;
+export type Test30 = Equals<LiteralResult, never>;
 ```
 
-## Expected Bug Location
+**Result:** All tests pass ✓
 
-Based on Steps 1-9, the bug is likely in the **recursive Rest handling** of `PatternToTemplate`.
+### Step 11: Recursive PatternToString Implementation
 
-Specifically when:
-1. First element is `{type: 'segments'}`
-2. Rest is not empty (has literal or more segments)
-3. The recursion doesn't handle this correctly
+**Add to `urn-scratch.ts`:**
+```typescript
+export type PatternToString<P> = P extends readonly []
+  ? ''
+  : P extends readonly [infer First, ...infer Rest]
+    ? First extends { type: 'literal'; value: infer V extends string }
+      ? Rest extends readonly []
+        ? V
+        : `${V}:${PatternToString<Rest>}`
+      : First extends { type: 'segment'; validator?: unknown }
+        ? Rest extends readonly []
+          ? `${string}`
+          : `${string}:${PatternToString<Rest>}`
+      : First extends { type: 'segments'; validator?: unknown }
+        ? `${string}` // BUG: This always returns, ignoring Rest!
+        : never
+    : never;
 
-## Next Steps
+export type TwoElementPattern = readonly [SegmentsWithOpt, LiteralTeam];
+export type TwoElementResult = PatternToString<TwoElementPattern>;
+```
 
-1. Implement Step 10: Test pattern with literal after segments
-2. Implement Step 11: Full recursive PatternToTemplate
-3. Find exact line where type becomes `never`
-4. Fix the issue
-5. Verify all tests pass
+**Result:** Compiles, but `TwoElementResult` is `${string}` instead of `${string}:team`
+
+### Step 12: Full URN Builder
+
+**Add to `urn-scratch.ts`:**
+```typescript
+export type BuildCompleteURN<NS extends string, Pattern> =
+  `urn:${NS}:${PatternToString<Pattern>}`;
+
+export type TeamURN = BuildCompleteURN<'org', TwoElementPattern>;
+```
+
+**Result:** `TeamURN` is `urn:org:${string}` instead of `urn:org:${string}:team`
+
+## Bug Found in Steps 10-12
+
+**Location:** PatternToString segments case (line 314 in urn-scratch.ts)
+
+**Current code:**
+```typescript
+: First extends { type: 'segments'; validator?: unknown }
+  ? `${string}` // segments consumes all remaining
+```
+
+**Problem:** Always returns `${string}` regardless of Rest content, breaking recursion.
+
+**Evidence from original urn.ts usage (line 242-244):**
+```typescript
+urnSchema('org', [segments(), literal('team'), segments()])
+// Should produce: `urn:org:${string}:team:${string}`
+// Currently produces: `urn:org:${string}` (literal and second segments ignored!)
+```
+
+**Root cause:** The comment "segments consumes all remaining" is misleading. Segments should only skip recursion if it's the last element OR if actual runtime behavior requires it.
+
+## Steps 13-16: Fix Implementation
+
+### Step 13: Update Test Assertions to Expect Correct Behavior
+
+**Modify `urn-scratch.ts`:**
+```typescript
+// OLD (wrong):
+export type Test31 = Equals<TwoElementResult, `${string}`>;
+export type Test33 = Equals<TeamURN, `urn:org:${string}`>;
+
+// NEW (correct):
+export type Test31 = Equals<TwoElementResult, `${string}:team`>;
+export type Test33 = Equals<TeamURN, `urn:org:${string}:team`>;
+```
+
+**Run TypeScript:** Tests should fail (RED) - this confirms the bug
+
+### Step 14: Fix PatternToString Segments Case
+
+**Modify `urn-scratch.ts`:**
+```typescript
+// Change this:
+: First extends { type: 'segments'; validator?: unknown }
+  ? `${string}` // segments consumes all remaining
+
+// To this:
+: First extends { type: 'segments'; validator?: unknown }
+  ? Rest extends readonly []
+    ? `${string}`
+    : `${string}:${PatternToString<Rest>}`
+```
+
+**Run TypeScript:** All tests should pass (GREEN)
+
+### Step 15: Add Comprehensive Multi-Element Pattern Tests
+
+**Add to `urn-scratch.ts`:**
+```typescript
+// Test all pattern combinations
+export type Pattern1 = readonly [LiteralTeam];
+export type Result1 = PatternToString<Pattern1>; // 'team'
+
+export type Pattern2 = readonly [{ type: 'literal'; value: 'org' }, LiteralTeam];
+export type Result2 = PatternToString<Pattern2>; // 'org:team'
+
+export type Pattern3 = readonly [{ type: 'literal'; value: 'org' }, SegmentsWithOpt];
+export type Result3 = PatternToString<Pattern3>; // 'org:${string}'
+
+export type Pattern4 = readonly [SegmentsWithOpt];
+export type Result4 = PatternToString<Pattern4>; // '${string}'
+
+export type Pattern5 = readonly [SegmentsWithOpt, LiteralTeam];
+export type Result5 = PatternToString<Pattern5>; // '${string}:team'
+
+export type Pattern6 = readonly [SegmentsWithOpt, LiteralTeam, SegmentsWithOpt];
+export type Result6 = PatternToString<Pattern6>; // '${string}:team:${string}'
+
+// Add Test35-40 with Equals checks for each
+```
+
+**Run TypeScript and verify all patterns produce correct types**
+
+### Step 16: Apply Fix to Original urn.ts
+
+**Modify `urn.ts` line 82-84:**
+```typescript
+// Change:
+: First extends { type: 'segments'; validator?: unknown }
+  ? `${string}` // segments consumes all remaining
+
+// To:
+: First extends { type: 'segments'; validator?: unknown }
+  ? Rest extends readonly []
+    ? `${string}`
+    : `${string}:${PatternToTemplate<Rest>}`
+```
+
+**Verify:** OrgURN and TeamURN types are correct in original usage
