@@ -194,3 +194,35 @@ export type Test21 = Equals<ArrayResult3, string>; // Should be: true
 export const test19Check: Test19 = true;
 export const test20Check: Test20 = true;
 export const test21Check: Test21 = true;
+
+// ============================================================================
+// Step 8 GREEN: Array with destructuring - THE ACTUAL PATTERN!
+// ============================================================================
+
+// Destructuring with inference (like the original code)
+export type TransformDestruct<T> = T extends readonly [
+  infer First,
+  ...infer _Rest,
+]
+  ? First extends { type: 'segments' }
+    ? 'MATCH'
+    : 'NO_MATCH'
+  : 'NOT_ARRAY';
+
+export type DestructResult1 = TransformDestruct<readonly [SegmentsObj]>;
+export type DestructResult2 = TransformDestruct<readonly [SegmentsWithOpt]>;
+
+// CRITICAL TESTS - Does infer work with optional properties?
+export type Test22 = Equals<DestructResult1, 'MATCH'>; // Should be: true
+export type Test23 = Equals<DestructResult2, 'MATCH'>; // Should be: true - THIS IS THE KEY TEST!
+
+// Force evaluation
+export const test22Check: Test22 = true;
+export const test23Check: Test23 = true; // If this fails, we found the bug!
+
+// Debug: What does First become?
+export type ExtractFirst<T> = T extends readonly [infer First, ...infer _Rest]
+  ? First
+  : never;
+export type WhatIsFirst = ExtractFirst<readonly [SegmentsWithOpt]>;
+// Hover over WhatIsFirst in IDE to see actual type
