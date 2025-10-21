@@ -1,12 +1,9 @@
 import {
   dumbo,
-  exists,
   functionExists,
-  rawSql,
   tableExists,
   type Dumbo,
 } from '@event-driven-io/dumbo';
-import { assertTrue } from '@event-driven-io/emmett';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -71,57 +68,57 @@ void describe('createEventStoreSchema', () => {
       assert.ok(await functionExists(pool, 'emt_add_partition'));
     });
 
-    void it('creates the add_module function', async () => {
-      assert.ok(await functionExists(pool, 'add_module'));
-    });
+    // void it('creates the add_module function', async () => {
+    //   assert.ok(await functionExists(pool, 'add_module'));
+    // });
 
-    void it('creates the add_tenant function', async () => {
-      assert.ok(await functionExists(pool, 'add_tenant'));
-    });
+    // void it('creates the add_tenant function', async () => {
+    //   assert.ok(await functionExists(pool, 'add_tenant'));
+    // });
 
-    void it('creates the add_module_for_all_tenants function', async () => {
-      assert.ok(await functionExists(pool, 'add_module_for_all_tenants'));
-    });
+    // void it('creates the add_module_for_all_tenants function', async () => {
+    //   assert.ok(await functionExists(pool, 'add_module_for_all_tenants'));
+    // });
 
-    void it('creates the add_tenant_for_all_modules function', async () => {
-      assert.ok(await functionExists(pool, 'add_tenant_for_all_modules'));
-    });
+    // void it('creates the add_tenant_for_all_modules function', async () => {
+    //   assert.ok(await functionExists(pool, 'add_tenant_for_all_modules'));
+    // });
   });
 
-  void it('allows adding a module', async () => {
-    await pool.execute.query(rawSql(`SELECT add_module('test_module')`));
+  // void it('allows adding a module', async () => {
+  //   await pool.execute.query(rawSql(`SELECT add_module('test_module')`));
 
-    const res = await exists(
-      pool.execute.query(
-        rawSql(`
-      SELECT EXISTS (
-        SELECT FROM pg_tables
-        WHERE tablename = 'emt_messages_test_module__global'
-      ) AS exists;
-    `),
-      ),
-    );
+  //   const res = await exists(
+  //     pool.execute.query(
+  //       rawSql(`
+  //     SELECT EXISTS (
+  //       SELECT FROM pg_tables
+  //       WHERE tablename = 'emt_messages_test_module__global'
+  //     ) AS exists;
+  //   `),
+  //     ),
+  //   );
 
-    assertTrue(res, 'Module partition was not created');
-  });
+  //   assertTrue(res, 'Module partition was not created');
+  // });
 
-  void it('should allow adding a tenant', async () => {
-    await pool.execute.query(
-      rawSql(`SELECT add_tenant('test_module', 'test_tenant')`),
-    );
+  // void it('should allow adding a tenant', async () => {
+  //   await pool.execute.query(
+  //     rawSql(`SELECT add_tenant('test_module', 'test_tenant')`),
+  //   );
 
-    const res = await exists(
-      pool.execute.query(
-        rawSql(`
-          SELECT EXISTS (
-            SELECT FROM pg_tables
-            WHERE tablename = 'emt_messages_test_module__test_tenant'
-          ) AS exists;`),
-      ),
-    );
+  //   const res = await exists(
+  //     pool.execute.query(
+  //       rawSql(`
+  //         SELECT EXISTS (
+  //           SELECT FROM pg_tables
+  //           WHERE tablename = 'emt_messages_test_module__test_tenant'
+  //         ) AS exists;`),
+  //     ),
+  //   );
 
-    assertTrue(res, 'Tenant partition was not created');
-  });
+  //   assertTrue(res, 'Tenant partition was not created');
+  // });
 
   // void it('should allow adding a module for all tenants', async () => {
   //   await createEventStoreSchema(pool);
