@@ -1,4 +1,4 @@
-import { rawSql } from '@event-driven-io/dumbo';
+import { rawSql, SQL } from '@event-driven-io/dumbo';
 import {
   defaultTag,
   globalTag,
@@ -117,6 +117,12 @@ export const addPartitionSQL = rawSql(
   $$ LANGUAGE plpgsql;`,
 );
 
+export const dropFutureConceptModuleAndTenantFunctions = SQL`
+  DROP FUNCTION IF EXISTS add_module(TEXT);
+  DROP FUNCTION IF EXISTS add_tenant(TEXT, TEXT);
+  DROP FUNCTION IF EXISTS add_module_for_all_tenants(TEXT);
+  DROP FUNCTION IF EXISTS add_tenant_for_all_modules(TEXT);
+`;
 export const addModuleSQL = rawSql(
   `
       CREATE OR REPLACE FUNCTION add_module(new_module TEXT) RETURNS void AS $$
