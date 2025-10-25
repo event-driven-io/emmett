@@ -1,4 +1,3 @@
-//import type { ReadableStream } from 'web-streams-polyfill';
 import type {
   AnyReadEventMetadata,
   BigIntGlobalPosition,
