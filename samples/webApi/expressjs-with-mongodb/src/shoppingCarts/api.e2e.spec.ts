@@ -32,7 +32,7 @@ void describe('ShoppingCart E2E', () => {
   let given: ApiE2ESpecification;
 
   before(async () => {
-    mongodb = await new MongoDBContainer().start();
+    mongodb = await new MongoDBContainer('mongo:6.0.1').start();
     const connectionString = mongodb.getConnectionString();
 
     readStore = new MongoClient(connectionString, {

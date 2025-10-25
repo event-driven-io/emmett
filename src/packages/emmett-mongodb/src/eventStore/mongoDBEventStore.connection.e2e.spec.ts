@@ -12,7 +12,7 @@ void describe('MongoDBEventStore connection', () => {
   let mongodb: StartedMongoDBContainer;
 
   before(async () => {
-    mongodb = await new MongoDBContainer().start();
+    mongodb = await new MongoDBContainer('mongo:6.0.1').start();
   });
 
   after(async () => {

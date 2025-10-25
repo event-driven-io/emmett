@@ -1,15 +1,15 @@
-import { after, before, describe, it } from 'node:test';
-import { v7 as uuid } from 'uuid';
-import { type Event, assertEqual } from '@event-driven-io/emmett';
-import {
-  getMongoDBEventStore,
-  type MongoDBReadEvent,
-} from './mongoDBEventStore';
+import { assertEqual, type Event } from '@event-driven-io/emmett';
 import {
   MongoDBContainer,
   StartedMongoDBContainer,
 } from '@testcontainers/mongodb';
 import { MongoClient } from 'mongodb';
+import { after, before, describe, it } from 'node:test';
+import { v7 as uuid } from 'uuid';
+import {
+  getMongoDBEventStore,
+  type MongoDBReadEvent,
+} from './mongoDBEventStore';
 
 type TestEvent = Event<'test', { counter: number }, { some: boolean }>;
 
@@ -18,7 +18,7 @@ void describe('MongoDBEventStore onAfterCommit', () => {
   let client: MongoClient;
 
   before(async () => {
-    mongodb = await new MongoDBContainer().start();
+    mongodb = await new MongoDBContainer('mongo:6.0.1').start();
     client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
     });
