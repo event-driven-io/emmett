@@ -230,7 +230,6 @@ Emmett provides the _getApplication_ method that sets up the recommended configu
 
 1. **JSON and Url Encoding middlewares** set up needed for WebApi request processing,
 2. **Problem details middleware.** Why reinvent the wheel if there's now an industry standard for handling error responses? See [RFC 9457 - Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457.html)) - we're implementing it for you out of the box. We've also set up a basic error-to-status mapping convention. For instance, for Emmett built-in error types:
-
    - `ValidationError` to `400`,
    - `IllegalStateError` to `403`,
    - `NotFoundError` to `404`,
