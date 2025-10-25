@@ -29,7 +29,7 @@ void describe('MongoDBEventStore storage resolution', () => {
   let client: MongoClient;
 
   before(async () => {
-    mongodb = await new MongoDBContainer().start();
+    mongodb = await new MongoDBContainer('mongo:6.0.1').start();
     client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
     });

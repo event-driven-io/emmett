@@ -20,7 +20,7 @@ void describe('Shopping Cart Short Details Projection', () => {
   const now = new Date();
 
   before(async () => {
-    mongodb = await new MongoDBContainer().start();
+    mongodb = await new MongoDBContainer('mongo:6.0.1').start();
     connectionString = mongodb.getConnectionString();
 
     given = MongoDBInlineProjectionSpec.for({

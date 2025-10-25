@@ -22,7 +22,7 @@ import {
 
 type ShoppingCartId = StreamName<'shopping_cart'>;
 
-void describe('Postgres Projections', () => {
+void describe('MongoDB Projections', () => {
   let mongodb: StartedMongoDBContainer;
   let client: MongoClient;
   let given: MongoDBInlineProjectionSpec<
@@ -32,7 +32,7 @@ void describe('Postgres Projections', () => {
   let streamName: ShoppingCartId;
 
   before(async () => {
-    mongodb = await new MongoDBContainer().start();
+    mongodb = await new MongoDBContainer('mongo:6.0.1').start();
     client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
     });
