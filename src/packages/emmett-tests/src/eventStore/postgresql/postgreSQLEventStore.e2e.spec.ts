@@ -17,7 +17,11 @@ import {
 } from '@testcontainers/postgresql';
 import { after, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
-import { testAggregateStream, type EventStoreFactory } from '../features';
+import {
+  testAggregateStream,
+  testCommandHandling,
+  type EventStoreFactory,
+} from '../features';
 import {
   type DiscountApplied,
   type PricedProductItem,
@@ -55,6 +59,10 @@ void describe('EventStoreDBEventStore', async () => {
   });
 
   await testAggregateStream(eventStoreFactory, {
+    getInitialIndex: () => 1n,
+  });
+
+  await testCommandHandling(eventStoreFactory, {
     getInitialIndex: () => 1n,
   });
 

@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   ExpectedVersionConflictError,
   getInMemoryEventStore,
+  isExpectedVersionConflictError,
 } from '../eventStore';
 import {
   assertDeepEqual,
@@ -505,7 +506,7 @@ void describe('Command Handler', () => {
 
       let tried = 0;
 
-      await assertThrowsAsync(
+      const error = await assertThrowsAsync(
         async () => {
           await handleCommand(eventStore, shoppingCartId, () => {
             tried++;
@@ -514,6 +515,8 @@ void describe('Command Handler', () => {
         },
         (error) => error instanceof ExpectedVersionConflictError,
       );
+
+      assertTrue(isExpectedVersionConflictError(error));
 
       assertEqual(1, tried);
     });
