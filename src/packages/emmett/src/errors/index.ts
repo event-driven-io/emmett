@@ -55,7 +55,7 @@ export class EmmettError extends Error {
   public static mapFrom(
     error: Error | { message?: string; errorCode?: number },
   ): EmmettError {
-    if (error instanceof EmmettError) {
+    if (EmmettError.isInstanceOf(error)) {
       return error;
     }
 
@@ -70,17 +70,16 @@ export class EmmettError extends Error {
     });
   }
 
-  public static isInstanceOf<ErrorType extends EmmettError>(
+  public static isInstanceOf<ErrorType extends EmmettError = EmmettError>(
     error: unknown,
-    errorCode: (typeof EmmettError.Codes)[keyof typeof EmmettError.Codes],
+    errorCode?: (typeof EmmettError.Codes)[keyof typeof EmmettError.Codes],
   ): error is ErrorType {
     return (
-      error !== undefined &&
-      error !== null &&
       typeof error === 'object' &&
+      error !== null &&
       'errorCode' in error &&
       isNumber(error.errorCode) &&
-      error.errorCode === errorCode
+      (errorCode === undefined || error.errorCode === errorCode)
     );
   }
 }
