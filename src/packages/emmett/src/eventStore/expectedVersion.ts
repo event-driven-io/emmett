@@ -1,4 +1,4 @@
-import { ConcurrencyError } from '../errors';
+import { ConcurrencyError, EmmettError } from '../errors';
 import type { BigIntStreamPosition, Flavour } from '../typing';
 
 export type ExpectedStreamVersion<VersionType = BigIntStreamPosition> =
@@ -63,4 +63,8 @@ export class ExpectedVersionConflictError<
 export const isExpectedVersionConflictError = (
   error: unknown,
 ): error is ExpectedVersionConflictError =>
-  error instanceof ExpectedVersionConflictError;
+  error instanceof ExpectedVersionConflictError ||
+  EmmettError.isInstanceOf<ConcurrencyError>(
+    error,
+    ExpectedVersionConflictError.Codes.ConcurrencyError,
+  );

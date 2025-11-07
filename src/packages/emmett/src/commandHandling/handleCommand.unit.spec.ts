@@ -3,7 +3,6 @@ import { describe, it } from 'node:test';
 import {
   ExpectedVersionConflictError,
   getInMemoryEventStore,
-  isExpectedVersionConflictError,
 } from '../eventStore';
 import {
   assertDeepEqual,
@@ -298,6 +297,49 @@ void describe('Command Handler', () => {
       assertEqual(nextExpectedStreamVersion, 2n);
     });
 
+    void it('does NOT retry handling for wrong explicit version', async () => {
+      // Given
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 10,
+        price: 3,
+      };
+
+      const shoppingCartId = randomUUID();
+      const command: AddProductItem = {
+        type: 'AddProductItem',
+        data: { productItem },
+      };
+
+      // Create the stream
+      await handleCommand(
+        eventStore,
+        shoppingCartId,
+        (state) => addProductItem(command, state),
+        { expectedStreamVersion: 'STREAM_DOES_NOT_EXIST' },
+      );
+
+      let tried = 0;
+
+      await assertThrowsAsync(
+        async () => {
+          await handleCommand(
+            eventStore,
+            shoppingCartId,
+            (state) => {
+              tried++;
+              return addProductItem(command, state);
+            },
+            { expectedStreamVersion: 'STREAM_DOES_NOT_EXIST' },
+          );
+        },
+        (error) => error instanceof ExpectedVersionConflictError,
+      );
+
+      // 0 as it should fail already on aggregating stream
+      assertEqual(0, tried);
+    });
+
     void it('When called successfuly returns new state for multiple returned events', async () => {
       const productItem: PricedProductItem = {
         productId: '123',
@@ -506,7 +548,7 @@ void describe('Command Handler', () => {
 
       let tried = 0;
 
-      const error = await assertThrowsAsync(
+      await assertThrowsAsync(
         async () => {
           await handleCommand(eventStore, shoppingCartId, () => {
             tried++;
@@ -515,8 +557,6 @@ void describe('Command Handler', () => {
         },
         (error) => error instanceof ExpectedVersionConflictError,
       );
-
-      assertTrue(isExpectedVersionConflictError(error));
 
       assertEqual(1, tried);
     });
