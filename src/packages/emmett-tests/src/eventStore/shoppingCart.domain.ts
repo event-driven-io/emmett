@@ -67,3 +67,17 @@ export const evolveWithMetadata = (
 export const initialState = (): ShoppingCart => {
   return { productItems: [], totalAmount: 0 };
 };
+export type AddProductItem = Event<
+  'AddProductItem',
+  { productItem: PricedProductItem }
+>;
+
+export const addProductItem = (
+  command: AddProductItem,
+  _state: ShoppingCart,
+): ShoppingCartEvent => {
+  return {
+    type: 'ProductItemAdded',
+    data: { productItem: command.data.productItem },
+  };
+};
