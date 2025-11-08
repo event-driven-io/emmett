@@ -1,7 +1,6 @@
 import {
   asyncRetry,
   EmmettError,
-  IllegalStateError,
   JSONParser,
   type AnyMessage,
   type AsyncRetryOptions,
@@ -25,17 +24,20 @@ import {
   type MongoClient,
 } from 'mongodb';
 import { pipeline, Transform, Writable, type WritableOptions } from 'stream';
-import type { MongoDBRecordedMessageMetadata } from '../../event';
 import type {
   EventStream,
   MongoDBReadEventMetadata,
 } from '../../mongoDBEventStore';
-import { isMongoDBResumeToken, type MongoDBResumeToken } from './types';
+import type { MongoDBChangeStreamMessageMetadata } from '../mongoDBEventsConsumer';
+import {
+  isMongoDBResumeToken,
+  type MongoDBResumeToken,
+} from './mongoDbResumeToken';
 
 export type MongoDBSubscriptionOptions<
   MessageType extends Message = Message,
   MessageMetadataType extends
-    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
   // CheckpointType = MongoDBResumeToken,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   CheckpointType = any,
@@ -93,7 +95,7 @@ export type MongoDBSubscription<ResumeToken = MongoDBResumeToken> = {
 export type StreamSubscription<
   EventType extends Message = AnyMessage,
   MessageMetadataType extends
-    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
 > = ChangeStream<
   EventStream<Extract<EventType, { kind?: 'Event' }>, MessageMetadataType>,
   MongoDBSubscriptionDocument<
@@ -136,7 +138,7 @@ export type OplogChange<
 type SubscriptionSequentialHandlerOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends
-    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
   CheckpointType = MongoDBResumeToken,
 > = MongoDBSubscriptionOptions<
   MessageType,
@@ -148,7 +150,7 @@ type SubscriptionSequentialHandlerOptions<
 class SubscriptionSequentialHandler<
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends
-    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
   CheckpointType = MongoDBResumeToken,
 > extends Transform {
   private options: SubscriptionSequentialHandlerOptions<
@@ -206,7 +208,8 @@ class SubscriptionSequentialHandler<
           data: message.data,
           metadata: {
             ...message.metadata,
-            globalPosition: messageCheckpoint,
+            checkpoint: messageCheckpoint._data,
+            globalPosition: messageCheckpoint._data,
           },
         } as unknown as RecordedMessage<MessageType, MessageMetadataType>;
       });
@@ -356,7 +359,7 @@ const subscribe =
 export const mongoDBSubscription = <
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends
-    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
   ResumeToken = MongoDBResumeToken,
 >({
   client,
@@ -532,71 +535,5 @@ export const mongoDBSubscription = <
   };
 };
 
-/**
- * Compares two MongoDB Resume Tokens.
- * @param token1 Token 1.
- * @param token2 Token 2.
- * @returns 0 - if the tokens are the same, 1 - if the token1 is later, -1 - is the token1 is earlier.
- */
-const compareTwoMongoDBTokens = (
-  token1: MongoDBResumeToken,
-  token2: MongoDBResumeToken,
-) => {
-  const bufA = Buffer.from(token1._data, 'hex');
-  const bufB = Buffer.from(token2._data, 'hex');
-
-  return Buffer.compare(bufA, bufB);
-};
-
-const compareTwoTokens = (token1: unknown, token2: unknown) => {
-  if (token1 === null && token2) {
-    return -1;
-  }
-
-  if (token1 && token2 === null) {
-    return 1;
-  }
-
-  if (token1 === null && token2 === null) {
-    return 0;
-  }
-
-  if (isMongoDBResumeToken(token1) && isMongoDBResumeToken(token2)) {
-    return compareTwoMongoDBTokens(token1, token2);
-  }
-
-  throw new IllegalStateError(`Type of tokens is not comparable`);
-};
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const zipMongoDBMessageBatchPullerStartFrom = <CheckpointType = any>(
-  options: (CurrentMessageProcessorPosition<CheckpointType> | undefined)[],
-): CurrentMessageProcessorPosition<CheckpointType> => {
-  if (
-    options.length === 0 ||
-    options.some((o) => o === undefined || o === 'BEGINNING')
-  ) {
-    return 'BEGINNING';
-  }
-
-  if (options.every((o) => o === 'END')) {
-    return 'END';
-  }
-
-  const positionTokens = options.filter(
-    (o) => o !== undefined && o !== 'BEGINNING' && o !== 'END',
-  );
-
-  const sorted = positionTokens.sort((a, b) => {
-    return compareTwoTokens(a.lastCheckpoint, b.lastCheckpoint);
-  });
-
-  return sorted[0]!;
-};
-
-export {
-  compareTwoMongoDBTokens,
-  compareTwoTokens,
-  subscribe,
-  zipMongoDBMessageBatchPullerStartFrom,
-};
+export * from './mongoDbResumeToken';
+export { subscribe };

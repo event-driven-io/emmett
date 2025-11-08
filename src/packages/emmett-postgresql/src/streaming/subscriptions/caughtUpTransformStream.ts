@@ -1,12 +1,12 @@
-import {
-  globalStreamCaughtUp,
-  type GlobalSubscriptionEvent,
-} from '@event-driven-io/emmett';
 import type {
   Event,
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
-} from '@event-driven-io/emmett/src/typing';
+} from '@event-driven-io/emmett';
+import {
+  globalStreamCaughtUp,
+  type GlobalSubscriptionEvent,
+} from '@event-driven-io/emmett';
 import { TransformStream } from 'node:stream/web';
 
 export const streamTrackingGlobalPosition = (

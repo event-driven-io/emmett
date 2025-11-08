@@ -6,8 +6,8 @@ export const DefaultProcessotCheckpointCollectionName =
   toStreamCollectionName(`processors`);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ReadProcessorCheckpointSqlResult<Position = any> = {
-  lastProcessedToken: Position;
+export type ReadProcessorCheckpointResult<Position = any> = {
+  lastProcessedPosition: Position;
   subscriptionId: string;
   partitionId: string;
   version: number;

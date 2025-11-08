@@ -9,16 +9,15 @@ import {
   MessageProcessor,
   type ProjectorOptions,
   type ReactorOptions,
-  type RecordedMessage,
+  getCheckpoint,
   projector,
   reactor,
 } from '@event-driven-io/emmett';
 import { MongoClient } from 'mongodb';
-import type { ReadEventMetadataWithGlobalPosition } from '../event';
 import type { MongoDBEventStoreConnectionOptions } from '../mongoDBEventStore';
+import type { MongoDBChangeStreamMessageMetadata } from './mongoDBEventsConsumer';
 import { readProcessorCheckpoint } from './readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from './storeProcessorCheckpoint';
-import type { MongoDBResumeToken } from './subscriptions/types';
 
 type MongoDBConnectionOptions = {
   connectionOptions: MongoDBEventStoreConnectionOptions;
@@ -31,98 +30,51 @@ export type MongoDBProcessorHandlerContext = {
 export type MongoDBProcessor<MessageType extends Message = AnyMessage> =
   MessageProcessor<
     MessageType,
-    ReadEventMetadataWithGlobalPosition,
+    MongoDBChangeStreamMessageMetadata,
     MongoDBProcessorHandlerContext
   >;
 
 export type MongoDBProcessorOptions<MessageType extends Message = Message> =
   ReactorOptions<
     MessageType,
-    ReadEventMetadataWithGlobalPosition,
+    MongoDBChangeStreamMessageMetadata,
     MongoDBProcessorHandlerContext
   > & { connectionOptions: MongoDBEventStoreConnectionOptions };
 
-export type MongoDBCheckpointer<
-  MessageType extends AnyMessage = AnyMessage,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  CheckpointType = any,
-> = Checkpointer<
-  MessageType,
-  ReadEventMetadataWithGlobalPosition<CheckpointType>,
-  MongoDBProcessorHandlerContext,
-  CheckpointType
->;
+export type MongoDBCheckpointer<MessageType extends AnyMessage = AnyMessage> =
+  Checkpointer<
+    MessageType,
+    MongoDBChangeStreamMessageMetadata,
+    MongoDBProcessorHandlerContext
+  >;
 
 export type MongoDBProjectorOptions<EventType extends AnyEvent = AnyEvent> =
   ProjectorOptions<
     EventType,
-    ReadEventMetadataWithGlobalPosition,
+    MongoDBChangeStreamMessageMetadata,
     MongoDBProcessorHandlerContext
   > &
     MongoDBConnectionOptions;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const isResumeToken = (value: any): value is MongoDBResumeToken =>
-  typeof value === 'object' &&
-  '_data' in value &&
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-  typeof value._data === 'string';
-
-export const getCheckpoint = <
-  MessageType extends AnyMessage = AnyMessage,
-  CheckpointType = MongoDBCheckpointer,
-  MessageMetadataType extends
-    ReadEventMetadataWithGlobalPosition<CheckpointType> = ReadEventMetadataWithGlobalPosition<CheckpointType>,
->(
-  message: RecordedMessage<MessageType, MessageMetadataType>,
-): CheckpointType | null => {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  return 'checkpoint' in message.metadata &&
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    isResumeToken(message.metadata.checkpoint)
-    ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      message.metadata.checkpoint
-    : 'globalPosition' in message.metadata &&
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        isResumeToken(message.metadata.globalPosition)
-      ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        message.metadata.globalPosition
-      : 'streamPosition' in message.metadata &&
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          isResumeToken(message.metadata.streamPosition)
-        ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          message.metadata.streamPosition
-        : null;
-};
-
 export const mongoDBCheckpointer = <
   MessageType extends Message = Message,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  CheckpointType = any,
->(): MongoDBCheckpointer<MessageType, CheckpointType> => ({
+>(): MongoDBCheckpointer<MessageType> => ({
   read: async (options, context) => {
-    const result = await readProcessorCheckpoint<CheckpointType>(
-      context.client,
-      options,
-    );
+    const result = await readProcessorCheckpoint(context.client, options);
 
-    return { lastCheckpoint: result?.lastProcessedPosition };
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    return { lastCheckpoint: result?.lastCheckpoint };
   },
   store: async (options, context) => {
-    const newPosition = getCheckpoint<MessageType, CheckpointType>(
-      options.message,
-    );
+    const newPosition = getCheckpoint(options.message);
 
-    const result = await storeProcessorCheckpoint<CheckpointType>(
-      context.client,
-      {
-        lastProcessedPosition: options.lastCheckpoint,
-        newPosition,
-        processorId: options.processorId,
-        partition: options.partition,
-        version: options.version || 0,
-      },
-    );
+    const result = await storeProcessorCheckpoint(context.client, {
+      lastProcessedPosition: options.lastCheckpoint,
+      newPosition,
+      processorId: options.processorId,
+      partition: options.partition,
+      version: options.version || 0,
+    });
 
     return result.success
       ? { success: true, newCheckpoint: result.newPosition }
@@ -134,8 +86,6 @@ const mongoDBProcessingScope = (options: {
   client: MongoClient;
   processorId: string;
 }): MessageProcessingScope<MongoDBProcessorHandlerContext> => {
-  // const processorConnectionString = options.connectionString;
-
   const processingScope: MessageProcessingScope<
     MongoDBProcessorHandlerContext
   > = async <Result = MessageHandlerResult>(
@@ -144,15 +94,6 @@ const mongoDBProcessingScope = (options: {
     ) => Result | Promise<Result>,
     partialContext: Partial<MongoDBProcessorHandlerContext>,
   ) => {
-    // const connection = partialContext?.connection;
-    // const connectionString =
-    //   processorConnectionString ?? connection?.connectionString;
-
-    // if (!connectionString)
-    //   throw new EmmettError(
-    //     `MongoDB processor '${options.processorId}' is missing connection string. Ensure that you passed it through options`,
-    //   );
-
     return handler({
       client: options.client,
       ...partialContext,
@@ -174,6 +115,10 @@ export const mongoDBProjector = <EventType extends Event = Event>(
         }
       : undefined,
   };
+  // TODO: This should be eventually moved to the mongoDBProcessingScope
+  // In the similar way as it's made in the postgresql processor
+  // So creating client only if it's needed and different than consumer is passing
+  // through handler context
   const client =
     'client' in connectionOptions && connectionOptions.client
       ? connectionOptions.client
@@ -184,7 +129,7 @@ export const mongoDBProjector = <EventType extends Event = Event>(
 
   return projector<
     EventType,
-    ReadEventMetadataWithGlobalPosition,
+    MongoDBChangeStreamMessageMetadata,
     MongoDBProcessorHandlerContext
   >({
     ...options,
