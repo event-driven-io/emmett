@@ -31,7 +31,10 @@ export type DiscountApplied = Event<
   'DiscountApplied',
   { percent: number; couponId: string }
 >;
-
+export type ShoppingCartConfirmed = Event<
+  'ShoppingCartConfirmed',
+  { confirmedAt: Date }
+>;
 export type DeletedShoppingCart = Event<
   'DeletedShoppingCart',
   { deletedAt: Date; reason: string }
@@ -40,6 +43,7 @@ export type DeletedShoppingCart = Event<
 export type ShoppingCartEvent =
   | ProductItemAdded
   | DiscountApplied
+  | ShoppingCartConfirmed
   | DeletedShoppingCart;
 
 export const evolve = (
@@ -60,6 +64,8 @@ export const evolve = (
         ...state,
         totalAmount: state.totalAmount * (1 - data.percent / 100),
       };
+    case 'ShoppingCartConfirmed':
+      return state;
     case 'DeletedShoppingCart':
       return null;
   }
@@ -83,6 +89,8 @@ export const evolveWithMetadata = (
         ...state,
         totalAmount: state.totalAmount * (1 - data.percent / 100),
       };
+    case 'ShoppingCartConfirmed':
+      return state;
     case 'DeletedShoppingCart':
       return null;
   }

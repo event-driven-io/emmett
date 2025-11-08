@@ -237,12 +237,20 @@ class SubscriptionSequentialHandler<
 const REGEXP =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 
-export const isDatabaseUnavailableError = (error: unknown) =>
-  error instanceof Error &&
-  'type' in error &&
-  error.type === 'unavailable' &&
-  'code' in error &&
-  error.code === 14;
+const databaseUnavailableErrorMessages = [
+  'getaddrinfo ENOTFOUND not-existing',
+  'getaddrinfo EAI_AGAIN not-existing',
+  'Topology is closed',
+];
+
+export const isDatabaseUnavailableError = (error: unknown) => {
+  return (
+    error instanceof Error &&
+    databaseUnavailableErrorMessages.some(
+      (message) => message === error.message,
+    )
+  );
+};
 
 export const MongoDBResubscribeDefaultOptions: AsyncRetryOptions = {
   forever: true,
