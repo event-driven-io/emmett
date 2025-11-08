@@ -3,6 +3,7 @@ import { compareTwoTokens } from './subscriptions';
 import {
   type ReadProcessorCheckpointSqlResult,
   DefaultProcessotCheckpointCollectionName,
+  defaultTag,
 } from './types';
 
 export type StoreLastProcessedProcessorPositionResult<Position = unknown> =
@@ -44,7 +45,7 @@ export const storeProcessorCheckpoint = async <Position>(
 
   const filter = {
     subscriptionId: processorId,
-    partitionId: partition || null,
+    partitionId: partition || defaultTag,
   };
 
   const current = await checkpoints.findOne(filter);

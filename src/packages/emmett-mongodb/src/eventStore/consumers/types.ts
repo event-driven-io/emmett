@@ -1,5 +1,7 @@
 import { toStreamCollectionName } from '../mongoDBEventStore';
 
+export const defaultTag = 'emt:default';
+
 export const DefaultProcessotCheckpointCollectionName =
   toStreamCollectionName(`processors`);
 
@@ -7,6 +9,6 @@ export const DefaultProcessotCheckpointCollectionName =
 export type ReadProcessorCheckpointSqlResult<Position = any> = {
   lastProcessedToken: Position;
   subscriptionId: string;
-  partitionId: string | null;
+  partitionId: string;
   version: number;
 };
