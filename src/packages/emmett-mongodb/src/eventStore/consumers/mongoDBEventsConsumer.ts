@@ -143,7 +143,7 @@ export const mongoDBEventStoreConsumer = <
   >,
 ): MongoDBEventStoreConsumer<ConsumerMessageType> => {
   let start: Promise<void>;
-  let stream: MongoDBSubscription<CheckpointType>;
+  let stream: MongoDBSubscription<CheckpointType> | undefined;
   let isRunning = false;
   let runningPromise = new CancellationPromise<null>();
   const client =
@@ -153,7 +153,7 @@ export const mongoDBEventStoreConsumer = <
   const processors = options.processors ?? [];
 
   const stop = async () => {
-    if (!stream || stream.isRunning) return;
+    if (stream?.isRunning !== true) return;
     await stream.stop();
     isRunning = false;
     runningPromise.resolve(null);

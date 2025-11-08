@@ -28,27 +28,6 @@ export type MongoDBProcessorHandlerContext = {
   client: MongoClient;
 };
 
-export type CommonRecordedMessageMetadata<StreamPosition = MongoDBResumeToken> =
-  Readonly<{
-    messageId: string;
-    streamPosition: StreamPosition;
-    streamName: string;
-  }>;
-
-export type WithGlobalPosition<GlobalPosition> = Readonly<{
-  globalPosition: GlobalPosition;
-}>;
-
-export type RecordedMessageMetadata<
-  GlobalPosition = undefined,
-  StreamPosition = MongoDBResumeToken,
-> = CommonRecordedMessageMetadata<StreamPosition> &
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-  (GlobalPosition extends undefined ? {} : WithGlobalPosition<GlobalPosition>);
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyRecordedMessageMetadata = RecordedMessageMetadata<any, any>;
-
 export type MongoDBProcessor<MessageType extends Message = AnyMessage> =
   MessageProcessor<
     MessageType,
