@@ -81,7 +81,6 @@ export type MongoDBSubscriptionStartFrom<ResumeToken = MongoDBResumeToken> =
 export type MongoDBSubscriptionStartOptions<ResumeToken = MongoDBResumeToken> =
   {
     startFrom: MongoDBSubscriptionStartFrom<ResumeToken>;
-    changeStreamFullDocumentValuePolicy: ChangeStreamFullDocumentValuePolicy;
     dbName?: string;
   };
 
@@ -422,14 +421,20 @@ export const mongoDBSubscription = <
 
     return asyncRetry(
       () =>
-        new Promise<void>((resolve, reject) => {
+        new Promise<void>(async (resolve, reject) => {
           console.info(
             `Starting subscription. ${retry++} retries. From: ${JSONParser.stringify(from ?? '$all')}, Start from: ${JSONParser.stringify(
               options.startFrom,
             )}`,
           );
+
+          const db = client.db(options.dbName);
+
+          const versionPolicies = await getDatabaseVersionPolicies(db);
+          const policy = versionPolicies.changeStreamFullDocumentValuePolicy;
+
           subscription = subscribe(
-            options.changeStreamFullDocumentValuePolicy,
+            policy,
             client.db(options.dbName),
           )<MessageType, ResumeToken>(options.startFrom);
 
