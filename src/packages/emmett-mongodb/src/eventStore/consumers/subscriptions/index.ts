@@ -81,7 +81,7 @@ export type MongoDBSubscriptionStartFrom<ResumeToken = MongoDBResumeToken> =
 export type MongoDBSubscriptionStartOptions<ResumeToken = MongoDBResumeToken> =
   {
     startFrom: MongoDBSubscriptionStartFrom<ResumeToken>;
-    getFullDocumentValue: ChangeStreamFullDocumentValuePolicy;
+    changeStreamFullDocumentValuePolicy: ChangeStreamFullDocumentValuePolicy;
     dbName?: string;
   };
 
@@ -260,7 +260,7 @@ export const parseSemVer = (value: string = '') => {
   };
 };
 
-export const generateVersionPolicies = async (db: Db) => {
+export const getDatabaseVersionPolicies = async (db: Db) => {
   const buildInfo = (await db.admin().buildInfo()) as BuildInfo;
   const semver = parseSemVer(buildInfo.version);
   const major = semver.major || 0;
@@ -282,7 +282,7 @@ export const generateVersionPolicies = async (db: Db) => {
       } else if (major === 5) {
         return 'updateLookup';
       } else {
-        throw new EmmettError(`Major number is ${major}`);
+        return throwNotSupportedError();
       }
     };
 
@@ -429,7 +429,7 @@ export const mongoDBSubscription = <
             )}`,
           );
           subscription = subscribe(
-            options.getFullDocumentValue,
+            options.changeStreamFullDocumentValuePolicy,
             client.db(options.dbName),
           )<MessageType, ResumeToken>(options.startFrom);
 
