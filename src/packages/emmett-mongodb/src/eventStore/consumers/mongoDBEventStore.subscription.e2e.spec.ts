@@ -20,20 +20,20 @@ import {
   toStreamName,
   type EventStream,
   type MongoDBEventStore,
-} from '.';
+} from '..';
 import {
   type PricedProductItem,
   type ProductItemAdded,
   type ShoppingCartEvent,
-} from '../testing';
-import { CancellationPromise } from './consumers/CancellablePromise';
+} from '../../testing';
+import { CancellationPromise } from './CancellablePromise';
 import {
   mongoDBEventStoreConsumer,
   type MongoDBEventStoreConsumer,
-} from './consumers/mongoDBEventsConsumer';
-import type { MongoDBProcessor } from './consumers/mongoDBProcessor';
-import { compareTwoMongoDBTokensData } from './consumers/subscriptions';
-import type { MongoDBResumeToken } from './consumers/subscriptions/mongoDbResumeToken';
+} from './mongoDBEventsConsumer';
+import type { MongoDBProcessor } from './mongoDBProcessor';
+import { compareTwoMongoDBTokensData } from './subscriptions';
+import type { MongoDBResumeToken } from './subscriptions/mongoDbResumeToken';
 
 void describe('MongoDBEventStore subscription', () => {
   let mongodb: StartedMongoDBContainer;

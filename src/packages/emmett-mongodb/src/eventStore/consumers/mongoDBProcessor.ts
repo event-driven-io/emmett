@@ -9,15 +9,13 @@ import {
   MessageProcessor,
   type ProjectorOptions,
   type ReactorOptions,
-  getCheckpoint,
   projector,
   reactor,
 } from '@event-driven-io/emmett';
 import { MongoClient } from 'mongodb';
 import type { MongoDBEventStoreConnectionOptions } from '../mongoDBEventStore';
+import { mongoDBCheckpointer } from './mongoDBCheckpointer';
 import type { MongoDBChangeStreamMessageMetadata } from './mongoDBEventsConsumer';
-import { readProcessorCheckpoint } from './readProcessorCheckpoint';
-import { storeProcessorCheckpoint } from './storeProcessorCheckpoint';
 
 type MongoDBConnectionOptions = {
   connectionOptions: MongoDBEventStoreConnectionOptions;
@@ -55,32 +53,6 @@ export type MongoDBProjectorOptions<EventType extends AnyEvent = AnyEvent> =
     MongoDBProcessorHandlerContext
   > &
     MongoDBConnectionOptions;
-
-export const mongoDBCheckpointer = <
-  MessageType extends Message = Message,
->(): MongoDBCheckpointer<MessageType> => ({
-  read: async (options, context) => {
-    const result = await readProcessorCheckpoint(context.client, options);
-
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    return { lastCheckpoint: result?.lastCheckpoint };
-  },
-  store: async (options, context) => {
-    const newPosition = getCheckpoint(options.message);
-
-    const result = await storeProcessorCheckpoint(context.client, {
-      lastProcessedPosition: options.lastCheckpoint,
-      newPosition,
-      processorId: options.processorId,
-      partition: options.partition,
-      version: options.version || 0,
-    });
-
-    return result.success
-      ? { success: true, newCheckpoint: result.newPosition }
-      : result;
-  },
-});
 
 const mongoDBProcessingScope = (options: {
   client: MongoClient;
