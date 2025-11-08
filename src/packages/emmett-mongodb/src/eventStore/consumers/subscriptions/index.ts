@@ -379,7 +379,9 @@ export const mongoDBSubscription = <
     MessageMetadataType
   >;
 
-  let subscription: StreamSubscription<MessageType, MessageMetadataType>;
+  let subscription:
+    | StreamSubscription<MessageType, MessageMetadataType>
+    | undefined;
 
   const resubscribeOptions: AsyncRetryOptions =
     resilience?.resubscribeOptions ?? {
@@ -392,6 +394,8 @@ export const mongoDBSubscription = <
   const stopSubscription = async (callback?: () => void): Promise<void> => {
     isRunning = false;
     if (processor) processor.isRunning = false;
+
+    if (!subscription) return Promise.resolve();
 
     if (subscription.closed) {
       return new Promise((resolve, reject) => {

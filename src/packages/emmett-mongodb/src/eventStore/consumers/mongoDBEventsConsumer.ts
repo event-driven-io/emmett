@@ -3,11 +3,12 @@ import {
   MessageProcessor,
   type AnyEvent,
   type AnyMessage,
+  type AnyRecordedMessageMetadata,
   type AsyncRetryOptions,
   type DefaultRecord,
-  type GlobalPositionTypeOfRecordedMessageMetadata,
   type Message,
   type MessageConsumer,
+  type MessageConsumerOptions,
   type RecordedMessage,
   type RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
@@ -31,53 +32,18 @@ import type { MongoDBResumeToken } from './subscriptions/mongoDbResumeToken';
 export type MongoDBChangeStreamMessageMetadata =
   RecordedMessageMetadataWithGlobalPosition<MongoDBResumeToken['_data']>;
 
-export type MessageConsumerOptions<
-  MessageType extends Message = AnyMessage,
-  MessageMetadataType extends
-    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
-  HandlerContext extends DefaultRecord | undefined = undefined,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
-> = {
-  consumerId?: string;
-
-  processors?: MessageProcessor<
-    MessageType,
-    MessageMetadataType,
-    HandlerContext,
-    CheckpointType
-  >[];
-};
-
 export type MongoDBEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
-  MessageMetadataType extends
-    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
-  HandlerContext extends DefaultRecord | undefined = undefined,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
-> = MessageConsumerOptions<
-  ConsumerMessageType,
-  MessageMetadataType,
-  HandlerContext,
-  CheckpointType
-> & {
+> = MessageConsumerOptions<ConsumerMessageType> & {
   resilience?: {
     resubscribeOptions?: AsyncRetryOptions;
   };
 };
 
 export type MongoDBConsumerOptions<
-  ConsumerEventType extends Message = Message,
-  MessageMetadataType extends
-    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
-  HandlerContext extends DefaultRecord | undefined = undefined,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
-> = MongoDBEventStoreConsumerConfig<
-  ConsumerEventType,
-  MessageMetadataType,
-  HandlerContext,
-  CheckpointType
-> &
+  ConsumerMessageType extends Message = Message,
+> = MongoDBEventStoreConsumerConfig<ConsumerMessageType> &
   (
     | {
         connectionString: string;
@@ -137,12 +103,7 @@ export const mongoDBEventStoreConsumer = <
     MongoDBConsumerHandlerContext = MongoDBConsumerHandlerContext,
   CheckpointType = MongoDBResumeToken,
 >(
-  options: MongoDBConsumerOptions<
-    ConsumerMessageType,
-    MessageMetadataType,
-    HandlerContext,
-    CheckpointType
-  >,
+  options: MongoDBConsumerOptions<ConsumerMessageType>,
 ): MongoDBEventStoreConsumer<ConsumerMessageType> => {
   let start: Promise<void>;
   let stream: MongoDBSubscription<CheckpointType> | undefined;
@@ -173,11 +134,11 @@ export const mongoDBEventStoreConsumer = <
       const processor = changeStreamReactor(options);
 
       processors.push(
+        // TODO: change that
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
-          MessageMetadataType,
-          HandlerContext,
-          CheckpointType
+          AnyRecordedMessageMetadata,
+          DefaultRecord
         >,
       );
 
@@ -189,11 +150,11 @@ export const mongoDBEventStoreConsumer = <
       const processor = mongoDBProjector(options);
 
       processors.push(
+        // TODO: change that
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
-          MessageMetadataType,
-          HandlerContext,
-          CheckpointType
+          AnyRecordedMessageMetadata,
+          DefaultRecord
         >,
       );
 
