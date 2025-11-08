@@ -83,19 +83,23 @@ void describe('mongoDB event store consumer', () => {
       assertTrue(consumer.isRunning);
     });
 
-    // void it('fails to start if connection string targets not existing mongoDB database', async () => {
-    //   const connectionStringToNotExistingDB = 'mongodb://not-existing:2113';
-    //   const consumerToNotExistingServer = mongoDBEventStoreConsumer({
-    //     connectionString: connectionStringToNotExistingDB,
-    //     processors: [dummyProcessor],
-    //   });
-    //   await assertThrowsAsync(
-    //     () => consumerToNotExistingServer.start(),
-    //     (error) => {
-    //       return 'type' in error && error.type === 'unavailable';
-    //     },
-    //   );
-    // });
+    void it('fails to start if connection string targets not existing mongoDB database', async () => {
+      const connectionStringToNotExistingDB = 'mongodb://not-existing:2113';
+      const consumerToNotExistingServer = mongoDBEventStoreConsumer({
+        connectionString: connectionStringToNotExistingDB,
+        clientOptions: { directConnection: true },
+        processors: [dummyProcessor],
+      });
+      await assertThrowsAsync(
+        () => consumerToNotExistingServer.start(),
+        (error) => {
+          console.log(error);
+          console.log('---TEST---');
+          console.log(error.message);
+          return error.message === 'getaddrinfo ENOTFOUND not-existing';
+        },
+      );
+    });
 
     void it('fails to start if there are no processors', async () => {
       const consumerToNotExistingServer = mongoDBEventStoreConsumer({
