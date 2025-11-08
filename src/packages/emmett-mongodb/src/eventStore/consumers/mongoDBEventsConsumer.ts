@@ -26,7 +26,6 @@ import {
   getDatabaseVersionPolicies,
   mongoDBSubscription,
   zipMongoDBMessageBatchPullerStartFrom,
-  type ChangeStreamFullDocumentValuePolicy,
   type MongoDBSubscription,
 } from './subscriptions';
 import type { MongoDBResumeToken } from './subscriptions/types';
@@ -61,14 +60,9 @@ export type MongoDBEventStoreConsumerConfig<
   HandlerContext,
   CheckpointType
 > & {
-  // from?: any;
-  // pulling?: {
-  //   batchSize?: number;
-  // };
   resilience?: {
     resubscribeOptions?: AsyncRetryOptions;
   };
-  changeStreamFullDocumentPolicy?: ChangeStreamFullDocumentValuePolicy;
 };
 
 export type MongoDBConsumerOptions<
@@ -119,7 +113,22 @@ export type MongoDBConsumerHandlerContext = {
   client?: MongoClient;
 };
 
-export const mongoDBMessagesConsumer = <
+/**
+ * Creates a MongoDB event store consumer that processes messages from a MongoDB change stream.
+ *
+ * This consumer implementation requires change streams to be enabled on the MongoDB collection
+ * and cannot be used in single-instance environments. It allows for the registration of message
+ * processors and projectors to handle incoming messages.
+ *
+ * @template ConsumerMessageType - The type of messages consumed.
+ * @template MessageMetadataType - The type of metadata associated with the messages.
+ * @template HandlerContext - The context type for the message handlers.
+ * @template CheckpointType - The type used for resuming from checkpoints.
+ *
+ * @param options - The options for configuring the MongoDB consumer.
+ * @returns A MongoDBEventStoreConsumer instance that can start and stop processing messages.
+ */
+export const mongoDBEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
   MessageMetadataType extends
     MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
@@ -259,25 +268,3 @@ export const mongoDBMessagesConsumer = <
     },
   };
 };
-
-export const mongoDBChangeStreamMessagesConsumer = <
-  ConsumerMessageType extends Message = AnyMessage,
-  MessageMetadataType extends
-    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
-  HandlerContext extends
-    MongoDBConsumerHandlerContext = MongoDBConsumerHandlerContext,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
->(
-  options: MongoDBConsumerOptions<
-    ConsumerMessageType,
-    MessageMetadataType,
-    HandlerContext,
-    CheckpointType
-  >,
-): MongoDBEventStoreConsumer<ConsumerMessageType> =>
-  mongoDBMessagesConsumer<
-    ConsumerMessageType,
-    MessageMetadataType,
-    HandlerContext,
-    CheckpointType
-  >(options);

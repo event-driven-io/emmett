@@ -1,7 +1,9 @@
 import {
+  assertDefined,
   assertEqual,
   assertIsNotNull,
   assertNotEqual,
+  assertOk,
   assertTrue,
   STREAM_DOES_NOT_EXIST,
 } from '@event-driven-io/emmett';
@@ -9,7 +11,6 @@ import {
   MongoDBContainer,
   type StartedMongoDBContainer,
 } from '@testcontainers/mongodb';
-import assert from 'assert';
 import { MongoClient, type Collection } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid, v4 } from 'uuid';
@@ -27,14 +28,11 @@ import {
 } from '../testing';
 import { CancellationPromise } from './consumers/CancellablePromise';
 import {
-  mongoDBMessagesConsumer,
+  mongoDBEventStoreConsumer,
   type MongoDBEventStoreConsumer,
 } from './consumers/mongoDBEventsConsumer';
 import type { MongoDBProcessor } from './consumers/mongoDBProcessor';
-import {
-  compareTwoMongoDBTokens,
-  getDatabaseVersionPolicies,
-} from './consumers/subscriptions';
+import { compareTwoMongoDBTokens } from './consumers/subscriptions';
 import type { MongoDBResumeToken } from './consumers/subscriptions/types';
 
 void describe('MongoDBEventStore subscription', () => {
@@ -83,12 +81,9 @@ void describe('MongoDBEventStore subscription', () => {
     eventStore = getMongoDBEventStore({
       client,
     });
-    const versionPolicy = await getDatabaseVersionPolicies(db);
 
-    consumer = mongoDBMessagesConsumer<ShoppingCartEvent>({
+    consumer = mongoDBEventStoreConsumer<ShoppingCartEvent>({
       client,
-      changeStreamFullDocumentPolicy:
-        versionPolicy.changeStreamFullDocumentValuePolicy,
     });
   });
 
@@ -183,8 +178,7 @@ void describe('MongoDBEventStore subscription', () => {
   });
 
   void it('should renew after the last event', async () => {
-    assertTrue(!!processor);
-    assert(processor);
+    assertOk(processor);
 
     let stream = await collection.findOne(
       { streamName },
@@ -195,10 +189,9 @@ void describe('MongoDBEventStore subscription', () => {
 
     const position = await processor.start({ client });
 
-    assertTrue(!!position);
+    assertOk(position);
     assertNotEqual(typeof position, 'string');
-    assert(position);
-    assert(typeof position !== 'string');
+    assertDefined(typeof position !== 'string');
 
     // processor after restart is renewed after the 3rd position.
     assertEqual(
