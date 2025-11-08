@@ -1,6 +1,7 @@
 import type { MongoClient } from 'mongodb';
 import {
   DefaultProcessotCheckpointCollectionName,
+  defaultTag,
   type ReadProcessorCheckpointSqlResult,
 } from './types';
 
@@ -26,7 +27,7 @@ export const readProcessorCheckpoint = async <CheckpointType = any>(
     )
     .findOne({
       subscriptionId: options.processorId,
-      partitionId: options.partition || null,
+      partitionId: options.partition || defaultTag,
     });
 
   return {
