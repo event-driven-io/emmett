@@ -419,99 +419,95 @@ export const mongoDBSubscription = <
   ) => {
     let retry = 0;
 
-    return asyncRetry(
-      () =>
-        new Promise<void>(async (resolve, reject) => {
-          console.info(
-            `Starting subscription. ${retry++} retries. From: ${JSONParser.stringify(from ?? '$all')}, Start from: ${JSONParser.stringify(
-              options.startFrom,
-            )}`,
-          );
+    return asyncRetry(async () => {
+      const db = client.db(options.dbName);
 
-          const db = client.db(options.dbName);
+      const versionPolicies = await getDatabaseVersionPolicies(db);
+      const policy = versionPolicies.changeStreamFullDocumentValuePolicy;
 
-          const versionPolicies = await getDatabaseVersionPolicies(db);
-          const policy = versionPolicies.changeStreamFullDocumentValuePolicy;
+      return new Promise<void>((resolve, reject) => {
+        console.info(
+          `Starting subscription. ${retry++} retries. From: ${JSONParser.stringify(from ?? '$all')}, Start from: ${JSONParser.stringify(
+            options.startFrom,
+          )}`,
+        );
 
-          subscription = subscribe(
-            policy,
-            client.db(options.dbName),
-          )<MessageType, ResumeToken>(options.startFrom);
+        subscription = subscribe(
+          policy,
+          client.db(options.dbName),
+        )<MessageType, ResumeToken>(options.startFrom);
 
-          processor = new SubscriptionSequentialHandler<
-            MessageType,
-            MessageMetadataType
-          >({
-            client,
-            from,
-            // batchSize,
-            eachBatch,
-            resilience,
-          });
+        processor = new SubscriptionSequentialHandler<
+          MessageType,
+          MessageMetadataType
+        >({
+          client,
+          from,
+          // batchSize,
+          eachBatch,
+          resilience,
+        });
 
-          const handler = new (class extends Writable {
-            async _write(
-              result: MongoDBResumeToken | MessageHandlerResult,
-              _encoding: string,
-              done: () => void,
-            ) {
-              if (!isRunning) return;
+        const handler = new (class extends Writable {
+          async _write(
+            result: MongoDBResumeToken | MessageHandlerResult,
+            _encoding: string,
+            done: () => void,
+          ) {
+            if (!isRunning) return;
 
-              if (isMongoDBResumeToken(result)) {
-                options.startFrom = {
-                  lastCheckpoint: result as ResumeToken,
-                };
-                done();
+            if (isMongoDBResumeToken(result)) {
+              options.startFrom = {
+                lastCheckpoint: result as ResumeToken,
+              };
+              done();
+              return;
+            }
+
+            if (result && result.type === 'STOP' && result.error) {
+              console.error(
+                `Subscription stopped with error code: ${result.error.errorCode}, message: ${
+                  result.error.message
+                }.`,
+              );
+            }
+
+            await stopSubscription();
+            done();
+          }
+        })({ objectMode: true });
+
+        pipeline(
+          subscription,
+          processor,
+          handler,
+          async (error: Error | null) => {
+            console.info(`Stopping subscription.`);
+            await stopSubscription(() => {
+              if (!error) {
+                console.info('Subscription ended successfully.');
+                resolve();
                 return;
               }
 
-              if (result && result.type === 'STOP' && result.error) {
-                console.error(
-                  `Subscription stopped with error code: ${result.error.errorCode}, message: ${
-                    result.error.message
-                  }.`,
-                );
+              if (
+                error.message === 'ChangeStream is closed' &&
+                error.name === 'MongoAPIError'
+              ) {
+                console.info('Subscription ended successfully.');
+                resolve();
+                return;
               }
 
-              await stopSubscription();
-              done();
-            }
-          })({ objectMode: true });
+              console.error(`Received error: ${JSONParser.stringify(error)}.`);
+              reject(error);
+            });
+          },
+        );
 
-          pipeline(
-            subscription,
-            processor,
-            handler,
-            async (error: Error | null) => {
-              console.info(`Stopping subscription.`);
-              await stopSubscription(() => {
-                if (!error) {
-                  console.info('Subscription ended successfully.');
-                  resolve();
-                  return;
-                }
-
-                if (
-                  error.message === 'ChangeStream is closed' &&
-                  error.name === 'MongoAPIError'
-                ) {
-                  console.info('Subscription ended successfully.');
-                  resolve();
-                  return;
-                }
-
-                console.error(
-                  `Received error: ${JSONParser.stringify(error)}.`,
-                );
-                reject(error);
-              });
-            },
-          );
-
-          console.log('OK');
-        }),
-      resubscribeOptions,
-    );
+        console.log('OK');
+      });
+    }, resubscribeOptions);
   };
 
   return {
