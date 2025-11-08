@@ -23,7 +23,6 @@ import {
   type MongoDBProjectorOptions,
 } from './mongoDBProcessor';
 import {
-  getDatabaseVersionPolicies,
   mongoDBSubscription,
   zipMongoDBMessageBatchPullerStartFrom,
   type MongoDBSubscription,
@@ -240,18 +239,7 @@ export const mongoDBEventStoreConsumer = <
           },
         });
 
-        const db = options.client?.db?.();
-
-        if (!db) {
-          throw new EmmettError('MongoDB client is not connected');
-        }
-
-        // TODO: Remember to fix.
-        const versionPolicies = await getDatabaseVersionPolicies(db);
-        const policy = versionPolicies.changeStreamFullDocumentValuePolicy;
-
         await stream.start({
-          changeStreamFullDocumentValuePolicy: policy,
           startFrom,
         });
       })();
