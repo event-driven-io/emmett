@@ -159,6 +159,13 @@ export const assertThat = <T>(item: T) => {
   };
 };
 
+export const assertDefined = (
+  value: unknown,
+  message?: string | Error,
+): asserts value => {
+  assertOk(value, message instanceof Error ? message.message : message);
+};
+
 export function assertFalse(
   condition: boolean,
   message?: string,
@@ -175,6 +182,7 @@ export function assertTrue(
     throw new AssertionError(message ?? `Condition is false`);
 }
 
+// TODO: replace with assertDefined
 export function assertOk<T>(
   obj: T | null | undefined,
   message?: string,
