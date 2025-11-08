@@ -32,8 +32,8 @@ import {
   type MongoDBEventStoreConsumer,
 } from './consumers/mongoDBEventsConsumer';
 import type { MongoDBProcessor } from './consumers/mongoDBProcessor';
-import { compareTwoMongoDBTokens } from './consumers/subscriptions';
-import type { MongoDBResumeToken } from './consumers/subscriptions/types';
+import { compareTwoMongoDBTokensData } from './consumers/subscriptions';
+import type { MongoDBResumeToken } from './consumers/subscriptions/mongoDbResumeToken';
 
 void describe('MongoDBEventStore subscription', () => {
   let mongodb: StartedMongoDBContainer;
@@ -42,7 +42,7 @@ void describe('MongoDBEventStore subscription', () => {
   let collection: Collection<EventStream>;
   let consumer: MongoDBEventStoreConsumer<ShoppingCartEvent>;
   let processor: MongoDBProcessor<ProductItemAdded> | undefined;
-  let lastResumeToken: MongoDBResumeToken | null = null;
+  let lastResumeToken: MongoDBResumeToken['_data'] | null = null;
 
   const messageProcessingPromise1 = new CancellationPromise<void>();
   const messageProcessingPromise2 = new CancellationPromise<void>();
@@ -196,7 +196,7 @@ void describe('MongoDBEventStore subscription', () => {
     // processor after restart is renewed after the 3rd position.
     assertEqual(
       0,
-      compareTwoMongoDBTokens(position.lastCheckpoint, lastResumeToken!),
+      compareTwoMongoDBTokensData(position.lastCheckpoint, lastResumeToken!),
     );
 
     const consumerPromise = consumer.start();
@@ -223,7 +223,7 @@ void describe('MongoDBEventStore subscription', () => {
     // lastResumeToken has changed after the last message
     assertEqual(
       1,
-      compareTwoMongoDBTokens(lastResumeToken!, position.lastCheckpoint),
+      compareTwoMongoDBTokensData(lastResumeToken!, position.lastCheckpoint),
     );
 
     await consumer.stop();

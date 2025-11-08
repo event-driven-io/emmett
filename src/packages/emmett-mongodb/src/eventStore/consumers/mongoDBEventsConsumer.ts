@@ -9,11 +9,10 @@ import {
   type Message,
   type MessageConsumer,
   type RecordedMessage,
+  type RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
 import { v4 as uuid } from 'uuid';
-import type { MongoDBRecordedMessageMetadata } from '../event';
-import type { MongoDBReadEventMetadata } from '../mongoDBEventStore';
 import { CancellationPromise } from './CancellablePromise';
 import {
   changeStreamReactor,
@@ -27,12 +26,15 @@ import {
   zipMongoDBMessageBatchPullerStartFrom,
   type MongoDBSubscription,
 } from './subscriptions';
-import type { MongoDBResumeToken } from './subscriptions/types';
+import type { MongoDBResumeToken } from './subscriptions/mongoDbResumeToken';
+
+export type MongoDBChangeStreamMessageMetadata =
+  RecordedMessageMetadataWithGlobalPosition<MongoDBResumeToken['_data']>;
 
 export type MessageConsumerOptions<
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends
-    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = {
@@ -50,7 +52,7 @@ export type MongoDBEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
   MessageMetadataType extends
-    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = MessageConsumerOptions<
@@ -67,7 +69,7 @@ export type MongoDBEventStoreConsumerConfig<
 export type MongoDBConsumerOptions<
   ConsumerEventType extends Message = Message,
   MessageMetadataType extends
-    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = MongoDBEventStoreConsumerConfig<
@@ -130,7 +132,7 @@ export type MongoDBConsumerHandlerContext = {
 export const mongoDBEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
   MessageMetadataType extends
-    MongoDBReadEventMetadata = MongoDBRecordedMessageMetadata,
+    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
   HandlerContext extends
     MongoDBConsumerHandlerContext = MongoDBConsumerHandlerContext,
   CheckpointType = MongoDBResumeToken,

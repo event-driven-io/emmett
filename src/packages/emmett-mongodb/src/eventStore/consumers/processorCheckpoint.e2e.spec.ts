@@ -7,7 +7,7 @@ import { MongoClient } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { readProcessorCheckpoint } from './readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from './storeProcessorCheckpoint';
-import type { MongoDBResumeToken } from './subscriptions/types';
+import type { MongoDBResumeToken } from './subscriptions/mongoDbResumeToken';
 
 void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () => {
   let mongodb: StartedMongoDBContainer;
@@ -117,7 +117,7 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
       processorId,
     });
 
-    assertDeepEqual(result, { lastProcessedPosition: resumeToken2 });
+    assertDeepEqual(result, { lastCheckpoint: resumeToken2 });
   });
 
   void it('it can read a position of a processor with a defined partition', async () => {
@@ -126,6 +126,6 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
       partition: 'partition-2',
     });
 
-    assertDeepEqual(result, { lastProcessedPosition: resumeToken1 });
+    assertDeepEqual(result, { lastCheckpoint: resumeToken1 });
   });
 });

@@ -40,9 +40,7 @@ export const getCheckpoint = <
   message: RecordedMessage<MessageType, MessageMetadataType>,
 ): CheckpointType | null => {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  return 'checkpoint' in message.metadata &&
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    isBigint(message.metadata.checkpoint)
+  return 'checkpoint' in message.metadata
     ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       message.metadata.checkpoint
     : 'globalPosition' in message.metadata &&

@@ -1,14 +1,6 @@
+import type { ReadProcessorCheckpointResult } from '@event-driven-io/emmett';
 import type { MongoClient } from 'mongodb';
-import {
-  DefaultProcessotCheckpointCollectionName,
-  defaultTag,
-  type ReadProcessorCheckpointSqlResult,
-} from './types';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ReadProcessorCheckpointResult<CheckpointType = any> = {
-  lastProcessedPosition: CheckpointType | null;
-};
+import { DefaultProcessotCheckpointCollectionName, defaultTag } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const readProcessorCheckpoint = async <CheckpointType = any>(
@@ -22,7 +14,7 @@ export const readProcessorCheckpoint = async <CheckpointType = any>(
 ): Promise<ReadProcessorCheckpointResult<CheckpointType>> => {
   const result = await client
     .db(options.databaseName)
-    .collection<ReadProcessorCheckpointSqlResult<CheckpointType>>(
+    .collection<ReadProcessorCheckpointResult<CheckpointType>>(
       options.collectionName || DefaultProcessotCheckpointCollectionName,
     )
     .findOne({
@@ -31,6 +23,6 @@ export const readProcessorCheckpoint = async <CheckpointType = any>(
     });
 
   return {
-    lastProcessedPosition: result !== null ? result.lastProcessedToken : null,
+    lastCheckpoint: result !== null ? result.lastCheckpoint : null,
   };
 };

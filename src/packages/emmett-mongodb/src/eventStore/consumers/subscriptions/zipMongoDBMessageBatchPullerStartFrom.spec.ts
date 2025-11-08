@@ -1,7 +1,7 @@
 import { assertEqual, assertNotEqual } from '@event-driven-io/emmett';
 import assert from 'assert';
 import { describe, it } from 'node:test';
-import { zipMongoDBMessageBatchPullerStartFrom } from './';
+import { zipMongoDBMessageBatchPullerStartFrom } from './mongoDbResumeToken';
 
 void describe('zipMongoDBMessageBatchPullerStartFrom', () => {
   void it('it can get the earliest MongoDB oplog token', () => {
