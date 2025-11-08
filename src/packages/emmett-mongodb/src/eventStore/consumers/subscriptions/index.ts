@@ -433,6 +433,11 @@ export const mongoDBSubscription = <
       const policy = versionPolicies.changeStreamFullDocumentValuePolicy;
 
       return new Promise<void>((resolve, reject) => {
+        if (!isRunning) {
+          resolve();
+          return;
+        }
+
         console.info(
           `Starting subscription. ${retry++} retries. From: ${JSONParser.stringify(from ?? '$all')}, Start from: ${JSONParser.stringify(
             options.startFrom,
@@ -511,8 +516,6 @@ export const mongoDBSubscription = <
             });
           },
         );
-
-        console.log('OK');
       });
     }, resubscribeOptions);
   };
