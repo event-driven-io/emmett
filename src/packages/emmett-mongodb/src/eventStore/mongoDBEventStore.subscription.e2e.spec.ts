@@ -33,7 +33,7 @@ import {
 import type { MongoDBProcessor } from './consumers/mongoDBProcessor';
 import {
   compareTwoMongoDBTokens,
-  generateVersionPolicies,
+  getDatabaseVersionPolicies,
 } from './consumers/subscriptions';
 import type { MongoDBResumeToken } from './consumers/subscriptions/types';
 
@@ -83,7 +83,7 @@ void describe('MongoDBEventStore subscription', () => {
     eventStore = getMongoDBEventStore({
       client,
     });
-    const versionPolicy = await generateVersionPolicies(db);
+    const versionPolicy = await getDatabaseVersionPolicies(db);
 
     consumer = mongoDBMessagesConsumer<ShoppingCartEvent>({
       client,

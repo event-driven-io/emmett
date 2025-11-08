@@ -23,7 +23,7 @@ import {
   type MongoDBProjectorOptions,
 } from './mongoDBProcessor';
 import {
-  generateVersionPolicies,
+  getDatabaseVersionPolicies,
   mongoDBSubscription,
   zipMongoDBMessageBatchPullerStartFrom,
   type ChangeStreamFullDocumentValuePolicy,
@@ -68,7 +68,7 @@ export type MongoDBEventStoreConsumerConfig<
   resilience?: {
     resubscribeOptions?: AsyncRetryOptions;
   };
-  changeStreamFullDocumentPolicy: ChangeStreamFullDocumentValuePolicy;
+  changeStreamFullDocumentPolicy?: ChangeStreamFullDocumentValuePolicy;
 };
 
 export type MongoDBConsumerOptions<
@@ -143,6 +143,13 @@ export const mongoDBMessagesConsumer = <
       ? options.client
       : new MongoClient(options.connectionString, options.clientOptions);
   const processors = options.processors ?? [];
+
+  const stop = async () => {
+    if (!stream || stream.isRunning) return;
+    await stream.stop();
+    isRunning = false;
+    runningPromise.resolve(null);
+  };
 
   return {
     consumerId: options.consumerId ?? uuid(),
@@ -231,29 +238,23 @@ export const mongoDBMessagesConsumer = <
         }
 
         // TODO: Remember to fix.
-        const versionPolicies = await generateVersionPolicies(db);
+        const versionPolicies = await getDatabaseVersionPolicies(db);
         const policy = versionPolicies.changeStreamFullDocumentValuePolicy;
 
         await stream.start({
-          getFullDocumentValue: policy,
+          changeStreamFullDocumentValuePolicy: policy,
           startFrom,
         });
       })();
 
       return start;
     },
-    stop: async () => {
-      if (stream.isRunning) {
-        await stream.stop();
-        isRunning = false;
-        runningPromise.resolve(null);
-      }
-    },
+    stop,
     close: async () => {
-      if (stream.isRunning) {
-        await stream.stop();
-        isRunning = false;
-        runningPromise.resolve(null);
+      try {
+        await stop();
+      } finally {
+        if (!options.client) await client.close();
       }
     },
   };

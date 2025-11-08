@@ -217,8 +217,6 @@ export const eventStoreDBEventStoreConsumer = <
       return start;
     },
     stop,
-    close: async () => {
-      await stop();
-    },
+    close: stop,
   };
 };
