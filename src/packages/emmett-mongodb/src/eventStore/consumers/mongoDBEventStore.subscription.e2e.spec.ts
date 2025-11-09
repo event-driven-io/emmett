@@ -32,8 +32,10 @@ import {
   type MongoDBEventStoreConsumer,
 } from './mongoDBEventsConsumer';
 import type { MongoDBProcessor } from './mongoDBProcessor';
-import { compareTwoMongoDBTokensData } from './subscriptions';
-import type { MongoDBResumeToken } from './subscriptions/mongoDbResumeToken';
+import { compareTwoMongoDBCheckpoints } from './subscriptions';
+import type { MongoDBCheckpoint } from './subscriptions/mongoDBCheckpoint';
+
+const withDeadline = { timeout: 30000 };
 
 void describe('MongoDBEventStore subscription', () => {
   let mongodb: StartedMongoDBContainer;
@@ -42,7 +44,7 @@ void describe('MongoDBEventStore subscription', () => {
   let collection: Collection<EventStream>;
   let consumer: MongoDBEventStoreConsumer<ShoppingCartEvent>;
   let processor: MongoDBProcessor<ProductItemAdded> | undefined;
-  let lastResumeToken: MongoDBResumeToken['_data'] | null = null;
+  let lastResumeToken: MongoDBCheckpoint | null = null;
 
   const messageProcessingPromise1 = new CancellationPromise<void>();
   const messageProcessingPromise2 = new CancellationPromise<void>();
@@ -95,89 +97,93 @@ void describe('MongoDBEventStore subscription', () => {
     await mongodb.stop();
   });
 
-  void it('should react to new events added by the appendToStream', async () => {
-    let receivedMessageCount: 0 | 1 | 2 = 0;
+  void it(
+    'should react to new events added by the appendToStream',
+    withDeadline,
+    async () => {
+      let receivedMessageCount: 0 | 1 | 2 = 0;
 
-    processor = consumer.reactor<ProductItemAdded>({
-      processorId: v4(),
-      stopAfter: (event) => {
-        if (event.data.productItem.productId === lastProductItemIdTest1) {
-          messageProcessingPromise1.resolve();
-          consumer.stop().catch(noop);
-        }
-        if (event.data.productItem.productId === lastProductItemIdTest2) {
-          messageProcessingPromise2.resolve();
-          consumer.stop().catch(noop);
-        }
+      processor = consumer.reactor<ProductItemAdded>({
+        processorId: v4(),
+        stopAfter: (event) => {
+          if (event.data.productItem.productId === lastProductItemIdTest1) {
+            messageProcessingPromise1.resolve();
+            consumer.stop().catch(noop);
+          }
+          if (event.data.productItem.productId === lastProductItemIdTest2) {
+            messageProcessingPromise2.resolve();
+            consumer.stop().catch(noop);
+          }
 
-        return (
-          event.data.productItem.productId === lastProductItemIdTest1 ||
-          event.data.productItem.productId === lastProductItemIdTest2
-        );
-      },
-      eachMessage: (event) => {
-        lastResumeToken = event.metadata.globalPosition;
-
-        assertTrue(receivedMessageCount <= 3);
-        assertEqual(
-          expectedProductItemIds[receivedMessageCount],
-          event.data.productItem.productId,
-        );
-
-        receivedMessageCount++;
-      },
-      connectionOptions: {
-        client,
-      },
-    });
-
-    await eventStore.appendToStream<ShoppingCartEvent>(
-      streamName,
-      [
-        {
-          type: 'ProductItemAdded',
-          data: { productItem: productItem(expectedProductItemIds[0]) },
+          return (
+            event.data.productItem.productId === lastProductItemIdTest1 ||
+            event.data.productItem.productId === lastProductItemIdTest2
+          );
         },
-      ],
-      { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
-    );
-    await eventStore.appendToStream<ShoppingCartEvent>(
-      streamName,
-      [
-        {
-          type: 'ProductItemAdded',
-          data: { productItem: productItem(expectedProductItemIds[1]) },
+        eachMessage: (event) => {
+          lastResumeToken = event.metadata.globalPosition;
+
+          assertTrue(receivedMessageCount <= 3);
+          assertEqual(
+            expectedProductItemIds[receivedMessageCount],
+            event.data.productItem.productId,
+          );
+
+          receivedMessageCount++;
         },
-      ],
-      { expectedStreamVersion: 1n },
-    );
-    await eventStore.appendToStream<ShoppingCartEvent>(
-      streamName,
-      [
-        {
-          type: 'ProductItemAdded',
-          data: { productItem: productItem(expectedProductItemIds[2]) },
+        connectionOptions: {
+          client,
         },
-      ],
-      { expectedStreamVersion: 2n },
-    );
+      });
 
-    await consumer.start();
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        streamName,
+        [
+          {
+            type: 'ProductItemAdded',
+            data: { productItem: productItem(expectedProductItemIds[0]) },
+          },
+        ],
+        { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+      );
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        streamName,
+        [
+          {
+            type: 'ProductItemAdded',
+            data: { productItem: productItem(expectedProductItemIds[1]) },
+          },
+        ],
+        { expectedStreamVersion: 1n },
+      );
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        streamName,
+        [
+          {
+            type: 'ProductItemAdded',
+            data: { productItem: productItem(expectedProductItemIds[2]) },
+          },
+        ],
+        { expectedStreamVersion: 2n },
+      );
 
-    const stream = await collection.findOne(
-      { streamName },
-      { useBigInt64: true },
-    );
+      await consumer.start();
 
-    assertIsNotNull(stream);
-    assertEqual(3n, stream.metadata.streamPosition);
-    assertEqual(shoppingCartId, stream.metadata.streamId);
-    assertEqual(streamType, stream.metadata.streamType);
-    assertTrue(stream.metadata.createdAt instanceof Date);
-    assertTrue(stream.metadata.updatedAt instanceof Date);
-  });
+      const stream = await collection.findOne(
+        { streamName },
+        { useBigInt64: true },
+      );
 
-  void it('should renew after the last event', async () => {
+      assertIsNotNull(stream);
+      assertEqual(3n, stream.metadata.streamPosition);
+      assertEqual(shoppingCartId, stream.metadata.streamId);
+      assertEqual(streamType, stream.metadata.streamType);
+      assertTrue(stream.metadata.createdAt instanceof Date);
+      assertTrue(stream.metadata.updatedAt instanceof Date);
+    },
+  );
+
+  void it('should renew after the last event', withDeadline, async () => {
     assertOk(processor);
 
     let stream = await collection.findOne(
@@ -196,7 +202,7 @@ void describe('MongoDBEventStore subscription', () => {
     // processor after restart is renewed after the 3rd position.
     assertEqual(
       0,
-      compareTwoMongoDBTokensData(position.lastCheckpoint, lastResumeToken!),
+      compareTwoMongoDBCheckpoints(position.lastCheckpoint, lastResumeToken!),
     );
 
     const consumerPromise = consumer.start();
@@ -223,7 +229,7 @@ void describe('MongoDBEventStore subscription', () => {
     // lastResumeToken has changed after the last message
     assertEqual(
       1,
-      compareTwoMongoDBTokensData(lastResumeToken!, position.lastCheckpoint),
+      compareTwoMongoDBCheckpoints(lastResumeToken!, position.lastCheckpoint),
     );
 
     await consumer.stop();
