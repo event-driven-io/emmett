@@ -21,7 +21,7 @@ import {
   getMongoDBEventStore,
   type MongoDBEventStore,
 } from '../mongoDBEventStore';
-import { mongoDBEventStoreConsumer } from './mongoDBEventsConsumer';
+import { mongoDBEventStoreConsumer } from './mongoDBEventStoreConsumer';
 
 const withDeadline = { timeout: 30000 };
 

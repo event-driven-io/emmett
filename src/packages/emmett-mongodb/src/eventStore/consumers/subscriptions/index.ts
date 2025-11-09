@@ -28,7 +28,7 @@ import type {
   EventStream,
   MongoDBReadEventMetadata,
 } from '../../mongoDBEventStore';
-import type { MongoDBChangeStreamMessageMetadata } from '../mongoDBEventsConsumer';
+import type { MongoDBChangeStreamMessageMetadata } from '../mongoDBEventStoreConsumer';
 import {
   isMongoDBCheckpoint,
   toMongoDBCheckpoint,

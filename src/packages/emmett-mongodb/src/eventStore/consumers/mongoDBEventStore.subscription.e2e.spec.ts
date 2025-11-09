@@ -30,7 +30,7 @@ import { CancellationPromise } from './CancellablePromise';
 import {
   mongoDBEventStoreConsumer,
   type MongoDBEventStoreConsumer,
-} from './mongoDBEventsConsumer';
+} from './mongoDBEventStoreConsumer';
 import type { MongoDBProcessor } from './mongoDBProcessor';
 import { compareTwoMongoDBCheckpoints } from './subscriptions';
 import type { MongoDBCheckpoint } from './subscriptions/mongoDBCheckpoint';
