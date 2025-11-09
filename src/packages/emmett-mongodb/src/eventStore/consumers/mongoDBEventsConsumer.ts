@@ -5,11 +5,11 @@ import {
   type AnyMessage,
   type AnyRecordedMessageMetadata,
   type AsyncRetryOptions,
+  type BatchRecordedMessageHandlerWithoutContext,
   type DefaultRecord,
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
-  type RecordedMessage,
   type RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
@@ -27,10 +27,10 @@ import {
   zipMongoDBMessageBatchPullerStartFrom,
   type MongoDBSubscription,
 } from './subscriptions';
-import type { MongoDBResumeToken } from './subscriptions/mongoDbResumeToken';
+import type { MongoDBCheckpoint } from './subscriptions/mongoDBCheckpoint';
 
 export type MongoDBChangeStreamMessageMetadata =
-  RecordedMessageMetadataWithGlobalPosition<MongoDBResumeToken['_data']>;
+  RecordedMessageMetadataWithGlobalPosition<MongoDBCheckpoint>;
 
 export type MongoDBEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -97,16 +97,11 @@ export type MongoDBConsumerHandlerContext = {
  */
 export const mongoDBEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
-  MessageMetadataType extends
-    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
-  HandlerContext extends
-    MongoDBConsumerHandlerContext = MongoDBConsumerHandlerContext,
-  CheckpointType = MongoDBResumeToken,
 >(
   options: MongoDBConsumerOptions<ConsumerMessageType>,
 ): MongoDBEventStoreConsumer<ConsumerMessageType> => {
   let start: Promise<void>;
-  let stream: MongoDBSubscription<CheckpointType> | undefined;
+  let stream: MongoDBSubscription | undefined;
   let isRunning = false;
   let runningPromise = new CancellationPromise<null>();
   const client =
@@ -114,6 +109,39 @@ export const mongoDBEventStoreConsumer = <
       ? options.client
       : new MongoClient(options.connectionString, options.clientOptions);
   const processors = options.processors ?? [];
+
+  const eachBatch: BatchRecordedMessageHandlerWithoutContext<
+    ConsumerMessageType,
+    MongoDBChangeStreamMessageMetadata
+  > = async (messagesBatch) => {
+    const activeProcessors = processors.filter((s) => s.isActive);
+
+    if (activeProcessors.length === 0)
+      return {
+        type: 'STOP',
+        reason: 'No active processors',
+      };
+
+    const result = await Promise.allSettled(
+      activeProcessors.map(async (s) => {
+        // TODO: Add here filtering to only pass messages that can be handled by
+        return await s.handle(messagesBatch, { client });
+      }),
+    );
+
+    const error = result.find((r) => r.status === 'rejected')?.reason as
+      | Error
+      | undefined;
+
+    return result.some(
+      (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
+    )
+      ? undefined
+      : {
+          type: 'STOP',
+          error: error ? EmmettError.mapFrom(error) : undefined,
+        };
+  };
 
   const stop = async () => {
     if (stream?.isRunning !== true) return;
@@ -161,6 +189,8 @@ export const mongoDBEventStoreConsumer = <
       return processor;
     },
     start: () => {
+      if (isRunning) return start;
+
       start = (async () => {
         if (processors.length === 0)
           return Promise.reject(
@@ -174,32 +204,14 @@ export const mongoDBEventStoreConsumer = <
         runningPromise = new CancellationPromise<null>();
 
         const positions = await Promise.all(
-          processors.map((o) => o.start({ client } as Partial<HandlerContext>)),
+          processors.map((o) => o.start({ client })),
         );
-        const startFrom =
-          zipMongoDBMessageBatchPullerStartFrom<CheckpointType>(positions);
+        const startFrom = zipMongoDBMessageBatchPullerStartFrom(positions);
 
-        stream = mongoDBSubscription<
-          ConsumerMessageType,
-          MessageMetadataType,
-          CheckpointType
-        >({
+        stream = mongoDBSubscription<ConsumerMessageType>({
           client,
           from: startFrom,
-          eachBatch: async (
-            messages: RecordedMessage<
-              ConsumerMessageType,
-              MessageMetadataType
-            >[],
-          ) => {
-            for (const processor of processors.filter(
-              ({ isActive }) => isActive,
-            )) {
-              await processor.handle(messages, {
-                client,
-              } as Partial<HandlerContext>);
-            }
-          },
+          eachBatch,
         });
 
         await stream.start({

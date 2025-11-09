@@ -30,29 +30,26 @@ import type {
 } from '../../mongoDBEventStore';
 import type { MongoDBChangeStreamMessageMetadata } from '../mongoDBEventsConsumer';
 import {
-  isMongoDBResumeToken,
+  isMongoDBCheckpoint,
+  toMongoDBCheckpoint,
+  toMongoDBResumeToken,
+  type MongoDBCheckpoint,
   type MongoDBResumeToken,
-} from './mongoDbResumeToken';
+} from './mongoDBCheckpoint';
 
-export type MongoDBSubscriptionOptions<
-  MessageType extends Message = Message,
-  MessageMetadataType extends
-    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
-  // CheckpointType = MongoDBResumeToken,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  CheckpointType = any,
-> = {
-  from?: CurrentMessageProcessorPosition<CheckpointType>;
-  client: MongoClient;
-  // batchSize: number;
-  eachBatch: BatchRecordedMessageHandlerWithoutContext<
-    MessageType,
-    MessageMetadataType
-  >;
-  resilience?: {
-    resubscribeOptions?: AsyncRetryOptions;
+export type MongoDBSubscriptionOptions<MessageType extends Message = Message> =
+  {
+    from?: CurrentMessageProcessorPosition<MongoDBCheckpoint>;
+    client: MongoClient;
+    // batchSize: number;
+    eachBatch: BatchRecordedMessageHandlerWithoutContext<
+      MessageType,
+      MongoDBChangeStreamMessageMetadata
+    >;
+    resilience?: {
+      resubscribeOptions?: AsyncRetryOptions;
+    };
   };
-};
 export type ChangeStreamFullDocumentValuePolicy = () =>
   | 'whenAvailable'
   | 'updateLookup';
@@ -77,18 +74,17 @@ export type BuildInfo = {
   storageEngines: string[];
   ok: number;
 };
-export type MongoDBSubscriptionStartFrom<ResumeToken = MongoDBResumeToken> =
-  CurrentMessageProcessorPosition<ResumeToken>;
+export type MongoDBSubscriptionStartFrom =
+  CurrentMessageProcessorPosition<MongoDBCheckpoint>;
 
-export type MongoDBSubscriptionStartOptions<ResumeToken = MongoDBResumeToken> =
-  {
-    startFrom: MongoDBSubscriptionStartFrom<ResumeToken>;
-    dbName?: string;
-  };
+export type MongoDBSubscriptionStartOptions = {
+  startFrom: MongoDBSubscriptionStartFrom;
+  dbName?: string;
+};
 
-export type MongoDBSubscription<ResumeToken = MongoDBResumeToken> = {
+export type MongoDBSubscription = {
   isRunning: boolean;
-  start(options: MongoDBSubscriptionStartOptions<ResumeToken>): Promise<void>;
+  start(options: MongoDBSubscriptionStartOptions): Promise<void>;
   stop(): Promise<void>;
 };
 
@@ -137,37 +133,15 @@ export type OplogChange<
 
 type SubscriptionSequentialHandlerOptions<
   MessageType extends AnyMessage = AnyMessage,
-  MessageMetadataType extends
-    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
-  CheckpointType = MongoDBResumeToken,
-> = MongoDBSubscriptionOptions<
-  MessageType,
-  MessageMetadataType,
-  CheckpointType
-> &
-  WritableOptions;
+> = MongoDBSubscriptionOptions<MessageType> & WritableOptions;
 
 class SubscriptionSequentialHandler<
   MessageType extends Message = AnyMessage,
-  MessageMetadataType extends
-    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
-  CheckpointType = MongoDBResumeToken,
 > extends Transform {
-  private options: SubscriptionSequentialHandlerOptions<
-    MessageType,
-    MessageMetadataType,
-    CheckpointType
-  >;
-  // private from: EventStoreDBEventStoreConsumerType | undefined;
+  private options: SubscriptionSequentialHandlerOptions<MessageType>;
   public isRunning: boolean;
 
-  constructor(
-    options: SubscriptionSequentialHandlerOptions<
-      MessageType,
-      MessageMetadataType,
-      CheckpointType
-    >,
-  ) {
+  constructor(options: SubscriptionSequentialHandlerOptions<MessageType>) {
     super({ objectMode: true, ...options });
     this.options = options;
     // this.from = options.from;
@@ -175,7 +149,7 @@ class SubscriptionSequentialHandler<
   }
 
   async _transform(
-    change: OplogChange<MessageType, MessageMetadataType>,
+    change: OplogChange<MessageType, RecordedMessageMetadata>,
     _encoding: BufferEncoding,
     callback: (error?: Error | null) => void,
   ): Promise<void> {
@@ -185,7 +159,7 @@ class SubscriptionSequentialHandler<
         return;
       }
 
-      const messageCheckpoint = change._id;
+      const changeStreamCheckpoint = change._id;
       const streamChange =
         change.operationType === 'insert'
           ? change.fullDocument
@@ -201,32 +175,36 @@ class SubscriptionSequentialHandler<
         return;
       }
 
-      const messages = streamChange.messages.map((message) => {
+      let lastCheckpoint: MongoDBCheckpoint | undefined = undefined;
+      const messages = streamChange.messages.map((message, index) => {
+        lastCheckpoint = toMongoDBCheckpoint(changeStreamCheckpoint, index);
         return {
           kind: message.kind,
           type: message.type,
           data: message.data,
           metadata: {
             ...message.metadata,
-            checkpoint: messageCheckpoint._data,
-            globalPosition: messageCheckpoint._data,
+            checkpoint: lastCheckpoint,
+            globalPosition: lastCheckpoint,
           },
-        } as unknown as RecordedMessage<MessageType, MessageMetadataType>;
+        } as unknown as RecordedMessage<
+          MessageType,
+          MongoDBChangeStreamMessageMetadata
+        >;
       });
 
       const result = await this.options.eachBatch(messages);
 
       if (result && result.type === 'STOP') {
         this.isRunning = false;
-        if (!result.error) this.push(messageCheckpoint);
-
+        if (!result.error) this.push(lastCheckpoint);
         this.push(result);
         this.push(null);
         callback();
         return;
       }
 
-      this.push(messageCheckpoint);
+      this.push(lastCheckpoint);
       callback();
     } catch (error) {
       callback(error as Error);
@@ -246,9 +224,7 @@ const databaseUnavailableErrorMessages = [
 export const isDatabaseUnavailableError = (error: unknown) => {
   return (
     error instanceof Error &&
-    databaseUnavailableErrorMessages.some(
-      (message) => message === error.message,
-    )
+    databaseUnavailableErrorMessages.indexOf(error.message) !== -1
   );
 };
 
@@ -303,14 +279,10 @@ export const getDatabaseVersionPolicies = async (db: Db) => {
 };
 
 // const DEFAULT_PARTITION_KEY_NAME = 'default';
-const createChangeStream = <
-  EventType extends Message = AnyMessage,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  CheckpointType = any,
->(
+const createChangeStream = <EventType extends Message = AnyMessage>(
   getFullDocumentValue: ChangeStreamFullDocumentValuePolicy,
   db: Db,
-  resumeToken?: CurrentMessageProcessorPosition<CheckpointType>,
+  resumeToken?: CurrentMessageProcessorPosition<MongoDBCheckpoint>,
   // partitionKey: string = DEFAULT_PARTITION_KEY_NAME,
 ) => {
   const $match = {
@@ -335,8 +307,9 @@ const createChangeStream = <
       EventStream<Extract<EventType, { kind?: 'Event' }>>
     >
   >(pipeline, {
+    useBigInt64: true,
     fullDocument: getFullDocumentValue(),
-    ...(resumeToken === 'BEGINNING'
+    ...(resumeToken === undefined || resumeToken === 'BEGINNING'
       ? {
           /*
             The MongoDB's API is designed around starting from now or resuming from a known position
@@ -352,44 +325,30 @@ const createChangeStream = <
         }
       : resumeToken === 'END'
         ? void 0
-        : resumeToken?.lastCheckpoint),
+        : toMongoDBResumeToken(resumeToken.lastCheckpoint)),
   });
 };
 
 const subscribe =
   (getFullDocumentValue: ChangeStreamFullDocumentValuePolicy, db: Db) =>
-  <EventType extends Message = AnyMessage, CheckpointType = MongoDBResumeToken>(
-    resumeToken?: MongoDBSubscriptionStartFrom<CheckpointType>,
-  ) => {
-    return createChangeStream<EventType>(getFullDocumentValue, db, resumeToken);
-  };
+  <EventType extends Message = AnyMessage>(
+    resumeToken?: MongoDBSubscriptionStartFrom,
+  ) =>
+    createChangeStream<EventType>(getFullDocumentValue, db, resumeToken);
 
-export const mongoDBSubscription = <
-  MessageType extends Message = AnyMessage,
-  MessageMetadataType extends
-    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
-  ResumeToken = MongoDBResumeToken,
->({
+export const mongoDBSubscription = <MessageType extends Message = AnyMessage>({
   client,
   from,
   // batchSize,
   eachBatch,
   resilience,
-}: MongoDBSubscriptionOptions<
-  MessageType,
-  MessageMetadataType
->): MongoDBSubscription<ResumeToken> => {
+}: MongoDBSubscriptionOptions<MessageType>): MongoDBSubscription => {
   let isRunning = false;
 
   let start: Promise<void>;
-  let processor: SubscriptionSequentialHandler<
-    MessageType,
-    MessageMetadataType
-  >;
+  let processor: SubscriptionSequentialHandler<MessageType>;
 
-  let subscription:
-    | StreamSubscription<MessageType, MessageMetadataType>
-    | undefined;
+  let subscription: StreamSubscription<MessageType> | undefined;
 
   const resubscribeOptions: AsyncRetryOptions =
     resilience?.resubscribeOptions ?? {
@@ -429,9 +388,7 @@ export const mongoDBSubscription = <
     }
   };
 
-  const pipeMessages = (
-    options: MongoDBSubscriptionStartOptions<ResumeToken>,
-  ) => {
+  const pipeMessages = (options: MongoDBSubscriptionStartOptions) => {
     let retry = 0;
 
     return asyncRetry(async () => {
@@ -455,12 +412,9 @@ export const mongoDBSubscription = <
         subscription = subscribe(
           policy,
           client.db(options.dbName),
-        )<MessageType, ResumeToken>(options.startFrom);
+        )<MessageType>(options.startFrom);
 
-        processor = new SubscriptionSequentialHandler<
-          MessageType,
-          MessageMetadataType
-        >({
+        processor = new SubscriptionSequentialHandler<MessageType>({
           client,
           from,
           // batchSize,
@@ -470,15 +424,15 @@ export const mongoDBSubscription = <
 
         const handler = new (class extends Writable {
           async _write(
-            result: MongoDBResumeToken | MessageHandlerResult,
+            result: MongoDBCheckpoint | MessageHandlerResult,
             _encoding: string,
             done: () => void,
           ) {
             if (!isRunning) return;
 
-            if (isMongoDBResumeToken(result)) {
+            if (isMongoDBCheckpoint(result)) {
               options.startFrom = {
-                lastCheckpoint: result as ResumeToken,
+                lastCheckpoint: result,
               };
               done();
               return;
@@ -550,5 +504,5 @@ export const mongoDBSubscription = <
   };
 };
 
-export * from './mongoDbResumeToken';
+export * from './mongoDBCheckpoint';
 export { subscribe };
