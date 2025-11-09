@@ -15,7 +15,7 @@ import { v4 as uuid } from 'uuid';
 import {
   mongoDBEventStoreConsumer,
   type MongoDBEventStoreConsumer,
-} from './mongoDBEventsConsumer';
+} from './mongoDBEventStoreConsumer';
 import { isDatabaseUnavailableError } from './subscriptions';
 
 const withDeadline = { timeout: 30000 };

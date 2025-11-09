@@ -15,7 +15,7 @@ import {
 import { MongoClient } from 'mongodb';
 import type { MongoDBEventStoreConnectionOptions } from '../mongoDBEventStore';
 import { mongoDBCheckpointer } from './mongoDBCheckpointer';
-import type { MongoDBChangeStreamMessageMetadata } from './mongoDBEventsConsumer';
+import type { MongoDBChangeStreamMessageMetadata } from './mongoDBEventStoreConsumer';
 
 type MongoDBConnectionOptions = {
   connectionOptions: MongoDBEventStoreConnectionOptions;
