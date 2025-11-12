@@ -101,7 +101,10 @@ void describe('mongoDB event store consumer', () => {
         const connectionStringToNotExistingDB = 'mongodb://not-existing:2113';
         const consumerToNotExistingServer = mongoDBEventStoreConsumer({
           connectionString: connectionStringToNotExistingDB,
-          clientOptions: { directConnection: true },
+          clientOptions: {
+            directConnection: true,
+            serverSelectionTimeoutMS: 1000,
+          },
           processors: [dummyProcessor],
         });
         await assertThrowsAsync(

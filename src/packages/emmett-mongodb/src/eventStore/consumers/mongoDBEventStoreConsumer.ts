@@ -14,7 +14,6 @@ import {
 } from '@event-driven-io/emmett';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
 import { v4 as uuid } from 'uuid';
-import { CancellationPromise } from './CancellablePromise';
 import {
   changeStreamReactor,
   mongoDBProjector,
@@ -103,7 +102,6 @@ export const mongoDBEventStoreConsumer = <
   let start: Promise<void>;
   let stream: MongoDBSubscription | undefined;
   let isRunning = false;
-  let runningPromise = new CancellationPromise<null>();
   const client =
     'client' in options && options.client
       ? options.client
@@ -144,10 +142,11 @@ export const mongoDBEventStoreConsumer = <
   };
 
   const stop = async () => {
+    if (!isRunning) return;
+    isRunning = false;
+
     if (stream?.isRunning !== true) return;
     await stream.stop();
-    isRunning = false;
-    runningPromise.resolve(null);
   };
 
   return {
@@ -200,8 +199,6 @@ export const mongoDBEventStoreConsumer = <
           );
 
         isRunning = true;
-
-        runningPromise = new CancellationPromise<null>();
 
         const positions = await Promise.all(
           processors.map((o) => o.start({ client })),
