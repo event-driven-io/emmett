@@ -325,7 +325,7 @@ const createChangeStream = <EventType extends Message = AnyMessage>(
         }
       : resumeToken === 'END'
         ? void 0
-        : toMongoDBResumeToken(resumeToken.lastCheckpoint)),
+        : { resumeAfter: toMongoDBResumeToken(resumeToken.lastCheckpoint) }),
   });
 };
 
@@ -404,7 +404,7 @@ export const mongoDBSubscription = <MessageType extends Message = AnyMessage>({
         }
 
         console.info(
-          `Starting subscription. ${retry++} retries. From: ${JSONParser.stringify(from ?? '$all')}, Start from: ${JSONParser.stringify(
+          `Starting subscription. ${retry++} retries. From: ${JSONParser.stringify(from)}, Start from: ${JSONParser.stringify(
             options.startFrom,
           )}`,
         );
