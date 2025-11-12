@@ -143,10 +143,10 @@ export const mongoDBEventStoreConsumer = <
 
   const stop = async () => {
     if (!isRunning) return;
-    isRunning = false;
 
-    if (stream?.isRunning !== true) return;
-    await stream.stop();
+    if (stream?.isRunning === true) await stream.stop();
+
+    isRunning = false;
   };
 
   return {
