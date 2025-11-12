@@ -179,8 +179,10 @@ void describe('mongoDB event store started consumer', () => {
     //       { type: 'ProductItemAdded', data: { productItem } },
     //       { type: 'ProductItemAdded', data: { productItem } },
     //     ];
-    //     const { lastEventGlobalPosition: startPosition } =
-    //       await eventStore.appendToStream(streamName, initialEvents);
+    //     const { nextExpectedStreamVersion } = await eventStore.appendToStream(
+    //       streamName,
+    //       initialEvents,
+    //     );
 
     //     const events: ShoppingCartSummaryEvent[] = [
     //       { type: 'ProductItemAdded', data: { productItem } },
@@ -190,31 +192,64 @@ void describe('mongoDB event store started consumer', () => {
     //       },
     //     ];
 
-    //     let stopAfterPosition: bigint | undefined = undefined;
+    //     let stopAfterPosition: bigint | undefined = nextExpectedStreamVersion;
+    //     let checkpoint: MongoDBCheckpoint | null | undefined = undefined;
 
-    //     const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
-    //       processorId: uuid(),
-    //       projection: shoppingCartsSummaryProjection,
-    //       connectionOptions: { database },
-    //       startFrom: { lastCheckpoint: startPosition },
-    //       stopAfter: (event) =>
-    //         event.metadata.globalPosition === stopAfterPosition,
-    //     });
+    //     const projectorOptions: InMemoryProjectorOptions<ShoppingCartSummaryEvent> =
+    //       {
+    //         processorId: uuid(),
+    //         projection: shoppingCartsSummaryProjection,
+    //         connectionOptions: { database },
+    //         stopAfter: (event) => {
+    //           checkpoint = getCheckpoint(event);
+    //           return (
+    //             event.metadata.streamName === streamName &&
+    //             event.metadata.streamPosition === stopAfterPosition
+    //           );
+    //         },
+    //       };
 
-    //     const consumer = mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>({
-    //       connectionString,
-    //       processors: [inMemoryProcessor],
-    //     });
+    //     let eartlierConsumer: MongoDBEventStoreConsumer<ShoppingCartSummaryEvent> =
+    //       undefined!;
+
+    //     try {
+    //       eartlierConsumer =
+    //         mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>({
+    //           connectionString,
+    //           clientOptions: { directConnection: true },
+    //           processors: [
+    //             inMemoryProjector<ShoppingCartSummaryEvent>(projectorOptions),
+    //           ],
+    //         });
+
+    //       await eartlierConsumer.start();
+    //     } finally {
+    //       await eartlierConsumer.close();
+    //     }
 
     //     // When
+    //     let consumer: MongoDBEventStoreConsumer<ShoppingCartSummaryEvent> =
+    //       undefined!;
+
     //     try {
+    //       consumer = mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>({
+    //         connectionString,
+    //         clientOptions: { directConnection: true },
+    //         processors: [
+    //           inMemoryProjector<ShoppingCartSummaryEvent>({
+    //             ...projectorOptions,
+    //             startFrom: checkpoint,
+    //           }),
+    //         ],
+    //       });
+    //       stopAfterPosition = undefined;
     //       const consumerPromise = consumer.start();
 
     //       const appendResult = await eventStore.appendToStream(
     //         streamName,
     //         events,
     //       );
-    //       stopAfterPosition = appendResult.lastEventGlobalPosition;
+    //       stopAfterPosition = appendResult.nextExpectedStreamVersion;
 
     //       await consumerPromise;
 
@@ -223,7 +258,7 @@ void describe('mongoDB event store started consumer', () => {
     //       assertMatches(summary, {
     //         _id: streamName,
     //         status: 'confirmed',
-    //         _version: 2n,
+    //         _version: 3n,
     //         productItemsCount: productItem.quantity,
     //       });
     //     } finally {
@@ -350,13 +385,14 @@ void describe('mongoDB event store started consumer', () => {
         stopAfterPosition = undefined;
 
         try {
-          const consumerPromise = consumer.start();
-
           const appendResult = await eventStore.appendToStream(
             streamName,
             events,
           );
           stopAfterPosition = appendResult.nextExpectedStreamVersion;
+          console.log('stopAfterPosition', stopAfterPosition);
+
+          const consumerPromise = consumer.start();
 
           await consumerPromise;
 
