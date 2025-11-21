@@ -1,0 +1,31 @@
+{
+  "name": "emmett-honojs",
+  "version": "0.1.0",
+  "description": "Emmett - Event Sourcing development made simple",
+  "main": "./dist/index.cjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/event-driven-io/emmett.git"
+  },
+  "keywords": [
+    "Event Sourcing"
+  ],
+  "author": "Oskar Dudycz",
+  "bugs": {
+    "url": "https://github.com/event-driven-io/emmett/issues"
+  },
+  "homepage": "https://event-driven-io.github.io/emmett/",
+  "contributors": [
+    "Dawid Hermann hermann.dawid.91@gmail.com"
+  ],
+  "peerDependencies": {
+    "@event-driven-io/emmett": "0.39.1",
+    "@types/supertest": "^6.0.2",
+    "hono": "^4.10.6",
+    "http-problem-details": "^0.1.5",
+    "supertest": "^7.0.0"
+  }
+}
