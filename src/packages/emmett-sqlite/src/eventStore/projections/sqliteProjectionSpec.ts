@@ -11,9 +11,12 @@ import {
   type ThenThrows,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import { handleProjections, type SQLiteProjectionDefinition } from '.';
 import { type SQLiteConnection } from '../../connection';
 import { type SQLiteReadEventMetadata } from '../SQLiteEventStore';
+import {
+  handleProjections,
+  type SQLiteProjectionDefinition,
+} from './sqliteProjection';
 
 export type SQLiteProjectionSpecEvent<
   EventType extends Event,
