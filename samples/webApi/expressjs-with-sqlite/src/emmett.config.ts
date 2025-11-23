@@ -1,3 +1,3 @@
 export default {
-  plugins: ['@event-driven-io/emmett-postgresql'],
+  plugins: ['@event-driven-io/emmett-sqlite'],
 };

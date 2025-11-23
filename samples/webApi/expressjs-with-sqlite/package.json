@@ -1,8 +1,8 @@
 {
-  "name": "expressjs-with-postgresql",
+  "name": "expressjs-with-sqlite",
   "version": "1.0.0",
   "type": "module",
-  "description": "Samples WebApi using Event Sourcing using Emmett, Express.js and PostgreSQL",
+  "description": "Samples WebApi using Event Sourcing using Emmett, Express.js and SQLite",
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
     "build": "tsup",
@@ -38,12 +38,11 @@
   },
   "homepage": "https://github.com/event-driven-io/emmett#readme",
   "dependencies": {
-    "@event-driven-io/emmett": "0.38.0",
-    "@event-driven-io/emmett-expressjs": "0.38.0",
-    "@event-driven-io/emmett-postgresql": "0.38.0"
+    "@event-driven-io/emmett": "0.41.0-alpha.4",
+    "@event-driven-io/emmett-expressjs": "0.41.0-alpha.4",
+    "@event-driven-io/emmett-sqlite": "0.41.0-alpha.4"
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "^10.10.3",
     "@types/node": "20.11.30",
     "@typescript-eslint/eslint-plugin": "6.21.0",
     "@typescript-eslint/parser": "6.21.0",

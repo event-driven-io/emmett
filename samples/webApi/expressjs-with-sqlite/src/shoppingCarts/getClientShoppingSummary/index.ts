@@ -1,5 +1,3 @@
-import { pongoMultiStreamProjection } from '@event-driven-io/emmett-postgresql';
-import { type PongoDb } from '@event-driven-io/pongo';
 import type { PricedProductItem, ShoppingCartEvent } from '../shoppingCart';
 
 export type ClientShoppingSummary = {
@@ -26,7 +24,7 @@ export type CancelledSummary = ShoppingSummary & {
   cartsCount: number;
 };
 
-const evolve = (
+const _evolve = (
   document: ClientShoppingSummary | null,
   { type, data: event, metadata }: ShoppingCartEvent,
 ): ClientShoppingSummary | null => {
@@ -125,24 +123,24 @@ const withAdjustedTotals = (options: {
   };
 };
 
-const clientShoppingSummaryCollectionName = 'ClientShoppingSummary';
+const _clientShoppingSummaryCollectionName = 'ClientShoppingSummary';
 
-export const getClientShoppingSummary = (
-  db: PongoDb,
-  clientId: string,
-): Promise<ClientShoppingSummary | null> =>
-  db
-    .collection<ClientShoppingSummary>(clientShoppingSummaryCollectionName)
-    .findOne({ _id: clientId });
+// export const getClientShoppingSummary = (
+//   db: SQLiteConnection,
+//   clientId: string,
+// ): Promise<ClientShoppingSummary | null> =>
+//   db
+//     .collection<ClientShoppingSummary>(clientShoppingSummaryCollectionName)
+//     .findOne({ _id: clientId });
 
-export const clientShoppingSummaryProjection = pongoMultiStreamProjection({
-  collectionName: clientShoppingSummaryCollectionName,
-  getDocumentId: (event) => event.metadata.clientId,
-  evolve,
-  canHandle: [
-    'ProductItemAddedToShoppingCart',
-    'ProductItemRemovedFromShoppingCart',
-    'ShoppingCartConfirmed',
-    'ShoppingCartCancelled',
-  ],
-});
+// export const clientShoppingSummaryProjection = pongoMultiStreamProjection({
+//   collectionName: clientShoppingSummaryCollectionName,
+//   getDocumentId: (event) => event.metadata.clientId,
+//   evolve,
+//   canHandle: [
+//     'ProductItemAddedToShoppingCart',
+//     'ProductItemRemovedFromShoppingCart',
+//     'ShoppingCartConfirmed',
+//     'ShoppingCartCancelled',
+//   ],
+// });

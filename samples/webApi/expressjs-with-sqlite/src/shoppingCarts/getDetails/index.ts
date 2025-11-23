@@ -1,9 +1,14 @@
-import { merge } from '@event-driven-io/emmett';
-import { pongoSingleStreamProjection } from '@event-driven-io/emmett-postgresql';
-import { type PongoDb } from '@event-driven-io/pongo';
-import type { PricedProductItem, ShoppingCartEvent } from '../shoppingCart';
+import {
+  sqliteRawSQLProjection,
+  type SQLiteConnection,
+} from '@event-driven-io/emmett-sqlite';
+import {
+  type PricedProductItem,
+  type ShoppingCartEvent,
+} from '../shoppingCart';
 
 export type ShoppingCartDetails = {
+  id: string;
   clientId: string;
   productItems: PricedProductItem[];
   productItemsCount: number;
@@ -14,101 +19,142 @@ export type ShoppingCartDetails = {
   cancelledAt?: Date | undefined;
 };
 
-const evolve = (
-  documentFromDb: ShoppingCartDetails | null,
-  { type, data: event }: ShoppingCartEvent,
-): ShoppingCartDetails | null => {
+export const shoppingCartDetailsTableName = 'shoppingCartDetails';
+export const shoppingCartDetailsProductItemsTableName =
+  'shoppingCartDetailProductItems';
+
+const initSQL = [
+  `CREATE TABLE IF NOT EXISTS ${shoppingCartDetailsTableName}
+  (
+    id TEXT PRIMARY KEY,
+    clientId TEXT,
+    productItemsCount INTEGER,
+    totalAmount INTEGER,
+    status TEXT,
+    openedAt DATETIME,
+    confirmedAt DATETIME,
+    cancelledAt DATETIME
+  );`,
+  `CREATE TABLE IF NOT EXISTS ${shoppingCartDetailsProductItemsTableName}
+  (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shoppingCartId TEXT,
+    productId TEXT,
+    quantity INTEGER,
+    unitPrice INTEGER,
+    FOREIGN KEY(shoppingCartId) REFERENCES ${shoppingCartDetailsTableName}(id) ON DELETE CASCADE
+  );
+`,
+];
+
+export const getDetailsById = async (
+  db: SQLiteConnection,
+  shoppingCartId: string,
+): Promise<ShoppingCartDetails | null> => {
+  const details = await db.querySingle<ShoppingCartDetails>(
+    `SELECT * FROM ${shoppingCartDetailsTableName} WHERE id = ?`,
+    [shoppingCartId],
+  );
+  if (!details) {
+    return null;
+  }
+
+  const productItems = await db.query<PricedProductItem>(
+    `SELECT productId, quantity, unitPrice FROM ${shoppingCartDetailsProductItemsTableName} WHERE shoppingCartId = ?`,
+    [shoppingCartId],
+  );
+  details.openedAt = new Date(details.openedAt);
+  details.confirmedAt = details.confirmedAt
+    ? new Date(details.confirmedAt)
+    : undefined;
+  details.cancelledAt = details.cancelledAt
+    ? new Date(details.cancelledAt)
+    : undefined;
+  details.productItems = productItems;
+
+  return details;
+};
+
+const evolve = ({
+  type,
+  data: event,
+  metadata: { clientId },
+}: ShoppingCartEvent): string | string[] => {
   switch (type) {
-    case 'ProductItemAddedToShoppingCart': {
-      const document = documentFromDb ?? {
-        status: 'Opened',
-        productItems: [],
-        totalAmount: 0,
-        productItemsCount: 0,
-      };
-
-      const {
-        productItem,
-        productItem: { productId, quantity, unitPrice },
-        clientId,
-      } = event;
-
-      return {
-        ...document,
-        openedAt: 'openedAt' in document ? document.openedAt : event.addedAt,
-        clientId: clientId,
-        productItems: merge(
-          document.productItems,
-          event.productItem,
-          (p) => p.productId === productId && p.unitPrice === unitPrice,
-          (p) => {
-            return {
-              ...p,
-              quantity: p.quantity + quantity,
-            };
-          },
-          () => productItem,
-        ),
-        totalAmount:
-          document.totalAmount +
-          event.productItem.unitPrice * event.productItem.quantity,
-        productItemsCount:
-          document?.productItemsCount + event.productItem.quantity,
-      };
-    }
+    case 'ProductItemAddedToShoppingCart':
     case 'ProductItemRemovedFromShoppingCart': {
-      const {
-        productItem,
-        productItem: { productId, quantity, unitPrice },
-      } = event;
+      const multiplier = type === 'ProductItemAddedToShoppingCart' ? 1 : -1;
+      const productItemsCount = multiplier * event.productItem.quantity;
+      const totalAmount =
+        event.productItem.unitPrice * event.productItem.quantity;
 
-      return {
-        ...documentFromDb!,
-        productItems: merge(
-          documentFromDb!.productItems,
-          productItem,
-          (p) => p.productId === productId && p.unitPrice === unitPrice,
-          (p) => {
-            return {
-              ...p,
-              quantity: p.quantity - quantity,
-            };
-          },
-        ),
-        totalAmount:
-          documentFromDb!.totalAmount -
-          event.productItem.unitPrice * event.productItem.quantity,
-        productItemsCount:
-          documentFromDb!.productItemsCount - event.productItem.quantity,
-      };
+      const sql = [
+        `INSERT INTO 
+          ${shoppingCartDetailsProductItemsTableName} 
+          (
+            shoppingCartId, 
+            productId,
+            quantity, 
+            unitPrice
+          ) VALUES (
+            "${event.shoppingCartId}", 
+            "${event.productItem.productId}",
+            "${productItemsCount}", 
+            "${event.productItem.unitPrice}"
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            quantity = quantity + ${productItemsCount},
+            unitPrice = ${event.productItem.unitPrice};
+          `,
+        `
+          DELETE FROM ${shoppingCartDetailsProductItemsTableName} WHERE 
+            quantity <= 0 AND shoppingCartId = "${event.shoppingCartId}" AND productId = "${event.productItem.productId}";
+            `,
+        `
+          INSERT INTO 
+          ${shoppingCartDetailsTableName} 
+          (
+            id, 
+            clientId,
+            productItemsCount, 
+            totalAmount,
+            status,
+            openedAt
+          ) VALUES (
+            "${event.shoppingCartId}", 
+            "${clientId}",
+            "${productItemsCount}", 
+            "${totalAmount}",
+            "Opened",
+            ${type === 'ProductItemAddedToShoppingCart' ? `"${event.addedAt.toISOString()}"` : Date.now()}
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            productItemsCount = productItemsCount + ${productItemsCount},
+            totalAmount = totalAmount + ${totalAmount};`,
+      ];
+
+      return sql;
     }
-    case 'ShoppingCartConfirmed':
-      return {
-        ...documentFromDb!,
-        status: 'Confirmed',
-      };
-    case 'ShoppingCartCancelled':
-      return {
-        ...documentFromDb!,
-        status: 'Cancelled',
-      };
-    default:
-      return documentFromDb;
+    case 'ShoppingCartConfirmed': {
+      const sql = `
+      UPDATE ${shoppingCartDetailsTableName} 
+      SET status = "Confirmed", confirmedAt = ${Date.now()} 
+      WHERE id = "${event.shoppingCartId}";`;
+
+      return sql;
+    }
+    case 'ShoppingCartCancelled': {
+      const sql = `
+      UPDATE ${shoppingCartDetailsTableName} 
+      SET status = "Cancelled", cancelledAt = ${Date.now()} 
+      WHERE id = "${event.shoppingCartId}";`;
+
+      return sql;
+    }
   }
 };
 
-export const shoppingCartDetailsCollectionName = 'shoppingCartDetails';
-
-export const getDetailsById = (
-  db: PongoDb,
-  shoppingCartId: string,
-): Promise<ShoppingCartDetails | null> =>
-  db
-    .collection<ShoppingCartDetails>(shoppingCartDetailsCollectionName)
-    .findOne({ _id: shoppingCartId });
-
-export const shoppingCartDetailsProjection = pongoSingleStreamProjection({
-  collectionName: shoppingCartDetailsCollectionName,
+export const shoppingCartDetailsProjection = sqliteRawSQLProjection({
   evolve,
   canHandle: [
     'ProductItemAddedToShoppingCart',
@@ -116,4 +162,5 @@ export const shoppingCartDetailsProjection = pongoSingleStreamProjection({
     'ShoppingCartConfirmed',
     'ShoppingCartCancelled',
   ],
+  initSQL,
 });
