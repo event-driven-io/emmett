@@ -2,13 +2,13 @@
 
 ![](./docs/public/logo.png)
 
-# Emmett - Sample showing event-sourced WebApi with Express.js and PostgreSQL
+# Emmett - Sample showing event-sourced WebApi with Express.js and SQLite
 
 Read more in [Emmett getting started guide](https://event-driven-io.github.io/emmett/getting-started.html).
 
 ## Prerequisities
 
-Sample require PostgreSQL, you can start it by running
+Sample require SQLite, you can start it by running
 
 ```bash
 docker-compose up

@@ -1,15 +1,27 @@
 import { shoppingCartApi } from './api';
-import { clientShoppingSummaryProjection } from './getClientShoppingSummary';
-import { shoppingCartDetailsProjection } from './getDetails';
-import { shoppingCartShortInfoProjection } from './getShortInfo';
+import { getDetailsById, shoppingCartDetailsProjection } from './getDetails';
+import {
+  getShortInfoById,
+  shoppingCartShortInfoProjection,
+} from './getShortInfo';
 
-export default {
-  api: shoppingCartApi,
+export const readModel = {
+  queries: {
+    getShortInfoById,
+    getDetailsById,
+  },
   projections: [
     shoppingCartShortInfoProjection,
     shoppingCartDetailsProjection,
-    clientShoppingSummaryProjection,
+    //clientShoppingSummaryProjection,
   ],
+};
+
+export type ShoppingCartsReadModel = typeof readModel;
+
+export default {
+  api: shoppingCartApi,
+  readModel,
 };
 
 export * from './api';

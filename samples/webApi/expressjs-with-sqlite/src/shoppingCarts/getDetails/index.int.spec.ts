@@ -1,36 +1,24 @@
 import {
-  documentExists,
-  PostgreSQLProjectionSpec,
-} from '@event-driven-io/emmett-postgresql';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
-import { after, before, beforeEach, describe, it } from 'node:test';
+  assertDeepEqual,
+  assertEqual,
+  assertIsNotNull,
+} from '@event-driven-io/emmett';
+import { SQLiteProjectionSpec } from '@event-driven-io/emmett-sqlite';
+import { before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
-import {
-  shoppingCartDetailsCollectionName,
-  shoppingCartDetailsProjection,
-  type ShoppingCartDetails,
-} from '.';
+import { getDetailsById, shoppingCartDetailsProjection } from '.';
 import { getShoppingCartId } from '../api';
 import type { ShoppingCartEvent } from '../shoppingCart';
 
 void describe('Shopping Cart Short Details Projection', () => {
-  let postgres: StartedPostgreSqlContainer;
-  let connectionString: string;
-  let given: PostgreSQLProjectionSpec<ShoppingCartEvent>;
+  let given: SQLiteProjectionSpec<ShoppingCartEvent>;
   let shoppingCartId: string;
   let clientId: string;
   const now = new Date();
 
-  before(async () => {
-    postgres = await new PostgreSqlContainer().start();
-    connectionString = postgres.getConnectionUri();
-
-    given = PostgreSQLProjectionSpec.for({
+  before(() => {
+    given = SQLiteProjectionSpec.for({
       projection: shoppingCartDetailsProjection,
-      connectionString,
     });
   });
 
@@ -39,15 +27,7 @@ void describe('Shopping Cart Short Details Projection', () => {
     shoppingCartId = getShoppingCartId(clientId);
   });
 
-  after(async () => {
-    try {
-      await postgres.stop();
-    } catch (error) {
-      console.log(error);
-    }
-  });
-
-  void it.skip('adds product to empty shopping cart', () =>
+  void it('adds product to empty shopping cart', () =>
     given([])
       .when([
         {
@@ -64,22 +44,21 @@ void describe('Shopping Cart Short Details Projection', () => {
           },
         },
       ])
-      .then(
-        documentExists<ShoppingCartDetails>(
-          {
-            status: 'Opened',
-            clientId,
-            openedAt: now,
-            totalAmount: 10000,
-            productItems: [
-              { quantity: 100, productId: 'shoes', unitPrice: 100 },
-            ],
-            productItemsCount: 100,
-          },
-          {
-            inCollection: shoppingCartDetailsCollectionName,
-            withId: shoppingCartId,
-          },
-        ),
-      ));
+      .then(async ({ connection }) => {
+        const result = await getDetailsById(connection, shoppingCartId);
+        assertIsNotNull(result);
+
+        const { openedAt, ...rest } = result;
+        assertEqual(openedAt?.toISOString(), now.toISOString());
+        assertDeepEqual(rest, {
+          id: shoppingCartId,
+          clientId,
+          productItemsCount: 100,
+          totalAmount: 10000,
+          status: 'Opened',
+          productItems: [{ productId: 'shoes', quantity: 100, unitPrice: 100 }],
+          cancelledAt: undefined,
+          confirmedAt: undefined,
+        });
+      }));
 });

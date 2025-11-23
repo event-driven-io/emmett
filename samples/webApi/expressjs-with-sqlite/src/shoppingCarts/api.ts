@@ -12,7 +12,7 @@ import {
   on,
   type WebApiSetup,
 } from '@event-driven-io/emmett-expressjs';
-import { type PongoDb } from '@event-driven-io/pongo';
+import type { SQLiteConnectionPool } from '@event-driven-io/emmett-sqlite';
 import { type Request, type Router } from 'express';
 import {
   addProductItem,
@@ -24,7 +24,6 @@ import {
   type ConfirmShoppingCart,
   type RemoveProductItemFromShoppingCart,
 } from './businessLogic';
-import { getClientShoppingSummary } from './getClientShoppingSummary';
 import { getDetailsById } from './getDetails';
 import { evolve, initialState } from './shoppingCart';
 
@@ -36,7 +35,7 @@ export const getShoppingCartId = (clientId: string) =>
 export const shoppingCartApi =
   (
     eventStore: EventStore,
-    readStore: PongoDb,
+    pool: SQLiteConnectionPool,
     eventPublisher: EventsPublisher,
     getUnitPrice: (_productId: string) => Promise<number>,
     getCurrentTime: () => Date,
@@ -162,7 +161,9 @@ export const shoppingCartApi =
           assertNotEmptyString(request.params.clientId),
         );
 
-        const result = await getDetailsById(readStore, shoppingCartId);
+        const result = await pool.withConnection((readStore) => 
+          getDetailsById(readStore, shoppingCartId)
+        );
 
         if (result === null) return NotFound();
 
@@ -174,21 +175,23 @@ export const shoppingCartApi =
       }),
     );
 
-    // Get Shopping Cart Summary
-    router.get(
-      '/clients/:clientId/shopping-carts/summary',
-      on(async (request: GetShoppingCartRequest) => {
-        const clientId = assertNotEmptyString(request.params.clientId);
+    // // Get Shopping Cart Summary
+    // router.get(
+    //   '/clients/:clientId/shopping-carts/summary',
+    //   on(async (request: GetShoppingCartRequest) => {
+    //     const clientId = assertNotEmptyString(request.params.clientId);
 
-        const result = await getClientShoppingSummary(readStore, clientId);
+    //     const result = await pool.withConnection((connection) =>
+    //       getClientShoppingSummary(connection, shoppingCartId)
+    //     );
+    
+    //     if (result === null) return NotFound();
 
-        if (result === null) return NotFound();
-
-        return OK({
-          body: excludeKey(result, '_version'),
-        });
-      }),
-    );
+    //     return OK({
+    //       body: excludeKey(result, '_version'),
+    //     });
+    //   }),
+    // );
   };
 
 // Add Product Item
