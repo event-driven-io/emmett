@@ -1,4 +1,3 @@
-import { type QueryResultRow, type SQL } from '@event-driven-io/dumbo';
 import {
   assertFails,
   AssertionError,
@@ -198,7 +197,7 @@ export const eventsInStream = <
 export const newEventsInStream = eventsInStream;
 
 export const assertSQLQueryResultMatches =
-  <T extends QueryResultRow>(sql: string, rows: T[]): SQLiteProjectionAssert =>
+  <T>(sql: string, rows: T[]): SQLiteProjectionAssert =>
   async ({ connection }: { connection: SQLiteConnection }): Promise<void> => {
     const result = await connection.query<T>(sql);
 
@@ -206,10 +205,9 @@ export const assertSQLQueryResultMatches =
   };
 
 export const expectSQL = {
-  query: (sql: SQL) => ({
+  query: (sql: string) => ({
     resultRows: {
-      toBeTheSame: <T extends QueryResultRow>(rows: T[]) =>
-        assertSQLQueryResultMatches(sql, rows),
+      toBeTheSame: <T>(rows: T[]) => assertSQLQueryResultMatches(sql, rows),
     },
   }),
 };
