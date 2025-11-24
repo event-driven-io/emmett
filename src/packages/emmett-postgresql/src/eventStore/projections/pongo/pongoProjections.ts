@@ -67,6 +67,7 @@ export type PongoProjectionOptions<EventType extends Event> = {
   ) => Promise<void>;
   canHandle: CanHandle<EventType>;
   truncate?: TruncateProjection<PongoProjectionHandlerContext>;
+  init?: (context: PongoProjectionHandlerContext) => void | Promise<void>;
 };
 
 export const pongoProjection = <EventType extends Event>({
@@ -174,6 +175,16 @@ export const pongoMultiStreamProjection = <
       });
 
       await pongo.db().collection<Document>(collectionName).deleteMany();
+    },
+    init: async (context) => {
+      const {
+        connection: { connectionString, client, pool },
+      } = context;
+      const pongo = pongoClient(connectionString, {
+        connectionOptions: { client, pool },
+      });
+
+      await pongo.db().collection<Document>(collectionName).schema.migrate();
     },
   });
 };

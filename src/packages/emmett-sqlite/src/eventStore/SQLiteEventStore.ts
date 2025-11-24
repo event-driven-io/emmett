@@ -78,6 +78,12 @@ export type SQLiteEventStoreOptions = {
   };
   hooks?: {
     /**
+     * This hook will be called **BEFORE** event store schema is created
+     */
+    onBeforeSchemaCreated?: (context: {
+      connection: SQLiteConnection;
+    }) => Promise<void> | void;
+    /**
      * This hook will be called **BEFORE** events were stored in the event store.
      * @type {BeforeEventStoreCommitHandler<SQLiteEventStore, HandlerContext>}
      */
@@ -85,6 +91,10 @@ export type SQLiteEventStoreOptions = {
       SQLiteEventStore,
       { connection: SQLiteConnection }
     >;
+    /**
+     * This hook will be called **AFTER** event store schema was created
+     */
+    onAfterSchemaCreated?: () => Promise<void> | void;
   };
 } & SQLiteConnectionPoolOptions & { pool?: SQLiteConnectionPool };
 
@@ -116,14 +126,30 @@ export const getSQLiteEventStore = (
       options.schema?.autoMigration !== 'None';
   }
 
-  const ensureSchemaExists = (connection: SQLiteConnection): Promise<void> => {
-    if (!autoGenerateSchema) return Promise.resolve();
-
+  const migrate = (connection: SQLiteConnection): Promise<void> => {
     if (!migrateSchema) {
-      migrateSchema = createEventStoreSchema(connection);
+      migrateSchema = createEventStoreSchema(connection, {
+        onBeforeSchemaCreated: async (context) => {
+          for (const projection of inlineProjections) {
+            if (projection.init) {
+              await projection.init(context);
+            }
+          }
+          if (options.hooks?.onBeforeSchemaCreated) {
+            await options.hooks.onBeforeSchemaCreated(context);
+          }
+        },
+        onAfterSchemaCreated: options.hooks?.onAfterSchemaCreated,
+      });
     }
 
     return migrateSchema;
+  };
+
+  const ensureSchemaExists = (connection: SQLiteConnection): Promise<void> => {
+    if (!autoGenerateSchema) return Promise.resolve();
+
+    return migrate(connection);
   };
 
   return {
@@ -231,9 +257,7 @@ export const getSQLiteEventStore = (
     schema: {
       sql: () => schemaSQL.join(''),
       print: () => console.log(schemaSQL.join('')),
-      migrate: async () => {
-        await (migrateSchema = pool.withConnection(createEventStoreSchema));
-      },
+      migrate: () => pool.withConnection(migrate),
     },
   };
 };

@@ -18,10 +18,11 @@ void describe('createEventStoreSchema', () => {
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
+    const connectionString = postgres.getConnectionUri();
     pool = dumbo({
-      connectionString: postgres.getConnectionUri(),
+      connectionString,
     });
-    await createEventStoreSchema(pool);
+    await createEventStoreSchema(connectionString, pool);
   });
 
   after(async () => {
