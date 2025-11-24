@@ -1,13 +1,3 @@
-import type {
-  AppendToStreamResultWithGlobalPosition,
-  BeforeEventStoreCommitHandler,
-  BigIntStreamPosition,
-  Event,
-  ProjectionRegistration,
-  ReadEvent,
-  ReadEventMetadataWithGlobalPosition,
-} from '@event-driven-io/emmett';
-
 import {
   assertExpectedVersionMatchesCurrent,
   ExpectedVersionConflictError,
@@ -15,16 +5,22 @@ import {
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
+  type AppendToStreamResultWithGlobalPosition,
+  type BeforeEventStoreCommitHandler,
+  type BigIntStreamPosition,
+  type Event,
   type EventStore,
+  type ProjectionRegistration,
+  type ReadEvent,
+  type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
+import { InMemorySQLiteDatabase, type SQLiteConnection } from '../connection';
 import {
-  InMemorySharedCacheSQLiteDatabase,
-  InMemorySQLiteDatabase,
-  sqliteConnection,
-  type SQLiteConnection,
-} from '../connection';
+  SQLiteConnectionPool,
+  type SQLiteConnectionPoolOptions,
+} from '../connection/sqliteConnectionPool';
 import {
   sqliteEventStoreConsumer,
   type SQLiteEventStoreConsumer,
@@ -34,7 +30,7 @@ import {
   handleProjections,
   type SQLiteProjectionHandlerContext,
 } from './projections';
-import { createEventStoreSchema } from './schema';
+import { createEventStoreSchema, schemaSQL } from './schema';
 import { appendToStream } from './schema/appendToStream';
 import { readStream } from './schema/readStream';
 
@@ -53,6 +49,11 @@ export interface SQLiteEventStore extends EventStore<SQLiteReadEventMetadata> {
   consumer<ConsumerEventType extends Event = Event>(
     options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
   ): SQLiteEventStoreConsumer<ConsumerEventType>;
+  schema: {
+    sql(): string;
+    print(): void;
+    migrate(): Promise<void>;
+  };
 }
 
 export type SQLiteReadEventMetadata = ReadEventMetadataWithGlobalPosition;
@@ -62,13 +63,11 @@ export type SQLiteReadEvent<EventType extends Event = Event> = ReadEvent<
   SQLiteReadEventMetadata
 >;
 
+export type SQLiteEventStoreConnectionOptions = {
+  connection: SQLiteConnection;
+};
+
 export type SQLiteEventStoreOptions = {
-  fileName: // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-  | InMemorySQLiteDatabase
-    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-    | InMemorySharedCacheSQLiteDatabase
-    | string
-    | undefined;
   projections?: ProjectionRegistration<
     'inline',
     SQLiteReadEventMetadata,
@@ -87,19 +86,15 @@ export type SQLiteEventStoreOptions = {
       { connection: SQLiteConnection }
     >;
   };
-};
+} & SQLiteConnectionPoolOptions & { pool?: SQLiteConnectionPool };
 
 export const getSQLiteEventStore = (
   options: SQLiteEventStoreOptions,
 ): SQLiteEventStore => {
-  let schemaMigrated = false;
   let autoGenerateSchema = false;
-  let database: SQLiteConnection | null;
   const fileName = options.fileName ?? InMemorySQLiteDatabase;
-
-  const isInMemory: boolean =
-    fileName === InMemorySQLiteDatabase ||
-    fileName === InMemorySharedCacheSQLiteDatabase;
+  const pool = options.pool ?? SQLiteConnectionPool(options);
+  let migrateSchema: Promise<void> | undefined = undefined;
 
   const inlineProjections = (options.projections ?? [])
     .filter(({ type }) => type === 'inline')
@@ -107,40 +102,13 @@ export const getSQLiteEventStore = (
 
   const onBeforeCommitHook = options.hooks?.onBeforeCommit;
 
-  const createConnection = () => {
-    if (database != null) {
-      return database;
-    }
-
-    return sqliteConnection({
-      fileName,
-    });
-  };
-
-  const closeConnection = () => {
-    if (isInMemory) {
-      return;
-    }
-    if (database != null) {
-      database.close();
-      database = null;
-    }
-  };
-
   const withConnection = async <Result>(
     handler: (connection: SQLiteConnection) => Promise<Result>,
-  ): Promise<Result> => {
-    if (database == null) {
-      database = createConnection();
-    }
-
-    try {
+  ): Promise<Result> =>
+    pool.withConnection(async (database) => {
       await ensureSchemaExists(database);
       return await handler(database);
-    } finally {
-      closeConnection();
-    }
-  };
+    });
 
   if (options) {
     autoGenerateSchema =
@@ -148,17 +116,14 @@ export const getSQLiteEventStore = (
       options.schema?.autoMigration !== 'None';
   }
 
-  const ensureSchemaExists = async (
-    connection: SQLiteConnection,
-  ): Promise<void> => {
+  const ensureSchemaExists = (connection: SQLiteConnection): Promise<void> => {
     if (!autoGenerateSchema) return Promise.resolve();
 
-    if (!schemaMigrated) {
-      await createEventStoreSchema(connection);
-      schemaMigrated = true;
+    if (!migrateSchema) {
+      migrateSchema = createEventStoreSchema(connection);
     }
 
-    return Promise.resolve();
+    return migrateSchema;
   };
 
   return {
@@ -178,10 +143,6 @@ export const getSQLiteEventStore = (
 
       if (typeof streamName !== 'string') {
         throw new Error('Stream name is not string');
-      }
-
-      if (database == null) {
-        database = createConnection();
       }
 
       const result = await withConnection((connection) =>
@@ -224,10 +185,6 @@ export const getSQLiteEventStore = (
       events: EventType[],
       options?: AppendToStreamOptions,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
-      if (database == null) {
-        database = createConnection();
-      }
-
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
 
@@ -269,7 +226,14 @@ export const getSQLiteEventStore = (
       sqliteEventStoreConsumer<ConsumerEventType>({
         ...(options ?? {}),
         fileName,
-        connection: database ?? undefined,
+        pool,
       }),
+    schema: {
+      sql: () => schemaSQL.join(''),
+      print: () => console.log(schemaSQL.join('')),
+      migrate: async () => {
+        await (migrateSchema = pool.withConnection(createEventStoreSchema));
+      },
+    },
   };
 };

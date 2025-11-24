@@ -4,7 +4,7 @@ import type {
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import type { SQLiteConnection } from '../../../connection';
+import type { SQLiteConnectionPool } from '../../../connection/sqliteConnectionPool';
 import { readLastMessageGlobalPosition } from '../../schema/readLastMessageGlobalPosition';
 import {
   readMessagesBatch,
@@ -35,7 +35,7 @@ export type SQLiteEventStoreMessagesBatchHandler<
 export type SQLiteEventStoreMessageBatchPullerOptions<
   EventType extends Event = Event,
 > = {
-  connection: SQLiteConnection;
+  pool: SQLiteConnectionPool;
   pullingFrequencyInMs: number;
   batchSize: number;
   eachBatch: SQLiteEventStoreMessagesBatchHandler<EventType>;
@@ -59,7 +59,7 @@ export type SQLiteEventStoreMessageBatchPuller = {
 export const sqliteEventStoreMessageBatchPuller = <
   EventType extends Event = Event,
 >({
-  connection,
+  pool,
   batchSize,
   eachBatch,
   pullingFrequencyInMs,
@@ -75,8 +75,11 @@ export const sqliteEventStoreMessageBatchPuller = <
       options.startFrom === 'BEGINNING'
         ? 0n
         : options.startFrom === 'END'
-          ? ((await readLastMessageGlobalPosition(connection))
-              .currentGlobalPosition ?? 0n)
+          ? ((
+              await pool.withConnection(async (connection) =>
+                readLastMessageGlobalPosition(connection),
+              )
+            ).currentGlobalPosition ?? 0n)
           : options.startFrom.globalPosition;
 
     const readMessagesOptions: ReadMessagesBatchOptions = {
@@ -88,7 +91,9 @@ export const sqliteEventStoreMessageBatchPuller = <
 
     do {
       const { messages, currentGlobalPosition, areEventsLeft } =
-        await readMessagesBatch<EventType>(connection, readMessagesOptions);
+        await pool.withConnection((connection) =>
+          readMessagesBatch<EventType>(connection, readMessagesOptions),
+        );
 
       if (messages.length > 0) {
         const result = await eachBatch({ messages });

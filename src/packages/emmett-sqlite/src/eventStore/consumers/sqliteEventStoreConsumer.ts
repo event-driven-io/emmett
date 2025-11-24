@@ -1,5 +1,8 @@
 import { EmmettError, type Event } from '@event-driven-io/emmett';
-import { sqliteConnection, type SQLiteConnection } from '../../connection';
+import {
+  SQLiteConnectionPool,
+  type SQLiteConnectionPoolOptions,
+} from '../../connection/sqliteConnectionPool';
 import {
   DefaultSQLiteEventStoreProcessorBatchSize,
   DefaultSQLiteEventStoreProcessorPullingFrequencyInMs,
@@ -25,10 +28,10 @@ export type SQLiteEventStoreConsumerConfig<
 };
 export type SQLiteEventStoreConsumerOptions<
   ConsumerEventType extends Event = Event,
-> = SQLiteEventStoreConsumerConfig<ConsumerEventType> & {
-  fileName: string;
-  connection?: SQLiteConnection;
-};
+> = SQLiteEventStoreConsumerConfig<ConsumerEventType> &
+  SQLiteConnectionPoolOptions & {
+    pool?: SQLiteConnectionPool;
+  };
 
 export type SQLiteEventStoreConsumer<ConsumerEventType extends Event = Event> =
   Readonly<{
@@ -55,42 +58,42 @@ export const sqliteEventStoreConsumer = <
 
   let currentMessagePuller: SQLiteEventStoreMessageBatchPuller | undefined;
 
-  const connection =
-    options.connection ?? sqliteConnection({ fileName: options.fileName });
+  const pool = options.pool ?? SQLiteConnectionPool(options);
 
-  const eachBatch: SQLiteEventStoreMessagesBatchHandler<
-    ConsumerEventType
-  > = async (messagesBatch) => {
-    const activeProcessors = processors.filter((s) => s.isActive);
+  const eachBatch: SQLiteEventStoreMessagesBatchHandler<ConsumerEventType> = (
+    messagesBatch,
+  ) =>
+    pool.withConnection(async (connection) => {
+      const activeProcessors = processors.filter((s) => s.isActive);
 
-    if (activeProcessors.length === 0)
-      return {
-        type: 'STOP',
-        reason: 'No active processors',
-      };
-
-    const result = await Promise.allSettled(
-      activeProcessors.map((s) => {
-        // TODO: Add here filtering to only pass messages that can be handled by processor
-        return s.handle(messagesBatch, {
-          connection,
-          fileName: options.fileName,
-        });
-      }),
-    );
-
-    return result.some(
-      (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
-    )
-      ? undefined
-      : {
+      if (activeProcessors.length === 0)
+        return {
           type: 'STOP',
+          reason: 'No active processors',
         };
-  };
+
+      const result = await Promise.allSettled(
+        activeProcessors.map((s) => {
+          // TODO: Add here filtering to only pass messages that can be handled by processor
+          return s.handle(messagesBatch, {
+            connection,
+            fileName: options.fileName,
+          });
+        }),
+      );
+
+      return result.some(
+        (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
+      )
+        ? undefined
+        : {
+            type: 'STOP',
+          };
+    });
 
   const messagePooler = (currentMessagePuller =
     sqliteEventStoreMessageBatchPuller({
-      connection,
+      pool,
       eachBatch,
       batchSize:
         pulling?.batchSize ?? DefaultSQLiteEventStoreProcessorBatchSize,
@@ -137,7 +140,9 @@ export const sqliteEventStoreConsumer = <
         isRunning = true;
 
         const startFrom = zipSQLiteEventStoreMessageBatchPullerStartFrom(
-          await Promise.all(processors.map((o) => o.start(connection))),
+          await pool.withConnection((connection) =>
+            Promise.all(processors.map((o) => o.start(connection))),
+          ),
         );
 
         return messagePooler.start({ startFrom });
@@ -149,7 +154,7 @@ export const sqliteEventStoreConsumer = <
     close: async () => {
       await stop();
 
-      connection.close();
+      await pool.close();
 
       await new Promise((resolve) => setTimeout(resolve, 250));
     },
