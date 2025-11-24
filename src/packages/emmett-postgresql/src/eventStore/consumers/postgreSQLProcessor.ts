@@ -277,7 +277,13 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
   const { pool, connectionString, close } = getProcessorPool(options);
 
   const hooks = {
-    onStart: options.hooks?.onStart,
+    onStart: async (context: PostgreSQLProcessorHandlerContext) => {
+      if (options.hooks?.onStart) await options.hooks.onStart(context);
+
+      if (options.projection.init) {
+        await options.projection.init(context);
+      }
+    },
     onClose:
       options.hooks?.onClose || close
         ? async () => {

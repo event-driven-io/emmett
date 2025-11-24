@@ -39,6 +39,7 @@ export interface ProjectionDefinition<
     ProjectionHandlerContext
   >;
   truncate?: TruncateProjection<ProjectionHandlerContext>;
+  init?: (context: ProjectionHandlerContext) => void | Promise<void>;
 }
 
 export type ProjectionRegistration<

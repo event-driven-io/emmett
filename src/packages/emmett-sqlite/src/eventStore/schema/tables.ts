@@ -1,4 +1,5 @@
 import type { SQLiteConnection } from '../../connection';
+import type { SQLiteEventStoreOptions } from '../SQLiteEventStore';
 import {
   globalTag,
   messagesTable,
@@ -59,11 +60,19 @@ export const schemaSQL: string[] = [
 ];
 
 export const createEventStoreSchema = async (
-  db: SQLiteConnection,
+  connection: SQLiteConnection,
+  hooks?: SQLiteEventStoreOptions['hooks'],
 ): Promise<void> => {
-  return db.withTransaction(async () => {
+  await connection.withTransaction(async () => {
+    if (hooks?.onBeforeSchemaCreated) {
+      await hooks.onBeforeSchemaCreated({ connection: connection });
+    }
     for (const sql of schemaSQL) {
-      await db.command(sql);
+      await connection.command(sql);
     }
   });
+
+  if (hooks?.onAfterSchemaCreated) {
+    await hooks.onAfterSchemaCreated();
+  }
 };

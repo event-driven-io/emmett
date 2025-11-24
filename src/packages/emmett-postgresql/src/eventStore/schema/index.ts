@@ -1,4 +1,10 @@
-import { type NodePostgresPool, type SQL } from '@event-driven-io/dumbo';
+import {
+  type NodePostgresClient,
+  type NodePostgresPool,
+  type SQL,
+} from '@event-driven-io/dumbo';
+import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
+import type { PostgreSQLProjectionHandlerContext } from '../projections';
 import {
   appendToStreamSQL,
   dropOldAppendToSQLWithoutGlobalPositions,
@@ -45,7 +51,29 @@ export const schemaSQL: SQL[] = [
 ];
 
 export const createEventStoreSchema = async (
+  connectionString: string,
   pool: NodePostgresPool,
+  hooks?: PostgresEventStoreOptions['hooks'],
 ): Promise<void> => {
-  await pool.withTransaction(({ execute }) => execute.batchCommand(schemaSQL));
+  await pool.withTransaction(async (tx) => {
+    const client = (await tx.connection.open()) as NodePostgresClient;
+    const context: PostgreSQLProjectionHandlerContext = {
+      execute: tx.execute,
+      connection: {
+        connectionString,
+        client,
+        transaction: tx,
+        pool,
+      },
+    };
+
+    if (hooks?.onBeforeSchemaCreated) {
+      await hooks.onBeforeSchemaCreated(context);
+    }
+    await context.execute.batchCommand(schemaSQL);
+  });
+
+  if (hooks?.onAfterSchemaCreated) {
+    await hooks.onAfterSchemaCreated();
+  }
 };

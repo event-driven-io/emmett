@@ -145,6 +145,12 @@ export type PostgresEventStoreOptions = {
   connectionOptions?: PostgresEventStoreConnectionOptions;
   hooks?: {
     /**
+     * This hook will be called **BEFORE** event store schema is created
+     */
+    onBeforeSchemaCreated?: (
+      context: PostgreSQLProjectionHandlerContext,
+    ) => Promise<void> | void;
+    /**
      * This hook will be called **AFTER** event store schema was created
      */
     onAfterSchemaCreated?: () => Promise<void> | void;
@@ -173,22 +179,34 @@ export const getPostgreSQLEventStore = (
     options.schema?.autoMigration === undefined ||
     options.schema?.autoMigration !== 'None';
 
-  const ensureSchemaExists = () => {
-    if (!autoGenerateSchema) return Promise.resolve();
+  const inlineProjections = (options.projections ?? [])
+    .filter(({ type }) => type === 'inline')
+    .map(({ projection }) => projection);
 
+  const migrate = async () => {
     if (!migrateSchema) {
-      migrateSchema = createEventStoreSchema(pool).then(async () => {
-        if (options.hooks?.onAfterSchemaCreated) {
-          await options.hooks.onAfterSchemaCreated();
-        }
+      migrateSchema = createEventStoreSchema(connectionString, pool, {
+        onBeforeSchemaCreated: async (context) => {
+          for (const projection of inlineProjections) {
+            if (projection.init) {
+              await projection.init(context);
+            }
+          }
+          if (options.hooks?.onBeforeSchemaCreated) {
+            await options.hooks.onBeforeSchemaCreated(context);
+          }
+        },
+        onAfterSchemaCreated: options.hooks?.onAfterSchemaCreated,
       });
     }
     return migrateSchema;
   };
 
-  const inlineProjections = (options.projections ?? [])
-    .filter(({ type }) => type === 'inline')
-    .map(({ projection }) => projection);
+  const ensureSchemaExists = () => {
+    if (!autoGenerateSchema) return Promise.resolve();
+
+    return migrate();
+  };
 
   const beforeCommitHook: AppendToStreamBeforeCommitHook | undefined =
     inlineProjections.length > 0
@@ -210,9 +228,7 @@ export const getPostgreSQLEventStore = (
     schema: {
       sql: () => schemaSQL.join(''),
       print: () => console.log(schemaSQL.join('')),
-      migrate: async () => {
-        await (migrateSchema = createEventStoreSchema(pool));
-      },
+      migrate,
     },
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
