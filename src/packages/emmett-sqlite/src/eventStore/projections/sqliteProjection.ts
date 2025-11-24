@@ -67,7 +67,7 @@ export type SQLiteRawBatchSQLProjection<EventType extends Event> = {
     context: SQLiteProjectionHandlerContext,
   ) => Promise<string[]> | string[];
   canHandle: CanHandle<EventType>;
-  initSQL?: string;
+  initSQL?: string | string[];
   init?: (context: SQLiteProjectionHandlerContext) => void | Promise<void>;
 };
 
@@ -86,7 +86,11 @@ export const sqliteRawBatchSQLProjection = <EventType extends Event>(
         await options.init(context);
       }
       if (options.initSQL) {
-        await context.connection.command(options.initSQL);
+        const initSQLs = Array.isArray(options.initSQL)
+          ? options.initSQL
+          : [options.initSQL];
+
+        for (const sql of initSQLs) await context.connection.command(sql);
       }
     },
   });
@@ -97,7 +101,7 @@ export type SQLiteRawSQLProjection<EventType extends Event> = {
     context: SQLiteProjectionHandlerContext,
   ) => Promise<string[]> | string[] | Promise<string> | string;
   canHandle: CanHandle<EventType>;
-  initSQL?: string;
+  initSQL?: string | string[];
   init?: (context: SQLiteProjectionHandlerContext) => void | Promise<void>;
 };
 

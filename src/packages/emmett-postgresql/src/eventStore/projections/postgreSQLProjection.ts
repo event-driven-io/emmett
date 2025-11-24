@@ -99,7 +99,7 @@ export type PostgreSQLRawBatchSQLProjection<EventType extends Event> = {
     context: PostgreSQLProjectionHandlerContext,
   ) => Promise<SQL[]> | SQL[];
   canHandle: CanHandle<EventType>;
-  initSQL?: SQL;
+  initSQL?: SQL | SQL[];
   init?: (context: PostgreSQLProjectionHandlerContext) => void | Promise<void>;
 };
 
@@ -118,7 +118,11 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
         await options.init(context);
       }
       if (options.initSQL) {
-        await context.execute.command(options.initSQL);
+        if (Array.isArray(options.initSQL)) {
+          await context.execute.batchCommand(options.initSQL);
+        } else {
+          await context.execute.command(options.initSQL);
+        }
       }
     },
   });
@@ -129,7 +133,7 @@ export type PostgreSQLRawSQLProjection<EventType extends Event> = {
     context: PostgreSQLProjectionHandlerContext,
   ) => Promise<SQL[]> | SQL[] | Promise<SQL> | SQL;
   canHandle: CanHandle<EventType>;
-  initSQL?: SQL;
+  initSQL?: SQL | SQL[];
   init?: (context: PostgreSQLProjectionHandlerContext) => void | Promise<void>;
 };
 
