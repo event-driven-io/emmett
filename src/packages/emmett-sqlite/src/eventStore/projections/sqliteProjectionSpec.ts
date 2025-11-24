@@ -10,7 +10,11 @@ import {
   type ThenThrows,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import { type SQLiteConnection } from '../../connection';
+import {
+  InMemorySQLiteDatabase,
+  sqliteConnection,
+  type SQLiteConnection,
+} from '../../connection';
 import { type SQLiteReadEventMetadata } from '../SQLiteEventStore';
 import {
   handleProjections,
@@ -47,7 +51,8 @@ export type SQLiteProjectionAssert = (options: {
 }) => Promise<void | boolean>;
 
 export type SQLiteProjectionSpecOptions<EventType extends Event> = {
-  connection: SQLiteConnection;
+  fileName?: string;
+  connection?: SQLiteConnection;
   projection: SQLiteProjectionDefinition<EventType>;
 };
 
@@ -56,8 +61,13 @@ export const SQLiteProjectionSpec = {
     options: SQLiteProjectionSpecOptions<EventType>,
   ): SQLiteProjectionSpec<EventType> => {
     {
-      const connection = options.connection;
+      const connection =
+        options.connection ??
+        sqliteConnection({
+          fileName: options.fileName ?? InMemorySQLiteDatabase,
+        });
       const projection = options.projection;
+      let wasInitialized = false;
 
       return (givenEvents: SQLiteProjectionSpecEvent<EventType>[]) => {
         return {
@@ -94,6 +104,11 @@ export const SQLiteProjectionSpec = {
                     SQLiteReadEventMetadata
                   >,
                 });
+              }
+
+              if (!wasInitialized && projection.init) {
+                await projection.init({ connection });
+                wasInitialized = true;
               }
 
               await connection.withTransaction(() =>
