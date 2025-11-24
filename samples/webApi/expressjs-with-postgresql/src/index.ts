@@ -11,7 +11,10 @@ const connectionString =
 
 const eventStore = getPostgreSQLEventStore(connectionString, {
   projections: projections.inline(shoppingCarts.projections),
+  schema: { autoMigration: 'None' },
 });
+
+await eventStore.schema.migrate();
 
 const readStore = pongoClient(connectionString);
 
