@@ -4,7 +4,7 @@
 #  Use Build image with label `builder
 ########################################
 # use 
-FROM node:lts-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Setup working directory for project
 WORKDIR /app
@@ -35,7 +35,7 @@ RUN npm prune --production
 #  Use other build image as the final one
 #    that won't have source codes
 ########################################
-FROM node:lts-alpine
+FROM node:22-alpine
 
 # Setup working directory for project
 WORKDIR /app
