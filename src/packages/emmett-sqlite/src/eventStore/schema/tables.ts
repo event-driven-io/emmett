@@ -61,7 +61,9 @@ export const schemaSQL: string[] = [
 export const createEventStoreSchema = async (
   db: SQLiteConnection,
 ): Promise<void> => {
-  for (const sql of schemaSQL) {
-    await db.command(sql);
-  }
+  return db.withTransaction(async () => {
+    for (const sql of schemaSQL) {
+      await db.command(sql);
+    }
+  });
 };
