@@ -93,37 +93,64 @@ export const postgreSQLProjection = <EventType extends Event>(
     PostgreSQLProjectionHandlerContext
   >(definition);
 
-export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
-  handle: (
+export type PostgreSQLRawBatchSQLProjection<EventType extends Event> = {
+  evolve: (
     events: EventType[],
     context: PostgreSQLProjectionHandlerContext,
-  ) => Promise<SQL[]> | SQL[],
-  ...canHandle: CanHandle<EventType>
+  ) => Promise<SQL[]> | SQL[];
+  canHandle: CanHandle<EventType>;
+  initSQL?: SQL;
+  init?: (context: PostgreSQLProjectionHandlerContext) => void | Promise<void>;
+};
+
+export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
+  options: PostgreSQLRawBatchSQLProjection<EventType>,
 ): PostgreSQLProjectionDefinition<EventType> =>
   postgreSQLProjection<EventType>({
-    canHandle,
+    canHandle: options.canHandle,
     handle: async (events, context) => {
-      const sqls: SQL[] = await handle(events, context);
+      const sqls: SQL[] = await options.evolve(events, context);
 
       await context.execute.batchCommand(sqls);
     },
+    init: async (context) => {
+      if (options.init) {
+        await options.init(context);
+      }
+      if (options.initSQL) {
+        await context.execute.command(options.initSQL);
+      }
+    },
   });
 
-export const postgreSQLRawSQLProjection = <EventType extends Event>(
-  handle: (
-    event: EventType,
+export type PostgreSQLRawSQLProjection<EventType extends Event> = {
+  evolve: (
+    events: EventType,
     context: PostgreSQLProjectionHandlerContext,
-  ) => Promise<SQL> | SQL,
-  ...canHandle: CanHandle<EventType>
-): PostgreSQLProjectionDefinition<EventType> =>
-  postgreSQLRawBatchSQLProjection<EventType>(
-    async (events, context) => {
+  ) => Promise<SQL[]> | SQL[] | Promise<SQL> | SQL;
+  canHandle: CanHandle<EventType>;
+  initSQL?: SQL;
+  init?: (context: PostgreSQLProjectionHandlerContext) => void | Promise<void>;
+};
+
+export const postgreSQLRawSQLProjection = <EventType extends Event>(
+  options: PostgreSQLRawSQLProjection<EventType>,
+): PostgreSQLProjectionDefinition<EventType> => {
+  const { evolve, ...rest } = options;
+  return postgreSQLRawBatchSQLProjection<EventType>({
+    ...rest,
+    evolve: async (events, context) => {
       const sqls: SQL[] = [];
 
       for (const event of events) {
-        sqls.push(await handle(event, context));
+        const pendingSqls = await evolve(event, context);
+        if (Array.isArray(pendingSqls)) {
+          sqls.push(...pendingSqls);
+        } else {
+          sqls.push(pendingSqls);
+        }
       }
       return sqls;
     },
-    ...canHandle,
-  );
+  });
+};
