@@ -1,10 +1,7 @@
 import { assertDeepEqual, JSONParser } from '@event-driven-io/emmett';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
-import { afterEach, beforeEach, describe, it } from 'vitest';
-import { sqliteConnection, type SQLiteConnection } from '../../connection';
+import { beforeEach, describe, it } from 'vitest';
+import { type SQLiteConnection } from '../../connection';
 import {
   type DiscountApplied,
   type ProductItemAdded,
@@ -30,42 +27,16 @@ type EventType =
 
 const projection = 'shoppingCartShortInfo';
 
-const testDatabasePath = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-);
-const fileName = path.resolve(testDatabasePath, 'testdb.db');
-
 void describe('SQLite Projections', () => {
   let given: SQLiteProjectionSpec<EventType>;
-  let connection: SQLiteConnection;
   let shoppingCartId: string;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     shoppingCartId = `shoppingCart:${uuid()}:${uuid()}`;
-    connection = sqliteConnection({ fileName: fileName });
-
-    const streamsTableSQL = `CREATE TABLE IF NOT EXISTS ${projection}
-        (
-          id TEXT PRIMARY KEY,
-          productItemsCount INTEGER,
-          totalAmount INTEGER,
-          discountsApplied JSON
-        );
-      `;
-
-    await connection.command(streamsTableSQL);
 
     given = SQLiteProjectionSpec.for({
       projection: shoppingCartShortInfoProjection,
-      connection: connection,
     });
-  });
-
-  afterEach(() => {
-    if (!fs.existsSync(fileName)) {
-      return;
-    }
-    fs.unlinkSync(fileName);
   });
 
   void it('with empty given and raw when', () =>
@@ -199,8 +170,11 @@ const rowExists = async <T>({
   return true;
 };
 
-const shoppingCartShortInfoProjection = sqliteRawSQLProjection(
-  (event: EventType, _context: SQLiteProjectionHandlerContext): string => {
+const shoppingCartShortInfoProjection = sqliteRawSQLProjection({
+  evolve: (
+    event: EventType,
+    _context: SQLiteProjectionHandlerContext,
+  ): string => {
     switch (event.type) {
       case 'ProductItemAdded': {
         const productItemsCount = event.data.productItem.quantity;
@@ -261,6 +235,13 @@ const shoppingCartShortInfoProjection = sqliteRawSQLProjection(
         );
     }
   },
-  'ProductItemAdded',
-  'DiscountApplied',
-);
+  canHandle: ['ProductItemAdded', 'DiscountApplied'],
+  initSQL: `CREATE TABLE IF NOT EXISTS ${projection}
+        (
+          id TEXT PRIMARY KEY,
+          productItemsCount INTEGER,
+          totalAmount INTEGER,
+          discountsApplied JSON
+        );
+      `,
+});
