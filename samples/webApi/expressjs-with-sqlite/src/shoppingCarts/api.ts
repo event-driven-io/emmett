@@ -161,8 +161,8 @@ export const shoppingCartApi =
           assertNotEmptyString(request.params.clientId),
         );
 
-        const result = await pool.withConnection((readStore) => 
-          getDetailsById(readStore, shoppingCartId)
+        const result = await pool.withConnection((readStore) =>
+          getDetailsById(readStore, shoppingCartId),
         );
 
         if (result === null) return NotFound();
@@ -184,7 +184,7 @@ export const shoppingCartApi =
     //     const result = await pool.withConnection((connection) =>
     //       getClientShoppingSummary(connection, shoppingCartId)
     //     );
-    
+
     //     if (result === null) return NotFound();
 
     //     return OK({
