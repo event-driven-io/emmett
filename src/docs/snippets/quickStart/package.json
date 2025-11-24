@@ -14,6 +14,6 @@
     "typescript": "^5.8.2"
   },
   "dependencies": {
-    "@event-driven-io/emmett": "^0.41.0-alpha.3"
+    "@event-driven-io/emmett": "^0.41.0-alpha.4"
   }
 }
