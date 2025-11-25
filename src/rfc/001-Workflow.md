@@ -1,6 +1,6 @@
 # RFC: Workflow Processing Engine for Emmett
 
-**Status:** Pending
+**Status:** Accepted
 
 ## Summary
 
