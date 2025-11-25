@@ -181,7 +181,7 @@ Cloud providers may fork rather than negotiate. Valkey, Open Search, and Documen
 
 ### Adoption Barriers
 
-Some organisati ons prohibit AGPL or SSPL. The dual approach maximises compatibility, but some potential users will be lost. Better sustainable development with narrower adoption than broad adoption of an abandoned project.
+Some organisations prohibit AGPL or SSPL. The dual approach maximises compatibility, but some potential users will be lost. Better sustainable development with narrower adoption than broad adoption of an abandoned project.
 
 ### Complexity
 
