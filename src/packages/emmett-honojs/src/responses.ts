@@ -1,12 +1,7 @@
-import { ProblemDocument } from 'http-problem-details';
-import { setETag, type ETag } from './etag';
 import type { Context } from 'hono';
 import type { StatusCode } from 'hono/utils/http-status';
-
-export type ErrorToProblemDetailsMapping = (
-  error: Error,
-  context: Context,
-) => ProblemDocument | undefined;
+import { ProblemDocument } from 'http-problem-details';
+import { setETag, type ETag } from './etag';
 
 export type HttpResponseOptions = {
   body?: unknown;
