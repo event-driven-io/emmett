@@ -15,7 +15,7 @@ export default defineConfig([
     watch: env === 'development',
     target: 'esnext',
     outDir: 'dist', //env === 'production' ? 'dist' : 'lib',
-    entry: ['src/index.ts', 'src/cli.ts'],
+    entry: ['src/index.ts', 'src/cli.ts', 'src/fusionStreams.ts'],
     sourcemap: true,
     tsconfig: 'tsconfig.build.json', // workaround for https://github.com/egoist/tsup/issues/571#issuecomment-1760052931
   },

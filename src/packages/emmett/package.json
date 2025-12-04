@@ -48,6 +48,16 @@
         "types": "./dist/cli.d.cts",
         "default": "./dist/cli.cjs"
       }
+    },
+    "./fusionStreams": {
+      "import": {
+        "types": "./dist/fusionStreams.d.ts",
+        "default": "./dist/fusionStreams.js"
+      },
+      "require": {
+        "types": "./dist/fusionStreams.d.cts",
+        "default": "./dist/fusionStreams.cjs"
+      }
     }
   },
   "typesVersions": {
@@ -57,6 +67,9 @@
       ],
       "cli": [
         "./dist/cli.d.ts"
+      ],
+      "fusionStreams": [
+        "./dist/fusionStreams.d.ts"
       ]
     }
   },
