@@ -110,6 +110,7 @@
     "packages/emmett-mongodb",
     "packages/emmett-esdb",
     "packages/emmett-expressjs",
+    "packages/emmett-honojs",
     "packages/emmett-sqlite",
     "packages/emmett-testcontainers",
     "packages/emmett-fastify",

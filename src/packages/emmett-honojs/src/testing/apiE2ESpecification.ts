@@ -1,11 +1,15 @@
-import supertest, { type Response } from 'supertest';
-
 import type { EventStore } from '@event-driven-io/emmett';
 import assert from 'assert';
-import type { Application } from 'express';
-import type { TestRequest } from './apiSpecification';
+import type { Hono } from 'hono';
+import {
+  type HonoResponse,
+  HonoTestAgent,
+  type TestRequest,
+} from './apiSpecification';
 
-export type E2EResponseAssert = (response: Response) => boolean | void;
+export type E2EResponseAssert = (
+  response: HonoResponse,
+) => boolean | void | Promise<boolean> | Promise<void>;
 
 export type ApiE2ESpecificationAssert = [E2EResponseAssert];
 
@@ -18,21 +22,35 @@ export type ApiE2ESpecification = (...givenRequests: TestRequest[]) => {
 export const ApiE2ESpecification = {
   for: <Store extends EventStore = EventStore>(
     getEventStore: () => Store,
-    getApplication: (eventStore: Store) => Application,
+    getApplication: (eventStore: Store) => Hono,
   ): ApiE2ESpecification => {
     {
       return (...givenRequests: TestRequest[]) => {
         const eventStore = getEventStore();
         const application = getApplication(eventStore);
+        const testAgent = new HonoTestAgent(application);
 
         return {
           when: (setupRequest: TestRequest) => {
-            const handle = async () => {
+            const handle = async (): Promise<HonoResponse> => {
               for (const requestFn of givenRequests) {
-                await requestFn(supertest(application));
+                const requestResult = requestFn(testAgent);
+                // If it's already a promise (HonoResponse), await it
+                if (requestResult instanceof Promise) {
+                  await requestResult;
+                } else {
+                  // Otherwise, it's a HonoTestRequest, execute it
+                  await requestResult.execute();
+                }
               }
 
-              return setupRequest(supertest(application));
+              const requestResult = setupRequest(testAgent);
+              // If it's already a promise (HonoResponse), return it
+              if (requestResult instanceof Promise) {
+                return requestResult;
+              }
+              // Otherwise, it's a HonoTestRequest, execute it
+              return requestResult.execute();
             };
 
             return {
@@ -41,11 +59,11 @@ export const ApiE2ESpecification = {
               ): Promise<void> => {
                 const response = await handle();
 
-                verify.forEach((assertion) => {
-                  const succeeded = assertion(response);
+                for (const assertion of verify) {
+                  const succeeded = await assertion(response);
 
                   if (succeeded === false) assert.fail();
-                });
+                }
               },
             };
           },
