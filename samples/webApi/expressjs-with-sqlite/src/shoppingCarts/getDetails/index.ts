@@ -97,10 +97,10 @@ const evolve = ({
             quantity, 
             unitPrice
           ) VALUES (
-            "${event.shoppingCartId}", 
-            "${event.productItem.productId}",
-            "${productItemsCount}", 
-            "${event.productItem.unitPrice}"
+            '${event.shoppingCartId}', 
+            '${event.productItem.productId}',
+            '${productItemsCount}', 
+            '${event.productItem.unitPrice}'
           )
           ON CONFLICT (id) DO UPDATE SET
             quantity = quantity + ${productItemsCount},
@@ -121,11 +121,11 @@ const evolve = ({
             status,
             openedAt
           ) VALUES (
-            "${event.shoppingCartId}", 
-            "${clientId}",
-            "${productItemsCount}", 
-            "${totalAmount}",
-            "Opened",
+            '${event.shoppingCartId}', 
+            '${clientId}',
+            '${productItemsCount}', 
+            '${totalAmount}',
+            'Opened',
             ${type === 'ProductItemAddedToShoppingCart' ? `"${event.addedAt.toISOString()}"` : Date.now()}
           )
           ON CONFLICT (id) DO UPDATE SET

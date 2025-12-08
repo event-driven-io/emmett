@@ -46,9 +46,9 @@ const evolve = ({ type, data: event }: ShoppingCartEvent): string => {
             productItemsCount, 
             totalAmount
           ) VALUES (
-            "${event.shoppingCartId}", 
-            "${productItemsCount}", 
-            "${totalAmount}"
+            '${event.shoppingCartId}', 
+            '${productItemsCount}', 
+            '${totalAmount}'
           )
           ON CONFLICT (id) DO UPDATE SET
             productItemsCount = productItemsCount + ${productItemsCount},

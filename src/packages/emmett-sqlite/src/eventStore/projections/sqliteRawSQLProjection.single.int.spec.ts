@@ -189,10 +189,10 @@ const shoppingCartShortInfoProjection = sqliteRawSQLProjection({
             totalAmount, 
             discountsApplied
           ) VALUES (
-            "${event.metadata.streamName}", 
-            "${productItemsCount}", 
-            "${totalAmount}", 
-            "[]"
+            '${event.metadata.streamName}', 
+            '${productItemsCount}', 
+            '${totalAmount}', 
+            '[]'
           )
           ON CONFLICT (id) DO UPDATE SET
             productItemsCount = productItemsCount + ${productItemsCount},
@@ -209,10 +209,10 @@ const shoppingCartShortInfoProjection = sqliteRawSQLProjection({
             totalAmount, 
             discountsApplied
           ) VALUES (
-            "${event.metadata.streamName}", 
+            '${event.metadata.streamName}', 
             0, 
             0, 
-            "[]"
+            '[]'
           )
           ON CONFLICT (id) DO UPDATE SET
             totalAmount = (totalAmount * (100 - ${event.data.percent})) / 100,

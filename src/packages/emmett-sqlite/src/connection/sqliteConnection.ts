@@ -1,10 +1,10 @@
-import sqlite3 from 'sqlite3';
+import libsql from 'libsql';
 
 export type Parameters = object | string | bigint | number | boolean | null;
 
 export type SQLiteConnection = {
   close: () => void;
-  command: (sql: string, values?: Parameters[]) => Promise<sqlite3.RunResult>;
+  command: (sql: string, values?: Parameters[]) => Promise<libsql.RunResult>;
   query: <T>(sql: string, values?: Parameters[]) => Promise<T[]>;
   querySingle: <T>(sql: string, values?: Parameters[]) => Promise<T | null>;
   withTransaction: <T>(fn: () => Promise<T>) => Promise<T>;
@@ -36,112 +36,61 @@ export const sqliteConnection = (
   options: SQLiteConnectionOptions,
 ): SQLiteConnection => {
   const fileName = options.fileName ?? InMemorySQLiteDatabase;
-  let db: sqlite3.Database;
-
-  if (fileName.startsWith('file:')) {
-    db = new sqlite3.Database(
-      fileName,
-      sqlite3.OPEN_URI | sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
-    );
-  } else {
-    db = new sqlite3.Database(fileName);
-  }
-  db.run('PRAGMA journal_mode = WAL;');
-  let transactionNesting = 0;
+  const db = new libsql(fileName);
+  db.pragma('journal_mode = WAL');
 
   return {
-    close: (): void => db.close(),
+    close: (): void => {
+      db.close();
+    },
     command: (sql: string, params?: Parameters[]) =>
-      new Promise<sqlite3.RunResult>((resolve, reject) => {
-        db.run(
-          sql,
-          params ?? [],
-          function (this: sqlite3.RunResult, err: Error | null) {
-            if (err) {
-              reject(err);
-              return;
-            }
-
-            resolve(this);
-          },
-        );
+      new Promise<libsql.RunResult>((resolve, reject) => {
+        try {
+          const stmt = db.prepare(sql);
+          params = normalizeParams(params);
+          const res = stmt.run(params ?? []);
+          resolve(res);
+        } catch (err) {
+          reject(err as Error);
+        }
       }),
     query: <T>(sql: string, params?: Parameters[]): Promise<T[]> =>
       new Promise((resolve, reject) => {
-        db.all(sql, params ?? [], (err: Error | null, result: T[]) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-
-          resolve(result);
-        });
+        try {
+          const stmt = db.prepare(sql);
+          params = normalizeParams(params);
+          const res =
+            (stmt.all(params ?? []) as { _metadata: unknown }[])?.map(
+              ({ _metadata, ...o }) => o,
+            ) || [];
+          resolve(res as T[]);
+        } catch (err) {
+          reject(err as Error);
+        }
       }),
     querySingle: <T>(sql: string, params?: Parameters[]): Promise<T | null> =>
       new Promise((resolve, reject) => {
-        db.get(sql, params ?? [], (err: Error | null, result: T | null) => {
-          if (err) {
-            reject(err);
-            return;
+        try {
+          const stmt = db.prepare(sql);
+          params = normalizeParams(params);
+          let res: T;
+          const o = stmt.get(params ?? []) as
+            | {
+                _metadata: unknown;
+              }
+            | undefined;
+          if (o) {
+            const { _metadata, ...r } = o;
+            res = r as T;
           }
-
-          resolve(result);
-        });
-      }),
-    withTransaction: async <T>(fn: () => Promise<T>) => {
-      try {
-        if (transactionNesting++ == 0) {
-          await beginTransaction(db);
+          resolve(res!);
+        } catch (err) {
+          reject(err as Error);
         }
-        const result = await fn();
-
-        if (transactionNesting === 1) await commitTransaction(db);
-        transactionNesting--;
-
-        return result;
-      } catch (err) {
-        console.log(err);
-
-        if (--transactionNesting === 0) await rollbackTransaction(db);
-
-        throw err;
-      }
-    },
+      }),
+    withTransaction: <T>(fn: () => Promise<T>) => db.transaction(fn)(),
   };
 };
 
-const beginTransaction = (db: sqlite3.Database) =>
-  new Promise<void>((resolve, reject) => {
-    db.run('BEGIN IMMEDIATE TRANSACTION', (err: Error | null) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      resolve();
-    });
-  });
-
-const commitTransaction = (db: sqlite3.Database) =>
-  new Promise<void>((resolve, reject) => {
-    db.run('COMMIT', (err: Error | null) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      resolve();
-    });
-  });
-
-const rollbackTransaction = (db: sqlite3.Database) =>
-  new Promise<void>((resolve, reject) => {
-    db.run('ROLLBACK', (err: Error | null) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      resolve();
-    });
-  });
+const normalizeParams = (params?: Parameters[]) =>
+  params?.map((v) => (typeof v === 'object' ? JSON.stringify(v) : v)) ?? [];

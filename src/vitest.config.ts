@@ -1,8 +1,11 @@
+import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    workspace: [
+    pool: 'forks',
+    maxWorkers: 1,
+    projects: [
       {
         test: {
           name: 'node',
@@ -15,7 +18,7 @@ export default defineConfig({
         test: {
           name: 'browser tests',
           browser: {
-            provider: 'playwright', // or 'webdriverio'
+            provider: playwright(), // or 'webdriverio'
             enabled: true,
             // at least one instance is required
             instances: [{ browser: 'chromium' }],
