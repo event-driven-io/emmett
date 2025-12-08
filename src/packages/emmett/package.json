@@ -49,14 +49,14 @@
         "default": "./dist/cli.cjs"
       }
     },
-    "./fusionStreams": {
+    "./nodejs": {
       "import": {
-        "types": "./dist/fusionStreams.d.ts",
-        "default": "./dist/fusionStreams.js"
+        "types": "./dist/nodejs.d.ts",
+        "default": "./dist/nodejs.js"
       },
       "require": {
-        "types": "./dist/fusionStreams.d.cts",
-        "default": "./dist/fusionStreams.cjs"
+        "types": "./dist/nodejs.d.cts",
+        "default": "./dist/nodejs.cjs"
       }
     }
   },
@@ -68,8 +68,8 @@
       "cli": [
         "./dist/cli.d.ts"
       ],
-      "fusionStreams": [
-        "./dist/fusionStreams.d.ts"
+      "nodejs": [
+        "./dist/nodejs.d.ts"
       ]
     }
   },

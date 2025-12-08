@@ -1,13 +1,19 @@
 import { Transform, type WritableOptions } from 'stream';
+import type { EmmettError } from '../../errors';
+
+export type SequentialTransformHandlerResultType = 'ACK' | 'SKIP' | 'STOP';
+
+export type SequentialTransformHandlerResult<OutgoingMessageType = unknown> =
+  | { resultType: 'ACK'; message: OutgoingMessageType }
+  | { resultType: 'SKIP'; reason?: string }
+  | { resultType: 'STOP'; reason?: string; error?: EmmettError };
 
 export type SequentialTransformHandler<
   IncomingMessageType = unknown,
   OutgoingMessageType = unknown,
-> = {
-  handler: (
-    message: IncomingMessageType,
-  ) => Promise<OutgoingMessageType | null>;
-};
+> = (
+  message: IncomingMessageType,
+) => Promise<SequentialTransformHandlerResult<OutgoingMessageType>>;
 
 export type SequentialTransformOptions<
   IncomingMessageType = unknown,
@@ -40,9 +46,18 @@ export class SequentialTransform<
     callback: (error?: Error | null) => void,
   ): Promise<void> {
     try {
-      const result = await this.handler.handler(message);
+      const result = await this.handler(message);
 
-      this.push(result);
+      switch (result.resultType) {
+        case 'ACK':
+          this.push(result);
+          break;
+        case 'SKIP':
+          break;
+        case 'STOP':
+          this.push(null);
+          break;
+      }
 
       callback();
     } catch (error) {

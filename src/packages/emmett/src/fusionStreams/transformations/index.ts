@@ -1,1 +1,1 @@
-export * from './sequentialTransformation';
+export * from './sequentialTransform';
