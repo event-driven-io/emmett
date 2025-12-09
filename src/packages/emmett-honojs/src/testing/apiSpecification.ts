@@ -86,7 +86,7 @@ export class HonoTestAgent {
 
 // Wrapper to mimic supertest Response API
 export class HonoResponse {
-  private _body: unknown | null = null;
+  private _body: unknown = null;
   private _bodyPromise: Promise<unknown> | null = null;
 
   constructor(private response: Response) {}

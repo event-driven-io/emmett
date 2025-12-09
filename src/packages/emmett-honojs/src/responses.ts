@@ -38,8 +38,8 @@ export type CreatedHttpResponseOptions = (
 export const sendCreated = (
   context: Context,
   { eTag, ...options }: CreatedHttpResponseOptions,
-): void =>
-  send(context, 201, {
+): Response => {
+  return send(context, 201, {
     location:
       'url' in options
         ? options.url
@@ -47,6 +47,7 @@ export const sendCreated = (
     body: 'createdId' in options ? { id: options.createdId } : undefined,
     eTag,
   });
+};
 
 export type AcceptedHttpResponseOptions = {
   location: string;
@@ -55,7 +56,9 @@ export type AcceptedHttpResponseOptions = {
 export const sendAccepted = (
   context: Context,
   options: AcceptedHttpResponseOptions,
-): void => send(context, 202, options);
+): Response => {
+  return send(context, 202, options);
+};
 
 export type NoContentHttpResponseOptions = Omit<HttpResponseOptions, 'body'>;
 
@@ -63,21 +66,25 @@ export const send = (
   context: Context,
   statusCode: StatusCode,
   options?: HttpResponseOptions,
-): void => {
+): Response => {
   const { location, body, eTag } = options ?? DefaultHttpResponseOptions;
   // HEADERS
   if (eTag) setETag(context, eTag);
   if (location) context.header('Location', location);
-  if (body) context.json(body);
 
   context.status(statusCode);
+
+  if (body) {
+    return context.json(body);
+  }
+  return context.body(null);
 };
 
 export const sendProblem = (
   context: Context,
   statusCode: StatusCode,
   options?: HttpProblemResponseOptions,
-): void => {
+): Response => {
   options = options ?? DefaultHttpProblemResponseOptions;
 
   const { location, eTag } = options;
@@ -95,7 +102,7 @@ export const sendProblem = (
   if (location) context.header('Location', location);
 
   context.header('Content-Type', 'application/problem+json');
-
   context.status(statusCode);
-  context.json(problemDetails);
+
+  return context.json(problemDetails);
 };

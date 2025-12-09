@@ -12,69 +12,104 @@ import {
   sendProblem,
 } from '.';
 
-// #region httpresponse-on
-export type HttpResponse = (context: Context) => void;
-
-export type HttpHandler = (
-  context: Context,
-) => Promise<HttpResponse> | HttpResponse;
-
-// #endregion httpresponse-on
-
-export const OK =
-  (options?: HttpResponseOptions): HttpResponse =>
-  (context: Context) => {
-    send(context, 200, options);
+export type ContextWithBody<T> = Omit<Context, 'req'> & {
+  req: Omit<Context['req'], 'json'> & {
+    json(): Promise<T>;
   };
+};
 
-export const Created =
-  (options: CreatedHttpResponseOptions): HttpResponse =>
-  (context: Context) => {
-    sendCreated(context, options);
+export type ContextWithQuery<T> = Omit<Context, 'req'> & {
+  req: Omit<Context['req'], 'query'> & {
+    query(): T;
   };
+};
 
-export const Accepted =
-  (options: AcceptedHttpResponseOptions): HttpResponse =>
-  (context: Context) => {
-    sendAccepted(context, options);
+export type ContextWithParams<T> = Omit<Context, 'req'> & {
+  req: Omit<Context['req'], 'param'> & {
+    param<K extends keyof T>(key: K): T[K];
   };
+};
+
+export const OK = (
+  options: HttpResponseOptions & { context: Context },
+): Response => {
+  const { context, ...responseOptions } = options;
+  return send(context, 200, responseOptions);
+};
+
+export const Created = (
+  options: CreatedHttpResponseOptions & { context: Context },
+): Response => {
+  const { context, ...responseOptions } = options;
+  return sendCreated(context, responseOptions);
+};
+
+export const Accepted = (
+  options: AcceptedHttpResponseOptions & { context: Context },
+): Response => {
+  const { context, ...responseOptions } = options;
+  return sendAccepted(context, responseOptions);
+};
 
 export const NoContent = (
-  options?: NoContentHttpResponseOptions,
-): HttpResponse => HttpResponse(204, options);
+  options: NoContentHttpResponseOptions & { context: Context },
+): Response => {
+  const { context, ...responseOptions } = options;
+  return send(context, 204, responseOptions);
+};
 
-export const HttpResponse =
-  (statusCode: StatusCode, options?: HttpResponseOptions): HttpResponse =>
-  (context: Context) => {
-    send(context, statusCode, options);
-  };
+export const HttpResponse = (
+  options: HttpResponseOptions & { context: Context; statusCode: StatusCode },
+): Response => {
+  const { context, statusCode, ...responseOptions } = options;
+  return send(context, statusCode, responseOptions);
+};
 
 /////////////////////
 // ERRORS
 /////////////////////
 
 export const BadRequest = (
-  options?: HttpProblemResponseOptions,
-): HttpResponse => HttpProblem(400, options);
+  options: HttpProblemResponseOptions & { context: Context },
+): Response => {
+  const { context, ...responseOptions } = options;
+  return sendProblem(context, 400, responseOptions);
+};
 
-export const Forbidden = (options?: HttpProblemResponseOptions): HttpResponse =>
-  HttpProblem(403, options);
+export const Forbidden = (
+  options: HttpProblemResponseOptions & { context: Context },
+): Response => {
+  const { context, ...responseOptions } = options;
+  return sendProblem(context, 403, responseOptions);
+};
 
-export const NotFound = (options?: HttpProblemResponseOptions): HttpResponse =>
-  HttpProblem(404, options);
+export const NotFound = (
+  options: HttpProblemResponseOptions & { context: Context },
+): Response => {
+  const { context, ...responseOptions } = options;
+  return sendProblem(context, 404, responseOptions);
+};
 
-export const Conflict = (options?: HttpProblemResponseOptions): HttpResponse =>
-  HttpProblem(409, options);
+export const Conflict = (
+  options: HttpProblemResponseOptions & { context: Context },
+): Response => {
+  const { context, ...responseOptions } = options;
+  return sendProblem(context, 409, responseOptions);
+};
 
 export const PreconditionFailed = (
-  options: HttpProblemResponseOptions,
-): HttpResponse => HttpProblem(412, options);
+  options: HttpProblemResponseOptions & { context: Context },
+): Response => {
+  const { context, ...responseOptions } = options;
+  return sendProblem(context, 412, responseOptions);
+};
 
-export const HttpProblem =
-  (
-    statusCode: StatusCode,
-    options?: HttpProblemResponseOptions,
-  ): HttpResponse =>
-  (context: Context) => {
-    sendProblem(context, statusCode, options);
-  };
+export const HttpProblem = (
+  options: HttpProblemResponseOptions & {
+    context: Context;
+    statusCode: StatusCode;
+  },
+): Response => {
+  const { context, statusCode, ...responseOptions } = options;
+  return sendProblem(context, statusCode, responseOptions);
+};
