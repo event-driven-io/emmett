@@ -1,4 +1,4 @@
-import { serve } from '@hono/node-server/.';
+import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { etag } from 'hono/etag';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';

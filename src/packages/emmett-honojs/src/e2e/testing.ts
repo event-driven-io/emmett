@@ -1,18 +1,10 @@
 import {
+  assertEqual,
   assertMatches,
   assertOk,
   assertUnsignedBigInt,
 } from '@event-driven-io/emmett';
-// import { Test, type Response } from 'supertest';
 import { type ETag, getWeakETagValue } from '../etag';
-
-export type TestResponse<RequestBody> = Omit<
-  Omit<Response, 'body'>,
-  'headers'
-> & {
-  body: Partial<RequestBody>;
-  headers: Record<string, string>;
-};
 
 export const expectNextRevisionInResponseEtag = (response: Response) => {
   const eTagValue = response.headers.get('etag');
@@ -24,25 +16,32 @@ export const expectNextRevisionInResponseEtag = (response: Response) => {
   return assertUnsignedBigInt(eTag);
 };
 
-// export const runTwice = (test: () => Test) => {
-//   const expect = async (assert: {
-//     first: (test: Test) => Test;
-//     second: (test: Test) => Test;
-//   }): Promise<Test> => {
-//     const { first: firstExpect, second: secondExpect } = assert;
+export const runTwice = (test: () => Response | Promise<Response>) => {
+  const expect = async (assert: {
+    first: (response: Response) => void | Promise<void>;
+    second: (response: Response) => void | Promise<void>;
+  }): Promise<Response> => {
+    const { first: firstExpect, second: secondExpect } = assert;
 
-//     const result = await firstExpect(test());
-//     await secondExpect(test());
+    const firstResponse = await test();
+    await firstExpect(firstResponse.clone());
 
-//     return result;
-//   };
+    const secondResponse = await test();
+    await secondExpect(secondResponse);
 
-//   return { expect };
-// };
+    return firstResponse;
+  };
 
-// export const statuses = (first: number, second: number) => {
-//   return {
-//     first: (test: Test) => test.expect(first),
-//     second: (test: Test) => test.expect(second),
-//   };
-// };
+  return { expect };
+};
+
+export const statuses = (first: number, second: number) => {
+  return {
+    first: (response: Response) => {
+      assertEqual(response.status, first);
+    },
+    second: (response: Response) => {
+      assertEqual(response.status, second);
+    },
+  };
+};
