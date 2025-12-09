@@ -1,4 +1,4 @@
-import { type Brand } from '@event-driven-io/emmett';
+import { type Brand, EmmettError } from '@event-driven-io/emmett';
 import type { Context } from 'hono';
 
 //////////////////////////////////////
@@ -29,7 +29,10 @@ export const isWeakETag = (etag: ETag): etag is WeakETag => {
 export const getWeakETagValue = (etag: ETag): string => {
   const result = WeakETagRegex.exec(etag as string);
   if (result === null || result.length === 0) {
-    throw new Error(ETagErrors.WRONG_WEAK_ETAG_FORMAT);
+    throw new EmmettError({
+      errorCode: EmmettError.Codes.ConcurrencyError,
+      message: ETagErrors.WRONG_WEAK_ETAG_FORMAT,
+    });
   }
   return result[1]!;
 };
@@ -42,7 +45,10 @@ export const getETagFromIfMatch = (context: Context): ETag => {
   const etag = context.req.header(HeaderNames.IF_MATCH);
 
   if (etag === undefined) {
-    throw new Error(ETagErrors.MISSING_IF_MATCH_HEADER);
+    throw new EmmettError({
+      errorCode: EmmettError.Codes.ConcurrencyError,
+      message: ETagErrors.MISSING_IF_MATCH_HEADER,
+    });
   }
 
   return etag as ETag;
@@ -52,7 +58,10 @@ export const getETagFromIfNotMatch = (context: Context): ETag => {
   const etag = context.req.header(HeaderNames.IF_NOT_MATCH);
 
   if (etag === undefined) {
-    throw new Error(ETagErrors.MISSING_IF_MATCH_HEADER);
+    throw new EmmettError({
+      errorCode: EmmettError.Codes.ConcurrencyError,
+      message: ETagErrors.MISSING_IF_NOT_MATCH_HEADER,
+    });
   }
 
   return (Array.isArray(etag) ? etag[0] : etag) as ETag;
