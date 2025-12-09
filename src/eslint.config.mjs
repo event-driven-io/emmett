@@ -99,6 +99,7 @@ export default [
       'packages/emmett-mongodb/**',
       'packages/emmett-esdb/**',
       'packages/emmett-expressjs/**',
+      'packages/emmett-honojs/**',
       'packages/emmett-fastify/**',
       'packages/emmett-sqlite/**',
       'packages/emmett-testcontainers/**',

@@ -9,7 +9,7 @@
   "private": true,
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
-    "build": "run-s build:ts build:emmett build:esdb build:mongodb build:postgresql build:sqlite build:expressjs build:fastify build:testcontainers build:tests",
+    "build": "run-s build:ts build:emmett build:esdb build:mongodb build:postgresql build:sqlite build:expressjs build:honojs build:fastify build:testcontainers build:tests",
     "build:ts": "tsc -b",
     "build:ts:clean": "tsc --build --clean",
     "build:ts:watch": "tsc -b --watch",
@@ -19,6 +19,7 @@
     "build:postgresql": "npm run build -w packages/emmett-postgresql",
     "build:sqlite": "npm run build -w packages/emmett-sqlite",
     "build:expressjs": "npm run build -w packages/emmett-expressjs",
+    "build:honojs": "npm run build -w packages/emmett-honojs",
     "build:fastify": "npm run build -w packages/emmett-fastify",
     "build:testcontainers": "npm run build -w packages/emmett-testcontainers",
     "build:tests": "npm run build -w packages/emmett-tests",
