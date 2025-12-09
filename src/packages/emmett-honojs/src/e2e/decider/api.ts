@@ -8,10 +8,25 @@ import {
   STREAM_DOES_NOT_EXIST,
 } from '@event-driven-io/emmett';
 import type { Context, Hono } from 'hono';
-import { getETagValueFromIfMatch, toWeakETag } from '../../etag';
-import { Created, NoContent } from '../../handler';
-import { type PricedProductItem, type ProductItem } from '../shoppingCart';
+import {
+  type ContextWithBody,
+  type ContextWithParams,
+  Created,
+  getETagValueFromIfMatch,
+  NoContent,
+  toWeakETag,
+} from '../..';
 import { decider } from './businessLogic';
+import { type PricedProductItem, type ProductItem } from './shoppingCart';
+
+type AddProductItemContext = ContextWithBody<{
+  productId: string;
+  quantity: number;
+}> &
+  ContextWithParams<{
+    shoppingCartId: string;
+    clientId: string;
+  }>;
 
 export const handle = DeciderCommandHandler(decider);
 
@@ -41,6 +56,7 @@ export const shoppingCartApi =
         );
 
         return Created({
+          context,
           createdId: shoppingCartId,
           eTag: toWeakETag(result.nextExpectedStreamVersion),
         });
@@ -50,7 +66,7 @@ export const shoppingCartApi =
 
     router.post(
       '/clients/:clientId/shopping-carts/:shoppingCartId/product-items',
-      async (context: Context) => {
+      async (context: AddProductItemContext) => {
         const shoppingCartId = assertNotEmptyString(
           context.req.param('shoppingCartId'),
         );
@@ -79,6 +95,7 @@ export const shoppingCartApi =
         );
 
         return NoContent({
+          context,
           eTag: toWeakETag(result.nextExpectedStreamVersion),
         });
       },
@@ -113,6 +130,7 @@ export const shoppingCartApi =
         );
 
         return NoContent({
+          context,
           eTag: toWeakETag(result.nextExpectedStreamVersion),
         });
       },
@@ -141,6 +159,7 @@ export const shoppingCartApi =
         );
 
         return NoContent({
+          context,
           eTag: toWeakETag(result.nextExpectedStreamVersion),
         });
       },
@@ -169,6 +188,7 @@ export const shoppingCartApi =
         );
 
         return NoContent({
+          context,
           eTag: toWeakETag(result.nextExpectedStreamVersion),
         });
       },
