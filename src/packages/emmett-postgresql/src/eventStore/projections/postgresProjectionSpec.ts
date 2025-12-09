@@ -22,8 +22,8 @@ import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 
 export type PostgreSQLProjectionSpecEvent<
   EventType extends Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
+  EventMetaDataType extends PostgresReadEventMetadata =
+    PostgresReadEventMetadata,
 > = EventType & {
   metadata?: Partial<EventMetaDataType>;
 };
@@ -179,8 +179,8 @@ export const PostgreSQLProjectionSpec = {
 
 export const eventInStream = <
   EventType extends Event = Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
+  EventMetaDataType extends PostgresReadEventMetadata =
+    PostgresReadEventMetadata,
 >(
   streamName: string,
   event: PostgreSQLProjectionSpecEvent<EventType, EventMetaDataType>,
@@ -196,8 +196,8 @@ export const eventInStream = <
 
 export const eventsInStream = <
   EventType extends Event = Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
+  EventMetaDataType extends PostgresReadEventMetadata =
+    PostgresReadEventMetadata,
 >(
   streamName: string,
   events: PostgreSQLProjectionSpecEvent<EventType, EventMetaDataType>[],

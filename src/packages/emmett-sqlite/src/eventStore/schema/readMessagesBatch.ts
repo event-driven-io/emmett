@@ -46,8 +46,8 @@ export type ReadMessagesBatchResult<
 
 export const readMessagesBatch = async <
   MessageType extends Event,
-  ReadEventMetadataType extends
-    ReadEventMetadataWithGlobalPosition = ReadEventMetadataWithGlobalPosition,
+  ReadEventMetadataType extends ReadEventMetadataWithGlobalPosition =
+    ReadEventMetadataWithGlobalPosition,
 >(
   db: SQLiteConnection,
   options: ReadMessagesBatchOptions & { partition?: string },

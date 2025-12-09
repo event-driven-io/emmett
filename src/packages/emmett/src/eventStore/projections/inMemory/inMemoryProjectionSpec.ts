@@ -28,8 +28,8 @@ type DocumentWithId = Document & { _id?: string | number };
 
 export type InMemoryProjectionSpecEvent<
   EventType extends Event,
-  EventMetaDataType extends
-    InMemoryReadEventMetadata = InMemoryReadEventMetadata,
+  EventMetaDataType extends InMemoryReadEventMetadata =
+    InMemoryReadEventMetadata,
 > = EventType & {
   metadata?: Partial<EventMetaDataType>;
 };
@@ -194,8 +194,8 @@ export const InMemoryProjectionSpec = {
 // Helper functions for creating events in stream
 export const eventInStream = <
   EventType extends Event = Event,
-  EventMetaDataType extends
-    InMemoryReadEventMetadata = InMemoryReadEventMetadata,
+  EventMetaDataType extends InMemoryReadEventMetadata =
+    InMemoryReadEventMetadata,
 >(
   streamName: string,
   event: InMemoryProjectionSpecEvent<EventType, EventMetaDataType>,
@@ -211,8 +211,8 @@ export const eventInStream = <
 
 export const eventsInStream = <
   EventType extends Event = Event,
-  EventMetaDataType extends
-    InMemoryReadEventMetadata = InMemoryReadEventMetadata,
+  EventMetaDataType extends InMemoryReadEventMetadata =
+    InMemoryReadEventMetadata,
 >(
   streamName: string,
   events: InMemoryProjectionSpecEvent<EventType, EventMetaDataType>[],

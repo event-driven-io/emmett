@@ -90,8 +90,8 @@ export type MongoDBSubscription = {
 
 export type StreamSubscription<
   EventType extends Message = AnyMessage,
-  MessageMetadataType extends
-    MongoDBChangeStreamMessageMetadata = MongoDBChangeStreamMessageMetadata,
+  MessageMetadataType extends MongoDBChangeStreamMessageMetadata =
+    MongoDBChangeStreamMessageMetadata,
 > = ChangeStream<
   EventStream<Extract<EventType, { kind?: 'Event' }>, MessageMetadataType>,
   MongoDBSubscriptionDocument<

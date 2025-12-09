@@ -63,8 +63,7 @@ export type EventStoreDBReadEvent<EventType extends Event = Event> = ReadEvent<
   EventStoreDBReadEventMetadata
 >;
 
-export interface EventStoreDBEventStore
-  extends EventStore<EventStoreDBReadEventMetadata> {
+export interface EventStoreDBEventStore extends EventStore<EventStoreDBReadEventMetadata> {
   appendToStream<EventType extends Event>(
     streamName: string,
     events: EventType[],

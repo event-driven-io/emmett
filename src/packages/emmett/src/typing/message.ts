@@ -66,8 +66,8 @@ export type CombineMetadata<
 
 export type RecordedMessage<
   MessageType extends Message = Message,
-  MessageMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  MessageMetaDataType extends AnyRecordedMessageMetadata =
+    AnyRecordedMessageMetadata,
 > = CombineMetadata<MessageType, MessageMetaDataType> & {
   kind: NonNullable<MessageKindOf<Message>>;
 };

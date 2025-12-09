@@ -48,7 +48,8 @@ export type ReadMessagesBatchResult<
 export const readMessagesBatch = async <
   MessageType extends Message,
   RecordedMessageMetadataType extends
-    RecordedMessageMetadataWithGlobalPosition = RecordedMessageMetadataWithGlobalPosition,
+    RecordedMessageMetadataWithGlobalPosition =
+    RecordedMessageMetadataWithGlobalPosition,
 >(
   execute: SQLExecutor,
   options: ReadMessagesBatchOptions & { partition?: string },
