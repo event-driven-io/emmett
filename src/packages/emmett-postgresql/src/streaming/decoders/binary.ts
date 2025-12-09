@@ -1,9 +1,10 @@
 import type { Decoder } from '.';
 import { concatUint8Arrays } from '../binaryArrays';
 
-export class BinaryJsonDecoder<Decoded>
-  implements Decoder<Uint8Array, Decoded>
-{
+export class BinaryJsonDecoder<Decoded> implements Decoder<
+  Uint8Array,
+  Decoded
+> {
   private buffer: Uint8Array[] = [];
 
   addToBuffer(data: Uint8Array): void {

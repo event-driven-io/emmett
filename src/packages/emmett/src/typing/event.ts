@@ -76,14 +76,14 @@ export const event = <EventType extends Event<string, any, any>>(
 
 export type CombinedReadEventMetadata<
   EventType extends Event = Event,
-  EventMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  EventMetaDataType extends AnyRecordedMessageMetadata =
+    AnyRecordedMessageMetadata,
 > = CombinedMessageMetadata<EventType, EventMetaDataType>;
 
 export type ReadEvent<
   EventType extends Event = Event,
-  EventMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  EventMetaDataType extends AnyRecordedMessageMetadata =
+    AnyRecordedMessageMetadata,
 > = RecordedMessage<EventType, EventMetaDataType>;
 
 export type AnyReadEvent<

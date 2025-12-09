@@ -24,8 +24,8 @@ export type PongoProjectionHandlerContext =
 export type PongoWithNotNullDocumentEvolve<
   Document extends PongoDocument,
   EventType extends Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
+  EventMetaDataType extends PostgresReadEventMetadata =
+    PostgresReadEventMetadata,
 > =
   | ((
       document: Document,
@@ -39,8 +39,8 @@ export type PongoWithNotNullDocumentEvolve<
 export type PongoWithNullableDocumentEvolve<
   Document extends PongoDocument,
   EventType extends Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
+  EventMetaDataType extends PostgresReadEventMetadata =
+    PostgresReadEventMetadata,
 > =
   | ((
       document: Document | null,
@@ -54,8 +54,8 @@ export type PongoWithNullableDocumentEvolve<
 export type PongoDocumentEvolve<
   Document extends PongoDocument,
   EventType extends Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
+  EventMetaDataType extends PostgresReadEventMetadata =
+    PostgresReadEventMetadata,
 > =
   | PongoWithNotNullDocumentEvolve<Document, EventType, EventMetaDataType>
   | PongoWithNullableDocumentEvolve<Document, EventType, EventMetaDataType>;
@@ -108,8 +108,8 @@ export const pongoProjection = <EventType extends Event>({
 export type PongoMultiStreamProjectionOptions<
   Document extends PongoDocument,
   EventType extends Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
+  EventMetaDataType extends PostgresReadEventMetadata =
+    PostgresReadEventMetadata,
 > = {
   canHandle: CanHandle<EventType>;
 
@@ -136,8 +136,8 @@ export type PongoMultiStreamProjectionOptions<
 export const pongoMultiStreamProjection = <
   Document extends PongoDocument,
   EventType extends Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
+  EventMetaDataType extends PostgresReadEventMetadata =
+    PostgresReadEventMetadata,
 >(
   options: PongoMultiStreamProjectionOptions<
     Document,
@@ -192,8 +192,8 @@ export const pongoMultiStreamProjection = <
 export type PongoSingleStreamProjectionOptions<
   Document extends PongoDocument,
   EventType extends Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
+  EventMetaDataType extends PostgresReadEventMetadata =
+    PostgresReadEventMetadata,
 > = {
   canHandle: CanHandle<EventType>;
   getDocumentId?: (event: ReadEvent<EventType>) => string;
@@ -220,8 +220,8 @@ export type PongoSingleStreamProjectionOptions<
 export const pongoSingleStreamProjection = <
   Document extends PongoDocument,
   EventType extends Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
+  EventMetaDataType extends PostgresReadEventMetadata =
+    PostgresReadEventMetadata,
 >(
   options: PongoSingleStreamProjectionOptions<
     Document,

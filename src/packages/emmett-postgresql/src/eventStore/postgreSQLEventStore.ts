@@ -43,7 +43,8 @@ import {
 } from './schema';
 
 export interface PostgresEventStore
-  extends EventStore<PostgresReadEventMetadata>,
+  extends
+    EventStore<PostgresReadEventMetadata>,
     EventStoreSessionFactory<PostgresEventStore> {
   appendToStream<EventType extends Event>(
     streamName: string,

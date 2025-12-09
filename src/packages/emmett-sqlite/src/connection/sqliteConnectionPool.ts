@@ -17,7 +17,7 @@ export type SQLiteConnectionPool = {
 
 export type SQLiteConnectionPoolOptions = {
   fileName: // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-  | InMemorySQLiteDatabase
+    | InMemorySQLiteDatabase
     // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
     | InMemorySharedCacheSQLiteDatabase
     | string

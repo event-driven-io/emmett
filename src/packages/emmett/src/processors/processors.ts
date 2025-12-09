@@ -27,7 +27,8 @@ export type CurrentMessageProcessorPosition<CheckpointType = any> =
 export type GetCheckpoint<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+  CheckpointType =
+    GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = (
   message: RecordedMessage<MessageType, MessageMetadataType>,
 ) => CheckpointType | null;
@@ -35,7 +36,8 @@ export type GetCheckpoint<
 export const getCheckpoint = <
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+  CheckpointType =
+    GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 >(
   message: RecordedMessage<MessageType, MessageMetadataType>,
 ): CheckpointType | null => {
@@ -59,7 +61,8 @@ export const getCheckpoint = <
 export const wasMessageHandled = <
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+  CheckpointType =
+    GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 >(
   message: RecordedMessage<MessageType, MessageMetadataType>,
   checkpoint: CheckpointType | null,
@@ -92,7 +95,8 @@ export type MessageProcessor<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+  CheckpointType =
+    GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = {
   id: string;
   type: string;
@@ -135,7 +139,8 @@ export type Checkpointer<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+  CheckpointType =
+    GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = {
   read: ReadProcessorCheckpoint<CheckpointType, HandlerContext>;
   store: StoreProcessorCheckpoint<
@@ -150,7 +155,8 @@ export type BaseMessageProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+  CheckpointType =
+    GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = {
   type?: string;
   processorId: string;
@@ -206,7 +212,8 @@ export type ReactorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+  CheckpointType =
+    GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = BaseMessageProcessorOptions<
   MessageType,
   MessageMetadataType,
@@ -219,7 +226,8 @@ export type ProjectorOptions<
   EventType extends AnyEvent = AnyEvent,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+  CheckpointType =
+    GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = Omit<
   BaseMessageProcessorOptions<
     EventType,
@@ -295,7 +303,8 @@ export const reactor = <
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+  CheckpointType =
+    GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 >(
   options: ReactorOptions<
     MessageType,
@@ -433,10 +442,11 @@ export const reactor = <
 
 export const projector = <
   EventType extends Event = Event,
-  EventMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  EventMetaDataType extends AnyRecordedMessageMetadata =
+    AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<EventMetaDataType>,
+  CheckpointType =
+    GlobalPositionTypeOfRecordedMessageMetadata<EventMetaDataType>,
 >(
   options: ProjectorOptions<
     EventType,

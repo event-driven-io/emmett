@@ -27,8 +27,8 @@ export type PostgreSQLProjectionHandlerContext = {
 
 export type PostgreSQLProjectionHandler<
   EventType extends Event = Event,
-  EventMetaDataType extends
-    PostgresReadEventMetadata = PostgresReadEventMetadata,
+  EventMetaDataType extends PostgresReadEventMetadata =
+    PostgresReadEventMetadata,
 > = ProjectionHandler<
   EventType,
   EventMetaDataType,

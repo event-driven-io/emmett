@@ -14,8 +14,8 @@ export type SingleRawMessageHandlerWithoutContext<
 
 export type SingleRecordedMessageHandlerWithoutContext<
   MessageType extends Message = AnyMessage,
-  MessageMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  MessageMetaDataType extends AnyRecordedMessageMetadata =
+    AnyRecordedMessageMetadata,
 > = (
   message: RecordedMessage<MessageType, MessageMetaDataType>,
 ) => Promise<MessageHandlerResult> | MessageHandlerResult;
@@ -40,8 +40,8 @@ export type SingleRawMessageHandlerWithContext<
 
 export type SingleRecordedMessageHandlerWithContext<
   MessageType extends Message = AnyMessage,
-  MessageMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  MessageMetaDataType extends AnyRecordedMessageMetadata =
+    AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
 > = (
   message: RecordedMessage<MessageType, MessageMetaDataType>,
@@ -62,8 +62,8 @@ export type SingleMessageHandlerWithContext<
 
 export type SingleMessageHandler<
   MessageType extends Message = AnyMessage,
-  MessageMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  MessageMetaDataType extends AnyRecordedMessageMetadata =
+    AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
 > = HandlerContext extends DefaultRecord
   ? SingleMessageHandlerWithContext<
@@ -81,16 +81,16 @@ export type BatchRawMessageHandlerWithoutContext<
 
 export type BatchRecordedMessageHandlerWithoutContext<
   MessageType extends Message = AnyMessage,
-  MessageMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  MessageMetaDataType extends AnyRecordedMessageMetadata =
+    AnyRecordedMessageMetadata,
 > = (
   messages: RecordedMessage<MessageType, MessageMetaDataType>[],
 ) => Promise<MessageHandlerResult> | MessageHandlerResult;
 
 export type BatchMessageHandlerWithoutContext<
   MessageType extends AnyMessage = AnyMessage,
-  MessageMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  MessageMetaDataType extends AnyRecordedMessageMetadata =
+    AnyRecordedMessageMetadata,
 > =
   | BatchRawMessageHandlerWithoutContext<MessageType>
   | BatchRecordedMessageHandlerWithoutContext<MessageType, MessageMetaDataType>;
@@ -105,8 +105,8 @@ export type BatchRawMessageHandlerWithContext<
 
 export type BatchRecordedMessageHandlerWithContext<
   MessageType extends Message = AnyMessage,
-  MessageMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  MessageMetaDataType extends AnyRecordedMessageMetadata =
+    AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
 > = (
   messages: RecordedMessage<MessageType, MessageMetaDataType>[],
@@ -115,8 +115,8 @@ export type BatchRecordedMessageHandlerWithContext<
 
 export type BatchMessageHandlerWithContext<
   MessageType extends AnyMessage = AnyMessage,
-  MessageMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  MessageMetaDataType extends AnyRecordedMessageMetadata =
+    AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
 > =
   | BatchRawMessageHandlerWithContext<MessageType, HandlerContext>
@@ -128,8 +128,8 @@ export type BatchMessageHandlerWithContext<
 
 export type BatchMessageHandler<
   MessageType extends Message = AnyMessage,
-  MessageMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  MessageMetaDataType extends AnyRecordedMessageMetadata =
+    AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
 > = HandlerContext extends DefaultRecord
   ? BatchMessageHandlerWithContext<
@@ -141,8 +141,8 @@ export type BatchMessageHandler<
 
 export type MessageHandler<
   MessageType extends Message = Message,
-  MessageMetaDataType extends
-    AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  MessageMetaDataType extends AnyRecordedMessageMetadata =
+    AnyRecordedMessageMetadata,
   HandlerContext extends DefaultRecord | undefined = undefined,
 > =
   | (HandlerContext extends DefaultRecord
