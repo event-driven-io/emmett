@@ -1,6 +1,6 @@
 {
   "name": "emmett-honojs",
-  "version": "0.41.0",
+  "version": "0.42.0-alpha.1",
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "build": "tsup",
@@ -51,7 +51,7 @@
   "dependencies": {},
   "devDependencies": {},
   "peerDependencies": {
-    "@event-driven-io/emmett": "0.41.0",
+    "@event-driven-io/emmett": "0.42.0-alpha.1",
     "hono": "^4.10.6",
     "@hono/node-server": "^1.19.6",
     "http-problem-details": "^0.1.5"
