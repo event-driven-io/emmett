@@ -30,7 +30,18 @@ jobs:
         run: npm config set access public
 
       - name: Publish package on NPM 📦
-        run: npm publish --ws
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ $VERSION == *"beta"* ]]; then
+            TAG="beta"
+          elif [[ $VERSION == *"alpha"* ]]; then
+            TAG="alpha"
+          elif [[ $VERSION == *"rc"* ]]; then
+            TAG="rc"
+          else
+            TAG="latest"
+          fi
+          npm publish --ws --tag $TAG
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_ENV: production
