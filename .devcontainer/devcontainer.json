@@ -19,7 +19,8 @@
       "extensions": [
         "esbenp.prettier-vscode",
         "dbaeumer.vscode-eslint",
-        "connor4312.nodejs-testing"
+        "connor4312.nodejs-testing",
+        "vitest.explorer"
       ]
     }
   },
