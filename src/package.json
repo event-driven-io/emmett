@@ -4,7 +4,17 @@
   "version": "0.42.0-alpha.1",
   "description": "Emmett - Event Sourcing development made simple",
   "engines": {
-    "node": ">=20.11.1"
+    "node": ">=24.12.0"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "onFail": "error"
+    }
   },
   "private": true,
   "scripts": {
