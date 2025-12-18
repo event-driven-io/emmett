@@ -19,7 +19,7 @@ import { mongoDBEventStoreConsumer } from './mongoDBEventStoreConsumer';
 
 const withDeadline = { timeout: 1000000 };
 
-void describe('EventStoreDB event store started consumer', () => {
+void describe('MongoDB event store started consumer', () => {
   let mongoDB: StartedMongoDBContainer;
   let connectionString: string;
   let eventStore: MongoDBEventStore & Closeable;
