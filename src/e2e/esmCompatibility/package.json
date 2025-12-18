@@ -9,8 +9,8 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
-    "@event-driven-io/emmett": "0.20.0-alpha.2",
-    "nuxt": "^3.10.3",
+    "@event-driven-io/emmett": "0.20.1",
+    "nuxt": "4.2.2",
     "ts-pattern": "^5.0.8"
   }
 }

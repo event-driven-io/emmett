@@ -1,5 +1,5 @@
-import { evolve, initialState } from '~/app/counter';
-import { eventStore } from '~/app/event-store';
+import { evolve, initialState } from '~/counter';
+import { eventStore } from '~/event-store';
 
 export default eventHandler(async (event) => {
   const streamId = getRouterParam(event, 'streamId');
