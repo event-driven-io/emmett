@@ -3,8 +3,8 @@ import type { SQLiteEventStoreOptions } from '../SQLiteEventStore';
 import {
   globalTag,
   messagesTable,
+  processorsTable,
   streamsTable,
-  subscriptionsTable,
 } from './typing';
 
 export const sql = (sql: string) => sql;
@@ -43,12 +43,12 @@ export const messagesTableSQL = sql(
 
 export const subscriptionsTableSQL = sql(
   `
-  CREATE TABLE IF NOT EXISTS ${subscriptionsTable.name}(
-      subscription_id                 TEXT                   NOT NULL,
+  CREATE TABLE IF NOT EXISTS ${processorsTable.name}(
+      processor_id                 TEXT                   NOT NULL,
       version                         INTEGER                NOT NULL DEFAULT 1,
       partition                       TEXT                   NOT NULL DEFAULT '${globalTag}',
       last_processed_position         BIGINT                NOT NULL,
-      PRIMARY KEY (subscription_id, partition, version)
+      PRIMARY KEY (processor_id, partition, version)
   );
 `,
 );
