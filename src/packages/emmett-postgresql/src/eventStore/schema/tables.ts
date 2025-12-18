@@ -4,6 +4,7 @@ import {
   globalTag,
   messagesTable,
   processorsTable,
+  projectionsTable,
   streamsTable,
 } from './typing';
 
@@ -52,9 +53,23 @@ export const processorsTableSQL = rawSql(
       version                       INT                    NOT NULL DEFAULT 1,
       processor_id                  TEXT                   NOT NULL,
       partition                     TEXT                   NOT NULL DEFAULT '${globalTag}',
+      status                        TEXT                   NOT NULL DEFAULT 'stopped', 
       last_processed_checkpoint     TEXT                   NOT NULL,    
       processor_instance_id         TEXT                   DEFAULT gen_random_uuid(),
       PRIMARY KEY (processor_id, partition, version)
+  ) PARTITION BY LIST (partition);
+`,
+);
+
+export const projectionsTableSQL = rawSql(
+  `
+  CREATE TABLE IF NOT EXISTS ${projectionsTable.name}(
+      version                       INT                    NOT NULL DEFAULT 1,
+      name                          TEXT                   NOT NULL,
+      partition                     TEXT                   NOT NULL DEFAULT '${globalTag}',
+      type                          TEXT                   NOT NULL,   
+      kind                          VARCHAR(1)             NOT NULL,
+      PRIMARY KEY (name, partition, version)
   ) PARTITION BY LIST (partition);
 `,
 );
@@ -113,6 +128,12 @@ export const addPartitionSQL = rawSql(
           CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
           FOR VALUES IN (%L);',
           emt_sanitize_name('${processorsTable.name}' || '_' || partition_name), '${processorsTable.name}', partition_name
+      );
+
+      EXECUTE format('
+          CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
+          FOR VALUES IN (%L);',
+          emt_sanitize_name('${projectionsTable.name}' || '_' || partition_name), '${projectionsTable.name}', partition_name
       );
   END;
   $$ LANGUAGE plpgsql;`,
@@ -387,6 +408,9 @@ BEGIN
         -- Rename columns
         ALTER TABLE emt_messages
             ALTER COLUMN message_kind TYPE VARCHAR(1);
+
+        ALTER TABLE emt_processors
+            Add COLUMN status TEXT NOT NULL DEFAULT 'stopped';
 
         ALTER TABLE emt_processors 
             RENAME COLUMN subscription_id TO processor_id;
