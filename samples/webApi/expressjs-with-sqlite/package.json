@@ -38,9 +38,9 @@
   },
   "homepage": "https://github.com/event-driven-io/emmett#readme",
   "dependencies": {
-    "@event-driven-io/emmett": "0.41.0",
-    "@event-driven-io/emmett-expressjs": "0.41.0",
-    "@event-driven-io/emmett-sqlite": "0.41.0"
+    "@event-driven-io/emmett": "0.42.0-beta.1",
+    "@event-driven-io/emmett-expressjs": "0.42.0-beta.1",
+    "@event-driven-io/emmett-sqlite": "0.42.0-beta.1"
   },
   "devDependencies": {
     "@types/node": "20.11.30",
