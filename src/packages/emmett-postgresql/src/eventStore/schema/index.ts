@@ -19,6 +19,7 @@ import {
   migrationFromEventsToMessagesSQL,
   migrationFromSubscriptionsToProcessorsSQL,
   processorsTableSQL,
+  projectionsTableSQL,
   sanitizeNameSQL,
   streamsTableSQL,
 } from './tables';
@@ -37,6 +38,7 @@ export const schemaSQL: SQL[] = [
   migrationFromSubscriptionsToProcessorsSQL,
   streamsTableSQL,
   messagesTableSQL,
+  projectionsTableSQL,
   processorsTableSQL,
   sanitizeNameSQL,
   addTablePartitions,
