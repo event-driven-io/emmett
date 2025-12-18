@@ -16,6 +16,7 @@ import {
 } from '../../postgreSQLEventStore';
 import { schema_0_36_0 } from './schema_0_36_0';
 import { schema_0_38_7 } from './schema_0_38_7';
+import { schema_0_42_0 } from './schema_0_42_0';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -83,6 +84,17 @@ void describe('Schema migrations tests', () => {
   void it('can migrate from 0.38.7 schema', async () => {
     // Given
     await pool.execute.command(schema_0_38_7);
+
+    // When
+    await eventStore.schema.migrate();
+
+    // Then
+    await assertCanAppendAndRead(eventStore);
+  });
+
+  void it('can migrate from 0.42.0 schema', async () => {
+    // Given
+    await pool.execute.command(schema_0_42_0);
 
     // When
     await eventStore.schema.migrate();
