@@ -105,6 +105,7 @@ void describe('Schema migrations tests', () => {
 
   void it('can migrate from latest schema', async () => {
     // Given
+    console.log(eventStore.schema.sql());
     await eventStore.schema.migrate();
 
     // When
