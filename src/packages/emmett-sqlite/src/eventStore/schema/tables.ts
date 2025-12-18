@@ -44,10 +44,10 @@ export const messagesTableSQL = sql(
 export const subscriptionsTableSQL = sql(
   `
   CREATE TABLE IF NOT EXISTS ${processorsTable.name}(
-      processor_id                 TEXT                   NOT NULL,
-      version                         INTEGER                NOT NULL DEFAULT 1,
-      partition                       TEXT                   NOT NULL DEFAULT '${globalTag}',
-      last_processed_position         BIGINT                NOT NULL,
+      processor_id                 TEXT                  NOT NULL,
+      version                      INTEGER               NOT NULL DEFAULT 1,
+      partition                    TEXT                  NOT NULL DEFAULT '${globalTag}',
+      last_processed_checkpoint    TEXT                  NOT NULL,
       PRIMARY KEY (processor_id, partition, version)
   );
 `,

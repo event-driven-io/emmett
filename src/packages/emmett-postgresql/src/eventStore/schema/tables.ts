@@ -51,7 +51,7 @@ export const processorsTableSQL = rawSql(
       processor_id                  TEXT                   NOT NULL,
       version                       INT                    NOT NULL DEFAULT 1,
       partition                     TEXT                   NOT NULL DEFAULT '${globalTag}',
-      last_processed_position       BIGINT                 NOT NULL,
+      last_processed_checkpoint     BIGINT                 NOT NULL,
       last_processed_transaction_id XID8                   NOT NULL,
       PRIMARY KEY (processor_id, partition, version)
   ) PARTITION BY LIST (partition);
@@ -386,6 +386,13 @@ BEGIN
         -- Rename columns
         ALTER TABLE emt_processors 
             RENAME COLUMN subscription_id TO processor_id;
+
+        ALTER TABLE emt_processors 
+            RENAME COLUMN last_processed_position TO last_processed_checkpoint;
+    
+        ALTER TABLE emt_processors 
+            ALTER COLUMN last_processed_checkpoint TYPE TEXT 
+            USING lpad(last_processed_checkpoint::text, 19, '0');
 
         DROP FUNCTION store_subscription_checkpoint(character varying,bigint,bigint,bigint,xid8,text);
     END IF;

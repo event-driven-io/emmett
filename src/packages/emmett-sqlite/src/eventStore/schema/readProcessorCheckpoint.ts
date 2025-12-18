@@ -4,7 +4,7 @@ import { defaultTag, processorsTable } from './typing';
 import { singleOrNull } from './utils';
 
 type ReadProcessorCheckpointSqlResult = {
-  last_processed_position: string;
+  last_processed_checkpoint: string;
 };
 
 export type ReadProcessorCheckpointResult = {
@@ -18,7 +18,7 @@ export const readProcessorCheckpoint = async (
   const result = await singleOrNull(
     db.query<ReadProcessorCheckpointSqlResult>(
       sql(
-        `SELECT last_processed_position
+        `SELECT last_processed_checkpoint
            FROM ${processorsTable.name}
            WHERE partition = ? AND processor_id = ?
            LIMIT 1`,
@@ -29,6 +29,6 @@ export const readProcessorCheckpoint = async (
 
   return {
     lastProcessedPosition:
-      result !== null ? BigInt(result.last_processed_position) : null,
+      result !== null ? BigInt(result.last_processed_checkpoint) : null,
   };
 };
