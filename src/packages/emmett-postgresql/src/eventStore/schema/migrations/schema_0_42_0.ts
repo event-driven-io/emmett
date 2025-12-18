@@ -62,6 +62,9 @@ BEGIN
         ALTER TABLE emt_messages
             ALTER COLUMN message_kind TYPE VARCHAR(1);
 
+        ALTER TABLE emt_processors
+            Add COLUMN status TEXT NOT NULL DEFAULT 'stopped';
+
         ALTER TABLE emt_processors 
             RENAME COLUMN subscription_id TO processor_id;
 
@@ -109,11 +112,21 @@ CREATE TABLE IF NOT EXISTS emt_streams(
       message_metadata       JSONB                     NOT NULL,
       PRIMARY KEY (stream_id, stream_position, partition, is_archived)
   ) PARTITION BY LIST (partition);
+  CREATE TABLE IF NOT EXISTS emt_projections(
+      version                       INT                    NOT NULL DEFAULT 1,
+      name                          TEXT                   NOT NULL,
+      partition                     TEXT                   NOT NULL DEFAULT 'global',
+      type                          TEXT                   NOT NULL,   
+      kind                          VARCHAR(1)             NOT NULL,
+      PRIMARY KEY (name, partition, version)
+  ) PARTITION BY LIST (partition);
+
   CREATE TABLE IF NOT EXISTS emt_processors(
       last_processed_transaction_id XID8                   NOT NULL,
       version                       INT                    NOT NULL DEFAULT 1,
       processor_id                  TEXT                   NOT NULL,
       partition                     TEXT                   NOT NULL DEFAULT 'global',
+      status                        TEXT                   NOT NULL DEFAULT 'stopped', 
       last_processed_checkpoint     TEXT                   NOT NULL,    
       processor_instance_id         TEXT                   DEFAULT gen_random_uuid(),
       PRIMARY KEY (processor_id, partition, version)
@@ -163,6 +176,12 @@ CREATE OR REPLACE FUNCTION emt_sanitize_name(input_name TEXT) RETURNS TEXT AS $$
           CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
           FOR VALUES IN (%L);',
           emt_sanitize_name('emt_processors' || '_' || partition_name), 'emt_processors', partition_name
+      );
+
+      EXECUTE format('
+          CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
+          FOR VALUES IN (%L);',
+          emt_sanitize_name('emt_projections' || '_' || partition_name), 'emt_projections', partition_name
       );
   END;
   $$ LANGUAGE plpgsql;
