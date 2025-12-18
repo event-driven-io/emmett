@@ -1,17 +1,19 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
+import { v7 as uuid } from 'uuid';
 import { defaultTag, processorsTable } from './typing';
 
 export const storeSubscriptionCheckpointSQL = sql(`
 CREATE OR REPLACE FUNCTION store_processor_checkpoint(
-  p_processor_id VARCHAR(100),
-  p_version BIGINT,
-  p_position BIGINT,
-  p_check_position BIGINT,
-  p_transaction_id xid8,
-  p_partition TEXT DEFAULT '${defaultTag}'
+  p_processor_id           TEXT,
+  p_version                BIGINT,
+  p_position               TEXT,
+  p_check_position         TEXT,
+  p_transaction_id         xid8,
+  p_partition              TEXT DEFAULT '${defaultTag}',
+  p_processor_instance_id  TEXT DEFAULT gen_random_uuid()
 ) RETURNS INT AS $$
 DECLARE
-  current_position BIGINT;
+  current_position TEXT;
 BEGIN
   -- Handle the case when p_check_position is provided
   IF p_check_position IS NOT NULL THEN
@@ -79,6 +81,7 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
     newPosition: null extends Position ? bigint | null : bigint;
     lastProcessedPosition: bigint | null;
     partition?: string;
+    processorInstanceId?: string;
   },
 ): Promise<
   StoreLastProcessedProcessorPositionResult<
@@ -89,12 +92,13 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
     const { result } = await single(
       execute.command<{ result: 0 | 1 | 2 }>(
         sql(
-          `SELECT store_processor_checkpoint(%L, %s, %L, %L, pg_current_xact_id(), %L) as result;`,
+          `SELECT store_processor_checkpoint(%L, %s, %L, %L, pg_current_xact_id(), %L, %L) as result;`,
           options.processorId,
           options.version ?? 1,
-          options.newPosition,
-          options.lastProcessedPosition,
+          options.newPosition?.toString().padStart(19, '0') ?? null,
+          options.lastProcessedPosition?.toString().padStart(19, '0') ?? null,
           options.partition ?? defaultTag,
+          options.processorInstanceId ?? uuid(),
         ),
       ),
     );

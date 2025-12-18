@@ -51,8 +51,9 @@ export const processorsTableSQL = rawSql(
       processor_id                  TEXT                   NOT NULL,
       version                       INT                    NOT NULL DEFAULT 1,
       partition                     TEXT                   NOT NULL DEFAULT '${globalTag}',
-      last_processed_checkpoint     BIGINT                 NOT NULL,
+      last_processed_checkpoint     TEXT                   NOT NULL,
       last_processed_transaction_id XID8                   NOT NULL,
+      processor_instance_id         TEXT                   DEFAULT gen_random_uuid(),
       PRIMARY KEY (processor_id, partition, version)
   ) PARTITION BY LIST (partition);
 `,
@@ -393,6 +394,9 @@ BEGIN
         ALTER TABLE emt_processors 
             ALTER COLUMN last_processed_checkpoint TYPE TEXT 
             USING lpad(last_processed_checkpoint::text, 19, '0');
+
+        ALTER TABLE emt_processors 
+            ADD COLUMN processor_instance_id TEXT DEFAULT gen_random_uuid();
 
         DROP FUNCTION store_subscription_checkpoint(character varying,bigint,bigint,bigint,xid8,text);
     END IF;

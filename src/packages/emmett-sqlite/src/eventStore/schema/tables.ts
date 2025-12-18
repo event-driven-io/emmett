@@ -48,6 +48,7 @@ export const subscriptionsTableSQL = sql(
       version                      INTEGER               NOT NULL DEFAULT 1,
       partition                    TEXT                  NOT NULL DEFAULT '${globalTag}',
       last_processed_checkpoint    TEXT                  NOT NULL,
+      processor_instance_id        TEXT                  DEFAULT 'unknown',
       PRIMARY KEY (processor_id, partition, version)
   );
 `,

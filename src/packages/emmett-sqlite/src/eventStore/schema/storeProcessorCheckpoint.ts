@@ -1,3 +1,4 @@
+import { v7 as uuid } from 'uuid';
 import { isSQLiteError, type SQLiteConnection } from '../../connection';
 import { sql } from './tables';
 import { defaultTag, processorsTable } from './typing';
@@ -11,6 +12,7 @@ async function storeSubscriptionCheckpointSQLite(
   position: bigint | null,
   checkPosition: bigint | null,
   partition: string,
+  processorInstanceId?: string,
 ): Promise<0 | 1 | 2> {
   if (checkPosition !== null) {
     const updateResult = await db.command(
@@ -21,13 +23,18 @@ async function storeSubscriptionCheckpointSQLite(
             AND last_processed_checkpoint = ? 
             AND partition = ?
         `),
-      [position!.toString(), processorId, checkPosition.toString(), partition],
+      [
+        position!.toString().padStart(19, '0'),
+        processorId,
+        checkPosition.toString().padStart(19, '0'),
+        partition,
+      ],
     );
     if (updateResult.changes > 0) {
       return 1;
     } else {
       const current_position = await singleOrNull(
-        db.query<{ last_processed_checkpoint: bigint }>(
+        db.query<{ last_processed_checkpoint: string }>(
           sql(
             `SELECT last_processed_checkpoint FROM ${processorsTable.name} 
                WHERE processor_id = ? AND partition = ?`,
@@ -36,12 +43,17 @@ async function storeSubscriptionCheckpointSQLite(
         ),
       );
 
-      if (current_position?.last_processed_checkpoint === position) {
+      const currentPosition =
+        current_position && current_position?.last_processed_checkpoint !== null
+          ? BigInt(current_position.last_processed_checkpoint)
+          : null;
+
+      if (currentPosition === position) {
         return 0;
       } else if (
         position !== null &&
-        current_position !== null &&
-        current_position?.last_processed_checkpoint > position
+        currentPosition !== null &&
+        currentPosition > position
       ) {
         return 2;
       } else {
@@ -52,9 +64,15 @@ async function storeSubscriptionCheckpointSQLite(
     try {
       await db.command(
         sql(
-          `INSERT INTO ${processorsTable.name} (processor_id, version, last_processed_checkpoint, partition) VALUES (?, ?, ?, ?)`,
+          `INSERT INTO ${processorsTable.name} (processor_id, version, last_processed_checkpoint, partition) VALUES (?, ?, ?, ?, ?)`,
         ),
-        [processorId, version, position!.toString(), partition],
+        [
+          processorId,
+          version,
+          position!.toString(),
+          partition,
+          processorInstanceId ?? uuid(),
+        ],
       );
       return 1;
     } catch (err) {
@@ -63,14 +81,19 @@ async function storeSubscriptionCheckpointSQLite(
       }
 
       const current = await singleOrNull(
-        db.query<{ last_processed_checkpoint: bigint }>(
+        db.query<{ last_processed_checkpoint: string }>(
           sql(
             `SELECT last_processed_checkpoint FROM ${processorsTable.name} WHERE processor_id = ? AND partition = ?`,
           ),
           [processorId, partition],
         ),
       );
-      if (current?.last_processed_checkpoint === position) {
+      const currentPosition =
+        current && current?.last_processed_checkpoint !== null
+          ? BigInt(current.last_processed_checkpoint)
+          : null;
+
+      if (currentPosition === position) {
         return 0;
       } else {
         return 2;
