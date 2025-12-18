@@ -2,7 +2,7 @@ import { singleOrNull, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import { defaultTag, processorsTable } from './typing';
 
 type ReadProcessorCheckpointSqlResult = {
-  last_processed_position: string;
+  last_processed_checkpoint: string;
 };
 
 export type ReadProcessorCheckpointResult = {
@@ -16,7 +16,7 @@ export const readProcessorCheckpoint = async (
   const result = await singleOrNull(
     execute.query<ReadProcessorCheckpointSqlResult>(
       sql(
-        `SELECT last_processed_position
+        `SELECT last_processed_checkpoint
            FROM ${processorsTable.name}
            WHERE partition = %L AND processor_id = %L
            LIMIT 1`,
@@ -28,6 +28,6 @@ export const readProcessorCheckpoint = async (
 
   return {
     lastProcessedPosition:
-      result !== null ? BigInt(result.last_processed_position) : null,
+      result !== null ? BigInt(result.last_processed_checkpoint) : null,
   };
 };

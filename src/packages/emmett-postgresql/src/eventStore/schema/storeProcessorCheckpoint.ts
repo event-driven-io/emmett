@@ -18,16 +18,16 @@ BEGIN
       -- Try to update if the position matches p_check_position
       UPDATE "${processorsTable.name}"
       SET 
-        "last_processed_position" = p_position, 
+        "last_processed_checkpoint" = p_position, 
         "last_processed_transaction_id" = p_transaction_id
-      WHERE "processor_id" = p_processor_id AND "last_processed_position" = p_check_position AND "partition" = p_partition;
+      WHERE "processor_id" = p_processor_id AND "last_processed_checkpoint" = p_check_position AND "partition" = p_partition;
 
       IF FOUND THEN
           RETURN 1;  -- Successfully updated
       END IF;
 
       -- Retrieve the current position
-      SELECT "last_processed_position" INTO current_position
+      SELECT "last_processed_checkpoint" INTO current_position
       FROM "${processorsTable.name}"
       WHERE "processor_id" = p_processor_id AND "partition" = p_partition;
 
@@ -43,12 +43,12 @@ BEGIN
 
   -- Handle the case when p_check_position is NULL: Insert if not exists
   BEGIN
-      INSERT INTO "${processorsTable.name}"("processor_id", "version", "last_processed_position", "partition", "last_processed_transaction_id")
+      INSERT INTO "${processorsTable.name}"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id")
       VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id);
       RETURN 1;  -- Successfully inserted
   EXCEPTION WHEN unique_violation THEN
       -- If insertion failed, it means the row already exists
-      SELECT "last_processed_position" INTO current_position
+      SELECT "last_processed_checkpoint" INTO current_position
       FROM "${processorsTable.name}"
       WHERE "processor_id" = p_processor_id AND "partition" = p_partition;
 

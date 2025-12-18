@@ -16,9 +16,9 @@ async function storeSubscriptionCheckpointSQLite(
     const updateResult = await db.command(
       sql(`
           UPDATE ${processorsTable.name}
-          SET last_processed_position = ?
+          SET last_processed_checkpoint = ?
           WHERE processor_id = ? 
-            AND last_processed_position = ? 
+            AND last_processed_checkpoint = ? 
             AND partition = ?
         `),
       [position!.toString(), processorId, checkPosition.toString(), partition],
@@ -27,21 +27,21 @@ async function storeSubscriptionCheckpointSQLite(
       return 1;
     } else {
       const current_position = await singleOrNull(
-        db.query<{ last_processed_position: bigint }>(
+        db.query<{ last_processed_checkpoint: bigint }>(
           sql(
-            `SELECT last_processed_position FROM ${processorsTable.name} 
+            `SELECT last_processed_checkpoint FROM ${processorsTable.name} 
                WHERE processor_id = ? AND partition = ?`,
           ),
           [processorId, partition],
         ),
       );
 
-      if (current_position?.last_processed_position === position) {
+      if (current_position?.last_processed_checkpoint === position) {
         return 0;
       } else if (
         position !== null &&
         current_position !== null &&
-        current_position?.last_processed_position > position
+        current_position?.last_processed_checkpoint > position
       ) {
         return 2;
       } else {
@@ -52,7 +52,7 @@ async function storeSubscriptionCheckpointSQLite(
     try {
       await db.command(
         sql(
-          `INSERT INTO ${processorsTable.name} (processor_id, version, last_processed_position, partition) VALUES (?, ?, ?, ?)`,
+          `INSERT INTO ${processorsTable.name} (processor_id, version, last_processed_checkpoint, partition) VALUES (?, ?, ?, ?)`,
         ),
         [processorId, version, position!.toString(), partition],
       );
@@ -63,14 +63,14 @@ async function storeSubscriptionCheckpointSQLite(
       }
 
       const current = await singleOrNull(
-        db.query<{ last_processed_position: bigint }>(
+        db.query<{ last_processed_checkpoint: bigint }>(
           sql(
-            `SELECT last_processed_position FROM ${processorsTable.name} WHERE processor_id = ? AND partition = ?`,
+            `SELECT last_processed_checkpoint FROM ${processorsTable.name} WHERE processor_id = ? AND partition = ?`,
           ),
           [processorId, partition],
         ),
       );
-      if (current?.last_processed_position === position) {
+      if (current?.last_processed_checkpoint === position) {
         return 0;
       } else {
         return 2;
