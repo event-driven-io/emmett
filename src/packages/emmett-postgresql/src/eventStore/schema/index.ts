@@ -17,9 +17,10 @@ import {
   dropFutureConceptModuleAndTenantFunctions,
   messagesTableSQL,
   migrationFromEventsToMessagesSQL,
+  migrationFromSubscriptionsToProcessorsSQL,
+  processorsTableSQL,
   sanitizeNameSQL,
   streamsTableSQL,
-  subscriptionsTableSQL,
 } from './tables';
 
 export * from './appendToStream';
@@ -33,9 +34,10 @@ export * from './typing';
 
 export const schemaSQL: SQL[] = [
   migrationFromEventsToMessagesSQL,
+  migrationFromSubscriptionsToProcessorsSQL,
   streamsTableSQL,
   messagesTableSQL,
-  subscriptionsTableSQL,
+  processorsTableSQL,
   sanitizeNameSQL,
   addTablePartitions,
   addPartitionSQL,

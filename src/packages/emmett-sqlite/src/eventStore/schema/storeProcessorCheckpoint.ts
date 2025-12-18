@@ -1,6 +1,6 @@
 import { isSQLiteError, type SQLiteConnection } from '../../connection';
 import { sql } from './tables';
-import { defaultTag, subscriptionsTable } from './typing';
+import { defaultTag, processorsTable } from './typing';
 import { singleOrNull } from './utils';
 
 // for more infos see the postgresql stored procedure version
@@ -15,9 +15,9 @@ async function storeSubscriptionCheckpointSQLite(
   if (checkPosition !== null) {
     const updateResult = await db.command(
       sql(`
-          UPDATE ${subscriptionsTable.name}
+          UPDATE ${processorsTable.name}
           SET last_processed_position = ?
-          WHERE subscription_id = ? 
+          WHERE processor_id = ? 
             AND last_processed_position = ? 
             AND partition = ?
         `),
@@ -29,8 +29,8 @@ async function storeSubscriptionCheckpointSQLite(
       const current_position = await singleOrNull(
         db.query<{ last_processed_position: bigint }>(
           sql(
-            `SELECT last_processed_position FROM ${subscriptionsTable.name} 
-               WHERE subscription_id = ? AND partition = ?`,
+            `SELECT last_processed_position FROM ${processorsTable.name} 
+               WHERE processor_id = ? AND partition = ?`,
           ),
           [processorId, partition],
         ),
@@ -52,7 +52,7 @@ async function storeSubscriptionCheckpointSQLite(
     try {
       await db.command(
         sql(
-          `INSERT INTO ${subscriptionsTable.name} (subscription_id, version, last_processed_position, partition) VALUES (?, ?, ?, ?)`,
+          `INSERT INTO ${processorsTable.name} (processor_id, version, last_processed_position, partition) VALUES (?, ?, ?, ?)`,
         ),
         [processorId, version, position!.toString(), partition],
       );
@@ -65,7 +65,7 @@ async function storeSubscriptionCheckpointSQLite(
       const current = await singleOrNull(
         db.query<{ last_processed_position: bigint }>(
           sql(
-            `SELECT last_processed_position FROM ${subscriptionsTable.name} WHERE subscription_id = ? AND partition = ?`,
+            `SELECT last_processed_position FROM ${processorsTable.name} WHERE processor_id = ? AND partition = ?`,
           ),
           [processorId, partition],
         ),

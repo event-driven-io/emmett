@@ -1,6 +1,6 @@
 import type { SQLiteConnection } from '../../connection';
 import { sql } from './tables';
-import { defaultTag, subscriptionsTable } from './typing';
+import { defaultTag, processorsTable } from './typing';
 import { singleOrNull } from './utils';
 
 type ReadProcessorCheckpointSqlResult = {
@@ -19,8 +19,8 @@ export const readProcessorCheckpoint = async (
     db.query<ReadProcessorCheckpointSqlResult>(
       sql(
         `SELECT last_processed_position
-           FROM ${subscriptionsTable.name}
-           WHERE partition = ? AND subscription_id = ?
+           FROM ${processorsTable.name}
+           WHERE partition = ? AND processor_id = ?
            LIMIT 1`,
       ),
       [options?.partition ?? defaultTag, options.processorId],

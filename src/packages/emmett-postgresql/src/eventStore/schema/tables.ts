@@ -3,8 +3,8 @@ import {
   defaultTag,
   globalTag,
   messagesTable,
+  processorsTable,
   streamsTable,
-  subscriptionsTable,
 } from './typing';
 
 export const streamsTableSQL = rawSql(
@@ -45,15 +45,15 @@ export const messagesTableSQL = rawSql(
   ) PARTITION BY LIST (partition);`,
 );
 
-export const subscriptionsTableSQL = rawSql(
+export const processorsTableSQL = rawSql(
   `
-  CREATE TABLE IF NOT EXISTS ${subscriptionsTable.name}(
-      subscription_id                 TEXT                   NOT NULL,
-      version                         INT                    NOT NULL DEFAULT 1,
-      partition                       TEXT                   NOT NULL DEFAULT '${globalTag}',
-      last_processed_position         BIGINT                 NOT NULL,
-      last_processed_transaction_id   XID8                   NOT NULL,
-      PRIMARY KEY (subscription_id, partition, version)
+  CREATE TABLE IF NOT EXISTS ${processorsTable.name}(
+      processor_id                  TEXT                   NOT NULL,
+      version                       INT                    NOT NULL DEFAULT 1,
+      partition                     TEXT                   NOT NULL DEFAULT '${globalTag}',
+      last_processed_position       BIGINT                 NOT NULL,
+      last_processed_transaction_id XID8                   NOT NULL,
+      PRIMARY KEY (processor_id, partition, version)
   ) PARTITION BY LIST (partition);
 `,
 );
@@ -111,7 +111,7 @@ export const addPartitionSQL = rawSql(
       EXECUTE format('
           CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
           FOR VALUES IN (%L);',
-          emt_sanitize_name('${subscriptionsTable.name}' || '_' || partition_name), '${subscriptionsTable.name}', partition_name
+          emt_sanitize_name('${processorsTable.name}' || '_' || partition_name), '${processorsTable.name}', partition_name
       );
   END;
   $$ LANGUAGE plpgsql;`,
@@ -370,3 +370,24 @@ BEGIN
         END IF;
     END IF;
 END $$;`);
+
+export const migrationFromSubscriptionsToProcessorsSQL = rawSql(`
+DO $$ 
+DECLARE
+    partition_record RECORD;
+BEGIN
+    -- Rename the main table and its columns if it exists
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_subscriptions') THEN
+
+        ALTER TABLE IF EXISTS emt_subscriptions_emt_default RENAME TO emt_processors_emt_default;
+
+        ALTER TABLE IF EXISTS emt_subscriptions RENAME TO emt_processors;
+        
+        -- Rename columns
+        ALTER TABLE emt_processors 
+            RENAME COLUMN subscription_id TO processor_id;
+
+        DROP FUNCTION store_subscription_checkpoint(character varying,bigint,bigint,bigint,xid8,text);
+    END IF;
+END $$;
+`);

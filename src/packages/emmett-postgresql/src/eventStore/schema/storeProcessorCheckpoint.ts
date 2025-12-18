@@ -1,9 +1,9 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
-import { defaultTag, subscriptionsTable } from './typing';
+import { defaultTag, processorsTable } from './typing';
 
 export const storeSubscriptionCheckpointSQL = sql(`
-CREATE OR REPLACE FUNCTION store_subscription_checkpoint(
-  p_subscription_id VARCHAR(100),
+CREATE OR REPLACE FUNCTION store_processor_checkpoint(
+  p_processor_id VARCHAR(100),
   p_version BIGINT,
   p_position BIGINT,
   p_check_position BIGINT,
@@ -16,11 +16,11 @@ BEGIN
   -- Handle the case when p_check_position is provided
   IF p_check_position IS NOT NULL THEN
       -- Try to update if the position matches p_check_position
-      UPDATE "${subscriptionsTable.name}"
+      UPDATE "${processorsTable.name}"
       SET 
         "last_processed_position" = p_position, 
         "last_processed_transaction_id" = p_transaction_id
-      WHERE "subscription_id" = p_subscription_id AND "last_processed_position" = p_check_position AND "partition" = p_partition;
+      WHERE "processor_id" = p_processor_id AND "last_processed_position" = p_check_position AND "partition" = p_partition;
 
       IF FOUND THEN
           RETURN 1;  -- Successfully updated
@@ -28,8 +28,8 @@ BEGIN
 
       -- Retrieve the current position
       SELECT "last_processed_position" INTO current_position
-      FROM "${subscriptionsTable.name}"
-      WHERE "subscription_id" = p_subscription_id AND "partition" = p_partition;
+      FROM "${processorsTable.name}"
+      WHERE "processor_id" = p_processor_id AND "partition" = p_partition;
 
       -- Return appropriate codes based on current position
       IF current_position = p_position THEN
@@ -43,14 +43,14 @@ BEGIN
 
   -- Handle the case when p_check_position is NULL: Insert if not exists
   BEGIN
-      INSERT INTO "${subscriptionsTable.name}"("subscription_id", "version", "last_processed_position", "partition", "last_processed_transaction_id")
-      VALUES (p_subscription_id, p_version, p_position, p_partition, p_transaction_id);
+      INSERT INTO "${processorsTable.name}"("processor_id", "version", "last_processed_position", "partition", "last_processed_transaction_id")
+      VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id);
       RETURN 1;  -- Successfully inserted
   EXCEPTION WHEN unique_violation THEN
       -- If insertion failed, it means the row already exists
       SELECT "last_processed_position" INTO current_position
-      FROM "${subscriptionsTable.name}"
-      WHERE "subscription_id" = p_subscription_id AND "partition" = p_partition;
+      FROM "${processorsTable.name}"
+      WHERE "processor_id" = p_processor_id AND "partition" = p_partition;
 
       IF current_position = p_position THEN
           RETURN 0;  -- Idempotent check: position already set
@@ -89,7 +89,7 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
     const { result } = await single(
       execute.command<{ result: 0 | 1 | 2 }>(
         sql(
-          `SELECT store_subscription_checkpoint(%L, %s, %L, %L, pg_current_xact_id(), %L) as result;`,
+          `SELECT store_processor_checkpoint(%L, %s, %L, %L, pg_current_xact_id(), %L) as result;`,
           options.processorId,
           options.version ?? 1,
           options.newPosition,

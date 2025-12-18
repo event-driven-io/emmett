@@ -1,5 +1,5 @@
 import { singleOrNull, sql, type SQLExecutor } from '@event-driven-io/dumbo';
-import { defaultTag, subscriptionsTable } from './typing';
+import { defaultTag, processorsTable } from './typing';
 
 type ReadProcessorCheckpointSqlResult = {
   last_processed_position: string;
@@ -17,8 +17,8 @@ export const readProcessorCheckpoint = async (
     execute.query<ReadProcessorCheckpointSqlResult>(
       sql(
         `SELECT last_processed_position
-           FROM ${subscriptionsTable.name}
-           WHERE partition = %L AND subscription_id = %L
+           FROM ${processorsTable.name}
+           WHERE partition = %L AND processor_id = %L
            LIMIT 1`,
         options?.partition ?? defaultTag,
         options.processorId,
