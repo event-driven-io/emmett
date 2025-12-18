@@ -2,22 +2,21 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    workspace: [
+    projects: [
       {
         test: {
           name: 'node',
-          environment: 'node', // Runs tests in Node.js
+          environment: 'node',
           include: ['./packages/emmett-sqlite/**/*.spec.ts'],
           exclude: ['./packages/emmett-sqlite/**/*.browser.spec.ts'],
         },
       },
       {
         test: {
-          name: 'browser tests',
+          name: 'browser',
           browser: {
-            provider: 'playwright', // or 'webdriverio'
+            provider: 'playwright',
             enabled: true,
-            // at least one instance is required
             instances: [{ browser: 'chromium' }],
           },
           include: ['./packages/emmett-sqlite/**/*.browser.spec.ts'],
