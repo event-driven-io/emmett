@@ -30,6 +30,6 @@ export const messagesTable = {
   },
 };
 
-export const subscriptionsTable = {
-  name: `${emmettPrefix}_subscriptions`,
+export const processorsTable = {
+  name: `${emmettPrefix}_processors`,
 };
