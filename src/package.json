@@ -39,7 +39,7 @@
     "fix": "run-s fix:eslint fix:prettier",
     "fix:prettier": "prettier --write \"**/**/!(*.d).{ts,json,md}\"",
     "fix:eslint": "eslint '**/*.ts' --fix",
-    "test": "run-s test:unit test:int test:e2e",
+    "test": "run-s test:unit test:int test:e2e test:vitest",
     "test:unit": "glob -d -c \"node --import tsx --test\" --ignore './packages/emmett-sqlite/**' **/*.unit.spec.ts ",
     "test:int": "glob -d -c \"node --import tsx --test\" --ignore './packages/emmett-sqlite/**' **/*.int.spec.ts",
     "test:e2e": "glob -d -c \"node --import tsx --test\" --ignore './packages/emmett-sqlite/**' **/*.e2e.spec.ts",

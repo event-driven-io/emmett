@@ -53,9 +53,6 @@ jobs:
       - name: Test
         run: npm run test
 
-      - name: Test Vitest
-        run: npm run test:vitest
-
       - name: Pack Emmett locally to tar file
         shell: bash
         run: echo "PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq -r '.[] | .filename')" >> $GITHUB_ENV
