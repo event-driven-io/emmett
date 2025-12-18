@@ -14,17 +14,21 @@ async function storeSubscriptionCheckpointSQLite(
   partition: string,
   processorInstanceId?: string,
 ): Promise<0 | 1 | 2> {
+  processorInstanceId ??= uuid();
   if (checkPosition !== null) {
     const updateResult = await db.command(
       sql(`
           UPDATE ${processorsTable.name}
-          SET last_processed_checkpoint = ?
+          SET 
+            last_processed_checkpoint = ?,
+            processor_instance_id = ?
           WHERE processor_id = ? 
             AND last_processed_checkpoint = ? 
             AND partition = ?
         `),
       [
         position!.toString().padStart(19, '0'),
+        processorInstanceId,
         processorId,
         checkPosition.toString().padStart(19, '0'),
         partition,
@@ -64,14 +68,14 @@ async function storeSubscriptionCheckpointSQLite(
     try {
       await db.command(
         sql(
-          `INSERT INTO ${processorsTable.name} (processor_id, version, last_processed_checkpoint, partition) VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO ${processorsTable.name} (processor_id, version, last_processed_checkpoint, partition, processor_instance_id) VALUES (?, ?, ?, ?, ?)`,
         ),
         [
           processorId,
           version,
-          position!.toString(),
+          position!.toString().padStart(19, '0'),
           partition,
-          processorInstanceId ?? uuid(),
+          processorInstanceId,
         ],
       );
       return 1;
