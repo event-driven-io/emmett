@@ -55,7 +55,7 @@ export const processorsTableSQL = rawSql(
       partition                     TEXT                   NOT NULL DEFAULT '${globalTag}',
       status                        TEXT                   NOT NULL DEFAULT 'stopped', 
       last_processed_checkpoint     TEXT                   NOT NULL,    
-      processor_instance_id         TEXT                   DEFAULT gen_random_uuid(),
+      processor_instance_id         TEXT                   DEFAULT 'emt:unknown',
       PRIMARY KEY (processor_id, partition, version)
   ) PARTITION BY LIST (partition);
 `,

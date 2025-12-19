@@ -1,5 +1,5 @@
 import { rawSql } from '@event-driven-io/dumbo';
-import { defaultTag, processorsTable } from '../../typing';
+import { defaultTag, globalTag } from '../../typing';
 
 export const migration_0_42_0_FromSubscriptionsToProcessorsSQL = rawSql(`
 DO $$
@@ -8,8 +8,22 @@ BEGIN
         -- 1. Alter message_kind type from CHAR(1) to VARCHAR(1)
         ALTER TABLE emt_messages ALTER COLUMN message_kind TYPE VARCHAR(1);
 
-        -- 2. Copy data from old table to new table
-        INSERT INTO "${processorsTable.name}" 
+        -- 2. Setup emt_processors table if not exists
+        CREATE TABLE IF NOT EXISTS "emt_processors"(
+              last_processed_transaction_id XID8                   NOT NULL,
+              version                       INT                    NOT NULL DEFAULT 1,
+              processor_id                  TEXT                   NOT NULL,
+              partition                     TEXT                   NOT NULL DEFAULT '${globalTag}',
+              status                        TEXT                   NOT NULL DEFAULT 'stopped', 
+              last_processed_checkpoint     TEXT                   NOT NULL,    
+              processor_instance_id         TEXT                   DEFAULT 'emt:unknown',
+              PRIMARY KEY (processor_id, partition, version)
+          ) PARTITION BY LIST (partition);
+
+        SELECT emt_add_partition('${defaultTag}');
+
+        -- 3. Copy data from old table to new table
+        INSERT INTO "emt_processors"
         (
             processor_id,
             version,
@@ -25,11 +39,11 @@ BEGIN
             partition,
             lpad(last_processed_position::text, 19, '0'),
             last_processed_transaction_id, 'stopped', 
-            gen_random_uuid()
+            'emt:unknown'
         FROM emt_subscriptions
         ON CONFLICT DO NOTHING;
 
-        -- 3. Create backward-compat store_subscription_checkpoint that dual-writes
+        -- 4. Create backward-compat store_subscription_checkpoint that dual-writes
         
         CREATE OR REPLACE FUNCTION store_subscription_checkpoint(
           p_subscription_id VARCHAR(100),
@@ -62,7 +76,7 @@ BEGIN
 
                   IF NOT FOUND THEN
                       INSERT INTO "emt_processors"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id", "status", "processor_instance_id")
-                      VALUES (p_subscription_id, p_version, lpad(p_position::text, 19, '0'), p_partition, p_transaction_id, 'stopped', 'unknown')
+                      VALUES (p_subscription_id, p_version, lpad(p_position::text, 19, '0'), p_partition, p_transaction_id, 'stopped', 'emt:unknown')
                       ON CONFLICT DO NOTHING;
                   END IF;
 
@@ -90,7 +104,7 @@ BEGIN
 
               -- Dual-write to emt_processors
               INSERT INTO emt_processors("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id", "status", "processor_instance_id")
-              VALUES (p_subscription_id, p_version, lpad(p_position::text, 19, '0'), p_partition, p_transaction_id, 'stopped', 'unknown')
+              VALUES (p_subscription_id, p_version, lpad(p_position::text, 19, '0'), p_partition, p_transaction_id, 'stopped', 'emt:unknown')
               ON CONFLICT DO NOTHING;
 
               RETURN 1;
@@ -108,7 +122,7 @@ BEGIN
         END;
         $fn$ LANGUAGE plpgsql;
 
-        -- 4. Replace store_processor_checkpoint with dual-write version
+        -- 5. Replace store_processor_checkpoint with dual-write version
         CREATE OR REPLACE FUNCTION store_processor_checkpoint(
           p_processor_id           TEXT,
           p_version                BIGINT,
@@ -116,7 +130,7 @@ BEGIN
           p_check_position         TEXT,
           p_transaction_id         xid8,
           p_partition              TEXT DEFAULT '${defaultTag}',
-          p_processor_instance_id  TEXT DEFAULT gen_random_uuid()
+          p_processor_instance_id  TEXT DEFAULT 'emt:unknown'
         ) RETURNS INT AS $fn2$
         DECLARE
           current_position TEXT;

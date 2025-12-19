@@ -30,6 +30,8 @@ export * from './tables';
 export * from './typing';
 
 export const schemaSQL: SQL[] = [
+  ...migration_0_38_7_and_older,
+  migration_0_42_0_FromSubscriptionsToProcessorsSQL,
   streamsTableSQL,
   messagesTableSQL,
   projectionsTableSQL,
@@ -40,8 +42,6 @@ export const schemaSQL: SQL[] = [
   appendToStreamSQL,
   addDefaultPartitionSQL,
   storeSubscriptionCheckpointSQL,
-  ...migration_0_38_7_and_older,
-  migration_0_42_0_FromSubscriptionsToProcessorsSQL,
 ];
 
 export const createEventStoreSchema = async (

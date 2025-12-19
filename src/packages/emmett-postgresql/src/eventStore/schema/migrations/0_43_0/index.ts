@@ -19,7 +19,7 @@ IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_subscriptions') THEN
       p_check_position         TEXT,
       p_transaction_id         xid8,
       p_partition              TEXT DEFAULT '${defaultTag}',
-      p_processor_instance_id  TEXT DEFAULT gen_random_uuid()
+      p_processor_instance_id  TEXT DEFAULT 'emt:unknown'
     ) RETURNS INT AS $fn$
     DECLARE
       current_position TEXT;

@@ -76,7 +76,7 @@ BEGIN
             USING lpad(last_processed_checkpoint::text, 19, '0');
 
         ALTER TABLE emt_processors 
-            ADD COLUMN processor_instance_id TEXT DEFAULT gen_random_uuid();
+            ADD COLUMN processor_instance_id TEXT DEFAULT 'emt:unknown';
 
         DROP FUNCTION store_subscription_checkpoint(character varying,bigint,bigint,bigint,xid8,text);
     END IF;
@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS emt_streams(
       partition                     TEXT                   NOT NULL DEFAULT 'global',
       status                        TEXT                   NOT NULL DEFAULT 'stopped', 
       last_processed_checkpoint     TEXT                   NOT NULL,    
-      processor_instance_id         TEXT                   DEFAULT gen_random_uuid(),
+      processor_instance_id         TEXT                   DEFAULT 'emt:unknown',
       PRIMARY KEY (processor_id, partition, version)
   ) PARTITION BY LIST (partition);
 CREATE OR REPLACE FUNCTION emt_sanitize_name(input_name TEXT) RETURNS TEXT AS $$
@@ -309,7 +309,7 @@ CREATE OR REPLACE FUNCTION store_processor_checkpoint(
   p_check_position         TEXT,
   p_transaction_id         xid8,
   p_partition              TEXT DEFAULT 'emt:default',
-  p_processor_instance_id  TEXT DEFAULT gen_random_uuid()
+  p_processor_instance_id  TEXT DEFAULT 'emt:unknown'
 ) RETURNS INT AS $$
 DECLARE
   current_position TEXT;
