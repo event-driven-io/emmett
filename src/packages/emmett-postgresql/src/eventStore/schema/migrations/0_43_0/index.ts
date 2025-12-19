@@ -1,4 +1,4 @@
-import { rawSql } from '@event-driven-io/dumbo';
+import { dumbo, rawSql } from '@event-driven-io/dumbo';
 import { defaultTag } from '../../typing';
 
 export const migration_0_43_0_cleanupLegacySubscriptionSQL = rawSql(`
@@ -68,3 +68,17 @@ IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_subscriptions') THEN
 END IF;
 END $$;
 `);
+
+export const cleanupLegacySubscriptionTables = async (
+  connectionString: string,
+) => {
+  const pool = dumbo({ connectionString });
+
+  try {
+    await pool.withTransaction(async ({ execute }) => {
+      await execute.command(migration_0_43_0_cleanupLegacySubscriptionSQL);
+    });
+  } finally {
+    await pool.close();
+  }
+};
