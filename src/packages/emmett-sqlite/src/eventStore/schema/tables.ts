@@ -49,7 +49,7 @@ export const processorsTableSQL = sql(
       partition                    TEXT                  NOT NULL DEFAULT '${globalTag}',
       status                       TEXT                  NOT NULL DEFAULT 'stopped', 
       last_processed_checkpoint    TEXT                  NOT NULL,
-      processor_instance_id        TEXT                  DEFAULT 'unknown',
+      processor_instance_id        TEXT                  DEFAULT 'emt:unknown',
       PRIMARY KEY (processor_id, partition, version)
   );
 `,
