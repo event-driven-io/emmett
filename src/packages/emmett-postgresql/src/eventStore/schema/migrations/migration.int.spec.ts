@@ -14,9 +14,9 @@ import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from '../../postgreSQLEventStore';
-import { schema_0_36_0 } from './schema_0_36_0';
-import { schema_0_38_7 } from './schema_0_38_7';
-import { schema_0_42_0 } from './schema_0_42_0';
+import { schema_0_36_0 } from './0_36_0';
+import { schema_0_38_7 } from './0_38_7';
+import { schema_0_42_0 } from './0_42_0';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',

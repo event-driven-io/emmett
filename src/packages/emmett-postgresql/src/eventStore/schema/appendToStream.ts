@@ -1,7 +1,6 @@
 import {
   rawSql,
   single,
-  SQL,
   sql,
   type NodePostgresPool,
   type NodePostgresTransaction,
@@ -113,30 +112,6 @@ export const appendToStreamSQL = rawSql(
   $$;
   `,
 );
-
-export const dropOldAppendToSQLWithoutGlobalPositions = SQL`
-  DO $$
-  DECLARE
-      v_current_return_type text;
-  BEGIN
-      -- Get the current return type definition as text
-      SELECT pg_get_function_result(p.oid)
-      INTO v_current_return_type
-      FROM pg_proc p
-      JOIN pg_namespace n ON p.pronamespace = n.oid
-      WHERE n.nspname = current_schema()  -- or specify your schema
-      AND p.proname = 'emt_append_to_stream'
-      AND p.pronargs = 10;  -- number of arguments
-      
-      -- Check if it contains the old column name
-      IF v_current_return_type IS NOT NULL AND 
-        v_current_return_type LIKE '%last_global_position%' AND 
-        v_current_return_type NOT LIKE '%global_positions%' THEN
-          DROP FUNCTION emt_append_to_stream(text[], jsonb[], jsonb[], text[], text[], text[], text, text, bigint, text);
-          RAISE NOTICE 'Old version of function dropped. Return type was: %', v_current_return_type;
-      END IF;
-  END $$;
-`;
 
 type AppendToStreamResult =
   | {

@@ -1,4 +1,4 @@
-import { rawSql, SQL } from '@event-driven-io/dumbo';
+import { rawSql } from '@event-driven-io/dumbo';
 import {
   defaultTag,
   globalTag,
@@ -139,12 +139,6 @@ export const addPartitionSQL = rawSql(
   $$ LANGUAGE plpgsql;`,
 );
 
-export const dropFutureConceptModuleAndTenantFunctions = SQL`
-  DROP FUNCTION IF EXISTS add_module(TEXT);
-  DROP FUNCTION IF EXISTS add_tenant(TEXT, TEXT);
-  DROP FUNCTION IF EXISTS add_module_for_all_tenants(TEXT);
-  DROP FUNCTION IF EXISTS add_tenant_for_all_modules(TEXT);
-`;
 export const addModuleSQL = rawSql(
   `
       CREATE OR REPLACE FUNCTION add_module(new_module TEXT) RETURNS void AS $$
@@ -344,88 +338,3 @@ export const addTenantForAllModulesSQL = rawSql(
 export const addDefaultPartitionSQL = rawSql(
   `SELECT emt_add_partition('${defaultTag}');`,
 );
-
-export const migrationFromEventsToMessagesSQL = rawSql(`
-DO $$ 
-DECLARE
-    partition_record RECORD;
-BEGIN
-    -- Rename the main table and its columns if it exists
-    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_events') THEN
-        -- Rename all partitions first
-        FOR partition_record IN 
-            SELECT tablename 
-            FROM pg_tables 
-            WHERE tablename LIKE 'emt_events_%'
-            ORDER BY tablename DESC  -- to handle child partitions first
-        LOOP
-            EXECUTE format('ALTER TABLE %I RENAME TO %I', 
-                partition_record.tablename, 
-                REPLACE(partition_record.tablename, 'events', 'messages'));
-        END LOOP;
-
-        -- Rename the main table
-        ALTER TABLE emt_events RENAME TO emt_messages;
-        
-        -- Rename columns
-        ALTER TABLE emt_messages 
-            RENAME COLUMN event_data TO message_data;
-        ALTER TABLE emt_messages 
-            RENAME COLUMN event_metadata TO message_metadata;
-        ALTER TABLE emt_messages 
-            RENAME COLUMN event_schema_version TO message_schema_version;
-        ALTER TABLE emt_messages 
-            RENAME COLUMN event_type TO message_type;
-        ALTER TABLE emt_messages 
-            RENAME COLUMN event_id TO message_id;
-        ALTER TABLE emt_messages 
-            ADD COLUMN message_kind CHAR(1) NOT NULL DEFAULT 'E';
-
-        -- Rename sequence if it exists
-        IF EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'emt_global_event_position') THEN
-            ALTER SEQUENCE emt_global_event_position 
-            RENAME TO emt_global_message_position;
-            
-            ALTER TABLE emt_messages 
-                ALTER COLUMN global_position 
-                SET DEFAULT nextval('emt_global_message_position');
-        END IF;
-    END IF;
-END $$;`);
-
-export const migrationFromSubscriptionsToProcessorsSQL = rawSql(`
-DO $$ 
-DECLARE
-    partition_record RECORD;
-BEGIN
-    -- Rename the main table and its columns if it exists
-    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_subscriptions') THEN
-
-        ALTER TABLE IF EXISTS emt_subscriptions_emt_default RENAME TO emt_processors_emt_default;
-
-        ALTER TABLE IF EXISTS emt_subscriptions RENAME TO emt_processors;
-        
-        -- Rename columns
-        ALTER TABLE emt_messages
-            ALTER COLUMN message_kind TYPE VARCHAR(1);
-
-        ALTER TABLE emt_processors
-            Add COLUMN status TEXT NOT NULL DEFAULT 'stopped';
-
-        ALTER TABLE emt_processors 
-            RENAME COLUMN subscription_id TO processor_id;
-
-        ALTER TABLE emt_processors 
-            RENAME COLUMN last_processed_position TO last_processed_checkpoint;
-    
-        ALTER TABLE emt_processors 
-            ALTER COLUMN last_processed_checkpoint TYPE TEXT 
-            USING lpad(last_processed_checkpoint::text, 19, '0');
-
-        ALTER TABLE emt_processors 
-            ADD COLUMN processor_instance_id TEXT DEFAULT gen_random_uuid();
-
-        DROP FUNCTION store_subscription_checkpoint(character varying,bigint,bigint,bigint,xid8,text);
-    END IF;
-END $$;
-`);
