@@ -5,19 +5,15 @@ import {
 } from '@event-driven-io/dumbo';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 import type { PostgreSQLProjectionHandlerContext } from '../projections';
-import {
-  appendToStreamSQL,
-  dropOldAppendToSQLWithoutGlobalPositions,
-} from './appendToStream';
+import { appendToStreamSQL } from './appendToStream';
+import { migration_0_38_7_and_older } from './migrations/0_38_7';
+import { migration_0_42_0_FromSubscriptionsToProcessorsSQL } from './migrations/0_42_0';
 import { storeSubscriptionCheckpointSQL } from './storeProcessorCheckpoint';
 import {
   addDefaultPartitionSQL,
   addPartitionSQL,
   addTablePartitions,
-  dropFutureConceptModuleAndTenantFunctions,
   messagesTableSQL,
-  migrationFromEventsToMessagesSQL,
-  migrationFromSubscriptionsToProcessorsSQL,
   processorsTableSQL,
   projectionsTableSQL,
   sanitizeNameSQL,
@@ -34,8 +30,6 @@ export * from './tables';
 export * from './typing';
 
 export const schemaSQL: SQL[] = [
-  migrationFromEventsToMessagesSQL,
-  migrationFromSubscriptionsToProcessorsSQL,
   streamsTableSQL,
   messagesTableSQL,
   projectionsTableSQL,
@@ -43,15 +37,11 @@ export const schemaSQL: SQL[] = [
   sanitizeNameSQL,
   addTablePartitions,
   addPartitionSQL,
-  dropFutureConceptModuleAndTenantFunctions,
-  //addModuleSQL,
-  //addTenantSQL,
-  //addModuleForAllTenantsSQL,
-  //addTenantForAllModulesSQL,
-  dropOldAppendToSQLWithoutGlobalPositions,
   appendToStreamSQL,
   addDefaultPartitionSQL,
   storeSubscriptionCheckpointSQL,
+  ...migration_0_38_7_and_older,
+  migration_0_42_0_FromSubscriptionsToProcessorsSQL,
 ];
 
 export const createEventStoreSchema = async (
