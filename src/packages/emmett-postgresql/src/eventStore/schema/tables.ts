@@ -8,6 +8,9 @@ import {
   streamsTable,
 } from './typing';
 
+import { cleanupLegacySubscriptionTables } from './migrations/0_43_0';
+export { cleanupLegacySubscriptionTables };
+
 export const streamsTableSQL = rawSql(
   `CREATE TABLE IF NOT EXISTS ${streamsTable.name}(
       stream_id         TEXT                      NOT NULL,

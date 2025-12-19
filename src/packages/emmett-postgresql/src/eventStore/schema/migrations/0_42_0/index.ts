@@ -20,7 +20,7 @@ BEGIN
               PRIMARY KEY (processor_id, partition, version)
           ) PARTITION BY LIST (partition);
 
-        SELECT emt_add_partition('${defaultTag}');
+        PERFORM emt_add_partition('${defaultTag}');
 
         -- 3. Copy data from old table to new table
         INSERT INTO "emt_processors"

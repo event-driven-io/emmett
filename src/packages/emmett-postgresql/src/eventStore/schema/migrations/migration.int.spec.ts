@@ -17,6 +17,7 @@ import {
 import { schema_0_36_0 } from './0_36_0';
 import { schema_0_38_7 } from './0_38_7';
 import { schema_0_42_0 } from './0_42_0';
+import { cleanupLegacySubscriptionTables } from './0_43_0';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -27,10 +28,11 @@ void describe('Schema migrations tests', () => {
   let postgres: StartedPostgreSqlContainer;
   let pool: Dumbo;
   let eventStore: PostgresEventStore;
+  let connectionString: string;
 
   beforeEach(async () => {
     postgres = await new PostgreSqlContainer().start();
-    const connectionString = postgres.getConnectionUri();
+    connectionString = postgres.getConnectionUri();
     pool = dumbo({
       connectionString,
     });
@@ -92,6 +94,18 @@ void describe('Schema migrations tests', () => {
     await assertCanAppendAndRead(eventStore);
   });
 
+  void it('can migrate from 0.38.7 schema with subscription cleanup', async () => {
+    // Given
+    await pool.execute.command(schema_0_38_7);
+    await eventStore.schema.migrate();
+
+    // When
+    await cleanupLegacySubscriptionTables(connectionString);
+
+    // Then
+    await assertCanAppendAndRead(eventStore);
+  });
+
   void it('can migrate from 0.42.0 schema', async () => {
     // Given
     await pool.execute.command(schema_0_42_0);
@@ -105,7 +119,7 @@ void describe('Schema migrations tests', () => {
 
   void it('can migrate from latest schema', async () => {
     // Given
-    console.log(eventStore.schema.sql());
+    // console.log(eventStore.schema.sql());
     await eventStore.schema.migrate();
 
     // When
