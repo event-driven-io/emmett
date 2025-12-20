@@ -2,6 +2,8 @@ import {
   type NodePostgresClient,
   type NodePostgresPool,
   type SQL,
+  dumbo,
+  runPostgreSQLMigrations,
 } from '@event-driven-io/dumbo';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 import type { PostgreSQLProjectionHandlerContext } from '../projections';
@@ -60,11 +62,15 @@ export const createEventStoreSchema = async (
         pool,
       },
     };
+    const nestedPool = dumbo({ connectionString, connection: tx.connection });
 
     if (hooks?.onBeforeSchemaCreated) {
       await hooks.onBeforeSchemaCreated(context);
     }
-    await context.execute.batchCommand(schemaSQL);
+
+    await runPostgreSQLMigrations(nestedPool, [
+      { name: 'eventStoreSchema', sqls: schemaSQL },
+    ]);
   });
 
   if (hooks?.onAfterSchemaCreated) {
