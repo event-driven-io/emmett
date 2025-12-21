@@ -1,1 +1,1 @@
-export * from './schema_0_36_0';
+export * from './0_36_0.snapshot';
