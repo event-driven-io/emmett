@@ -93,7 +93,7 @@ It is hard to say; my intention is not to compete but to give more options to th
 
 ### **Why there's no license?**
 
-Because I'm unsure how this will end, and I don't want to expose it as an MIT license from the beginning.
+There's an open [RFC explaining the reasoning](https://github.com/event-driven-io/emmett/pull/260) and what are the next steps, but TLDR: it'll be (probably)AGPLv3 and/or SSPL and open/core model with paid tools around Emmett. I don't want to do a rug pull later, and I know MIT is too permissive. I want to build Emmett as a community project, but I also don't want my work to be unsustainable and for others to take advantage of it. It'd benefit all if I had a sustainable way to focus on delivering more value in Emmett. I'd be grateful for your comments on the RFC. If you have more detailed questions or concerns, please join [our Discord](https://discord.gg/fTpqUTMmVa), and I'm happy to clarify them!
 
 ## Support
 
