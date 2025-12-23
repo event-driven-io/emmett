@@ -1,4 +1,8 @@
-import { rawSql } from '@event-driven-io/dumbo';
+import {
+  rawSql,
+  sqlMigration,
+  type SQLMigration,
+} from '@event-driven-io/dumbo';
 import { defaultTag, globalTag } from '../../typing';
 
 export const migration_0_42_0_FromSubscriptionsToProcessorsSQL = rawSql(`
@@ -206,3 +210,9 @@ BEGIN
     END IF;
 END $$;
 `);
+
+export const migration_0_42_0_FromSubscriptionsToProcessors: SQLMigration =
+  sqlMigration(
+    'emt:postgresql:eventstore:0.42.0:from-subscriptions-to-processors',
+    [migration_0_42_0_FromSubscriptionsToProcessorsSQL],
+  );
