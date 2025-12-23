@@ -1,5 +1,5 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
-import { v7 as uuid } from 'uuid';
+import { bigInt } from '@event-driven-io/emmett';
 import { defaultTag, processorsTable } from './typing';
 
 export const storeSubscriptionCheckpointSQL = sql(`
@@ -95,10 +95,14 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
           `SELECT store_processor_checkpoint(%L, %s, %L, %L, pg_current_xact_id(), %L, %L) as result;`,
           options.processorId,
           options.version ?? 1,
-          options.newPosition?.toString().padStart(19, '0') ?? null,
-          options.lastProcessedPosition?.toString().padStart(19, '0') ?? null,
+          options.newPosition
+            ? bigInt.toNormalizedString(options.newPosition)
+            : null,
+          options.lastProcessedPosition
+            ? bigInt.toNormalizedString(options.lastProcessedPosition)
+            : null,
           options.partition ?? defaultTag,
-          options.processorInstanceId ?? uuid(),
+          options.processorInstanceId ?? 'emt:unknown',
         ),
       ),
     );
