@@ -1,4 +1,4 @@
-import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
+import { dumbo, rawSql, type Dumbo } from '@event-driven-io/dumbo';
 import {
   assertDeepEqual,
   assertMatches,
@@ -21,7 +21,22 @@ import { cleanupLegacySubscriptionTables } from './0_43_0';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
-  { productItem: { productId: string; quantity: number } }
+  {
+    shoppingCartId: string;
+    productItem: { productId: string; quantity: number };
+  }
+>;
+
+export type ShoppingCartConfirmed = Event<
+  'ShoppingCartConfirmed',
+  { shoppingCartId: string }
+>;
+
+export type ShoppingCartEvent = ProductItemAdded | ShoppingCartConfirmed;
+
+export type OrderInitiated = Event<
+  'OrderInitiated',
+  { shoppingCartId: string; orderId: string }
 >;
 
 void describe('Schema migrations tests', () => {
@@ -55,21 +70,53 @@ void describe('Schema migrations tests', () => {
   });
 
   const assertCanAppendAndRead = async (eventStore: PostgresEventStore) => {
-    const streamId = 'cart-123';
-    const event: ProductItemAdded = {
+    const shoppingCartId = 'cart-123';
+    const itemAdded: ProductItemAdded = {
       type: 'ProductItemAdded',
-      data: { productItem: { productId: 'product-456', quantity: 2 } },
+      data: {
+        shoppingCartId,
+        productItem: { productId: 'product-456', quantity: 2 },
+      },
+    };
+    const shoppingCartConfirmed: ShoppingCartConfirmed = {
+      type: 'ShoppingCartConfirmed',
+      data: {
+        shoppingCartId,
+      },
     };
 
-    await eventStore.appendToStream(streamId, [event]);
+    await eventStore.appendToStream(shoppingCartId, [
+      itemAdded,
+      shoppingCartConfirmed,
+    ]);
 
-    const { events, streamExists, currentStreamVersion } =
-      await eventStore.readStream<ProductItemAdded>(streamId);
+    const readShoppingCartResult =
+      await eventStore.readStream<ShoppingCartEvent>(shoppingCartId);
 
-    assertTrue(streamExists);
-    assertDeepEqual(currentStreamVersion, 1n);
-    assertDeepEqual(events.length, 1);
-    assertMatches(events[0], event);
+    assertTrue(readShoppingCartResult.streamExists);
+    assertDeepEqual(readShoppingCartResult.currentStreamVersion, 2n);
+    assertDeepEqual(readShoppingCartResult.events.length, 2);
+    assertMatches(readShoppingCartResult.events[0], itemAdded);
+    assertMatches(readShoppingCartResult.events[1], shoppingCartConfirmed);
+
+    const orderId = `order-${shoppingCartId}`;
+
+    const orderInitiated: OrderInitiated = {
+      type: 'OrderInitiated',
+      data: {
+        shoppingCartId: 'cart-123',
+        orderId,
+      },
+    };
+    await eventStore.appendToStream(orderId, [orderInitiated]);
+
+    const readOrderResult =
+      await eventStore.readStream<OrderInitiated>(orderId);
+
+    assertTrue(readOrderResult.streamExists);
+    assertDeepEqual(readOrderResult.currentStreamVersion, 1n);
+    assertDeepEqual(readOrderResult.events.length, 1);
+    assertMatches(readOrderResult.events[0], orderInitiated);
   };
 
   void it('can migrate from 0.36.0 schema', async () => {
@@ -119,8 +166,8 @@ void describe('Schema migrations tests', () => {
 
   void it('can migrate from latest schema', async () => {
     // Given
-    // console.log(eventStore.schema.sql());
-    await eventStore.schema.migrate();
+    const latestSchemaSQL = eventStore.schema.sql();
+    await pool.execute.command(rawSql(latestSchemaSQL));
 
     // When
     await eventStore.schema.migrate();

@@ -133,10 +133,27 @@ CREATE OR REPLACE FUNCTION emt_sanitize_name(input_name TEXT) RETURNS TEXT AS $$
       );
   END;
   $$ LANGUAGE plpgsql;
-  DROP FUNCTION IF EXISTS add_module(TEXT);
-  DROP FUNCTION IF EXISTS add_tenant(TEXT, TEXT);
-  DROP FUNCTION IF EXISTS add_module_for_all_tenants(TEXT);
-  DROP FUNCTION IF EXISTS add_tenant_for_all_modules(TEXT);
+
+  DO $$
+  BEGIN
+      -- Check and drop functions related to future concept of modules and tenants
+      IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'add_module') THEN
+          DROP FUNCTION add_module(TEXT);
+      END IF;
+      
+      IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'add_tenant') THEN
+          DROP FUNCTION add_tenant(TEXT, TEXT);
+      END IF;
+
+      IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'add_module_for_all_tenants') THEN
+          DROP FUNCTION add_module_for_all_tenants(TEXT);
+      END IF;
+  
+      IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'add_tenant_for_all_modules') THEN
+          DROP FUNCTION add_tenant_for_all_modules(TEXT);
+      END IF;
+  END $$;
+
 
   DO $$
   DECLARE
