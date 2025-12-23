@@ -3,6 +3,10 @@ import { bigInt } from '@event-driven-io/emmett';
 import { defaultTag, processorsTable } from './typing';
 
 export const storeSubscriptionCheckpointSQL = sql(`
+DO $$
+BEGIN
+IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'store_processor_checkpoint') THEN
+
 CREATE OR REPLACE FUNCTION store_processor_checkpoint(
   p_processor_id           TEXT,
   p_version                BIGINT,
@@ -11,7 +15,7 @@ CREATE OR REPLACE FUNCTION store_processor_checkpoint(
   p_transaction_id         xid8,
   p_partition              TEXT DEFAULT '${defaultTag}',
   p_processor_instance_id  TEXT DEFAULT 'emt:unknown'
-) RETURNS INT AS $$
+) RETURNS INT AS $spc$
 DECLARE
   current_position TEXT;
 BEGIN
@@ -61,7 +65,10 @@ BEGIN
       END IF;
   END;
 END;
-$$ LANGUAGE plpgsql;
+$spc$ LANGUAGE plpgsql;
+
+END IF;
+END $$;
 `);
 
 export type StoreLastProcessedProcessorPositionResult<
