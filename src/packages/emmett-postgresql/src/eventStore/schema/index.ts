@@ -2,14 +2,16 @@ import {
   type NodePostgresClient,
   type NodePostgresPool,
   type SQL,
+  type SQLMigration,
   dumbo,
   runPostgreSQLMigrations,
+  sqlMigration,
 } from '@event-driven-io/dumbo';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 import type { PostgreSQLProjectionHandlerContext } from '../projections';
 import { appendToStreamSQL } from './appendToStream';
 import { migration_0_38_7_and_older } from './migrations/0_38_7';
-import { migration_0_42_0_FromSubscriptionsToProcessorsSQL } from './migrations/0_42_0';
+import { migration_0_42_0_FromSubscriptionsToProcessors } from './migrations/0_42_0';
 import { storeSubscriptionCheckpointSQL } from './storeProcessorCheckpoint';
 import {
   addDefaultPartitionSQL,
@@ -32,8 +34,6 @@ export * from './tables';
 export * from './typing';
 
 export const schemaSQL: SQL[] = [
-  ...migration_0_38_7_and_older,
-  migration_0_42_0_FromSubscriptionsToProcessorsSQL,
   streamsTableSQL,
   messagesTableSQL,
   projectionsTableSQL,
@@ -44,6 +44,17 @@ export const schemaSQL: SQL[] = [
   appendToStreamSQL,
   addDefaultPartitionSQL,
   storeSubscriptionCheckpointSQL,
+];
+
+export const schemaMigration = sqlMigration(
+  'emt:postgresql:eventstore:initial',
+  schemaSQL,
+);
+
+export const eventStoreSchemaMigrations: SQLMigration[] = [
+  migration_0_38_7_and_older,
+  migration_0_42_0_FromSubscriptionsToProcessors,
+  schemaMigration,
 ];
 
 export const createEventStoreSchema = async (
@@ -68,9 +79,7 @@ export const createEventStoreSchema = async (
       await hooks.onBeforeSchemaCreated(context);
     }
 
-    await runPostgreSQLMigrations(nestedPool, [
-      { name: 'eventStoreSchema', sqls: schemaSQL },
-    ]);
+    await runPostgreSQLMigrations(nestedPool, eventStoreSchemaMigrations);
   });
 
   if (hooks?.onAfterSchemaCreated) {
