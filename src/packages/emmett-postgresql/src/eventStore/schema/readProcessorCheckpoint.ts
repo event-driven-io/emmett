@@ -6,7 +6,7 @@ type ReadProcessorCheckpointSqlResult = {
 };
 
 export type ReadProcessorCheckpointResult = {
-  lastProcessedPosition: bigint | null;
+  lastProcessedCheckpoint: bigint | null;
 };
 
 export const readProcessorCheckpoint = async (
@@ -27,7 +27,7 @@ export const readProcessorCheckpoint = async (
   );
 
   return {
-    lastProcessedPosition:
+    lastProcessedCheckpoint:
       result !== null ? BigInt(result.last_processed_checkpoint) : null,
   };
 };
