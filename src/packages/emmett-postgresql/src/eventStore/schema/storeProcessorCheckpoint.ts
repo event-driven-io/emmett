@@ -69,7 +69,7 @@ export type StoreLastProcessedProcessorPositionResult<
 > =
   | {
       success: true;
-      newPosition: Position;
+      newCheckpoint: Position;
     }
   | { success: false; reason: 'IGNORED' | 'MISMATCH' };
 
@@ -78,8 +78,8 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
   options: {
     processorId: string;
     version: number | undefined;
-    newPosition: null extends Position ? bigint | null : bigint;
-    lastProcessedPosition: bigint | null;
+    newCheckpoint: null extends Position ? bigint | null : bigint;
+    lastProcessedCheckpoint: bigint | null;
     partition?: string;
     processorInstanceId?: string;
   },
@@ -95,11 +95,11 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
           `SELECT store_processor_checkpoint(%L, %s, %L, %L, pg_current_xact_id(), %L, %L) as result;`,
           options.processorId,
           options.version ?? 1,
-          options.newPosition
-            ? bigInt.toNormalizedString(options.newPosition)
+          options.newCheckpoint
+            ? bigInt.toNormalizedString(options.newCheckpoint)
             : null,
-          options.lastProcessedPosition
-            ? bigInt.toNormalizedString(options.lastProcessedPosition)
+          options.lastProcessedCheckpoint
+            ? bigInt.toNormalizedString(options.lastProcessedCheckpoint)
             : null,
           options.partition ?? defaultTag,
           options.processorInstanceId ?? 'emt:unknown',
@@ -108,7 +108,7 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
     );
 
     return result === 1
-      ? { success: true, newPosition: options.newPosition }
+      ? { success: true, newCheckpoint: options.newCheckpoint }
       : { success: false, reason: result === 0 ? 'IGNORED' : 'MISMATCH' };
   } catch (error) {
     console.log(error);

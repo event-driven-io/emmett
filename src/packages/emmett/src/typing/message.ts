@@ -92,6 +92,9 @@ export type RecordedMessageMetadata<
   (GlobalPosition extends undefined ? {} : WithGlobalPosition<GlobalPosition>);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyRecordedMessage = Message<any, any, any>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyRecordedMessageMetadata = RecordedMessageMetadata<any, any>;
 
 export type RecordedMessageMetadataWithGlobalPosition<
