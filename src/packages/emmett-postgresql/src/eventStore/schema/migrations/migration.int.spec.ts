@@ -4,6 +4,7 @@ import {
   assertMatches,
   assertTrue,
   type Event,
+  type ReadEvent,
 } from '@event-driven-io/emmett';
 import {
   PostgreSqlContainer,
@@ -13,7 +14,10 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
+  type PostgresReadEventMetadata,
 } from '../../postgreSQLEventStore';
+import { readProcessorCheckpoint } from '../readProcessorCheckpoint';
+import { storeProcessorCheckpoint } from '../storeProcessorCheckpoint';
 import { schema_0_36_0 } from './0_36_0';
 import { schema_0_38_7 } from './0_38_7';
 import { schema_0_42_0 } from './0_42_0';
@@ -117,6 +121,107 @@ void describe('Schema migrations tests', () => {
     assertDeepEqual(readOrderResult.currentStreamVersion, 1n);
     assertDeepEqual(readOrderResult.events.length, 1);
     assertMatches(readOrderResult.events[0], orderInitiated);
+
+    return {
+      shoppingCart: {
+        streamId: shoppingCartId,
+        lastEvent: readShoppingCartResult.events[1]!,
+      },
+      order: {
+        streamId: orderId,
+        lastEvent: readOrderResult.events[0]!,
+      },
+    };
+  };
+
+  const assertCanStoreAndReadCheckpoints = async (
+    pool: Dumbo,
+    {
+      shoppingCart,
+      order,
+    }: {
+      shoppingCart: {
+        streamId: string;
+        lastEvent: ReadEvent<ShoppingCartEvent, PostgresReadEventMetadata>;
+      };
+      order: {
+        streamId: string;
+        lastEvent: ReadEvent<OrderInitiated, PostgresReadEventMetadata>;
+      };
+    },
+  ) => {
+    const shoppingCartProcessorId = `processor-shopping-cart-${shoppingCart.streamId}`;
+
+    let storeResult = await storeProcessorCheckpoint(pool.execute, {
+      processorId: shoppingCartProcessorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: 1n,
+      lastProcessedCheckpoint: null,
+      processorInstanceId: shoppingCartProcessorId,
+    });
+
+    assertTrue(storeResult.success);
+    assertDeepEqual(storeResult.newCheckpoint, 1n);
+
+    storeResult = await storeProcessorCheckpoint(pool.execute, {
+      processorId: shoppingCartProcessorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: shoppingCart.lastEvent.metadata.globalPosition,
+      lastProcessedCheckpoint: 1n,
+      processorInstanceId: shoppingCartProcessorId,
+    });
+
+    assertTrue(storeResult.success);
+    assertDeepEqual(
+      storeResult.newCheckpoint,
+      shoppingCart.lastEvent.metadata.globalPosition,
+    );
+
+    const shoppingCartCheckpoint = await readProcessorCheckpoint(pool.execute, {
+      processorId: shoppingCartProcessorId,
+      partition: undefined,
+    });
+
+    assertDeepEqual(
+      shoppingCartCheckpoint.lastProcessedCheckpoint,
+      shoppingCart.lastEvent.metadata.globalPosition,
+    );
+
+    const orderProcessorId = `processor-order-${order.streamId}`;
+
+    let orderCheckpoint = await readProcessorCheckpoint(pool.execute, {
+      processorId: orderProcessorId,
+      partition: undefined,
+    });
+
+    assertDeepEqual(orderCheckpoint, { lastProcessedCheckpoint: null });
+
+    storeResult = await storeProcessorCheckpoint(pool.execute, {
+      processorId: orderProcessorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: order.lastEvent.metadata.globalPosition,
+      lastProcessedCheckpoint: null,
+      processorInstanceId: orderProcessorId,
+    });
+
+    assertTrue(storeResult.success);
+    assertDeepEqual(
+      storeResult.newCheckpoint,
+      order.lastEvent.metadata.globalPosition,
+    );
+
+    orderCheckpoint = await readProcessorCheckpoint(pool.execute, {
+      processorId: orderProcessorId,
+      partition: undefined,
+    });
+
+    assertDeepEqual(
+      orderCheckpoint.lastProcessedCheckpoint,
+      order.lastEvent.metadata.globalPosition,
+    );
   };
 
   void it('can migrate from 0.36.0 schema', async () => {
@@ -127,7 +232,8 @@ void describe('Schema migrations tests', () => {
     await eventStore.schema.migrate();
 
     // Then
-    await assertCanAppendAndRead(eventStore);
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result);
   });
 
   void it('can migrate from 0.38.7 schema', async () => {
@@ -138,7 +244,8 @@ void describe('Schema migrations tests', () => {
     await eventStore.schema.migrate();
 
     // Then
-    await assertCanAppendAndRead(eventStore);
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result);
   });
 
   void it('can migrate from 0.38.7 schema with subscription cleanup', async () => {
@@ -150,7 +257,8 @@ void describe('Schema migrations tests', () => {
     await cleanupLegacySubscriptionTables(connectionString);
 
     // Then
-    await assertCanAppendAndRead(eventStore);
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result);
   });
 
   void it('can migrate from 0.42.0 schema', async () => {
@@ -161,7 +269,8 @@ void describe('Schema migrations tests', () => {
     await eventStore.schema.migrate();
 
     // Then
-    await assertCanAppendAndRead(eventStore);
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result);
   });
 
   void it('can migrate from latest schema', async () => {
@@ -173,6 +282,7 @@ void describe('Schema migrations tests', () => {
     await eventStore.schema.migrate();
 
     // Then
-    await assertCanAppendAndRead(eventStore);
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result);
   });
 });
