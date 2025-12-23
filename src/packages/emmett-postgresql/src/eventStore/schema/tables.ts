@@ -1,17 +1,21 @@
-import { rawSql, SQL } from '@event-driven-io/dumbo';
+import { rawSql } from '@event-driven-io/dumbo';
 import {
   defaultTag,
   globalTag,
   messagesTable,
+  processorsTable,
+  projectionsTable,
   streamsTable,
-  subscriptionsTable,
 } from './typing';
+
+import { cleanupLegacySubscriptionTables } from './migrations/0_43_0';
+export { cleanupLegacySubscriptionTables };
 
 export const streamsTableSQL = rawSql(
   `CREATE TABLE IF NOT EXISTS ${streamsTable.name}(
       stream_id         TEXT                      NOT NULL,
       stream_position   BIGINT                    NOT NULL,
-      partition         TEXT                      NOT NULL DEFAULT '${globalTag}',
+      partition         TEXT                      NOT NULL DEFAULT '${defaultTag}',
       stream_type       TEXT                      NOT NULL,
       stream_metadata   JSONB                     NOT NULL,
       is_archived       BOOLEAN                   NOT NULL DEFAULT FALSE,
@@ -28,32 +32,49 @@ export const messagesTableSQL = rawSql(
   CREATE SEQUENCE IF NOT EXISTS emt_global_message_position;
 
   CREATE TABLE IF NOT EXISTS ${messagesTable.name}(
-      stream_id              TEXT                      NOT NULL,
       stream_position        BIGINT                    NOT NULL,
-      partition              TEXT                      NOT NULL DEFAULT '${globalTag}',
-      message_kind           CHAR(1)                   NOT NULL DEFAULT 'E',
-      message_data           JSONB                     NOT NULL,
-      message_metadata       JSONB                     NOT NULL,
-      message_schema_version TEXT                      NOT NULL,
-      message_type           TEXT                      NOT NULL,
-      message_id             TEXT                      NOT NULL,
-      is_archived            BOOLEAN                   NOT NULL DEFAULT FALSE,
       global_position        BIGINT                    DEFAULT nextval('emt_global_message_position'),
       transaction_id         XID8                      NOT NULL,
       created                TIMESTAMPTZ               NOT NULL DEFAULT now(),
+      is_archived            BOOLEAN                   NOT NULL DEFAULT FALSE,
+      message_kind           VARCHAR(1)                NOT NULL DEFAULT 'E',
+      stream_id              TEXT                      NOT NULL,
+      partition              TEXT                      NOT NULL DEFAULT '${defaultTag}',
+      message_schema_version TEXT                      NOT NULL,
+      message_id             TEXT                      NOT NULL,
+      message_type           TEXT                      NOT NULL,
+      message_data           JSONB                     NOT NULL,
+      message_metadata       JSONB                     NOT NULL,
       PRIMARY KEY (stream_id, stream_position, partition, is_archived)
   ) PARTITION BY LIST (partition);`,
 );
 
-export const subscriptionsTableSQL = rawSql(
+export const processorsTableSQL = rawSql(
   `
-  CREATE TABLE IF NOT EXISTS ${subscriptionsTable.name}(
-      subscription_id                 TEXT                   NOT NULL,
-      version                         INT                    NOT NULL DEFAULT 1,
-      partition                       TEXT                   NOT NULL DEFAULT '${globalTag}',
-      last_processed_position         BIGINT                 NOT NULL,
-      last_processed_transaction_id   XID8                   NOT NULL,
-      PRIMARY KEY (subscription_id, partition, version)
+  CREATE TABLE IF NOT EXISTS ${processorsTable.name}(
+      last_processed_transaction_id XID8                   NOT NULL,
+      version                       INT                    NOT NULL DEFAULT 1,
+      processor_id                  TEXT                   NOT NULL,
+      partition                     TEXT                   NOT NULL DEFAULT '${defaultTag}',
+      status                        TEXT                   NOT NULL DEFAULT 'stopped', 
+      last_processed_checkpoint     TEXT                   NOT NULL,    
+      processor_instance_id         TEXT                   DEFAULT 'emt:unknown',
+      PRIMARY KEY (processor_id, partition, version)
+  ) PARTITION BY LIST (partition);
+`,
+);
+
+export const projectionsTableSQL = rawSql(
+  `
+  CREATE TABLE IF NOT EXISTS ${projectionsTable.name}(
+      version                       INT                    NOT NULL DEFAULT 1,  
+      type                          VARCHAR(1)             NOT NULL,
+      name                          TEXT                   NOT NULL,
+      partition                     TEXT                   NOT NULL DEFAULT '${defaultTag}',
+      kind                          TEXT                   NOT NULL, 
+      status                        TEXT                   NOT NULL, 
+      definition                    JSONB                  NOT NULL DEFAULT '{}'::jsonb, 
+      PRIMARY KEY (name, partition, version)
   ) PARTITION BY LIST (partition);
 `,
 );
@@ -111,18 +132,18 @@ export const addPartitionSQL = rawSql(
       EXECUTE format('
           CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
           FOR VALUES IN (%L);',
-          emt_sanitize_name('${subscriptionsTable.name}' || '_' || partition_name), '${subscriptionsTable.name}', partition_name
+          emt_sanitize_name('${processorsTable.name}' || '_' || partition_name), '${processorsTable.name}', partition_name
+      );
+
+      EXECUTE format('
+          CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
+          FOR VALUES IN (%L);',
+          emt_sanitize_name('${projectionsTable.name}' || '_' || partition_name), '${projectionsTable.name}', partition_name
       );
   END;
   $$ LANGUAGE plpgsql;`,
 );
 
-export const dropFutureConceptModuleAndTenantFunctions = SQL`
-  DROP FUNCTION IF EXISTS add_module(TEXT);
-  DROP FUNCTION IF EXISTS add_tenant(TEXT, TEXT);
-  DROP FUNCTION IF EXISTS add_module_for_all_tenants(TEXT);
-  DROP FUNCTION IF EXISTS add_tenant_for_all_modules(TEXT);
-`;
 export const addModuleSQL = rawSql(
   `
       CREATE OR REPLACE FUNCTION add_module(new_module TEXT) RETURNS void AS $$
@@ -322,51 +343,3 @@ export const addTenantForAllModulesSQL = rawSql(
 export const addDefaultPartitionSQL = rawSql(
   `SELECT emt_add_partition('${defaultTag}');`,
 );
-
-export const migrationFromEventsToMessagesSQL = rawSql(`
-DO $$ 
-DECLARE
-    partition_record RECORD;
-BEGIN
-    -- Rename the main table and its columns if it exists
-    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_events') THEN
-        -- Rename all partitions first
-        FOR partition_record IN 
-            SELECT tablename 
-            FROM pg_tables 
-            WHERE tablename LIKE 'emt_events_%'
-            ORDER BY tablename DESC  -- to handle child partitions first
-        LOOP
-            EXECUTE format('ALTER TABLE %I RENAME TO %I', 
-                partition_record.tablename, 
-                REPLACE(partition_record.tablename, 'events', 'messages'));
-        END LOOP;
-
-        -- Rename the main table
-        ALTER TABLE emt_events RENAME TO emt_messages;
-        
-        -- Rename columns
-        ALTER TABLE emt_messages 
-            RENAME COLUMN event_data TO message_data;
-        ALTER TABLE emt_messages 
-            RENAME COLUMN event_metadata TO message_metadata;
-        ALTER TABLE emt_messages 
-            RENAME COLUMN event_schema_version TO message_schema_version;
-        ALTER TABLE emt_messages 
-            RENAME COLUMN event_type TO message_type;
-        ALTER TABLE emt_messages 
-            RENAME COLUMN event_id TO message_id;
-        ALTER TABLE emt_messages 
-            ADD COLUMN message_kind CHAR(1) NOT NULL DEFAULT 'E';
-
-        -- Rename sequence if it exists
-        IF EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'emt_global_event_position') THEN
-            ALTER SEQUENCE emt_global_event_position 
-            RENAME TO emt_global_message_position;
-            
-            ALTER TABLE emt_messages 
-                ALTER COLUMN global_position 
-                SET DEFAULT nextval('emt_global_message_position');
-        END IF;
-    END IF;
-END $$;`);

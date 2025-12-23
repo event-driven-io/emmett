@@ -46,7 +46,8 @@ BEGIN
                 SET DEFAULT nextval('emt_global_message_position');
         END IF;
     END IF;
-END $$;CREATE TABLE IF NOT EXISTS emt_streams(
+END $$;
+CREATE TABLE IF NOT EXISTS emt_streams(
       stream_id         TEXT                      NOT NULL,
       stream_position   BIGINT                    NOT NULL,
       partition         TEXT                      NOT NULL DEFAULT 'global',

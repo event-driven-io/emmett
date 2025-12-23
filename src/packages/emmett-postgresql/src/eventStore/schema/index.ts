@@ -2,24 +2,26 @@ import {
   type NodePostgresClient,
   type NodePostgresPool,
   type SQL,
+  type SQLMigration,
+  dumbo,
+  runPostgreSQLMigrations,
+  sqlMigration,
 } from '@event-driven-io/dumbo';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 import type { PostgreSQLProjectionHandlerContext } from '../projections';
-import {
-  appendToStreamSQL,
-  dropOldAppendToSQLWithoutGlobalPositions,
-} from './appendToStream';
+import { appendToStreamSQL } from './appendToStream';
+import { migration_0_38_7_and_older } from './migrations/0_38_7';
+import { migration_0_42_0_FromSubscriptionsToProcessors } from './migrations/0_42_0';
 import { storeSubscriptionCheckpointSQL } from './storeProcessorCheckpoint';
 import {
   addDefaultPartitionSQL,
   addPartitionSQL,
   addTablePartitions,
-  dropFutureConceptModuleAndTenantFunctions,
   messagesTableSQL,
-  migrationFromEventsToMessagesSQL,
+  processorsTableSQL,
+  projectionsTableSQL,
   sanitizeNameSQL,
   streamsTableSQL,
-  subscriptionsTableSQL,
 } from './tables';
 
 export * from './appendToStream';
@@ -32,22 +34,27 @@ export * from './tables';
 export * from './typing';
 
 export const schemaSQL: SQL[] = [
-  migrationFromEventsToMessagesSQL,
   streamsTableSQL,
   messagesTableSQL,
-  subscriptionsTableSQL,
+  projectionsTableSQL,
+  processorsTableSQL,
   sanitizeNameSQL,
   addTablePartitions,
   addPartitionSQL,
-  dropFutureConceptModuleAndTenantFunctions,
-  //addModuleSQL,
-  //addTenantSQL,
-  //addModuleForAllTenantsSQL,
-  //addTenantForAllModulesSQL,
-  dropOldAppendToSQLWithoutGlobalPositions,
   appendToStreamSQL,
   addDefaultPartitionSQL,
   storeSubscriptionCheckpointSQL,
+];
+
+export const schemaMigration = sqlMigration(
+  'emt:postgresql:eventstore:initial',
+  schemaSQL,
+);
+
+export const eventStoreSchemaMigrations: SQLMigration[] = [
+  migration_0_38_7_and_older,
+  migration_0_42_0_FromSubscriptionsToProcessors,
+  schemaMigration,
 ];
 
 export const createEventStoreSchema = async (
@@ -66,11 +73,13 @@ export const createEventStoreSchema = async (
         pool,
       },
     };
+    const nestedPool = dumbo({ connectionString, connection: tx.connection });
 
     if (hooks?.onBeforeSchemaCreated) {
       await hooks.onBeforeSchemaCreated(context);
     }
-    await context.execute.batchCommand(schemaSQL);
+
+    await runPostgreSQLMigrations(nestedPool, eventStoreSchemaMigrations);
   });
 
   if (hooks?.onAfterSchemaCreated) {

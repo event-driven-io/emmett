@@ -3,8 +3,8 @@ import type { SQLiteEventStoreOptions } from '../SQLiteEventStore';
 import {
   globalTag,
   messagesTable,
+  processorsTable,
   streamsTable,
-  subscriptionsTable,
 } from './typing';
 
 export const sql = (sql: string) => sql;
@@ -41,14 +41,16 @@ export const messagesTableSQL = sql(
 `,
 );
 
-export const subscriptionsTableSQL = sql(
+export const processorsTableSQL = sql(
   `
-  CREATE TABLE IF NOT EXISTS ${subscriptionsTable.name}(
-      subscription_id                 TEXT                   NOT NULL,
-      version                         INTEGER                NOT NULL DEFAULT 1,
-      partition                       TEXT                   NOT NULL DEFAULT '${globalTag}',
-      last_processed_position         BIGINT                NOT NULL,
-      PRIMARY KEY (subscription_id, partition, version)
+  CREATE TABLE IF NOT EXISTS ${processorsTable.name}(
+      processor_id                 TEXT                  NOT NULL,
+      version                      INTEGER               NOT NULL DEFAULT 1,
+      partition                    TEXT                  NOT NULL DEFAULT '${globalTag}',
+      status                       TEXT                  NOT NULL DEFAULT 'stopped', 
+      last_processed_checkpoint    TEXT                  NOT NULL,
+      processor_instance_id        TEXT                  DEFAULT 'emt:unknown',
+      PRIMARY KEY (processor_id, partition, version)
   );
 `,
 );
@@ -56,7 +58,7 @@ export const subscriptionsTableSQL = sql(
 export const schemaSQL: string[] = [
   streamsTableSQL,
   messagesTableSQL,
-  subscriptionsTableSQL,
+  processorsTableSQL,
 ];
 
 export const createEventStoreSchema = async (

@@ -43,8 +43,8 @@ void describe('createEventStoreSchema', () => {
       assertTrue(await tableExists(pool, 'emt_messages'));
     });
 
-    void it('creates the subscriptions table', async () => {
-      assertTrue(await tableExists(pool, 'emt_subscriptions'));
+    void it('creates the processors table', async () => {
+      assertTrue(await tableExists(pool, 'emt_processors'));
     });
 
     void it('creates the events default partition', async () => {

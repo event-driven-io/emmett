@@ -1,35 +1,41 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
-import { defaultTag, subscriptionsTable } from './typing';
+import { bigInt } from '@event-driven-io/emmett';
+import { defaultTag, processorsTable } from './typing';
 
 export const storeSubscriptionCheckpointSQL = sql(`
-CREATE OR REPLACE FUNCTION store_subscription_checkpoint(
-  p_subscription_id VARCHAR(100),
-  p_version BIGINT,
-  p_position BIGINT,
-  p_check_position BIGINT,
-  p_transaction_id xid8,
-  p_partition TEXT DEFAULT '${defaultTag}'
-) RETURNS INT AS $$
+DO $$
+BEGIN
+IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'store_processor_checkpoint') THEN
+
+CREATE OR REPLACE FUNCTION store_processor_checkpoint(
+  p_processor_id           TEXT,
+  p_version                BIGINT,
+  p_position               TEXT,
+  p_check_position         TEXT,
+  p_transaction_id         xid8,
+  p_partition              TEXT DEFAULT '${defaultTag}',
+  p_processor_instance_id  TEXT DEFAULT 'emt:unknown'
+) RETURNS INT AS $spc$
 DECLARE
-  current_position BIGINT;
+  current_position TEXT;
 BEGIN
   -- Handle the case when p_check_position is provided
   IF p_check_position IS NOT NULL THEN
       -- Try to update if the position matches p_check_position
-      UPDATE "${subscriptionsTable.name}"
+      UPDATE "${processorsTable.name}"
       SET 
-        "last_processed_position" = p_position, 
+        "last_processed_checkpoint" = p_position, 
         "last_processed_transaction_id" = p_transaction_id
-      WHERE "subscription_id" = p_subscription_id AND "last_processed_position" = p_check_position AND "partition" = p_partition;
+      WHERE "processor_id" = p_processor_id AND "last_processed_checkpoint" = p_check_position AND "partition" = p_partition;
 
       IF FOUND THEN
           RETURN 1;  -- Successfully updated
       END IF;
 
       -- Retrieve the current position
-      SELECT "last_processed_position" INTO current_position
-      FROM "${subscriptionsTable.name}"
-      WHERE "subscription_id" = p_subscription_id AND "partition" = p_partition;
+      SELECT "last_processed_checkpoint" INTO current_position
+      FROM "${processorsTable.name}"
+      WHERE "processor_id" = p_processor_id AND "partition" = p_partition;
 
       -- Return appropriate codes based on current position
       IF current_position = p_position THEN
@@ -43,14 +49,14 @@ BEGIN
 
   -- Handle the case when p_check_position is NULL: Insert if not exists
   BEGIN
-      INSERT INTO "${subscriptionsTable.name}"("subscription_id", "version", "last_processed_position", "partition", "last_processed_transaction_id")
-      VALUES (p_subscription_id, p_version, p_position, p_partition, p_transaction_id);
+      INSERT INTO "${processorsTable.name}"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id")
+      VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id);
       RETURN 1;  -- Successfully inserted
   EXCEPTION WHEN unique_violation THEN
       -- If insertion failed, it means the row already exists
-      SELECT "last_processed_position" INTO current_position
-      FROM "${subscriptionsTable.name}"
-      WHERE "subscription_id" = p_subscription_id AND "partition" = p_partition;
+      SELECT "last_processed_checkpoint" INTO current_position
+      FROM "${processorsTable.name}"
+      WHERE "processor_id" = p_processor_id AND "partition" = p_partition;
 
       IF current_position = p_position THEN
           RETURN 0;  -- Idempotent check: position already set
@@ -59,7 +65,10 @@ BEGIN
       END IF;
   END;
 END;
-$$ LANGUAGE plpgsql;
+$spc$ LANGUAGE plpgsql;
+
+END IF;
+END $$;
 `);
 
 export type StoreLastProcessedProcessorPositionResult<
@@ -67,7 +76,7 @@ export type StoreLastProcessedProcessorPositionResult<
 > =
   | {
       success: true;
-      newPosition: Position;
+      newCheckpoint: Position;
     }
   | { success: false; reason: 'IGNORED' | 'MISMATCH' };
 
@@ -76,9 +85,10 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
   options: {
     processorId: string;
     version: number | undefined;
-    newPosition: null extends Position ? bigint | null : bigint;
-    lastProcessedPosition: bigint | null;
+    newCheckpoint: null extends Position ? bigint | null : bigint;
+    lastProcessedCheckpoint: bigint | null;
     partition?: string;
+    processorInstanceId?: string;
   },
 ): Promise<
   StoreLastProcessedProcessorPositionResult<
@@ -89,18 +99,23 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
     const { result } = await single(
       execute.command<{ result: 0 | 1 | 2 }>(
         sql(
-          `SELECT store_subscription_checkpoint(%L, %s, %L, %L, pg_current_xact_id(), %L) as result;`,
+          `SELECT store_processor_checkpoint(%L, %s, %L, %L, pg_current_xact_id(), %L, %L) as result;`,
           options.processorId,
           options.version ?? 1,
-          options.newPosition,
-          options.lastProcessedPosition,
+          options.newCheckpoint
+            ? bigInt.toNormalizedString(options.newCheckpoint)
+            : null,
+          options.lastProcessedCheckpoint
+            ? bigInt.toNormalizedString(options.lastProcessedCheckpoint)
+            : null,
           options.partition ?? defaultTag,
+          options.processorInstanceId ?? 'emt:unknown',
         ),
       ),
     );
 
     return result === 1
-      ? { success: true, newPosition: options.newPosition }
+      ? { success: true, newCheckpoint: options.newCheckpoint }
       : { success: false, reason: result === 0 ? 'IGNORED' : 'MISMATCH' };
   } catch (error) {
     console.log(error);
