@@ -1,4 +1,4 @@
-import { v7 as uuid } from 'uuid';
+import { bigInt } from '@event-driven-io/emmett';
 import { isSQLiteError, type SQLiteConnection } from '../../connection';
 import { sql } from './tables';
 import { defaultTag, processorsTable } from './typing';
@@ -14,7 +14,7 @@ async function storeSubscriptionCheckpointSQLite(
   partition: string,
   processorInstanceId?: string,
 ): Promise<0 | 1 | 2> {
-  processorInstanceId ??= uuid();
+  processorInstanceId ??= 'emt:unknown';
   if (checkPosition !== null) {
     const updateResult = await db.command(
       sql(`
@@ -27,10 +27,10 @@ async function storeSubscriptionCheckpointSQLite(
             AND partition = ?
         `),
       [
-        position!.toString().padStart(19, '0'),
+        bigInt.toNormalizedString(position!),
         processorInstanceId,
         processorId,
-        checkPosition.toString().padStart(19, '0'),
+        bigInt.toNormalizedString(checkPosition),
         partition,
       ],
     );
@@ -73,7 +73,7 @@ async function storeSubscriptionCheckpointSQLite(
         [
           processorId,
           version,
-          position!.toString().padStart(19, '0'),
+          bigInt.toNormalizedString(position!),
           partition,
           processorInstanceId,
         ],
