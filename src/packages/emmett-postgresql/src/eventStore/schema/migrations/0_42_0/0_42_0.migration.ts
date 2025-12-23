@@ -3,7 +3,7 @@ import {
   sqlMigration,
   type SQLMigration,
 } from '@event-driven-io/dumbo';
-import { defaultTag, globalTag } from '../../typing';
+import { defaultTag } from '../../typing';
 
 export const migration_0_42_0_FromSubscriptionsToProcessorsSQL = rawSql(`
 DO $$
@@ -17,12 +17,50 @@ BEGIN
               last_processed_transaction_id XID8                   NOT NULL,
               version                       INT                    NOT NULL DEFAULT 1,
               processor_id                  TEXT                   NOT NULL,
-              partition                     TEXT                   NOT NULL DEFAULT '${globalTag}',
+              partition                     TEXT                   NOT NULL DEFAULT 'emt:default',
               status                        TEXT                   NOT NULL DEFAULT 'stopped', 
               last_processed_checkpoint     TEXT                   NOT NULL,    
               processor_instance_id         TEXT                   DEFAULT 'emt:unknown',
               PRIMARY KEY (processor_id, partition, version)
           ) PARTITION BY LIST (partition);
+
+        -- 3. Setup emt_projections table if not exists
+
+        CREATE TABLE IF NOT EXISTS "emt_projections"(
+            version                       INT                    NOT NULL DEFAULT 1,  
+            type                          VARCHAR(1)             NOT NULL,
+            name                          TEXT                   NOT NULL,
+            partition                     TEXT                   NOT NULL DEFAULT 'emt:default',
+            kind                          TEXT                   NOT NULL, 
+            status                        TEXT                   NOT NULL, 
+            definition                    JSONB                  NOT NULL DEFAULT '{}'::jsonb, 
+            PRIMARY KEY (name, partition, version)
+        ) PARTITION BY LIST (partition);
+
+        CREATE OR REPLACE FUNCTION emt_add_partition(partition_name TEXT) RETURNS void AS $fnpar$
+        BEGIN                
+            PERFORM emt_add_table_partition('emt_messages', partition_name);
+            PERFORM emt_add_table_partition('emt_streams', partition_name);
+        
+            EXECUTE format('
+                CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
+                FOR VALUES IN (%L);',
+                emt_sanitize_name('emt_subscriptions' || '_' || partition_name), 'emt_subscriptions', partition_name
+            );
+
+            EXECUTE format('
+                CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
+                FOR VALUES IN (%L);',
+                emt_sanitize_name('emt_processors' || '_' || partition_name), 'emt_processors', partition_name
+            );
+        
+            EXECUTE format('
+                CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
+                FOR VALUES IN (%L);',
+                emt_sanitize_name('emt_projections' || '_' || partition_name), 'emt_projections', partition_name
+            );
+        END;
+        $fnpar$ LANGUAGE plpgsql;
 
         PERFORM emt_add_partition('${defaultTag}');
 

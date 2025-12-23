@@ -15,7 +15,7 @@ export const streamsTableSQL = rawSql(
   `CREATE TABLE IF NOT EXISTS ${streamsTable.name}(
       stream_id         TEXT                      NOT NULL,
       stream_position   BIGINT                    NOT NULL,
-      partition         TEXT                      NOT NULL DEFAULT '${globalTag}',
+      partition         TEXT                      NOT NULL DEFAULT '${defaultTag}',
       stream_type       TEXT                      NOT NULL,
       stream_metadata   JSONB                     NOT NULL,
       is_archived       BOOLEAN                   NOT NULL DEFAULT FALSE,
@@ -39,7 +39,7 @@ export const messagesTableSQL = rawSql(
       is_archived            BOOLEAN                   NOT NULL DEFAULT FALSE,
       message_kind           VARCHAR(1)                NOT NULL DEFAULT 'E',
       stream_id              TEXT                      NOT NULL,
-      partition              TEXT                      NOT NULL DEFAULT '${globalTag}',
+      partition              TEXT                      NOT NULL DEFAULT '${defaultTag}',
       message_schema_version TEXT                      NOT NULL,
       message_id             TEXT                      NOT NULL,
       message_type           TEXT                      NOT NULL,
@@ -55,7 +55,7 @@ export const processorsTableSQL = rawSql(
       last_processed_transaction_id XID8                   NOT NULL,
       version                       INT                    NOT NULL DEFAULT 1,
       processor_id                  TEXT                   NOT NULL,
-      partition                     TEXT                   NOT NULL DEFAULT '${globalTag}',
+      partition                     TEXT                   NOT NULL DEFAULT '${defaultTag}',
       status                        TEXT                   NOT NULL DEFAULT 'stopped', 
       last_processed_checkpoint     TEXT                   NOT NULL,    
       processor_instance_id         TEXT                   DEFAULT 'emt:unknown',
@@ -67,11 +67,13 @@ export const processorsTableSQL = rawSql(
 export const projectionsTableSQL = rawSql(
   `
   CREATE TABLE IF NOT EXISTS ${projectionsTable.name}(
-      version                       INT                    NOT NULL DEFAULT 1,
+      version                       INT                    NOT NULL DEFAULT 1,  
+      type                          VARCHAR(1)             NOT NULL,
       name                          TEXT                   NOT NULL,
-      partition                     TEXT                   NOT NULL DEFAULT '${globalTag}',
-      type                          TEXT                   NOT NULL,   
-      kind                          VARCHAR(1)             NOT NULL,
+      partition                     TEXT                   NOT NULL DEFAULT '${defaultTag}',
+      kind                          TEXT                   NOT NULL, 
+      status                        TEXT                   NOT NULL, 
+      definition                    JSONB                  NOT NULL DEFAULT '{}'::jsonb, 
       PRIMARY KEY (name, partition, version)
   ) PARTITION BY LIST (partition);
 `,

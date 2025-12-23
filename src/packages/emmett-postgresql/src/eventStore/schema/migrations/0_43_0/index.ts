@@ -4,18 +4,44 @@ import {
   sqlMigration,
   type SQLMigration,
 } from '@event-driven-io/dumbo';
-import { defaultTag } from '../../typing';
+import {
+  defaultTag,
+  messagesTable,
+  processorsTable,
+  projectionsTable,
+  streamsTable,
+} from '../../typing';
 
 export const migration_0_43_0_cleanupLegacySubscriptionSQL = rawSql(`
 DO $$
 BEGIN
 IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_subscriptions') THEN
+    -- Restore clean emt_add_partition (remove creation of emt_subscriptions partitions)
+    CREATE OR REPLACE FUNCTION emt_add_partition(partition_name TEXT) RETURNS void AS $fnpar$
+    BEGIN                
+        PERFORM emt_add_table_partition('${messagesTable.name}', partition_name);
+        PERFORM emt_add_table_partition('${streamsTable.name}', partition_name);
+    
+        EXECUTE format('
+            CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
+            FOR VALUES IN (%L);',
+            emt_sanitize_name('${processorsTable.name}' || '_' || partition_name), '${processorsTable.name}', partition_name
+        );
+    
+        EXECUTE format('
+            CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
+            FOR VALUES IN (%L);',
+            emt_sanitize_name('${projectionsTable.name}' || '_' || partition_name), '${projectionsTable.name}', partition_name
+        );
+    END;
+    $fnpar$ LANGUAGE plpgsql;
+
     -- Drop old subscriptions table if it exists
     DROP TABLE IF EXISTS emt_subscriptions CASCADE;
 
     -- Drop old function if it exists
     DROP FUNCTION IF EXISTS store_subscription_checkpoint(character varying, bigint, bigint, bigint, xid8, text);
-
+    
     -- Restore clean store_processor_checkpoint (remove dual-write logic)
     CREATE OR REPLACE FUNCTION store_processor_checkpoint(
       p_processor_id           TEXT,
