@@ -25,6 +25,7 @@ import {
 } from './tables';
 
 export * from './appendToStream';
+export * from './migrations';
 export * from './readLastMessageGlobalPosition';
 export * from './readMessagesBatch';
 export * from './readProcessorCheckpoint';
