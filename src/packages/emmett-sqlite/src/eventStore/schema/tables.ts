@@ -1,9 +1,11 @@
 import type { SQLiteConnection } from '../../connection';
 import type { SQLiteEventStoreOptions } from '../SQLiteEventStore';
+import { migration_0_42_0_FromSubscriptionsToProcessors } from './migrations';
 import {
   globalTag,
   messagesTable,
   processorsTable,
+  projectionsTable,
   streamsTable,
 } from './typing';
 
@@ -47,10 +49,25 @@ export const processorsTableSQL = sql(
       processor_id                 TEXT                  NOT NULL,
       version                      INTEGER               NOT NULL DEFAULT 1,
       partition                    TEXT                  NOT NULL DEFAULT '${globalTag}',
-      status                       TEXT                  NOT NULL DEFAULT 'stopped', 
+      status                       TEXT                  NOT NULL DEFAULT 'stopped',
       last_processed_checkpoint    TEXT                  NOT NULL,
       processor_instance_id        TEXT                  DEFAULT 'emt:unknown',
       PRIMARY KEY (processor_id, partition, version)
+  );
+`,
+);
+
+export const projectionsTableSQL = sql(
+  `
+  CREATE TABLE IF NOT EXISTS ${projectionsTable.name}(
+      name                         TEXT                  NOT NULL,
+      version                      INTEGER               NOT NULL DEFAULT 1,
+      partition                    TEXT                  NOT NULL DEFAULT '${globalTag}',
+      type                         CHAR(1)               NOT NULL,
+      kind                         TEXT                  NOT NULL,
+      status                       TEXT                  NOT NULL,
+      definition                   JSONB                 NOT NULL DEFAULT '{}',
+      PRIMARY KEY (name, partition, version)
   );
 `,
 );
@@ -59,6 +76,7 @@ export const schemaSQL: string[] = [
   streamsTableSQL,
   messagesTableSQL,
   processorsTableSQL,
+  projectionsTableSQL,
 ];
 
 export const createEventStoreSchema = async (
@@ -66,12 +84,12 @@ export const createEventStoreSchema = async (
   hooks?: SQLiteEventStoreOptions['hooks'],
 ): Promise<void> => {
   await connection.withTransaction(async () => {
+    await migration_0_42_0_FromSubscriptionsToProcessors(connection);
+
     if (hooks?.onBeforeSchemaCreated) {
       await hooks.onBeforeSchemaCreated({ connection: connection });
     }
-    for (const sql of schemaSQL) {
-      await connection.command(sql);
-    }
+    await connection.batchCommand(schemaSQL);
   });
 
   if (hooks?.onAfterSchemaCreated) {

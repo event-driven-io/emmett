@@ -5,6 +5,7 @@ export type Parameters = object | string | bigint | number | boolean | null;
 export type SQLiteConnection = {
   close: () => void;
   command: (sql: string, values?: Parameters[]) => Promise<sqlite3.RunResult>;
+  batchCommand: (sqls: string[]) => Promise<void>;
   query: <T>(sql: string, values?: Parameters[]) => Promise<T[]>;
   querySingle: <T>(sql: string, values?: Parameters[]) => Promise<T | null>;
   withTransaction: <T>(fn: () => Promise<T>) => Promise<T>;
@@ -66,6 +67,19 @@ export const sqliteConnection = (
           },
         );
       }),
+    batchCommand: async (sqls: string[]) => {
+      for (const sql of sqls) {
+        await new Promise<void>((resolve, reject) => {
+          db.run(sql, [], (err: Error | null) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            resolve();
+          });
+        });
+      }
+    },
     query: <T>(sql: string, params?: Parameters[]): Promise<T[]> =>
       new Promise((resolve, reject) => {
         db.all(sql, params ?? [], (err: Error | null, result: T[]) => {

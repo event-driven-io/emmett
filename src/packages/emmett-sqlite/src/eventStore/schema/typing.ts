@@ -33,3 +33,7 @@ export const messagesTable = {
 export const processorsTable = {
   name: `${emmettPrefix}_processors`,
 };
+
+export const projectionsTable = {
+  name: `${emmettPrefix}_projections`,
+};
