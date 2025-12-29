@@ -8,6 +8,7 @@ import {
   streamsTable,
 } from './typing';
 
+import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
 import { cleanupLegacySubscriptionTables } from './migrations/0_43_0';
 export { cleanupLegacySubscriptionTables };
 
@@ -79,17 +80,19 @@ export const projectionsTableSQL = rawSql(
 `,
 );
 
-export const sanitizeNameSQL = rawSql(
-  `CREATE OR REPLACE FUNCTION emt_sanitize_name(input_name TEXT) RETURNS TEXT AS $$
+export const sanitizeNameSQL = createFunctionIfDoesNotExistSQL(
+  'emt_sanitize_name',
+  `CREATE OR REPLACE FUNCTION emt_sanitize_name(input_name TEXT) RETURNS TEXT AS $emt_sanitize_name$
     BEGIN
         RETURN REGEXP_REPLACE(input_name, '[^a-zA-Z0-9_]', '_', 'g');
     END;
-    $$ LANGUAGE plpgsql;`,
+    $emt_sanitize_name$ LANGUAGE plpgsql;`,
 );
 
-export const addTablePartitions = rawSql(
+export const addTablePartitions = createFunctionIfDoesNotExistSQL(
+  'emt_add_table_partition',
   `
-  CREATE OR REPLACE FUNCTION emt_add_table_partition(tableName TEXT, partition_name TEXT) RETURNS void AS $$
+  CREATE OR REPLACE FUNCTION emt_add_table_partition(tableName TEXT, partition_name TEXT) RETURNS void AS $emt_add_table_partition$
   DECLARE
     v_main_partiton_name     TEXT;
     v_active_partiton_name   TEXT;
@@ -119,12 +122,13 @@ export const addTablePartitions = rawSql(
           v_archived_partiton_name, v_main_partiton_name
       );
   END;
-  $$ LANGUAGE plpgsql;`,
+  $emt_add_table_partition$ LANGUAGE plpgsql;`,
 );
 
-export const addPartitionSQL = rawSql(
+export const addPartitionSQL = createFunctionIfDoesNotExistSQL(
+  'emt_add_partition',
   `
-  CREATE OR REPLACE FUNCTION emt_add_partition(partition_name TEXT) RETURNS void AS $$
+  CREATE OR REPLACE FUNCTION emt_add_partition(partition_name TEXT) RETURNS void AS $emt_add_partition$
   BEGIN                
       PERFORM emt_add_table_partition('${messagesTable.name}', partition_name);
       PERFORM emt_add_table_partition('${streamsTable.name}', partition_name);
@@ -141,7 +145,7 @@ export const addPartitionSQL = rawSql(
           emt_sanitize_name('${projectionsTable.name}' || '_' || partition_name), '${projectionsTable.name}', partition_name
       );
   END;
-  $$ LANGUAGE plpgsql;`,
+  $emt_add_partition$ LANGUAGE plpgsql;`,
 );
 
 export const addModuleSQL = rawSql(

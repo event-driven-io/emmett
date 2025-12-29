@@ -1,12 +1,11 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import { bigInt } from '@event-driven-io/emmett';
+import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
 import { defaultTag, processorsTable } from './typing';
 
-export const storeSubscriptionCheckpointSQL = sql(`
-DO $$
-BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'store_processor_checkpoint') THEN
-
+export const storeSubscriptionCheckpointSQL = createFunctionIfDoesNotExistSQL(
+  'store_processor_checkpoint',
+  `
 CREATE OR REPLACE FUNCTION store_processor_checkpoint(
   p_processor_id           TEXT,
   p_version                BIGINT,
@@ -66,10 +65,8 @@ BEGIN
   END;
 END;
 $spc$ LANGUAGE plpgsql;
-
-END IF;
-END $$;
-`);
+`,
+);
 
 export type StoreLastProcessedProcessorPositionResult<
   Position extends bigint | null = bigint,
