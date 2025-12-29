@@ -6,3 +6,4 @@ export * from './readStream';
 export * from './storeProcessorCheckpoint';
 export * from './tables';
 export * from './typing';
+export * from './migrations';
