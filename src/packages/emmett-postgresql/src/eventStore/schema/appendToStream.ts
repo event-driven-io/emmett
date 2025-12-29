@@ -1,5 +1,4 @@
 import {
-  rawSql,
   single,
   sql,
   type NodePostgresPool,
@@ -17,9 +16,11 @@ import {
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
+import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
 import { defaultTag, messagesTable, streamsTable } from './typing';
 
-export const appendToStreamSQL = rawSql(
+export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
+  'emt_append_to_stream',
   `CREATE OR REPLACE FUNCTION emt_append_to_stream(
       v_message_ids text[],
       v_messages_data jsonb[],
@@ -37,7 +38,7 @@ export const appendToStreamSQL = rawSql(
       global_positions bigint[],
       transaction_id xid8
   ) LANGUAGE plpgsql
-  AS $$
+  AS $emt_append_to_stream$
   DECLARE
       v_next_stream_position bigint;
       v_position bigint;
@@ -109,7 +110,7 @@ export const appendToStreamSQL = rawSql(
 
       RETURN QUERY SELECT TRUE, v_next_stream_position, v_global_positions, v_transaction_id;
   END;
-  $$;
+  $emt_append_to_stream$;
   `,
 );
 
