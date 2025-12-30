@@ -10,6 +10,7 @@
 - API changes in source code
 - Documentation audit requested
 - VitePress build errors
+- FAQ update requested (GitHub issues review)
 
 ---
 
@@ -22,7 +23,8 @@ Documentation should flow from these sources in priority order:
 | 1 | Source Code | `src/packages/*/src/**/*.ts` | Type definitions, function signatures, actual behavior |
 | 2 | Package READMEs | `src/packages/*/README.md` | Installation, quick start, API reference |
 | 3 | Blog Articles | `https://event-driven.io/en/` | Concepts, tutorials, best practices |
-| 4 | Existing Docs | `src/docs/**/*.md` | Structure, navigation, cross-references |
+| 4 | GitHub Issues | `github.com/event-driven-io/emmett/issues` | Common problems, workarounds, FAQ content |
+| 5 | Existing Docs | `src/docs/**/*.md` | Structure, navigation, cross-references |
 
 **Golden Rule:** If source code and documentation conflict, source code wins.
 
@@ -277,6 +279,145 @@ MAP TO:
 
 ---
 
+## GitHub Issues → FAQ Generation
+
+Periodically review GitHub issues to build and update `resources/faq.md`.
+
+### When to Update FAQ
+
+- Monthly audit
+- Major version release
+- Spike in similar issues
+- Issue marked as resolved with workaround
+
+### Fetching Issues
+
+```bash
+# Get all issues with full details
+gh issue list --limit 100 --state all --json number,title,body,labels,state,comments,createdAt
+
+# Get issue summary
+gh issue list --limit 50 --state all --json number,title,labels,state | \
+  jq -r '.[] | "#\(.number) [\(.state)] \(.title) - Labels: \(.labels | map(.name) | join(", "))"'
+```
+
+### Issue Analysis Process
+
+1. **Fetch all issues** (open and closed)
+2. **Categorize by topic:**
+
+| Category | Label Patterns | FAQ Section |
+|----------|---------------|-------------|
+| Installation | `bug`, `compatibility` | Installation & Setup |
+| Event Store | `event store`, `PostgreSQL`, `mongodb`, `SQLite` | Event Store |
+| Projections | `projections` | Projections |
+| Testing | `testing` | Testing |
+| TypeScript | `typing`, `bug` | Installation & Setup |
+| Consumers | `consumers` | EventStoreDB / MongoDB |
+
+3. **Extract FAQ content from issues:**
+
+```
+FOR EACH issue:
+  - Problem: Issue title + body description
+  - Solution: Comments from maintainers OR fix version
+  - Status: OPEN (workaround) or CLOSED (fixed in version X)
+  - Related Issue: Link to GitHub issue
+```
+
+### FAQ Entry Format
+
+```markdown
+### {Question as title}
+
+**Problem:** {Description from issue body}
+
+**Solution:** {From maintainer comments or fix}
+
+\`\`\`typescript
+// Code example if applicable
+\`\`\`
+
+*Related: [GitHub Issue #{number}](https://github.com/event-driven-io/emmett/issues/{number})*
+```
+
+### FAQ Section Organization
+
+```markdown
+# Frequently Asked Questions
+
+## General
+- What is Emmett?
+- Which event stores does Emmett support?
+- Can I use Emmett without the Command Handler?
+
+## Installation & Setup
+- TypeScript build errors
+- Express v5 support
+- TestContainers with Podman
+
+## Event Store
+- Events returned in wrong order (FIXED)
+- PostgreSQL schema configuration
+- Configuration options
+
+## Projections
+- Handler receives only last event (expected behavior)
+- Testing projections
+- Replay from point in time
+
+## {Database}-Specific
+- MongoDB ObjectId issues
+- EventStoreDB subscription drops
+
+## Testing
+- Deep equals type coercion
+- Test isolation
+
+## Compatibility
+- Vercel/Supabase support
+- Browser usage
+```
+
+### Issue-to-FAQ Mapping
+
+| Issue Pattern | FAQ Entry Type |
+|---------------|----------------|
+| Bug + CLOSED | "This was fixed in version X" |
+| Bug + OPEN | "Workaround: ..." |
+| Enhancement + OPEN | Omit or mention as planned |
+| Question in issue | Direct FAQ entry |
+| Documentation request | Update relevant doc instead |
+
+### FAQ Quality Rules
+
+```
+□ Each answer has a clear problem statement
+□ Solutions include code examples where applicable
+□ Fixed issues mention the version with fix
+□ Open issues provide workarounds
+□ Links to related GitHub issues included
+□ No duplicate entries
+□ Organized by user journey (setup → usage → advanced)
+```
+
+### Maintenance Commands
+
+```bash
+# Find issues closed in last 30 days (potential FAQ updates)
+gh issue list --state closed --json number,title,closedAt | \
+  jq '[.[] | select(.closedAt > (now - 2592000 | todate))]'
+
+# Find most commented issues (high community interest)
+gh issue list --state all --json number,title,comments | \
+  jq 'sort_by(.comments | length) | reverse | .[0:10]'
+
+# Find issues by label
+gh issue list --label "bug" --state all --json number,title,state
+```
+
+---
+
 ## README-to-Docs Sync
 
 When a package README is updated (by readme-writer):
@@ -344,6 +485,7 @@ src/docs/
 ├── resources/
 │   ├── articles.md
 │   ├── packages.md
+│   ├── faq.md              # Generated from GitHub issues
 │   └── contributing.md
 ├── samples/
 │   └── index.md
@@ -460,6 +602,16 @@ sidebar: [
 5. Add to sidebar
 6. Cross-reference related docs
 
+### When FAQ Update Requested
+
+1. Fetch GitHub issues via `gh issue list`
+2. Categorize issues by topic/label
+3. Extract problems and solutions from issue threads
+4. Update `resources/faq.md` with new entries
+5. Link each FAQ entry to relevant GitHub issue
+6. Remove outdated entries (issues resolved differently)
+7. Verify sidebar includes FAQ link
+
 ---
 
 ## Quality Checklist
@@ -489,6 +641,8 @@ sidebar: [
 □ External links still work
 □ Comparison tables current
 □ Version numbers not hardcoded (or current)
+□ FAQ updated with recent GitHub issues
+□ Closed issues with fixes noted in FAQ
 ```
 
 ---
