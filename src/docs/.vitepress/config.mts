@@ -23,45 +23,95 @@ export default defineConfig({
     logo: '/logo.png',
     // https://vitepress.dev/reference/default-theme-config
     nav: [
+      { text: 'Getting Started', link: '/getting-started' },
       {
-        text: 'Documentation',
+        text: 'Guides',
         items: [
-          { text: 'Overview', link: '/overview' },
-          { text: 'Getting started', link: '/getting-started' },
-          { text: 'API reference', link: '/api-reference' },
+          { text: 'Projections', link: '/guides/projections' },
+          { text: 'Testing', link: '/guides/testing' },
+          { text: 'Error Handling', link: '/guides/error-handling' },
+          { text: 'Workflows', link: '/guides/workflows' },
+          { text: 'Choosing an Event Store', link: '/guides/choosing-event-store' },
         ],
       },
-      { text: '🧑‍💻 Join Discord Server', link: 'https://discord.gg/fTpqUTMmVa' },
       {
-        text: 'Release Notes',
-        link: 'https://github.com/event-driven-io/emmett/releases',
+        text: 'Event Stores',
+        items: [
+          { text: 'Overview', link: '/event-stores/' },
+          { text: 'PostgreSQL', link: '/event-stores/postgresql' },
+          { text: 'EventStoreDB', link: '/event-stores/esdb' },
+          { text: 'MongoDB', link: '/event-stores/mongodb' },
+          { text: 'SQLite', link: '/event-stores/sqlite' },
+        ],
       },
       {
-        text: 'Support',
-        link: 'https://github.com/sponsors/event-driven-io',
+        text: 'Resources',
+        items: [
+          { text: 'Samples', link: '/samples/' },
+          { text: 'Articles', link: '/resources/articles' },
+          { text: 'Packages', link: '/resources/packages' },
+          { text: 'Contributing', link: '/resources/contributing' },
+        ],
       },
+      { text: 'Discord', link: 'https://discord.gg/fTpqUTMmVa' },
     ],
 
     sidebar: [
       {
-        text: 'Documentation',
+        text: 'Introduction',
         items: [
           { text: 'Overview', link: '/overview' },
           { text: 'Quick Intro', link: '/quick-intro' },
           { text: 'Getting Started', link: '/getting-started' },
-          {
-            text: 'API reference',
-            link: '/api-reference',
-            items: [
-              { text: 'Event', link: '/api-reference/event' },
-              { text: 'Command', link: '/api-reference/command' },
-              { text: 'Event Store', link: '/api-reference/eventstore' },
-              {
-                text: 'Command Handler',
-                link: '/api-reference/commandhandler',
-              },
-            ],
-          },
+        ],
+      },
+      {
+        text: 'Guides',
+        items: [
+          { text: 'Projections', link: '/guides/projections' },
+          { text: 'Testing', link: '/guides/testing' },
+          { text: 'Error Handling', link: '/guides/error-handling' },
+          { text: 'Workflows', link: '/guides/workflows' },
+          { text: 'Choosing an Event Store', link: '/guides/choosing-event-store' },
+        ],
+      },
+      {
+        text: 'Event Stores',
+        items: [
+          { text: 'Overview', link: '/event-stores/' },
+          { text: 'PostgreSQL', link: '/event-stores/postgresql' },
+          { text: 'EventStoreDB', link: '/event-stores/esdb' },
+          { text: 'MongoDB', link: '/event-stores/mongodb' },
+          { text: 'SQLite', link: '/event-stores/sqlite' },
+        ],
+      },
+      {
+        text: 'Web Frameworks',
+        items: [
+          { text: 'Express.js', link: '/frameworks/expressjs' },
+          { text: 'Fastify', link: '/frameworks/fastify' },
+        ],
+      },
+      {
+        text: 'API Reference',
+        link: '/api-reference/',
+        items: [
+          { text: 'Event', link: '/api-reference/event' },
+          { text: 'Command', link: '/api-reference/command' },
+          { text: 'Event Store', link: '/api-reference/eventstore' },
+          { text: 'Command Handler', link: '/api-reference/commandhandler' },
+          { text: 'Decider', link: '/api-reference/decider' },
+          { text: 'Projections', link: '/api-reference/projections' },
+          { text: 'Workflows', link: '/api-reference/workflows' },
+        ],
+      },
+      {
+        text: 'Resources',
+        items: [
+          { text: 'Samples', link: '/samples/' },
+          { text: 'Blog Articles', link: '/resources/articles' },
+          { text: 'Packages', link: '/resources/packages' },
+          { text: 'Contributing', link: '/resources/contributing' },
         ],
       },
     ],
