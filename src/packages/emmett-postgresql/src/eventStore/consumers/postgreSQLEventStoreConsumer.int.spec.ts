@@ -22,7 +22,7 @@ import {
 } from './postgreSQLEventStoreConsumer';
 import type { PostgreSQLProcessor } from './postgreSQLProcessor';
 
-const withDeadline = { timeout: 5000 };
+const withDeadline = { timeout: 30000 };
 
 void describe('PostgreSQL event store consumer', () => {
   let postgres: StartedPostgreSqlContainer;

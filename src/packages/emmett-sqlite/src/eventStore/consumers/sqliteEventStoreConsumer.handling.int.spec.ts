@@ -14,7 +14,7 @@ import {
 import { sqliteEventStoreConsumer } from './sqliteEventStoreConsumer';
 import type { SQLiteProcessorOptions } from './sqliteProcessor';
 
-const withDeadline = { timeout: 5000 };
+const withDeadline = { timeout: 30000 };
 
 void describe('SQLite event store started consumer', () => {
   const testDatabasePath = path.dirname(fileURLToPath(import.meta.url));

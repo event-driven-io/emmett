@@ -26,7 +26,7 @@ import {
 import { pongoSingleStreamProjection } from '../projections';
 import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
 
-const withDeadline = { timeout: 5000000 };
+const withDeadline = { timeout: 30000 };
 
 void describe('PostgreSQL event store started consumer', () => {
   let postgres: StartedPostgreSqlContainer;

@@ -22,7 +22,7 @@ import {
 } from '../eventstoreDBEventStore';
 import { eventStoreDBEventStoreConsumer } from './eventStoreDBEventStoreConsumer';
 
-const withDeadline = { timeout: 10000 };
+const withDeadline = { timeout: 30000 };
 
 void describe('EventStoreDB event store started consumer', () => {
   let eventStoreDB: StartedEventStoreDBContainer;
