@@ -6,7 +6,6 @@ export * from './message';
 export * from './messageHandling';
 
 export * from './decider';
-export * from './workflow';
 
 export type Brand<K, T> = K & { readonly __brand: T };
 export type Flavour<K, T> = K & { readonly __brand?: T };
