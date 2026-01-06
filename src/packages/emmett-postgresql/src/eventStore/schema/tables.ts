@@ -6,6 +6,7 @@ import {
   processorsTable,
   projectionsTable,
   streamsTable,
+  unknownTag,
 } from './typing';
 
 import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
@@ -59,7 +60,7 @@ export const processorsTableSQL = rawSql(
       partition                     TEXT                   NOT NULL DEFAULT '${defaultTag}',
       status                        TEXT                   NOT NULL DEFAULT 'stopped', 
       last_processed_checkpoint     TEXT                   NOT NULL,    
-      processor_instance_id         TEXT                   DEFAULT 'emt:unknown',
+      processor_instance_id         TEXT                   DEFAULT '${unknownTag}',
       PRIMARY KEY (processor_id, partition, version)
   ) PARTITION BY LIST (partition);
 `,

@@ -39,6 +39,7 @@ import {
   createEventStoreSchema,
   readStream,
   schemaSQL,
+  unknownTag,
   type AppendToStreamBeforeCommitHook,
 } from './schema';
 
@@ -284,8 +285,7 @@ export const getPostgreSQLEventStore = (
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
 
-      const streamType =
-        firstPart && rest.length > 0 ? firstPart : 'emt:unknown';
+      const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
 
       const appendResult = await appendToStream(
         pool,

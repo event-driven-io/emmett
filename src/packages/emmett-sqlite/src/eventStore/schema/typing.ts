@@ -1,7 +1,8 @@
 export const emmettPrefix = 'emt';
 
 export const globalTag = 'global';
-export const defaultTag = 'emt:default';
+export const defaultTag = `${emmettPrefix}:default`;
+export const unknownTag = `${emmettPrefix}:unknown`;
 
 export const globalNames = {
   module: `${emmettPrefix}:module:${globalTag}`,

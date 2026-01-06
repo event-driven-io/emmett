@@ -15,7 +15,7 @@ import {
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
-import { createEventStoreSchema, defaultTag } from '../schema';
+import { createEventStoreSchema, defaultTag } from '../../schema';
 import { tryAcquireProjectionLock } from './tryAcquireProjectionLock';
 
 void describe('tryAcquireProjectionLock', () => {
