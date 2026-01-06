@@ -9,6 +9,7 @@ import {
   assertThrowsAsync,
   assertTrue,
   asyncAwaiter,
+  hashText,
 } from '@event-driven-io/emmett';
 import {
   PostgreSqlContainer,
@@ -16,7 +17,10 @@ import {
 } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { createEventStoreSchema, defaultTag } from '../../schema';
-import { tryAcquireProjectionLock } from './tryAcquireProjectionLock';
+import {
+  toProjectionLockKey,
+  tryAcquireProjectionLock,
+} from './tryAcquireProjectionLock';
 
 void describe('tryAcquireProjectionLock', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -101,11 +105,11 @@ void describe('tryAcquireProjectionLock', () => {
         status: 'active',
       });
 
-      const lockKey = computeLockKey(
-        'test_shared_blocks_exclusive',
-        defaultTag,
-        1,
-      );
+      const lockKey = toProjectionLockKey({
+        projectionName: 'test_shared_blocks_exclusive',
+        partition: defaultTag,
+        version: 1,
+      });
 
       const sharedLockHeld = asyncAwaiter();
       const canReleaseSharedLock = asyncAwaiter();
@@ -155,7 +159,11 @@ void describe('tryAcquireProjectionLock', () => {
         });
       });
 
-      const lockKey = computeLockKey('test_exclusive', defaultTag, 1);
+      const lockKey = toProjectionLockKey({
+        projectionName: 'test_exclusive',
+        partition: defaultTag,
+        version: 1,
+      });
 
       const exclusiveLockHeld = asyncAwaiter();
       const canReleaseExclusiveLock = asyncAwaiter();
@@ -204,7 +212,11 @@ void describe('tryAcquireProjectionLock', () => {
         });
       });
 
-      const lockKey = computeLockKey('test_commit', defaultTag, 1);
+      const lockKey = toProjectionLockKey({
+        projectionName: 'test_commit',
+        partition: defaultTag,
+        version: 1,
+      });
 
       const sharedLockHeld = asyncAwaiter();
       const exclusiveAttempted = asyncAwaiter();
@@ -258,7 +270,11 @@ void describe('tryAcquireProjectionLock', () => {
         });
       });
 
-      const lockKey = computeLockKey('test_rollback', defaultTag, 1);
+      const lockKey = toProjectionLockKey({
+        projectionName: 'test_rollback',
+        partition: defaultTag,
+        version: 1,
+      });
 
       const sharedLockHeld = asyncAwaiter();
       const exclusiveAttempted = asyncAwaiter();
@@ -400,18 +416,14 @@ const insertProjection = async (
   );
 };
 
-const computeLockKey = (name: string, partition: string, version: number) => {
-  return `${partition}:${name}:${version}`;
-};
-
 const tryAcquireExclusiveLock = async (
   execute: SQLExecutor,
   lockKey: string,
 ): Promise<boolean> => {
   const result = await execute.query<{ pg_try_advisory_lock: boolean }>(
     sql(
-      `SELECT pg_try_advisory_lock(('x' || substr(md5(%L), 1, 16))::bit(64)::bigint)`,
-      lockKey,
+      `SELECT pg_try_advisory_lock(%s::bigint)`,
+      (await hashText(lockKey)).toString(),
     ),
   );
   return result.rows[0]?.pg_try_advisory_lock ?? false;
@@ -423,8 +435,8 @@ const acquireExclusiveLock = async (
 ): Promise<void> => {
   await execute.command(
     sql(
-      `SELECT pg_advisory_lock(('x' || substr(md5(%L), 1, 16))::bit(64)::bigint)`,
-      lockKey,
+      `SELECT pg_advisory_lock(%s::bigint)`,
+      (await hashText(lockKey)).toString(),
     ),
   );
 };
@@ -435,8 +447,8 @@ const releaseExclusiveLock = async (
 ): Promise<void> => {
   await execute.command(
     sql(
-      `SELECT pg_advisory_unlock(('x' || substr(md5(%L), 1, 16))::bit(64)::bigint)`,
-      lockKey,
+      `SELECT pg_advisory_unlock(%s::bigint)`,
+      (await hashText(lockKey)).toString(),
     ),
   );
 };

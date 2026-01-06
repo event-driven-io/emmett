@@ -16,6 +16,22 @@ SELECT
     COALESCE((SELECT is_active FROM status_check), true) AS is_active;
 `;
 
+export const toProjectionLockKey = ({
+  projectionName,
+  partition,
+  version,
+}: Pick<
+  TryAcquireProjectionLockOptions,
+  'projectionName' | 'partition' | 'version'
+>): string => `${partition}:${projectionName}:${version}`;
+
+export type TryAcquireProjectionLockOptions = {
+  projectionName: string;
+  partition: string;
+  version: number;
+  lockKey?: string | bigint;
+};
+
 export const tryAcquireProjectionLock = async (
   execute: SQLExecutor,
   {
@@ -23,14 +39,9 @@ export const tryAcquireProjectionLock = async (
     projectionName,
     partition,
     version,
-  }: {
-    projectionName: string;
-    partition: string;
-    version: number;
-    lockKey?: string | bigint;
-  },
+  }: TryAcquireProjectionLockOptions,
 ): Promise<boolean> => {
-  lockKey ??= `${partition}:${projectionName}:${version}`;
+  lockKey ??= toProjectionLockKey({ projectionName, partition, version });
 
   const lockKeyBigInt = isBigint(lockKey) ? lockKey : await hashText(lockKey);
 
