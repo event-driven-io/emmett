@@ -1,17 +1,21 @@
 import {
+  dumbo,
+  runPostgreSQLMigrations,
+  sqlMigration,
   type NodePostgresClient,
   type NodePostgresPool,
   type SQL,
   type SQLMigration,
-  dumbo,
-  runPostgreSQLMigrations,
-  sqlMigration,
 } from '@event-driven-io/dumbo';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
-import type { PostgreSQLProjectionHandlerContext } from '../projections';
+import { type PostgreSQLProjectionHandlerContext } from '../projections';
 import { appendToStreamSQL } from './appendToStream';
 import { migration_0_38_7_and_older } from './migrations/0_38_7';
 import { migration_0_42_0_FromSubscriptionsToProcessors } from './migrations/0_42_0';
+import {
+  releaseProcessorLockSQL,
+  tryAcquireProcessorLockSQL,
+} from './processors';
 import { storeSubscriptionCheckpointSQL } from './storeProcessorCheckpoint';
 import {
   addDefaultPartitionSQL,
@@ -26,6 +30,7 @@ import {
 
 export * from './appendToStream';
 export * from './migrations';
+export * from './processors';
 export * from './readLastMessageGlobalPosition';
 export * from './readMessagesBatch';
 export * from './readProcessorCheckpoint';
@@ -46,6 +51,8 @@ export const schemaSQL: SQL[] = [
   appendToStreamSQL,
   addDefaultPartitionSQL,
   storeSubscriptionCheckpointSQL,
+  tryAcquireProcessorLockSQL,
+  releaseProcessorLockSQL,
 ];
 
 export const schemaMigration = sqlMigration(
