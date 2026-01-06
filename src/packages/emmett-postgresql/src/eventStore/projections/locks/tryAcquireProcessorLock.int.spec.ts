@@ -20,6 +20,10 @@ import {
   releaseProcessorLock,
   tryAcquireProcessorLock,
 } from './tryAcquireProcessorLock';
+import {
+  toProjectionLockKey,
+  tryAcquireProjectionLock,
+} from './tryAcquireProjectionLock';
 
 void describe('tryAcquireProcessorLock', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -66,12 +70,14 @@ void describe('tryAcquireProcessorLock', () => {
         }),
         (async () => {
           await firstLockHeld.wait;
-          const result = await tryAcquireProcessorLock(pool.execute, {
-            lockKey,
-            processorId: processorId2,
-            ...defaultPartitionAndVersion1,
-            processorInstanceId: 'instance_2',
-          });
+          const result = await pool.withConnection((connection) =>
+            tryAcquireProcessorLock(connection.execute, {
+              lockKey,
+              processorId: processorId2,
+              ...defaultPartitionAndVersion1,
+              processorInstanceId: 'instance_2',
+            }),
+          );
           secondLockAttempted.resolve();
           return result;
         })(),
@@ -118,14 +124,14 @@ void describe('tryAcquireProcessorLock', () => {
 
       assertTrue(firstAcquired.acquired, 'Expected first processor to acquire');
 
-      const secondAcquired = await pool.withConnection(async (connection) => {
-        return await tryAcquireProcessorLock(connection.execute, {
+      const secondAcquired = await pool.withConnection((connection) =>
+        tryAcquireProcessorLock(connection.execute, {
           lockKey,
           processorId: processorId2,
           ...defaultPartitionAndVersion1,
           processorInstanceId: instanceId2,
-        });
-      });
+        }),
+      );
 
       assertTrue(
         secondAcquired.acquired,
@@ -158,14 +164,14 @@ void describe('tryAcquireProcessorLock', () => {
         });
       });
 
-      const secondResult = await pool.withConnection(async (connection) => {
-        return await tryAcquireProcessorLock(connection.execute, {
+      const secondResult = await pool.withConnection((connection) =>
+        tryAcquireProcessorLock(connection.execute, {
           lockKey,
           processorId,
           ...defaultPartitionAndVersion1,
           processorInstanceId: instanceId,
-        });
-      });
+        }),
+      );
 
       assertTrue(secondResult.acquired, 'Expected same instance to re-acquire');
     });
@@ -176,38 +182,40 @@ void describe('tryAcquireProcessorLock', () => {
       const instanceId1 = 'instance_1';
       const instanceId2 = 'instance_2';
 
-      await pool.withConnection(async (connection) => {
-        const result = await tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId1,
-        });
+      const firstLockHeld = asyncAwaiter();
+      const secondLockAttempted = asyncAwaiter<{
+        acquired: boolean;
+        checkpoint?: string;
+      }>();
 
-        assertTrue(result.acquired, 'Expected first instance to acquire');
+      const [firstResult, secondResult] = await Promise.all([
+        pool.withConnection(async (connection) => {
+          const result = await tryAcquireProcessorLock(connection.execute, {
+            lockKey,
+            processorId,
+            ...defaultPartitionAndVersion1,
+            processorInstanceId: instanceId1,
+          });
+          firstLockHeld.resolve();
+          await secondLockAttempted.wait;
+          return result;
+        }),
+        (async () => {
+          await firstLockHeld.wait;
+          const result = await pool.withConnection((connection) =>
+            tryAcquireProcessorLock(connection.execute, {
+              lockKey,
+              processorId,
+              ...defaultPartitionAndVersion1,
+              processorInstanceId: instanceId2,
+            }),
+          );
+          secondLockAttempted.resolve(result);
+          return result;
+        })(),
+      ]);
 
-        // Note: We're not releasing lock here to simulate a running processor
-      });
-
-      const status = await getProcessorStatus(pool.execute, {
-        processorId,
-        ...defaultPartitionAndVersion1,
-      });
-      assertDeepEqual(
-        status?.status,
-        'running',
-        'Expected processor status to be running after crash',
-      );
-
-      const secondResult = await pool.withConnection(async (connection) => {
-        return await tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId2,
-        });
-      });
-
+      assertTrue(firstResult.acquired, 'Expected first instance to acquire');
       assertFalse(
         secondResult.acquired,
         'Expected different instance to be blocked when processor is running',
@@ -227,14 +235,14 @@ void describe('tryAcquireProcessorLock', () => {
         status: 'rebuilding',
       });
 
-      const result = await pool.withConnection(async (connection) => {
-        return await tryAcquireProcessorLock(connection.execute, {
+      const result = await pool.withConnection((connection) =>
+        tryAcquireProcessorLock(connection.execute, {
           lockKey,
           processorId,
           ...defaultPartitionAndVersion1,
           processorInstanceId: instanceId2,
-        });
-      });
+        }),
+      );
 
       assertFalse(
         result.acquired,
@@ -276,14 +284,14 @@ void describe('tryAcquireProcessorLock', () => {
         'Expected processor status to be stopped',
       );
 
-      const secondResult = await pool.withConnection(async (connection) => {
-        return await tryAcquireProcessorLock(connection.execute, {
+      const secondResult = await pool.withConnection((connection) =>
+        tryAcquireProcessorLock(connection.execute, {
           lockKey,
           processorId,
           ...defaultPartitionAndVersion1,
           processorInstanceId: instanceId2,
-        });
-      });
+        }),
+      );
 
       assertTrue(
         secondResult.acquired,
@@ -303,14 +311,14 @@ void describe('tryAcquireProcessorLock', () => {
         status: 'running',
       });
 
-      const result = await pool.withConnection(async (connection) => {
-        return await tryAcquireProcessorLock(connection.execute, {
+      const result = await pool.withConnection((connection) =>
+        tryAcquireProcessorLock(connection.execute, {
           lockKey,
           processorId,
           ...defaultPartitionAndVersion1,
           processorInstanceId: instanceId,
-        });
-      });
+        }),
+      );
 
       assertTrue(
         result.acquired,
@@ -683,6 +691,115 @@ void describe('tryAcquireProcessorLock', () => {
         result.checkpoint,
         expectedCheckpoint,
         'Expected to return existing checkpoint',
+      );
+    });
+  });
+
+  void describe('shared vs exclusive lock interaction', () => {
+    void it('prevents shared projection lock when exclusive processor lock is held', async () => {
+      const projectionName = 'test_exclusive_blocks_shared';
+      const processorId = 'processor_exclusive_blocks_shared';
+      const lockKey = toProjectionLockKey({
+        projectionName,
+        partition: defaultTag,
+        version: 1,
+      });
+
+      await insertProjection(pool.execute, {
+        name: projectionName,
+        ...defaultPartitionAndVersion1,
+        status: 'active',
+      });
+
+      const exclusiveLockHeld = asyncAwaiter();
+      const canReleaseExclusiveLock = asyncAwaiter();
+
+      const [, sharedLockAcquired] = await Promise.all([
+        pool.withConnection(async (connection) => {
+          const result = await tryAcquireProcessorLock(connection.execute, {
+            lockKey,
+            processorId,
+            ...defaultPartitionAndVersion1,
+          });
+          assertTrue(result.acquired, 'Expected processor to acquire lock');
+          exclusiveLockHeld.resolve();
+          await canReleaseExclusiveLock.wait;
+          await releaseProcessorLock(connection.execute, {
+            lockKey,
+            processorId,
+            ...defaultPartitionAndVersion1,
+          });
+        }),
+        (async () => {
+          await exclusiveLockHeld.wait;
+          const result = await pool.withTransaction(async (transaction) =>
+            tryAcquireProjectionLock(transaction.execute, {
+              lockKey,
+              projectionName,
+              ...defaultPartitionAndVersion1,
+            }),
+          );
+          canReleaseExclusiveLock.resolve();
+          return result;
+        })(),
+      ]);
+
+      assertFalse(
+        sharedLockAcquired,
+        'Expected shared lock to fail when exclusive lock is held',
+      );
+    });
+
+    void it('returns false when shared projection locks are held', async () => {
+      const projectionName = 'test_shared_blocks_exclusive';
+      const processorId = 'processor_shared_blocks_exclusive';
+      const lockKey = toProjectionLockKey({
+        projectionName,
+        partition: defaultTag,
+        version: 1,
+      });
+
+      await insertProjection(pool.execute, {
+        name: projectionName,
+        ...defaultPartitionAndVersion1,
+        status: 'active',
+      });
+
+      const sharedLockHeld = asyncAwaiter();
+      const canReleaseSharedLock = asyncAwaiter();
+
+      const [sharedLockAcquired, exclusiveLockResult] = await Promise.all([
+        pool.withTransaction(async (transaction) => {
+          const result = await tryAcquireProjectionLock(transaction.execute, {
+            lockKey,
+            projectionName,
+            ...defaultPartitionAndVersion1,
+          });
+          sharedLockHeld.resolve();
+          await canReleaseSharedLock.wait;
+          return result;
+        }),
+        (async () => {
+          await sharedLockHeld.wait;
+          const result = await pool.withConnection(async (connection) =>
+            tryAcquireProcessorLock(connection.execute, {
+              lockKey,
+              processorId,
+              ...defaultPartitionAndVersion1,
+            }),
+          );
+          canReleaseSharedLock.resolve();
+          return result;
+        })(),
+      ]);
+
+      assertTrue(
+        sharedLockAcquired,
+        'Expected shared lock acquisition to succeed',
+      );
+      assertFalse(
+        exclusiveLockResult.acquired,
+        'Expected exclusive lock to fail while shared lock is held',
       );
     });
   });
