@@ -327,12 +327,14 @@ void describe('tryAcquireProcessorLock', () => {
 
       await pool.withConnection(async (connection) => {
         const result = await tryAcquireProcessorLock(connection.execute, {
+          ...defaultPartitionAndVersion1,
           lockKey,
           processorId,
-          ...defaultPartitionAndVersion1,
-          projectionName,
-          projectionType: 'a',
-          projectionKind: 'async',
+          projection: {
+            name: projectionName,
+            type: 'a',
+            kind: 'async',
+          },
         });
 
         assertTrue(result.acquired, 'Expected to acquire lock');
@@ -361,18 +363,20 @@ void describe('tryAcquireProcessorLock', () => {
           lockKey,
           processorId,
           ...defaultPartitionAndVersion1,
-          projectionName,
-          projectionType: 'a',
-          projectionKind: 'async',
+          projection: {
+            name: projectionName,
+            type: 'a',
+            kind: 'async',
+          },
           processorInstanceId: instanceId,
         });
 
         assertTrue(result.acquired, 'Expected to acquire lock');
 
         await releaseProcessorLock(connection.execute, {
+          ...defaultPartitionAndVersion1,
           lockKey,
           processorId,
-          ...defaultPartitionAndVersion1,
           processorInstanceId: instanceId,
           projectionName,
         });
@@ -408,12 +412,14 @@ void describe('tryAcquireProcessorLock', () => {
 
       await pool.withConnection(async (connection) => {
         const result = await tryAcquireProcessorLock(connection.execute, {
+          ...defaultPartitionAndVersion1,
           lockKey,
           processorId,
-          ...defaultPartitionAndVersion1,
-          projectionName,
-          projectionType: 'a',
-          projectionKind: 'async',
+          projection: {
+            name: projectionName,
+            type: 'a',
+            kind: 'async',
+          },
         });
 
         assertTrue(result.acquired, 'Expected to acquire lock');
@@ -443,12 +449,14 @@ void describe('tryAcquireProcessorLock', () => {
 
       await pool.withConnection(async (connection) => {
         const result = await tryAcquireProcessorLock(connection.execute, {
+          ...defaultPartitionAndVersion1,
           lockKey,
           processorId,
-          ...defaultPartitionAndVersion1,
-          projectionName,
-          projectionType: 'a',
-          projectionKind: 'async',
+          projection: {
+            name: projectionName,
+            type: 'a',
+            kind: 'async',
+          },
         });
 
         assertTrue(result.acquired, 'Expected to acquire lock');
@@ -482,9 +490,11 @@ void describe('tryAcquireProcessorLock', () => {
             lockKey,
             processorId,
             ...defaultPartitionAndVersion1,
-            projectionName,
-            projectionType: 'a',
-            projectionKind: 'async',
+            projection: {
+              name: projectionName,
+              type: 'a',
+              kind: 'async',
+            },
           });
           firstLockHeld.resolve();
           await secondLockAttempted.wait;
@@ -492,16 +502,18 @@ void describe('tryAcquireProcessorLock', () => {
         }),
         (async () => {
           await firstLockHeld.wait;
-          const result = await pool.withConnection(async (connection) => {
-            return await tryAcquireProcessorLock(connection.execute, {
+          const result = await pool.withConnection(async (connection) =>
+            tryAcquireProcessorLock(connection.execute, {
               lockKey,
               processorId: processorId2,
               ...defaultPartitionAndVersion1,
-              projectionName: projectionName2,
-              projectionType: 'a',
-              projectionKind: 'async',
-            });
-          });
+              projection: {
+                name: projectionName2,
+                type: 'a',
+                kind: 'async',
+              },
+            }),
+          );
           secondLockAttempted.resolve();
           return result;
         })(),
@@ -529,31 +541,31 @@ void describe('tryAcquireProcessorLock', () => {
 
       await pool.withConnection(async (connection) => {
         const result = await tryAcquireProcessorLock(connection.execute, {
+          ...defaultPartitionAndVersion1,
           lockKey,
           processorId,
-          ...defaultPartitionAndVersion1,
           processorInstanceId: instanceId,
         });
 
         assertTrue(result.acquired, 'Expected to acquire lock');
 
         const released = await releaseProcessorLock(connection.execute, {
+          ...defaultPartitionAndVersion1,
           lockKey,
           processorId,
-          ...defaultPartitionAndVersion1,
           processorInstanceId: instanceId,
         });
 
         assertTrue(released, 'Expected release to succeed');
       });
 
-      const secondAcquire = await pool.withConnection(async (connection) => {
-        return await tryAcquireProcessorLock(connection.execute, {
+      const secondAcquire = await pool.withConnection(async (connection) =>
+        tryAcquireProcessorLock(connection.execute, {
+          ...defaultPartitionAndVersion1,
           lockKey,
           processorId: processorId2,
-          ...defaultPartitionAndVersion1,
-        });
-      });
+        }),
+      );
 
       assertTrue(
         secondAcquire.acquired,
@@ -569,22 +581,22 @@ void describe('tryAcquireProcessorLock', () => {
 
       await pool.withConnection(async (connection) => {
         const result = await tryAcquireProcessorLock(connection.execute, {
+          ...defaultPartitionAndVersion1,
           lockKey,
           processorId,
-          ...defaultPartitionAndVersion1,
           processorInstanceId: instanceId,
         });
 
         assertTrue(result.acquired, 'Expected to acquire lock');
       });
 
-      const secondAcquire = await pool.withConnection(async (connection) => {
-        return await tryAcquireProcessorLock(connection.execute, {
+      const secondAcquire = await pool.withConnection(async (connection) =>
+        tryAcquireProcessorLock(connection.execute, {
+          ...defaultPartitionAndVersion1,
           lockKey,
           processorId: processorId2,
-          ...defaultPartitionAndVersion1,
-        });
-      });
+        }),
+      );
 
       assertTrue(
         secondAcquire.acquired,
@@ -599,9 +611,9 @@ void describe('tryAcquireProcessorLock', () => {
 
       await pool.withConnection(async (connection) => {
         const result = await tryAcquireProcessorLock(connection.execute, {
+          ...defaultPartitionAndVersion1,
           lockKey,
           processorId,
-          ...defaultPartitionAndVersion1,
           processorInstanceId: instanceId,
         });
 
@@ -631,13 +643,13 @@ void describe('tryAcquireProcessorLock', () => {
       const lockKey = 'test_checkpoint_initial';
       const processorId = 'processor_checkpoint_initial';
 
-      const result = await pool.withConnection(async (connection) => {
-        return await tryAcquireProcessorLock(connection.execute, {
+      const result = await pool.withConnection(async (connection) =>
+        tryAcquireProcessorLock(connection.execute, {
+          ...defaultPartitionAndVersion1,
           lockKey,
           processorId,
-          ...defaultPartitionAndVersion1,
-        });
-      });
+        }),
+      );
 
       assertTrue(result.acquired, 'Expected to acquire lock');
       assertDeepEqual(
@@ -658,13 +670,13 @@ void describe('tryAcquireProcessorLock', () => {
         lastProcessedCheckpoint: expectedCheckpoint,
       });
 
-      const result = await pool.withConnection(async (connection) => {
-        return await tryAcquireProcessorLock(connection.execute, {
+      const result = await pool.withConnection(async (connection) =>
+        tryAcquireProcessorLock(connection.execute, {
           lockKey,
           processorId,
           ...defaultPartitionAndVersion1,
-        });
-      });
+        }),
+      );
 
       assertTrue(result.acquired, 'Expected to acquire lock');
       assertDeepEqual(

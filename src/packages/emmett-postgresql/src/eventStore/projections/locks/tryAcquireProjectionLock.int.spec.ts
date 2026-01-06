@@ -58,7 +58,7 @@ void describe('tryAcquireProjectionLock', () => {
         pool.withTransaction(async (transaction) => {
           const result = await tryAcquireProjectionLock(transaction.execute, {
             ...defaultPartitionAndVersion1,
-            name: 'test_concurrent',
+            projectionName: 'test_concurrent',
           });
           firstLockHeld.resolve();
           await secondLockAcquired.wait;
@@ -72,7 +72,7 @@ void describe('tryAcquireProjectionLock', () => {
               transaction.execute,
               {
                 ...defaultPartitionAndVersion1,
-                name: 'test_concurrent',
+                projectionName: 'test_concurrent',
               },
             );
             secondLockAcquired.resolve(lockResult);
@@ -116,7 +116,7 @@ void describe('tryAcquireProjectionLock', () => {
         pool.withTransaction(async (transaction) => {
           const result = await tryAcquireProjectionLock(transaction.execute, {
             ...defaultPartitionAndVersion1,
-            name: 'test_shared_blocks_exclusive',
+            projectionName: 'test_shared_blocks_exclusive',
           });
           sharedLockHeld.resolve();
           await canReleaseSharedLock.wait;
@@ -174,7 +174,7 @@ void describe('tryAcquireProjectionLock', () => {
           await exclusiveLockHeld.wait;
           const result = await pool.withTransaction(async (transaction) =>
             tryAcquireProjectionLock(transaction.execute, {
-              name: 'test_exclusive',
+              projectionName: 'test_exclusive',
               partition: defaultTag,
               version: 1,
             }),
@@ -214,7 +214,7 @@ void describe('tryAcquireProjectionLock', () => {
         // Transaction A: acquire shared lock, wait for exclusive attempt, then commit
         pool.withTransaction(async (transaction) => {
           await tryAcquireProjectionLock(transaction.execute, {
-            name: 'test_commit',
+            projectionName: 'test_commit',
             partition: defaultTag,
             version: 1,
           });
@@ -269,7 +269,7 @@ void describe('tryAcquireProjectionLock', () => {
         assertThrowsAsync(() =>
           pool.withTransaction(async (transaction) => {
             await tryAcquireProjectionLock(transaction.execute, {
-              name: 'test_rollback',
+              projectionName: 'test_rollback',
               partition: defaultTag,
               version: 1,
             });
@@ -318,7 +318,7 @@ void describe('tryAcquireProjectionLock', () => {
       // When
       const result = await pool.withTransaction(async (transaction) => {
         return await tryAcquireProjectionLock(transaction.execute, {
-          name: 'test_active',
+          projectionName: 'test_active',
           partition: defaultTag,
           version: 1,
         });
@@ -343,7 +343,7 @@ void describe('tryAcquireProjectionLock', () => {
       // When
       const result = await pool.withTransaction((transaction) =>
         tryAcquireProjectionLock(transaction.execute, {
-          name: 'test_rebuilding',
+          projectionName: 'test_rebuilding',
           partition: defaultTag,
           version: 1,
         }),
@@ -361,7 +361,7 @@ void describe('tryAcquireProjectionLock', () => {
       // When
       const result = await pool.withTransaction((transaction) =>
         tryAcquireProjectionLock(transaction.execute, {
-          name: 'nonexistent',
+          projectionName: 'nonexistent',
           partition: defaultTag,
           version: 1,
         }),

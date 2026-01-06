@@ -1,11 +1,10 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
+import { hashText, isBigint } from '@event-driven-io/emmett';
 import { projectionsTable } from '../../schema';
 
 const acquireSQL = `
 WITH lock_check AS (
-    SELECT pg_try_advisory_xact_lock_shared(
-        ('x' || substr(md5(%L), 1, 16))::bit(64)::bigint
-    ) AS acquired
+    SELECT pg_try_advisory_xact_lock_shared(%s::BIGINT) AS acquired
 ),
 status_check AS (
     SELECT status = 'active' AS is_active
@@ -20,11 +19,21 @@ SELECT
 export const tryAcquireProjectionLock = async (
   execute: SQLExecutor,
   {
-    name,
+    lockKey,
+    projectionName,
     partition,
     version,
-  }: { name: string; partition: string; version: number },
+  }: {
+    projectionName: string;
+    partition: string;
+    version: number;
+    lockKey?: string | bigint;
+  },
 ): Promise<boolean> => {
+  lockKey ??= `${partition}:${projectionName}:${version}`;
+
+  const lockKeyBigInt = isBigint(lockKey) ? lockKey : await hashText(lockKey);
+
   const { acquired, is_active } = await single(
     execute.query<{
       acquired: boolean;
@@ -32,9 +41,9 @@ export const tryAcquireProjectionLock = async (
     }>(
       sql(
         acquireSQL,
-        `${partition}:${name}:${version}`,
+        lockKeyBigInt.toString(),
         partition,
-        name,
+        projectionName,
         version,
       ),
     ),
