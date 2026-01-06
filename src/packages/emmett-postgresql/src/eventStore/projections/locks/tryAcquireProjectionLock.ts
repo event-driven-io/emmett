@@ -1,5 +1,5 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
-import { projectionsTable } from '../schema';
+import { projectionsTable } from '../../schema';
 
 const acquireSQL = `
 WITH lock_check AS (
