@@ -12,14 +12,17 @@ export type TryAcquireProcessorLockResult =
 export const tryAcquireProcessorLock = async (
   execute: SQLExecutor,
   options: {
-    lockKey: string;
+    lockKey: string | bigint;
     processorId: string;
     version: number;
     partition?: string;
     processorInstanceId?: string;
-    projectionName?: string;
-    projectionType?: 'i' | 'a';
-    projectionKind?: string;
+    projection?: {
+      name: string;
+      type: 'i' | 'a';
+      kind: string;
+      version?: number;
+    };
   },
 ): Promise<TryAcquireProcessorLockResult> => {
   const lockKeyBigInt = isBigint(options.lockKey)
@@ -35,9 +38,9 @@ export const tryAcquireProcessorLock = async (
         options.version,
         options.partition ?? defaultTag,
         options.processorInstanceId ?? unknownTag,
-        options.projectionName ?? null,
-        options.projectionType ?? null,
-        options.projectionKind ?? null,
+        options.projection?.name ?? null,
+        options.projection?.type ?? null,
+        options.projection?.kind ?? null,
       ),
     ),
   );
