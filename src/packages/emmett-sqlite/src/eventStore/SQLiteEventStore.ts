@@ -31,7 +31,7 @@ import {
   handleProjections,
   type SQLiteProjectionHandlerContext,
 } from './projections';
-import { createEventStoreSchema, schemaSQL } from './schema';
+import { createEventStoreSchema, schemaSQL, unknownTag } from './schema';
 import { appendToStream } from './schema/appendToStream';
 import { readStream } from './schema/readStream';
 import {
@@ -223,8 +223,7 @@ export const getSQLiteEventStore = (
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
 
-      const streamType =
-        firstPart && rest.length > 0 ? firstPart : 'emt:unknown';
+      const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
 
       const appendResult = await withConnection((connection) =>
         appendToStream(connection, streamName, streamType, events, {
