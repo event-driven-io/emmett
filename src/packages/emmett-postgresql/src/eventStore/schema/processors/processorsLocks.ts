@@ -20,11 +20,12 @@ CREATE OR REPLACE FUNCTION emt_try_acquire_processor_lock(
     p_projection_kind        TEXT       DEFAULT NULL
 )
 RETURNS TABLE (acquired BOOLEAN, checkpoint TEXT)
-AS $$
+LANGUAGE plpgsql
+AS $emt_try_acquire_processor_lock$
 BEGIN
     RETURN QUERY
     WITH lock_check AS (
-        SELECT pg_try_advisory_lock(p_lock_key) AS acquired
+        SELECT pg_try_advisory_lock(p_lock_key) AS lock_acquired
     ),
     ownership_check AS (
         INSERT INTO ${processorsTable.name} (
@@ -37,7 +38,7 @@ BEGIN
             last_processed_transaction_id
         )
         SELECT p_processor_id, p_partition, p_version, p_processor_instance_id, 'running', '0', '0'::xid8
-        WHERE (SELECT acquired FROM lock_check) = true
+        WHERE (SELECT lock_acquired FROM lock_check) = true
         ON CONFLICT (processor_id, partition, version) DO UPDATE
         SET processor_instance_id = p_processor_instance_id,
             status = 'running'
@@ -64,14 +65,14 @@ BEGIN
         RETURNING name
     )
     SELECT
-        COALESCE((SELECT lc.acquired FROM lock_check lc), false) AS acquired,
-        (SELECT oc.last_processed_checkpoint FROM ownership_check oc) AS last_processed_checkpoint;
+        (SELECT COUNT(*) > 0 FROM ownership_check),
+        (SELECT oc.last_processed_checkpoint FROM ownership_check oc);
 END;
-$$ LANGUAGE plpgsql;
+$emt_try_acquire_processor_lock$;
 `,
 );
 
-export const releaseProcessorLock = createFunctionIfDoesNotExistSQL(
+export const releaseProcessorLockSQL = createFunctionIfDoesNotExistSQL(
   'emt_release_processor_lock',
   `
 CREATE OR REPLACE FUNCTION emt_release_processor_lock(
@@ -83,7 +84,8 @@ CREATE OR REPLACE FUNCTION emt_release_processor_lock(
     p_projection_name       TEXT DEFAULT NULL
 )
 RETURNS BOOLEAN
-AS $$
+LANGUAGE plpgsql
+AS $emt_release_processor_lock$
 BEGIN
     IF p_projection_name IS NOT NULL THEN
         UPDATE ${projectionsTable.name}
@@ -103,6 +105,6 @@ BEGIN
 
     RETURN pg_advisory_unlock(p_lock_key);
 END;
-$$ LANGUAGE plpgsql;
+$emt_release_processor_lock$;
 `,
 );

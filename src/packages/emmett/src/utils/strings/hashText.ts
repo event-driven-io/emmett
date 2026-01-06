@@ -5,10 +5,8 @@ export const hashText = async (text: string): Promise<bigint> => {
     'SHA-256',
     textEncoder.encode(text),
   );
-  const bytes = new Uint8Array(hashBuffer, 0, 8);
-  let result = 0n;
-  for (const byte of bytes) {
-    result = (result << 8n) | BigInt(byte);
-  }
-  return result;
+  // Create an array with a single element that is a 64-bit signed integer
+  // We take the first 8 bytes (so 64 bits) of the SHA-256 hash
+  const view = new BigInt64Array(hashBuffer, 0, 1);
+  return view[0]!;
 };
