@@ -29,7 +29,7 @@ export const tryAcquireProcessorLock = async (
   const { acquired, checkpoint } = await single(
     execute.command<{ acquired: boolean; checkpoint: string | null }>(
       sql(
-        `SELECT * FROM emt_try_acquire_processor_lock(%s, %L, %s, %L, %L, %L, %L, %L);`,
+        `SELECT * FROM emt_try_acquire_processor_lock(%s::BIGINT, %L, %s, %L, %L, %L, %L, %L);`,
         lockKeyBigInt.toString(),
         options.processorId,
         options.version,
@@ -47,7 +47,7 @@ export const tryAcquireProcessorLock = async (
     : { acquired: false };
 };
 
-export const releaseProcessorLockFn = async (
+export const releaseProcessorLock = async (
   execute: SQLExecutor,
   options: {
     lockKey: string | bigint;
@@ -65,7 +65,7 @@ export const releaseProcessorLockFn = async (
   const { result } = await single(
     execute.command<{ result: boolean }>(
       sql(
-        `SELECT emt_release_processor_lock(%s, %L, %L, %s, %L, %L) as result;`,
+        `SELECT emt_release_processor_lock(%s::BIGINT, %L, %L, %s, %L, %L) as result;`,
         lockKeyBigInt.toString(),
         options.processorId,
         options.partition,
