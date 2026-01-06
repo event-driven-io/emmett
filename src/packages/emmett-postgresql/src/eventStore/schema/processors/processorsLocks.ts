@@ -1,4 +1,3 @@
-import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
 import {
   defaultTag,
@@ -11,7 +10,7 @@ export const tryAcquireProcessorLockSQL = createFunctionIfDoesNotExistSQL(
   'emt_try_acquire_processor_lock',
   `
 CREATE OR REPLACE FUNCTION emt_try_acquire_processor_lock(
-    p_lock_key               TEXT,
+    p_lock_key               BIGINT,
     p_processor_id           TEXT,
     p_version                INT,
     p_partition              TEXT       DEFAULT '${defaultTag}',
@@ -25,9 +24,7 @@ AS $$
 BEGIN
     RETURN QUERY
     WITH lock_check AS (
-        SELECT pg_try_advisory_lock(
-            ('x' || substr(md5(p_lock_key), 1, 16))::bit(64)::bigint
-        ) AS acquired
+        SELECT pg_try_advisory_lock(p_lock_key) AS acquired
     ),
     ownership_check AS (
         INSERT INTO ${processorsTable.name} (
@@ -78,12 +75,12 @@ export const releaseProcessorLock = createFunctionIfDoesNotExistSQL(
   'emt_release_processor_lock',
   `
 CREATE OR REPLACE FUNCTION emt_release_processor_lock(
-    p_lock_key              TEXT,
+    p_lock_key              BIGINT,
     p_processor_id          TEXT,
     p_partition             TEXT,
     p_version               INT,
-    p_projection_name       TEXT DEFAULT NULL,
-    p_processor_instance_id TEXT DEFAULT '${unknownTag}'
+    p_processor_instance_id TEXT DEFAULT '${unknownTag}',
+    p_projection_name       TEXT DEFAULT NULL
 )
 RETURNS BOOLEAN
 AS $$
@@ -104,79 +101,8 @@ BEGIN
       AND version = p_version
       AND processor_instance_id = p_processor_instance_id;
 
-    RETURN pg_advisory_unlock(
-        ('x' || substr(md5(p_lock_key), 1, 16))::bit(64)::bigint
-    );
+    RETURN pg_advisory_unlock(p_lock_key);
 END;
 $$ LANGUAGE plpgsql;
 `,
 );
-
-export type TryAcquireProcessorLockResult =
-  | {
-      acquired: true;
-      checkpoint: string;
-    }
-  | { acquired: false };
-
-export const tryAcquireProcessorLock = async (
-  execute: SQLExecutor,
-  options: {
-    lockKey: string;
-    processorId: string;
-    version: number;
-    partition?: string;
-    processorInstanceId?: string;
-    projectionName?: string;
-    projectionType?: 'i' | 'a';
-    projectionKind?: string;
-  },
-): Promise<TryAcquireProcessorLockResult> => {
-  const { acquired, checkpoint } = await single(
-    execute.command<{ acquired: boolean; checkpoint: string | null }>(
-      sql(
-        `SELECT * FROM emt_try_acquire_processor_lock(%L, %L, %s, %L, %L, %L, %L, %L);`,
-        options.lockKey,
-        options.processorId,
-        options.version,
-        options.partition ?? defaultTag,
-        options.processorInstanceId ?? unknownTag,
-        options.projectionName ?? null,
-        options.projectionType ?? null,
-        options.projectionKind ?? null,
-      ),
-    ),
-  );
-
-  return acquired
-    ? { acquired: true, checkpoint: checkpoint! }
-    : { acquired: false };
-};
-
-export const releaseProcessorLockFn = async (
-  execute: SQLExecutor,
-  options: {
-    lockKey: string;
-    processorId: string;
-    partition: string;
-    version: number;
-    projectionName?: string;
-    processorInstanceId?: string;
-  },
-): Promise<boolean> => {
-  const { result } = await single(
-    execute.command<{ result: boolean }>(
-      sql(
-        `SELECT emt_release_processor_lock(%L, %L, %L, %s, %L, %L) as result;`,
-        options.lockKey,
-        options.processorId,
-        options.partition,
-        options.version,
-        options.projectionName ?? null,
-        options.processorInstanceId ?? unknownTag,
-      ),
-    ),
-  );
-
-  return result;
-};
