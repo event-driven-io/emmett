@@ -5,17 +5,17 @@ import {
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import {
-  assertDeepEqual,
   assertEqual,
   assertIsNotNull,
-  type ProjectionDefinition,
+  assertIsNull,
+  assertMatches,
   type ProjectionRegistration,
 } from '@event-driven-io/emmett';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
-import { after, before, describe, it } from 'node:test';
+import { after, before, beforeEach, describe, it } from 'node:test';
 import { createEventStoreSchema, defaultTag } from '..';
 import type { PostgresReadEventMetadata } from '../../postgreSQLEventStore';
 import type { PostgreSQLProjectionHandlerContext } from '../../projections';
@@ -47,101 +47,71 @@ void describe('projectionRegistration', () => {
   });
 
   void describe('registerProjection', () => {
-    void it('should register inline projection with defaults', async () => {
-      const registration: ProjectionRegistration<
-        'inline',
+    for (const status of ['active', 'inactive'] as const) {
+      const projections: ProjectionRegistration<
+        'inline' | 'async',
         PostgresReadEventMetadata,
         PostgreSQLProjectionHandlerContext
-      > = {
-        type: 'inline',
-        projection: {
-          name: 'test_inline',
-          canHandle: ['TestEvent'],
-          handle: async () => {},
-        },
-      };
-
-      await registerProjection(pool.execute, {
-        partition: defaultTag,
-        status: 'active',
-        registration,
-      });
-
-      const info = await readProjectionInfo(pool.execute, {
-        name: 'test_inline',
-        partition: defaultTag,
-      });
-
-      assertIsNotNull(info);
-      assertDeepEqual(
+      >[] = [
         {
-          name: info.name,
-          version: info.version,
-          type: info.type,
-          kind: info.kind,
-          status: info.status,
+          type: 'inline',
+          projection: {
+            name: `test_inline_${status}_${Date.now()}`,
+            canHandle: ['TestEvent'],
+            handle: async () => {},
+          },
         },
         {
-          name: 'test_inline',
-          version: 1,
-          type: 'i',
-          kind: 'inline',
-          status: 'active',
+          type: 'async',
+          projection: {
+            name: `test_async_${status}_${Date.now()}`,
+            version: 1,
+            kind: 'pongo',
+            canHandle: ['TestEvent'],
+            handle: async () => {},
+          },
         },
-      );
-      assertIsNotNull(info.created_at);
-      assertIsNotNull(info.last_updated);
-    });
+      ];
+      for (const registration of projections) {
+        void it(`registers ${status} ${registration.type} projection'`, async () => {
+          // Given
 
-    void it('should register async projection with explicit version and kind', async () => {
-      const registration: ProjectionRegistration<
-        'async',
-        PostgresReadEventMetadata,
-        PostgreSQLProjectionHandlerContext
-      > = {
-        type: 'async',
-        projection: {
-          name: 'test_async',
-          version: 2,
-          kind: 'pongo',
-          canHandle: ['TestEvent'],
-          handle: async () => {},
-        },
-      };
+          // When
+          await registerProjection(pool.execute, {
+            partition: defaultTag,
+            status,
+            registration,
+          });
 
-      await registerProjection(pool.execute, {
-        partition: defaultTag,
-        status: 'inactive',
-        registration,
-      });
+          // Then
+          const info = await readProjectionInfo(pool.execute, {
+            name: registration.projection.name!,
+            partition: defaultTag,
+            version: 1,
+          });
 
-      const info = await readProjectionInfo(pool.execute, {
-        name: 'test_async',
-        partition: defaultTag,
-        version: 2,
-      });
+          assertIsNotNull(info);
+          assertIsNotNull(info.createdAt);
+          assertIsNotNull(info.lastUpdated);
+          assertMatches(info, {
+            partition: defaultTag,
+            status,
+            registration: {
+              type: registration.type,
+              projection: {
+                name: registration.projection.name!,
+                version: registration.projection.version ?? 1,
+                kind: registration.projection.kind ?? registration.type,
+              },
+            },
+          });
+        });
+      }
+    }
 
-      assertIsNotNull(info);
-      assertDeepEqual(
-        {
-          name: info.name,
-          version: info.version,
-          type: info.type,
-          kind: info.kind,
-          status: info.status,
-        },
-        {
-          name: 'test_async',
-          version: 2,
-          type: 'a',
-          kind: 'pongo',
-          status: 'inactive',
-        },
-      );
-    });
-
-    void it('should update existing projection on conflict', async () => {
-      const projectionName = 'test_update';
+    void it('updates existing projection with the same version', async () => {
+      // Given
+      const projectionName = `test_update_${Date.now()}`;
       const partition = defaultTag;
 
       const initialRegistration: ProjectionRegistration<
@@ -168,14 +138,14 @@ void describe('projectionRegistration', () => {
         PostgresReadEventMetadata,
         PostgreSQLProjectionHandlerContext
       > = {
-        type: 'inline',
+        ...initialRegistration,
         projection: {
-          name: projectionName,
+          ...initialRegistration.projection,
           canHandle: ['EventA', 'EventB'],
-          handle: async () => {},
         },
       };
 
+      // When
       await registerProjection(pool.execute, {
         partition,
         status: 'active',
@@ -185,45 +155,84 @@ void describe('projectionRegistration', () => {
       const info = await readProjectionInfo(pool.execute, {
         name: projectionName,
         partition,
+        version: 1,
       });
 
       assertIsNotNull(info);
-      assertEqual(info.name, projectionName);
-
-      const definition = JSON.parse(info.definition) as ProjectionDefinition;
-      assertEqual(definition.canHandle.length, 2);
+      assertEqual(info.registration.projection.name, projectionName);
+      assertEqual(info.registration.projection.canHandle.length, 2);
     });
 
-    void it('should not register projection without name', async () => {
-      const registration: ProjectionRegistration<
+    void it('does NOT update existing projection when registering new version', async () => {
+      // Given
+      const projectionName = `test_update_${Date.now()}`;
+      const partition = defaultTag;
+
+      const initialRegistration: ProjectionRegistration<
         'inline',
         PostgresReadEventMetadata,
         PostgreSQLProjectionHandlerContext
       > = {
         type: 'inline',
         projection: {
-          canHandle: ['TestEvent'],
+          name: projectionName,
+          canHandle: ['EventA'],
           handle: async () => {},
         },
       };
 
       await registerProjection(pool.execute, {
-        partition: defaultTag,
+        partition,
         status: 'active',
-        registration,
+        registration: initialRegistration,
       });
 
-      const result = await pool.execute.query(
-        sql(`SELECT COUNT(*) as count FROM emt_projections WHERE name IS NULL`),
-      );
+      const updatedRegistration: ProjectionRegistration<
+        'inline',
+        PostgresReadEventMetadata,
+        PostgreSQLProjectionHandlerContext
+      > = {
+        ...initialRegistration,
+        projection: {
+          ...initialRegistration.projection,
+          version: 2,
+          canHandle: ['EventA', 'EventB'],
+        },
+      };
 
-      assertEqual(result.rows[0]?.count, '0');
+      // When
+      await registerProjection(pool.execute, {
+        partition,
+        status: 'active',
+        registration: updatedRegistration,
+      });
+
+      const infoV1 = await readProjectionInfo(pool.execute, {
+        name: projectionName,
+        partition,
+        version: 1,
+      });
+      assertIsNotNull(infoV1);
+
+      const infoV2 = await readProjectionInfo(pool.execute, {
+        name: projectionName,
+        partition,
+        version: 2,
+      });
+
+      assertIsNotNull(infoV2);
+      assertEqual(infoV2.registration.projection.name, projectionName);
+      assertEqual(infoV1.registration.projection.canHandle.length, 1);
+      assertEqual(infoV2.registration.projection.canHandle.length, 2);
     });
   });
 
   void describe('activateProjection', () => {
-    void it('should set projection status to active', async () => {
-      const projectionName = 'test_activate';
+    let projectionName: string;
+    let createdAt: Date;
+
+    beforeEach(async () => {
+      projectionName = `test_activate_${Date.now()}`;
 
       await insertProjection(pool.execute, {
         name: projectionName,
@@ -232,12 +241,25 @@ void describe('projectionRegistration', () => {
         status: 'inactive',
       });
 
+      const initialInfo = await readProjectionInfo(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 1,
+      });
+      assertIsNotNull(initialInfo);
+
+      createdAt = initialInfo.lastUpdated;
+    });
+
+    void it('sets existing projection status to active and updates timestamp', async () => {
+      // When
       await activateProjection(pool.execute, {
         name: projectionName,
         partition: defaultTag,
         version: 1,
       });
 
+      // Then
       const info = await readProjectionInfo(pool.execute, {
         name: projectionName,
         partition: defaultTag,
@@ -246,64 +268,97 @@ void describe('projectionRegistration', () => {
 
       assertIsNotNull(info);
       assertEqual(info.status, 'active');
+
+      const updatedTimestamp = new Date(info.lastUpdated).getTime();
+      const originalTimestamp = new Date(createdAt).getTime();
+
+      assertEqual(updatedTimestamp > originalTimestamp, true);
     });
 
-    void it('should update last_updated timestamp when activating', async () => {
-      const projectionName = 'test_activate_timestamp';
+    void it('does not update NOT existing projection', async () => {
+      // When
+      await activateProjection(pool.execute, {
+        name: 'non_existing_projection',
+        partition: defaultTag,
+        version: 1,
+      });
 
+      // Then
+      const info = await readProjectionInfo(pool.execute, {
+        name: 'non_existing_projection',
+        partition: defaultTag,
+        version: 1,
+      });
+
+      assertIsNull(info);
+    });
+
+    void it('does not update old projection version', async () => {
+      // Given
       await insertProjection(pool.execute, {
         name: projectionName,
         partition: defaultTag,
-        version: 1,
+        version: 2,
         status: 'inactive',
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      const beforeInfo = await readProjectionInfo(pool.execute, {
+      // When
+      await activateProjection(pool.execute, {
         name: projectionName,
         partition: defaultTag,
+        version: 2,
       });
 
-      assertIsNotNull(beforeInfo);
-
-      await activateProjection(pool.execute, {
+      // Then
+      const infoV1 = await readProjectionInfo(pool.execute, {
         name: projectionName,
         partition: defaultTag,
         version: 1,
       });
-
-      const afterInfo = await readProjectionInfo(pool.execute, {
+      const infoV2 = await readProjectionInfo(pool.execute, {
         name: projectionName,
         partition: defaultTag,
+        version: 2,
       });
 
-      assertIsNotNull(afterInfo);
-
-      const beforeTime = new Date(beforeInfo.last_updated).getTime();
-      const afterTime = new Date(afterInfo.last_updated).getTime();
-
-      assertEqual(afterTime > beforeTime, true);
+      assertIsNotNull(infoV1);
+      assertEqual(infoV1.status, 'inactive');
+      assertIsNotNull(infoV2);
+      assertEqual(infoV2.status, 'active');
     });
   });
 
   void describe('deactivateProjection', () => {
-    void it('should set projection status to inactive', async () => {
-      const projectionName = 'test_deactivate';
+    let projectionName: string;
+    let createdAt: Date;
 
+    beforeEach(async () => {
+      projectionName = `test_deactivate_${Date.now()}`;
       await insertProjection(pool.execute, {
         name: projectionName,
         partition: defaultTag,
         version: 1,
         status: 'active',
       });
+      const initialInfo = await readProjectionInfo(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 1,
+      });
+      assertIsNotNull(initialInfo);
 
+      createdAt = initialInfo.lastUpdated;
+    });
+
+    void it('set existing projection status to inactive', async () => {
+      // When
       await deactivateProjection(pool.execute, {
         name: projectionName,
         partition: defaultTag,
         version: 1,
       });
 
+      // Then
       const info = await readProjectionInfo(pool.execute, {
         name: projectionName,
         partition: defaultTag,
@@ -312,44 +367,106 @@ void describe('projectionRegistration', () => {
 
       assertIsNotNull(info);
       assertEqual(info.status, 'inactive');
+
+      assertIsNotNull(info);
+
+      assertEqual(
+        new Date(info.lastUpdated).getTime() > createdAt.getTime(),
+        true,
+      );
     });
 
-    void it('should update last_updated timestamp when deactivating', async () => {
-      const projectionName = 'test_deactivate_timestamp';
+    void it('does not update NOT existing projection', async () => {
+      // When
+      await deactivateProjection(pool.execute, {
+        name: 'non_existing_projection',
+        partition: defaultTag,
+        version: 1,
+      });
 
+      // Then
+      const info = await readProjectionInfo(pool.execute, {
+        name: 'non_existing_projection',
+        partition: defaultTag,
+        version: 1,
+      });
+
+      assertIsNull(info);
+    });
+
+    void it('does not update old projection version', async () => {
+      // Given
+      await insertProjection(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 2,
+        status: 'active',
+      });
+
+      // When
+      await deactivateProjection(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 2,
+      });
+
+      // Then
+      const infoV1 = await readProjectionInfo(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 1,
+      });
+      const infoV2 = await readProjectionInfo(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 2,
+      });
+
+      assertIsNotNull(infoV1);
+      assertEqual(infoV1.status, 'active');
+      assertIsNotNull(infoV2);
+      assertEqual(infoV2.status, 'inactive');
+    });
+  });
+
+  void describe('readProjectionInfo', () => {
+    let projectionName: string;
+
+    beforeEach(async () => {
+      projectionName = `test_read_${Date.now()}`;
       await insertProjection(pool.execute, {
         name: projectionName,
         partition: defaultTag,
         version: 1,
         status: 'active',
       });
-
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      const beforeInfo = await readProjectionInfo(pool.execute, {
+      await insertProjection(pool.execute, {
         name: projectionName,
         partition: defaultTag,
+        version: 2,
+        status: 'active',
       });
+    });
 
-      assertIsNotNull(beforeInfo);
-
-      await deactivateProjection(pool.execute, {
+    void it('return specific projection version', async () => {
+      const info = await readProjectionInfo(pool.execute, {
         name: projectionName,
         partition: defaultTag,
         version: 1,
       });
 
-      const afterInfo = await readProjectionInfo(pool.execute, {
-        name: projectionName,
+      assertIsNotNull(info);
+      assertEqual(info.registration.projection.version ?? 1, 1);
+    });
+
+    void it('should return null when projection not found', async () => {
+      const info = await readProjectionInfo(pool.execute, {
+        name: 'nonexistent_projection',
         partition: defaultTag,
+        version: 1,
       });
 
-      assertIsNotNull(afterInfo);
-
-      const beforeTime = new Date(beforeInfo.last_updated).getTime();
-      const afterTime = new Date(afterInfo.last_updated).getTime();
-
-      assertEqual(afterTime > beforeTime, true);
+      assertEqual(info, null);
     });
   });
 });
