@@ -27,6 +27,7 @@ import {
   sanitizeNameSQL,
   streamsTableSQL,
 } from './tables';
+export * from './typing';
 
 export * from './appendToStream';
 export * from './migrations';
@@ -38,7 +39,6 @@ export * from './readProcessorCheckpoint';
 export * from './readStream';
 export * from './storeProcessorCheckpoint';
 export * from './tables';
-export * from './typing';
 
 export const schemaSQL: SQL[] = [
   streamsTableSQL,
@@ -89,9 +89,9 @@ export const createEventStoreSchema = async (
     }
 
     await runPostgreSQLMigrations(nestedPool, eventStoreSchemaMigrations);
-  });
 
-  if (hooks?.onAfterSchemaCreated) {
-    await hooks.onAfterSchemaCreated();
-  }
+    if (hooks?.onAfterSchemaCreated) {
+      await hooks.onAfterSchemaCreated(context);
+    }
+  });
 };

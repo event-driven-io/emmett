@@ -1,6 +1,6 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import { hashText, isBigint } from '@event-driven-io/emmett';
-import { defaultTag, unknownTag } from '../../schema';
+import { defaultTag, unknownTag } from '../../schema/typing';
 import { toProjectionLockKey } from './tryAcquireProjectionLock';
 
 export type TryAcquireProcessorLockOptions = {
