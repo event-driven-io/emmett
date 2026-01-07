@@ -2,6 +2,7 @@ import {
   dumbo,
   type Dumbo,
   type DumboOptions,
+  type NodePostgresClient,
   type QueryResultRow,
   type SQL,
 } from '@event-driven-io/dumbo';
@@ -101,8 +102,20 @@ export const PostgreSQLProjectionSpec = {
                 });
               }
 
-              await pool.withTransaction((transaction) =>
-                handleProjections({
+              await pool.withTransaction(async (transaction) => {
+                if (projection.init)
+                  await projection.init({
+                    execute: transaction.execute,
+                    connection: {
+                      connectionString,
+                      client:
+                        (await transaction.connection.open()) as NodePostgresClient,
+                      transaction,
+                      pool,
+                    },
+                  });
+
+                await handleProjections({
                   events: allEvents,
                   projections: [projection],
                   connection: {
@@ -110,8 +123,8 @@ export const PostgreSQLProjectionSpec = {
                     connectionString,
                     transaction,
                   },
-                }),
-              );
+                });
+              });
             };
 
             return {
