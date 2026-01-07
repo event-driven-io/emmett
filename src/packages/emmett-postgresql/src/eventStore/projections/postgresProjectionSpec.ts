@@ -19,7 +19,10 @@ import {
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { handleProjections, type PostgreSQLProjectionDefinition } from '.';
-import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
+import {
+  getPostgreSQLEventStore,
+  type PostgresReadEventMetadata,
+} from '../postgreSQLEventStore';
 
 export type PostgreSQLProjectionSpecEvent<
   EventType extends Event,
@@ -101,6 +104,12 @@ export const PostgreSQLProjectionSpec = {
                   >,
                 });
               }
+
+              const eventStore = getPostgreSQLEventStore(connectionString, {
+                connectionOptions: { dumbo: pool },
+              });
+
+              await eventStore.schema.migrate();
 
               await pool.withTransaction(async (transaction) => {
                 if (projection.init)
