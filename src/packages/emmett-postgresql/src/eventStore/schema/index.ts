@@ -31,6 +31,7 @@ import {
 export * from './appendToStream';
 export * from './migrations';
 export * from './processors';
+export * from './projections';
 export * from './readLastMessageGlobalPosition';
 export * from './readMessagesBatch';
 export * from './readProcessorCheckpoint';
