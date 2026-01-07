@@ -14,6 +14,8 @@ import {
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
+import { defaultTag } from '../schema/typing';
+import { tryAcquireProjectionLock } from './locks';
 
 export type PostgreSQLProjectionHandlerContext = {
   execute: SQLExecutor;
@@ -72,6 +74,18 @@ export const handleProjections = async <EventType extends Event = Event>(
   const client = (await transaction.connection.open()) as NodePostgresClient;
 
   for (const projection of projections) {
+    if (projection.name) {
+      const lockAcquired = await tryAcquireProjectionLock(transaction.execute, {
+        projectionName: projection.name,
+        partition: defaultTag,
+        version: projection.version ?? 1,
+      });
+
+      if (!lockAcquired) {
+        continue;
+      }
+    }
+
     await projection.handle(events, {
       connection: {
         connectionString,
