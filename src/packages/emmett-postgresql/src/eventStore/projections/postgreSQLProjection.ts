@@ -94,6 +94,8 @@ export const postgreSQLProjection = <EventType extends Event>(
   >(definition);
 
 export type PostgreSQLRawBatchSQLProjection<EventType extends Event> = {
+  name: string;
+  kind?: string;
   evolve: (
     events: EventType[],
     context: PostgreSQLProjectionHandlerContext,
@@ -107,6 +109,8 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
   options: PostgreSQLRawBatchSQLProjection<EventType>,
 ): PostgreSQLProjectionDefinition<EventType> =>
   postgreSQLProjection<EventType>({
+    name: options.name,
+    kind: options.kind ?? 'emt:projections:postgresql:raw_sql:batch',
     canHandle: options.canHandle,
     handle: async (events, context) => {
       const sqls: SQL[] = await options.evolve(events, context);
@@ -128,6 +132,8 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
   });
 
 export type PostgreSQLRawSQLProjection<EventType extends Event> = {
+  name: string;
+  kind?: string;
   evolve: (
     events: EventType,
     context: PostgreSQLProjectionHandlerContext,
@@ -140,8 +146,9 @@ export type PostgreSQLRawSQLProjection<EventType extends Event> = {
 export const postgreSQLRawSQLProjection = <EventType extends Event>(
   options: PostgreSQLRawSQLProjection<EventType>,
 ): PostgreSQLProjectionDefinition<EventType> => {
-  const { evolve, ...rest } = options;
+  const { evolve, kind, ...rest } = options;
   return postgreSQLRawBatchSQLProjection<EventType>({
+    kind: kind ?? 'emt:projections:postgresql:raw:_sql:single',
     ...rest,
     evolve: async (events, context) => {
       const sqls: SQL[] = [];
