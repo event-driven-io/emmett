@@ -1,5 +1,5 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
-import { hashText, isBigint } from '@event-driven-io/emmett';
+import { asyncRetry, hashText, isBigint } from '@event-driven-io/emmett';
 import { defaultTag, unknownTag } from '../../schema/typing';
 import { toProjectionLockKey } from './tryAcquireProjectionLock';
 
@@ -24,6 +24,16 @@ export type TryAcquireProcessorLockResult =
       checkpoint: string;
     }
   | { acquired: false };
+
+export type LockAcquisitionPolicy =
+  | { type: 'fail' }
+  | { type: 'skip' }
+  | {
+      type: 'retry';
+      maxAttempts: number;
+      minTimeout?: number;
+      maxTimeout?: number;
+    };
 
 export const toProcessorLockKey = ({
   projection,
@@ -72,6 +82,26 @@ export const tryAcquireProcessorLock = async (
   return acquired
     ? { acquired: true, checkpoint: checkpoint! }
     : { acquired: false };
+};
+
+export const tryAcquireProcessorLockWithRetry = async (
+  execute: SQLExecutor,
+  options: TryAcquireProcessorLockOptions & {
+    lockPolicy?: LockAcquisitionPolicy;
+  },
+): Promise<TryAcquireProcessorLockResult> => {
+  const policy = options.lockPolicy ?? { type: 'fail' };
+
+  if (policy.type === 'retry') {
+    return asyncRetry(() => tryAcquireProcessorLock(execute, options), {
+      retries: policy.maxAttempts - 1,
+      minTimeout: policy.minTimeout,
+      maxTimeout: policy.maxTimeout,
+      shouldRetryResult: (r) => !r.acquired,
+    });
+  }
+
+  return tryAcquireProcessorLock(execute, options);
 };
 
 export const releaseProcessorLock = async (

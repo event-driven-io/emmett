@@ -23,13 +23,26 @@ import {
   type Message,
   type MessageHandlerResult,
   type MessageProcessingScope,
+  type ProjectionDefinition,
   type ProjectorOptions,
   type ReactorOptions,
   type ReadEventMetadataWithGlobalPosition,
   type SingleRecordedMessageHandlerWithContext,
 } from '@event-driven-io/emmett';
 import pg from 'pg';
-import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
+import { v7 as uuid } from 'uuid';
+import {
+  releaseProcessorLock,
+  toProcessorLockKey,
+  tryAcquireProcessorLockWithRetry,
+  type LockAcquisitionPolicy,
+} from '../projections/locks';
+import {
+  defaultTag,
+  readProcessorCheckpoint,
+  storeProcessorCheckpoint,
+} from '../schema';
+import { registerProjection } from '../schema/projections/projectionRegistration';
 import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 
 export type PostgreSQLProcessorHandlerContext = {
@@ -47,7 +60,9 @@ export type PostgreSQLProcessor<MessageType extends Message = AnyMessage> =
     MessageType,
     ReadEventMetadataWithGlobalPosition,
     PostgreSQLProcessorHandlerContext
-  >;
+  > & {
+    init?: (context: PostgreSQLProcessorHandlerContext) => Promise<void>;
+  };
 
 export type PostgreSQLProcessorEachMessageHandler<
   MessageType extends Message = Message,
@@ -178,7 +193,9 @@ export type PostgreSQLProjectorOptions<EventType extends AnyEvent = AnyEvent> =
     ReadEventMetadataWithGlobalPosition,
     PostgreSQLProcessorHandlerContext
   > &
-    PostgreSQLConnectionOptions;
+    PostgreSQLConnectionOptions & {
+      lockPolicy?: LockAcquisitionPolicy;
+    };
 
 export type PostgreSQLProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
@@ -276,8 +293,74 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
 ): PostgreSQLProcessor<EventType> => {
   const { pool, connectionString, close } = getProcessorPool(options);
 
+  const processorInstanceId = uuid();
+  const version = options.version ?? 1;
+  const partition = options.partition ?? defaultTag;
+  const lockPolicy = options.lockPolicy ?? { type: 'fail' };
+
+  let lockConnection: NodePostgresPoolClientConnection | undefined;
+  let lockAcquired = false;
+
+  const projectionInfo = options.projection.name
+    ? {
+        name: options.projection.name,
+        type: 'a' as const,
+        kind: options.projection.kind ?? 'postgresql',
+        version: options.projection.version ?? version,
+      }
+    : undefined;
+
+  const lockKey = projectionInfo
+    ? toProcessorLockKey({
+        projection: projectionInfo,
+        processorId: options.processorId ?? `projection:${projectionInfo.name}`,
+        partition,
+        version,
+      })
+    : undefined;
+
   const hooks = {
     onStart: async (context: PostgreSQLProcessorHandlerContext) => {
+      if (projectionInfo && pool && lockKey) {
+        try {
+          const connection = await pool.connection();
+          lockConnection = connection as NodePostgresPoolClientConnection;
+
+          const result = await tryAcquireProcessorLockWithRetry(
+            lockConnection.execute,
+            {
+              processorId:
+                options.processorId ?? `projection:${projectionInfo.name}`,
+              version,
+              partition,
+              processorInstanceId,
+              projection: projectionInfo,
+              lockKey,
+              lockPolicy,
+            },
+          );
+
+          if (result.acquired) {
+            lockAcquired = true;
+          } else {
+            await lockConnection.close();
+            lockConnection = undefined;
+
+            if (lockPolicy.type === 'fail') {
+              throw new EmmettError(
+                `Failed to acquire lock for projection '${projectionInfo.name}'`,
+              );
+            }
+          }
+        } catch (error) {
+          if (lockConnection) {
+            await lockConnection.close();
+            lockConnection = undefined;
+          }
+          throw error;
+        }
+      }
+
       if (options.hooks?.onStart) await options.hooks.onStart(context);
 
       if (options.projection.init) {
@@ -285,15 +368,30 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
       }
     },
     onClose:
-      options.hooks?.onClose || close
+      options.hooks?.onClose || close || projectionInfo
         ? async () => {
+            if (lockAcquired && lockConnection && lockKey && projectionInfo) {
+              await releaseProcessorLock(lockConnection.execute, {
+                lockKey,
+                processorId:
+                  options.processorId ?? `projection:${projectionInfo.name}`,
+                partition,
+                version,
+                projectionName: projectionInfo.name,
+                processorInstanceId,
+              });
+              await lockConnection.close();
+              lockConnection = undefined;
+              lockAcquired = false;
+            }
+
             if (options.hooks?.onClose) await options.hooks?.onClose();
             if (close) await close();
           }
         : undefined,
   };
 
-  return projector<
+  const processor = projector<
     EventType,
     ReadEventMetadataWithGlobalPosition,
     PostgreSQLProcessorHandlerContext
@@ -308,6 +406,26 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
     }),
     checkpoints: postgreSQLCheckpointer<EventType>(),
   });
+
+  return {
+    ...processor,
+    init: options.projection.name
+      ? async (context: PostgreSQLProcessorHandlerContext) => {
+          await registerProjection(context.execute, {
+            partition,
+            status: 'active',
+            registration: {
+              type: 'async',
+              projection: options.projection as ProjectionDefinition<
+                AnyEvent,
+                ReadEventMetadataWithGlobalPosition,
+                PostgreSQLProcessorHandlerContext
+              >,
+            },
+          });
+        }
+      : undefined,
+  };
 };
 
 export const postgreSQLReactor = <MessageType extends Message = Message>(
