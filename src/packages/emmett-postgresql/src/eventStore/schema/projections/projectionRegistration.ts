@@ -1,8 +1,9 @@
-import { sql, type SQLExecutor } from '@event-driven-io/dumbo';
+import { singleOrNull, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   JSONParser,
   type AnyReadEventMetadata,
   type DefaultRecord,
+  type ProjectionDefinition,
   type ProjectionHandlingType,
   type ProjectionRegistration,
 } from '@event-driven-io/emmett';
@@ -31,10 +32,6 @@ export const registerProjection = async <
   const version = registration.projection.version ?? 1;
   const kind = registration.projection.kind ?? registration.type;
   const definition = JSONParser.stringify(registration.projection);
-
-  if (!name) {
-    return;
-  }
 
   await execute.command(
     sql(
@@ -106,41 +103,68 @@ export const deactivateProjection = async (
   );
 };
 
-export type ProjectionInfo = {
+type ProjectionRegistrationWithMandatoryData =
+  ProjectionRegistration<ProjectionHandlingType> & {
+    projection: Required<
+      Pick<ProjectionDefinition, 'kind' | 'version' | 'name'>
+    >;
+  };
+
+export type ReadProjectionInfoResult = {
+  partition: string;
+  status: 'active' | 'inactive';
+  registration: ProjectionRegistrationWithMandatoryData;
+  createdAt: Date;
+  lastUpdated: Date;
+};
+
+type RawProjectionRow = {
   name: string;
   version: number;
   type: string;
   kind: string;
   status: string;
-  definition: string;
+  definition: ProjectionRegistrationWithMandatoryData['projection'];
   created_at: Date;
   last_updated: Date;
 };
 
 export const readProjectionInfo = async (
   execute: SQLExecutor,
-  options: { name: string; partition: string; version?: number },
-): Promise<ProjectionInfo | null> => {
-  const { name, partition, version } = options;
-
-  const result = await execute.query<ProjectionInfo>(
-    version !== undefined
-      ? sql(
-          `SELECT name, version, type, kind, status, definition::text as definition, created_at, last_updated
+  {
+    name,
+    partition,
+    version,
+  }: { name: string; partition: string; version: number },
+): Promise<ReadProjectionInfoResult | null> => {
+  const row = await singleOrNull<RawProjectionRow>(
+    execute.query(
+      sql(
+        `SELECT name, version, type, kind, status, definition, created_at, last_updated
            FROM ${projectionsTable.name}
            WHERE name = %L AND partition = %L AND version = %s`,
-          name,
-          partition,
-          version,
-        )
-      : sql(
-          `SELECT name, version, type, kind, status, definition::text as definition, created_at, last_updated
-           FROM ${projectionsTable.name}
-           WHERE name = %L AND partition = %L`,
-          name,
-          partition,
-        ),
+        name,
+        partition,
+        version,
+      ),
+    ),
   );
 
-  return result.rows[0] ?? null;
+  return row
+    ? {
+        partition,
+        status: row.status as 'active' | 'inactive',
+        registration: {
+          type: row.type === 'i' ? 'inline' : 'async',
+          projection: {
+            ...row.definition,
+            name: row.name,
+            version: row.version,
+            kind: row.kind,
+          },
+        },
+        createdAt: row.created_at,
+        lastUpdated: row.last_updated,
+      }
+    : null;
 };
