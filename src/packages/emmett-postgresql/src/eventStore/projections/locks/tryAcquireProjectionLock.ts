@@ -1,6 +1,6 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import { hashText, isBigint } from '@event-driven-io/emmett';
-import { projectionsTable } from '../../schema';
+import { projectionsTable } from '../../schema/typing';
 
 const acquireSQL = `
 WITH lock_check AS (

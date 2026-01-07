@@ -38,7 +38,9 @@ import {
 import {
   appendToStream,
   createEventStoreSchema,
+  defaultTag,
   readStream,
+  registerProjection,
   schemaSQL,
   streamExists,
   unknownTag,
@@ -160,9 +162,11 @@ export type PostgresEventStoreOptions = {
       context: PostgreSQLProjectionHandlerContext,
     ) => Promise<void> | void;
     /**
-     * This hook will be called **AFTER** event store schema was created
+     * This hook will be called **AFTER** event store schema was created but before transaction commits
      */
-    onAfterSchemaCreated?: () => Promise<void> | void;
+    onAfterSchemaCreated?: (
+      context: PostgreSQLProjectionHandlerContext,
+    ) => Promise<void> | void;
   };
 };
 
@@ -205,7 +209,21 @@ export const getPostgreSQLEventStore = (
             await options.hooks.onBeforeSchemaCreated(context);
           }
         },
-        onAfterSchemaCreated: options.hooks?.onAfterSchemaCreated,
+        onAfterSchemaCreated: async (context) => {
+          for (const projection of inlineProjections) {
+            await registerProjection(context.execute, {
+              partition: defaultTag,
+              status: 'active',
+              registration: {
+                type: 'inline',
+                projection,
+              },
+            });
+          }
+          if (options.hooks?.onAfterSchemaCreated) {
+            await options.hooks.onAfterSchemaCreated(context);
+          }
+        },
       });
     }
     return migrateSchema;
