@@ -84,6 +84,7 @@ export const postgreSQLEventStoreConsumer = <
   options: PostgreSQLEventStoreConsumerOptions<ConsumerMessageType>,
 ): PostgreSQLEventStoreConsumer<ConsumerMessageType> => {
   let isRunning = false;
+  let isInitialized = false;
   const { pulling } = options;
   const processors = options.processors ?? [];
 
@@ -152,12 +153,35 @@ export const postgreSQLEventStoreConsumer = <
     await Promise.all(processors.map((p) => p.close()));
   };
 
+  const init = async (): Promise<void> => {
+    if (isInitialized) return;
+
+    const postgresProcessors = processors as unknown as PostgreSQLProcessor[];
+
+    for (const processor of postgresProcessors) {
+      if (processor.init) {
+        await processor.init({
+          execute: pool.execute,
+          connection: {
+            connectionString: options.connectionString,
+            pool,
+            client: undefined as never,
+            transaction: undefined as never,
+          },
+        });
+      }
+    }
+
+    isInitialized = true;
+  };
+
   return {
     consumerId: options.consumerId ?? uuid(),
     get isRunning() {
       return isRunning;
     },
     processors,
+    init,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       options: PostgreSQLReactorOptions<MessageType>,
     ): PostgreSQLProcessor<MessageType> => {
@@ -202,6 +226,10 @@ export const postgreSQLEventStoreConsumer = <
           );
 
         isRunning = true;
+
+        if (!isInitialized) {
+          await init();
+        }
 
         const startFrom = zipPostgreSQLEventStoreMessageBatchPullerStartFrom(
           await Promise.all(
