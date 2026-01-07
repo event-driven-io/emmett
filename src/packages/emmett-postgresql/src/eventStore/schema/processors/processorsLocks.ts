@@ -17,7 +17,8 @@ CREATE OR REPLACE FUNCTION emt_try_acquire_processor_lock(
     p_processor_instance_id  TEXT       DEFAULT '${unknownTag}',
     p_projection_name        TEXT       DEFAULT NULL,
     p_projection_type        VARCHAR(1) DEFAULT NULL,
-    p_projection_kind        TEXT       DEFAULT NULL
+    p_projection_kind        TEXT       DEFAULT NULL,
+    p_lock_timeout_seconds   INT        DEFAULT 300
 )
 RETURNS TABLE (acquired BOOLEAN, checkpoint TEXT)
 LANGUAGE plpgsql
@@ -35,16 +36,20 @@ BEGIN
             processor_instance_id,
             status,
             last_processed_checkpoint,
-            last_processed_transaction_id
+            last_processed_transaction_id,
+            created_at,
+            last_updated
         )
-        SELECT p_processor_id, p_partition, p_version, p_processor_instance_id, 'running', '0', '0'::xid8
+        SELECT p_processor_id, p_partition, p_version, p_processor_instance_id, 'running', '0', '0'::xid8, now(), now()
         WHERE (SELECT lock_acquired FROM lock_check) = true
         ON CONFLICT (processor_id, partition, version) DO UPDATE
         SET processor_instance_id = p_processor_instance_id,
-            status = 'running'
+            status = 'running',
+            last_updated = now()
         WHERE ${processorsTable.name}.processor_instance_id = p_processor_instance_id
            OR ${processorsTable.name}.processor_instance_id = '${unknownTag}'
            OR ${processorsTable.name}.status = 'stopped'
+           OR ${processorsTable.name}.last_updated < now() - (p_lock_timeout_seconds || ' seconds')::interval
         RETURNING last_processed_checkpoint
     ),
     projection_status AS (
@@ -89,7 +94,8 @@ AS $emt_release_processor_lock$
 BEGIN
     IF p_projection_name IS NOT NULL THEN
         UPDATE ${projectionsTable.name}
-        SET status = 'active'
+        SET status = 'active',
+            last_updated = now()
         WHERE partition = p_partition
           AND name = p_projection_name
           AND version = p_version;
@@ -97,7 +103,8 @@ BEGIN
 
     UPDATE ${processorsTable.name}
     SET status = 'stopped',
-        processor_instance_id = '${unknownTag}'
+        processor_instance_id = '${unknownTag}',
+        last_updated = now()
     WHERE processor_id = p_processor_id
       AND partition = p_partition
       AND version = p_version

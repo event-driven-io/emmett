@@ -803,6 +803,131 @@ void describe('tryAcquireProcessorLock', () => {
       );
     });
   });
+
+  void describe('lock timeout scenarios', () => {
+    void it('blocks takeover when processor was updated within timeout window', async () => {
+      const lockKey = 'test_timeout_blocks_takeover';
+      const processorId = 'processor_timeout_blocks';
+      const instanceId1 = 'instance_1';
+      const instanceId2 = 'instance_2';
+      const lockTimeoutSeconds = 5;
+
+      await insertProcessor(pool.execute, {
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId1,
+        status: 'running',
+      });
+
+      const result = await pool.withConnection((connection) =>
+        tryAcquireProcessorLock(connection.execute, {
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId2,
+          lockTimeoutSeconds,
+        }),
+      );
+
+      assertFalse(
+        result.acquired,
+        'Expected takeover to fail when processor was recently updated',
+      );
+    });
+
+    void it('allows takeover when processor last_updated exceeds timeout', async () => {
+      const lockKey = 'test_timeout_allows_takeover';
+      const processorId = 'processor_timeout_allows';
+      const instanceId1 = 'instance_1';
+      const instanceId2 = 'instance_2';
+      const lockTimeoutSeconds = 2;
+
+      await insertProcessor(pool.execute, {
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId1,
+        status: 'running',
+      });
+
+      await setProcessorLastUpdated(pool.execute, {
+        processorId,
+        ...defaultPartitionAndVersion1,
+        secondsAgo: lockTimeoutSeconds + 1,
+      });
+
+      const result = await pool.withConnection((connection) =>
+        tryAcquireProcessorLock(connection.execute, {
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId2,
+          lockTimeoutSeconds,
+        }),
+      );
+
+      assertTrue(
+        result.acquired,
+        'Expected takeover to succeed when processor last_updated exceeds timeout',
+      );
+    });
+
+    void it('respects custom timeout for takeover decisions', async () => {
+      const lockKey = 'test_custom_timeout';
+      const processorId = 'processor_custom_timeout';
+      const instanceId1 = 'instance_1';
+      const instanceId2 = 'instance_2';
+      const customTimeout = 10;
+
+      await insertProcessor(pool.execute, {
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId1,
+        status: 'running',
+      });
+
+      await setProcessorLastUpdated(pool.execute, {
+        processorId,
+        ...defaultPartitionAndVersion1,
+        secondsAgo: customTimeout - 1,
+      });
+
+      const blockedResult = await pool.withConnection((connection) =>
+        tryAcquireProcessorLock(connection.execute, {
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId2,
+          lockTimeoutSeconds: customTimeout,
+        }),
+      );
+
+      assertFalse(
+        blockedResult.acquired,
+        'Expected takeover to fail within custom timeout window',
+      );
+
+      await setProcessorLastUpdated(pool.execute, {
+        processorId,
+        ...defaultPartitionAndVersion1,
+        secondsAgo: customTimeout + 1,
+      });
+
+      const allowedResult = await pool.withConnection((connection) =>
+        tryAcquireProcessorLock(connection.execute, {
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId2,
+          lockTimeoutSeconds: customTimeout,
+        }),
+      );
+
+      assertTrue(
+        allowedResult.acquired,
+        'Expected takeover to succeed after custom timeout expires',
+      );
+    });
+  });
 });
 
 const insertProcessor = async (
@@ -905,4 +1030,31 @@ const getProjectionStatus = async (
     ),
   );
   return result.rows[0] ?? null;
+};
+
+const setProcessorLastUpdated = async (
+  execute: SQLExecutor,
+  {
+    processorId,
+    partition,
+    version,
+    secondsAgo,
+  }: {
+    processorId: string;
+    partition?: string;
+    version?: number;
+    secondsAgo: number;
+  },
+) => {
+  await execute.command(
+    sql(
+      `UPDATE emt_processors
+       SET last_updated = now() - interval '%s seconds'
+       WHERE processor_id = %L AND partition = %L AND version = %s`,
+      secondsAgo.toString(),
+      processorId,
+      partition ?? defaultTag,
+      version ?? 1,
+    ),
+  );
 };
