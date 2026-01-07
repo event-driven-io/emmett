@@ -58,9 +58,11 @@ export const processorsTableSQL = rawSql(
       version                       INT                    NOT NULL DEFAULT 1,
       processor_id                  TEXT                   NOT NULL,
       partition                     TEXT                   NOT NULL DEFAULT '${defaultTag}',
-      status                        TEXT                   NOT NULL DEFAULT 'stopped', 
-      last_processed_checkpoint     TEXT                   NOT NULL,    
+      status                        TEXT                   NOT NULL DEFAULT 'stopped',
+      last_processed_checkpoint     TEXT                   NOT NULL,
       processor_instance_id         TEXT                   DEFAULT '${unknownTag}',
+      created_at                    TIMESTAMPTZ            NOT NULL DEFAULT now(),
+      last_updated                  TIMESTAMPTZ            NOT NULL DEFAULT now(),
       PRIMARY KEY (processor_id, partition, version)
   ) PARTITION BY LIST (partition);
 `,
@@ -69,13 +71,15 @@ export const processorsTableSQL = rawSql(
 export const projectionsTableSQL = rawSql(
   `
   CREATE TABLE IF NOT EXISTS ${projectionsTable.name}(
-      version                       INT                    NOT NULL DEFAULT 1,  
+      version                       INT                    NOT NULL DEFAULT 1,
       type                          VARCHAR(1)             NOT NULL,
       name                          TEXT                   NOT NULL,
       partition                     TEXT                   NOT NULL DEFAULT '${defaultTag}',
-      kind                          TEXT                   NOT NULL, 
-      status                        TEXT                   NOT NULL, 
-      definition                    JSONB                  NOT NULL DEFAULT '{}'::jsonb, 
+      kind                          TEXT                   NOT NULL,
+      status                        TEXT                   NOT NULL,
+      definition                    JSONB                  NOT NULL DEFAULT '{}'::jsonb,
+      created_at                    TIMESTAMPTZ            NOT NULL DEFAULT now(),
+      last_updated                  TIMESTAMPTZ            NOT NULL DEFAULT now(),
       PRIMARY KEY (name, partition, version)
   ) PARTITION BY LIST (partition);
 `,

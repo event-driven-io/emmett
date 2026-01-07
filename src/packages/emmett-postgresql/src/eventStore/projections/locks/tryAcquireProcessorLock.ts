@@ -15,6 +15,7 @@ export type TryAcquireProcessorLockOptions = {
     version?: number;
   };
   lockKey?: string | bigint;
+  lockTimeoutSeconds?: number;
 };
 
 export type TryAcquireProcessorLockResult =
@@ -41,6 +42,8 @@ export const toProcessorLockKey = ({
       })
     : `${partition ?? defaultTag}:${processorId}:${version}`;
 
+export const PROCESSOR_LOCK_DEFAULT_TIMEOUT_SECONDS = 300;
+
 export const tryAcquireProcessorLock = async (
   execute: SQLExecutor,
   options: TryAcquireProcessorLockOptions,
@@ -52,7 +55,7 @@ export const tryAcquireProcessorLock = async (
   const { acquired, checkpoint } = await single(
     execute.command<{ acquired: boolean; checkpoint: string | null }>(
       sql(
-        `SELECT * FROM emt_try_acquire_processor_lock(%s::BIGINT, %L, %s, %L, %L, %L, %L, %L);`,
+        `SELECT * FROM emt_try_acquire_processor_lock(%s::BIGINT, %L, %s, %L, %L, %L, %L, %L, %s);`,
         lockKeyBigInt.toString(),
         options.processorId,
         options.version,
@@ -61,6 +64,7 @@ export const tryAcquireProcessorLock = async (
         options.projection?.name ?? null,
         options.projection?.type ?? null,
         options.projection?.kind ?? null,
+        options.lockTimeoutSeconds ?? PROCESSOR_LOCK_DEFAULT_TIMEOUT_SECONDS,
       ),
     ),
   );
