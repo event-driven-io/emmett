@@ -19,15 +19,15 @@ import {
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import { createEventStoreSchema, defaultTag } from '..';
+import type { PostgreSQLProjectionHandlerContext } from '..';
 import type { PostgresReadEventMetadata } from '../../postgreSQLEventStore';
-import type { PostgreSQLProjectionHandlerContext } from '../../projections';
+import { createEventStoreSchema, defaultTag } from '../../schema';
 import {
   activateProjection,
   deactivateProjection,
   readProjectionInfo,
   registerProjection,
-} from './projectionRegistration';
+} from './projectionManagement';
 
 void describe('projectionRegistration', () => {
   let postgres: StartedPostgreSqlContainer;

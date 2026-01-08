@@ -1,7 +1,7 @@
 import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
 import { projectionsTable } from '../typing';
 
-export const registerProjectionWithLockSQL = createFunctionIfDoesNotExistSQL(
+export const registerProjectionSQL = createFunctionIfDoesNotExistSQL(
   'emt_register_projection',
   `
 CREATE OR REPLACE FUNCTION emt_register_projection(

@@ -41,7 +41,10 @@ void describe('rebuildPostgreSQLProjections', () => {
 
       // Then
       // Single projection option uses different format than projections array
-      assertEqual(consumer.processors[0]!.id, `projection:${projectionName}`);
+      assertEqual(
+        consumer.processors[0]!.id,
+        `emt:processor:projector:${projectionName}`,
+      );
     });
 
     void it('should set processor type to projector', () => {
