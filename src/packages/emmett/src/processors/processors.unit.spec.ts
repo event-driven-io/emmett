@@ -301,5 +301,148 @@ void describe('Processors', () => {
       assertEqual(handledEvents.length, 1);
       assertDeepEqual(handledEvents[0], recordedEvents[0]);
     });
+
+    void it('should use custom processorId when provided', () => {
+      // Given
+      const projectionName = uuid();
+      const customProcessorId = `custom:processor:${uuid()}`;
+
+      // When
+      const processor = projector({
+        processorId: customProcessorId,
+        projection: {
+          name: projectionName,
+          canHandle: [],
+          handle: () => Promise.resolve(),
+        },
+      });
+
+      // Then
+      assertEqual(processor.id, customProcessorId);
+    });
+
+    void it('should not call truncate on start if truncateOnStart is false', async () => {
+      // Given
+      const projectionName = uuid();
+      let truncateCalled = false;
+
+      const processor = projector({
+        truncateOnStart: false,
+        projection: {
+          name: projectionName,
+          canHandle: [],
+          handle: () => Promise.resolve(),
+          truncate: () => {
+            truncateCalled = true;
+            return Promise.resolve();
+          },
+        },
+      });
+
+      // When
+      await processor.start({});
+
+      // Then
+      assertEqual(truncateCalled, false);
+    });
+
+    void it('should not call truncate on start by default', async () => {
+      // Given
+      const projectionName = uuid();
+      let truncateCalled = false;
+
+      const processor = projector({
+        projection: {
+          name: projectionName,
+          canHandle: [],
+          handle: () => Promise.resolve(),
+          truncate: () => {
+            truncateCalled = true;
+            return Promise.resolve();
+          },
+        },
+      });
+
+      // When
+      await processor.start({});
+
+      // Then
+      assertEqual(truncateCalled, false);
+    });
+
+    void it('should call onStart hook before projection init', async () => {
+      // Given
+      const projectionName = uuid();
+      const callOrder: string[] = [];
+
+      const processor = projector({
+        truncateOnStart: true,
+        projection: {
+          name: projectionName,
+          canHandle: [],
+          handle: () => Promise.resolve(),
+          truncate: () => {
+            callOrder.push('truncate');
+            return Promise.resolve();
+          },
+        },
+        hooks: {
+          onStart: () => {
+            callOrder.push('onStart');
+            return Promise.resolve();
+          },
+        },
+      });
+
+      // When
+      await processor.start({});
+
+      // Then
+      assertDeepEqual(callOrder, ['truncate', 'onStart']);
+    });
+
+    void it('should generate unique instanceId for each projector', () => {
+      // Given
+      const projectionName = uuid();
+
+      // When
+      const processor1 = projector({
+        projection: {
+          name: projectionName,
+          canHandle: [],
+          handle: () => Promise.resolve(),
+        },
+      });
+
+      const processor2 = projector({
+        projection: {
+          name: projectionName,
+          canHandle: [],
+          handle: () => Promise.resolve(),
+        },
+      });
+
+      // Then
+      assertOk(processor1.instanceId !== processor2.instanceId);
+    });
+
+    void it('should use provided processorInstanceId when specified', () => {
+      // Given
+      const projectionName = uuid();
+      const customInstanceId = `instance:${uuid()}`;
+
+      // When
+      const processor = projector({
+        processorInstanceId: customInstanceId,
+        projection: {
+          name: projectionName,
+          canHandle: [],
+          handle: () => Promise.resolve(),
+        },
+      });
+
+      // Then
+      assertEqual(processor.instanceId, customInstanceId);
+    });
   });
 });
