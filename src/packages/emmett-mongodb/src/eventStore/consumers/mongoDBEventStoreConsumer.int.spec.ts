@@ -26,6 +26,7 @@ void describe('mongoDB event store consumer', () => {
   const dummyProcessor: MessageProcessor = {
     type: 'reactor',
     id: uuid(),
+    instanceId: uuid(),
     start: () => Promise.resolve('BEGINNING'),
     close: () => Promise.resolve(),
     handle: () => Promise.resolve(),
