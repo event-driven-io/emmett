@@ -70,43 +70,59 @@ export const registerProjection = async <
 export const activateProjection = async (
   execute: SQLExecutor,
   options: { name: string; partition: string; version: number },
-): Promise<void> => {
+): Promise<{ activated: boolean }> => {
   const { name, partition, version } = options;
 
-  await execute.command(
-    sql(
-      `UPDATE ${projectionsTable.name}
-       SET status = 'active',
-           last_updated = now()
-       WHERE name = %L
-         AND partition = %L
-         AND version = %s;`,
-      name,
-      partition,
-      version,
+  const lockKey = toProjectionLockKey({
+    projectionName: name,
+    partition,
+    version,
+  });
+
+  const lockKeyBigInt = await hashText(lockKey);
+
+  const { activated } = await single<{ activated: boolean }>(
+    execute.query(
+      sql(
+        `SELECT emt_activate_projection(%s, %L, %L, %s) AS activated`,
+        lockKeyBigInt.toString(),
+        name,
+        partition,
+        version,
+      ),
     ),
   );
+
+  return { activated };
 };
 
 export const deactivateProjection = async (
   execute: SQLExecutor,
   options: { name: string; partition: string; version: number },
-): Promise<void> => {
+): Promise<{ deactivated: boolean }> => {
   const { name, partition, version } = options;
 
-  await execute.command(
-    sql(
-      `UPDATE ${projectionsTable.name}
-       SET status = 'inactive',
-           last_updated = now()
-       WHERE name = %L
-         AND partition = %L
-         AND version = %s;`,
-      name,
-      partition,
-      version,
+  const lockKey = toProjectionLockKey({
+    projectionName: name,
+    partition,
+    version,
+  });
+
+  const lockKeyBigInt = await hashText(lockKey);
+
+  const { deactivated } = await single<{ deactivated: boolean }>(
+    execute.query(
+      sql(
+        `SELECT emt_deactivate_projection(%s, %L, %L, %s) AS deactivated`,
+        lockKeyBigInt.toString(),
+        name,
+        partition,
+        version,
+      ),
     ),
   );
+
+  return { deactivated };
 };
 
 type ProjectionRegistrationWithMandatoryData =

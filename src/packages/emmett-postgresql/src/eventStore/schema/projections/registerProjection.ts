@@ -18,23 +18,25 @@ RETURNS BOOLEAN
 LANGUAGE plpgsql
 AS $emt_register_projection$
 DECLARE
-    v_lock_acquired BOOLEAN;
+    v_result BOOLEAN;
 BEGIN
-    SELECT pg_try_advisory_xact_lock(p_lock_key) INTO v_lock_acquired;
-
-    IF NOT v_lock_acquired THEN
-        RETURN false;
-    END IF;
-
-    INSERT INTO ${projectionsTable.name} (
-        name, partition, version, type, kind, status, definition, created_at, last_updated
+    WITH lock_check AS (
+        SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
+    ),
+    upsert_result AS (
+        INSERT INTO ${projectionsTable.name} (
+            name, partition, version, type, kind, status, definition, created_at, last_updated
+        )
+        SELECT p_name, p_partition, p_version, p_type, p_kind, p_status, p_definition, now(), now()
+        WHERE (SELECT lock_acquired FROM lock_check) = true
+        ON CONFLICT (name, partition, version) DO UPDATE
+        SET definition = EXCLUDED.definition,
+            last_updated = now()
+        RETURNING name
     )
-    VALUES (p_name, p_partition, p_version, p_type, p_kind, p_status, p_definition, now(), now())
-    ON CONFLICT (name, partition, version) DO UPDATE
-    SET definition = EXCLUDED.definition,
-        last_updated = now();
+    SELECT COUNT(*) > 0 INTO v_result FROM upsert_result;
 
-    RETURN true;
+    RETURN v_result;
 END;
 $emt_register_projection$;
 `,
@@ -52,8 +54,9 @@ CREATE OR REPLACE FUNCTION emt_activate_projection(
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 AS $emt_activate_projection$
+DECLARE
+    v_result BOOLEAN;
 BEGIN
-    RETURN QUERY
     WITH lock_check AS (
         SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
     ),
@@ -67,7 +70,9 @@ BEGIN
           AND (SELECT lock_acquired FROM lock_check) = true
         RETURNING name
     )
-    SELECT (SELECT COUNT(*) > 0 FROM update_result);
+    SELECT COUNT(*) > 0 INTO v_result FROM update_result;
+
+    RETURN v_result;
 END;
 $emt_activate_projection$;
 `,
@@ -85,8 +90,9 @@ CREATE OR REPLACE FUNCTION emt_deactivate_projection(
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 AS $emt_deactivate_projection$
+DECLARE
+    v_result BOOLEAN;
 BEGIN
-    RETURN QUERY
     WITH lock_check AS (
         SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
     ),
@@ -100,7 +106,9 @@ BEGIN
           AND (SELECT lock_acquired FROM lock_check) = true
         RETURNING name
     )
-    SELECT (SELECT COUNT(*) > 0 FROM update_result);
+    SELECT COUNT(*) > 0 INTO v_result FROM update_result;
+
+    RETURN v_result;
 END;
 $emt_deactivate_projection$;
 `,

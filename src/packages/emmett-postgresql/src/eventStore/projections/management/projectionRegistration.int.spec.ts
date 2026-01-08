@@ -256,13 +256,15 @@ void describe('projectionRegistration', () => {
 
     void it('sets existing projection status to active and updates timestamp', async () => {
       // When
-      await activateProjection(pool.execute, {
+      const result = await activateProjection(pool.execute, {
         name: projectionName,
         partition: defaultTag,
         version: 1,
       });
 
       // Then
+      assertTrue(result.activated);
+
       const info = await readProjectionInfo(pool.execute, {
         name: projectionName,
         partition: defaultTag,
@@ -280,13 +282,15 @@ void describe('projectionRegistration', () => {
 
     void it('does not update NOT existing projection', async () => {
       // When
-      await activateProjection(pool.execute, {
+      const result = await activateProjection(pool.execute, {
         name: 'non_existing_projection',
         partition: defaultTag,
         version: 1,
       });
 
       // Then
+      assertFalse(result.activated);
+
       const info = await readProjectionInfo(pool.execute, {
         name: 'non_existing_projection',
         partition: defaultTag,
@@ -306,13 +310,15 @@ void describe('projectionRegistration', () => {
       });
 
       // When
-      await activateProjection(pool.execute, {
+      const result = await activateProjection(pool.execute, {
         name: projectionName,
         partition: defaultTag,
         version: 2,
       });
 
       // Then
+      assertTrue(result.activated);
+
       const infoV1 = await readProjectionInfo(pool.execute, {
         name: projectionName,
         partition: defaultTag,
@@ -328,6 +334,174 @@ void describe('projectionRegistration', () => {
       assertEqual(infoV1.status, 'inactive');
       assertIsNotNull(infoV2);
       assertEqual(infoV2.status, 'active');
+    });
+  });
+
+  void describe('activateProjection locking', () => {
+    void it('allows sequential activations of the same projection', async () => {
+      // Given - insert inactive projection
+      const projectionName = `test_sequential_activate_${Date.now()}`;
+      await insertProjection(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 1,
+        status: 'inactive',
+      });
+
+      // When - sequential activations
+      const result1 = await activateProjection(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 1,
+      });
+
+      const result2 = await activateProjection(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 1,
+      });
+
+      // Then
+      assertTrue(result1.activated);
+      assertTrue(result2.activated);
+    });
+
+    void it('returns false when concurrent activation attempts same projection', async () => {
+      // Given
+      const projectionName = `test_concurrent_activate_${Date.now()}`;
+      await insertProjection(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 1,
+        status: 'inactive',
+      });
+
+      const firstLockAcquired = asyncAwaiter();
+      const secondAttempted = asyncAwaiter<boolean>();
+
+      // When
+      const [result1, result2] = await Promise.all([
+        pool.withTransaction(async (transaction) => {
+          const result = await activateProjection(transaction.execute, {
+            name: projectionName,
+            partition: defaultTag,
+            version: 1,
+          });
+          firstLockAcquired.resolve();
+          await secondAttempted.wait;
+          return result;
+        }),
+        (async () => {
+          await firstLockAcquired.wait;
+          const result = await pool.withTransaction(async (transaction) => {
+            return activateProjection(transaction.execute, {
+              name: projectionName,
+              partition: defaultTag,
+              version: 1,
+            });
+          });
+          secondAttempted.resolve(result.activated);
+          return result;
+        })(),
+      ]);
+
+      // Then
+      assertTrue(result1.activated);
+      assertFalse(result2.activated);
+    });
+
+    void it('allows activation after previous transaction commits', async () => {
+      // Given
+      const projectionName = `test_after_commit_activate_${Date.now()}`;
+      await insertProjection(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 1,
+        status: 'inactive',
+      });
+
+      const firstCompleted = asyncAwaiter();
+
+      // When
+      const [result1, result2] = await Promise.all([
+        (async () => {
+          const result = await pool.withTransaction(async (transaction) => {
+            return activateProjection(transaction.execute, {
+              name: projectionName,
+              partition: defaultTag,
+              version: 1,
+            });
+          });
+          firstCompleted.resolve();
+          return result;
+        })(),
+        (async () => {
+          await firstCompleted.wait;
+          return pool.withTransaction(async (transaction) => {
+            return activateProjection(transaction.execute, {
+              name: projectionName,
+              partition: defaultTag,
+              version: 1,
+            });
+          });
+        })(),
+      ]);
+
+      // Then
+      assertTrue(result1.activated);
+      assertTrue(result2.activated);
+    });
+
+    void it('allows concurrent activations of different projections', async () => {
+      // Given
+      const projectionName1 = `test_different_activate_1_${Date.now()}`;
+      const projectionName2 = `test_different_activate_2_${Date.now()}`;
+
+      await insertProjection(pool.execute, {
+        name: projectionName1,
+        partition: defaultTag,
+        version: 1,
+        status: 'inactive',
+      });
+      await insertProjection(pool.execute, {
+        name: projectionName2,
+        partition: defaultTag,
+        version: 1,
+        status: 'inactive',
+      });
+
+      const firstLockAcquired = asyncAwaiter();
+      const secondLockAcquired = asyncAwaiter<boolean>();
+
+      // When
+      const [result1, result2] = await Promise.all([
+        pool.withTransaction(async (transaction) => {
+          const result = await activateProjection(transaction.execute, {
+            name: projectionName1,
+            partition: defaultTag,
+            version: 1,
+          });
+          firstLockAcquired.resolve();
+          await secondLockAcquired.wait;
+          return result;
+        }),
+        (async () => {
+          await firstLockAcquired.wait;
+          const result = await pool.withTransaction(async (transaction) => {
+            return activateProjection(transaction.execute, {
+              name: projectionName2,
+              partition: defaultTag,
+              version: 1,
+            });
+          });
+          secondLockAcquired.resolve(result.activated);
+          return result;
+        })(),
+      ]);
+
+      // Then
+      assertTrue(result1.activated);
+      assertTrue(result2.activated);
     });
   });
 
@@ -355,13 +529,15 @@ void describe('projectionRegistration', () => {
 
     void it('set existing projection status to inactive', async () => {
       // When
-      await deactivateProjection(pool.execute, {
+      const result = await deactivateProjection(pool.execute, {
         name: projectionName,
         partition: defaultTag,
         version: 1,
       });
 
       // Then
+      assertTrue(result.deactivated);
+
       const info = await readProjectionInfo(pool.execute, {
         name: projectionName,
         partition: defaultTag,
@@ -381,13 +557,15 @@ void describe('projectionRegistration', () => {
 
     void it('does not update NOT existing projection', async () => {
       // When
-      await deactivateProjection(pool.execute, {
+      const result = await deactivateProjection(pool.execute, {
         name: 'non_existing_projection',
         partition: defaultTag,
         version: 1,
       });
 
       // Then
+      assertFalse(result.deactivated);
+
       const info = await readProjectionInfo(pool.execute, {
         name: 'non_existing_projection',
         partition: defaultTag,
@@ -407,13 +585,15 @@ void describe('projectionRegistration', () => {
       });
 
       // When
-      await deactivateProjection(pool.execute, {
+      const result = await deactivateProjection(pool.execute, {
         name: projectionName,
         partition: defaultTag,
         version: 2,
       });
 
       // Then
+      assertTrue(result.deactivated);
+
       const infoV1 = await readProjectionInfo(pool.execute, {
         name: projectionName,
         partition: defaultTag,
@@ -429,6 +609,174 @@ void describe('projectionRegistration', () => {
       assertEqual(infoV1.status, 'active');
       assertIsNotNull(infoV2);
       assertEqual(infoV2.status, 'inactive');
+    });
+  });
+
+  void describe('deactivateProjection locking', () => {
+    void it('allows sequential deactivations of the same projection', async () => {
+      // Given - insert active projection
+      const projectionName = `test_sequential_deactivate_${Date.now()}`;
+      await insertProjection(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 1,
+        status: 'active',
+      });
+
+      // When - sequential deactivations
+      const result1 = await deactivateProjection(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 1,
+      });
+
+      const result2 = await deactivateProjection(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 1,
+      });
+
+      // Then
+      assertTrue(result1.deactivated);
+      assertTrue(result2.deactivated);
+    });
+
+    void it('returns false when concurrent deactivation attempts same projection', async () => {
+      // Given
+      const projectionName = `test_concurrent_deactivate_${Date.now()}`;
+      await insertProjection(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 1,
+        status: 'active',
+      });
+
+      const firstLockAcquired = asyncAwaiter();
+      const secondAttempted = asyncAwaiter<boolean>();
+
+      // When
+      const [result1, result2] = await Promise.all([
+        pool.withTransaction(async (transaction) => {
+          const result = await deactivateProjection(transaction.execute, {
+            name: projectionName,
+            partition: defaultTag,
+            version: 1,
+          });
+          firstLockAcquired.resolve();
+          await secondAttempted.wait;
+          return result;
+        }),
+        (async () => {
+          await firstLockAcquired.wait;
+          const result = await pool.withTransaction(async (transaction) => {
+            return deactivateProjection(transaction.execute, {
+              name: projectionName,
+              partition: defaultTag,
+              version: 1,
+            });
+          });
+          secondAttempted.resolve(result.deactivated);
+          return result;
+        })(),
+      ]);
+
+      // Then
+      assertTrue(result1.deactivated);
+      assertFalse(result2.deactivated);
+    });
+
+    void it('allows deactivation after previous transaction commits', async () => {
+      // Given
+      const projectionName = `test_after_commit_deactivate_${Date.now()}`;
+      await insertProjection(pool.execute, {
+        name: projectionName,
+        partition: defaultTag,
+        version: 1,
+        status: 'active',
+      });
+
+      const firstCompleted = asyncAwaiter();
+
+      // When
+      const [result1, result2] = await Promise.all([
+        (async () => {
+          const result = await pool.withTransaction(async (transaction) => {
+            return deactivateProjection(transaction.execute, {
+              name: projectionName,
+              partition: defaultTag,
+              version: 1,
+            });
+          });
+          firstCompleted.resolve();
+          return result;
+        })(),
+        (async () => {
+          await firstCompleted.wait;
+          return pool.withTransaction(async (transaction) => {
+            return deactivateProjection(transaction.execute, {
+              name: projectionName,
+              partition: defaultTag,
+              version: 1,
+            });
+          });
+        })(),
+      ]);
+
+      // Then
+      assertTrue(result1.deactivated);
+      assertTrue(result2.deactivated);
+    });
+
+    void it('allows concurrent deactivations of different projections', async () => {
+      // Given
+      const projectionName1 = `test_different_deactivate_1_${Date.now()}`;
+      const projectionName2 = `test_different_deactivate_2_${Date.now()}`;
+
+      await insertProjection(pool.execute, {
+        name: projectionName1,
+        partition: defaultTag,
+        version: 1,
+        status: 'active',
+      });
+      await insertProjection(pool.execute, {
+        name: projectionName2,
+        partition: defaultTag,
+        version: 1,
+        status: 'active',
+      });
+
+      const firstLockAcquired = asyncAwaiter();
+      const secondLockAcquired = asyncAwaiter<boolean>();
+
+      // When
+      const [result1, result2] = await Promise.all([
+        pool.withTransaction(async (transaction) => {
+          const result = await deactivateProjection(transaction.execute, {
+            name: projectionName1,
+            partition: defaultTag,
+            version: 1,
+          });
+          firstLockAcquired.resolve();
+          await secondLockAcquired.wait;
+          return result;
+        }),
+        (async () => {
+          await firstLockAcquired.wait;
+          const result = await pool.withTransaction(async (transaction) => {
+            return deactivateProjection(transaction.execute, {
+              name: projectionName2,
+              partition: defaultTag,
+              version: 1,
+            });
+          });
+          secondLockAcquired.resolve(result.deactivated);
+          return result;
+        })(),
+      ]);
+
+      // Then
+      assertTrue(result1.deactivated);
+      assertTrue(result2.deactivated);
     });
   });
 
