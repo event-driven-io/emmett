@@ -4,6 +4,7 @@ import type {
   ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import type { PostgreSQLProjectionDefinition } from '../projections';
+import { type LockAcquisitionPolicy } from '../projections/locks';
 import {
   postgreSQLEventStoreConsumer,
   type PostgreSQLEventStoreConsumer,
@@ -11,14 +12,20 @@ import {
 } from './postgreSQLEventStoreConsumer';
 import type { PostgreSQLProcessorHandlerContext } from './postgreSQLProcessor';
 
+const defaultRebuildLockPolicy: LockAcquisitionPolicy = {
+  type: 'retry',
+  maxAttempts: 100,
+  minTimeout: 100,
+  maxTimeout: 5000,
+};
+
 export const rebuildPostgreSQLProjections = <
   EventType extends AnyEvent = AnyEvent,
 >(
   options: Omit<
     PostgreSQLEventStoreConsumerOptions<EventType>,
     'stopWhen' | 'processors'
-  > &
-    (
+  > & { lockPolicy?: LockAcquisitionPolicy } & (
       | {
           projections: (
             | ProjectorOptions<
@@ -53,14 +60,16 @@ export const rebuildPostgreSQLProjections = <
       ? options.projections.map((p) =>
           'projection' in p
             ? {
-                ...p,
+                lockPolicy: defaultRebuildLockPolicy,
+                truncateOnStart: true,
                 processorId: `emt:processor:projector:${p.projection.name}`,
-                truncateOnStart: p.truncateOnStart ?? true,
+                ...p,
               }
             : {
                 projection: p,
                 processorId: `emt:processor:projector:${p.name}`,
                 truncateOnStart: true,
+                lockPolicy: defaultRebuildLockPolicy,
               },
         )
       : [options];
