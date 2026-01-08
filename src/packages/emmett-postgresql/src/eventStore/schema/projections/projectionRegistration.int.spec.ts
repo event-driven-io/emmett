@@ -6,9 +6,12 @@ import {
 } from '@event-driven-io/dumbo';
 import {
   assertEqual,
+  assertFalse,
   assertIsNotNull,
   assertIsNull,
   assertMatches,
+  assertTrue,
+  asyncAwaiter,
   type ProjectionRegistration,
 } from '@event-driven-io/emmett';
 import {
@@ -467,6 +470,183 @@ void describe('projectionRegistration', () => {
       });
 
       assertEqual(info, null);
+    });
+  });
+
+  void describe('registerProjection locking', () => {
+    const createRegistration = (
+      name: string,
+    ): ProjectionRegistration<
+      'inline',
+      PostgresReadEventMetadata,
+      PostgreSQLProjectionHandlerContext
+    > => ({
+      type: 'inline',
+      projection: {
+        name,
+        canHandle: ['TestEvent'],
+        handle: async () => {},
+      },
+    });
+
+    void it('allows sequential registrations of the same projection', async () => {
+      // Given
+      const projectionName = `test_sequential_${Date.now()}`;
+      const registration = createRegistration(projectionName);
+
+      // When
+      const result1 = await registerProjection(pool.execute, {
+        partition: defaultTag,
+        status: 'active',
+        registration,
+      });
+
+      const result2 = await registerProjection(pool.execute, {
+        partition: defaultTag,
+        status: 'active',
+        registration,
+      });
+
+      // Then
+      assertTrue(result1.registered, 'Expected first registration to succeed');
+      assertTrue(
+        result2.registered,
+        'Expected second registration to succeed after first completed',
+      );
+    });
+
+    void it('returns false when concurrent registration attempts same projection', async () => {
+      // Given
+      const projectionName = `test_concurrent_${Date.now()}`;
+      const registration = createRegistration(projectionName);
+
+      const firstLockAcquired = asyncAwaiter();
+      const secondAttempted = asyncAwaiter<boolean>();
+
+      // When
+      const [result1, result2] = await Promise.all([
+        pool.withTransaction(async (transaction) => {
+          const result = await registerProjection(transaction.execute, {
+            partition: defaultTag,
+            status: 'active',
+            registration,
+          });
+          firstLockAcquired.resolve();
+          await secondAttempted.wait;
+          return result;
+        }),
+        (async () => {
+          await firstLockAcquired.wait;
+          const result = await pool.withTransaction(async (transaction) => {
+            return registerProjection(transaction.execute, {
+              partition: defaultTag,
+              status: 'active',
+              registration,
+            });
+          });
+          secondAttempted.resolve(result.registered);
+          return result;
+        })(),
+      ]);
+
+      // Then
+      assertTrue(
+        result1.registered,
+        'Expected first concurrent registration to succeed',
+      );
+      assertFalse(
+        result2.registered,
+        'Expected second concurrent registration to fail while first holds lock',
+      );
+    });
+
+    void it('allows registration after previous transaction commits', async () => {
+      // Given
+      const projectionName = `test_after_commit_${Date.now()}`;
+      const registration = createRegistration(projectionName);
+
+      const firstCompleted = asyncAwaiter();
+
+      // When
+      const [result1, result2] = await Promise.all([
+        (async () => {
+          const result = await pool.withTransaction(async (transaction) => {
+            return registerProjection(transaction.execute, {
+              partition: defaultTag,
+              status: 'active',
+              registration,
+            });
+          });
+          firstCompleted.resolve();
+          return result;
+        })(),
+        (async () => {
+          await firstCompleted.wait;
+          return pool.withTransaction(async (transaction) => {
+            return registerProjection(transaction.execute, {
+              partition: defaultTag,
+              status: 'active',
+              registration,
+            });
+          });
+        })(),
+      ]);
+
+      // Then
+      assertTrue(result1.registered, 'Expected first registration to succeed');
+      assertTrue(
+        result2.registered,
+        'Expected second registration to succeed after first transaction committed',
+      );
+    });
+
+    void it('allows concurrent registrations of different projections', async () => {
+      // Given
+      const registration1 = createRegistration(
+        `test_different_1_${Date.now()}`,
+      );
+      const registration2 = createRegistration(
+        `test_different_2_${Date.now()}`,
+      );
+
+      const firstLockAcquired = asyncAwaiter();
+      const secondLockAcquired = asyncAwaiter<boolean>();
+
+      // When
+      const [result1, result2] = await Promise.all([
+        pool.withTransaction(async (transaction) => {
+          const result = await registerProjection(transaction.execute, {
+            partition: defaultTag,
+            status: 'active',
+            registration: registration1,
+          });
+          firstLockAcquired.resolve();
+          await secondLockAcquired.wait;
+          return result;
+        }),
+        (async () => {
+          await firstLockAcquired.wait;
+          const result = await pool.withTransaction(async (transaction) => {
+            return registerProjection(transaction.execute, {
+              partition: defaultTag,
+              status: 'active',
+              registration: registration2,
+            });
+          });
+          secondLockAcquired.resolve(result.registered);
+          return result;
+        })(),
+      ]);
+
+      // Then
+      assertTrue(
+        result1.registered,
+        'Expected first projection registration to succeed',
+      );
+      assertTrue(
+        result2.registered,
+        'Expected second projection registration to succeed (different projection)',
+      );
     });
   });
 });
