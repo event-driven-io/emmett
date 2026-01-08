@@ -33,6 +33,7 @@ import {
 } from './consumers';
 import {
   handleProjections,
+  registerProjection,
   type PostgreSQLProjectionHandlerContext,
 } from './projections';
 import {
@@ -40,7 +41,6 @@ import {
   createEventStoreSchema,
   defaultTag,
   readStream,
-  registerProjection,
   schemaSQL,
   streamExists,
   unknownTag,

@@ -13,8 +13,8 @@ import {
   type ProjectionHandlingType,
   type ProjectionRegistration,
 } from '@event-driven-io/emmett';
-import { toProjectionLockKey } from '../../projections/locks/tryAcquireProjectionLock';
-import { projectionsTable } from '../typing';
+import { projectionsTable } from '../../schema/typing';
+import { toProjectionLockKey } from '../locks/tryAcquireProjectionLock';
 
 export const registerProjection = async <
   HandlingType extends ProjectionHandlingType,

@@ -1,2 +1,1 @@
-export * from './projectionRegistration';
-export * from './projectionRegistrationLock';
+export * from './registerProjection';
