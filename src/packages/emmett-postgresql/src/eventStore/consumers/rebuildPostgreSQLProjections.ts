@@ -3,7 +3,6 @@ import type {
   ProjectorOptions,
   ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import { v7 as uuid } from 'uuid';
 import type { PostgreSQLProjectionDefinition } from '../projections';
 import {
   postgreSQLEventStoreConsumer,
@@ -55,12 +54,12 @@ export const rebuildPostgreSQLProjections = <
           'projection' in p
             ? {
                 ...p,
-                processorId: `projection:${p.projection.name ?? uuid()}-rebuild`,
+                processorId: `emt:processor:projector:${p.projection.name}`,
                 truncateOnStart: p.truncateOnStart ?? true,
               }
             : {
                 projection: p,
-                processorId: `projection:${p.name ?? uuid()}-rebuild`,
+                processorId: `emt:processor:projector:${p.name}`,
                 truncateOnStart: true,
               },
         )
@@ -71,7 +70,7 @@ export const rebuildPostgreSQLProjections = <
       ...projectionDefinition,
       processorId:
         projectionDefinition.processorId ??
-        `projection:${projectionDefinition.projection.name ?? uuid()}-rebuild`,
+        `projection:${projectionDefinition.projection.name}`,
       truncateOnStart: projectionDefinition.truncateOnStart ?? true,
     });
   }
