@@ -16,6 +16,7 @@ import {
   releaseProcessorLockSQL,
   tryAcquireProcessorLockSQL,
 } from './processors';
+import { registerProjectionWithLockSQL } from './projections';
 import { storeSubscriptionCheckpointSQL } from './storeProcessorCheckpoint';
 import {
   addDefaultPartitionSQL,
@@ -53,6 +54,7 @@ export const schemaSQL: SQL[] = [
   storeSubscriptionCheckpointSQL,
   tryAcquireProcessorLockSQL,
   releaseProcessorLockSQL,
+  registerProjectionWithLockSQL,
 ];
 
 export const schemaMigration = sqlMigration(

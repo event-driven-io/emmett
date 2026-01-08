@@ -1,12 +1,19 @@
-import { singleOrNull, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
-  JSONParser,
+  JSONSerializer,
+  single,
+  singleOrNull,
+  sql,
+  type SQLExecutor,
+} from '@event-driven-io/dumbo';
+import {
+  hashText,
   type AnyReadEventMetadata,
   type DefaultRecord,
   type ProjectionDefinition,
   type ProjectionHandlingType,
   type ProjectionRegistration,
 } from '@event-driven-io/emmett';
+import { toProjectionLockKey } from '../../projections/locks/tryAcquireProjectionLock';
 import { projectionsTable } from '../typing';
 
 export const registerProjection = async <
@@ -24,18 +31,28 @@ export const registerProjection = async <
       ProjectionHandlerContext
     >;
   },
-): Promise<void> => {
+): Promise<{ registered: boolean }> => {
   const { partition, status, registration } = options;
 
   const type = registration.type === 'inline' ? 'i' : 'a';
   const name = registration.projection.name;
   const version = registration.projection.version ?? 1;
   const kind = registration.projection.kind ?? registration.type;
-  const definition = JSONParser.stringify(registration.projection);
+  const definition = JSONSerializer.serialize(registration.projection);
 
-  await execute.command(
-    sql(
-      `INSERT INTO ${projectionsTable.name} (
+  const lockKey = toProjectionLockKey({
+    projectionName: name!,
+    partition,
+    version,
+  });
+
+  const lockKeyBigInt = await hashText(lockKey);
+
+  const { registered } = await single<{ registered: boolean }>(
+    execute.query(
+      sql(
+        `SELECT emt_register_projection(%s, %L, %L, %s, %L, %L, %L, %L) AS registered`,
+        lockKeyBigInt.toString(),
         name,
         partition,
         version,
@@ -43,22 +60,11 @@ export const registerProjection = async <
         kind,
         status,
         definition,
-        created_at,
-        last_updated
-      )
-      VALUES (%L, %L, %s, %L, %L, %L, %L, now(), now())
-      ON CONFLICT (name, partition, version) DO UPDATE
-      SET definition = EXCLUDED.definition,
-          last_updated = now();`,
-      name,
-      partition,
-      version,
-      type,
-      kind,
-      status,
-      definition,
+      ),
     ),
   );
+
+  return { registered };
 };
 
 export const activateProjection = async (
