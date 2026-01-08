@@ -37,12 +37,12 @@ import {
   tryAcquireProcessorLockWithRetry,
   type LockAcquisitionPolicy,
 } from '../projections/locks';
+import { registerProjection } from '../projections/management/projectionManagement';
 import {
   defaultTag,
   readProcessorCheckpoint,
   storeProcessorCheckpoint,
 } from '../schema';
-import { registerProjection } from '../schema/projections/projectionRegistration';
 import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 
 export type PostgreSQLProcessorHandlerContext = {
