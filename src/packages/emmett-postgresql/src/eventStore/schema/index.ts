@@ -93,14 +93,18 @@ export const createEventStoreSchema = async (
     };
     const nestedPool = dumbo({ connectionString, connection: tx.connection });
 
-    if (hooks?.onBeforeSchemaCreated) {
-      await hooks.onBeforeSchemaCreated(context);
-    }
+    try {
+      if (hooks?.onBeforeSchemaCreated) {
+        await hooks.onBeforeSchemaCreated(context);
+      }
 
-    await runPostgreSQLMigrations(nestedPool, eventStoreSchemaMigrations);
+      await runPostgreSQLMigrations(nestedPool, eventStoreSchemaMigrations);
 
-    if (hooks?.onAfterSchemaCreated) {
-      await hooks.onAfterSchemaCreated(context);
+      if (hooks?.onAfterSchemaCreated) {
+        await hooks.onAfterSchemaCreated(context);
+      }
+    } finally {
+      await nestedPool.close();
     }
   });
 };
