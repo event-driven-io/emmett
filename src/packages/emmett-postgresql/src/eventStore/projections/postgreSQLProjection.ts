@@ -1,4 +1,5 @@
 import {
+  type DatabaseTransaction,
   type Dumbo,
   type NodePostgresClient,
   type NodePostgresTransaction,
@@ -26,6 +27,22 @@ export type PostgreSQLProjectionHandlerContext = {
     pool: Dumbo;
   };
 };
+
+export const transactionToPostgreSQLProjectionHandlerContext = async (
+  connectionString: string,
+  pool: Dumbo,
+  transaction:
+    | NodePostgresTransaction
+    | DatabaseTransaction<'PostgreSQL:pg', unknown>,
+): Promise<PostgreSQLProjectionHandlerContext> => ({
+  execute: transaction.execute,
+  connection: {
+    connectionString: connectionString,
+    client: (await transaction.connection.open()) as NodePostgresClient,
+    transaction,
+    pool,
+  },
+});
 
 export type PostgreSQLProjectionHandler<
   EventType extends Event = Event,
