@@ -115,7 +115,11 @@ void describe('PostgreSQL event store consumer', () => {
         await assertThrowsAsync(
           () => consumerToNotExistingServer.start(),
           (error) => {
-            return 'code' in error && error.code === 'EAI_AGAIN';
+            // TODO: Wrap it with Emmett error internally
+            return (
+              'code' in error &&
+              (error.code === 'EAI_AGAIN' || error.code === 'ENOTFOUND')
+            );
           },
         );
       },
