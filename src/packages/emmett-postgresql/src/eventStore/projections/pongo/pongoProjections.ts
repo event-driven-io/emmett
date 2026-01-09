@@ -90,23 +90,31 @@ export const pongoProjection = <EventType extends Event>({
       const pongo = pongoClient(connectionString, {
         connectionOptions: { client, pool },
       });
-      await handle(events, {
-        ...context,
-        pongo,
-      });
+      try {
+        await handle(events, {
+          ...context,
+          pongo,
+        });
+      } finally {
+        await pongo.close();
+      }
     },
     truncate: truncate
-      ? (context) => {
+      ? async (context) => {
           const {
             connection: { connectionString, client, pool },
           } = context;
           const pongo = pongoClient(connectionString, {
             connectionOptions: { client, pool },
           });
-          return truncate({
-            ...context,
-            pongo,
-          });
+          try {
+            await truncate({
+              ...context,
+              pongo,
+            });
+          } finally {
+            await pongo.close();
+          }
         }
       : undefined,
   });
@@ -183,7 +191,11 @@ export const pongoMultiStreamProjection = <
         connectionOptions: { client, pool },
       });
 
-      await pongo.db().collection<Document>(collectionName).deleteMany();
+      try {
+        await pongo.db().collection<Document>(collectionName).deleteMany();
+      } finally {
+        await pongo.close();
+      }
     },
     init: async (context) => {
       const {
@@ -193,7 +205,11 @@ export const pongoMultiStreamProjection = <
         connectionOptions: { client, pool },
       });
 
-      await pongo.db().collection<Document>(collectionName).schema.migrate();
+      try {
+        await pongo.db().collection<Document>(collectionName).schema.migrate();
+      } finally {
+        await pongo.close();
+      }
     },
   });
 };

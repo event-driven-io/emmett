@@ -33,6 +33,7 @@ import {
 import {
   handleProjections,
   registerProjection,
+  transactionToPostgreSQLProjectionHandlerContext,
   type PostgreSQLProjectionHandlerContext,
 } from './projections';
 import {
@@ -44,6 +45,7 @@ import {
   unknownTag,
   type AppendToStreamBeforeCommitHook,
 } from './schema';
+import { truncateTables } from './schema/truncateTables';
 
 export interface PostgresEventStore
   extends
@@ -62,6 +64,12 @@ export interface PostgresEventStore
     sql(): string;
     print(): void;
     migrate(): Promise<void>;
+    dangerous: {
+      truncate(options?: {
+        resetSequences?: boolean;
+        truncateProjections?: boolean;
+      }): Promise<void>;
+    };
   };
 }
 
@@ -249,6 +257,29 @@ export const getPostgreSQLEventStore = (
       sql: () => schemaSQL.join(''),
       print: () => console.log(schemaSQL.join('')),
       migrate,
+      dangerous: {
+        truncate: (truncateOptions?: {
+          resetSequences?: boolean;
+          truncateProjections?: boolean;
+        }): Promise<void> =>
+          pool.withTransaction(async (transaction) => {
+            await ensureSchemaExists();
+            await truncateTables(transaction.execute, truncateOptions);
+
+            if (truncateOptions?.truncateProjections) {
+              const projectionContext =
+                await transactionToPostgreSQLProjectionHandlerContext(
+                  connectionString,
+                  pool,
+                  transaction,
+                );
+              for (const projection of options?.projections ?? []) {
+                if (projection.projection.truncate)
+                  await projection.projection.truncate(projectionContext);
+              }
+            }
+          }),
+      },
     },
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
