@@ -1,7 +1,7 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import { bigInt } from '@event-driven-io/emmett';
 import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
-import { defaultTag, processorsTable } from './typing';
+import { defaultTag, processorsTable, unknownTag } from './typing';
 
 export const storeSubscriptionCheckpointSQL = createFunctionIfDoesNotExistSQL(
   'store_processor_checkpoint',
@@ -13,7 +13,7 @@ CREATE OR REPLACE FUNCTION store_processor_checkpoint(
   p_check_position         TEXT,
   p_transaction_id         xid8,
   p_partition              TEXT DEFAULT '${defaultTag}',
-  p_processor_instance_id  TEXT DEFAULT 'emt:unknown'
+  p_processor_instance_id  TEXT DEFAULT '${unknownTag}'
 ) RETURNS INT AS $spc$
 DECLARE
   current_position TEXT;
@@ -106,7 +106,7 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
             ? bigInt.toNormalizedString(options.lastProcessedCheckpoint)
             : null,
           options.partition ?? defaultTag,
-          options.processorInstanceId ?? 'emt:unknown',
+          options.processorInstanceId ?? unknownTag,
         ),
       ),
     );

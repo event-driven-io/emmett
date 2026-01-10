@@ -2,6 +2,7 @@ import {
   dumbo,
   type Dumbo,
   type DumboOptions,
+  type NodePostgresClient,
   type QueryResultRow,
   type SQL,
 } from '@event-driven-io/dumbo';
@@ -18,7 +19,10 @@ import {
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { handleProjections, type PostgreSQLProjectionDefinition } from '.';
-import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
+import {
+  getPostgreSQLEventStore,
+  type PostgresReadEventMetadata,
+} from '../postgreSQLEventStore';
 
 export type PostgreSQLProjectionSpecEvent<
   EventType extends Event,
@@ -101,8 +105,26 @@ export const PostgreSQLProjectionSpec = {
                 });
               }
 
-              await pool.withTransaction((transaction) =>
-                handleProjections({
+              const eventStore = getPostgreSQLEventStore(connectionString, {
+                connectionOptions: { dumbo: pool },
+              });
+
+              await eventStore.schema.migrate();
+
+              await pool.withTransaction(async (transaction) => {
+                if (projection.init)
+                  await projection.init({
+                    execute: transaction.execute,
+                    connection: {
+                      connectionString,
+                      client:
+                        (await transaction.connection.open()) as NodePostgresClient,
+                      transaction,
+                      pool,
+                    },
+                  });
+
+                await handleProjections({
                   events: allEvents,
                   projections: [projection],
                   connection: {
@@ -110,8 +132,8 @@ export const PostgreSQLProjectionSpec = {
                     connectionString,
                     transaction,
                   },
-                }),
-              );
+                });
+              });
             };
 
             return {

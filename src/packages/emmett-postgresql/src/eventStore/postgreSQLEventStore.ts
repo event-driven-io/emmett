@@ -32,15 +32,20 @@ import {
 } from './consumers';
 import {
   handleProjections,
+  registerProjection,
+  transactionToPostgreSQLProjectionHandlerContext,
   type PostgreSQLProjectionHandlerContext,
 } from './projections';
 import {
   appendToStream,
   createEventStoreSchema,
+  defaultTag,
   readStream,
   schemaSQL,
+  unknownTag,
   type AppendToStreamBeforeCommitHook,
 } from './schema';
+import { truncateTables } from './schema/truncateTables';
 
 export interface PostgresEventStore
   extends
@@ -59,6 +64,12 @@ export interface PostgresEventStore
     sql(): string;
     print(): void;
     migrate(): Promise<void>;
+    dangerous: {
+      truncate(options?: {
+        resetSequences?: boolean;
+        truncateProjections?: boolean;
+      }): Promise<void>;
+    };
   };
 }
 
@@ -152,9 +163,11 @@ export type PostgresEventStoreOptions = {
       context: PostgreSQLProjectionHandlerContext,
     ) => Promise<void> | void;
     /**
-     * This hook will be called **AFTER** event store schema was created
+     * This hook will be called **AFTER** event store schema was created but before transaction commits
      */
-    onAfterSchemaCreated?: () => Promise<void> | void;
+    onAfterSchemaCreated?: (
+      context: PostgreSQLProjectionHandlerContext,
+    ) => Promise<void> | void;
   };
 };
 
@@ -197,7 +210,21 @@ export const getPostgreSQLEventStore = (
             await options.hooks.onBeforeSchemaCreated(context);
           }
         },
-        onAfterSchemaCreated: options.hooks?.onAfterSchemaCreated,
+        onAfterSchemaCreated: async (context) => {
+          for (const projection of inlineProjections) {
+            await registerProjection(context.execute, {
+              partition: defaultTag,
+              status: 'active',
+              registration: {
+                type: 'inline',
+                projection,
+              },
+            });
+          }
+          if (options.hooks?.onAfterSchemaCreated) {
+            await options.hooks.onAfterSchemaCreated(context);
+          }
+        },
       });
     }
     return migrateSchema;
@@ -230,6 +257,29 @@ export const getPostgreSQLEventStore = (
       sql: () => schemaSQL.join(''),
       print: () => console.log(schemaSQL.join('')),
       migrate,
+      dangerous: {
+        truncate: (truncateOptions?: {
+          resetSequences?: boolean;
+          truncateProjections?: boolean;
+        }): Promise<void> =>
+          pool.withTransaction(async (transaction) => {
+            await ensureSchemaExists();
+            await truncateTables(transaction.execute, truncateOptions);
+
+            if (truncateOptions?.truncateProjections) {
+              const projectionContext =
+                await transactionToPostgreSQLProjectionHandlerContext(
+                  connectionString,
+                  pool,
+                  transaction,
+                );
+              for (const projection of options?.projections ?? []) {
+                if (projection.projection.truncate)
+                  await projection.projection.truncate(projectionContext);
+              }
+            }
+          }),
+      },
     },
     async aggregateStream<State, EventType extends Event>(
       streamName: string,
@@ -284,8 +334,7 @@ export const getPostgreSQLEventStore = (
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
 
-      const streamType =
-        firstPart && rest.length > 0 ? firstPart : 'emt:unknown';
+      const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
 
       const appendResult = await appendToStream(
         pool,

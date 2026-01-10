@@ -32,6 +32,8 @@ export interface ProjectionDefinition<
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > {
   name?: string;
+  version?: number;
+  kind?: string;
   canHandle: CanHandle<EventType>;
   handle: ProjectionHandler<
     EventType,

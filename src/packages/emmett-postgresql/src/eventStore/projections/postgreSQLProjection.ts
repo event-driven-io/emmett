@@ -1,4 +1,5 @@
 import {
+  type DatabaseTransaction,
   type Dumbo,
   type NodePostgresClient,
   type NodePostgresTransaction,
@@ -14,6 +15,8 @@ import {
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
+import { defaultTag } from '../schema/typing';
+import { tryAcquireProjectionLock } from './locks';
 
 export type PostgreSQLProjectionHandlerContext = {
   execute: SQLExecutor;
@@ -24,6 +27,22 @@ export type PostgreSQLProjectionHandlerContext = {
     pool: Dumbo;
   };
 };
+
+export const transactionToPostgreSQLProjectionHandlerContext = async (
+  connectionString: string,
+  pool: Dumbo,
+  transaction:
+    | NodePostgresTransaction
+    | DatabaseTransaction<'PostgreSQL:pg', unknown>,
+): Promise<PostgreSQLProjectionHandlerContext> => ({
+  execute: transaction.execute,
+  connection: {
+    connectionString: connectionString,
+    client: (await transaction.connection.open()) as NodePostgresClient,
+    transaction,
+    pool,
+  },
+});
 
 export type PostgreSQLProjectionHandler<
   EventType extends Event = Event,
@@ -72,6 +91,18 @@ export const handleProjections = async <EventType extends Event = Event>(
   const client = (await transaction.connection.open()) as NodePostgresClient;
 
   for (const projection of projections) {
+    if (projection.name) {
+      const lockAcquired = await tryAcquireProjectionLock(transaction.execute, {
+        projectionName: projection.name,
+        partition: defaultTag,
+        version: projection.version ?? 1,
+      });
+
+      if (!lockAcquired) {
+        continue;
+      }
+    }
+
     await projection.handle(events, {
       connection: {
         connectionString,
@@ -94,6 +125,8 @@ export const postgreSQLProjection = <EventType extends Event>(
   >(definition);
 
 export type PostgreSQLRawBatchSQLProjection<EventType extends Event> = {
+  name: string;
+  kind?: string;
   evolve: (
     events: EventType[],
     context: PostgreSQLProjectionHandlerContext,
@@ -107,6 +140,8 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
   options: PostgreSQLRawBatchSQLProjection<EventType>,
 ): PostgreSQLProjectionDefinition<EventType> =>
   postgreSQLProjection<EventType>({
+    name: options.name,
+    kind: options.kind ?? 'emt:projections:postgresql:raw_sql:batch',
     canHandle: options.canHandle,
     handle: async (events, context) => {
       const sqls: SQL[] = await options.evolve(events, context);
@@ -128,6 +163,8 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
   });
 
 export type PostgreSQLRawSQLProjection<EventType extends Event> = {
+  name: string;
+  kind?: string;
   evolve: (
     events: EventType,
     context: PostgreSQLProjectionHandlerContext,
@@ -140,8 +177,9 @@ export type PostgreSQLRawSQLProjection<EventType extends Event> = {
 export const postgreSQLRawSQLProjection = <EventType extends Event>(
   options: PostgreSQLRawSQLProjection<EventType>,
 ): PostgreSQLProjectionDefinition<EventType> => {
-  const { evolve, ...rest } = options;
+  const { evolve, kind, ...rest } = options;
   return postgreSQLRawBatchSQLProjection<EventType>({
+    kind: kind ?? 'emt:projections:postgresql:raw:_sql:single',
     ...rest,
     evolve: async (events, context) => {
       const sqls: SQL[] = [];

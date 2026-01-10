@@ -1,7 +1,7 @@
 import { bigInt } from '@event-driven-io/emmett';
 import { isSQLiteError, type SQLiteConnection } from '../../connection';
 import { sql } from './tables';
-import { defaultTag, processorsTable } from './typing';
+import { defaultTag, processorsTable, unknownTag } from './typing';
 import { singleOrNull } from './utils';
 
 // for more infos see the postgresql stored procedure version
@@ -14,7 +14,7 @@ async function storeSubscriptionCheckpointSQLite(
   partition: string,
   processorInstanceId?: string,
 ): Promise<0 | 1 | 2> {
-  processorInstanceId ??= 'emt:unknown';
+  processorInstanceId ??= unknownTag;
   if (checkPosition !== null) {
     const updateResult = await db.command(
       sql(`

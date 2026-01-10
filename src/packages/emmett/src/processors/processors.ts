@@ -1,3 +1,4 @@
+import { v7 as uuid } from 'uuid';
 import type { EmmettError } from '../errors';
 import type { ProjectionDefinition } from '../projections';
 import {
@@ -99,6 +100,7 @@ export type MessageProcessor<
     GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = {
   id: string;
+  instanceId: string;
   type: string;
   start: (
     options: Partial<HandlerContext>,
@@ -160,6 +162,7 @@ export type BaseMessageProcessorOptions<
 > = {
   type?: string;
   processorId: string;
+  processorInstanceId?: string;
   version?: number;
   partition?: string;
   startFrom?: MessageProcessorStartFrom<CheckpointType>;
@@ -336,7 +339,9 @@ export const reactor = <
   let lastCheckpoint: CheckpointType | null = null;
 
   return {
+    // TODO: Consider whether not make it optional or add URN prefix
     id: options.processorId,
+    instanceId: options.processorInstanceId ?? `${processorId}:${uuid()}`,
     type: options.type ?? MessageProcessorType.REACTOR,
     close: () =>
       options.hooks?.onClose ? options.hooks?.onClose() : Promise.resolve(),
@@ -465,7 +470,8 @@ export const projector = <
   return reactor<EventType, EventMetaDataType, HandlerContext, CheckpointType>({
     ...rest,
     type: MessageProcessorType.PROJECTOR,
-    processorId: options.processorId ?? `projection:${projection.name}`,
+    processorId:
+      options.processorId ?? `emt:processor:projector:${projection.name}`,
     hooks: {
       onStart:
         (options.truncateOnStart && options.projection.truncate) ||
