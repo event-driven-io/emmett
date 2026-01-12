@@ -223,6 +223,26 @@ export const getEventStoreDBEventStore = (
         client: eventStore,
       }),
 
+    streamExists: async (streamName: string): Promise<boolean> => {
+      try {
+        for await (const resolvedEvent of eventStore.readStream(streamName)) {
+          const { event } = resolvedEvent;
+
+          if (!event) continue;
+
+          return true;
+        }
+
+        return false;
+      } catch (error) {
+        if (error instanceof StreamNotFoundError) {
+          return false;
+        }
+
+        throw error;
+      }
+    },
+
     //streamEvents: streamEvents(eventStore),
   };
 };
