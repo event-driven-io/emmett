@@ -23,6 +23,7 @@ import {
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
+  type StreamExistsResult,
 } from '@event-driven-io/emmett';
 import pg from 'pg';
 import {
@@ -39,6 +40,7 @@ import {
   createEventStoreSchema,
   readStream,
   schemaSQL,
+  streamExists,
   type AppendToStreamBeforeCommitHook,
 } from './schema';
 
@@ -55,6 +57,7 @@ export interface PostgresEventStore
     options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
   ): PostgreSQLEventStoreConsumer<ConsumerEventType>;
   close(): Promise<void>;
+  streamExists(streamName: string): Promise<boolean>;
   schema: {
     sql(): string;
     print(): void;
@@ -314,6 +317,12 @@ export const getPostgreSQLEventStore = (
           appendResult.nextStreamPosition >= BigInt(events.length),
       };
     },
+
+    streamExists: async (streamName: string): Promise<StreamExistsResult> => {
+      await ensureSchemaExists();
+      return streamExists(pool.execute, streamName);
+    },
+
     consumer: <ConsumerEventType extends Event = Event>(
       options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
     ): PostgreSQLEventStoreConsumer<ConsumerEventType> =>
@@ -322,6 +331,7 @@ export const getPostgreSQLEventStore = (
         pool,
         connectionString,
       }),
+
     close: () => pool.close(),
 
     async withSession<T = unknown>(

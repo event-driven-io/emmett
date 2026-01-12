@@ -31,6 +31,7 @@ export * from './readMessagesBatch';
 export * from './readProcessorCheckpoint';
 export * from './readStream';
 export * from './storeProcessorCheckpoint';
+export * from './streamExists';
 export * from './tables';
 export * from './typing';
 
