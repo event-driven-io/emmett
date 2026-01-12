@@ -125,9 +125,7 @@ export const InMemoryProjectionSpec = {
                 });
               },
               streamExists: async () => {
-                return Promise.resolve({
-                  streamExists: false,
-                });
+                return Promise.resolve(false);
               },
             } as InMemoryEventStore;
 
