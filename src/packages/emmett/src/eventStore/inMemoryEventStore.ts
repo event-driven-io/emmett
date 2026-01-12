@@ -21,6 +21,7 @@ import {
   type EventStore,
   type ReadStreamOptions,
   type ReadStreamResult,
+  type StreamExistsResult,
 } from './eventStore';
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
 import { handleInMemoryProjections } from './projections/inMemory';
@@ -219,6 +220,12 @@ export const getInMemoryEventStore = (
       );
 
       return result;
+    },
+
+    streamExists: (streamName): Promise<StreamExistsResult> => {
+      const events = streams.get(streamName);
+
+      return Promise.resolve(events !== undefined && events.length > 0);
     },
   };
 

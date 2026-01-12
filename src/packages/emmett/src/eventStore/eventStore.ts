@@ -48,6 +48,8 @@ export interface EventStore<
     >
   >;
 
+  streamExists(streamName: string): Promise<boolean>;
+
   // streamEvents(): ReadableStream<
   //   ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent
   // >;
@@ -204,6 +206,12 @@ export type AppendStreamResultOfEventStore<Store extends EventStore> =
   Store['appendToStream'] extends (...args: any[]) => Promise<infer R>
     ? R
     : never;
+
+////////////////////////////////////////////////////////////////////
+/// StreamExists types
+////////////////////////////////////////////////////////////////////
+
+export type StreamExistsResult = boolean;
 
 ////////////////////////////////////////////////////////////////////
 /// DefaultEventStoreOptions
