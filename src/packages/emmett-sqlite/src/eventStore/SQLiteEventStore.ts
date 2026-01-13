@@ -33,6 +33,7 @@ import {
 import { createEventStoreSchema, schemaSQL } from './schema';
 import { appendToStream } from './schema/appendToStream';
 import { readStream } from './schema/readStream';
+import { streamExists } from './schema/streamExists';
 
 export type EventHandler<E extends Event = Event> = (
   eventEnvelope: ReadEvent<E>,
@@ -246,6 +247,13 @@ export const getSQLiteEventStore = (
           appendResult.nextStreamPosition >= BigInt(events.length),
       };
     },
+
+    streamExists(streamName: string) {
+      return withConnection((connection) =>
+        streamExists(connection, streamName),
+      );
+    },
+
     consumer: <ConsumerEventType extends Event = Event>(
       options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
     ): SQLiteEventStoreConsumer<ConsumerEventType> =>
@@ -254,6 +262,7 @@ export const getSQLiteEventStore = (
         fileName,
         pool,
       }),
+
     schema: {
       sql: () => schemaSQL.join(''),
       print: () => console.log(schemaSQL.join('')),
