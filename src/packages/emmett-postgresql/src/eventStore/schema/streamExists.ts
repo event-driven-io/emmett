@@ -18,5 +18,5 @@ export const streamExists = async (
     ),
   );
 
-  return queryResult.rows[0]?.exists || false;
+  return queryResult.rows[0]?.exists ?? false;
 };
