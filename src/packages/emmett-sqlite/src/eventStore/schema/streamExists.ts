@@ -1,6 +1,6 @@
 import type { StreamExistsResult } from '@event-driven-io/emmett/src';
 import type { SQLiteConnection } from '../../connection';
-import { messagesTable } from './typing';
+import { streamsTable } from './typing';
 
 type StreamExistsSqlResult = { exists: boolean };
 
@@ -11,7 +11,7 @@ export const streamExists = async (
   const queryResult = await db.query<StreamExistsSqlResult>(
     `SELECT EXISTS (
         SELECT 1
-        from ${messagesTable.name}
+        from ${streamsTable.name}
         WHERE stream_id = %L AND is_archived = FALSE)
       `,
     [streamId],

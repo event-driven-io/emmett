@@ -1,5 +1,5 @@
 import { sql, type SQLExecutor } from '@event-driven-io/dumbo';
-import { messagesTable } from './typing';
+import { streamsTable } from './typing';
 
 type StreamExistsSqlResult = { exists: boolean };
 
@@ -11,7 +11,7 @@ export const streamExists = async (
     sql(
       `SELECT EXISTS (
         SELECT 1
-        from ${messagesTable.name}
+        from ${streamsTable.name}
         WHERE stream_id = %L AND is_archived = FALSE)
       `,
       streamId,
