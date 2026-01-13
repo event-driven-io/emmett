@@ -7,6 +7,7 @@ import {
 } from '@event-driven-io/dumbo';
 import {
   assertDeepEqual,
+  asyncAwaiter,
   projections,
   type ReadEvent,
 } from '@event-driven-io/emmett';
@@ -24,7 +25,7 @@ import {
 import { postgreSQLRawSQLProjection } from '../projections';
 import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
 
-const withDeadline = { timeout: 300000 };
+const withDeadline = { timeout: 10000 };
 
 void describe('PostgreSQL projection rebuild with advisory locking', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -196,6 +197,189 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
           );
         } finally {
           await consumer2.close();
+        }
+      },
+    );
+  });
+
+  void describe('Inline projection and rebuild coordination', () => {
+    void it(
+      'inline projections skip when rebuild holds exclusive lock',
+      withDeadline,
+      async () => {
+        const testProjectionName = 'inline-skip-test';
+        const tableName = 'inline_skip_test_events';
+
+        const reachedMidpoint = asyncAwaiter();
+        const rebuildIsWaiting = asyncAwaiter();
+        const continueProcessing = asyncAwaiter();
+        let shouldWait = false;
+
+        const { projection, rowCount, reset } = createRebuildTestProjection(
+          testProjectionName,
+          tableName,
+          {
+            onEvolve: async (count) => {
+              console.log(
+                `[onEvolve] Processing event ${count}, shouldWait: ${shouldWait}`,
+              );
+              if (count === 1) {
+                console.log(`[onEvolve] Resolving reachedMidpoint`);
+                reachedMidpoint.resolve();
+              }
+              if (count > 1 && shouldWait) {
+                console.log(
+                  `[onEvolve] About to wait, signaling rebuildIsWaiting`,
+                );
+                rebuildIsWaiting.resolve();
+                console.log(`[onEvolve] Waiting for continueProcessing`);
+                await continueProcessing.wait;
+                console.log(`[onEvolve] Continuing after wait`);
+              }
+            },
+          },
+        );
+
+        const inlineEventStore = getPostgreSQLEventStore(connectionString, {
+          projections: projections.inline([projection]),
+        });
+
+        try {
+          console.log('[Test] Appending events to streamA');
+          const streamA = `stream-a-${uuid()}`;
+          const eventsA: ProductItemAdded[] = [
+            {
+              type: 'ProductItemAdded',
+              data: {
+                productItem: { productId: uuid(), quantity: 1, price: 10 },
+              },
+            },
+            {
+              type: 'ProductItemAdded',
+              data: {
+                productItem: { productId: uuid(), quantity: 2, price: 20 },
+              },
+            },
+          ];
+
+          await inlineEventStore.appendToStream(streamA, eventsA);
+          console.log(
+            '[Test] StreamA appended, row count:',
+            await rowCount(pool),
+          );
+
+          assertDeepEqual(await rowCount(pool), 2);
+
+          console.log(
+            '[Test] Appending 2 more events to streamA for rebuild to process',
+          );
+          const moreEventsA: ProductItemAdded[] = [
+            {
+              type: 'ProductItemAdded',
+              data: {
+                productItem: { productId: uuid(), quantity: 5, price: 50 },
+              },
+            },
+            {
+              type: 'ProductItemAdded',
+              data: {
+                productItem: { productId: uuid(), quantity: 6, price: 60 },
+              },
+            },
+          ];
+          await inlineEventStore.appendToStream(streamA, moreEventsA);
+          console.log(
+            '[Test] More events appended, row count:',
+            await rowCount(pool),
+          );
+
+          console.log('[Test] Truncating projection table for rebuild');
+          await pool.execute.command(sql(`TRUNCATE TABLE ${tableName}`));
+
+          console.log('[Test] Resetting processed counter');
+          reset();
+
+          console.log('[Test] Enabling wait flag for rebuild');
+          shouldWait = true;
+
+          console.log('[Test] Starting rebuild consumer');
+          const consumer = rebuildPostgreSQLProjections({
+            connectionString,
+            projection,
+            pulling: { batchSize: 1 },
+          });
+
+          const rebuildPromise = consumer.start();
+
+          console.log('[Test] Waiting for reachedMidpoint');
+          await reachedMidpoint.wait;
+          console.log('[Test] Reached midpoint!');
+
+          console.log('[Test] Waiting for rebuild to be in waiting state');
+          await rebuildIsWaiting.wait;
+          console.log('[Test] Rebuild is now waiting!');
+
+          const statusDuringRebuild = await single<{ status: string }>(
+            pool.execute.query(
+              sql(
+                `SELECT status FROM emt_projections WHERE name = %L`,
+                testProjectionName,
+              ),
+            ),
+          );
+
+          console.log(
+            '[Test] Status during rebuild:',
+            statusDuringRebuild.status,
+          );
+          assertDeepEqual(statusDuringRebuild.status, 'rebuilding');
+
+          console.log('[Test] Appending events to streamB');
+          const streamB = `stream-b-${uuid()}`;
+          const eventsB: ProductItemAdded[] = [
+            {
+              type: 'ProductItemAdded',
+              data: {
+                productItem: { productId: uuid(), quantity: 3, price: 30 },
+              },
+            },
+            {
+              type: 'ProductItemAdded',
+              data: {
+                productItem: { productId: uuid(), quantity: 4, price: 40 },
+              },
+            },
+          ];
+
+          await inlineEventStore.appendToStream(streamB, eventsB);
+          console.log('[Test] StreamB appended');
+
+          console.log('[Test] Row count after streamB:', await rowCount(pool));
+          assertDeepEqual(await rowCount(pool), 2);
+
+          console.log('[Test] Resolving continueProcessing');
+          continueProcessing.resolve();
+
+          console.log('[Test] Waiting for rebuild to complete');
+          await rebuildPromise;
+          console.log('[Test] Rebuild completed');
+
+          await consumer.close();
+          console.log('[Test] Consumer closed');
+
+          const statusAfterRebuild = await single<{ status: string }>(
+            pool.execute.query(
+              sql(
+                `SELECT status FROM emt_projections WHERE name = %L`,
+                testProjectionName,
+              ),
+            ),
+          );
+
+          assertDeepEqual(statusAfterRebuild.status, 'active');
+          assertDeepEqual(await rowCount(pool), 4);
+        } finally {
+          await inlineEventStore.close();
         }
       },
     );
