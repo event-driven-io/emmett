@@ -17,6 +17,7 @@ import {
   type ReadStreamOptions,
   type ReadStreamResult,
   type RecordedMessage,
+  type StreamExistsResult,
 } from '@event-driven-io/emmett';
 import {
   ANY,
@@ -223,7 +224,7 @@ export const getEventStoreDBEventStore = (
         client: eventStore,
       }),
 
-    streamExists: async (streamName: string): Promise<boolean> => {
+    streamExists: async (streamName: string): Promise<StreamExistsResult> => {
       try {
         for await (const resolvedEvent of eventStore.readStream(streamName)) {
           const { event } = resolvedEvent;

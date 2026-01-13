@@ -1,4 +1,5 @@
 import { sql, type SQLExecutor } from '@event-driven-io/dumbo';
+import type { StreamExistsResult } from '@event-driven-io/emmett/src';
 import { streamsTable } from './typing';
 
 type StreamExistsSqlResult = { exists: boolean };
@@ -6,7 +7,7 @@ type StreamExistsSqlResult = { exists: boolean };
 export const streamExists = async (
   execute: SQLExecutor,
   streamId: string,
-): Promise<boolean> => {
+): Promise<StreamExistsResult> => {
   const queryResult = await execute.query<StreamExistsSqlResult>(
     sql(
       `SELECT EXISTS (
