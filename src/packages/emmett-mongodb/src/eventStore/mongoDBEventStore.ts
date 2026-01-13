@@ -16,6 +16,7 @@ import {
   type ReadEventMetadataWithoutGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
+  type StreamExistsResult,
 } from '@event-driven-io/emmett';
 import {
   MongoClient,
@@ -409,7 +410,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     };
   }
 
-  async streamExists(streamName: StreamName): Promise<boolean> {
+  async streamExists(streamName: StreamName): Promise<StreamExistsResult> {
     const { streamType } = fromStreamName(streamName);
 
     const collection = await this.storage.collectionFor(streamType);

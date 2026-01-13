@@ -57,7 +57,6 @@ export interface PostgresEventStore
     options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
   ): PostgreSQLEventStoreConsumer<ConsumerEventType>;
   close(): Promise<void>;
-  streamExists(streamName: string): Promise<boolean>;
   schema: {
     sql(): string;
     print(): void;

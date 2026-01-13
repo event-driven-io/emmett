@@ -15,6 +15,7 @@ import {
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
+  type StreamExistsResult,
 } from '@event-driven-io/emmett';
 import { InMemorySQLiteDatabase, type SQLiteConnection } from '../connection';
 import {
@@ -248,7 +249,7 @@ export const getSQLiteEventStore = (
       };
     },
 
-    streamExists(streamName: string) {
+    streamExists(streamName: string): Promise<StreamExistsResult> {
       return withConnection((connection) =>
         streamExists(connection, streamName),
       );

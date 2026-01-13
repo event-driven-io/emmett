@@ -48,7 +48,7 @@ export interface EventStore<
     >
   >;
 
-  streamExists(streamName: string): Promise<boolean>;
+  streamExists(streamName: string): Promise<StreamExistsResult>;
 
   // streamEvents(): ReadableStream<
   //   ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent
