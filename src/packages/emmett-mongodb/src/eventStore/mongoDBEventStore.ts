@@ -409,6 +409,23 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     };
   }
 
+  async streamExists(streamName: StreamName): Promise<boolean> {
+    const { streamType } = fromStreamName(streamName);
+
+    const collection = await this.storage.collectionFor(streamType);
+
+    const filter = {
+      streamName: { $eq: streamName },
+    };
+
+    const count = await collection.countDocuments(filter, {
+      useBigInt64: true,
+      limit: 1,
+    });
+
+    return Boolean(count > 0);
+  }
+
   collectionFor = async <EventType extends Event>(
     streamType: StreamType,
   ): Promise<Collection<EventStream<EventType>>> => {
