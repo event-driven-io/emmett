@@ -20,6 +20,7 @@ import { v4 as uuid } from 'uuid';
 import {
   testAggregateStream,
   testCommandHandling,
+  testStreamExists,
   type EventStoreFactory,
 } from '../features';
 import {
@@ -65,6 +66,8 @@ void describe('EventStoreDBEventStore', async () => {
   await testCommandHandling(eventStoreFactory, {
     getInitialIndex: () => 1n,
   });
+
+  await testStreamExists(eventStoreFactory);
 
   void it('should append events correctly using appendEvent function', async () => {
     const productItem: PricedProductItem = {

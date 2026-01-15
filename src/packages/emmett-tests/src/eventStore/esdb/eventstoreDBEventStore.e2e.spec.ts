@@ -6,7 +6,11 @@ import {
   StartedEventStoreDBContainer,
 } from '@event-driven-io/emmett-testcontainers';
 import { describe } from 'node:test';
-import { testAggregateStream, type EventStoreFactory } from '../features';
+import {
+  testAggregateStream,
+  testStreamExists,
+  type EventStoreFactory,
+} from '../features';
 
 // const { stopOn } = streamTransformations;
 
@@ -28,6 +32,8 @@ void describe('EventStoreDBEventStore', async () => {
     teardownHook,
     getInitialIndex: () => 0n,
   });
+
+  await testStreamExists(eventStoreFactory, { teardownHook });
 
   // void it.skip('Successful subscription and processing of events', async () => {
   //   const eventStore = await eventStoreFactory();
