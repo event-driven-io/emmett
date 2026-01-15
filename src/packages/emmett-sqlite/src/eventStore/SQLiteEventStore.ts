@@ -34,7 +34,10 @@ import {
 import { createEventStoreSchema, schemaSQL } from './schema';
 import { appendToStream } from './schema/appendToStream';
 import { readStream } from './schema/readStream';
-import { streamExists } from './schema/streamExists';
+import {
+  streamExists,
+  type SQLiteStreamExistsOptions,
+} from './schema/streamExists';
 
 export type EventHandler<E extends Event = Event> = (
   eventEnvelope: ReadEvent<E>,
@@ -51,6 +54,10 @@ export interface SQLiteEventStore extends EventStore<SQLiteReadEventMetadata> {
   consumer<ConsumerEventType extends Event = Event>(
     options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
   ): SQLiteEventStoreConsumer<ConsumerEventType>;
+  streamExists(
+    streamName: string,
+    options?: SQLiteStreamExistsOptions,
+  ): Promise<StreamExistsResult>;
   schema: {
     sql(): string;
     print(): void;
@@ -249,9 +256,12 @@ export const getSQLiteEventStore = (
       };
     },
 
-    streamExists(streamName: string): Promise<StreamExistsResult> {
+    streamExists(
+      streamName: string,
+      options?: SQLiteStreamExistsOptions,
+    ): Promise<StreamExistsResult> {
       return withConnection((connection) =>
-        streamExists(connection, streamName),
+        streamExists(connection, streamName, options),
       );
     },
 
