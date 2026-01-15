@@ -1,6 +1,7 @@
 import {
   assertDeepEqual,
   assertEqual,
+  assertFalse,
   assertOk,
   assertThrowsAsync,
   assertTrue,
@@ -188,6 +189,97 @@ export async function testCommandHandling(
       assertTrue(isExpectedVersionConflictError(error));
 
       assertEqual(1, tried);
+    });
+  });
+}
+
+export async function testStreamExists(
+  eventStoreFactory: EventStoreFactory,
+  options?: { teardownHook?: () => Promise<void> },
+) {
+  let eventStore: EventStore;
+
+  before(async () => {
+    eventStore = await eventStoreFactory();
+  });
+
+  after(async () => {
+    const teardownHook = options?.teardownHook;
+    if (teardownHook) await teardownHook();
+  });
+
+  return describe('streamExists', async () => {
+    await it('Returns true when stream exists and is the only stream', async () => {
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 10,
+        price: 3,
+      };
+
+      const shoppingCartId = randomUUID();
+
+      await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+        { type: 'ProductItemAdded', data: { productItem } },
+      ]);
+
+      assertTrue(await eventStore.streamExists(shoppingCartId));
+    });
+
+    await it('Returns false when does not stream exist and there are no other streams', async () => {
+      const shoppingCartId = randomUUID();
+
+      assertFalse(await eventStore.streamExists(shoppingCartId));
+    });
+
+    await it('Returns true when stream exists and there are other streams', async () => {
+      const productItemA: PricedProductItem = {
+        productId: '123',
+        quantity: 10,
+        price: 3,
+      };
+      const productItemB: PricedProductItem = {
+        productId: '321',
+        quantity: 20,
+        price: 6,
+      };
+
+      const shoppingCartIdA = randomUUID();
+      const shoppingCartIdB = randomUUID();
+
+      await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartIdA, [
+        { type: 'ProductItemAdded', data: { productItem: productItemA } },
+      ]);
+      await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartIdB, [
+        { type: 'ProductItemAdded', data: { productItem: productItemB } },
+      ]);
+
+      assertTrue(await eventStore.streamExists(shoppingCartIdA));
+      assertTrue(await eventStore.streamExists(shoppingCartIdB));
+    });
+
+    await it('Returns false when stream does not exist but there are other streams', async () => {
+      const existingProductItem: PricedProductItem = {
+        productId: '123',
+        quantity: 10,
+        price: 3,
+      };
+
+      const existingShoppingCartId = randomUUID();
+
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        existingShoppingCartId,
+        [
+          {
+            type: 'ProductItemAdded',
+            data: { productItem: existingProductItem },
+          },
+        ],
+      );
+
+      const nonExistingShoppingCartId = randomUUID();
+
+      assertFalse(await eventStore.streamExists(nonExistingShoppingCartId));
+      assertTrue(await eventStore.streamExists(existingShoppingCartId));
     });
   });
 }
