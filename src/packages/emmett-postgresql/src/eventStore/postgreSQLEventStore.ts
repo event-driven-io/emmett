@@ -42,6 +42,7 @@ import {
   schemaSQL,
   streamExists,
   type AppendToStreamBeforeCommitHook,
+  type PostgresStreamExistsOptions,
 } from './schema';
 
 export interface PostgresEventStore
@@ -57,6 +58,10 @@ export interface PostgresEventStore
     options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
   ): PostgreSQLEventStoreConsumer<ConsumerEventType>;
   close(): Promise<void>;
+  streamExists(
+    streamName: string,
+    options?: PostgresStreamExistsOptions,
+  ): Promise<StreamExistsResult>;
   schema: {
     sql(): string;
     print(): void;
@@ -317,9 +322,12 @@ export const getPostgreSQLEventStore = (
       };
     },
 
-    streamExists: async (streamName: string): Promise<StreamExistsResult> => {
+    streamExists: async (
+      streamName: string,
+      options?: PostgresStreamExistsOptions,
+    ): Promise<StreamExistsResult> => {
       await ensureSchemaExists();
-      return streamExists(pool.execute, streamName);
+      return streamExists(pool.execute, streamName, options);
     },
 
     consumer: <ConsumerEventType extends Event = Event>(
