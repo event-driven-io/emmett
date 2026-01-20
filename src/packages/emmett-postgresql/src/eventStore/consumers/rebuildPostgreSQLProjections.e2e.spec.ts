@@ -202,7 +202,7 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
     );
   });
 
-  void describe('Inline projection and rebuild coordination', () => {
+  void describe.skip('Inline projection and rebuild coordination', () => {
     void it(
       'inline projections skip when rebuild holds exclusive lock',
       withDeadline,

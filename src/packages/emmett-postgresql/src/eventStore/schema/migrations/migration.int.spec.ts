@@ -1,4 +1,10 @@
-import { dumbo, rawSql, sql, type Dumbo } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  functionExists,
+  rawSql,
+  sql,
+  type Dumbo,
+} from '@event-driven-io/dumbo';
 import {
   assertDeepEqual,
   assertFalse,
@@ -11,7 +17,7 @@ import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -51,9 +57,16 @@ void describe('Schema migrations tests', () => {
   let eventStore: PostgresEventStore;
   let connectionString: string;
 
-  beforeEach(async () => {
+  before(async () => {
     postgres = await new PostgreSqlContainer().start();
     connectionString = postgres.getConnectionUri();
+
+    await postgres.snapshot();
+  });
+
+  beforeEach(async () => {
+    await postgres.restoreSnapshot();
+
     pool = dumbo({
       connectionString,
     });
@@ -69,12 +82,426 @@ void describe('Schema migrations tests', () => {
     try {
       await eventStore.close();
       await pool.close();
+    } catch (error) {
+      console.log(error);
+    }
+  });
+
+  after(async () => {
+    try {
       await postgres.stop();
     } catch (error) {
       console.log(error);
     }
   });
 
+  void it('migrates from 0.36.0 schema', async () => {
+    // Given
+    await pool.execute.command(schema_0_36_0);
+
+    // When
+    await eventStore.schema.migrate();
+
+    // Then
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result);
+  });
+
+  void it('migrates from 0.38.7 schema', async () => {
+    // Given
+    await pool.execute.command(schema_0_38_7);
+
+    // When
+    await eventStore.schema.migrate();
+
+    // Then
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result);
+
+    // Then
+    assertTrue(await functionExists(pool, 'emt_try_acquire_processor_lock'));
+    assertTrue(await functionExists(pool, 'emt_release_processor_lock'));
+    assertTrue(await functionExists(pool, 'emt_register_projection'));
+    assertTrue(await functionExists(pool, 'emt_activate_projection'));
+    assertTrue(await functionExists(pool, 'emt_deactivate_projection'));
+
+    // Verify columns exist on emt_processors
+    const processorsCreatedAtResult = await pool.execute.query<{
+      column_name: string;
+    }>(
+      sql(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'created_at'`,
+      ),
+    );
+    assertDeepEqual(processorsCreatedAtResult.rows.length, 1);
+
+    const processorsLastUpdatedResult = await pool.execute.query<{
+      column_name: string;
+    }>(
+      sql(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'last_updated'`,
+      ),
+    );
+    assertDeepEqual(processorsLastUpdatedResult.rows.length, 1);
+
+    // Verify columns exist on emt_projections
+    const projectionsCreatedAtResult = await pool.execute.query<{
+      column_name: string;
+    }>(
+      sql(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'created_at'`,
+      ),
+    );
+    assertDeepEqual(projectionsCreatedAtResult.rows.length, 1);
+
+    const projectionsLastUpdatedResult = await pool.execute.query<{
+      column_name: string;
+    }>(
+      sql(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'last_updated'`,
+      ),
+    );
+    assertDeepEqual(projectionsLastUpdatedResult.rows.length, 1);
+  });
+
+  void it('migrates from 0.38.7 schema with subscription cleanup', async () => {
+    // Given
+    await pool.execute.command(schema_0_38_7);
+    await eventStore.schema.migrate();
+
+    // When
+    await cleanupLegacySubscriptionTables(connectionString);
+
+    // Then
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result);
+  });
+
+  void it('migrates from 0.42.0 schema', async () => {
+    // Given
+    await pool.execute.command(schema_0_42_0);
+
+    // When
+    await eventStore.schema.migrate();
+
+    // Then
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result);
+
+    // Verify functions exist
+    const tryAcquireResult = await pool.execute.query<{ proname: string }>(
+      sql(
+        `SELECT proname FROM pg_proc WHERE proname = 'emt_try_acquire_processor_lock'`,
+      ),
+    );
+    assertDeepEqual(tryAcquireResult.rows.length, 1);
+
+    const releaseResult = await pool.execute.query<{ proname: string }>(
+      sql(
+        `SELECT proname FROM pg_proc WHERE proname = 'emt_release_processor_lock'`,
+      ),
+    );
+    assertDeepEqual(releaseResult.rows.length, 1);
+
+    const registerResult = await pool.execute.query<{ proname: string }>(
+      sql(
+        `SELECT proname FROM pg_proc WHERE proname = 'emt_register_projection'`,
+      ),
+    );
+    assertDeepEqual(registerResult.rows.length, 1);
+
+    const activateResult = await pool.execute.query<{ proname: string }>(
+      sql(
+        `SELECT proname FROM pg_proc WHERE proname = 'emt_activate_projection'`,
+      ),
+    );
+    assertDeepEqual(activateResult.rows.length, 1);
+
+    const deactivateResult = await pool.execute.query<{ proname: string }>(
+      sql(
+        `SELECT proname FROM pg_proc WHERE proname = 'emt_deactivate_projection'`,
+      ),
+    );
+    assertDeepEqual(deactivateResult.rows.length, 1);
+
+    // Verify columns exist on emt_processors
+    const processorsCreatedAtResult = await pool.execute.query<{
+      column_name: string;
+    }>(
+      sql(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'created_at'`,
+      ),
+    );
+    assertDeepEqual(processorsCreatedAtResult.rows.length, 1);
+
+    const processorsLastUpdatedResult = await pool.execute.query<{
+      column_name: string;
+    }>(
+      sql(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'last_updated'`,
+      ),
+    );
+    assertDeepEqual(processorsLastUpdatedResult.rows.length, 1);
+
+    // Verify columns exist on emt_projections
+    const projectionsCreatedAtResult = await pool.execute.query<{
+      column_name: string;
+    }>(
+      sql(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'created_at'`,
+      ),
+    );
+    assertDeepEqual(projectionsCreatedAtResult.rows.length, 1);
+
+    const projectionsLastUpdatedResult = await pool.execute.query<{
+      column_name: string;
+    }>(
+      sql(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'last_updated'`,
+      ),
+    );
+    assertDeepEqual(projectionsLastUpdatedResult.rows.length, 1);
+  });
+
+  void it('migrates from latest schema', async () => {
+    // Given
+    const latestSchemaSQL = eventStore.schema.sql();
+    await pool.execute.command(rawSql(latestSchemaSQL));
+
+    // When
+    await eventStore.schema.migrate();
+
+    // Then
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result);
+  });
+
+  void it('migrates pre-existing subscription checkpoint to processor table', async () => {
+    // Given
+    await pool.execute.command(schema_0_38_7);
+    await insertIntoSubscriptionCheckpoint(pool, 'legacy-processor-1', 42n);
+
+    // When
+    await eventStore.schema.migrate();
+
+    // Then
+    await assertDualWriteConsistency(pool, 'legacy-processor-1', 42n);
+  });
+
+  void it('old API insert propagates to new table', async () => {
+    // Given
+    await pool.execute.command(schema_0_38_7);
+    await eventStore.schema.migrate();
+
+    // When
+    await storeSubscriptionCheckpoint(pool, 'dual-write-test-1', 50n, null);
+
+    // Then
+    await assertDualWriteConsistency(pool, 'dual-write-test-1', 50n);
+
+    const checkpoint = await readProcessorCheckpoint(pool.execute, {
+      processorId: 'dual-write-test-1',
+      partition: undefined,
+    });
+
+    assertDeepEqual(checkpoint.lastProcessedCheckpoint, 50n);
+  });
+
+  void it('interleaved operations: old insert -> new read -> new update', async () => {
+    // Given
+    await pool.execute.command(schema_0_38_7);
+    await eventStore.schema.migrate();
+
+    const processorId = 'interleaved-old-new-test';
+
+    // When
+    await storeSubscriptionCheckpoint(pool, processorId, 5n, null);
+
+    const readResult = await readProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+    });
+    assertDeepEqual(readResult.lastProcessedCheckpoint, 5n);
+
+    const updateResult = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: 10n,
+      lastProcessedCheckpoint: 5n,
+      processorInstanceId: processorId,
+    });
+
+    // Then
+    assertTrue(updateResult.success);
+    assertDeepEqual(updateResult.newCheckpoint, 10n);
+    await assertDualWriteConsistency(pool, processorId, 10n);
+
+    const finalRead = await readProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+    });
+    assertDeepEqual(finalRead.lastProcessedCheckpoint, 10n);
+  });
+
+  void it('interleaved operations: new insert -> old query -> old update', async () => {
+    // Given
+    await pool.execute.command(schema_0_38_7);
+    await eventStore.schema.migrate();
+
+    const processorId = 'interleaved-new-old-test';
+
+    // When
+    const insertResult = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: 7n,
+      lastProcessedCheckpoint: null,
+      processorInstanceId: processorId,
+    });
+
+    assertTrue(insertResult.success);
+
+    const subscriptionData = await querySubscriptionCheckpoint(
+      pool,
+      processorId,
+    );
+    assertDeepEqual(subscriptionData.position, 7n);
+
+    await storeSubscriptionCheckpoint(pool, processorId, 14n, 7n);
+
+    // Then
+    await assertDualWriteConsistency(pool, processorId, 14n);
+  });
+
+  void it('concurrent inserts via different APIs handled safely', async () => {
+    // Given
+    await pool.execute.command(schema_0_38_7);
+    await eventStore.schema.migrate();
+
+    const processorId = 'concurrent-insert-test';
+
+    // When
+    await storeSubscriptionCheckpoint(pool, processorId, 15n, null);
+
+    const newApiResult = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: 20n,
+      lastProcessedCheckpoint: null,
+      processorInstanceId: processorId,
+    });
+
+    // Then
+    assertFalse(newApiResult.success);
+    assertTrue(
+      newApiResult.reason === 'IGNORED' || newApiResult.reason === 'MISMATCH',
+    );
+
+    await assertDualWriteConsistency(pool, processorId, 15n);
+  });
+
+  void it('handles maximum safe bigint value', async () => {
+    // Given
+    await pool.execute.command(schema_0_38_7);
+    await eventStore.schema.migrate();
+
+    const processorId = 'max-bigint-test';
+    const maxBigInt = 9223372036854775807n;
+
+    // When
+    const insertResult = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: maxBigInt,
+      lastProcessedCheckpoint: null,
+      processorInstanceId: processorId,
+    });
+
+    // Then
+    assertTrue(insertResult.success);
+    assertDeepEqual(insertResult.newCheckpoint, maxBigInt);
+
+    const processorData = await queryProcessorCheckpoint(pool, processorId);
+    assertDeepEqual(
+      processorData.lastProcessedCheckpoint,
+      '9223372036854775807',
+    );
+    assertDeepEqual(processorData.lastProcessedCheckpoint?.length, 19);
+
+    const readResult = await readProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+    });
+    assertDeepEqual(readResult.lastProcessedCheckpoint, maxBigInt);
+
+    assertDeepEqual(BigInt(processorData.lastProcessedCheckpoint!), maxBigInt);
+  });
+
+  void it('new API works after legacy table cleanup', async () => {
+    // Given
+    await pool.execute.command(schema_0_38_7);
+    await eventStore.schema.migrate();
+
+    const processorId = 'cleanup-test-processor';
+
+    const initialStore = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: 50n,
+      lastProcessedCheckpoint: null,
+      processorInstanceId: processorId,
+    });
+
+    assertTrue(initialStore.success);
+    assertDeepEqual(initialStore.newCheckpoint, 50n);
+
+    // When
+    await cleanupLegacySubscriptionTables(connectionString);
+
+    const tablesResult = await pool.execute.query<{ tablename: string }>(
+      sql(
+        `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = 'emt_subscriptions'`,
+      ),
+    );
+    assertDeepEqual(tablesResult.rows.length, 0);
+
+    const functionsResult = await pool.execute.query<{ proname: string }>(
+      sql(
+        `SELECT proname FROM pg_proc WHERE proname = 'store_subscription_checkpoint'`,
+      ),
+    );
+    assertDeepEqual(functionsResult.rows.length, 0);
+
+    // Then
+    const readResult = await readProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+    });
+    assertDeepEqual(readResult.lastProcessedCheckpoint, 50n);
+
+    const updateResult = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: 60n,
+      lastProcessedCheckpoint: 50n,
+      processorInstanceId: processorId,
+    });
+
+    assertTrue(updateResult.success);
+    assertDeepEqual(updateResult.newCheckpoint, 60n);
+
+    const finalRead = await readProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+    });
+    assertDeepEqual(finalRead.lastProcessedCheckpoint, 60n);
+  });
   const assertCanAppendAndRead = async (eventStore: PostgresEventStore) => {
     const shoppingCartId = 'cart-123';
     const itemAdded: ProductItemAdded = {
@@ -332,293 +759,4 @@ void describe('Schema migrations tests', () => {
       processorData.transactionId,
     );
   };
-
-  void it('migrates from 0.36.0 schema', async () => {
-    // Given
-    await pool.execute.command(schema_0_36_0);
-
-    // When
-    await eventStore.schema.migrate();
-
-    // Then
-    const result = await assertCanAppendAndRead(eventStore);
-    await assertCanStoreAndReadCheckpoints(pool, result);
-  });
-
-  void it('migrates from 0.38.7 schema', async () => {
-    // Given
-    await pool.execute.command(schema_0_38_7);
-
-    // When
-    await eventStore.schema.migrate();
-
-    // Then
-    const result = await assertCanAppendAndRead(eventStore);
-    await assertCanStoreAndReadCheckpoints(pool, result);
-  });
-
-  void it('migrates from 0.38.7 schema with subscription cleanup', async () => {
-    // Given
-    await pool.execute.command(schema_0_38_7);
-    await eventStore.schema.migrate();
-
-    // When
-    await cleanupLegacySubscriptionTables(connectionString);
-
-    // Then
-    const result = await assertCanAppendAndRead(eventStore);
-    await assertCanStoreAndReadCheckpoints(pool, result);
-  });
-
-  void it('migrates from 0.42.0 schema', async () => {
-    // Given
-    await pool.execute.command(schema_0_42_0);
-
-    // When
-    await eventStore.schema.migrate();
-
-    // Then
-    const result = await assertCanAppendAndRead(eventStore);
-    await assertCanStoreAndReadCheckpoints(pool, result);
-  });
-
-  void it('migrates from latest schema', async () => {
-    // Given
-    const latestSchemaSQL = eventStore.schema.sql();
-    await pool.execute.command(rawSql(latestSchemaSQL));
-
-    // When
-    await eventStore.schema.migrate();
-
-    // Then
-    const result = await assertCanAppendAndRead(eventStore);
-    await assertCanStoreAndReadCheckpoints(pool, result);
-  });
-
-  void it('migrates pre-existing subscription checkpoint to processor table', async () => {
-    // Given
-    await pool.execute.command(schema_0_38_7);
-    await insertIntoSubscriptionCheckpoint(pool, 'legacy-processor-1', 42n);
-
-    // When
-    await eventStore.schema.migrate();
-
-    // Then
-    await assertDualWriteConsistency(pool, 'legacy-processor-1', 42n);
-  });
-
-  void it('old API insert propagates to new table', async () => {
-    // Given
-    await pool.execute.command(schema_0_38_7);
-    await eventStore.schema.migrate();
-
-    // When
-    await storeSubscriptionCheckpoint(pool, 'dual-write-test-1', 50n, null);
-
-    // Then
-    await assertDualWriteConsistency(pool, 'dual-write-test-1', 50n);
-
-    const checkpoint = await readProcessorCheckpoint(pool.execute, {
-      processorId: 'dual-write-test-1',
-      partition: undefined,
-    });
-
-    assertDeepEqual(checkpoint.lastProcessedCheckpoint, 50n);
-  });
-
-  void it('interleaved operations: old insert -> new read -> new update', async () => {
-    // Given
-    await pool.execute.command(schema_0_38_7);
-    await eventStore.schema.migrate();
-
-    const processorId = 'interleaved-old-new-test';
-
-    // When
-    await storeSubscriptionCheckpoint(pool, processorId, 5n, null);
-
-    const readResult = await readProcessorCheckpoint(pool.execute, {
-      processorId,
-      partition: undefined,
-    });
-    assertDeepEqual(readResult.lastProcessedCheckpoint, 5n);
-
-    const updateResult = await storeProcessorCheckpoint(pool.execute, {
-      processorId,
-      partition: undefined,
-      version: 1,
-      newCheckpoint: 10n,
-      lastProcessedCheckpoint: 5n,
-      processorInstanceId: processorId,
-    });
-
-    // Then
-    assertTrue(updateResult.success);
-    assertDeepEqual(updateResult.newCheckpoint, 10n);
-    await assertDualWriteConsistency(pool, processorId, 10n);
-
-    const finalRead = await readProcessorCheckpoint(pool.execute, {
-      processorId,
-      partition: undefined,
-    });
-    assertDeepEqual(finalRead.lastProcessedCheckpoint, 10n);
-  });
-
-  void it('interleaved operations: new insert -> old query -> old update', async () => {
-    // Given
-    await pool.execute.command(schema_0_38_7);
-    await eventStore.schema.migrate();
-
-    const processorId = 'interleaved-new-old-test';
-
-    // When
-    const insertResult = await storeProcessorCheckpoint(pool.execute, {
-      processorId,
-      partition: undefined,
-      version: 1,
-      newCheckpoint: 7n,
-      lastProcessedCheckpoint: null,
-      processorInstanceId: processorId,
-    });
-
-    assertTrue(insertResult.success);
-
-    const subscriptionData = await querySubscriptionCheckpoint(
-      pool,
-      processorId,
-    );
-    assertDeepEqual(subscriptionData.position, 7n);
-
-    await storeSubscriptionCheckpoint(pool, processorId, 14n, 7n);
-
-    // Then
-    await assertDualWriteConsistency(pool, processorId, 14n);
-  });
-
-  void it('concurrent inserts via different APIs handled safely', async () => {
-    // Given
-    await pool.execute.command(schema_0_38_7);
-    await eventStore.schema.migrate();
-
-    const processorId = 'concurrent-insert-test';
-
-    // When
-    await storeSubscriptionCheckpoint(pool, processorId, 15n, null);
-
-    const newApiResult = await storeProcessorCheckpoint(pool.execute, {
-      processorId,
-      partition: undefined,
-      version: 1,
-      newCheckpoint: 20n,
-      lastProcessedCheckpoint: null,
-      processorInstanceId: processorId,
-    });
-
-    // Then
-    assertFalse(newApiResult.success);
-    assertTrue(
-      newApiResult.reason === 'IGNORED' || newApiResult.reason === 'MISMATCH',
-    );
-
-    await assertDualWriteConsistency(pool, processorId, 15n);
-  });
-
-  void it('handles maximum safe bigint value', async () => {
-    // Given
-    await pool.execute.command(schema_0_38_7);
-    await eventStore.schema.migrate();
-
-    const processorId = 'max-bigint-test';
-    const maxBigInt = 9223372036854775807n;
-
-    // When
-    const insertResult = await storeProcessorCheckpoint(pool.execute, {
-      processorId,
-      partition: undefined,
-      version: 1,
-      newCheckpoint: maxBigInt,
-      lastProcessedCheckpoint: null,
-      processorInstanceId: processorId,
-    });
-
-    // Then
-    assertTrue(insertResult.success);
-    assertDeepEqual(insertResult.newCheckpoint, maxBigInt);
-
-    const processorData = await queryProcessorCheckpoint(pool, processorId);
-    assertDeepEqual(
-      processorData.lastProcessedCheckpoint,
-      '9223372036854775807',
-    );
-    assertDeepEqual(processorData.lastProcessedCheckpoint?.length, 19);
-
-    const readResult = await readProcessorCheckpoint(pool.execute, {
-      processorId,
-      partition: undefined,
-    });
-    assertDeepEqual(readResult.lastProcessedCheckpoint, maxBigInt);
-
-    assertDeepEqual(BigInt(processorData.lastProcessedCheckpoint!), maxBigInt);
-  });
-
-  void it('new API works after legacy table cleanup', async () => {
-    // Given
-    await pool.execute.command(schema_0_38_7);
-    await eventStore.schema.migrate();
-
-    const processorId = 'cleanup-test-processor';
-
-    const initialStore = await storeProcessorCheckpoint(pool.execute, {
-      processorId,
-      partition: undefined,
-      version: 1,
-      newCheckpoint: 50n,
-      lastProcessedCheckpoint: null,
-      processorInstanceId: processorId,
-    });
-
-    assertTrue(initialStore.success);
-    assertDeepEqual(initialStore.newCheckpoint, 50n);
-
-    // When
-    await cleanupLegacySubscriptionTables(connectionString);
-
-    const tablesResult = await pool.execute.query<{ tablename: string }>(
-      sql(
-        `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = 'emt_subscriptions'`,
-      ),
-    );
-    assertDeepEqual(tablesResult.rows.length, 0);
-
-    const functionsResult = await pool.execute.query<{ proname: string }>(
-      sql(
-        `SELECT proname FROM pg_proc WHERE proname = 'store_subscription_checkpoint'`,
-      ),
-    );
-    assertDeepEqual(functionsResult.rows.length, 0);
-
-    // Then
-    const readResult = await readProcessorCheckpoint(pool.execute, {
-      processorId,
-      partition: undefined,
-    });
-    assertDeepEqual(readResult.lastProcessedCheckpoint, 50n);
-
-    const updateResult = await storeProcessorCheckpoint(pool.execute, {
-      processorId,
-      partition: undefined,
-      version: 1,
-      newCheckpoint: 60n,
-      lastProcessedCheckpoint: 50n,
-      processorInstanceId: processorId,
-    });
-
-    assertTrue(updateResult.success);
-    assertDeepEqual(updateResult.newCheckpoint, 60n);
-
-    const finalRead = await readProcessorCheckpoint(pool.execute, {
-      processorId,
-      partition: undefined,
-    });
-    assertDeepEqual(finalRead.lastProcessedCheckpoint, 60n);
-  });
 });
