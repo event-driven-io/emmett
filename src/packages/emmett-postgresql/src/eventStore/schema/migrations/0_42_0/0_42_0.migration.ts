@@ -254,3 +254,252 @@ export const migration_0_42_0_FromSubscriptionsToProcessors: SQLMigration =
     'emt:postgresql:eventstore:0.42.0:from-subscriptions-to-processors',
     [migration_0_42_0_FromSubscriptionsToProcessorsSQL],
   );
+
+export const migration_0_42_0_2_AddProcessorProjectionFunctionsSQL = rawSql(`
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name = 'emt_processors'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'emt_processors' AND column_name = 'created_at'
+    ) THEN
+        ALTER TABLE emt_processors ADD COLUMN created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name = 'emt_processors'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'emt_processors' AND column_name = 'last_updated'
+    ) THEN
+        ALTER TABLE emt_processors ADD COLUMN last_updated TIMESTAMPTZ NOT NULL DEFAULT now();
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name = 'emt_projections'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'emt_projections' AND column_name = 'created_at'
+    ) THEN
+        ALTER TABLE emt_projections ADD COLUMN created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name = 'emt_projections'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'emt_projections' AND column_name = 'last_updated'
+    ) THEN
+        ALTER TABLE emt_projections ADD COLUMN last_updated TIMESTAMPTZ NOT NULL DEFAULT now();
+    END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION emt_try_acquire_processor_lock(
+    p_lock_key               BIGINT,
+    p_processor_id           TEXT,
+    p_version                INT,
+    p_partition              TEXT       DEFAULT '${defaultTag}',
+    p_processor_instance_id  TEXT       DEFAULT 'emt:unknown',
+    p_projection_name        TEXT       DEFAULT NULL,
+    p_projection_type        VARCHAR(1) DEFAULT NULL,
+    p_projection_kind        TEXT       DEFAULT NULL,
+    p_lock_timeout_seconds   INT        DEFAULT 300
+)
+RETURNS TABLE (acquired BOOLEAN, checkpoint TEXT)
+LANGUAGE plpgsql
+AS $emt_try_acquire_processor_lock$
+BEGIN
+    RETURN QUERY
+    WITH lock_check AS (
+        SELECT pg_try_advisory_lock(p_lock_key) AS lock_acquired
+    ),
+    ownership_check AS (
+        INSERT INTO emt_processors (
+            processor_id,
+            partition,
+            version,
+            processor_instance_id,
+            status,
+            last_processed_checkpoint,
+            last_processed_transaction_id,
+            created_at,
+            last_updated
+        )
+        SELECT p_processor_id, p_partition, p_version, p_processor_instance_id, 'running', '0', '0'::xid8, now(), now()
+        WHERE (SELECT lock_acquired FROM lock_check) = true
+        ON CONFLICT (processor_id, partition, version) DO UPDATE
+        SET processor_instance_id = p_processor_instance_id,
+            status = 'running',
+            last_updated = now()
+        WHERE emt_processors.processor_instance_id = p_processor_instance_id
+           OR emt_processors.processor_instance_id = 'emt:unknown'
+           OR emt_processors.status = 'stopped'
+           OR emt_processors.last_updated < now() - (p_lock_timeout_seconds || ' seconds')::interval
+        RETURNING last_processed_checkpoint
+    ),
+    projection_status AS (
+        INSERT INTO emt_projections (
+            name,
+            partition,
+            version,
+            type,
+            kind,
+            status,
+            definition
+        )
+        SELECT p_projection_name, p_partition, p_version, p_projection_type, p_projection_kind, 'rebuilding', '{}'::jsonb
+        WHERE p_projection_name IS NOT NULL
+          AND (SELECT last_processed_checkpoint FROM ownership_check) IS NOT NULL
+        ON CONFLICT (name, partition, version) DO UPDATE
+        SET status = 'rebuilding'
+        RETURNING name
+    )
+    SELECT
+        (SELECT COUNT(*) > 0 FROM ownership_check),
+        (SELECT oc.last_processed_checkpoint FROM ownership_check oc);
+END;
+$emt_try_acquire_processor_lock$;
+
+CREATE OR REPLACE FUNCTION emt_release_processor_lock(
+    p_lock_key              BIGINT,
+    p_processor_id          TEXT,
+    p_partition             TEXT,
+    p_version               INT,
+    p_processor_instance_id TEXT DEFAULT 'emt:unknown',
+    p_projection_name       TEXT DEFAULT NULL
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $emt_release_processor_lock$
+BEGIN
+    IF p_projection_name IS NOT NULL THEN
+        UPDATE emt_projections
+        SET status = 'active',
+            last_updated = now()
+        WHERE partition = p_partition
+          AND name = p_projection_name
+          AND version = p_version;
+    END IF;
+
+    UPDATE emt_processors
+    SET status = 'stopped',
+        processor_instance_id = 'emt:unknown',
+        last_updated = now()
+    WHERE processor_id = p_processor_id
+      AND partition = p_partition
+      AND version = p_version
+      AND processor_instance_id = p_processor_instance_id;
+
+    RETURN pg_advisory_unlock(p_lock_key);
+END;
+$emt_release_processor_lock$;
+
+CREATE OR REPLACE FUNCTION emt_register_projection(
+    p_lock_key      BIGINT,
+    p_name          TEXT,
+    p_partition     TEXT,
+    p_version       INT,
+    p_type          VARCHAR(1),
+    p_kind          TEXT,
+    p_status        TEXT,
+    p_definition    JSONB
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $emt_register_projection$
+DECLARE
+    v_result BOOLEAN;
+BEGIN
+    WITH lock_check AS (
+        SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
+    ),
+    upsert_result AS (
+        INSERT INTO emt_projections (
+            name, partition, version, type, kind, status, definition, created_at, last_updated
+        )
+        SELECT p_name, p_partition, p_version, p_type, p_kind, p_status, p_definition, now(), now()
+        WHERE (SELECT lock_acquired FROM lock_check) = true
+        ON CONFLICT (name, partition, version) DO UPDATE
+        SET definition = EXCLUDED.definition,
+            last_updated = now()
+        RETURNING name
+    )
+    SELECT COUNT(*) > 0 INTO v_result FROM upsert_result;
+
+    RETURN v_result;
+END;
+$emt_register_projection$;
+
+CREATE OR REPLACE FUNCTION emt_activate_projection(
+    p_lock_key   BIGINT,
+    p_name       TEXT,
+    p_partition  TEXT,
+    p_version    INT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $emt_activate_projection$
+DECLARE
+    v_result BOOLEAN;
+BEGIN
+    WITH lock_check AS (
+        SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
+    ),
+    update_result AS (
+        UPDATE emt_projections
+        SET status = 'active',
+            last_updated = now()
+        WHERE name = p_name
+          AND partition = p_partition
+          AND version = p_version
+          AND (SELECT lock_acquired FROM lock_check) = true
+        RETURNING name
+    )
+    SELECT COUNT(*) > 0 INTO v_result FROM update_result;
+
+    RETURN v_result;
+END;
+$emt_activate_projection$;
+
+CREATE OR REPLACE FUNCTION emt_deactivate_projection(
+    p_lock_key   BIGINT,
+    p_name       TEXT,
+    p_partition  TEXT,
+    p_version    INT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $emt_deactivate_projection$
+DECLARE
+    v_result BOOLEAN;
+BEGIN
+    WITH lock_check AS (
+        SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
+    ),
+    update_result AS (
+        UPDATE emt_projections
+        SET status = 'inactive',
+            last_updated = now()
+        WHERE name = p_name
+          AND partition = p_partition
+          AND version = p_version
+          AND (SELECT lock_acquired FROM lock_check) = true
+        RETURNING name
+    )
+    SELECT COUNT(*) > 0 INTO v_result FROM update_result;
+
+    RETURN v_result;
+END;
+$emt_deactivate_projection$;
+`);
+
+export const migration_0_42_0_2_AddProcessorProjectionFunctions: SQLMigration =
+  sqlMigration(
+    'emt:postgresql:eventstore:0.42.0-2:add-processor-projection-functions',
+    [migration_0_42_0_2_AddProcessorProjectionFunctionsSQL],
+  );
