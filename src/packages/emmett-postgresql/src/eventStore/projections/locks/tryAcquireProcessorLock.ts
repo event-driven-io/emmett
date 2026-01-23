@@ -30,7 +30,7 @@ export type LockAcquisitionPolicy =
   | { type: 'skip' }
   | {
       type: 'retry';
-      maxAttempts: number;
+      retries: number;
       minTimeout?: number;
       maxTimeout?: number;
     };
@@ -94,7 +94,7 @@ export const tryAcquireProcessorLockWithRetry = async (
 
   if (policy.type === 'retry') {
     return asyncRetry(() => tryAcquireProcessorLock(execute, options), {
-      retries: policy.maxAttempts - 1,
+      retries: policy.retries - 1,
       minTimeout: policy.minTimeout,
       maxTimeout: policy.maxTimeout,
       shouldRetryResult: (r) => !r.acquired,
@@ -104,20 +104,22 @@ export const tryAcquireProcessorLockWithRetry = async (
   return tryAcquireProcessorLock(execute, options);
 };
 
+export type ReleaseProcessorLockOptions = {
+  processorId: string;
+  version: number;
+  partition?: string;
+  processorInstanceId?: string;
+  projectionName?: string;
+  lockKey?: string | bigint;
+};
+
 export const releaseProcessorLock = async (
   execute: SQLExecutor,
-  options: {
-    lockKey: string | bigint;
-    processorId: string;
-    partition: string;
-    version: number;
-    projectionName?: string;
-    processorInstanceId?: string;
-  },
+  options: ReleaseProcessorLockOptions,
 ): Promise<boolean> => {
   const lockKeyBigInt = isBigint(options.lockKey)
     ? options.lockKey
-    : await hashText(options.lockKey);
+    : await hashText(options.lockKey ?? toProcessorLockKey(options));
 
   const { result } = await single(
     execute.command<{ result: boolean }>(

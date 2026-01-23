@@ -32,9 +32,7 @@ import {
 import pg from 'pg';
 import { v7 as uuid } from 'uuid';
 import {
-  releaseProcessorLock,
-  toProcessorLockKey,
-  tryAcquireProcessorLockWithRetry,
+  ProcessorLock,
   type LockAcquisitionPolicy,
 } from '../projections/locks';
 import { registerProjection } from '../projections/management/projectionManagement';
@@ -60,9 +58,7 @@ export type PostgreSQLProcessor<MessageType extends Message = AnyMessage> =
     MessageType,
     ReadEventMetadataWithGlobalPosition,
     PostgreSQLProcessorHandlerContext
-  > & {
-    init?: (context: PostgreSQLProcessorHandlerContext) => Promise<void>;
-  };
+  >;
 
 export type PostgreSQLProcessorEachMessageHandler<
   MessageType extends Message = Message,
@@ -298,9 +294,6 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
   const partition = options.partition ?? defaultTag;
   const lockPolicy = options.lockPolicy ?? { type: 'fail' };
 
-  let lockConnection: NodePostgresPoolClientConnection | undefined;
-  let lockAcquired = false;
-
   const projectionInfo = options.projection.name
     ? {
         name: options.projection.name,
@@ -310,79 +303,52 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
       }
     : undefined;
 
-  const lockKey = projectionInfo
-    ? toProcessorLockKey({
-        projection: projectionInfo,
-        processorId: options.processorId ?? `projection:${projectionInfo.name}`,
-        partition,
-        version,
-      })
-    : undefined;
+  const processorLock =
+    projectionInfo && pool
+      ? new ProcessorLock({
+          processorId:
+            options.processorId ?? `projection:${projectionInfo.name}`,
+          version,
+          partition,
+          processorInstanceId,
+          projection: projectionInfo,
+          lockPolicy,
+        })
+      : undefined;
 
   const hooks = {
-    onStart: async (context: PostgreSQLProcessorHandlerContext) => {
-      if (projectionInfo && pool && lockKey) {
-        try {
-          const connection = await pool.connection();
-          lockConnection = connection as NodePostgresPoolClientConnection;
-
-          const result = await tryAcquireProcessorLockWithRetry(
-            lockConnection.execute,
-            {
-              processorId:
-                options.processorId ?? `projection:${projectionInfo.name}`,
-              version,
-              partition,
-              processorInstanceId,
-              projection: projectionInfo,
-              lockKey,
-              lockPolicy,
+    onInit: options.projection.name
+      ? async (context: PostgreSQLProcessorHandlerContext) => {
+          await registerProjection(context.execute, {
+            partition,
+            status: 'active',
+            registration: {
+              type: 'async',
+              projection: options.projection as ProjectionDefinition<
+                AnyEvent,
+                ReadEventMetadataWithGlobalPosition,
+                PostgreSQLProcessorHandlerContext
+              >,
             },
-          );
+          });
 
-          if (result.acquired) {
-            lockAcquired = true;
-          } else {
-            await lockConnection.close();
-            lockConnection = undefined;
-
-            if (lockPolicy.type === 'fail') {
-              throw new EmmettError(
-                `Failed to acquire lock for projection '${projectionInfo.name}'`,
-              );
-            }
+          if (options.projection.init) {
+            await options.projection.init(context);
           }
-        } catch (error) {
-          if (lockConnection) {
-            await lockConnection.close();
-            lockConnection = undefined;
-          }
-          throw error;
         }
+      : () => Promise.resolve(),
+    onStart: async (context: PostgreSQLProcessorHandlerContext) => {
+      if (processorLock) {
+        await processorLock.tryAcquire({ execute: context.execute });
       }
 
       if (options.hooks?.onStart) await options.hooks.onStart(context);
-
-      if (options.projection.init) {
-        await options.projection.init(context);
-      }
     },
     onClose:
-      options.hooks?.onClose || close || projectionInfo
+      options.hooks?.onClose || close || processorLock
         ? async () => {
-            if (lockAcquired && lockConnection && lockKey && projectionInfo) {
-              await releaseProcessorLock(lockConnection.execute, {
-                lockKey,
-                processorId:
-                  options.processorId ?? `projection:${projectionInfo.name}`,
-                partition,
-                version,
-                projectionName: projectionInfo.name,
-                processorInstanceId,
-              });
-              await lockConnection.close();
-              lockConnection = undefined;
-              lockAcquired = false;
+            if (processorLock) {
+              await processorLock.release();
             }
 
             if (options.hooks?.onClose) await options.hooks?.onClose();
@@ -407,25 +373,7 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
     checkpoints: postgreSQLCheckpointer<EventType>(),
   });
 
-  return {
-    ...processor,
-    init: options.projection.name
-      ? async (context: PostgreSQLProcessorHandlerContext) => {
-          await registerProjection(context.execute, {
-            partition,
-            status: 'active',
-            registration: {
-              type: 'async',
-              projection: options.projection as ProjectionDefinition<
-                AnyEvent,
-                ReadEventMetadataWithGlobalPosition,
-                PostgreSQLProcessorHandlerContext
-              >,
-            },
-          });
-        }
-      : undefined,
-  };
+  return processor;
 };
 
 export const postgreSQLReactor = <MessageType extends Message = Message>(
@@ -434,6 +382,7 @@ export const postgreSQLReactor = <MessageType extends Message = Message>(
   const { pool, connectionString, close } = getProcessorPool(options);
 
   const hooks = {
+    onInit: options.hooks?.onInit,
     onStart: options.hooks?.onStart,
     onClose:
       options.hooks?.onClose || close

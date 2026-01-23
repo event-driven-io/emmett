@@ -27,6 +27,7 @@ void describe('mongoDB event store consumer', () => {
     type: 'reactor',
     id: uuid(),
     instanceId: uuid(),
+    init: () => Promise.resolve(),
     start: () => Promise.resolve('BEGINNING'),
     close: () => Promise.resolve(),
     handle: () => Promise.resolve(),
