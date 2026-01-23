@@ -197,18 +197,17 @@ export async function testStreamExists(
   eventStoreFactory: EventStoreFactory,
   options?: { teardownHook?: () => Promise<void> },
 ) {
-  let eventStore: EventStore;
-
-  before(async () => {
-    eventStore = await eventStoreFactory();
-  });
-
-  after(async () => {
-    const teardownHook = options?.teardownHook;
-    if (teardownHook) await teardownHook();
-  });
-
   return describe('streamExists', async () => {
+    let eventStore: EventStore;
+    before(async () => {
+      eventStore = await eventStoreFactory();
+    });
+
+    after(async () => {
+      const teardownHook = options?.teardownHook;
+      if (teardownHook) await teardownHook();
+    });
+
     await it('Returns true when stream exists and is the only stream', async () => {
       const productItem: PricedProductItem = {
         productId: '123',
