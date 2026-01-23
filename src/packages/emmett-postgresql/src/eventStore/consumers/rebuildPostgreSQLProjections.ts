@@ -14,7 +14,7 @@ import type { PostgreSQLProcessorHandlerContext } from './postgreSQLProcessor';
 
 const defaultRebuildLockPolicy: LockAcquisitionPolicy = {
   type: 'retry',
-  maxAttempts: 100,
+  retries: 100,
   minTimeout: 100,
   maxTimeout: 5000,
 };

@@ -102,6 +102,7 @@ export type MessageProcessor<
   id: string;
   instanceId: string;
   type: string;
+  init: (options: Partial<HandlerContext>) => Promise<void>;
   start: (
     options: Partial<HandlerContext>,
   ) => Promise<CurrentMessageProcessorPosition<CheckpointType> | undefined>;
@@ -178,6 +179,7 @@ export type BaseMessageProcessorOptions<
   >;
   canHandle?: CanHandle<MessageType>;
   hooks?: {
+    onInit?: OnReactorInitHook<HandlerContext>;
     onStart?: OnReactorStartHook<HandlerContext>;
     onClose?: OnReactorCloseHook;
   };
@@ -204,6 +206,10 @@ export type HandlerOptions<
         HandlerContext
       >;
     };
+
+export type OnReactorInitHook<
+  HandlerContext extends DefaultRecord = DefaultRecord,
+> = (context: HandlerContext) => Promise<void>;
 
 export type OnReactorStartHook<
   HandlerContext extends DefaultRecord = DefaultRecord,
@@ -329,6 +335,8 @@ export const reactor = <
     'eachMessage' in options && options.eachMessage
       ? options.eachMessage
       : () => Promise.resolve();
+
+  let isInitiated = false;
   let isActive = true;
 
   const { checkpoints, processorId, partition } = options;
@@ -338,16 +346,33 @@ export const reactor = <
 
   let lastCheckpoint: CheckpointType | null = null;
 
+  const init = async (initOptions: Partial<HandlerContext>): Promise<void> => {
+    if (isInitiated) return;
+
+    if (!options.hooks?.onInit) {
+      isInitiated = true;
+      return;
+    }
+
+    return await processingScope(async (context) => {
+      await options.hooks?.onInit!(context);
+      isInitiated = true;
+    }, initOptions);
+  };
+
   return {
     // TODO: Consider whether not make it optional or add URN prefix
     id: options.processorId,
     instanceId: options.processorInstanceId ?? `${processorId}:${uuid()}`,
     type: options.type ?? MessageProcessorType.REACTOR,
-    close: () =>
-      options.hooks?.onClose ? options.hooks?.onClose() : Promise.resolve(),
+    init,
     start: async (
       startOptions: Partial<HandlerContext>,
     ): Promise<CurrentMessageProcessorPosition<CheckpointType> | undefined> => {
+      if (isActive) return;
+
+      await init(startOptions);
+
       isActive = true;
 
       if (lastCheckpoint !== null)
@@ -381,6 +406,8 @@ export const reactor = <
         };
       }, startOptions);
     },
+    close: () =>
+      options.hooks?.onClose ? options.hooks?.onClose() : Promise.resolve(),
     get isActive() {
       return isActive;
     },
