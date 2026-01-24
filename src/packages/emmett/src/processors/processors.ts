@@ -339,7 +339,7 @@ export const reactor = <
       : () => Promise.resolve();
 
   let isInitiated = false;
-  let isActive = true;
+  let isActive = false;
 
   const { checkpoints, processorId, partition } = options;
 
@@ -514,6 +514,7 @@ export const projector = <
       // TODO: Make projeciton name required
       getProjectorId({ projectionName: projection.name ?? 'unknown' }),
     hooks: {
+      onInit: options.hooks?.onInit,
       onStart:
         (options.truncateOnStart && options.projection.truncate) ||
         options.hooks?.onStart

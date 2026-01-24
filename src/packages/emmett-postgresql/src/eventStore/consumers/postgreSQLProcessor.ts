@@ -338,18 +338,14 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
         }
       : () => Promise.resolve(),
     onStart: async (context: PostgreSQLProcessorHandlerContext) => {
-      if (processorLock) {
-        await processorLock.tryAcquire({ execute: context.execute });
-      }
+      await processorLock.tryAcquire({ execute: context.execute });
 
       if (options.hooks?.onStart) await options.hooks.onStart(context);
     },
     onClose:
       options.hooks?.onClose || close || processorLock
         ? async (context: PostgreSQLProcessorHandlerContext) => {
-            if (processorLock) {
-              await processorLock.release({ execute: context.execute });
-            }
+            await processorLock.release({ execute: context.execute });
 
             if (options.hooks?.onClose) await options.hooks.onClose(context);
             if (close) await close();

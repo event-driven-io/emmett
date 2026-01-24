@@ -420,13 +420,13 @@ const tryAcquireExclusiveLock = async (
   execute: SQLExecutor,
   lockKey: string,
 ): Promise<boolean> => {
-  const result = await execute.query<{ pg_try_advisory_lock: boolean }>(
+  const result = await execute.query<{ acquired: boolean }>(
     sql(
-      `SELECT pg_try_advisory_lock(%s::bigint)`,
+      `SELECT pg_try_advisory_xact_lock(%s::bigint) as acquired`,
       (await hashText(lockKey)).toString(),
     ),
   );
-  return result.rows[0]?.pg_try_advisory_lock ?? false;
+  return result.rows[0]?.acquired ?? false;
 };
 
 const acquireExclusiveLock = async (
