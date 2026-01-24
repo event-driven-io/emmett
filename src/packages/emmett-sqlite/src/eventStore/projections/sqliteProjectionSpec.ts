@@ -107,7 +107,11 @@ export const SQLiteProjectionSpec = {
               }
 
               if (!wasInitialized && projection.init) {
-                await projection.init({ connection });
+                await projection.init({
+                  registrationType: 'async',
+                  status: 'active',
+                  context: { connection },
+                });
                 wasInitialized = true;
               }
 

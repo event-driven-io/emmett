@@ -12,11 +12,13 @@ import {
   type Event,
   type ProjectionDefinition,
   type ProjectionHandler,
+  type ProjectionInitOptions,
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 import { defaultTag } from '../schema/typing';
 import { postgreSQLProjectionLock } from './locks';
+import { registerProjection } from './management';
 
 export type PostgreSQLProjectionHandlerContext = {
   execute: SQLExecutor;
@@ -125,7 +127,28 @@ export const postgreSQLProjection = <EventType extends Event>(
     EventType,
     PostgresReadEventMetadata,
     PostgreSQLProjectionHandlerContext
-  >(definition);
+  >({
+    ...definition,
+    init: async (options) => {
+      await registerProjection<
+        PostgresReadEventMetadata,
+        PostgreSQLProjectionHandlerContext
+      >(options.context.execute, {
+        // TODO: pass partition from options
+        partition: defaultTag,
+        status: 'active',
+        registration: {
+          type: 'async',
+          // TODO: fix this
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
+          projection: definition as any,
+        },
+      });
+      if (definition.init) {
+        await definition.init(options);
+      }
+    },
+  });
 
 export type PostgreSQLRawBatchSQLProjection<EventType extends Event> = {
   name: string;
@@ -136,7 +159,9 @@ export type PostgreSQLRawBatchSQLProjection<EventType extends Event> = {
   ) => Promise<SQL[]> | SQL[];
   canHandle: CanHandle<EventType>;
   initSQL?: SQL | SQL[];
-  init?: (context: PostgreSQLProjectionHandlerContext) => void | Promise<void>;
+  init?: (
+    context: ProjectionInitOptions<PostgreSQLProjectionHandlerContext>,
+  ) => void | Promise<void>;
 };
 
 export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
@@ -151,15 +176,15 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
 
       await context.execute.batchCommand(sqls);
     },
-    init: async (context) => {
+    init: async (initOptions) => {
       if (options.init) {
-        await options.init(context);
+        await options.init(initOptions);
       }
       if (options.initSQL) {
         if (Array.isArray(options.initSQL)) {
-          await context.execute.batchCommand(options.initSQL);
+          await initOptions.context.execute.batchCommand(options.initSQL);
         } else {
-          await context.execute.command(options.initSQL);
+          await initOptions.context.execute.command(options.initSQL);
         }
       }
     },
@@ -174,7 +199,9 @@ export type PostgreSQLRawSQLProjection<EventType extends Event> = {
   ) => Promise<SQL[]> | SQL[] | Promise<SQL> | SQL;
   canHandle: CanHandle<EventType>;
   initSQL?: SQL | SQL[];
-  init?: (context: PostgreSQLProjectionHandlerContext) => void | Promise<void>;
+  init?: (
+    options: ProjectionInitOptions<PostgreSQLProjectionHandlerContext>,
+  ) => void | Promise<void>;
 };
 
 export const postgreSQLRawSQLProjection = <EventType extends Event>(

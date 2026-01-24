@@ -114,13 +114,17 @@ export const PostgreSQLProjectionSpec = {
               await pool.withTransaction(async (transaction) => {
                 if (projection.init)
                   await projection.init({
-                    execute: transaction.execute,
-                    connection: {
-                      connectionString,
-                      client:
-                        (await transaction.connection.open()) as NodePostgresClient,
-                      transaction,
-                      pool,
+                    registrationType: 'async',
+                    status: 'active',
+                    context: {
+                      execute: transaction.execute,
+                      connection: {
+                        connectionString,
+                        client:
+                          (await transaction.connection.open()) as NodePostgresClient,
+                        transaction,
+                        pool,
+                      },
                     },
                   });
 

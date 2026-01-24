@@ -4,6 +4,7 @@ import {
   type Event,
   type ProjectionDefinition,
   type ProjectionHandler,
+  type ProjectionInitOptions,
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import type { SQLiteConnection } from '../../connection';
@@ -68,7 +69,9 @@ export type SQLiteRawBatchSQLProjection<EventType extends Event> = {
   ) => Promise<string[]> | string[];
   canHandle: CanHandle<EventType>;
   initSQL?: string | string[];
-  init?: (context: SQLiteProjectionHandlerContext) => void | Promise<void>;
+  init?: (
+    context: ProjectionInitOptions<SQLiteProjectionHandlerContext>,
+  ) => void | Promise<void>;
 };
 
 export const sqliteRawBatchSQLProjection = <EventType extends Event>(
@@ -81,16 +84,17 @@ export const sqliteRawBatchSQLProjection = <EventType extends Event>(
 
       for (const sql of sqls) await context.connection.command(sql);
     },
-    init: async (context) => {
+    init: async (initOptions) => {
       if (options.init) {
-        await options.init(context);
+        await options.init(initOptions);
       }
       if (options.initSQL) {
         const initSQLs = Array.isArray(options.initSQL)
           ? options.initSQL
           : [options.initSQL];
 
-        for (const sql of initSQLs) await context.connection.command(sql);
+        for (const sql of initSQLs)
+          await initOptions.context.connection.command(sql);
       }
     },
   });
@@ -102,7 +106,9 @@ export type SQLiteRawSQLProjection<EventType extends Event> = {
   ) => Promise<string[]> | string[] | Promise<string> | string;
   canHandle: CanHandle<EventType>;
   initSQL?: string | string[];
-  init?: (context: SQLiteProjectionHandlerContext) => void | Promise<void>;
+  init?: (
+    context: ProjectionInitOptions<SQLiteProjectionHandlerContext>,
+  ) => void | Promise<void>;
 };
 
 export const sqliteRawSQLProjection = <EventType extends Event>(

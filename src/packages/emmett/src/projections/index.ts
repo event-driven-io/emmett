@@ -26,6 +26,14 @@ export type TruncateProjection<
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > = (context: ProjectionHandlerContext) => Promise<void>;
 
+export type ProjectionInitOptions<
+  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+> = {
+  status?: 'active' | 'inactive';
+  registrationType: ProjectionHandlingType;
+  context: ProjectionHandlerContext;
+};
+
 export interface ProjectionDefinition<
   EventType extends Event = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -41,7 +49,9 @@ export interface ProjectionDefinition<
     ProjectionHandlerContext
   >;
   truncate?: TruncateProjection<ProjectionHandlerContext>;
-  init?: (context: ProjectionHandlerContext) => void | Promise<void>;
+  init?: (
+    options: ProjectionInitOptions<ProjectionHandlerContext>,
+  ) => void | Promise<void>;
 }
 
 export type ProjectionRegistration<

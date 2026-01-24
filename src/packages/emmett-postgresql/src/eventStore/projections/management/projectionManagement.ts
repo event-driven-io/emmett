@@ -17,7 +17,6 @@ import { projectionsTable } from '../../schema/typing';
 import { toProjectionLockKey } from '../locks/tryAcquireProjectionLock';
 
 export const registerProjection = async <
-  HandlingType extends ProjectionHandlingType,
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 >(
@@ -26,7 +25,7 @@ export const registerProjection = async <
     partition: string;
     status: 'active' | 'inactive';
     registration: ProjectionRegistration<
-      HandlingType,
+      ProjectionHandlingType,
       ReadEventMetadataType,
       ProjectionHandlerContext
     >;
