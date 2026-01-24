@@ -24,7 +24,6 @@ import {
   type Message,
   type MessageHandlerResult,
   type MessageProcessingScope,
-  type ProjectionDefinition,
   type ProjectorOptions,
   type ReactorOptions,
   type ReadEventMetadataWithGlobalPosition,
@@ -36,7 +35,6 @@ import {
   postgreSQLProcessorLock,
   type LockAcquisitionPolicy,
 } from '../projections/locks';
-import { registerProjection } from '../projections/management';
 import {
   defaultTag,
   readProcessorCheckpoint,
@@ -319,21 +317,12 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
   const hooks = {
     onInit: options.projection.name
       ? async (context: PostgreSQLProcessorHandlerContext) => {
-          await registerProjection(context.execute, {
-            partition,
-            status: 'active',
-            registration: {
-              type: 'async',
-              projection: options.projection as ProjectionDefinition<
-                AnyEvent,
-                ReadEventMetadataWithGlobalPosition,
-                PostgreSQLProcessorHandlerContext
-              >,
-            },
-          });
-
           if (options.projection.init) {
-            await options.projection.init(context);
+            await options.projection.init({
+              status: 'active',
+              registrationType: 'async',
+              context,
+            });
           }
         }
       : () => Promise.resolve(),

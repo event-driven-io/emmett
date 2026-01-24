@@ -141,7 +141,11 @@ export const getSQLiteEventStore = (
         onBeforeSchemaCreated: async (context) => {
           for (const projection of inlineProjections) {
             if (projection.init) {
-              await projection.init(context);
+              await projection.init({
+                registrationType: 'async',
+                status: 'active',
+                context,
+              });
             }
           }
           if (options.hooks?.onBeforeSchemaCreated) {

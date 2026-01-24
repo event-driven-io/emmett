@@ -205,6 +205,7 @@ export const inMemoryReactor = <MessageType extends AnyMessage = AnyMessage>(
   const database = options.connectionOptions?.database ?? getInMemoryDatabase();
 
   const hooks = {
+    onInit: options.hooks?.onInit,
     onStart: options.hooks?.onStart,
     onClose: options.hooks?.onClose,
   };

@@ -33,14 +33,12 @@ import {
 } from './consumers';
 import {
   handleProjections,
-  registerProjection,
   transactionToPostgreSQLProjectionHandlerContext,
   type PostgreSQLProjectionHandlerContext,
 } from './projections';
 import {
   appendToStream,
   createEventStoreSchema,
-  defaultTag,
   readStream,
   schemaSQL,
   streamExists,
@@ -208,25 +206,19 @@ export const getPostgreSQLEventStore = (
     if (!migrateSchema) {
       migrateSchema = createEventStoreSchema(connectionString, pool, {
         onBeforeSchemaCreated: async (context) => {
-          for (const projection of inlineProjections) {
-            if (projection.init) {
-              await projection.init(context);
-            }
-          }
           if (options.hooks?.onBeforeSchemaCreated) {
             await options.hooks.onBeforeSchemaCreated(context);
           }
         },
         onAfterSchemaCreated: async (context) => {
           for (const projection of inlineProjections) {
-            await registerProjection(context.execute, {
-              partition: defaultTag,
-              status: 'active',
-              registration: {
-                type: 'inline',
-                projection,
-              },
-            });
+            if (projection.init) {
+              await projection.init({
+                status: 'active',
+                registrationType: 'inline',
+                context,
+              });
+            }
           }
           if (options.hooks?.onAfterSchemaCreated) {
             await options.hooks.onAfterSchemaCreated(context);

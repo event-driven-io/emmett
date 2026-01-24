@@ -80,6 +80,7 @@ export const mongoDBProjector = <EventType extends Event = Event>(
 ): MongoDBProcessor<EventType> => {
   const { connectionOptions } = options;
   const hooks = {
+    onInit: options.hooks?.onInit,
     onStart: options.hooks?.onStart,
     onClose: options.hooks?.onClose,
   };
