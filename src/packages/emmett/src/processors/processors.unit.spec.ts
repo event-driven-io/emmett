@@ -72,7 +72,7 @@ void describe('Processors', () => {
       });
 
       // When
-      await processor.close();
+      await processor.close({});
 
       // Then
       assertEqual(onCloseCalled, true);
