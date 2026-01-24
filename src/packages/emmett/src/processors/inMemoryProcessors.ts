@@ -172,6 +172,7 @@ export const inMemoryProjector = <EventType extends AnyEvent = AnyEvent>(
   const database = options.connectionOptions?.database ?? getInMemoryDatabase();
 
   const hooks = {
+    onInit: options.hooks?.onInit,
     onStart: options.hooks?.onStart,
     onClose: options.hooks?.onClose
       ? async (context: InMemoryProcessorHandlerContext) => {
@@ -180,23 +181,22 @@ export const inMemoryProjector = <EventType extends AnyEvent = AnyEvent>(
       : undefined,
   };
 
-  return {
-    ...projector<
-      EventType,
-      ReadEventMetadataWithGlobalPosition,
-      InMemoryProcessorHandlerContext
-    >({
-      ...options,
-      hooks,
-      processingScope: inMemoryProcessingScope({
-        database,
-        processorId:
-          options.processorId ?? `projection:${options.projection.name}`,
-      }),
-      checkpoints: inMemoryCheckpointer<EventType>(),
+  const processor = projector<
+    EventType,
+    ReadEventMetadataWithGlobalPosition,
+    InMemoryProcessorHandlerContext
+  >({
+    ...options,
+    hooks,
+    processingScope: inMemoryProcessingScope({
+      database,
+      processorId:
+        options.processorId ?? `projection:${options.projection.name}`,
     }),
-    database,
-  };
+    checkpoints: inMemoryCheckpointer<EventType>(),
+  });
+
+  return Object.assign(processor, { database });
 };
 
 export const inMemoryReactor = <MessageType extends AnyMessage = AnyMessage>(
@@ -209,16 +209,15 @@ export const inMemoryReactor = <MessageType extends AnyMessage = AnyMessage>(
     onClose: options.hooks?.onClose,
   };
 
-  return {
-    ...reactor({
-      ...options,
-      hooks,
-      processingScope: inMemoryProcessingScope({
-        database,
-        processorId: options.processorId,
-      }),
-      checkpoints: inMemoryCheckpointer<MessageType>(),
+  const processor = reactor({
+    ...options,
+    hooks,
+    processingScope: inMemoryProcessingScope({
+      database,
+      processorId: options.processorId,
     }),
-    database,
-  };
+    checkpoints: inMemoryCheckpointer<MessageType>(),
+  });
+
+  return Object.assign(processor, { database });
 };

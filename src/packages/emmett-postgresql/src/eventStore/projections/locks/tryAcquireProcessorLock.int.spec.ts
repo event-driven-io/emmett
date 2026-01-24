@@ -57,8 +57,8 @@ void describe('tryAcquireProcessorLock', () => {
       const secondLockAttempted = asyncAwaiter();
 
       const [firstResult, secondResult] = await Promise.all([
-        pool.withConnection(async (connection) => {
-          const result = await tryAcquireProcessorLock(connection.execute, {
+        pool.withTransaction(async (tx) => {
+          const result = await tryAcquireProcessorLock(tx.execute, {
             lockKey,
             processorId,
             ...defaultPartitionAndVersion1,
@@ -70,8 +70,8 @@ void describe('tryAcquireProcessorLock', () => {
         }),
         (async () => {
           await firstLockHeld.wait;
-          const result = await pool.withConnection((connection) =>
-            tryAcquireProcessorLock(connection.execute, {
+          const result = await pool.withTransaction((tx) =>
+            tryAcquireProcessorLock(tx.execute, {
               lockKey,
               processorId: processorId2,
               ...defaultPartitionAndVersion1,
@@ -86,8 +86,8 @@ void describe('tryAcquireProcessorLock', () => {
       assertTrue(firstResult.acquired, 'Expected first processor to acquire');
       assertDeepEqual(
         firstResult.checkpoint,
-        '0',
-        'Expected initial checkpoint to be 0',
+        '0000000000000000000',
+        'Expected initial checkpoint to be 0000000000000000000',
       );
       assertFalse(
         secondResult.acquired,
@@ -493,8 +493,8 @@ void describe('tryAcquireProcessorLock', () => {
       const secondLockAttempted = asyncAwaiter();
 
       await Promise.all([
-        pool.withConnection(async (connection) => {
-          const result = await tryAcquireProcessorLock(connection.execute, {
+        pool.withTransaction(async (tx) => {
+          const result = await tryAcquireProcessorLock(tx.execute, {
             lockKey,
             processorId,
             ...defaultPartitionAndVersion1,
@@ -510,8 +510,8 @@ void describe('tryAcquireProcessorLock', () => {
         }),
         (async () => {
           await firstLockHeld.wait;
-          const result = await pool.withConnection(async (connection) =>
-            tryAcquireProcessorLock(connection.execute, {
+          const result = await pool.withTransaction(async (tx) =>
+            tryAcquireProcessorLock(tx.execute, {
               lockKey,
               processorId: processorId2,
               ...defaultPartitionAndVersion1,
@@ -547,8 +547,8 @@ void describe('tryAcquireProcessorLock', () => {
       const processorId2 = 'processor_release_explicit_2';
       const instanceId = 'instance_1';
 
-      await pool.withConnection(async (connection) => {
-        const result = await tryAcquireProcessorLock(connection.execute, {
+      await pool.withTransaction(async (tx) => {
+        const result = await tryAcquireProcessorLock(tx.execute, {
           ...defaultPartitionAndVersion1,
           lockKey,
           processorId,
@@ -557,7 +557,7 @@ void describe('tryAcquireProcessorLock', () => {
 
         assertTrue(result.acquired, 'Expected to acquire lock');
 
-        const released = await releaseProcessorLock(connection.execute, {
+        const released = await releaseProcessorLock(tx.execute, {
           ...defaultPartitionAndVersion1,
           lockKey,
           processorId,
@@ -567,8 +567,8 @@ void describe('tryAcquireProcessorLock', () => {
         assertTrue(released, 'Expected release to succeed');
       });
 
-      const secondAcquire = await pool.withConnection(async (connection) =>
-        tryAcquireProcessorLock(connection.execute, {
+      const secondAcquire = await pool.withTransaction(async (tx) =>
+        tryAcquireProcessorLock(tx.execute, {
           ...defaultPartitionAndVersion1,
           lockKey,
           processorId: processorId2,
@@ -662,8 +662,8 @@ void describe('tryAcquireProcessorLock', () => {
       assertTrue(result.acquired, 'Expected to acquire lock');
       assertDeepEqual(
         result.checkpoint,
-        '0',
-        'Expected initial checkpoint to be 0',
+        '0000000000000000000',
+        'Expected initial checkpoint to be 0000000000000000000',
       );
     });
 
@@ -715,8 +715,8 @@ void describe('tryAcquireProcessorLock', () => {
       const canReleaseExclusiveLock = asyncAwaiter();
 
       const [, sharedLockAcquired] = await Promise.all([
-        pool.withConnection(async (connection) => {
-          const result = await tryAcquireProcessorLock(connection.execute, {
+        pool.withTransaction(async (tx) => {
+          const result = await tryAcquireProcessorLock(tx.execute, {
             lockKey,
             processorId,
             ...defaultPartitionAndVersion1,
@@ -724,7 +724,7 @@ void describe('tryAcquireProcessorLock', () => {
           assertTrue(result.acquired, 'Expected processor to acquire lock');
           exclusiveLockHeld.resolve();
           await canReleaseExclusiveLock.wait;
-          await releaseProcessorLock(connection.execute, {
+          await releaseProcessorLock(tx.execute, {
             lockKey,
             processorId,
             ...defaultPartitionAndVersion1,

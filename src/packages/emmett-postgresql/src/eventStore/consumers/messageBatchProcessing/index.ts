@@ -33,6 +33,7 @@ export type PostgreSQLEventStoreMessageBatchPullerOptions<
   stopWhen?: {
     noMessagesLeft?: boolean;
   };
+  signal: AbortSignal;
 };
 
 export type PostgreSQLEventStoreMessageBatchPullerStartFrom =
@@ -42,6 +43,7 @@ export type PostgreSQLEventStoreMessageBatchPullerStartFrom =
 
 export type PostgreSQLEventStoreMessageBatchPullerStartOptions = {
   startFrom: PostgreSQLEventStoreMessageBatchPullerStartFrom;
+  signal?: AbortSignal;
 };
 
 export type PostgreSQLEventStoreMessageBatchPuller = {
@@ -60,6 +62,7 @@ export const postgreSQLEventStoreMessageBatchPuller = <
   eachBatch,
   pullingFrequencyInMs,
   stopWhen,
+  signal,
 }: PostgreSQLEventStoreMessageBatchPullerOptions<MessageType>): PostgreSQLEventStoreMessageBatchPuller => {
   let isRunning = false;
 
@@ -83,7 +86,7 @@ export const postgreSQLEventStoreMessageBatchPuller = <
 
     let waitTime = 100;
 
-    do {
+    while (isRunning && !signal?.aborted) {
       const { messages, currentGlobalPosition, areMessagesLeft } =
         await readMessagesBatch<MessageType>(executor, readMessagesOptions);
 
@@ -110,7 +113,7 @@ export const postgreSQLEventStoreMessageBatchPuller = <
       } else {
         waitTime = pullingFrequencyInMs;
       }
-    } while (isRunning);
+    }
   };
 
   return {
@@ -119,10 +122,9 @@ export const postgreSQLEventStoreMessageBatchPuller = <
     },
     start: (options) => {
       if (isRunning) return start;
+      isRunning = true;
 
       start = (async () => {
-        isRunning = true;
-
         return pullMessages(options);
       })();
 

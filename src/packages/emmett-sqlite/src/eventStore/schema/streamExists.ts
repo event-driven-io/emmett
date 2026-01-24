@@ -1,4 +1,4 @@
-import type { StreamExistsResult } from '@event-driven-io/emmett/src';
+import type { StreamExistsResult } from '@event-driven-io/emmett';
 import type { SQLiteConnection } from '../../connection';
 import { defaultTag, streamsTable } from './typing';
 

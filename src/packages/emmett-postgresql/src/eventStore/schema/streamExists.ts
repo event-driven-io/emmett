@@ -1,5 +1,5 @@
 import { sql, type SQLExecutor } from '@event-driven-io/dumbo';
-import type { StreamExistsResult } from '@event-driven-io/emmett/src';
+import type { StreamExistsResult } from '@event-driven-io/emmett';
 import { defaultTag, streamsTable } from './typing';
 
 type StreamExistsSqlResult = { exists: boolean };

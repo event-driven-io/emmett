@@ -99,10 +99,10 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
           `SELECT store_processor_checkpoint(%L, %s, %L, %L, pg_current_xact_id(), %L, %L) as result;`,
           options.processorId,
           options.version ?? 1,
-          options.newCheckpoint
+          options.newCheckpoint !== null
             ? bigInt.toNormalizedString(options.newCheckpoint)
             : null,
-          options.lastProcessedCheckpoint
+          options.lastProcessedCheckpoint !== null
             ? bigInt.toNormalizedString(options.lastProcessedCheckpoint)
             : null,
           options.partition ?? defaultTag,

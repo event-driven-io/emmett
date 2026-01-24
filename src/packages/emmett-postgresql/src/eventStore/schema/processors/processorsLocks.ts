@@ -1,3 +1,4 @@
+import { bigInt } from '@event-driven-io/emmett';
 import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
 import {
   defaultTag,
@@ -26,7 +27,7 @@ AS $emt_try_acquire_processor_lock$
 BEGIN
     RETURN QUERY
     WITH lock_check AS (
-        SELECT pg_try_advisory_lock(p_lock_key) AS lock_acquired
+        SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
     ),
     ownership_check AS (
         INSERT INTO ${processorsTable.name} (
@@ -40,7 +41,7 @@ BEGIN
             created_at,
             last_updated
         )
-        SELECT p_processor_id, p_partition, p_version, p_processor_instance_id, 'running', '0', '0'::xid8, now(), now()
+        SELECT p_processor_id, p_partition, p_version, p_processor_instance_id, 'running', '${bigInt.toNormalizedString(0n)}', '0'::xid8, now(), now()
         WHERE (SELECT lock_acquired FROM lock_check) = true
         ON CONFLICT (processor_id, partition, version) DO UPDATE
         SET processor_instance_id = p_processor_instance_id,
@@ -91,6 +92,8 @@ CREATE OR REPLACE FUNCTION emt_release_processor_lock(
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 AS $emt_release_processor_lock$
+DECLARE
+    v_rows_updated INT;
 BEGIN
     IF p_projection_name IS NOT NULL THEN
         UPDATE ${projectionsTable.name}
@@ -110,7 +113,11 @@ BEGIN
       AND version = p_version
       AND processor_instance_id = p_processor_instance_id;
 
-    RETURN pg_advisory_unlock(p_lock_key);
+    GET DIAGNOSTICS v_rows_updated = ROW_COUNT;
+
+    PERFORM pg_advisory_unlock(p_lock_key);
+
+    RETURN v_rows_updated > 0;
 END;
 $emt_release_processor_lock$;
 `,

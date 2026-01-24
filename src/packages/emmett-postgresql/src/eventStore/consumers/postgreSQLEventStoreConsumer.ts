@@ -87,10 +87,11 @@ export const postgreSQLEventStoreConsumer = <
   let isInitialized = false;
   const { pulling } = options;
   const processors = options.processors ?? [];
+  let abortController: AbortController | null = null;
 
   let start: Promise<void>;
 
-  let currentMessagePuller: PostgreSQLEventStoreMessageBatchPuller | undefined;
+  let messagePuller: PostgreSQLEventStoreMessageBatchPuller | undefined;
 
   const pool = options.pool
     ? options.pool
@@ -139,28 +140,21 @@ export const postgreSQLEventStoreConsumer = <
     },
   };
 
-  const messagePooler = (currentMessagePuller =
-    postgreSQLEventStoreMessageBatchPuller({
-      stopWhen: options.stopWhen,
-      executor: pool.execute,
-      eachBatch,
-      batchSize:
-        pulling?.batchSize ?? DefaultPostgreSQLEventStoreProcessorBatchSize,
-      pullingFrequencyInMs:
-        pulling?.pullingFrequencyInMs ??
-        DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
-    }));
+  const stopProcessors = () =>
+    Promise.all(processors.map((p) => p.close(processorContext)));
 
   const stop = async () => {
     if (!isRunning) return;
     isRunning = false;
-    if (currentMessagePuller) {
-      await currentMessagePuller.stop();
-      currentMessagePuller = undefined;
+    if (messagePuller) {
+      abortController?.abort();
+      await messagePuller.stop();
+      messagePuller = undefined;
+      abortController = null;
     }
     await start;
 
-    await Promise.all(processors.map((p) => p.close(processorContext)));
+    await stopProcessors();
   };
 
   const init = async (): Promise<void> => {
@@ -219,15 +213,28 @@ export const postgreSQLEventStoreConsumer = <
     start: () => {
       if (isRunning) return start;
 
-      start = (async () => {
-        if (processors.length === 0)
-          return Promise.reject(
-            new EmmettError(
-              'Cannot start consumer without at least a single processor',
-            ),
-          );
+      if (processors.length === 0)
+        throw new EmmettError(
+          'Cannot start consumer without at least a single processor',
+        );
 
-        isRunning = true;
+      isRunning = true;
+      abortController = new AbortController();
+
+      messagePuller = postgreSQLEventStoreMessageBatchPuller({
+        stopWhen: options.stopWhen,
+        executor: pool.execute,
+        eachBatch,
+        batchSize:
+          pulling?.batchSize ?? DefaultPostgreSQLEventStoreProcessorBatchSize,
+        pullingFrequencyInMs:
+          pulling?.pullingFrequencyInMs ??
+          DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
+        signal: abortController.signal,
+      });
+
+      start = (async () => {
+        if (!isRunning) return;
 
         if (!isInitialized) {
           await init();
@@ -249,7 +256,11 @@ export const postgreSQLEventStoreConsumer = <
           ),
         );
 
-        return messagePooler.start({ startFrom });
+        await messagePuller.start({ startFrom });
+
+        await stopProcessors();
+
+        isRunning = false;
       })();
 
       return start;
