@@ -1,5 +1,5 @@
 import type { SQLExecutor } from '@event-driven-io/dumbo';
-import { EmmettError } from '@event-driven-io/emmett/src';
+import { EmmettError } from '@event-driven-io/emmett';
 import {
   releaseProcessorLock,
   toProcessorLockKey,
