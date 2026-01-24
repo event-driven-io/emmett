@@ -106,7 +106,7 @@ export type MessageProcessor<
   start: (
     options: Partial<HandlerContext>,
   ) => Promise<CurrentMessageProcessorPosition<CheckpointType> | undefined>;
-  close: () => Promise<void>;
+  close: (closeOptions: Partial<HandlerContext>) => Promise<void>;
   isActive: boolean;
   handle: BatchRecordedMessageHandlerWithContext<
     MessageType,
@@ -181,7 +181,7 @@ export type BaseMessageProcessorOptions<
   hooks?: {
     onInit?: OnReactorInitHook<HandlerContext>;
     onStart?: OnReactorStartHook<HandlerContext>;
-    onClose?: OnReactorCloseHook;
+    onClose?: OnReactorCloseHook<HandlerContext>;
   };
 };
 
@@ -215,7 +215,9 @@ export type OnReactorStartHook<
   HandlerContext extends DefaultRecord = DefaultRecord,
 > = (context: HandlerContext) => Promise<void>;
 
-export type OnReactorCloseHook = () => Promise<void>;
+export type OnReactorCloseHook<
+  HandlerContext extends DefaultRecord = DefaultRecord,
+> = (context: HandlerContext) => Promise<void>;
 
 export type ReactorOptions<
   MessageType extends AnyMessage = AnyMessage,
@@ -406,8 +408,15 @@ export const reactor = <
         };
       }, startOptions);
     },
-    close: () =>
-      options.hooks?.onClose ? options.hooks?.onClose() : Promise.resolve(),
+    close: async (closeOptions) => {
+      return await processingScope(
+        async (context) =>
+          options.hooks?.onClose
+            ? options.hooks?.onClose(context)
+            : Promise.resolve(),
+        closeOptions,
+      );
+    },
     get isActive() {
       return isActive;
     },

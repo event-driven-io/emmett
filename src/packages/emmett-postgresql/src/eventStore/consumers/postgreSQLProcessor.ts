@@ -346,12 +346,12 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
     },
     onClose:
       options.hooks?.onClose || close || processorLock
-        ? async () => {
+        ? async (context: PostgreSQLProcessorHandlerContext) => {
             if (processorLock) {
-              await processorLock.release();
+              await processorLock.release({ execute: context.execute });
             }
 
-            if (options.hooks?.onClose) await options.hooks?.onClose();
+            if (options.hooks?.onClose) await options.hooks.onClose(context);
             if (close) await close();
           }
         : undefined,
@@ -386,8 +386,8 @@ export const postgreSQLReactor = <MessageType extends Message = Message>(
     onStart: options.hooks?.onStart,
     onClose:
       options.hooks?.onClose || close
-        ? async () => {
-            if (options.hooks?.onClose) await options.hooks?.onClose();
+        ? async (context: PostgreSQLProcessorHandlerContext) => {
+            if (options.hooks?.onClose) await options.hooks?.onClose(context);
             if (close) await close();
           }
         : undefined,

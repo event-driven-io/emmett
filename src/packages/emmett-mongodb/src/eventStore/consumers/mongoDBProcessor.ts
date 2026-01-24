@@ -81,11 +81,7 @@ export const mongoDBProjector = <EventType extends Event = Event>(
   const { connectionOptions } = options;
   const hooks = {
     onStart: options.hooks?.onStart,
-    onClose: options.hooks?.onClose
-      ? async () => {
-          if (options.hooks?.onClose) await options.hooks?.onClose();
-        }
-      : undefined,
+    onClose: options.hooks?.onClose,
   };
   // TODO: This should be eventually moved to the mongoDBProcessingScope
   // In the similar way as it's made in the postgresql processor
@@ -132,11 +128,7 @@ export const changeStreamReactor = <
 
   const hooks = {
     onStart: options.hooks?.onStart,
-    onClose: options.hooks?.onClose
-      ? async () => {
-          if (options.hooks?.onClose) await options.hooks?.onClose();
-        }
-      : undefined,
+    onClose: options.hooks?.onClose,
   };
 
   return reactor({

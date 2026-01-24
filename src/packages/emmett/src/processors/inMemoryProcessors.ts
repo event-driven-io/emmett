@@ -174,8 +174,8 @@ export const inMemoryProjector = <EventType extends AnyEvent = AnyEvent>(
   const hooks = {
     onStart: options.hooks?.onStart,
     onClose: options.hooks?.onClose
-      ? async () => {
-          if (options.hooks?.onClose) await options.hooks?.onClose();
+      ? async (context: InMemoryProcessorHandlerContext) => {
+          if (options.hooks?.onClose) await options.hooks?.onClose(context);
         }
       : undefined,
   };
@@ -206,11 +206,7 @@ export const inMemoryReactor = <MessageType extends AnyMessage = AnyMessage>(
 
   const hooks = {
     onStart: options.hooks?.onStart,
-    onClose: options.hooks?.onClose
-      ? async () => {
-          if (options.hooks?.onClose) await options.hooks?.onClose();
-        }
-      : undefined,
+    onClose: options.hooks?.onClose,
   };
 
   return {

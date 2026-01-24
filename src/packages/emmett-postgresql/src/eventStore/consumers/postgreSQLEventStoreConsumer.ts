@@ -129,6 +129,16 @@ export const postgreSQLEventStoreConsumer = <
         };
   };
 
+  const processorContext = {
+    execute: pool.execute,
+    connection: {
+      connectionString: options.connectionString,
+      pool,
+      client: undefined as never,
+      transaction: undefined as never,
+    },
+  };
+
   const messagePooler = (currentMessagePuller =
     postgreSQLEventStoreMessageBatchPuller({
       stopWhen: options.stopWhen,
@@ -150,7 +160,7 @@ export const postgreSQLEventStoreConsumer = <
     }
     await start;
 
-    await Promise.all(processors.map((p) => p.close()));
+    await Promise.all(processors.map((p) => p.close(processorContext)));
   };
 
   const init = async (): Promise<void> => {
@@ -160,15 +170,7 @@ export const postgreSQLEventStoreConsumer = <
 
     for (const processor of postgresProcessors) {
       if (processor.init) {
-        await processor.init({
-          execute: pool.execute,
-          connection: {
-            connectionString: options.connectionString,
-            pool,
-            client: undefined as never,
-            transaction: undefined as never,
-          },
-        });
+        await processor.init(processorContext);
       }
     }
 
