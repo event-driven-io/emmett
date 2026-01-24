@@ -1,20 +1,5 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import { hashText, isBigint } from '@event-driven-io/emmett';
-import { projectionsTable } from '../../schema/typing';
-
-const acquireSQL = `
-WITH lock_check AS (
-    SELECT pg_try_advisory_xact_lock_shared(%s::BIGINT) AS acquired
-),
-status_check AS (
-    SELECT status = 'active' AS is_active
-    FROM ${projectionsTable.name}
-    WHERE partition = %L AND name = %L AND version = %s 
-)
-SELECT
-    COALESCE((SELECT acquired FROM lock_check), false) AS acquired,
-    COALESCE((SELECT is_active FROM status_check), true) AS is_active;
-`;
 
 export const toProjectionLockKey = ({
   projectionName,
@@ -51,7 +36,7 @@ export const tryAcquireProjectionLock = async (
       is_active: boolean;
     }>(
       sql(
-        acquireSQL,
+        `SELECT * FROM emt_try_acquire_projection_lock(%s::BIGINT, %L, %L, %s);`,
         lockKeyBigInt.toString(),
         partition,
         projectionName,
