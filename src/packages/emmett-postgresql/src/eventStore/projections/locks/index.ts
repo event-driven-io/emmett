@@ -1,3 +1,3 @@
-export * from './processorLock';
-export * from './tryAcquireProcessorLock';
-export * from './tryAcquireProjectionLock';
+export * from './postgreSQLProcessorLock';
+export * from './postgreSQLProjectionLock';
+export type { LockAcquisitionPolicy } from './tryAcquireProcessorLock';

@@ -481,6 +481,9 @@ export const reactor = <
   };
 };
 
+export const getProjectorId = (options: { projectionName: string }): string =>
+  `emt:processor:projector:${options.projectionName}`;
+
 export const projector = <
   EventType extends Event = Event,
   EventMetaDataType extends AnyRecordedMessageMetadata =
@@ -507,7 +510,9 @@ export const projector = <
     ...rest,
     type: MessageProcessorType.PROJECTOR,
     processorId:
-      options.processorId ?? `emt:processor:projector:${projection.name}`,
+      options.processorId ??
+      // TODO: Make projeciton name required
+      getProjectorId({ projectionName: projection.name ?? 'unknown' }),
     hooks: {
       onStart:
         (options.truncateOnStart && options.projection.truncate) ||

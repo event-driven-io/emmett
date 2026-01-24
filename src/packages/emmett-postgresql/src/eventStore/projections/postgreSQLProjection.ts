@@ -16,7 +16,7 @@ import {
 } from '@event-driven-io/emmett';
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 import { defaultTag } from '../schema/typing';
-import { tryAcquireProjectionLock } from './locks';
+import { postgreSQLProjectionLock } from './locks';
 
 export type PostgreSQLProjectionHandlerContext = {
   execute: SQLExecutor;
@@ -71,6 +71,7 @@ export type PostgreSQLProjectionHandlerOptions<
     transaction: NodePostgresTransaction;
     pool: Dumbo;
   };
+  partition?: string;
 };
 
 export const handleProjections = async <EventType extends Event = Event>(
@@ -80,6 +81,7 @@ export const handleProjections = async <EventType extends Event = Event>(
     projections: allProjections,
     events,
     connection: { pool, transaction, connectionString },
+    partition = defaultTag,
   } = options;
 
   const eventTypes = events.map((e) => e.type);
@@ -91,12 +93,13 @@ export const handleProjections = async <EventType extends Event = Event>(
   const client = (await transaction.connection.open()) as NodePostgresClient;
 
   for (const projection of projections) {
+    // TODO: Make projection name mandatory
     if (projection.name) {
-      const lockAcquired = await tryAcquireProjectionLock(transaction.execute, {
+      const lockAcquired = await postgreSQLProjectionLock({
         projectionName: projection.name,
-        partition: defaultTag,
+        partition,
         version: projection.version ?? 1,
-      });
+      }).tryAcquire({ execute: transaction.execute });
 
       if (!lockAcquired) {
         continue;

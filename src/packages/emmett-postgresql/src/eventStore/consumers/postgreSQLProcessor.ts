@@ -12,6 +12,7 @@ import {
 import {
   EmmettError,
   getCheckpoint,
+  getProjectorId,
   MessageProcessor,
   projector,
   reactor,
@@ -32,10 +33,10 @@ import {
 import pg from 'pg';
 import { v7 as uuid } from 'uuid';
 import {
-  ProcessorLock,
+  postgreSQLProcessorLock,
   type LockAcquisitionPolicy,
 } from '../projections/locks';
-import { registerProjection } from '../projections/management/projectionManagement';
+import { registerProjection } from '../projections/management';
 import {
   defaultTag,
   readProcessorCheckpoint,
@@ -289,6 +290,9 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
 ): PostgreSQLProcessor<EventType> => {
   const { pool, connectionString, close } = getProcessorPool(options);
 
+  const processorId =
+    options.processorId ??
+    getProjectorId({ projectionName: options.projection.name ?? 'unknown' });
   const processorInstanceId = uuid();
   const version = options.version ?? 1;
   const partition = options.partition ?? defaultTag;
@@ -303,18 +307,14 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
       }
     : undefined;
 
-  const processorLock =
-    projectionInfo && pool
-      ? new ProcessorLock({
-          processorId:
-            options.processorId ?? `projection:${projectionInfo.name}`,
-          version,
-          partition,
-          processorInstanceId,
-          projection: projectionInfo,
-          lockPolicy,
-        })
-      : undefined;
+  const processorLock = postgreSQLProcessorLock({
+    processorId,
+    version,
+    partition,
+    processorInstanceId,
+    projection: projectionInfo,
+    lockPolicy,
+  });
 
   const hooks = {
     onInit: options.projection.name
@@ -367,8 +367,7 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
     processingScope: postgreSQLProcessingScope({
       pool,
       connectionString,
-      processorId:
-        options.processorId ?? `projection:${options.projection.name}`,
+      processorId,
     }),
     checkpoints: postgreSQLCheckpointer<EventType>(),
   });
