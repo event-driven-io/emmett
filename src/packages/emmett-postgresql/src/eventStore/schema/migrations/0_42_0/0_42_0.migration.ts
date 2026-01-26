@@ -106,7 +106,10 @@ BEGIN
               SET
                 "last_processed_position" = p_position,
                 "last_processed_transaction_id" = p_transaction_id
-              WHERE "subscription_id" = p_subscription_id AND "last_processed_position" = p_check_position AND "partition" = p_partition;
+              WHERE "subscription_id" = p_subscription_id 
+                AND "last_processed_position" = p_check_position 
+                AND "partition" = p_partition 
+                AND "version" = p_version;
 
               IF FOUND THEN
                   -- Dual-write to emt_processors
@@ -114,7 +117,9 @@ BEGIN
                   SET
                     "last_processed_checkpoint" = lpad(p_position::text, 19, '0'),
                     "last_processed_transaction_id" = p_transaction_id
-                  WHERE "processor_id" = p_subscription_id AND "partition" = p_partition;
+                  WHERE "processor_id" = p_subscription_id 
+                    AND "partition" = p_partition 
+                    AND "version" = p_version;
 
                   IF NOT FOUND THEN
                       INSERT INTO "emt_processors"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id", "status", "processor_instance_id")
@@ -128,7 +133,7 @@ BEGIN
               -- Retrieve the current position
               SELECT "last_processed_position" INTO current_position
               FROM "emt_subscriptions"
-              WHERE "subscription_id" = p_subscription_id AND "partition" = p_partition;
+              WHERE "subscription_id" = p_subscription_id AND "partition" = p_partition AND "version" = p_version;
 
               IF current_position = p_position THEN
                   RETURN 0;
@@ -153,7 +158,9 @@ BEGIN
           EXCEPTION WHEN unique_violation THEN
               SELECT "last_processed_position" INTO current_position
               FROM "emt_subscriptions"
-              WHERE "subscription_id" = p_subscription_id AND "partition" = p_partition;
+              WHERE "subscription_id" = p_subscription_id 
+                AND "partition" = p_partition 
+                AND "version" = p_version;
 
               IF current_position = p_position THEN
                   RETURN 0;
@@ -187,16 +194,20 @@ BEGIN
               UPDATE "emt_processors"
               SET
                 "last_processed_checkpoint" = p_position,
-                "last_processed_transaction_id" = p_transaction_id
-              WHERE "processor_id" = p_processor_id AND "last_processed_checkpoint" = p_check_position AND "partition" = p_partition;
+                "last_processed_transaction_id" = p_transaction_id,
+                "last_updated" = now()
+              WHERE "processor_id" = p_processor_id 
+                AND "last_processed_checkpoint" = p_check_position 
+                AND "partition" = p_partition 
+                AND "version" = p_version;
 
               IF FOUND THEN
                   -- Dual-write to emt_subscriptions
                   UPDATE "emt_subscriptions"
                   SET
                     "last_processed_position" = v_position_bigint,
-                    "last_processed_transaction_id" = p_transaction_id
-                  WHERE "subscription_id" = p_processor_id AND "partition" = p_partition;
+                    "last_processed_transaction_id" = p_transaction_id,
+                  WHERE "subscription_id" = p_processor_id AND "partition" = p_partition AND "version" = p_version;
 
                   IF NOT FOUND THEN
                       INSERT INTO "emt_subscriptions"("subscription_id", "version", "last_processed_position", "partition", "last_processed_transaction_id")
@@ -210,12 +221,12 @@ BEGIN
               -- Retrieve the current position
               SELECT "last_processed_checkpoint" INTO current_position
               FROM "emt_processors"
-              WHERE "processor_id" = p_processor_id AND "partition" = p_partition;
+              WHERE "processor_id" = p_processor_id AND "partition" = p_partition AND "version" = p_version;
 
               IF current_position = p_position THEN
                   RETURN 0;
-              ELSIF current_position > p_check_position THEN
-                  RETURN 2;
+              ELSIF current_position > p_position THEN
+                  RETURN 3;
               ELSE
                   RETURN 2;
               END IF;
@@ -223,8 +234,8 @@ BEGIN
 
           -- Handle the case when p_check_position is NULL: Insert if not exists
           BEGIN
-              INSERT INTO "emt_processors"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id")
-              VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id);
+              INSERT INTO "emt_processors"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id", "created_at", "last_updated")
+              VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id, now(), now());
 
               -- Dual-write to emt_subscriptions
               INSERT INTO "emt_subscriptions"("subscription_id", "version", "last_processed_position", "partition", "last_processed_transaction_id")
@@ -239,6 +250,8 @@ BEGIN
 
               IF current_position = p_position THEN
                   RETURN 0;
+              ELSIF current_position > p_position THEN
+                  RETURN 3;  -- Current ahead: another process has progressed further
               ELSE
                   RETURN 2;
               END IF;

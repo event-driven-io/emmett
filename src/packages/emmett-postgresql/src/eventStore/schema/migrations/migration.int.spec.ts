@@ -397,7 +397,9 @@ void describe('Schema migrations tests', () => {
     // Then
     assertFalse(newApiResult.success);
     assertTrue(
-      newApiResult.reason === 'IGNORED' || newApiResult.reason === 'MISMATCH',
+      newApiResult.reason === 'IGNORED' ||
+        newApiResult.reason === 'MISMATCH' ||
+        newApiResult.reason === 'CURRENT_AHEAD',
     );
 
     await assertDualWriteConsistency(pool, processorId, 15n);

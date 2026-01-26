@@ -59,8 +59,12 @@ IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_subscriptions') THEN
           UPDATE "emt_processors"
           SET
             "last_processed_checkpoint" = p_position,
-            "last_processed_transaction_id" = p_transaction_id
-          WHERE "processor_id" = p_processor_id AND "last_processed_checkpoint" = p_check_position AND "partition" = p_partition;
+            "last_processed_transaction_id" = p_transaction_id,
+            "last_updated" = now()
+          WHERE "processor_id" = p_processor_id
+            AND "last_processed_checkpoint" = p_check_position
+            AND "partition" = p_partition            
+            AND "version" = p_version;
 
           IF FOUND THEN
               RETURN 1;
@@ -68,25 +72,29 @@ IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_subscriptions') THEN
 
           SELECT "last_processed_checkpoint" INTO current_position
           FROM "emt_processors"
-          WHERE "processor_id" = p_processor_id AND "partition" = p_partition;
+          WHERE "processor_id" = p_processor_id 
+            AND "partition" = p_partition            
+            AND "version" = p_version ;
 
           IF current_position = p_position THEN
               RETURN 0;
-          ELSIF current_position > p_check_position THEN
-              RETURN 2;
+          ELSIF current_position > p_position THEN
+              RETURN 3;
           ELSE
               RETURN 2;
           END IF;
       END IF;
 
       BEGIN
-          INSERT INTO "emt_processors"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id")
-          VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id);
+          INSERT INTO "emt_processors"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id", "created_at", "last_updated")
+          VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id, now(), now());
           RETURN 1;
       EXCEPTION WHEN unique_violation THEN
           SELECT "last_processed_checkpoint" INTO current_position
           FROM "emt_processors"
-          WHERE "processor_id" = p_processor_id AND "partition" = p_partition;
+          WHERE "processor_id" = p_processor_id 
+            AND "partition" = p_partition
+            AND "version" = p_version;
 
           IF current_position = p_position THEN
               RETURN 0;

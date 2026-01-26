@@ -286,7 +286,7 @@ export type StoreProcessorCheckpointResult<CheckpointType = unknown> =
       success: true;
       newCheckpoint: CheckpointType;
     }
-  | { success: false; reason: 'IGNORED' | 'MISMATCH' };
+  | { success: false; reason: 'IGNORED' | 'MISMATCH' | 'CURRENT_AHEAD' };
 
 export type StoreProcessorCheckpoint<
   MessageType extends Message = AnyMessage,
