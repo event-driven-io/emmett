@@ -1,4 +1,5 @@
 import { bigInt } from '@event-driven-io/emmett';
+import { sql } from '@event-driven-io/dumbo';
 import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
 import {
   defaultTag,
@@ -122,3 +123,53 @@ END;
 $emt_release_processor_lock$;
 `,
 );
+
+type CallTryAcquireProcessorLockParams = {
+  lockKey: string;
+  processorId: string;
+  version: number;
+  partition: string;
+  processorInstanceId: string;
+  projectionName: string | null;
+  projectionType: 'i' | 'a' | null;
+  projectionKind: string | null;
+  lockTimeoutSeconds: number;
+};
+
+export const callTryAcquireProcessorLock = (
+  params: CallTryAcquireProcessorLockParams,
+) =>
+  sql(
+    `SELECT * FROM emt_try_acquire_processor_lock(%s::BIGINT, %L, %s, %L, %L, %L, %L, %L, %s);`,
+    params.lockKey,
+    params.processorId,
+    params.version,
+    params.partition,
+    params.processorInstanceId,
+    params.projectionName,
+    params.projectionType,
+    params.projectionKind,
+    params.lockTimeoutSeconds,
+  );
+
+type CallReleaseProcessorLockParams = {
+  lockKey: string;
+  processorId: string;
+  partition: string;
+  version: number;
+  processorInstanceId: string;
+  projectionName: string | null;
+};
+
+export const callReleaseProcessorLock = (
+  params: CallReleaseProcessorLockParams,
+) =>
+  sql(
+    `SELECT emt_release_processor_lock(%s::BIGINT, %L, %L, %s, %L, %L) as result;`,
+    params.lockKey,
+    params.processorId,
+    params.partition,
+    params.version,
+    params.processorInstanceId,
+    params.projectionName,
+  );

@@ -1,5 +1,6 @@
-import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
+import { single, type SQLExecutor } from '@event-driven-io/dumbo';
 import { hashText, isBigint } from '@event-driven-io/emmett';
+import { callTryAcquireProjectionLock } from '../../schema/projections/projectionsLocks';
 
 export type TryAcquireProjectionLockOptions = {
   projectionName: string;
@@ -24,13 +25,12 @@ export const tryAcquireProjectionLock = async (
       acquired: boolean;
       is_active: boolean;
     }>(
-      sql(
-        `SELECT * FROM emt_try_acquire_projection_lock(%s::BIGINT, %L, %L, %s);`,
-        lockKeyBigInt.toString(),
+      callTryAcquireProjectionLock({
+        lockKey: lockKeyBigInt.toString(),
         partition,
-        projectionName,
+        name: projectionName,
         version,
-      ),
+      }),
     ),
   );
 
