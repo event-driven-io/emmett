@@ -205,6 +205,85 @@ void describe('Processors', () => {
       });
     });
 
+    void it('should continue processing after skipping non-matching events in a mixed batch', async () => {
+      // Given
+      const processorId = uuid();
+      const handledMessages: RecordedMessage[] = [];
+
+      const processor = reactor({
+        processorId,
+        canHandle: ['test'],
+        eachMessage: (message) => {
+          handledMessages.push(message);
+          return Promise.resolve();
+        },
+      });
+
+      const event1: Event = { type: 'other', data: { value: 'skip me' } };
+      const event2: TestEvent = { type: 'test', data: { counter: 1 } };
+      const event3: Event = {
+        type: 'another',
+        data: { value: 'skip me too' },
+      };
+      const event4: TestEvent = { type: 'test', data: { counter: 2 } };
+
+      const recordedEvents: RecordedMessage<
+        Event,
+        ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+      >[] = [
+        {
+          ...event1,
+          kind: 'Event',
+          metadata: {
+            streamName: 'test-stream',
+            messageId: uuid(),
+            globalPosition: 1n,
+            streamPosition: 1n,
+          },
+        },
+        {
+          ...event2,
+          kind: 'Event',
+          metadata: {
+            streamName: 'test-stream',
+            messageId: uuid(),
+            globalPosition: 2n,
+            streamPosition: 2n,
+          },
+        },
+        {
+          ...event3,
+          kind: 'Event',
+          metadata: {
+            streamName: 'test-stream',
+            messageId: uuid(),
+            globalPosition: 3n,
+            streamPosition: 3n,
+          },
+        },
+        {
+          ...event4,
+          kind: 'Event',
+          metadata: {
+            streamName: 'test-stream',
+            messageId: uuid(),
+            globalPosition: 4n,
+            streamPosition: 4n,
+          },
+        },
+      ];
+
+      await processor.start({});
+
+      // When
+      await processor.handle(recordedEvents, {});
+
+      // Then
+      assertEqual(handledMessages.length, 2);
+      assertDeepEqual(handledMessages[0], recordedEvents[1]);
+      assertDeepEqual(handledMessages[1], recordedEvents[3]);
+    });
+
     void it('should read checkpoint on start', async () => {
       // Given
       const processorId = uuid();

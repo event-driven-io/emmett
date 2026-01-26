@@ -3,7 +3,7 @@ import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
-import { after, before, describe, it } from 'node:test';
+import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
   getPostgreSQLEventStore,
@@ -24,6 +24,13 @@ void describe('PostgreSQL event store started consumer', () => {
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString);
     await eventStore.schema.migrate();
+  });
+
+  beforeEach(async () => {
+    await eventStore.schema.dangerous.truncate({
+      resetSequences: true,
+      truncateProjections: true,
+    });
   });
 
   after(async () => {
@@ -396,7 +403,6 @@ void describe('PostgreSQL event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: bigint | undefined = undefined;
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
@@ -407,7 +413,8 @@ void describe('PostgreSQL event store started consumer', () => {
           startFrom: 'CURRENT',
           canHandle: ['GuestCheckedIn'], // Only handle check-in events
           stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
+            event.type === 'GuestCheckedIn' &&
+            event.data.guestId === otherGuestId,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -416,11 +423,7 @@ void describe('PostgreSQL event store started consumer', () => {
         try {
           const consumerPromise = consumer.start();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
           await consumerPromise;
 
