@@ -9,6 +9,7 @@ import {
   assertFalse,
   assertTrue,
   asyncAwaiter,
+  getProcessorInstanceId,
 } from '@event-driven-io/emmett';
 import {
   PostgreSqlContainer,
@@ -338,10 +339,12 @@ void describe('tryAcquireProcessorLock', () => {
           ...defaultPartitionAndVersion1,
           lockKey,
           processorId,
+          processorInstanceId: getProcessorInstanceId(processorId),
           projection: {
             name: projectionName,
-            type: 'a',
+            handlingType: 'async' as const,
             kind: 'async',
+            version: 1,
           },
         });
 
@@ -373,8 +376,9 @@ void describe('tryAcquireProcessorLock', () => {
           ...defaultPartitionAndVersion1,
           projection: {
             name: projectionName,
-            type: 'a',
+            handlingType: 'async' as const,
             kind: 'async',
+            version: 1,
           },
           processorInstanceId: instanceId,
         });
@@ -425,9 +429,11 @@ void describe('tryAcquireProcessorLock', () => {
           processorId,
           projection: {
             name: projectionName,
-            type: 'a',
+            handlingType: 'async' as const,
             kind: 'async',
+            version: 1,
           },
+          processorInstanceId: getProcessorInstanceId(processorId),
         });
 
         assertTrue(result.acquired, 'Expected to acquire lock');
@@ -462,9 +468,11 @@ void describe('tryAcquireProcessorLock', () => {
           processorId,
           projection: {
             name: projectionName,
-            type: 'a',
+            handlingType: 'async' as const,
             kind: 'async',
+            version: 1,
           },
+          processorInstanceId: getProcessorInstanceId(processorId),
         });
 
         assertTrue(result.acquired, 'Expected to acquire lock');
@@ -500,9 +508,11 @@ void describe('tryAcquireProcessorLock', () => {
             ...defaultPartitionAndVersion1,
             projection: {
               name: projectionName,
-              type: 'a',
+              handlingType: 'async' as const,
               kind: 'async',
+              version: 1,
             },
+            processorInstanceId: getProcessorInstanceId(processorId),
           });
           firstLockHeld.resolve();
           await secondLockAttempted.wait;
@@ -516,10 +526,12 @@ void describe('tryAcquireProcessorLock', () => {
               processorId: processorId2,
               ...defaultPartitionAndVersion1,
               projection: {
-                name: projectionName2,
-                type: 'a',
+                name: projectionName,
+                handlingType: 'async' as const,
                 kind: 'async',
+                version: 1,
               },
+              processorInstanceId: getProcessorInstanceId(processorId),
             }),
           );
           secondLockAttempted.resolve();
@@ -572,6 +584,7 @@ void describe('tryAcquireProcessorLock', () => {
           ...defaultPartitionAndVersion1,
           lockKey,
           processorId: processorId2,
+          processorInstanceId: getProcessorInstanceId(processorId2),
         }),
       );
 
@@ -603,6 +616,7 @@ void describe('tryAcquireProcessorLock', () => {
           ...defaultPartitionAndVersion1,
           lockKey,
           processorId: processorId2,
+          processorInstanceId: getProcessorInstanceId(processorId2),
         }),
       );
 
@@ -656,6 +670,7 @@ void describe('tryAcquireProcessorLock', () => {
           ...defaultPartitionAndVersion1,
           lockKey,
           processorId,
+          processorInstanceId: getProcessorInstanceId(processorId),
         }),
       );
 
@@ -683,6 +698,7 @@ void describe('tryAcquireProcessorLock', () => {
           lockKey,
           processorId,
           ...defaultPartitionAndVersion1,
+          processorInstanceId: getProcessorInstanceId(processorId),
         }),
       );
 
@@ -706,8 +722,8 @@ void describe('tryAcquireProcessorLock', () => {
       });
 
       await insertProjection(pool.execute, {
-        name: projectionName,
         ...defaultPartitionAndVersion1,
+        name: projectionName,
         status: 'active',
       });
 
@@ -720,14 +736,16 @@ void describe('tryAcquireProcessorLock', () => {
             lockKey,
             processorId,
             ...defaultPartitionAndVersion1,
+            processorInstanceId: getProcessorInstanceId(processorId),
           });
           assertTrue(result.acquired, 'Expected processor to acquire lock');
           exclusiveLockHeld.resolve();
           await canReleaseExclusiveLock.wait;
           await releaseProcessorLock(tx.execute, {
+            ...defaultPartitionAndVersion1,
             lockKey,
             processorId,
-            ...defaultPartitionAndVersion1,
+            processorInstanceId: getProcessorInstanceId(processorId),
           });
         }),
         (async () => {
@@ -783,9 +801,10 @@ void describe('tryAcquireProcessorLock', () => {
           await sharedLockHeld.wait;
           const result = await pool.withConnection(async (connection) =>
             tryAcquireProcessorLock(connection.execute, {
+              ...defaultPartitionAndVersion1,
               lockKey,
               processorId,
-              ...defaultPartitionAndVersion1,
+              processorInstanceId: getProcessorInstanceId(processorId),
             }),
           );
           canReleaseSharedLock.resolve();

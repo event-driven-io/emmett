@@ -1,21 +1,24 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
-import { asyncRetry, hashText, isBigint } from '@event-driven-io/emmett';
-import { defaultTag, unknownTag } from '../../schema/typing';
+import {
+  asyncRetry,
+  hashText,
+  isBigint,
+  type ProjectionHandlingType,
+} from '@event-driven-io/emmett';
 import { DefaultPostgreSQLProcessorLockPolicy } from './postgreSQLProcessorLock';
-import { toProjectionLockKey } from './tryAcquireProjectionLock';
 
 export type TryAcquireProcessorLockOptions = {
   processorId: string;
   version: number;
-  partition?: string;
-  processorInstanceId?: string;
+  partition: string;
+  processorInstanceId: string;
   projection?: {
     name: string;
-    type: 'i' | 'a';
+    handlingType: ProjectionHandlingType;
     kind: string;
-    version?: number;
+    version: number;
   };
-  lockKey?: string | bigint;
+  lockKey: string | bigint;
   lockTimeoutSeconds?: number;
 };
 
@@ -36,23 +39,6 @@ export type LockAcquisitionPolicy =
       maxTimeout?: number;
     };
 
-export const toProcessorLockKey = ({
-  projection,
-  processorId,
-  partition,
-  version,
-}: Pick<
-  TryAcquireProcessorLockOptions,
-  'projection' | 'processorId' | 'version' | 'partition'
->): string =>
-  projection
-    ? toProjectionLockKey({
-        projectionName: projection.name,
-        partition: partition ?? defaultTag,
-        version: projection.version ?? version,
-      })
-    : `${partition ?? defaultTag}:${processorId}:${version}`;
-
 export const PROCESSOR_LOCK_DEFAULT_TIMEOUT_SECONDS = 300;
 
 export const tryAcquireProcessorLock = async (
@@ -61,7 +47,7 @@ export const tryAcquireProcessorLock = async (
 ): Promise<TryAcquireProcessorLockResult> => {
   const lockKeyBigInt = isBigint(options.lockKey)
     ? options.lockKey
-    : await hashText(options.lockKey ?? toProcessorLockKey(options));
+    : await hashText(options.lockKey);
 
   const { acquired, checkpoint } = await single(
     execute.command<{ acquired: boolean; checkpoint: string | null }>(
@@ -70,11 +56,15 @@ export const tryAcquireProcessorLock = async (
         lockKeyBigInt.toString(),
         options.processorId,
         options.version,
-        options.partition ?? defaultTag,
-        options.processorInstanceId ?? unknownTag,
-        options.projection?.name ?? null,
-        options.projection?.type ?? null,
-        options.projection?.kind ?? null,
+        options.partition,
+        options.processorInstanceId,
+        options.projection?.name,
+        options.projection?.handlingType
+          ? options.projection?.handlingType === 'inline'
+            ? 'i'
+            : 'a'
+          : null,
+        options.projection?.kind,
         options.lockTimeoutSeconds ?? PROCESSOR_LOCK_DEFAULT_TIMEOUT_SECONDS,
       ),
     ),
@@ -108,10 +98,10 @@ export const tryAcquireProcessorLockWithRetry = async (
 export type ReleaseProcessorLockOptions = {
   processorId: string;
   version: number;
-  partition?: string;
-  processorInstanceId?: string;
+  partition: string;
+  processorInstanceId: string;
   projectionName?: string;
-  lockKey?: string | bigint;
+  lockKey: string | bigint;
 };
 
 export const releaseProcessorLock = async (
@@ -120,7 +110,7 @@ export const releaseProcessorLock = async (
 ): Promise<boolean> => {
   const lockKeyBigInt = isBigint(options.lockKey)
     ? options.lockKey
-    : await hashText(options.lockKey ?? toProcessorLockKey(options));
+    : await hashText(options.lockKey);
 
   const { result } = await single(
     execute.command<{ result: boolean }>(
@@ -130,7 +120,7 @@ export const releaseProcessorLock = async (
         options.processorId,
         options.partition,
         options.version,
-        options.processorInstanceId ?? unknownTag,
+        options.processorInstanceId,
         options.projectionName ?? null,
       ),
     ),

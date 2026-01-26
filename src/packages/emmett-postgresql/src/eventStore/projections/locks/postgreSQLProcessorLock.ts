@@ -1,14 +1,29 @@
 import type { SQLExecutor } from '@event-driven-io/dumbo';
-import { EmmettError } from '@event-driven-io/emmett';
+import {
+  EmmettError,
+  type ProjectionHandlingType,
+} from '@event-driven-io/emmett';
 import {
   releaseProcessorLock,
-  toProcessorLockKey,
   tryAcquireProcessorLockWithRetry,
   type LockAcquisitionPolicy,
   type TryAcquireProcessorLockOptions,
 } from './tryAcquireProcessorLock';
+import { toProjectionLockKey } from './tryAcquireProjectionLock';
 
-export type PostgreSQLProcessorLockOptions = TryAcquireProcessorLockOptions & {
+export type PostgreSQLProcessorLockOptions = {
+  processorId: string;
+  version: number;
+  partition: string;
+  processorInstanceId: string;
+  projection?: {
+    name: string;
+    handlingType: ProjectionHandlingType;
+    kind: string;
+    version: number;
+  };
+  lockKey?: string | bigint;
+  lockTimeoutSeconds?: number;
   lockPolicy?: LockAcquisitionPolicy;
 };
 
@@ -69,3 +84,20 @@ export const postgreSQLProcessorLock = (
     },
   };
 };
+
+export const toProcessorLockKey = ({
+  projection,
+  processorId,
+  partition,
+  version,
+}: Pick<
+  TryAcquireProcessorLockOptions,
+  'projection' | 'processorId' | 'version' | 'partition'
+>): string =>
+  projection
+    ? toProjectionLockKey({
+        projectionName: projection.name,
+        partition: partition,
+        version: projection.version,
+      })
+    : `${partition}:${processorId}:${version}`;
