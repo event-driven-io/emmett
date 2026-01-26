@@ -17,3 +17,9 @@ export type DefaultRecord = Record<string, unknown>;
 export type AnyRecord = Record<string, any>;
 
 export type NonNullable<T> = T extends null | undefined ? never : T;
+
+export const emmettPrefix = 'emt';
+
+export const globalTag = 'global';
+export const defaultTag = `${emmettPrefix}:default`;
+export const unknownTag = `${emmettPrefix}:unknown`;

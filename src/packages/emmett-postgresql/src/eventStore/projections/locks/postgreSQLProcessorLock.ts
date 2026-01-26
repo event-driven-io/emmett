@@ -21,6 +21,10 @@ export type PostgreSQLProcessorLock = {
   release: (options: PostgreSQLProcessorLockContext) => Promise<void>;
 };
 
+export const DefaultPostgreSQLProcessorLockPolicy: LockAcquisitionPolicy = {
+  type: 'fail',
+};
+
 export const postgreSQLProcessorLock = (
   options: PostgreSQLProcessorLockOptions,
 ): PostgreSQLProcessorLock => {

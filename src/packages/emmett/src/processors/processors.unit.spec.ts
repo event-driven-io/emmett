@@ -77,56 +77,132 @@ void describe('Processors', () => {
       // Then
       assertEqual(onCloseCalled, true);
     });
-    void it('should call eachMessage for each message in handle', async () => {
-      // Given
-      const processorId = uuid();
-      const handledMessages: RecordedMessage[] = [];
 
-      const processor = reactor({
-        processorId,
-        eachMessage: (message) => {
-          handledMessages.push(message);
-          return Promise.resolve();
-        },
+    [
+      { name: 'not defined' },
+      { canHandle: undefined, name: 'undefined' },
+      { canHandle: ['test'], name: 'array with matching event type' },
+      {
+        canHandle: ['test', 'some other type'],
+        name: 'array with multiple event types including matching',
+      },
+    ].forEach(({ canHandle, name }) => {
+      void it(`should call eachMessage for each message in handle (${name})`, async () => {
+        // Given
+        const processorId = uuid();
+        const handledMessages: RecordedMessage[] = [];
+
+        const processor = reactor({
+          processorId,
+          canHandle,
+          eachMessage: (message) => {
+            handledMessages.push(message);
+            return Promise.resolve();
+          },
+        });
+
+        const event1: TestEvent = { type: 'test', data: { counter: 1 } };
+        const event2: TestEvent = { type: 'test', data: { counter: 2 } };
+
+        const recordedEvents: RecordedMessage<
+          TestEvent,
+          ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+        >[] = [
+          {
+            ...event1,
+            kind: 'Event',
+            metadata: {
+              streamName: 'test-stream',
+              messageId: uuid(),
+              globalPosition: 1n,
+              streamPosition: 1n,
+            },
+          },
+          {
+            ...event2,
+            kind: 'Event',
+            metadata: {
+              streamName: 'test-stream',
+              messageId: uuid(),
+              globalPosition: 2n,
+              streamPosition: 2n,
+            },
+          },
+        ];
+
+        await processor.start({});
+
+        // When
+        await processor.handle(recordedEvents, {});
+
+        // Then
+        assertEqual(handledMessages.length, 2);
+        assertDeepEqual(handledMessages, recordedEvents);
       });
+    });
 
-      const event1: TestEvent = { type: 'test', data: { counter: 1 } };
-      const event2: TestEvent = { type: 'test', data: { counter: 2 } };
+    [
+      { canHandle: [], name: 'empty array' },
+      {
+        canHandle: ['some other type'],
+        name: 'array with non-matching event type',
+      },
+      {
+        canHandle: ['some other type', 'and another'],
+        name: 'array with multiple non-matching event types',
+      },
+    ].forEach(({ canHandle, name }) => {
+      void it(`should NOT call eachMessage for each message in handle (${name})`, async () => {
+        // Given
+        const processorId = uuid();
+        const handledMessages: RecordedMessage[] = [];
 
-      const recordedEvents: RecordedMessage<
-        TestEvent,
-        ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
-      >[] = [
-        {
-          ...event1,
-          kind: 'Event',
-          metadata: {
-            streamName: 'test-stream',
-            messageId: uuid(),
-            globalPosition: 1n,
-            streamPosition: 1n,
+        const processor = reactor({
+          processorId,
+          canHandle,
+          eachMessage: (message) => {
+            handledMessages.push(message);
+            return Promise.resolve();
           },
-        },
-        {
-          ...event2,
-          kind: 'Event',
-          metadata: {
-            streamName: 'test-stream',
-            messageId: uuid(),
-            globalPosition: 2n,
-            streamPosition: 2n,
+        });
+
+        const event1: TestEvent = { type: 'test', data: { counter: 1 } };
+        const event2: TestEvent = { type: 'test', data: { counter: 2 } };
+
+        const recordedEvents: RecordedMessage<
+          TestEvent,
+          ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+        >[] = [
+          {
+            ...event1,
+            kind: 'Event',
+            metadata: {
+              streamName: 'test-stream',
+              messageId: uuid(),
+              globalPosition: 1n,
+              streamPosition: 1n,
+            },
           },
-        },
-      ];
+          {
+            ...event2,
+            kind: 'Event',
+            metadata: {
+              streamName: 'test-stream',
+              messageId: uuid(),
+              globalPosition: 2n,
+              streamPosition: 2n,
+            },
+          },
+        ];
 
-      await processor.start({});
+        await processor.start({});
 
-      // When
-      await processor.handle(recordedEvents, {});
+        // When
+        await processor.handle(recordedEvents, {});
 
-      // Then
-      assertEqual(handledMessages.length, 2);
-      assertDeepEqual(handledMessages, recordedEvents);
+        // Then
+        assertEqual(handledMessages.length, 0);
+      });
     });
 
     void it('should read checkpoint on start', async () => {
