@@ -450,7 +450,7 @@ export const reactor = <
           if (wasMessageHandled(message, lastCheckpoint)) continue;
 
           if (canHandle !== undefined && !canHandle.includes(message.type))
-            return;
+            continue;
 
           const messageProcessingResult = await eachMessage(message, context);
 
