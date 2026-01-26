@@ -379,6 +379,61 @@ void describe('PostgreSQL event store started consumer', () => {
         }
       },
     );
+
+    void it(
+      'handles ONLY events matching canHandle filter',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const result: GuestStayEvent[] = [];
+        let stopAfterPosition: bigint | undefined = undefined;
+
+        // When
+        const consumer = postgreSQLEventStoreConsumer({
+          connectionString,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'CURRENT',
+          canHandle: ['GuestCheckedIn'], // Only handle check-in events
+          stopAfter: (event) =>
+            event.metadata.globalPosition === stopAfterPosition,
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        try {
+          const consumerPromise = consumer.start();
+
+          const appendResult = await eventStore.appendToStream(
+            streamName,
+            events,
+          );
+          stopAfterPosition = appendResult.lastEventGlobalPosition;
+
+          await consumerPromise;
+
+          // Then - should only have GuestCheckedIn events, not GuestCheckedOut
+          assertThatArray(result).containsOnlyElementsMatching([
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          ]);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
   });
 });
 
