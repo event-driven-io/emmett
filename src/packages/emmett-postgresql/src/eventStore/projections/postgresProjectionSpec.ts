@@ -68,6 +68,37 @@ export const PostgreSQLProjectionSpec = {
       const { projection, ...dumoOptions } = options;
       const { connectionString } = dumoOptions;
 
+      let wasInitialised = false;
+
+      const initialize = async (pool: Dumbo): Promise<void> => {
+        const eventStore = getPostgreSQLEventStore(connectionString, {
+          connectionOptions: { dumbo: pool },
+        });
+
+        if (wasInitialised) return;
+
+        wasInitialised = true;
+
+        await eventStore.schema.migrate();
+        if (projection.init)
+          await pool.withTransaction(async (transaction) => {
+            await projection.init!({
+              registrationType: 'async',
+              status: 'active',
+              context: {
+                execute: transaction.execute,
+                connection: {
+                  connectionString,
+                  client:
+                    (await transaction.connection.open()) as NodePostgresClient,
+                  transaction,
+                  pool,
+                },
+              },
+            });
+          });
+      };
+
       return (givenEvents: PostgreSQLProjectionSpecEvent<EventType>[]) => {
         return {
           when: (
@@ -105,29 +136,9 @@ export const PostgreSQLProjectionSpec = {
                 });
               }
 
-              const eventStore = getPostgreSQLEventStore(connectionString, {
-                connectionOptions: { dumbo: pool },
-              });
-
-              await eventStore.schema.migrate();
+              await initialize(pool);
 
               await pool.withTransaction(async (transaction) => {
-                if (projection.init)
-                  await projection.init({
-                    registrationType: 'async',
-                    status: 'active',
-                    context: {
-                      execute: transaction.execute,
-                      connection: {
-                        connectionString,
-                        client:
-                          (await transaction.connection.open()) as NodePostgresClient,
-                        transaction,
-                        pool,
-                      },
-                    },
-                  });
-
                 await handleProjections({
                   events: allEvents,
                   projections: [projection],
