@@ -1,3 +1,4 @@
+import { sql } from '@event-driven-io/dumbo';
 import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
 import { projectionsTable } from '../typing';
 
@@ -30,3 +31,21 @@ END;
 $emt_try_acquire_projection_lock$;
 `,
 );
+
+type CallTryAcquireProjectionLockParams = {
+  lockKey: string;
+  partition: string;
+  name: string;
+  version: number;
+};
+
+export const callTryAcquireProjectionLock = (
+  params: CallTryAcquireProjectionLockParams,
+) =>
+  sql(
+    `SELECT * FROM emt_try_acquire_projection_lock(%s::BIGINT, %L, %L, %s);`,
+    params.lockKey,
+    params.partition,
+    params.name,
+    params.version,
+  );

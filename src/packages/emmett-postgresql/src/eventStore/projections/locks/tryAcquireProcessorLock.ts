@@ -1,10 +1,14 @@
-import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
+import { single, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   asyncRetry,
   hashText,
   isBigint,
   type ProjectionHandlingType,
 } from '@event-driven-io/emmett';
+import {
+  callTryAcquireProcessorLock,
+  callReleaseProcessorLock,
+} from '../../schema/processors/processorsLocks';
 import { DefaultPostgreSQLProcessorLockPolicy } from './postgreSQLProcessorLock';
 
 export type TryAcquireProcessorLockOptions = {
@@ -51,22 +55,22 @@ export const tryAcquireProcessorLock = async (
 
   const { acquired, checkpoint } = await single(
     execute.command<{ acquired: boolean; checkpoint: string | null }>(
-      sql(
-        `SELECT * FROM emt_try_acquire_processor_lock(%s::BIGINT, %L, %s, %L, %L, %L, %L, %L, %s);`,
-        lockKeyBigInt.toString(),
-        options.processorId,
-        options.version,
-        options.partition,
-        options.processorInstanceId,
-        options.projection?.name,
-        options.projection?.handlingType
-          ? options.projection?.handlingType === 'inline'
+      callTryAcquireProcessorLock({
+        lockKey: lockKeyBigInt.toString(),
+        processorId: options.processorId,
+        version: options.version,
+        partition: options.partition,
+        processorInstanceId: options.processorInstanceId,
+        projectionName: options.projection?.name ?? null,
+        projectionType: options.projection?.handlingType
+          ? options.projection.handlingType === 'inline'
             ? 'i'
             : 'a'
           : null,
-        options.projection?.kind,
-        options.lockTimeoutSeconds ?? PROCESSOR_LOCK_DEFAULT_TIMEOUT_SECONDS,
-      ),
+        projectionKind: options.projection?.kind ?? null,
+        lockTimeoutSeconds:
+          options.lockTimeoutSeconds ?? PROCESSOR_LOCK_DEFAULT_TIMEOUT_SECONDS,
+      }),
     ),
   );
 
@@ -114,15 +118,14 @@ export const releaseProcessorLock = async (
 
   const { result } = await single(
     execute.command<{ result: boolean }>(
-      sql(
-        `SELECT emt_release_processor_lock(%s::BIGINT, %L, %L, %s, %L, %L) as result;`,
-        lockKeyBigInt.toString(),
-        options.processorId,
-        options.partition,
-        options.version,
-        options.processorInstanceId,
-        options.projectionName ?? null,
-      ),
+      callReleaseProcessorLock({
+        lockKey: lockKeyBigInt.toString(),
+        processorId: options.processorId,
+        partition: options.partition,
+        version: options.version,
+        processorInstanceId: options.processorInstanceId,
+        projectionName: options.projectionName ?? null,
+      }),
     ),
   );
 

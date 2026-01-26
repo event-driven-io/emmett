@@ -13,6 +13,11 @@ import {
   type ProjectionHandlingType,
   type ProjectionRegistration,
 } from '@event-driven-io/emmett';
+import {
+  callActivateProjection,
+  callDeactivateProjection,
+  callRegisterProjection,
+} from '../../schema/projections/registerProjection';
 import { projectionsTable } from '../../schema/typing';
 import { toProjectionLockKey } from '../locks/postgreSQLProjectionLock';
 
@@ -49,17 +54,16 @@ export const registerProjection = async <
 
   const { registered } = await single<{ registered: boolean }>(
     execute.query(
-      sql(
-        `SELECT emt_register_projection(%s, %L, %L, %s, %L, %L, %L, %L) AS registered`,
-        lockKeyBigInt.toString(),
-        name,
+      callRegisterProjection({
+        lockKey: lockKeyBigInt.toString(),
+        name: name!,
         partition,
         version,
         type,
         kind,
         status,
         definition,
-      ),
+      }),
     ),
   );
 
@@ -82,13 +86,12 @@ export const activateProjection = async (
 
   const { activated } = await single<{ activated: boolean }>(
     execute.query(
-      sql(
-        `SELECT emt_activate_projection(%s, %L, %L, %s) AS activated`,
-        lockKeyBigInt.toString(),
+      callActivateProjection({
+        lockKey: lockKeyBigInt.toString(),
         name,
         partition,
         version,
-      ),
+      }),
     ),
   );
 
@@ -111,13 +114,12 @@ export const deactivateProjection = async (
 
   const { deactivated } = await single<{ deactivated: boolean }>(
     execute.query(
-      sql(
-        `SELECT emt_deactivate_projection(%s, %L, %L, %s) AS deactivated`,
-        lockKeyBigInt.toString(),
+      callDeactivateProjection({
+        lockKey: lockKeyBigInt.toString(),
         name,
         partition,
         version,
-      ),
+      }),
     ),
   );
 

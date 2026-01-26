@@ -68,6 +68,28 @@ $spc$ LANGUAGE plpgsql;
 `,
 );
 
+type CallStoreProcessorCheckpointParams = {
+  processorId: string;
+  version: number;
+  position: string | null;
+  checkPosition: string | null;
+  partition: string;
+  processorInstanceId: string;
+};
+
+export const callStoreProcessorCheckpoint = (
+  params: CallStoreProcessorCheckpointParams,
+) =>
+  sql(
+    `SELECT store_processor_checkpoint(%L, %s, %L, %L, pg_current_xact_id(), %L, %L) as result;`,
+    params.processorId,
+    params.version,
+    params.position,
+    params.checkPosition,
+    params.partition,
+    params.processorInstanceId,
+  );
+
 export type StoreLastProcessedProcessorPositionResult<
   Position extends bigint | null = bigint,
 > =
@@ -95,19 +117,20 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
   try {
     const { result } = await single(
       execute.command<{ result: 0 | 1 | 2 }>(
-        sql(
-          `SELECT store_processor_checkpoint(%L, %s, %L, %L, pg_current_xact_id(), %L, %L) as result;`,
-          options.processorId,
-          options.version ?? 1,
-          options.newCheckpoint !== null
-            ? bigInt.toNormalizedString(options.newCheckpoint)
-            : null,
-          options.lastProcessedCheckpoint !== null
-            ? bigInt.toNormalizedString(options.lastProcessedCheckpoint)
-            : null,
-          options.partition ?? defaultTag,
-          options.processorInstanceId ?? unknownTag,
-        ),
+        callStoreProcessorCheckpoint({
+          processorId: options.processorId,
+          version: options.version ?? 1,
+          position:
+            options.newCheckpoint !== null
+              ? bigInt.toNormalizedString(options.newCheckpoint)
+              : null,
+          checkPosition:
+            options.lastProcessedCheckpoint !== null
+              ? bigInt.toNormalizedString(options.lastProcessedCheckpoint)
+              : null,
+          partition: options.partition ?? defaultTag,
+          processorInstanceId: options.processorInstanceId ?? unknownTag,
+        }),
       ),
     );
 

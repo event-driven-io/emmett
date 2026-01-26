@@ -1,3 +1,4 @@
+import { sql } from '@event-driven-io/dumbo';
 import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
 import { projectionsTable } from '../typing';
 
@@ -113,3 +114,65 @@ END;
 $emt_deactivate_projection$;
 `,
 );
+
+type CallRegisterProjectionParams = {
+  lockKey: string;
+  name: string;
+  partition: string;
+  version: number;
+  type: 'i' | 'a';
+  kind: string;
+  status: string;
+  definition: string;
+};
+
+export const callRegisterProjection = (
+  params: CallRegisterProjectionParams,
+) =>
+  sql(
+    `SELECT emt_register_projection(%s, %L, %L, %s, %L, %L, %L, %L) AS registered`,
+    params.lockKey,
+    params.name,
+    params.partition,
+    params.version,
+    params.type,
+    params.kind,
+    params.status,
+    params.definition,
+  );
+
+type CallActivateProjectionParams = {
+  lockKey: string;
+  name: string;
+  partition: string;
+  version: number;
+};
+
+export const callActivateProjection = (
+  params: CallActivateProjectionParams,
+) =>
+  sql(
+    `SELECT emt_activate_projection(%s, %L, %L, %s) AS activated`,
+    params.lockKey,
+    params.name,
+    params.partition,
+    params.version,
+  );
+
+type CallDeactivateProjectionParams = {
+  lockKey: string;
+  name: string;
+  partition: string;
+  version: number;
+};
+
+export const callDeactivateProjection = (
+  params: CallDeactivateProjectionParams,
+) =>
+  sql(
+    `SELECT emt_deactivate_projection(%s, %L, %L, %s) AS deactivated`,
+    params.lockKey,
+    params.name,
+    params.partition,
+    params.version,
+  );

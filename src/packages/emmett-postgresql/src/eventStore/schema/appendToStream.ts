@@ -114,6 +114,45 @@ export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
   `,
 );
 
+type CallAppendToStreamParams = {
+  messageIds: string;
+  messagesData: string;
+  messagesMetadata: string;
+  schemaVersions: string;
+  messageTypes: string;
+  messageKinds: string;
+  streamId: string;
+  streamType: string;
+  expectedStreamPosition: string;
+  partition: string;
+};
+
+export const callAppendToStream = (params: CallAppendToStreamParams) =>
+  sql(
+    `SELECT * FROM emt_append_to_stream(
+      ARRAY[%s]::text[],
+      ARRAY[%s]::jsonb[],
+      ARRAY[%s]::jsonb[],
+      ARRAY[%s]::text[],
+      ARRAY[%s]::text[],
+      ARRAY[%s]::text[],
+      %L::text,
+      %L::text,
+      %s::bigint,
+      %L::text
+    )`,
+    params.messageIds,
+    params.messagesData,
+    params.messagesMetadata,
+    params.schemaVersions,
+    params.messageTypes,
+    params.messageKinds,
+    params.streamId,
+    params.streamType,
+    params.expectedStreamPosition,
+    params.partition,
+  );
+
 type AppendToStreamResult =
   | {
       success: true;
@@ -266,36 +305,29 @@ const appendEventsRaw = (
 ): Promise<AppendToStreamSqlResult> =>
   single(
     execute.command<AppendToStreamSqlResult>(
-      sql(
-        `SELECT * FROM emt_append_to_stream(
-                  ARRAY[%s]::text[],
-                  ARRAY[%s]::jsonb[],
-                  ARRAY[%s]::jsonb[],
-                  ARRAY[%s]::text[],
-                  ARRAY[%s]::text[],
-                  ARRAY[%s]::text[],
-                  %L::text,
-                  %L::text,
-                  %s::bigint,
-                  %L::text
-              )`,
-        messages.map((e) => sql('%L', e.metadata.messageId)).join(','),
-        messages.map((e) => sql('%L', JSONParser.stringify(e.data))).join(','),
-        messages
+      callAppendToStream({
+        messageIds: messages
+          .map((e) => sql('%L', e.metadata.messageId))
+          .join(','),
+        messagesData: messages
+          .map((e) => sql('%L', JSONParser.stringify(e.data)))
+          .join(','),
+        messagesMetadata: messages
           .map((e) => {
             const { messageId: _messageId, ...rawMetadata } = e.metadata;
             return sql('%L', JSONParser.stringify(rawMetadata));
           })
           .join(','),
-        messages.map(() => `'1'`).join(','),
-        messages.map((e) => sql('%L', e.type)).join(','),
-        messages
+        schemaVersions: messages.map(() => `'1'`).join(','),
+        messageTypes: messages.map((e) => sql('%L', e.type)).join(','),
+        messageKinds: messages
           .map((e) => sql('%L', e.kind === 'Event' ? 'E' : 'C'))
           .join(','),
         streamId,
         streamType,
-        options?.expectedStreamVersion ?? 'NULL',
-        options?.partition ?? defaultTag,
-      ),
+        expectedStreamPosition:
+          options?.expectedStreamVersion?.toString() ?? 'NULL',
+        partition: options?.partition ?? defaultTag,
+      }),
     ),
   );
