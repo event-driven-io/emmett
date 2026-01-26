@@ -214,6 +214,7 @@ export const getPostgreSQLEventStore = (
           for (const projection of inlineProjections) {
             if (projection.init) {
               await projection.init({
+                version: projection.version ?? 1,
                 status: 'active',
                 registrationType: 'inline',
                 context,

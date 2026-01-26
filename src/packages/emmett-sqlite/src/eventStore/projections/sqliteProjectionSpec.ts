@@ -111,6 +111,7 @@ export const SQLiteProjectionSpec = {
                   registrationType: 'async',
                   status: 'active',
                   context: { connection },
+                  version: projection.version ?? 1,
                 });
                 wasInitialized = true;
               }

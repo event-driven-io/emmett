@@ -29,6 +29,7 @@ export type TruncateProjection<
 export type ProjectionInitOptions<
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
 > = {
+  version: number;
   status?: 'active' | 'inactive';
   registrationType: ProjectionHandlingType;
   context: ProjectionHandlerContext;

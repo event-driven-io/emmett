@@ -70,7 +70,8 @@ void describe('PostgreSQL Projections', () => {
         name: 'test',
         evolve: () => rawSql('SELECT 1;'),
         canHandle: ['ProductItemAdded'],
-        initSQL: rawSql(`CREATE TABLE IF NOT EXISTS ${projection} (id TEXT)`),
+        init: () =>
+          rawSql(`CREATE TABLE IF NOT EXISTS ${projection} (id TEXT)`),
       }),
     });
 

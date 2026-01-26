@@ -84,6 +84,7 @@ export const PostgreSQLProjectionSpec = {
           await pool.withTransaction(async (transaction) => {
             await projection.init!({
               registrationType: 'async',
+              version: projection.version ?? 1,
               status: 'active',
               context: {
                 execute: transaction.execute,

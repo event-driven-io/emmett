@@ -142,6 +142,7 @@ export const getSQLiteEventStore = (
           for (const projection of inlineProjections) {
             if (projection.init) {
               await projection.init({
+                version: projection.version ?? 1,
                 registrationType: 'async',
                 status: 'active',
                 context,

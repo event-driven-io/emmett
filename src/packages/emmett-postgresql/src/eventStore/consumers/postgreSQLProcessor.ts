@@ -349,6 +349,7 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
             ? async (context: PostgreSQLProcessorHandlerContext) => {
                 if (options.projection.init)
                   await options.projection.init({
+                    version: options.projection.version ?? version,
                     status: 'active',
                     registrationType: 'async',
                     context,

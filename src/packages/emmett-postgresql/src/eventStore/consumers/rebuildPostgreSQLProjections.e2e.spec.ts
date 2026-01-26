@@ -399,9 +399,11 @@ const createRebuildTestProjection = (
     projection: postgreSQLRawSQLProjection<ProductItemAdded>({
       name,
       canHandle: ['ProductItemAdded'],
-      initSQL: rawSql(
-        `CREATE TABLE IF NOT EXISTS ${tableName} (event_id TEXT PRIMARY KEY, product_id TEXT, quantity INT)`,
-      ),
+
+      init: () =>
+        rawSql(
+          `CREATE TABLE IF NOT EXISTS ${tableName} (event_id TEXT PRIMARY KEY, product_id TEXT, quantity INT)`,
+        ),
       evolve: async (event) => {
         if (options.onEvolve) {
           await options.onEvolve(processed + 1);
