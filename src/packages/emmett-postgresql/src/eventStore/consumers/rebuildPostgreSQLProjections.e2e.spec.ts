@@ -332,7 +332,7 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
             '[Test] Status during rebuild:',
             statusDuringRebuild.status,
           );
-          assertDeepEqual(statusDuringRebuild.status, 'rebuilding');
+          assertDeepEqual(statusDuringRebuild.status, 'async_processing');
 
           console.log('[Test] Appending events to streamB');
           const streamB = `stream-b-${uuid()}`;

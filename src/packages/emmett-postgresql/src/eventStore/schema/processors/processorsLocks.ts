@@ -1,5 +1,5 @@
-import { bigInt } from '@event-driven-io/emmett';
 import { sql } from '@event-driven-io/dumbo';
+import { bigInt } from '@event-driven-io/emmett';
 import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
 import {
   defaultTag,
@@ -64,11 +64,11 @@ BEGIN
             status,
             definition
         )
-        SELECT p_projection_name, p_partition, p_version, p_projection_type, p_projection_kind, 'rebuilding', '{}'::jsonb
+        SELECT p_projection_name, p_partition, p_version, p_projection_type, p_projection_kind, 'async_processing', '{}'::jsonb
         WHERE p_projection_name IS NOT NULL
           AND (SELECT last_processed_checkpoint FROM ownership_check) IS NOT NULL
         ON CONFLICT (name, partition, version) DO UPDATE
-        SET status = 'rebuilding'
+        SET status = 'async_processing'
         RETURNING name
     )
     SELECT
