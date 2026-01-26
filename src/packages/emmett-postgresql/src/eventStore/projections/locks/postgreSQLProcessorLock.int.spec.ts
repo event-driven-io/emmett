@@ -243,7 +243,7 @@ void describe('tryAcquireProcessorLock', () => {
         processorId,
         ...defaultPartitionAndVersion1,
         processorInstanceId: instanceId1,
-        status: 'rebuilding',
+        status: 'async_processing',
       });
 
       const lock = postgreSQLProcessorLock({
@@ -374,8 +374,8 @@ void describe('tryAcquireProcessorLock', () => {
 
       assertDeepEqual(
         status?.status,
-        'rebuilding',
-        'Expected projection status to be rebuilding',
+        'async_processing',
+        'Expected projection status to be async_processing',
       );
     });
 
@@ -460,12 +460,12 @@ void describe('tryAcquireProcessorLock', () => {
 
       assertDeepEqual(
         statusAfter?.status,
-        'rebuilding',
-        'Expected new projection to be created with rebuilding status',
+        'async_processing',
+        'Expected new projection to be created with async_processing status',
       );
     });
 
-    void it('changes existing active projection to rebuilding on acquire', async () => {
+    void it('changes existing active projection to async_processing on acquire', async () => {
       const lockKey = 'test_projection_change_active';
       const processorId = 'processor_projection_change_active';
       const projectionName = 'active_projection_change';
@@ -501,8 +501,8 @@ void describe('tryAcquireProcessorLock', () => {
 
       assertDeepEqual(
         status?.status,
-        'rebuilding',
-        'Expected active projection to change to rebuilding',
+        'async_processing',
+        'Expected active projection to change to async_processing',
       );
     });
 

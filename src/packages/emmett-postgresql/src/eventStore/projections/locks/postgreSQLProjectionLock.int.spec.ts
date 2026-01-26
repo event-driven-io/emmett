@@ -369,7 +369,7 @@ void describe('tryAcquireProjectionLock', () => {
         name: 'test_rebuilding',
         partition: defaultTag,
         version: 1,
-        status: 'rebuilding',
+        status: 'async_processing',
       });
 
       const lock = postgreSQLProjectionLock({
