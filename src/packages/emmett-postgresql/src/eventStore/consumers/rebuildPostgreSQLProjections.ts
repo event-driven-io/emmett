@@ -1,7 +1,9 @@
-import type {
-  AnyEvent,
-  ProjectorOptions,
-  ReadEventMetadataWithGlobalPosition,
+import {
+  getProjectorId,
+  unknownTag,
+  type AnyEvent,
+  type ProjectorOptions,
+  type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import type { PostgreSQLProjectionDefinition } from '../projections';
 import { type LockAcquisitionPolicy } from '../projections/locks';
@@ -62,12 +64,16 @@ export const rebuildPostgreSQLProjections = <
             ? {
                 lockPolicy: defaultRebuildLockPolicy,
                 truncateOnStart: true,
-                processorId: `emt:processor:projector:${p.projection.name}`,
+                processorId: getProjectorId({
+                  projectionName: p.projection.name ?? unknownTag,
+                }),
                 ...p,
               }
             : {
                 projection: p,
-                processorId: `emt:processor:projector:${p.name}`,
+                processorId: getProjectorId({
+                  projectionName: p.name ?? unknownTag,
+                }),
                 truncateOnStart: true,
                 lockPolicy: defaultRebuildLockPolicy,
               },
