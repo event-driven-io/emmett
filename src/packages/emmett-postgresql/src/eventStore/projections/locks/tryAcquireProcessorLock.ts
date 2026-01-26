@@ -1,6 +1,7 @@
 import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import { asyncRetry, hashText, isBigint } from '@event-driven-io/emmett';
 import { defaultTag, unknownTag } from '../../schema/typing';
+import { DefaultPostgreSQLProcessorLockPolicy } from './postgreSQLProcessorLock';
 import { toProjectionLockKey } from './tryAcquireProjectionLock';
 
 export type TryAcquireProcessorLockOptions = {
@@ -90,7 +91,7 @@ export const tryAcquireProcessorLockWithRetry = async (
     lockPolicy?: LockAcquisitionPolicy;
   },
 ): Promise<TryAcquireProcessorLockResult> => {
-  const policy = options.lockPolicy ?? { type: 'fail' };
+  const policy = options.lockPolicy ?? DefaultPostgreSQLProcessorLockPolicy;
 
   if (policy.type === 'retry') {
     return asyncRetry(() => tryAcquireProcessorLock(execute, options), {

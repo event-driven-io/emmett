@@ -2,6 +2,7 @@ import { v7 as uuid } from 'uuid';
 import type { EmmettError } from '../errors';
 import type { ProjectionDefinition } from '../projections';
 import {
+  defaultTag,
   type AnyEvent,
   type AnyMessage,
   type AnyReadEventMetadata,
@@ -154,6 +155,14 @@ export type Checkpointer<
   >;
 };
 
+export type ProcessorHooks<
+  HandlerContext extends DefaultRecord = DefaultRecord,
+> = {
+  onInit?: OnReactorInitHook<HandlerContext>;
+  onStart?: OnReactorStartHook<HandlerContext>;
+  onClose?: OnReactorCloseHook<HandlerContext>;
+};
+
 export type BaseMessageProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -178,11 +187,7 @@ export type BaseMessageProcessorOptions<
     CheckpointType
   >;
   canHandle?: CanHandle<MessageType>;
-  hooks?: {
-    onInit?: OnReactorInitHook<HandlerContext>;
-    onStart?: OnReactorStartHook<HandlerContext>;
-    onClose?: OnReactorCloseHook<HandlerContext>;
-  };
+  hooks?: ProcessorHooks<HandlerContext>;
 };
 
 export type HandlerOptions<
@@ -310,6 +315,15 @@ export type StoreProcessorCheckpoint<
       context: HandlerContext,
     ) => Promise<StoreProcessorCheckpointResult<CheckpointType>>);
 
+export const defaultProcessorVersion = 1;
+export const defaultProcessorPartition = defaultTag;
+
+export const getProcessorInstanceId = (processorId: string): string =>
+  `${processorId}:${uuid()}`;
+
+export const getProjectorId = (options: { projectionName: string }): string =>
+  `emt:processor:projector:${options.projectionName}`;
+
 export const reactor = <
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -329,6 +343,20 @@ export const reactor = <
   HandlerContext,
   CheckpointType
 > => {
+  const {
+    checkpoints,
+    processorId,
+    processorInstanceId: instanceId = getProcessorInstanceId(processorId),
+    type = MessageProcessorType.REACTOR,
+    version = defaultProcessorVersion,
+    partition = defaultProcessorPartition,
+    hooks = {},
+    processingScope = defaultProcessingMessageProcessingScope,
+    startFrom,
+    canHandle,
+    stopAfter,
+  } = options;
+
   const eachMessage: SingleMessageHandlerWithContext<
     MessageType,
     MessageMetadataType,
@@ -341,32 +369,27 @@ export const reactor = <
   let isInitiated = false;
   let isActive = false;
 
-  const { checkpoints, processorId, partition } = options;
-
-  const processingScope =
-    options.processingScope ?? defaultProcessingMessageProcessingScope;
-
   let lastCheckpoint: CheckpointType | null = null;
 
   const init = async (initOptions: Partial<HandlerContext>): Promise<void> => {
     if (isInitiated) return;
 
-    if (!options.hooks?.onInit) {
+    if (hooks.onInit === undefined) {
       isInitiated = true;
       return;
     }
 
     return await processingScope(async (context) => {
-      await options.hooks?.onInit!(context);
+      await hooks.onInit!(context);
       isInitiated = true;
     }, initOptions);
   };
 
   return {
     // TODO: Consider whether not make it optional or add URN prefix
-    id: options.processorId,
-    instanceId: options.processorInstanceId ?? `${processorId}:${uuid()}`,
-    type: options.type ?? MessageProcessorType.REACTOR,
+    id: processorId,
+    instanceId,
+    type,
     init,
     start: async (
       startOptions: Partial<HandlerContext>,
@@ -383,18 +406,17 @@ export const reactor = <
         };
 
       return await processingScope(async (context) => {
-        if (options.hooks?.onStart) {
-          await options.hooks?.onStart(context);
+        if (hooks.onStart) {
+          await hooks.onStart(context);
         }
 
-        if (options.startFrom !== 'CURRENT' && options.startFrom)
-          return options.startFrom;
+        if (startFrom && startFrom !== 'CURRENT') return startFrom;
 
         if (checkpoints) {
           const readResult = await checkpoints?.read(
             {
               processorId: processorId,
-              partition: partition,
+              partition,
             },
             { ...startOptions, ...context },
           );
@@ -408,15 +430,10 @@ export const reactor = <
         };
       }, startOptions);
     },
-    close: async (closeOptions) => {
-      return await processingScope(
-        async (context) =>
-          options.hooks?.onClose
-            ? options.hooks?.onClose(context)
-            : Promise.resolve(),
-        closeOptions,
-      );
-    },
+    close: hooks?.onClose
+      ? async (closeOptions) =>
+          await processingScope(hooks.onClose!, closeOptions)
+      : () => Promise.resolve(),
     get isActive() {
       return isActive;
     },
@@ -432,17 +449,20 @@ export const reactor = <
         for (const message of messages) {
           if (wasMessageHandled(message, lastCheckpoint)) continue;
 
+          if (canHandle !== undefined && !canHandle.includes(message.type))
+            return;
+
           const messageProcessingResult = await eachMessage(message, context);
 
           if (checkpoints) {
             const storeCheckpointResult: StoreProcessorCheckpointResult<CheckpointType | null> =
               await checkpoints.store(
                 {
-                  processorId: options.processorId,
-                  version: options.version,
+                  processorId,
+                  version,
                   message,
                   lastCheckpoint,
-                  partition: options.partition,
+                  partition,
                 },
                 context,
               );
@@ -462,7 +482,7 @@ export const reactor = <
             break;
           }
 
-          if (options.stopAfter && options.stopAfter(message)) {
+          if (stopAfter && stopAfter(message)) {
             isActive = false;
             result = { type: 'STOP', reason: 'Stop condition reached' };
             break;
@@ -480,9 +500,6 @@ export const reactor = <
     },
   };
 };
-
-export const getProjectorId = (options: { projectionName: string }): string =>
-  `emt:processor:projector:${options.projectionName}`;
 
 export const projector = <
   EventType extends Event = Event,
@@ -504,15 +521,19 @@ export const projector = <
   HandlerContext,
   CheckpointType
 > => {
-  const { projection, ...rest } = options;
+  const {
+    projection,
+    processorId = getProjectorId({
+      projectionName: projection.name ?? 'unknown',
+    }),
+    ...rest
+  } = options;
 
   return reactor<EventType, EventMetaDataType, HandlerContext, CheckpointType>({
     ...rest,
     type: MessageProcessorType.PROJECTOR,
-    processorId:
-      options.processorId ??
-      // TODO: Make projeciton name required
-      getProjectorId({ projectionName: projection.name ?? 'unknown' }),
+    canHandle: projection.canHandle,
+    processorId,
     hooks: {
       onInit: options.hooks?.onInit,
       onStart:
@@ -530,10 +551,6 @@ export const projector = <
     eachMessage: async (
       event: RecordedMessage<EventType, EventMetaDataType>,
       context: HandlerContext,
-    ) => {
-      if (!projection.canHandle.includes(event.type)) return;
-
-      await projection.handle([event], context);
-    },
+    ) => projection.handle([event], context),
   });
 };
