@@ -97,7 +97,12 @@ export const inMemoryCheckpointer = <
       ) {
         return {
           success: false,
-          reason: currentPosition === newCheckpoint ? 'IGNORED' : 'MISMATCH',
+          reason:
+            currentPosition === newCheckpoint
+              ? 'IGNORED'
+              : newCheckpoint !== null && currentPosition > newCheckpoint
+                ? 'CURRENT_AHEAD'
+                : 'MISMATCH',
         };
       }
 

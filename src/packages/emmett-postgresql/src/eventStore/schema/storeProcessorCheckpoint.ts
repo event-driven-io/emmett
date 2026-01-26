@@ -22,10 +22,14 @@ BEGIN
   IF p_check_position IS NOT NULL THEN
       -- Try to update if the position matches p_check_position
       UPDATE "${processorsTable.name}"
-      SET 
-        "last_processed_checkpoint" = p_position, 
-        "last_processed_transaction_id" = p_transaction_id
-      WHERE "processor_id" = p_processor_id AND "last_processed_checkpoint" = p_check_position AND "partition" = p_partition;
+      SET
+        "last_processed_checkpoint" = p_position,
+        "last_processed_transaction_id" = p_transaction_id,
+        "last_updated" = now()
+      WHERE "processor_id" = p_processor_id
+        AND "last_processed_checkpoint" = p_check_position
+        AND "partition" = p_partition
+        AND "version" = p_version;
 
       IF FOUND THEN
           RETURN 1;  -- Successfully updated
@@ -34,31 +38,37 @@ BEGIN
       -- Retrieve the current position
       SELECT "last_processed_checkpoint" INTO current_position
       FROM "${processorsTable.name}"
-      WHERE "processor_id" = p_processor_id AND "partition" = p_partition;
+      WHERE "processor_id" = p_processor_id 
+        AND "partition" = p_partition 
+        AND "version" = p_version;
 
       -- Return appropriate codes based on current position
       IF current_position = p_position THEN
           RETURN 0;  -- Idempotent check: position already set
-      ELSIF current_position > p_check_position THEN
-          RETURN 2;  -- Failure: current position is greater
+      ELSIF current_position > p_position THEN
+          RETURN 3;  -- Current ahead: another process has progressed further
       ELSE
-          RETURN 2;  -- Default failure case for mismatched positions
+          RETURN 2;  -- Mismatch: check position doesn't match current
       END IF;
   END IF;
 
   -- Handle the case when p_check_position is NULL: Insert if not exists
   BEGIN
-      INSERT INTO "${processorsTable.name}"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id")
-      VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id);
+      INSERT INTO "${processorsTable.name}"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id", "created_at", "last_updated")
+      VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id, now(), now());
       RETURN 1;  -- Successfully inserted
   EXCEPTION WHEN unique_violation THEN
       -- If insertion failed, it means the row already exists
       SELECT "last_processed_checkpoint" INTO current_position
       FROM "${processorsTable.name}"
-      WHERE "processor_id" = p_processor_id AND "partition" = p_partition;
+      WHERE "processor_id" = p_processor_id 
+        AND "partition" = p_partition 
+        AND "version" = p_version;
 
       IF current_position = p_position THEN
           RETURN 0;  -- Idempotent check: position already set
+      ELSIF current_position > p_position THEN
+          RETURN 3;  -- Current ahead: another process has progressed further
       ELSE
           RETURN 2;  -- Insertion failed, row already exists with different position
       END IF;
@@ -97,7 +107,7 @@ export type StoreLastProcessedProcessorPositionResult<
       success: true;
       newCheckpoint: Position;
     }
-  | { success: false; reason: 'IGNORED' | 'MISMATCH' };
+  | { success: false; reason: 'IGNORED' | 'MISMATCH' | 'CURRENT_AHEAD' };
 
 export const storeProcessorCheckpoint = async <Position extends bigint | null>(
   execute: SQLExecutor,
@@ -116,7 +126,7 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
 > => {
   try {
     const { result } = await single(
-      execute.command<{ result: 0 | 1 | 2 }>(
+      execute.command<{ result: 0 | 1 | 2 | 3 }>(
         callStoreProcessorCheckpoint({
           processorId: options.processorId,
           version: options.version ?? 1,
@@ -136,7 +146,15 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
 
     return result === 1
       ? { success: true, newCheckpoint: options.newCheckpoint }
-      : { success: false, reason: result === 0 ? 'IGNORED' : 'MISMATCH' };
+      : {
+          success: false,
+          reason:
+            result === 0
+              ? 'IGNORED'
+              : result === 3
+                ? 'CURRENT_AHEAD'
+                : 'MISMATCH',
+        };
   } catch (error) {
     console.log(error);
     throw error;

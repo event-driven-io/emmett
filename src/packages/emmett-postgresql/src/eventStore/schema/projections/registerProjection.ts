@@ -126,9 +126,7 @@ type CallRegisterProjectionParams = {
   definition: string;
 };
 
-export const callRegisterProjection = (
-  params: CallRegisterProjectionParams,
-) =>
+export const callRegisterProjection = (params: CallRegisterProjectionParams) =>
   sql(
     `SELECT emt_register_projection(%s, %L, %L, %s, %L, %L, %L, %L) AS registered`,
     params.lockKey,
@@ -148,9 +146,7 @@ type CallActivateProjectionParams = {
   version: number;
 };
 
-export const callActivateProjection = (
-  params: CallActivateProjectionParams,
-) =>
+export const callActivateProjection = (params: CallActivateProjectionParams) =>
   sql(
     `SELECT emt_activate_projection(%s, %L, %L, %s) AS activated`,
     params.lockKey,

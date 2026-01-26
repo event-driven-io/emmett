@@ -11,17 +11,18 @@ export type ReadProcessorCheckpointResult = {
 
 export const readProcessorCheckpoint = async (
   execute: SQLExecutor,
-  options: { processorId: string; partition?: string },
+  options: { processorId: string; partition?: string; version?: number },
 ): Promise<ReadProcessorCheckpointResult> => {
   const result = await singleOrNull(
     execute.query<ReadProcessorCheckpointSqlResult>(
       sql(
         `SELECT last_processed_checkpoint
            FROM ${processorsTable.name}
-           WHERE partition = %L AND processor_id = %L
+           WHERE partition = %L AND processor_id = %L AND version = %s
            LIMIT 1`,
         options?.partition ?? defaultTag,
         options.processorId,
+        options.version ?? 1,
       ),
     ),
   );
