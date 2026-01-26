@@ -153,15 +153,15 @@ export const postgreSQLProjection = <EventType extends Event>(
 export type PostgreSQLRawBatchSQLProjection<EventType extends Event> = {
   name: string;
   kind?: string;
+  version?: number;
   evolve: (
     events: EventType[],
     context: PostgreSQLProjectionHandlerContext,
   ) => Promise<SQL[]> | SQL[];
   canHandle: CanHandle<EventType>;
-  initSQL?: SQL | SQL[];
   init?: (
     context: ProjectionInitOptions<PostgreSQLProjectionHandlerContext>,
-  ) => void | Promise<void>;
+  ) => void | Promise<void> | SQL | Promise<SQL> | Promise<SQL[]> | SQL[];
 };
 
 export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
@@ -170,6 +170,7 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
   postgreSQLProjection<EventType>({
     name: options.name,
     kind: options.kind ?? 'emt:projections:postgresql:raw_sql:batch',
+    version: options.version,
     canHandle: options.canHandle,
     handle: async (events, context) => {
       const sqls: SQL[] = await options.evolve(events, context);
@@ -177,14 +178,15 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
       await context.execute.batchCommand(sqls);
     },
     init: async (initOptions) => {
-      if (options.init) {
-        await options.init(initOptions);
-      }
-      if (options.initSQL) {
-        if (Array.isArray(options.initSQL)) {
-          await initOptions.context.execute.batchCommand(options.initSQL);
+      const initSQL = options.init
+        ? await options.init(initOptions)
+        : undefined;
+
+      if (initSQL) {
+        if (Array.isArray(initSQL)) {
+          await initOptions.context.execute.batchCommand(initSQL);
         } else {
-          await initOptions.context.execute.command(options.initSQL);
+          await initOptions.context.execute.command(initSQL);
         }
       }
     },
@@ -193,15 +195,15 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
 export type PostgreSQLRawSQLProjection<EventType extends Event> = {
   name: string;
   kind?: string;
+  version?: number;
   evolve: (
     events: EventType,
     context: PostgreSQLProjectionHandlerContext,
   ) => Promise<SQL[]> | SQL[] | Promise<SQL> | SQL;
   canHandle: CanHandle<EventType>;
-  initSQL?: SQL | SQL[];
   init?: (
-    options: ProjectionInitOptions<PostgreSQLProjectionHandlerContext>,
-  ) => void | Promise<void>;
+    context: ProjectionInitOptions<PostgreSQLProjectionHandlerContext>,
+  ) => void | Promise<void> | SQL | Promise<SQL> | Promise<SQL[]> | SQL[];
 };
 
 export const postgreSQLRawSQLProjection = <EventType extends Event>(

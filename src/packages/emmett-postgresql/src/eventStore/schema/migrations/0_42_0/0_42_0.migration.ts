@@ -206,7 +206,7 @@ BEGIN
                   UPDATE "emt_subscriptions"
                   SET
                     "last_processed_position" = v_position_bigint,
-                    "last_processed_transaction_id" = p_transaction_id,
+                    "last_processed_transaction_id" = p_transaction_id
                   WHERE "subscription_id" = p_processor_id AND "partition" = p_partition AND "version" = p_version;
 
                   IF NOT FOUND THEN

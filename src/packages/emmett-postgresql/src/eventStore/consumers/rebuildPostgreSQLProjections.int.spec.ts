@@ -47,6 +47,8 @@ void describe('Rebuilding PostgreSQL Projections', () => {
   let pongo: PongoClient;
   let summaries: PongoCollection<ShoppingCartSummary>;
   let otherSummaries: PongoCollection<ShoppingCartSummary>;
+  let summariesV2: PongoCollection<ShoppingCartSummary>;
+  let otherSummariesV2: PongoCollection<ShoppingCartSummary>;
   const productItem = { price: 10, productId: uuid(), quantity: 10 };
   const confirmedAt = new Date();
   let db: PongoDb;
@@ -66,6 +68,10 @@ void describe('Rebuilding PostgreSQL Projections', () => {
     db = pongo.db();
     summaries = db.collection(shoppingCartsSummaryCollectionName);
     otherSummaries = db.collection(otherShoppingCartsSummaryCollectionName);
+    summariesV2 = db.collection(`${shoppingCartsSummaryCollectionName}_v2`);
+    otherSummariesV2 = db.collection(
+      `${otherShoppingCartsSummaryCollectionName}_v2`,
+    );
     pool = dumbo({ connectionString });
   });
 
@@ -118,7 +124,7 @@ void describe('Rebuilding PostgreSQL Projections', () => {
       // When
       const consumer = rebuildPostgreSQLProjections({
         connectionString,
-        projection: shoppingCartsSummaryProjectionV2,
+        projection: shoppingCartsSummaryProjectionNew,
       });
 
       try {
@@ -185,8 +191,8 @@ void describe('Rebuilding PostgreSQL Projections', () => {
       const consumer = rebuildPostgreSQLProjections({
         connectionString,
         projections: [
-          shoppingCartsSummaryProjectionV2,
-          otherShoppingCartsSummaryProjectionV2,
+          shoppingCartsSummaryProjectionNew,
+          otherShoppingCartsSummaryProjectionNew,
         ],
       });
 
@@ -220,6 +226,114 @@ void describe('Rebuilding PostgreSQL Projections', () => {
     });
 
     void it(
+      'rebuilds multiple inline projection to new version',
+      withDeadline,
+      async () => {
+        // Given
+        const shoppingCartId = `shoppingCart:${uuid()}`;
+        const otherShoppingCartId = `shoppingCart:${uuid()}`;
+        const streamName = `shopping_cart-${shoppingCartId}`;
+        const otherStreamName = `shopping_cart-${otherShoppingCartId}`;
+        const events: ShoppingCartSummaryEvent[] = [
+          { type: 'ProductItemAdded', data: { productItem } },
+          { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
+        ];
+
+        await eventStore.appendToStream(streamName, events);
+        await eventStore.appendToStream(otherStreamName, events);
+
+        const p1Summary = await summaries.findOne({ _id: streamName });
+        const p1OtherSummary = await summaries.findOne({
+          _id: otherStreamName,
+        });
+        const p2Summary = await otherSummaries.findOne({ _id: streamName });
+        const p2OtherSummary = await otherSummaries.findOne({
+          _id: otherStreamName,
+        });
+
+        assertDeepEqual(p1Summary, {
+          _id: streamName,
+          status: 'confirmed',
+          _version: 2n,
+          productItemsCount: productItem.quantity,
+        });
+        assertDeepEqual(p1OtherSummary, {
+          _id: otherStreamName,
+          status: 'confirmed',
+          _version: 2n,
+          productItemsCount: productItem.quantity,
+        });
+
+        assertDeepEqual(p1Summary, p2Summary);
+        assertDeepEqual(p1OtherSummary, p2OtherSummary);
+
+        // When
+        const consumer = rebuildPostgreSQLProjections({
+          connectionString,
+          projections: [
+            shoppingCartsSummaryProjectionV2,
+            otherShoppingCartsSummaryProjectionV2,
+          ],
+        });
+
+        try {
+          await consumer.start();
+
+          const p1SummaryV2 = await summariesV2.findOne({ _id: streamName });
+          const p1OtherSummaryV2 = await summariesV2.findOne({
+            _id: otherStreamName,
+          });
+          const p2SummaryV2 = await otherSummariesV2.findOne({
+            _id: streamName,
+          });
+          const p2OtherSummaryV2 = await otherSummariesV2.findOne({
+            _id: otherStreamName,
+          });
+
+          assertDeepEqual(p1SummaryV2, {
+            _id: streamName,
+            status: 'confirmed',
+            _version: 2n,
+            productItemsCount: productItem.quantity * v2QuantityMultiplier,
+          });
+          assertDeepEqual(p1OtherSummaryV2, {
+            _id: otherStreamName,
+            status: 'confirmed',
+            _version: 2n,
+            productItemsCount: productItem.quantity * v2QuantityMultiplier,
+          });
+          assertDeepEqual(p1SummaryV2, p2SummaryV2);
+          assertDeepEqual(p1OtherSummaryV2, p2OtherSummaryV2);
+
+          // Ensure old is not touched
+
+          assertDeepEqual(
+            p1Summary,
+            await summaries.findOne({ _id: streamName }),
+          );
+          assertDeepEqual(
+            p1OtherSummary,
+            await summaries.findOne({
+              _id: otherStreamName,
+            }),
+          );
+          assertDeepEqual(
+            p2Summary,
+            await otherSummaries.findOne({ _id: streamName }),
+          );
+          assertDeepEqual(
+            p2OtherSummary,
+            await otherSummaries.findOne({
+              _id: otherStreamName,
+            }),
+          );
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
+    void it(
       'continues rebuilding from checkpoint after crash',
       withDeadline,
       async () => {
@@ -239,6 +353,7 @@ void describe('Rebuilding PostgreSQL Projections', () => {
           createRebuildTestProjection(
             'crash-recovery-test',
             'rebuild_test_events',
+            1,
             {
               onEvolve: (count) => {
                 if (shouldCrash && count === 3) {
@@ -306,6 +421,7 @@ void describe('Rebuilding PostgreSQL Projections', () => {
           createRebuildTestProjection(
             'timeout-takeover-test',
             'timeout_test_events',
+            1,
             {
               onEvolve: async (count) => {
                 if (count === 2) {
@@ -443,8 +559,18 @@ const shoppingCartsSummaryProjection = pongoSingleStreamProjection({
   }),
 });
 
+const shoppingCartsSummaryProjectionNew = pongoSingleStreamProjection({
+  collectionName: shoppingCartsSummaryCollectionName,
+  evolve: evolveV2,
+  canHandle: ['ProductItemAdded', 'ShoppingCartConfirmed'],
+  initialState: () => ({
+    status: 'pending',
+    productItemsCount: 0,
+  }),
+});
 const shoppingCartsSummaryProjectionV2 = pongoSingleStreamProjection({
   collectionName: shoppingCartsSummaryCollectionName,
+  version: 2,
   evolve: evolveV2,
   canHandle: ['ProductItemAdded', 'ShoppingCartConfirmed'],
   initialState: () => ({
@@ -463,7 +589,7 @@ const otherShoppingCartsSummaryProjection = pongoSingleStreamProjection({
   }),
 });
 
-const otherShoppingCartsSummaryProjectionV2 = pongoSingleStreamProjection({
+const otherShoppingCartsSummaryProjectionNew = pongoSingleStreamProjection({
   collectionName: otherShoppingCartsSummaryCollectionName,
   evolve: evolveV2,
   canHandle: ['ProductItemAdded', 'ShoppingCartConfirmed'],
@@ -473,29 +599,47 @@ const otherShoppingCartsSummaryProjectionV2 = pongoSingleStreamProjection({
   }),
 });
 
+const otherShoppingCartsSummaryProjectionV2 = pongoSingleStreamProjection({
+  collectionName: otherShoppingCartsSummaryCollectionName,
+  version: 2,
+  evolve: evolveV2,
+  canHandle: ['ProductItemAdded', 'ShoppingCartConfirmed'],
+  initialState: () => ({
+    status: 'pending',
+    productItemsCount: 0,
+  }),
+});
+
+const getTableFullName = (name: string, version: number) =>
+  version === 1 ? name : `${name}_v${version}`;
+
 const createRebuildTestProjection = (
   name: string,
   tableName: string,
+  version: number,
   options: {
     onEvolve?: (processedCount: number) => void | Promise<void>;
   } = {},
 ) => {
   let processed = 0;
 
+  const tableFullName = getTableFullName(tableName, version);
+
   return {
     projection: postgreSQLRawSQLProjection<ProductItemAdded>({
       name,
       canHandle: ['ProductItemAdded'],
-      initSQL: rawSql(
-        `CREATE TABLE IF NOT EXISTS ${tableName} (event_id TEXT PRIMARY KEY, product_id TEXT, quantity INT)`,
-      ),
+      init: () =>
+        rawSql(
+          `CREATE TABLE IF NOT EXISTS ${tableFullName} (event_id TEXT PRIMARY KEY, product_id TEXT, quantity INT)`,
+        ),
       evolve: async (event) => {
         if (options.onEvolve) {
           await options.onEvolve(processed + 1);
         }
         processed++;
         return rawSql(
-          `INSERT INTO ${tableName} (event_id, product_id, quantity) VALUES ('${(event as ReadEvent<ProductItemAdded>).metadata.messageId}', '${event.data.productItem.productId}', ${event.data.productItem.quantity})`,
+          `INSERT INTO ${tableFullName} (event_id, product_id, quantity) VALUES ('${(event as ReadEvent<ProductItemAdded>).metadata.messageId}', '${event.data.productItem.productId}', ${event.data.productItem.quantity})`,
         );
       },
     }),
@@ -505,13 +649,13 @@ const createRebuildTestProjection = (
     },
     rowCount: async (p: NodePostgresPool) => {
       const result = await single<{ count: string }>(
-        p.execute.query(sql(`SELECT COUNT(*) as count FROM ${tableName}`)),
+        p.execute.query(sql(`SELECT COUNT(*) as count FROM ${tableFullName}`)),
       );
       return Number(result.count);
     },
     getProductIds: async (p: NodePostgresPool) => {
       const result = await p.execute.query<{ product_id: string }>(
-        sql(`SELECT product_id FROM ${tableName}`),
+        sql(`SELECT product_id FROM ${tableFullName}`),
       );
       return result.rows.map((row) => row.product_id);
     },

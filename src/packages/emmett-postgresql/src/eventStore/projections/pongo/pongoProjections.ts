@@ -63,6 +63,7 @@ export type PongoDocumentEvolve<
 export type PongoProjectionOptions<EventType extends Event> = {
   name: string;
   kind?: string;
+  version?: number;
   handle: (
     events: ReadEvent<EventType, PostgresReadEventMetadata>[],
     context: PongoProjectionHandlerContext,
@@ -75,12 +76,14 @@ export type PongoProjectionOptions<EventType extends Event> = {
 export const pongoProjection = <EventType extends Event>({
   name,
   kind,
+  version,
   truncate,
   handle,
   canHandle,
 }: PongoProjectionOptions<EventType>): PostgreSQLProjectionDefinition<EventType> =>
   postgreSQLProjection<EventType>({
     name,
+    version,
     kind: kind ?? 'emt:projections:postgresql:pongo:generic',
     canHandle,
     handle: async (events, context) => {
@@ -127,7 +130,7 @@ export type PongoMultiStreamProjectionOptions<
 > = {
   kind?: string;
   canHandle: CanHandle<EventType>;
-
+  version?: number;
   collectionName: string;
   getDocumentId: (event: ReadEvent<EventType>) => string;
 } & (
@@ -161,12 +164,19 @@ export const pongoMultiStreamProjection = <
   >,
 ): PostgreSQLProjectionDefinition<EventType> => {
   const { collectionName, getDocumentId, canHandle } = options;
+  const collectionNameWithVersion =
+    options.version && options.version > 0
+      ? `${collectionName}_v${options.version}`
+      : collectionName;
 
   return pongoProjection({
-    name: collectionName,
+    name: collectionNameWithVersion,
+    version: options.version,
     kind: options.kind ?? 'emt:projections:postgresql:pongo:multi_stream',
     handle: async (events, { pongo }) => {
-      const collection = pongo.db().collection<Document>(collectionName);
+      const collection = pongo
+        .db()
+        .collection<Document>(collectionNameWithVersion);
 
       for (const event of events) {
         await collection.handle(getDocumentId(event), async (document) => {
@@ -192,7 +202,10 @@ export const pongoMultiStreamProjection = <
       });
 
       try {
-        await pongo.db().collection<Document>(collectionName).deleteMany();
+        await pongo
+          .db()
+          .collection<Document>(collectionNameWithVersion)
+          .deleteMany();
       } finally {
         await pongo.close();
       }
@@ -206,7 +219,10 @@ export const pongoMultiStreamProjection = <
       });
 
       try {
-        await pongo.db().collection<Document>(collectionName).schema.migrate();
+        await pongo
+          .db()
+          .collection<Document>(collectionNameWithVersion)
+          .schema.migrate();
       } finally {
         await pongo.close();
       }
@@ -222,7 +238,7 @@ export type PongoSingleStreamProjectionOptions<
 > = {
   canHandle: CanHandle<EventType>;
   getDocumentId?: (event: ReadEvent<EventType>) => string;
-
+  version?: number;
   collectionName: string;
 } & (
   | {
