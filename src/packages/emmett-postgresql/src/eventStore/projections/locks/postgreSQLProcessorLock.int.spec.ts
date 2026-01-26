@@ -17,14 +17,11 @@ import {
 } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { createEventStoreSchema, defaultTag, unknownTag } from '../../schema';
+import { postgreSQLProcessorLock } from './postgreSQLProcessorLock';
 import {
-  releaseProcessorLock,
-  tryAcquireProcessorLock,
-} from './tryAcquireProcessorLock';
-import {
+  postgreSQLProjectionLock,
   toProjectionLockKey,
-  tryAcquireProjectionLock,
-} from './tryAcquireProjectionLock';
+} from './postgreSQLProjectionLock';
 
 void describe('tryAcquireProcessorLock', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -57,14 +54,24 @@ void describe('tryAcquireProcessorLock', () => {
       const firstLockHeld = asyncAwaiter();
       const secondLockAttempted = asyncAwaiter();
 
+      const lock1 = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: 'instance_1',
+      });
+
+      const lock2 = postgreSQLProcessorLock({
+        lockKey,
+        processorId: processorId2,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: 'instance_2',
+        lockPolicy: { type: 'skip' },
+      });
+
       const [firstResult, secondResult] = await Promise.all([
         pool.withTransaction(async (tx) => {
-          const result = await tryAcquireProcessorLock(tx.execute, {
-            lockKey,
-            processorId,
-            ...defaultPartitionAndVersion1,
-            processorInstanceId: 'instance_1',
-          });
+          const result = await lock1.tryAcquire({ execute: tx.execute });
           firstLockHeld.resolve();
           await secondLockAttempted.wait;
           return result;
@@ -72,26 +79,25 @@ void describe('tryAcquireProcessorLock', () => {
         (async () => {
           await firstLockHeld.wait;
           const result = await pool.withTransaction((tx) =>
-            tryAcquireProcessorLock(tx.execute, {
-              lockKey,
-              processorId: processorId2,
-              ...defaultPartitionAndVersion1,
-              processorInstanceId: 'instance_2',
-            }),
+            lock2.tryAcquire({ execute: tx.execute }),
           );
           secondLockAttempted.resolve();
           return result;
         })(),
       ]);
 
-      assertTrue(firstResult.acquired, 'Expected first processor to acquire');
+      assertTrue(firstResult, 'Expected first processor to acquire');
+      const checkpoint = await getProcessorCheckpoint(pool.execute, {
+        processorId,
+        ...defaultPartitionAndVersion1,
+      });
       assertDeepEqual(
-        firstResult.checkpoint,
+        checkpoint,
         '0000000000000000000',
         'Expected initial checkpoint to be 0000000000000000000',
       );
       assertFalse(
-        secondResult.acquired,
+        secondResult,
         'Expected second processor to fail while first holds lock',
       );
     });
@@ -103,39 +109,38 @@ void describe('tryAcquireProcessorLock', () => {
       const instanceId1 = 'instance_1';
       const instanceId2 = 'instance_2';
 
-      const firstAcquired = await pool.withConnection(async (connection) => {
-        const result = await tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId: processorId1,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId1,
-        });
+      const lock1 = postgreSQLProcessorLock({
+        lockKey,
+        processorId: processorId1,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId1,
+      });
 
-        if (result.acquired) {
-          await releaseProcessorLock(connection.execute, {
-            lockKey,
-            processorId: processorId1,
-            ...defaultPartitionAndVersion1,
-            processorInstanceId: instanceId1,
-          });
+      const firstAcquired = await pool.withConnection(async (connection) => {
+        const result = await lock1.tryAcquire({ execute: connection.execute });
+
+        if (result) {
+          await lock1.release({ execute: connection.execute });
         }
 
         return result;
       });
 
-      assertTrue(firstAcquired.acquired, 'Expected first processor to acquire');
+      assertTrue(firstAcquired, 'Expected first processor to acquire');
+
+      const lock2 = postgreSQLProcessorLock({
+        lockKey,
+        processorId: processorId2,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId2,
+      });
 
       const secondAcquired = await pool.withConnection((connection) =>
-        tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId: processorId2,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId2,
-        }),
+        lock2.tryAcquire({ execute: connection.execute }),
       );
 
       assertTrue(
-        secondAcquired.acquired,
+        secondAcquired,
         'Expected second processor to acquire after first releases',
       );
     });
@@ -147,34 +152,35 @@ void describe('tryAcquireProcessorLock', () => {
       const processorId = 'processor_reacquire';
       const instanceId = 'instance_1';
 
+      const lock = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId,
+      });
+
       await pool.withConnection(async (connection) => {
-        const firstResult = await tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId,
+        const firstResult = await lock.tryAcquire({
+          execute: connection.execute,
         });
 
-        assertTrue(firstResult.acquired, 'Expected first acquire to succeed');
+        assertTrue(firstResult, 'Expected first acquire to succeed');
 
-        await releaseProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId,
-        });
+        await lock.release({ execute: connection.execute });
+      });
+
+      const lock2 = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId,
       });
 
       const secondResult = await pool.withConnection((connection) =>
-        tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId,
-        }),
+        lock2.tryAcquire({ execute: connection.execute }),
       );
 
-      assertTrue(secondResult.acquired, 'Expected same instance to re-acquire');
+      assertTrue(secondResult, 'Expected same instance to re-acquire');
     });
 
     void it('blocks different instance when processor is running', async () => {
@@ -184,18 +190,27 @@ void describe('tryAcquireProcessorLock', () => {
       const instanceId2 = 'instance_2';
 
       const firstLockHeld = asyncAwaiter();
-      const secondLockAttempted = asyncAwaiter<{
-        acquired: boolean;
-        checkpoint?: string;
-      }>();
+      const secondLockAttempted = asyncAwaiter<boolean>();
+
+      const lock1 = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId1,
+      });
+
+      const lock2 = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId2,
+        lockPolicy: { type: 'skip' },
+      });
 
       const [firstResult, secondResult] = await Promise.all([
         pool.withConnection(async (connection) => {
-          const result = await tryAcquireProcessorLock(connection.execute, {
-            lockKey,
-            processorId,
-            ...defaultPartitionAndVersion1,
-            processorInstanceId: instanceId1,
+          const result = await lock1.tryAcquire({
+            execute: connection.execute,
           });
           firstLockHeld.resolve();
           await secondLockAttempted.wait;
@@ -204,21 +219,16 @@ void describe('tryAcquireProcessorLock', () => {
         (async () => {
           await firstLockHeld.wait;
           const result = await pool.withConnection((connection) =>
-            tryAcquireProcessorLock(connection.execute, {
-              lockKey,
-              processorId,
-              ...defaultPartitionAndVersion1,
-              processorInstanceId: instanceId2,
-            }),
+            lock2.tryAcquire({ execute: connection.execute }),
           );
           secondLockAttempted.resolve(result);
           return result;
         })(),
       ]);
 
-      assertTrue(firstResult.acquired, 'Expected first instance to acquire');
+      assertTrue(firstResult, 'Expected first instance to acquire');
       assertFalse(
-        secondResult.acquired,
+        secondResult,
         'Expected different instance to be blocked when processor is running',
       );
     });
@@ -236,17 +246,20 @@ void describe('tryAcquireProcessorLock', () => {
         status: 'rebuilding',
       });
 
+      const lock = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId2,
+        lockPolicy: { type: 'skip' },
+      });
+
       const result = await pool.withConnection((connection) =>
-        tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId2,
-        }),
+        lock.tryAcquire({ execute: connection.execute }),
       );
 
       assertFalse(
-        result.acquired,
+        result,
         'Expected different instance to be blocked when processor is rebuilding',
       );
     });
@@ -257,22 +270,19 @@ void describe('tryAcquireProcessorLock', () => {
       const instanceId1 = 'instance_1';
       const instanceId2 = 'instance_2';
 
+      const lock1 = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId1,
+      });
+
       await pool.withConnection(async (connection) => {
-        const result = await tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId1,
-        });
+        const result = await lock1.tryAcquire({ execute: connection.execute });
 
-        assertTrue(result.acquired, 'Expected first instance to acquire');
+        assertTrue(result, 'Expected first instance to acquire');
 
-        await releaseProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId1,
-        });
+        await lock1.release({ execute: connection.execute });
       });
 
       const status = await getProcessorStatus(pool.execute, {
@@ -285,17 +295,19 @@ void describe('tryAcquireProcessorLock', () => {
         'Expected processor status to be stopped',
       );
 
+      const lock2 = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId2,
+      });
+
       const secondResult = await pool.withConnection((connection) =>
-        tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId2,
-        }),
+        lock2.tryAcquire({ execute: connection.execute }),
       );
 
       assertTrue(
-        secondResult.acquired,
+        secondResult,
         'Expected different instance to acquire when processor is stopped',
       );
     });
@@ -312,17 +324,19 @@ void describe('tryAcquireProcessorLock', () => {
         status: 'running',
       });
 
+      const lock = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId,
+      });
+
       const result = await pool.withConnection((connection) =>
-        tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId,
-        }),
+        lock.tryAcquire({ execute: connection.execute }),
       );
 
       assertTrue(
-        result.acquired,
+        result,
         'Expected to acquire when processor_instance_id is unknown',
       );
     });
@@ -334,21 +348,23 @@ void describe('tryAcquireProcessorLock', () => {
       const processorId = 'processor_projection_rebuilding';
       const projectionName = 'projection_rebuilding';
 
-      await pool.withConnection(async (connection) => {
-        const result = await tryAcquireProcessorLock(connection.execute, {
-          ...defaultPartitionAndVersion1,
-          lockKey,
-          processorId,
-          processorInstanceId: getProcessorInstanceId(processorId),
-          projection: {
-            name: projectionName,
-            handlingType: 'async' as const,
-            kind: 'async',
-            version: 1,
-          },
-        });
+      const lock = postgreSQLProcessorLock({
+        ...defaultPartitionAndVersion1,
+        lockKey,
+        processorId,
+        processorInstanceId: getProcessorInstanceId(processorId),
+        projection: {
+          name: projectionName,
+          handlingType: 'async' as const,
+          kind: 'async',
+          version: 1,
+        },
+      });
 
-        assertTrue(result.acquired, 'Expected to acquire lock');
+      await pool.withConnection(async (connection) => {
+        const result = await lock.tryAcquire({ execute: connection.execute });
+
+        assertTrue(result, 'Expected to acquire lock');
       });
 
       const status = await getProjectionStatus(pool.execute, {
@@ -369,29 +385,25 @@ void describe('tryAcquireProcessorLock', () => {
       const projectionName = 'projection_active';
       const instanceId = 'instance_1';
 
+      const lock = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        projection: {
+          name: projectionName,
+          handlingType: 'async' as const,
+          kind: 'async',
+          version: 1,
+        },
+        processorInstanceId: instanceId,
+      });
+
       await pool.withConnection(async (connection) => {
-        const result = await tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          projection: {
-            name: projectionName,
-            handlingType: 'async' as const,
-            kind: 'async',
-            version: 1,
-          },
-          processorInstanceId: instanceId,
-        });
+        const result = await lock.tryAcquire({ execute: connection.execute });
 
-        assertTrue(result.acquired, 'Expected to acquire lock');
+        assertTrue(result, 'Expected to acquire lock');
 
-        await releaseProcessorLock(connection.execute, {
-          ...defaultPartitionAndVersion1,
-          lockKey,
-          processorId,
-          processorInstanceId: instanceId,
-          projectionName,
-        });
+        await lock.release({ execute: connection.execute });
       });
 
       const status = await getProjectionStatus(pool.execute, {
@@ -422,21 +434,23 @@ void describe('tryAcquireProcessorLock', () => {
         'Expected projection to not exist initially',
       );
 
-      await pool.withConnection(async (connection) => {
-        const result = await tryAcquireProcessorLock(connection.execute, {
-          ...defaultPartitionAndVersion1,
-          lockKey,
-          processorId,
-          projection: {
-            name: projectionName,
-            handlingType: 'async' as const,
-            kind: 'async',
-            version: 1,
-          },
-          processorInstanceId: getProcessorInstanceId(processorId),
-        });
+      const lock = postgreSQLProcessorLock({
+        ...defaultPartitionAndVersion1,
+        lockKey,
+        processorId,
+        projection: {
+          name: projectionName,
+          handlingType: 'async' as const,
+          kind: 'async',
+          version: 1,
+        },
+        processorInstanceId: getProcessorInstanceId(processorId),
+      });
 
-        assertTrue(result.acquired, 'Expected to acquire lock');
+      await pool.withConnection(async (connection) => {
+        const result = await lock.tryAcquire({ execute: connection.execute });
+
+        assertTrue(result, 'Expected to acquire lock');
       });
 
       const statusAfter = await getProjectionStatus(pool.execute, {
@@ -461,21 +475,23 @@ void describe('tryAcquireProcessorLock', () => {
         status: 'active',
       });
 
-      await pool.withConnection(async (connection) => {
-        const result = await tryAcquireProcessorLock(connection.execute, {
-          ...defaultPartitionAndVersion1,
-          lockKey,
-          processorId,
-          projection: {
-            name: projectionName,
-            handlingType: 'async' as const,
-            kind: 'async',
-            version: 1,
-          },
-          processorInstanceId: getProcessorInstanceId(processorId),
-        });
+      const lock = postgreSQLProcessorLock({
+        ...defaultPartitionAndVersion1,
+        lockKey,
+        processorId,
+        projection: {
+          name: projectionName,
+          handlingType: 'async' as const,
+          kind: 'async',
+          version: 1,
+        },
+        processorInstanceId: getProcessorInstanceId(processorId),
+      });
 
-        assertTrue(result.acquired, 'Expected to acquire lock');
+      await pool.withConnection(async (connection) => {
+        const result = await lock.tryAcquire({ execute: connection.execute });
+
+        assertTrue(result, 'Expected to acquire lock');
       });
 
       const status = await getProjectionStatus(pool.execute, {
@@ -500,42 +516,45 @@ void describe('tryAcquireProcessorLock', () => {
       const firstLockHeld = asyncAwaiter();
       const secondLockAttempted = asyncAwaiter();
 
+      const lock1 = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        projection: {
+          name: projectionName,
+          handlingType: 'async' as const,
+          kind: 'async',
+          version: 1,
+        },
+        processorInstanceId: getProcessorInstanceId(processorId),
+      });
+
+      const lock2 = postgreSQLProcessorLock({
+        lockKey,
+        processorId: processorId2,
+        ...defaultPartitionAndVersion1,
+        projection: {
+          name: projectionName,
+          handlingType: 'async' as const,
+          kind: 'async',
+          version: 1,
+        },
+        processorInstanceId: getProcessorInstanceId(processorId),
+        lockPolicy: { type: 'skip' },
+      });
+
       await Promise.all([
         pool.withTransaction(async (tx) => {
-          const result = await tryAcquireProcessorLock(tx.execute, {
-            lockKey,
-            processorId,
-            ...defaultPartitionAndVersion1,
-            projection: {
-              name: projectionName,
-              handlingType: 'async' as const,
-              kind: 'async',
-              version: 1,
-            },
-            processorInstanceId: getProcessorInstanceId(processorId),
-          });
+          await lock1.tryAcquire({ execute: tx.execute });
           firstLockHeld.resolve();
           await secondLockAttempted.wait;
-          return result;
         }),
         (async () => {
           await firstLockHeld.wait;
-          const result = await pool.withTransaction(async (tx) =>
-            tryAcquireProcessorLock(tx.execute, {
-              lockKey,
-              processorId: processorId2,
-              ...defaultPartitionAndVersion1,
-              projection: {
-                name: projectionName,
-                handlingType: 'async' as const,
-                kind: 'async',
-                version: 1,
-              },
-              processorInstanceId: getProcessorInstanceId(processorId),
-            }),
+          await pool.withTransaction(async (tx) =>
+            lock2.tryAcquire({ execute: tx.execute }),
           );
           secondLockAttempted.resolve();
-          return result;
         })(),
       ]);
 
@@ -559,39 +578,33 @@ void describe('tryAcquireProcessorLock', () => {
       const processorId2 = 'processor_release_explicit_2';
       const instanceId = 'instance_1';
 
+      const lock1 = postgreSQLProcessorLock({
+        ...defaultPartitionAndVersion1,
+        lockKey,
+        processorId,
+        processorInstanceId: instanceId,
+      });
+
       await pool.withTransaction(async (tx) => {
-        const result = await tryAcquireProcessorLock(tx.execute, {
-          ...defaultPartitionAndVersion1,
-          lockKey,
-          processorId,
-          processorInstanceId: instanceId,
-        });
+        const result = await lock1.tryAcquire({ execute: tx.execute });
 
-        assertTrue(result.acquired, 'Expected to acquire lock');
+        assertTrue(result, 'Expected to acquire lock');
 
-        const released = await releaseProcessorLock(tx.execute, {
-          ...defaultPartitionAndVersion1,
-          lockKey,
-          processorId,
-          processorInstanceId: instanceId,
-        });
+        await lock1.release({ execute: tx.execute });
+      });
 
-        assertTrue(released, 'Expected release to succeed');
+      const lock2 = postgreSQLProcessorLock({
+        ...defaultPartitionAndVersion1,
+        lockKey,
+        processorId: processorId2,
+        processorInstanceId: getProcessorInstanceId(processorId2),
       });
 
       const secondAcquire = await pool.withTransaction(async (tx) =>
-        tryAcquireProcessorLock(tx.execute, {
-          ...defaultPartitionAndVersion1,
-          lockKey,
-          processorId: processorId2,
-          processorInstanceId: getProcessorInstanceId(processorId2),
-        }),
+        lock2.tryAcquire({ execute: tx.execute }),
       );
 
-      assertTrue(
-        secondAcquire.acquired,
-        'Expected lock to be available after release',
-      );
+      assertTrue(secondAcquire, 'Expected lock to be available after release');
     });
 
     void it('auto-releases lock when connection terminates', async () => {
@@ -600,28 +613,32 @@ void describe('tryAcquireProcessorLock', () => {
       const processorId2 = 'processor_crash_auto_release_2';
       const instanceId = 'instance_1';
 
-      await pool.withConnection(async (connection) => {
-        const result = await tryAcquireProcessorLock(connection.execute, {
-          ...defaultPartitionAndVersion1,
-          lockKey,
-          processorId,
-          processorInstanceId: instanceId,
-        });
+      const lock1 = postgreSQLProcessorLock({
+        ...defaultPartitionAndVersion1,
+        lockKey,
+        processorId,
+        processorInstanceId: instanceId,
+      });
 
-        assertTrue(result.acquired, 'Expected to acquire lock');
+      await pool.withConnection(async (connection) => {
+        const result = await lock1.tryAcquire({ execute: connection.execute });
+
+        assertTrue(result, 'Expected to acquire lock');
+      });
+
+      const lock2 = postgreSQLProcessorLock({
+        ...defaultPartitionAndVersion1,
+        lockKey,
+        processorId: processorId2,
+        processorInstanceId: getProcessorInstanceId(processorId2),
       });
 
       const secondAcquire = await pool.withConnection(async (connection) =>
-        tryAcquireProcessorLock(connection.execute, {
-          ...defaultPartitionAndVersion1,
-          lockKey,
-          processorId: processorId2,
-          processorInstanceId: getProcessorInstanceId(processorId2),
-        }),
+        lock2.tryAcquire({ execute: connection.execute }),
       );
 
       assertTrue(
-        secondAcquire.acquired,
+        secondAcquire,
         'Expected lock to be released after connection termination',
       );
     });
@@ -631,15 +648,17 @@ void describe('tryAcquireProcessorLock', () => {
       const processorId = 'processor_crashed_status';
       const instanceId = 'instance_1';
 
-      await pool.withConnection(async (connection) => {
-        const result = await tryAcquireProcessorLock(connection.execute, {
-          ...defaultPartitionAndVersion1,
-          lockKey,
-          processorId,
-          processorInstanceId: instanceId,
-        });
+      const lock = postgreSQLProcessorLock({
+        ...defaultPartitionAndVersion1,
+        lockKey,
+        processorId,
+        processorInstanceId: instanceId,
+      });
 
-        assertTrue(result.acquired, 'Expected to acquire lock');
+      await pool.withConnection(async (connection) => {
+        const result = await lock.tryAcquire({ execute: connection.execute });
+
+        assertTrue(result, 'Expected to acquire lock');
       });
 
       const status = await getProcessorStatus(pool.execute, {
@@ -665,18 +684,24 @@ void describe('tryAcquireProcessorLock', () => {
       const lockKey = 'test_checkpoint_initial';
       const processorId = 'processor_checkpoint_initial';
 
+      const lock = postgreSQLProcessorLock({
+        ...defaultPartitionAndVersion1,
+        lockKey,
+        processorId,
+        processorInstanceId: getProcessorInstanceId(processorId),
+      });
+
       const result = await pool.withConnection(async (connection) =>
-        tryAcquireProcessorLock(connection.execute, {
-          ...defaultPartitionAndVersion1,
-          lockKey,
-          processorId,
-          processorInstanceId: getProcessorInstanceId(processorId),
-        }),
+        lock.tryAcquire({ execute: connection.execute }),
       );
 
-      assertTrue(result.acquired, 'Expected to acquire lock');
+      assertTrue(result, 'Expected to acquire lock');
+      const checkpoint = await getProcessorCheckpoint(pool.execute, {
+        processorId,
+        ...defaultPartitionAndVersion1,
+      });
       assertDeepEqual(
-        result.checkpoint,
+        checkpoint,
         '0000000000000000000',
         'Expected initial checkpoint to be 0000000000000000000',
       );
@@ -693,18 +718,24 @@ void describe('tryAcquireProcessorLock', () => {
         lastProcessedCheckpoint: expectedCheckpoint,
       });
 
+      const lock = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: getProcessorInstanceId(processorId),
+      });
+
       const result = await pool.withConnection(async (connection) =>
-        tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: getProcessorInstanceId(processorId),
-        }),
+        lock.tryAcquire({ execute: connection.execute }),
       );
 
-      assertTrue(result.acquired, 'Expected to acquire lock');
+      assertTrue(result, 'Expected to acquire lock');
+      const checkpoint = await getProcessorCheckpoint(pool.execute, {
+        processorId,
+        ...defaultPartitionAndVersion1,
+      });
       assertDeepEqual(
-        result.checkpoint,
+        checkpoint,
         expectedCheckpoint,
         'Expected to return existing checkpoint',
       );
@@ -730,32 +761,33 @@ void describe('tryAcquireProcessorLock', () => {
       const exclusiveLockHeld = asyncAwaiter();
       const canReleaseExclusiveLock = asyncAwaiter();
 
+      const processorLock = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: getProcessorInstanceId(processorId),
+      });
+
+      const projectionLock = postgreSQLProjectionLock({
+        lockKey,
+        projectionName,
+        ...defaultPartitionAndVersion1,
+      });
+
       const [, sharedLockAcquired] = await Promise.all([
         pool.withTransaction(async (tx) => {
-          const result = await tryAcquireProcessorLock(tx.execute, {
-            lockKey,
-            processorId,
-            ...defaultPartitionAndVersion1,
-            processorInstanceId: getProcessorInstanceId(processorId),
+          const result = await processorLock.tryAcquire({
+            execute: tx.execute,
           });
-          assertTrue(result.acquired, 'Expected processor to acquire lock');
+          assertTrue(result, 'Expected processor to acquire lock');
           exclusiveLockHeld.resolve();
           await canReleaseExclusiveLock.wait;
-          await releaseProcessorLock(tx.execute, {
-            ...defaultPartitionAndVersion1,
-            lockKey,
-            processorId,
-            processorInstanceId: getProcessorInstanceId(processorId),
-          });
+          await processorLock.release({ execute: tx.execute });
         }),
         (async () => {
           await exclusiveLockHeld.wait;
           const result = await pool.withTransaction(async (transaction) =>
-            tryAcquireProjectionLock(transaction.execute, {
-              lockKey,
-              projectionName,
-              ...defaultPartitionAndVersion1,
-            }),
+            projectionLock.tryAcquire({ execute: transaction.execute }),
           );
           canReleaseExclusiveLock.resolve();
           return result;
@@ -786,12 +818,24 @@ void describe('tryAcquireProcessorLock', () => {
       const sharedLockHeld = asyncAwaiter();
       const canReleaseSharedLock = asyncAwaiter();
 
+      const projectionLock = postgreSQLProjectionLock({
+        lockKey,
+        projectionName,
+        ...defaultPartitionAndVersion1,
+      });
+
+      const processorLock = postgreSQLProcessorLock({
+        ...defaultPartitionAndVersion1,
+        lockKey,
+        processorId,
+        processorInstanceId: getProcessorInstanceId(processorId),
+        lockPolicy: { type: 'skip' },
+      });
+
       const [sharedLockAcquired, exclusiveLockResult] = await Promise.all([
         pool.withTransaction(async (transaction) => {
-          const result = await tryAcquireProjectionLock(transaction.execute, {
-            lockKey,
-            projectionName,
-            ...defaultPartitionAndVersion1,
+          const result = await projectionLock.tryAcquire({
+            execute: transaction.execute,
           });
           sharedLockHeld.resolve();
           await canReleaseSharedLock.wait;
@@ -800,12 +844,7 @@ void describe('tryAcquireProcessorLock', () => {
         (async () => {
           await sharedLockHeld.wait;
           const result = await pool.withConnection(async (connection) =>
-            tryAcquireProcessorLock(connection.execute, {
-              ...defaultPartitionAndVersion1,
-              lockKey,
-              processorId,
-              processorInstanceId: getProcessorInstanceId(processorId),
-            }),
+            processorLock.tryAcquire({ execute: connection.execute }),
           );
           canReleaseSharedLock.resolve();
           return result;
@@ -817,7 +856,7 @@ void describe('tryAcquireProcessorLock', () => {
         'Expected shared lock acquisition to succeed',
       );
       assertFalse(
-        exclusiveLockResult.acquired,
+        exclusiveLockResult,
         'Expected exclusive lock to fail while shared lock is held',
       );
     });
@@ -838,18 +877,21 @@ void describe('tryAcquireProcessorLock', () => {
         status: 'running',
       });
 
+      const lock = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId2,
+        lockTimeoutSeconds,
+        lockPolicy: { type: 'skip' },
+      });
+
       const result = await pool.withConnection((connection) =>
-        tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId2,
-          lockTimeoutSeconds,
-        }),
+        lock.tryAcquire({ execute: connection.execute }),
       );
 
       assertFalse(
-        result.acquired,
+        result,
         'Expected takeover to fail when processor was recently updated',
       );
     });
@@ -874,18 +916,20 @@ void describe('tryAcquireProcessorLock', () => {
         secondsAgo: lockTimeoutSeconds + 1,
       });
 
+      const lock = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId2,
+        lockTimeoutSeconds,
+      });
+
       const result = await pool.withConnection((connection) =>
-        tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId2,
-          lockTimeoutSeconds,
-        }),
+        lock.tryAcquire({ execute: connection.execute }),
       );
 
       assertTrue(
-        result.acquired,
+        result,
         'Expected takeover to succeed when processor last_updated exceeds timeout',
       );
     });
@@ -910,18 +954,21 @@ void describe('tryAcquireProcessorLock', () => {
         secondsAgo: customTimeout - 1,
       });
 
+      const lockBlocked = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId2,
+        lockTimeoutSeconds: customTimeout,
+        lockPolicy: { type: 'skip' },
+      });
+
       const blockedResult = await pool.withConnection((connection) =>
-        tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId2,
-          lockTimeoutSeconds: customTimeout,
-        }),
+        lockBlocked.tryAcquire({ execute: connection.execute }),
       );
 
       assertFalse(
-        blockedResult.acquired,
+        blockedResult,
         'Expected takeover to fail within custom timeout window',
       );
 
@@ -931,18 +978,20 @@ void describe('tryAcquireProcessorLock', () => {
         secondsAgo: customTimeout + 1,
       });
 
+      const lockAllowed = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId2,
+        lockTimeoutSeconds: customTimeout,
+      });
+
       const allowedResult = await pool.withConnection((connection) =>
-        tryAcquireProcessorLock(connection.execute, {
-          lockKey,
-          processorId,
-          ...defaultPartitionAndVersion1,
-          processorInstanceId: instanceId2,
-          lockTimeoutSeconds: customTimeout,
-        }),
+        lockAllowed.tryAcquire({ execute: connection.execute }),
       );
 
       assertTrue(
-        allowedResult.acquired,
+        allowedResult,
         'Expected takeover to succeed after custom timeout expires',
       );
     });
@@ -1030,6 +1079,25 @@ const getProcessorStatus = async (
     ),
   );
   return result.rows[0] ?? null;
+};
+
+const getProcessorCheckpoint = async (
+  execute: SQLExecutor,
+  {
+    processorId,
+    partition,
+    version,
+  }: { processorId: string; partition?: string; version?: number },
+): Promise<string | null> => {
+  const result = await execute.query<{ last_processed_checkpoint: string }>(
+    sql(
+      `SELECT last_processed_checkpoint FROM emt_processors WHERE processor_id = %L AND partition = %L AND version = %s`,
+      processorId,
+      partition ?? defaultTag,
+      version ?? 1,
+    ),
+  );
+  return result.rows[0]?.last_processed_checkpoint ?? null;
 };
 
 const getProjectionStatus = async (

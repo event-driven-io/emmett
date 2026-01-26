@@ -14,7 +14,7 @@ import {
   type ProjectionRegistration,
 } from '@event-driven-io/emmett';
 import { projectionsTable } from '../../schema/typing';
-import { toProjectionLockKey } from '../locks/tryAcquireProjectionLock';
+import { toProjectionLockKey } from '../locks/postgreSQLProjectionLock';
 
 export const registerProjection = async <
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,

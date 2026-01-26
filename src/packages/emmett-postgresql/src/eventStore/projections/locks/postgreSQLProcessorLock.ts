@@ -9,7 +9,7 @@ import {
   type LockAcquisitionPolicy,
   type TryAcquireProcessorLockOptions,
 } from './tryAcquireProcessorLock';
-import { toProjectionLockKey } from './tryAcquireProjectionLock';
+import { toProjectionLockKey } from './postgreSQLProjectionLock';
 
 export type PostgreSQLProcessorLockOptions = {
   processorId: string;
@@ -44,7 +44,7 @@ export const postgreSQLProcessorLock = (
   options: PostgreSQLProcessorLockOptions,
 ): PostgreSQLProcessorLock => {
   let acquired = false;
-  const lockKey = toProcessorLockKey(options);
+  const lockKey = options.lockKey ?? toProcessorLockKey(options);
 
   return {
     tryAcquire: async (
