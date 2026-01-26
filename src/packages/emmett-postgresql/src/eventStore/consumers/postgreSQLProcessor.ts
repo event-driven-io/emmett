@@ -19,6 +19,7 @@ import {
   MessageProcessor,
   projector,
   reactor,
+  unknownTag,
   type AnyEvent,
   type AnyMessage,
   type BatchRecordedMessageHandlerWithContext,
@@ -323,21 +324,19 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
 
   const { pool, connectionString, close } = getProcessorPool(options);
 
-  const projectionInfo = options.projection.name
-    ? {
-        name: options.projection.name,
-        type: 'a' as const,
-        kind: options.projection.kind ?? 'postgresql',
-        version: options.projection.version ?? version,
-      }
-    : undefined;
-
   const processorLock = postgreSQLProcessorLock({
     processorId,
     version,
     partition,
     processorInstanceId,
-    projection: projectionInfo,
+    projection: options.projection
+      ? {
+          name: options.projection.name ?? unknownTag,
+          kind: options.projection.kind ?? unknownTag,
+          version: options.projection.version ?? version,
+          handlingType: 'async' as const,
+        }
+      : undefined,
     lockPolicy,
   });
 
