@@ -18,9 +18,9 @@ import {
 import { after, before, describe, it } from 'node:test';
 import { createEventStoreSchema, defaultTag } from '../../schema';
 import {
+  postgreSQLProjectionLock,
   toProjectionLockKey,
-  tryAcquireProjectionLock,
-} from './tryAcquireProjectionLock';
+} from './postgreSQLProjectionLock';
 
 void describe('tryAcquireProjectionLock', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -56,13 +56,21 @@ void describe('tryAcquireProjectionLock', () => {
       const firstLockHeld = asyncAwaiter();
       const secondLockAcquired = asyncAwaiter<boolean>();
 
+      const lockA = postgreSQLProjectionLock({
+        ...defaultPartitionAndVersion1,
+        projectionName: 'test_concurrent',
+      });
+      const lockB = postgreSQLProjectionLock({
+        ...defaultPartitionAndVersion1,
+        projectionName: 'test_concurrent',
+      });
+
       // When
       const results = await Promise.all([
         // Transaction A: acquire shared lock, hold while B acquires, then release
         pool.withTransaction(async (transaction) => {
-          const result = await tryAcquireProjectionLock(transaction.execute, {
-            ...defaultPartitionAndVersion1,
-            projectionName: 'test_concurrent',
+          const result = await lockA.tryAcquire({
+            execute: transaction.execute,
           });
           firstLockHeld.resolve();
           await secondLockAcquired.wait;
@@ -72,13 +80,9 @@ void describe('tryAcquireProjectionLock', () => {
         (async () => {
           await firstLockHeld.wait;
           const result = await pool.withTransaction(async (transaction) => {
-            const lockResult = await tryAcquireProjectionLock(
-              transaction.execute,
-              {
-                ...defaultPartitionAndVersion1,
-                projectionName: 'test_concurrent',
-              },
-            );
+            const lockResult = await lockB.tryAcquire({
+              execute: transaction.execute,
+            });
             secondLockAcquired.resolve(lockResult);
             return lockResult;
           });
@@ -111,6 +115,11 @@ void describe('tryAcquireProjectionLock', () => {
         version: 1,
       });
 
+      const lock = postgreSQLProjectionLock({
+        ...defaultPartitionAndVersion1,
+        projectionName: 'test_shared_blocks_exclusive',
+      });
+
       const sharedLockHeld = asyncAwaiter();
       const canReleaseSharedLock = asyncAwaiter();
 
@@ -118,9 +127,8 @@ void describe('tryAcquireProjectionLock', () => {
       const [sharedLockAcquired, exclusiveLockAcquired] = await Promise.all([
         // Transaction A: acquire shared lock, hold it, then release
         pool.withTransaction(async (transaction) => {
-          const result = await tryAcquireProjectionLock(transaction.execute, {
-            ...defaultPartitionAndVersion1,
-            projectionName: 'test_shared_blocks_exclusive',
+          const result = await lock.tryAcquire({
+            execute: transaction.execute,
           });
           sharedLockHeld.resolve();
           await canReleaseSharedLock.wait;
@@ -165,13 +173,19 @@ void describe('tryAcquireProjectionLock', () => {
         version: 1,
       });
 
+      const lock = postgreSQLProjectionLock({
+        projectionName: 'test_exclusive',
+        partition: defaultTag,
+        version: 1,
+      });
+
       const exclusiveLockHeld = asyncAwaiter();
       const canReleaseExclusiveLock = asyncAwaiter();
 
       // When
       const [, sharedLockAcquired] = await Promise.all([
         // Connection A: acquire exclusive lock, hold it, then release
-        pool.withConnection(async (connection) => {
+        pool.withTransaction(async (connection) => {
           await acquireExclusiveLock(connection.execute, lockKey);
           exclusiveLockHeld.resolve();
           await canReleaseExclusiveLock.wait;
@@ -181,11 +195,7 @@ void describe('tryAcquireProjectionLock', () => {
         (async () => {
           await exclusiveLockHeld.wait;
           const result = await pool.withTransaction(async (transaction) =>
-            tryAcquireProjectionLock(transaction.execute, {
-              projectionName: 'test_exclusive',
-              partition: defaultTag,
-              version: 1,
-            }),
+            lock.tryAcquire({ execute: transaction.execute }),
           );
           canReleaseExclusiveLock.resolve();
           return result;
@@ -218,6 +228,12 @@ void describe('tryAcquireProjectionLock', () => {
         version: 1,
       });
 
+      const lock = postgreSQLProjectionLock({
+        projectionName: 'test_commit',
+        partition: defaultTag,
+        version: 1,
+      });
+
       const sharedLockHeld = asyncAwaiter();
       const exclusiveAttempted = asyncAwaiter();
 
@@ -225,11 +241,7 @@ void describe('tryAcquireProjectionLock', () => {
       const [, exclusiveDuringLock] = await Promise.all([
         // Transaction A: acquire shared lock, wait for exclusive attempt, then commit
         pool.withTransaction(async (transaction) => {
-          await tryAcquireProjectionLock(transaction.execute, {
-            projectionName: 'test_commit',
-            partition: defaultTag,
-            version: 1,
-          });
+          await lock.tryAcquire({ execute: transaction.execute });
           sharedLockHeld.resolve();
           await exclusiveAttempted.wait;
         }),
@@ -276,6 +288,12 @@ void describe('tryAcquireProjectionLock', () => {
         version: 1,
       });
 
+      const lock = postgreSQLProjectionLock({
+        projectionName: 'test_rollback',
+        partition: defaultTag,
+        version: 1,
+      });
+
       const sharedLockHeld = asyncAwaiter();
       const exclusiveAttempted = asyncAwaiter();
 
@@ -284,11 +302,7 @@ void describe('tryAcquireProjectionLock', () => {
         // Transaction A: acquire shared lock, wait, then rollback via exception
         assertThrowsAsync(() =>
           pool.withTransaction(async (transaction) => {
-            await tryAcquireProjectionLock(transaction.execute, {
-              projectionName: 'test_rollback',
-              partition: defaultTag,
-              version: 1,
-            });
+            await lock.tryAcquire({ execute: transaction.execute });
             sharedLockHeld.resolve();
             await exclusiveAttempted.wait;
             throw new Error('Force rollback');
@@ -331,13 +345,15 @@ void describe('tryAcquireProjectionLock', () => {
         status: 'active',
       });
 
+      const lock = postgreSQLProjectionLock({
+        projectionName: 'test_active',
+        partition: defaultTag,
+        version: 1,
+      });
+
       // When
       const result = await pool.withTransaction(async (transaction) => {
-        return await tryAcquireProjectionLock(transaction.execute, {
-          projectionName: 'test_active',
-          partition: defaultTag,
-          version: 1,
-        });
+        return await lock.tryAcquire({ execute: transaction.execute });
       });
 
       // Then
@@ -356,13 +372,15 @@ void describe('tryAcquireProjectionLock', () => {
         status: 'rebuilding',
       });
 
+      const lock = postgreSQLProjectionLock({
+        projectionName: 'test_rebuilding',
+        partition: defaultTag,
+        version: 1,
+      });
+
       // When
       const result = await pool.withTransaction((transaction) =>
-        tryAcquireProjectionLock(transaction.execute, {
-          projectionName: 'test_rebuilding',
-          partition: defaultTag,
-          version: 1,
-        }),
+        lock.tryAcquire({ execute: transaction.execute }),
       );
 
       // Then
@@ -374,13 +392,15 @@ void describe('tryAcquireProjectionLock', () => {
 
     void it('returns true when projection does not exist', async () => {
       // Given
+      const lock = postgreSQLProjectionLock({
+        projectionName: 'nonexistent',
+        partition: defaultTag,
+        version: 1,
+      });
+
       // When
       const result = await pool.withTransaction((transaction) =>
-        tryAcquireProjectionLock(transaction.execute, {
-          projectionName: 'nonexistent',
-          partition: defaultTag,
-          version: 1,
-        }),
+        lock.tryAcquire({ execute: transaction.execute }),
       );
 
       // Then

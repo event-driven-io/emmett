@@ -1,11 +1,15 @@
 import type { SQLExecutor } from '@event-driven-io/dumbo';
 import {
-  toProjectionLockKey,
   tryAcquireProjectionLock,
   type TryAcquireProjectionLockOptions,
 } from './tryAcquireProjectionLock';
 
-export type PostgreSQLProjectionLockOptions = TryAcquireProjectionLockOptions;
+export type PostgreSQLProjectionLockOptions = {
+  projectionName: string;
+  partition: string;
+  version: number;
+  lockKey?: string | bigint;
+};
 
 export type PostgreSQLProjectionLockContext = {
   execute: SQLExecutor;
@@ -20,7 +24,7 @@ export const postgreSQLProjectionLock = (
   options: PostgreSQLProjectionLockOptions,
 ): PostgreSQLProjectionLock => {
   let acquired = false;
-  const lockKey = toProjectionLockKey(options);
+  const lockKey = options.lockKey ?? toProjectionLockKey(options);
 
   return {
     tryAcquire: async (
@@ -45,3 +49,12 @@ export const postgreSQLProjectionLock = (
     },
   };
 };
+
+export const toProjectionLockKey = ({
+  projectionName,
+  partition,
+  version,
+}: Pick<
+  TryAcquireProjectionLockOptions,
+  'projectionName' | 'partition' | 'version'
+>): string => `${partition}:${projectionName}:${version}`;
