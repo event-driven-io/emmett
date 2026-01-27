@@ -29,7 +29,7 @@ void describe('ShoppingCart E2E', () => {
   let given: ApiE2ESpecification;
 
   before(async () => {
-    postgreSQLContainer = await new PostgreSqlContainer().start();
+    postgreSQLContainer = await new PostgreSqlContainer('18.1').start();
     eventStore = getPostgreSQLEventStore(
       postgreSQLContainer.getConnectionUri(),
     );
