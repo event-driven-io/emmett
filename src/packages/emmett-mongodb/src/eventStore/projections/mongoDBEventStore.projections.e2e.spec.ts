@@ -6,10 +6,7 @@ import {
   projections,
   STREAM_DOES_NOT_EXIST,
 } from '@event-driven-io/emmett';
-import {
-  MongoDBContainer,
-  type StartedMongoDBContainer,
-} from '@testcontainers/mongodb';
+import { type StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient, type Collection } from 'mongodb';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -28,6 +25,7 @@ import {
   type ProductItemAdded,
   type ShoppingCartEvent,
 } from '../../testing';
+import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('MongoDBEventStore', () => {
   let mongodb: StartedMongoDBContainer;
@@ -44,7 +42,7 @@ void describe('MongoDBEventStore', () => {
   };
 
   before(async () => {
-    mongodb = await new MongoDBContainer('mongo:6.0.1').start();
+    mongodb = await getMongoDBStartedContainer();
     client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
     });

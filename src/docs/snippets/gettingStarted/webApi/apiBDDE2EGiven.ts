@@ -21,7 +21,9 @@ void describe('ShoppingCart E2E', () => {
 
   // Set up a container and event store before all tests
   before(async () => {
-    postgreSQLContainer = await new PostgreSqlContainer('18.1').start();
+    postgreSQLContainer = await new PostgreSqlContainer(
+      'postgres:18.1',
+    ).start();
     eventStore = getPostgreSQLEventStore(
       postgreSQLContainer.getConnectionUri(),
     );

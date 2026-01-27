@@ -13,10 +13,7 @@ import {
   type Event,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import {
   getPostgreSQLEventStore,
@@ -30,6 +27,7 @@ import { schema_0_36_0 } from './0_36_0';
 import { schema_0_38_7 } from './0_38_7';
 import { schema_0_42_0 } from './0_42_0';
 import { cleanupLegacySubscriptionTables } from './0_43_0';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -58,7 +56,7 @@ void describe('Schema migrations tests', () => {
   let connectionString: string;
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
 
     await postgres.snapshot();

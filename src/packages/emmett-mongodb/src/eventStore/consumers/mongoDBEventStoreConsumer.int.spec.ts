@@ -6,10 +6,7 @@ import {
   EmmettError,
   type MessageProcessor,
 } from '@event-driven-io/emmett';
-import {
-  MongoDBContainer,
-  type StartedMongoDBContainer,
-} from '@testcontainers/mongodb';
+import { type StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
@@ -17,6 +14,7 @@ import {
   type MongoDBEventStoreConsumer,
 } from './mongoDBEventStoreConsumer';
 import { isDatabaseUnavailableError } from './subscriptions';
+import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 30000 };
 
@@ -35,7 +33,7 @@ void describe('mongoDB event store consumer', () => {
   };
 
   before(async () => {
-    mongoDB = await new MongoDBContainer('mongo:6.0.1').start();
+    mongoDB = await getMongoDBStartedContainer();
     connectionString = mongoDB.getConnectionString();
   });
 

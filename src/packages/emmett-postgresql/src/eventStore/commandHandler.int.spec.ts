@@ -4,11 +4,9 @@ import {
   assertIsNotNull,
   CommandHandler,
 } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
@@ -31,7 +29,7 @@ void describe('Postgres Projections', () => {
   let pongo: PongoClient;
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString, {
       projections: [

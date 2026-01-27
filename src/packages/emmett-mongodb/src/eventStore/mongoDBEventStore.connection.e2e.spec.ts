@@ -1,18 +1,16 @@
 import { assertIsNotNull, assertThrowsAsync } from '@event-driven-io/emmett';
-import {
-  MongoDBContainer,
-  type StartedMongoDBContainer,
-} from '@testcontainers/mongodb';
+import { type StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient, MongoNotConnectedError } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { getMongoDBEventStore, toStreamCollectionName } from '.';
 import { assertCanAppend, ShoppingCartStreamType } from '../testing';
+import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('MongoDBEventStore connection', () => {
   let mongodb: StartedMongoDBContainer;
 
   before(async () => {
-    mongodb = await new MongoDBContainer('mongo:6.0.1').start();
+    mongodb = await getMongoDBStartedContainer();
   });
 
   after(async () => {

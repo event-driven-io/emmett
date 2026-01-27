@@ -1,7 +1,4 @@
-import {
-  MongoDBContainer,
-  StartedMongoDBContainer,
-} from '@testcontainers/mongodb';
+import { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient } from 'mongodb';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -19,6 +16,7 @@ import {
   expectInlineReadModel,
   MongoDBInlineProjectionSpec,
 } from './mongoDBInlineProjectionSpec';
+import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 type ShoppingCartId = StreamName<'shopping_cart'>;
 
@@ -32,7 +30,7 @@ void describe('MongoDB Projections', () => {
   let streamName: ShoppingCartId;
 
   before(async () => {
-    mongodb = await new MongoDBContainer('mongo:6.0.1').start();
+    mongodb = await getMongoDBStartedContainer();
     client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
     });

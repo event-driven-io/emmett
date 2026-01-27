@@ -5,14 +5,12 @@ import {
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import { assertDeepEqual, assertIsNotNull } from '@event-driven-io/emmett';
-import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { createEventStoreSchema, defaultTag } from '.';
 import { readProcessorCheckpoint } from './readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from './storeProcessorCheckpoint';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -24,7 +22,7 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
   const checkpoint3 = 300n;
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     pool = dumbo({ connectionString });
     await createEventStoreSchema(connectionString, pool);

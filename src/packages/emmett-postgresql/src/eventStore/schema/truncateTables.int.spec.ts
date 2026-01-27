@@ -11,10 +11,7 @@ import {
   assertOk,
   type Event,
 } from '@event-driven-io/emmett';
-import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import { createEventStoreSchema } from '.';
@@ -26,6 +23,7 @@ import {
   projectionsTable,
   streamsTable,
 } from './typing';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 export type PricedProductItem = {
   productId: string;
@@ -46,7 +44,7 @@ void describe('truncateTables', () => {
   let pool: Dumbo;
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     const connectionString = postgres.getConnectionUri();
     pool = dumbo({
       connectionString,

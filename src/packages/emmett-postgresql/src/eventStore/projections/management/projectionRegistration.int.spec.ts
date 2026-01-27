@@ -14,10 +14,7 @@ import {
   asyncAwaiter,
   type ProjectionRegistration,
 } from '@event-driven-io/emmett';
-import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import type { PostgreSQLProjectionHandlerContext } from '..';
 import type { PostgresReadEventMetadata } from '../../postgreSQLEventStore';
@@ -28,13 +25,14 @@ import {
   readProjectionInfo,
   registerProjection,
 } from './projectionManagement';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('projectionRegistration', () => {
   let postgres: StartedPostgreSqlContainer;
   let pool: Dumbo;
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     const connectionString = postgres.getConnectionUri();
     pool = dumbo({ connectionString });
     await createEventStoreSchema(connectionString, pool);

@@ -18,10 +18,7 @@ import {
   type PongoCollection,
   type PongoDb,
 } from '@event-driven-io/pongo';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import type {
@@ -37,6 +34,7 @@ import {
   postgreSQLRawSQLProjection,
 } from '../projections';
 import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 30000 };
 
@@ -55,7 +53,7 @@ void describe('Rebuilding PostgreSQL Projections', () => {
   let pool: NodePostgresPool;
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
 
     eventStore = getPostgreSQLEventStore(connectionString, {

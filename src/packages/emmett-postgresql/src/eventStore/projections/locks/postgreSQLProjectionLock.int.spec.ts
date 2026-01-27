@@ -11,16 +11,14 @@ import {
   asyncAwaiter,
   hashText,
 } from '@event-driven-io/emmett';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { createEventStoreSchema, defaultTag } from '../../schema';
 import {
   postgreSQLProjectionLock,
   toProjectionLockKey,
 } from './postgreSQLProjectionLock';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('tryAcquireProjectionLock', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -29,7 +27,7 @@ void describe('tryAcquireProjectionLock', () => {
   const defaultPartitionAndVersion1 = { partition: defaultTag, version: 1 };
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     pool = dumbo({ connectionString });
     await createEventStoreSchema(connectionString, pool);
