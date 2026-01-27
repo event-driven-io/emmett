@@ -6,10 +6,7 @@ import {
   EmmettError,
   MessageProcessorType,
 } from '@event-driven-io/emmett';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
@@ -21,6 +18,7 @@ import {
   type PostgreSQLEventStoreConsumer,
 } from './postgreSQLEventStoreConsumer';
 import type { PostgreSQLProcessor } from './postgreSQLProcessor';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 30000 };
 
@@ -40,7 +38,7 @@ void describe('PostgreSQL event store consumer', () => {
   };
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString);
     await eventStore.schema.migrate();

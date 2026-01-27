@@ -48,6 +48,8 @@
   ],
   "dependencies": {
     "@event-driven-io/emmett": "0.42.0-beta.4",
+    "@testcontainers/mongodb": "^11.11.0",
+    "@testcontainers/postgresql": "^11.11.0",
     "testcontainers": "^11.11.0"
   },
   "devDependencies": {

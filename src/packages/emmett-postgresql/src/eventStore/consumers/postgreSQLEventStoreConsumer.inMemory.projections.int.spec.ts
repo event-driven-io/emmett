@@ -6,10 +6,7 @@ import {
   type InMemoryDocumentsCollection,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import type {
@@ -21,6 +18,7 @@ import {
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 30000 };
 
@@ -34,7 +32,7 @@ void describe('PostgreSQL event store started consumer', () => {
   const database = getInMemoryDatabase();
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString);
     summaries = database.collection(shoppingCartsSummaryCollectionName);

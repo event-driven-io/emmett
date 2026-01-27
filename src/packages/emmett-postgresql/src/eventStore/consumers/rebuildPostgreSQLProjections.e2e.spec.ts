@@ -11,10 +11,7 @@ import {
   projections,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import type { ProductItemAdded } from '../../testing/shoppingCart.domain';
@@ -24,6 +21,7 @@ import {
 } from '../postgreSQLEventStore';
 import { postgreSQLRawSQLProjection } from '../projections';
 import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 10000 };
 
@@ -34,7 +32,7 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
   let pool: NodePostgresPool;
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
 
     eventStore = getPostgreSQLEventStore(connectionString, {

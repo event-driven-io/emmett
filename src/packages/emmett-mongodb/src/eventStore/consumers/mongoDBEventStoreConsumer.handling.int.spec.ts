@@ -5,10 +5,7 @@ import {
   type Closeable,
   type Event,
 } from '@event-driven-io/emmett';
-import {
-  MongoDBContainer,
-  StartedMongoDBContainer,
-} from '@testcontainers/mongodb';
+import { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
@@ -16,6 +13,7 @@ import {
   type MongoDBEventStore,
 } from '../mongoDBEventStore';
 import { mongoDBEventStoreConsumer } from './mongoDBEventStoreConsumer';
+import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 30000 };
 
@@ -26,7 +24,7 @@ void describe('MongoDB event store started consumer', () => {
   //const database = getInMemoryDatabase();
 
   before(async () => {
-    mongoDB = await new MongoDBContainer('mongo:6.0.1').start();
+    mongoDB = await getMongoDBStartedContainer();
     connectionString = mongoDB.getConnectionString();
     eventStore = getMongoDBEventStore({
       connectionString: mongoDB.getConnectionString(),

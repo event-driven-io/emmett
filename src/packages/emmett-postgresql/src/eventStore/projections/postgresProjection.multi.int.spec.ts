@@ -1,8 +1,5 @@
 import type { ReadEvent } from '@event-driven-io/emmett';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
@@ -18,6 +15,7 @@ import {
   type ProductItemAdded,
   type ShoppingCartConfirmed,
 } from '../../testing/shoppingCart.domain';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('Postgres Projections', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -27,7 +25,7 @@ void describe('Postgres Projections', () => {
   let clientId: string;
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
 
     given = PostgreSQLProjectionSpec.for({

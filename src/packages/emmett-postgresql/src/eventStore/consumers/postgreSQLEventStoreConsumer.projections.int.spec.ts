@@ -4,10 +4,7 @@ import {
   type PongoClient,
   type PongoCollection,
 } from '@event-driven-io/pongo';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import type {
@@ -22,6 +19,7 @@ import {
 import { pongoSingleStreamProjection } from '../projections';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 import type { PostgreSQLProjectorOptions } from './postgreSQLProcessor';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 30000 };
 
@@ -35,7 +33,7 @@ void describe('PostgreSQL event store started consumer', () => {
   const confirmedAt = new Date();
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString);
     pongo = pongoClient(connectionString);

@@ -11,10 +11,7 @@ import {
   type PostgresEventStore,
 } from '@event-driven-io/emmett-postgresql';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
@@ -29,6 +26,7 @@ import {
   type ProductItemAdded,
   type ShoppingCartEvent,
 } from '../shoppingCart.domain';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('EventStoreDBEventStore', async () => {
   let postgres: StartedPostgreSqlContainer;
@@ -37,7 +35,7 @@ void describe('EventStoreDBEventStore', async () => {
   let pongo: PongoClient;
 
   const eventStoreFactory: EventStoreFactory = async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString, {
       projections: [

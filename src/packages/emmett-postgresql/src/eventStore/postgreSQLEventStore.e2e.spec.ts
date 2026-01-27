@@ -7,10 +7,7 @@ import {
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
@@ -19,6 +16,7 @@ import {
 } from './postgreSQLEventStore';
 import { postgreSQLProjection } from './projections';
 import { pongoSingleStreamProjection } from './projections/pongo/pongoProjections';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('EventStoreDBEventStore', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -36,7 +34,7 @@ void describe('EventStoreDBEventStore', () => {
   let schemaHookCreationHookCalls = 0;
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     pongo = pongoClient(connectionString);
   });

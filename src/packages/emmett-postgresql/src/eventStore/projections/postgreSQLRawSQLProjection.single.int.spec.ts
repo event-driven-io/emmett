@@ -1,19 +1,17 @@
 import { rawSql, tableExists } from '@event-driven-io/dumbo';
 import { assertTrue } from '@event-driven-io/emmett';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { postgreSQLRawSQLProjection } from './postgreSQLProjection';
 import { PostgreSQLProjectionSpec } from './postgresProjectionSpec';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('PostgreSQL Projections', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
   });
 

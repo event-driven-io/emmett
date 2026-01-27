@@ -11,10 +11,7 @@ import {
   asyncAwaiter,
   getProcessorInstanceId,
 } from '@event-driven-io/emmett';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { createEventStoreSchema, defaultTag, unknownTag } from '../../schema';
 import { postgreSQLProcessorLock } from './postgreSQLProcessorLock';
@@ -22,6 +19,7 @@ import {
   postgreSQLProjectionLock,
   toProjectionLockKey,
 } from './postgreSQLProjectionLock';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('tryAcquireProcessorLock', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -30,7 +28,7 @@ void describe('tryAcquireProcessorLock', () => {
   const defaultPartitionAndVersion1 = { partition: defaultTag, version: 1 };
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     pool = dumbo({ connectionString });
     await createEventStoreSchema(connectionString, pool);

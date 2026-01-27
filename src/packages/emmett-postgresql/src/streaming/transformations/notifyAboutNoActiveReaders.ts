@@ -25,12 +25,14 @@ export class NotifyAboutNoActiveReadersStream<Item> extends TransformStream<
     ) => void,
     options: { streamId?: string; intervalCheckInMs?: number } = {},
   ) {
-    super({
-      cancel: (reason) => {
-        console.log('Stream was canceled. Reason:', reason);
-        this.stopChecking();
-      },
-    });
+    super();
+    // TODO: Investigate how to properly handle cancellation in TransformStream
+    // super({
+    //   cancel: (reason) => {
+    //     console.log('Stream was canceled. Reason:', reason);
+    //     this.stopChecking();
+    //   },
+    // });
     this.streamId = options?.streamId ?? uuid();
 
     this.onNoActiveReaderCallback = onNoActiveReaderCallback;
