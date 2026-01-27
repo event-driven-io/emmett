@@ -68,9 +68,6 @@
   "files": [
     "dist"
   ],
-  "devDependencies": {
-    "@types/sqlite3": "^3.1.11"
-  },
   "peerDependencies": {
     "@event-driven-io/emmett": "0.42.0-beta.4",
     "sqlite3": "^5.1.7"

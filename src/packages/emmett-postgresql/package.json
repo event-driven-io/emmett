@@ -69,7 +69,7 @@
     "dist"
   ],
   "devDependencies": {
-    "@testcontainers/postgresql": "^10.12.0",
+    "@testcontainers/postgresql": "^11.11.0",
     "@event-driven-io/emmett-testcontainers": "0.42.0-beta.4"
   },
   "peerDependencies": {
