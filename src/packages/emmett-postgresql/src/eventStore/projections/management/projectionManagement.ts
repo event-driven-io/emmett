@@ -2,7 +2,7 @@ import {
   JSONSerializer,
   single,
   singleOrNull,
-  sql,
+  SQL,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import {
@@ -162,14 +162,9 @@ export const readProjectionInfo = async (
 ): Promise<ReadProjectionInfoResult | null> => {
   const row = await singleOrNull<RawProjectionRow>(
     execute.query(
-      sql(
-        `SELECT name, version, type, kind, status, definition, created_at, last_updated
+      SQL`SELECT name, version, type, kind, status, definition, created_at, last_updated
            FROM ${projectionsTable.name}
-           WHERE name = %L AND partition = %L AND version = %s`,
-        name,
-        partition,
-        version,
-      ),
+           WHERE name = ${name} AND partition = ${partition} AND version = ${version}`,
     ),
   );
 

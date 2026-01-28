@@ -1,11 +1,10 @@
 import {
   dumbo,
   type Dumbo,
-  type DumboOptions,
-  type NodePostgresClient,
   type QueryResultRow,
   type SQL,
 } from '@event-driven-io/dumbo';
+import { type PgPool, type PgPoolOptions } from '@event-driven-io/dumbo/pg';
 import {
   assertFails,
   AssertionError,
@@ -18,7 +17,11 @@ import {
   type ThenThrows,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import { handleProjections, type PostgreSQLProjectionDefinition } from '.';
+import {
+  handleProjections,
+  transactionToPostgreSQLProjectionHandlerContext,
+  type PostgreSQLProjectionDefinition,
+} from '.';
 import {
   getPostgreSQLEventStore,
   type PostgresReadEventMetadata,
@@ -58,7 +61,7 @@ export type PostgreSQLProjectionAssert = (options: {
 
 export type PostgreSQLProjectionSpecOptions<EventType extends Event> = {
   projection: PostgreSQLProjectionDefinition<EventType>;
-} & DumboOptions;
+} & PgPoolOptions;
 
 export const PostgreSQLProjectionSpec = {
   for: <EventType extends Event>(
@@ -72,7 +75,8 @@ export const PostgreSQLProjectionSpec = {
 
       const initialize = async (pool: Dumbo): Promise<void> => {
         const eventStore = getPostgreSQLEventStore(connectionString, {
-          connectionOptions: { dumbo: pool },
+          // TODO: This will need to change when we support other drivers
+          connectionOptions: { dumbo: pool as PgPool },
         });
 
         if (wasInitialised) return;
@@ -86,16 +90,11 @@ export const PostgreSQLProjectionSpec = {
               registrationType: 'async',
               version: projection.version ?? 1,
               status: 'active',
-              context: {
-                execute: transaction.execute,
-                connection: {
-                  connectionString,
-                  client:
-                    (await transaction.connection.open()) as NodePostgresClient,
-                  transaction,
-                  pool,
-                },
-              },
+              context: await transactionToPostgreSQLProjectionHandlerContext(
+                connectionString,
+                pool,
+                transaction,
+              ),
             });
           });
       };
@@ -140,14 +139,14 @@ export const PostgreSQLProjectionSpec = {
               await initialize(pool);
 
               await pool.withTransaction(async (transaction) => {
-                await handleProjections({
+                await handleProjections<EventType>({
                   events: allEvents,
                   projections: [projection],
-                  connection: {
-                    pool,
+                  ...(await transactionToPostgreSQLProjectionHandlerContext(
                     connectionString,
+                    pool,
                     transaction,
-                  },
+                  )),
                 });
               });
             };

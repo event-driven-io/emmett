@@ -1,4 +1,4 @@
-import { mapRows, sql, type SQLExecutor } from '@event-driven-io/dumbo';
+import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   upcastRecordedMessage,
   type BigIntStreamPosition,
@@ -57,14 +57,10 @@ export const readStream = async <
   const events: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
     await mapRows(
       execute.query<ReadStreamSqlResult<EventPayloadType>>(
-        sql(
-          `SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
-           FROM ${messagesTable.name}
-           WHERE stream_id = %L AND partition = %L AND is_archived = FALSE ${fromCondition} ${toCondition}
+        SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
+           FROM ${SQL.identifier(messagesTable.name)}
+           WHERE stream_id = ${streamId} AND partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE ${SQL.plain(fromCondition)} ${SQL.plain(toCondition)}
            ORDER BY stream_position ASC`,
-          streamId,
-          options?.partition ?? defaultTag,
-        ),
       ),
       (row) => {
         const rawEvent = {

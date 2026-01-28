@@ -1,10 +1,9 @@
+import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
 import {
-  dumbo,
   functionExists,
-  rawSql,
-  sql,
-  type Dumbo,
-} from '@event-driven-io/dumbo';
+  pgDatabaseDriver,
+  type PgPool,
+} from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   assertFalse,
@@ -13,6 +12,7 @@ import {
   type Event,
   type ReadEvent,
 } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import {
@@ -27,7 +27,6 @@ import { schema_0_36_0 } from './0_36_0';
 import { schema_0_38_7 } from './0_38_7';
 import { schema_0_42_0 } from './0_42_0';
 import { cleanupLegacySubscriptionTables } from './0_43_0';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -51,7 +50,7 @@ export type OrderInitiated = Event<
 
 void describe('Schema migrations tests', () => {
   let postgres: StartedPostgreSqlContainer;
-  let pool: Dumbo;
+  let pool: PgPool;
   let eventStore: PostgresEventStore;
   let connectionString: string;
 
@@ -67,6 +66,7 @@ void describe('Schema migrations tests', () => {
 
     pool = dumbo({
       connectionString,
+      driver: pgDatabaseDriver,
     });
 
     // TODO: Change setup to schemas, when they're supported in Emmett instead of using separate containers
@@ -127,18 +127,14 @@ void describe('Schema migrations tests', () => {
     const processorsCreatedAtResult = await pool.execute.query<{
       column_name: string;
     }>(
-      sql(
-        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'created_at'`,
-      ),
+      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'created_at'`,
     );
     assertDeepEqual(processorsCreatedAtResult.rows.length, 1);
 
     const processorsLastUpdatedResult = await pool.execute.query<{
       column_name: string;
     }>(
-      sql(
-        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'last_updated'`,
-      ),
+      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'last_updated'`,
     );
     assertDeepEqual(processorsLastUpdatedResult.rows.length, 1);
 
@@ -146,18 +142,14 @@ void describe('Schema migrations tests', () => {
     const projectionsCreatedAtResult = await pool.execute.query<{
       column_name: string;
     }>(
-      sql(
-        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'created_at'`,
-      ),
+      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'created_at'`,
     );
     assertDeepEqual(projectionsCreatedAtResult.rows.length, 1);
 
     const projectionsLastUpdatedResult = await pool.execute.query<{
       column_name: string;
     }>(
-      sql(
-        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'last_updated'`,
-      ),
+      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'last_updated'`,
     );
     assertDeepEqual(projectionsLastUpdatedResult.rows.length, 1);
   });
@@ -188,37 +180,27 @@ void describe('Schema migrations tests', () => {
 
     // Verify functions exist
     const tryAcquireResult = await pool.execute.query<{ proname: string }>(
-      sql(
-        `SELECT proname FROM pg_proc WHERE proname = 'emt_try_acquire_processor_lock'`,
-      ),
+      SQL`SELECT proname FROM pg_proc WHERE proname = 'emt_try_acquire_processor_lock'`,
     );
     assertDeepEqual(tryAcquireResult.rows.length, 1);
 
     const releaseResult = await pool.execute.query<{ proname: string }>(
-      sql(
-        `SELECT proname FROM pg_proc WHERE proname = 'emt_release_processor_lock'`,
-      ),
+      SQL`SELECT proname FROM pg_proc WHERE proname = 'emt_release_processor_lock'`,
     );
     assertDeepEqual(releaseResult.rows.length, 1);
 
     const registerResult = await pool.execute.query<{ proname: string }>(
-      sql(
-        `SELECT proname FROM pg_proc WHERE proname = 'emt_register_projection'`,
-      ),
+      SQL`SELECT proname FROM pg_proc WHERE proname = 'emt_register_projection'`,
     );
     assertDeepEqual(registerResult.rows.length, 1);
 
     const activateResult = await pool.execute.query<{ proname: string }>(
-      sql(
-        `SELECT proname FROM pg_proc WHERE proname = 'emt_activate_projection'`,
-      ),
+      SQL`SELECT proname FROM pg_proc WHERE proname = 'emt_activate_projection'`,
     );
     assertDeepEqual(activateResult.rows.length, 1);
 
     const deactivateResult = await pool.execute.query<{ proname: string }>(
-      sql(
-        `SELECT proname FROM pg_proc WHERE proname = 'emt_deactivate_projection'`,
-      ),
+      SQL`SELECT proname FROM pg_proc WHERE proname = 'emt_deactivate_projection'`,
     );
     assertDeepEqual(deactivateResult.rows.length, 1);
 
@@ -226,18 +208,14 @@ void describe('Schema migrations tests', () => {
     const processorsCreatedAtResult = await pool.execute.query<{
       column_name: string;
     }>(
-      sql(
-        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'created_at'`,
-      ),
+      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'created_at'`,
     );
     assertDeepEqual(processorsCreatedAtResult.rows.length, 1);
 
     const processorsLastUpdatedResult = await pool.execute.query<{
       column_name: string;
     }>(
-      sql(
-        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'last_updated'`,
-      ),
+      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'last_updated'`,
     );
     assertDeepEqual(processorsLastUpdatedResult.rows.length, 1);
 
@@ -245,18 +223,14 @@ void describe('Schema migrations tests', () => {
     const projectionsCreatedAtResult = await pool.execute.query<{
       column_name: string;
     }>(
-      sql(
-        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'created_at'`,
-      ),
+      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'created_at'`,
     );
     assertDeepEqual(projectionsCreatedAtResult.rows.length, 1);
 
     const projectionsLastUpdatedResult = await pool.execute.query<{
       column_name: string;
     }>(
-      sql(
-        `SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'last_updated'`,
-      ),
+      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'last_updated'`,
     );
     assertDeepEqual(projectionsLastUpdatedResult.rows.length, 1);
   });
@@ -264,7 +238,7 @@ void describe('Schema migrations tests', () => {
   void it('migrates from latest schema', async () => {
     // Given
     const latestSchemaSQL = eventStore.schema.sql();
-    await pool.execute.command(rawSql(latestSchemaSQL));
+    await pool.execute.command(SQL`${SQL.plain(latestSchemaSQL)}`);
 
     // When
     await eventStore.schema.migrate();
@@ -464,16 +438,12 @@ void describe('Schema migrations tests', () => {
     await cleanupLegacySubscriptionTables(connectionString);
 
     const tablesResult = await pool.execute.query<{ tablename: string }>(
-      sql(
-        `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = 'emt_subscriptions'`,
-      ),
+      SQL`SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = 'emt_subscriptions'`,
     );
     assertDeepEqual(tablesResult.rows.length, 0);
 
     const functionsResult = await pool.execute.query<{ proname: string }>(
-      sql(
-        `SELECT proname FROM pg_proc WHERE proname = 'store_subscription_checkpoint'`,
-      ),
+      SQL`SELECT proname FROM pg_proc WHERE proname = 'store_subscription_checkpoint'`,
     );
     assertDeepEqual(functionsResult.rows.length, 0);
 
@@ -662,13 +632,9 @@ void describe('Schema migrations tests', () => {
       last_processed_position: string | null;
       last_processed_transaction_id: string | null;
     }>(
-      sql(
-        `SELECT last_processed_position, last_processed_transaction_id
+      SQL`SELECT last_processed_position, last_processed_transaction_id
          FROM emt_subscriptions
-         WHERE subscription_id = %L AND partition = %L`,
-        processorId,
-        partition ?? 'emt:default',
-      ),
+         WHERE subscription_id = ${processorId} AND partition = ${partition ?? 'emt:default'}`,
     );
 
     const row = result.rows[0];
@@ -692,13 +658,10 @@ void describe('Schema migrations tests', () => {
       last_processed_checkpoint: string | null;
       last_processed_transaction_id: string | null;
     }>(
-      sql(
-        `SELECT last_processed_checkpoint, last_processed_transaction_id
+      SQL`
+        SELECT last_processed_checkpoint, last_processed_transaction_id
          FROM emt_processors
-         WHERE processor_id = %L AND partition = %L`,
-        processorId,
-        partition ?? 'emt:default',
-      ),
+         WHERE processor_id = ${processorId} AND partition = ${partition ?? 'emt:default'}`,
     );
 
     const row = result.rows[0];
@@ -714,10 +677,10 @@ void describe('Schema migrations tests', () => {
     position: bigint | null,
   ) =>
     pool.execute.command(
-      rawSql(`
+      SQL`
         INSERT INTO emt_subscriptions (subscription_id, version, partition, last_processed_position, last_processed_transaction_id)
-        VALUES ('${processorId}', 1, '${defaultTag}', ${position !== null ? position : 'NULL'}, pg_current_xact_id())
-      `),
+        VALUES (${processorId}, 1, ${defaultTag}, ${position}, pg_current_xact_id())
+      `,
     );
 
   const storeSubscriptionCheckpoint = (
@@ -727,9 +690,7 @@ void describe('Schema migrations tests', () => {
     checkPosition: bigint | null,
   ) =>
     pool.execute.command(
-      rawSql(`
-        SELECT store_subscription_checkpoint('${processorId}', 1, ${position !== null ? "'" + position + "'" : 'NULL'}, ${checkPosition !== null ? "'" + checkPosition + "'" : 'NULL'}, pg_current_xact_id(), 'emt:default')
-      `),
+      SQL`SELECT store_subscription_checkpoint(${processorId}, 1, ${position}, ${checkPosition}, pg_current_xact_id(), 'emt:default')`,
     );
 
   const assertDualWriteConsistency = async (

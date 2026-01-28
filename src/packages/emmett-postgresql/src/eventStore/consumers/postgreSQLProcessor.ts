@@ -1,14 +1,12 @@
+import { dumbo, type Dumbo, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
-  dumbo,
-  type Dumbo,
-  type NodePostgresClient,
-  type NodePostgresClientConnection,
-  type NodePostgresConnector,
-  type NodePostgresPool,
-  type NodePostgresPoolClientConnection,
-  type NodePostgresTransaction,
-  type SQLExecutor,
-} from '@event-driven-io/dumbo';
+  type PgClient,
+  type PgClientConnection,
+  type PgDriverType,
+  type PgPool,
+  type PgPoolClientConnection,
+  type PgTransaction,
+} from '@event-driven-io/dumbo/pg';
 import {
   defaultProcessorPartition,
   defaultProcessorVersion,
@@ -52,8 +50,8 @@ export type PostgreSQLProcessorHandlerContext = {
   execute: SQLExecutor;
   connection: {
     connectionString: string;
-    client: NodePostgresClient;
-    transaction: NodePostgresTransaction;
+    client: PgClient;
+    transaction: PgTransaction;
     pool: Dumbo;
   };
 } &
@@ -89,55 +87,53 @@ export type PostgreSQLProcessorStartFrom =
 
 type PostgreSQLProcessorPooledOptions =
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       database?: string;
       pooled: true;
       pool: pg.Pool;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       database?: string;
       pool: pg.Pool;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       database?: string;
       pooled: true;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       database?: string;
     };
 
 type PostgreSQLProcessorNotPooledOptions =
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       database?: string;
       pooled: false;
       client: pg.Client;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       database?: string;
       client: pg.Client;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       database?: string;
       pooled: false;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       database?: string;
-      connection:
-        | NodePostgresPoolClientConnection
-        | NodePostgresClientConnection;
+      connection: PgPoolClientConnection | PgClientConnection;
       pooled?: false;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       database?: string;
-      dumbo: NodePostgresPool;
+      dumbo: PgPool;
       pooled?: false;
     };
 
@@ -249,8 +245,7 @@ const postgreSQLProcessingScope = (options: {
       );
 
     return pool.withTransaction(async (transaction) => {
-      const client =
-        (await transaction.connection.open()) as NodePostgresClient;
+      const client = (await transaction.connection.open()) as PgClient;
       return handler({
         ...partialContext,
         partition: options.partition,
@@ -259,7 +254,7 @@ const postgreSQLProcessingScope = (options: {
           connectionString,
           pool,
           client,
-          transaction,
+          transaction: transaction as PgTransaction,
         },
       });
     });
@@ -279,7 +274,7 @@ const getProcessorPool = (options: PostgreSQLConnectionOptions) => {
 
   const processorPool =
     'dumbo' in poolOptions
-      ? (poolOptions.dumbo as NodePostgresPool)
+      ? (poolOptions.dumbo as PgPool)
       : processorConnectionString
         ? dumbo({
             connectionString: processorConnectionString,

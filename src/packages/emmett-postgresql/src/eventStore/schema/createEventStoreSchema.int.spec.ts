@@ -1,24 +1,26 @@
+import { dumbo } from '@event-driven-io/dumbo/.';
 import {
-  dumbo,
   functionExists,
+  pgDatabaseDriver,
   tableExists,
-  type Dumbo,
-} from '@event-driven-io/dumbo';
+  type PgPool,
+} from '@event-driven-io/dumbo/pg';
 import { assertFalse, assertTrue } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { createEventStoreSchema } from '../schema';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('createEventStoreSchema', () => {
   let postgres: StartedPostgreSqlContainer;
-  let pool: Dumbo;
+  let pool: PgPool;
 
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();
     const connectionString = postgres.getConnectionUri();
     pool = dumbo({
       connectionString,
+      driver: pgDatabaseDriver,
     });
     await createEventStoreSchema(connectionString, pool);
   });

@@ -6,6 +6,7 @@ import {
   type Event,
   type ReadEvent,
 } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
 import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
@@ -16,7 +17,7 @@ import {
 } from './postgreSQLEventStore';
 import { postgreSQLProjection } from './projections';
 import { pongoSingleStreamProjection } from './projections/pongo/pongoProjections';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
+import { pgDriver } from '@event-driven-io/pongo/pg';
 
 void describe('EventStoreDBEventStore', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -36,7 +37,7 @@ void describe('EventStoreDBEventStore', () => {
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
-    pongo = pongoClient(connectionString);
+    pongo = pongoClient({ connectionString, driver: pgDriver });
   });
 
   beforeEach(() => {

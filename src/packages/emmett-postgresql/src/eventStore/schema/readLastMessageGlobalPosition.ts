@@ -1,4 +1,4 @@
-import { singleOrNull, sql, type SQLExecutor } from '@event-driven-io/dumbo';
+import { singleOrNull, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import { defaultTag, messagesTable } from './typing';
 
 type ReadLastMessageGlobalPositionSqlResult = {
@@ -15,14 +15,11 @@ export const readLastMessageGlobalPosition = async (
 ): Promise<ReadLastMessageGlobalPositionResult> => {
   const result = await singleOrNull(
     execute.query<ReadLastMessageGlobalPositionSqlResult>(
-      sql(
-        `SELECT global_position
-           FROM ${messagesTable.name}
-           WHERE partition = %L AND is_archived = FALSE AND transaction_id < pg_snapshot_xmin(pg_current_snapshot())
+      SQL`SELECT global_position
+           FROM ${SQL.plain(messagesTable.name)}
+           WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE AND transaction_id < pg_snapshot_xmin(pg_current_snapshot())
            ORDER BY transaction_id, global_position
            LIMIT 1`,
-        options?.partition ?? defaultTag,
-      ),
     ),
   );
 

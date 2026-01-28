@@ -1,9 +1,11 @@
 import { assertDeepEqual, type ReadEvent } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import {
   pongoClient,
   type PongoClient,
   type PongoCollection,
 } from '@event-driven-io/pongo';
+import { pgDriver } from '@event-driven-io/pongo/pg';
 import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -19,7 +21,6 @@ import {
 import { pongoSingleStreamProjection } from '../projections';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 import type { PostgreSQLProjectorOptions } from './postgreSQLProcessor';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 30000 };
 
@@ -36,7 +37,7 @@ void describe('PostgreSQL event store started consumer', () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString);
-    pongo = pongoClient(connectionString);
+    pongo = pongoClient({ connectionString, driver: pgDriver });
     summaries = pongo.db().collection(shoppingCartsSummaryCollectionName);
     await eventStore.schema.migrate();
   });

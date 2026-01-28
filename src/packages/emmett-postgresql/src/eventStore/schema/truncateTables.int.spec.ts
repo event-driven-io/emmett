@@ -1,16 +1,12 @@
-import {
-  count,
-  dumbo,
-  singleOrNull,
-  sql,
-  type Dumbo,
-} from '@event-driven-io/dumbo';
+import { count, dumbo, singleOrNull, SQL } from '@event-driven-io/dumbo';
+import { pgDatabaseDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertEqual,
   assertIsNotNull,
   assertOk,
   type Event,
 } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -23,7 +19,6 @@ import {
   projectionsTable,
   streamsTable,
 } from './typing';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 export type PricedProductItem = {
   productId: string;
@@ -41,13 +36,14 @@ export type ShoppingCartEvent = ProductItemAdded;
 
 void describe('truncateTables', () => {
   let postgres: StartedPostgreSqlContainer;
-  let pool: Dumbo;
+  let pool: PgPool;
 
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();
     const connectionString = postgres.getConnectionUri();
     pool = dumbo({
       connectionString,
+      driver: pgDatabaseDriver,
     });
 
     await createEventStoreSchema(connectionString, pool);
@@ -65,7 +61,7 @@ void describe('truncateTables', () => {
   const getTableCount = (tableName: string): Promise<number> => {
     return count(
       pool.execute.query<{ count: number }>(
-        sql(`SELECT COUNT(*)::integer as count FROM ${tableName}`),
+        SQL`SELECT COUNT(*)::integer as count FROM ${SQL.identifier(tableName)}`,
       ),
     );
   };
@@ -73,9 +69,7 @@ void describe('truncateTables', () => {
   const getLatestGlobalPosition = async (): Promise<bigint | null> => {
     const result = await singleOrNull(
       pool.execute.query<{ global_position: bigint }>(
-        sql(
-          `SELECT global_position FROM ${messagesTable.name} ORDER BY global_position DESC LIMIT 1`,
-        ),
+        SQL`SELECT global_position FROM ${SQL.identifier(messagesTable.name)} ORDER BY global_position DESC LIMIT 1`,
       ),
     );
     return result?.global_position ?? null;

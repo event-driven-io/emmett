@@ -11,6 +11,7 @@ import {
   type PongoDBCollectionOptions,
   type PongoDocument,
 } from '@event-driven-io/pongo';
+import { pgDriver } from '@event-driven-io/pongo/pg';
 import {
   postgreSQLProjection,
   type PostgreSQLProjectionDefinition,
@@ -106,7 +107,9 @@ export const pongoProjection = <
       const {
         connection: { connectionString, client, pool },
       } = context;
-      const pongo = pongoClient(connectionString, {
+      const pongo = pongoClient({
+        connectionString,
+        driver: pgDriver,
         connectionOptions: { client, pool },
       });
       try {
@@ -123,7 +126,9 @@ export const pongoProjection = <
           const {
             connection: { connectionString, client, pool },
           } = context;
-          const pongo = pongoClient(connectionString, {
+          const pongo = pongoClient({
+            connectionString,
+            driver: pgDriver,
             connectionOptions: { client, pool },
           });
           try {
@@ -225,7 +230,9 @@ export const pongoMultiStreamProjection = <
       const {
         connection: { connectionString, client, pool },
       } = context;
-      const pongo = pongoClient(connectionString, {
+      const pongo = pongoClient({
+        connectionString,
+        driver: pgDriver,
         connectionOptions: { client, pool },
       });
 
@@ -245,7 +252,9 @@ export const pongoMultiStreamProjection = <
       const {
         connection: { connectionString, client, pool },
       } = context;
-      const pongo = pongoClient(connectionString, {
+      const pongo = pongoClient({
+        connectionString,
+        driver: pgDriver,
         connectionOptions: { client, pool },
       });
 

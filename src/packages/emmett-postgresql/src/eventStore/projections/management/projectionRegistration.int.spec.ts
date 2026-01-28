@@ -1,9 +1,5 @@
-import {
-  dumbo,
-  sql,
-  type Dumbo,
-  type SQLExecutor,
-} from '@event-driven-io/dumbo';
+import { dumbo, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import { pgDatabaseDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertEqual,
   assertFalse,
@@ -14,6 +10,7 @@ import {
   asyncAwaiter,
   type ProjectionRegistration,
 } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import type { PostgreSQLProjectionHandlerContext } from '..';
@@ -25,16 +22,15 @@ import {
   readProjectionInfo,
   registerProjection,
 } from './projectionManagement';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('projectionRegistration', () => {
   let postgres: StartedPostgreSqlContainer;
-  let pool: Dumbo;
+  let pool: PgPool;
 
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();
     const connectionString = postgres.getConnectionUri();
-    pool = dumbo({ connectionString });
+    pool = dumbo({ connectionString, driver: pgDatabaseDriver });
     await createEventStoreSchema(connectionString, pool);
   });
 
@@ -1007,16 +1003,7 @@ const insertProjection = async (
   }: { name: string; status?: string; partition?: string; version?: number },
 ) => {
   await execute.command(
-    sql(
-      `INSERT INTO emt_projections (version, type, name, partition, kind, status, definition)
-       VALUES (%s, %L, %L, %L, %L, %L, %L)`,
-      version ?? 1,
-      'i',
-      name,
-      partition ?? defaultTag,
-      'inline',
-      status ?? 'active',
-      '{}',
-    ),
+    SQL`INSERT INTO emt_projections (version, type, name, partition, kind, status, definition)
+       VALUES (${version ?? 1}, 'i', ${name}, ${partition ?? defaultTag}, 'inline', ${status ?? 'active'}, '{}'::jsonb)`,
   );
 };

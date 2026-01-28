@@ -1,16 +1,11 @@
-import {
-  dumbo,
-  rawSql,
-  single,
-  sql,
-  type NodePostgresPool,
-} from '@event-driven-io/dumbo';
+import { dumbo, single, SQL, type Dumbo } from '@event-driven-io/dumbo';
 import {
   assertDeepEqual,
   asyncAwaiter,
   projections,
   type ReadEvent,
 } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -21,7 +16,7 @@ import {
 } from '../postgreSQLEventStore';
 import { postgreSQLRawSQLProjection } from '../projections';
 import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
+import { pgDatabaseDriver } from '@event-driven-io/dumbo/pg';
 
 const withDeadline = { timeout: 10000 };
 
@@ -29,7 +24,7 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
   let eventStore: PostgresEventStore;
-  let pool: NodePostgresPool;
+  let pool: Dumbo;
 
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();
@@ -38,7 +33,7 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
     eventStore = getPostgreSQLEventStore(connectionString, {
       projections: projections.inline([]),
     });
-    pool = dumbo({ connectionString });
+    pool = dumbo({ connectionString, driver: pgDatabaseDriver });
   });
 
   beforeEach(async () => {
@@ -81,10 +76,7 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
           name: string;
           status: string;
         }>(
-          sql(
-            `SELECT name, status FROM emt_projections WHERE name = %L`,
-            'new-projection-test',
-          ),
+          SQL`SELECT name, status FROM emt_projections WHERE name = 'new-projection-test'`,
         );
 
         assertDeepEqual(beforeRebuild.rows.length, 0);
@@ -99,10 +91,7 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
 
           const afterRebuild = await single<{ status: string }>(
             pool.execute.query(
-              sql(
-                `SELECT status FROM emt_projections WHERE name = %L`,
-                'new-projection-test',
-              ),
+              SQL`SELECT status FROM emt_projections WHERE name = 'new-projection-test'`,
             ),
           );
 
@@ -167,10 +156,8 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
         const checkpointAfterCrash = await pool.execute.query<{
           last_processed_checkpoint: string;
         }>(
-          sql(
-            `SELECT last_processed_checkpoint FROM emt_processors WHERE processor_id = %L`,
-            'emt:processor:projector:checkpoint-recovery-test',
-          ),
+          SQL`SELECT last_processed_checkpoint FROM emt_processors 
+              WHERE processor_id = 'emt:processor:projector:checkpoint-recovery-test'`,
         );
 
         assertDeepEqual(checkpointAfterCrash.rows.length, 1);
@@ -292,7 +279,9 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
           );
 
           console.log('[Test] Truncating projection table for rebuild');
-          await pool.execute.command(sql(`TRUNCATE TABLE ${tableName}`));
+          await pool.execute.command(
+            SQL`TRUNCATE TABLE ${SQL.identifier(tableName)}`,
+          );
 
           console.log('[Test] Resetting processed counter');
           reset();
@@ -319,10 +308,7 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
 
           const statusDuringRebuild = await single<{ status: string }>(
             pool.execute.query(
-              sql(
-                `SELECT status FROM emt_projections WHERE name = %L`,
-                testProjectionName,
-              ),
+              SQL`SELECT status FROM emt_projections WHERE name = ${testProjectionName}`,
             ),
           );
 
@@ -367,10 +353,7 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
 
           const statusAfterRebuild = await single<{ status: string }>(
             pool.execute.query(
-              sql(
-                `SELECT status FROM emt_projections WHERE name = %L`,
-                testProjectionName,
-              ),
+              SQL`SELECT status FROM emt_projections WHERE name = ${testProjectionName}`,
             ),
           );
 
@@ -399,32 +382,33 @@ const createRebuildTestProjection = (
       canHandle: ['ProductItemAdded'],
 
       init: () =>
-        rawSql(
-          `CREATE TABLE IF NOT EXISTS ${tableName} (event_id TEXT PRIMARY KEY, product_id TEXT, quantity INT)`,
-        ),
+        SQL`CREATE TABLE IF NOT EXISTS ${SQL.identifier(tableName)} 
+            (event_id TEXT PRIMARY KEY, product_id TEXT, quantity INT)`,
       evolve: async (event) => {
         if (options.onEvolve) {
           await options.onEvolve(processed + 1);
         }
         processed++;
-        return rawSql(
-          `INSERT INTO ${tableName} (event_id, product_id, quantity) VALUES ('${(event as ReadEvent<ProductItemAdded>).metadata.messageId}', '${event.data.productItem.productId}', ${event.data.productItem.quantity})`,
-        );
+        return SQL`
+           INSERT INTO ${SQL.identifier(tableName)} (event_id, product_id, quantity) 
+           VALUES (${(event as ReadEvent<ProductItemAdded>).metadata.messageId}, ${event.data.productItem.productId}, ${event.data.productItem.quantity})`;
       },
     }),
     processedCount: () => processed,
     reset: () => {
       processed = 0;
     },
-    rowCount: async (p: NodePostgresPool) => {
+    rowCount: async (p: Dumbo) => {
       const result = await single<{ count: string }>(
-        p.execute.query(sql(`SELECT COUNT(*) as count FROM ${tableName}`)),
+        p.execute.query(
+          SQL`SELECT COUNT(*) as count FROM ${SQL.identifier(tableName)}`,
+        ),
       );
       return Number(result.count);
     },
-    getProductIds: async (p: NodePostgresPool) => {
+    getProductIds: async (p: Dumbo) => {
       const result = await p.execute.query<{ product_id: string }>(
-        sql(`SELECT product_id FROM ${tableName}`),
+        SQL`SELECT product_id FROM ${SQL.identifier(tableName)}`,
       );
       return result.rows.map((row) => row.product_id);
     },

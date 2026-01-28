@@ -1,4 +1,4 @@
-import { sql, type SQLExecutor } from '@event-driven-io/dumbo';
+import { SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import type { StreamExistsResult } from '@event-driven-io/emmett';
 import { defaultTag, streamsTable } from './typing';
 
@@ -12,15 +12,11 @@ export const streamExists = async (
   options?: PostgresStreamExistsOptions,
 ): Promise<StreamExistsResult> => {
   const queryResult = await execute.query<StreamExistsSqlResult>(
-    sql(
-      `SELECT EXISTS (
+    SQL`SELECT EXISTS (
         SELECT 1
-        from ${streamsTable.name}
-        WHERE stream_id = %L AND partition = %L AND is_archived = FALSE)
+        from ${SQL.identifier(streamsTable.name)}
+        WHERE stream_id = ${streamId} AND partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE)
       `,
-      streamId,
-      options?.partition ?? defaultTag,
-    ),
   );
 
   return queryResult.rows[0]?.exists ?? false;
