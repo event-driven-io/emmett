@@ -1,10 +1,5 @@
-import {
-  dumbo,
-  rawSql,
-  single,
-  sql,
-  type NodePostgresPool,
-} from '@event-driven-io/dumbo';
+import { dumbo, single, SQL, type Dumbo } from '@event-driven-io/dumbo';
+import { pgDatabaseDriver } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   asyncAwaiter,
@@ -12,12 +7,14 @@ import {
   projections,
   type ReadEvent,
 } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import {
   pongoClient,
   type PongoClient,
   type PongoCollection,
   type PongoDb,
 } from '@event-driven-io/pongo';
+import { pgDriver } from '@event-driven-io/pongo/pg';
 import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -34,7 +31,6 @@ import {
   postgreSQLRawSQLProjection,
 } from '../projections';
 import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 30000 };
 
@@ -50,7 +46,7 @@ void describe('Rebuilding PostgreSQL Projections', () => {
   const productItem = { price: 10, productId: uuid(), quantity: 10 };
   const confirmedAt = new Date();
   let db: PongoDb;
-  let pool: NodePostgresPool;
+  let pool: Dumbo;
 
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();
@@ -62,7 +58,7 @@ void describe('Rebuilding PostgreSQL Projections', () => {
         otherShoppingCartsSummaryProjection,
       ]),
     });
-    pongo = pongoClient(connectionString);
+    pongo = pongoClient({ connectionString, driver: pgDriver });
     db = pongo.db();
     summaries = db.collection(shoppingCartsSummaryCollectionName);
     otherSummaries = db.collection(otherShoppingCartsSummaryCollectionName);
@@ -70,7 +66,7 @@ void describe('Rebuilding PostgreSQL Projections', () => {
     otherSummariesV2 = db.collection(
       `${otherShoppingCartsSummaryCollectionName}_v2`,
     );
-    pool = dumbo({ connectionString });
+    pool = dumbo({ connectionString, driver: pgDatabaseDriver });
   });
 
   beforeEach(async () => {
@@ -443,13 +439,9 @@ void describe('Rebuilding PostgreSQL Projections', () => {
         await reachedTwo.wait;
 
         await pool.execute.command(
-          sql(
-            `UPDATE emt_processors
-             SET last_updated = now() - interval '%s seconds'
-             WHERE processor_id = %L`,
-            '400',
-            getProjectorId({ projectionName: 'timeout-takeover-test' }),
-          ),
+          SQL`UPDATE emt_processors
+             SET last_updated = now() - interval '400 seconds'
+             WHERE processor_id = ${getProjectorId({ projectionName: 'timeout-takeover-test' })}`,
         );
 
         waitBeforeProcessing.resolve();
@@ -478,10 +470,7 @@ void describe('Rebuilding PostgreSQL Projections', () => {
 
         const projectionStatus = await single<{ status: string }>(
           pool.execute.query(
-            sql(
-              `SELECT status FROM emt_projections WHERE name = %L`,
-              'timeout-takeover-test',
-            ),
+            SQL`SELECT status FROM emt_projections WHERE name = 'timeout-takeover-test'`,
           ),
         );
         assertDeepEqual(projectionStatus.status, 'active');
@@ -628,32 +617,32 @@ const createRebuildTestProjection = (
       name,
       canHandle: ['ProductItemAdded'],
       init: () =>
-        rawSql(
-          `CREATE TABLE IF NOT EXISTS ${tableFullName} (event_id TEXT PRIMARY KEY, product_id TEXT, quantity INT)`,
-        ),
+        SQL`CREATE TABLE IF NOT EXISTS ${SQL.identifier(tableFullName)} (event_id TEXT PRIMARY KEY, product_id TEXT, quantity INT)`,
       evolve: async (event) => {
         if (options.onEvolve) {
           await options.onEvolve(processed + 1);
         }
         processed++;
-        return rawSql(
-          `INSERT INTO ${tableFullName} (event_id, product_id, quantity) VALUES ('${(event as ReadEvent<ProductItemAdded>).metadata.messageId}', '${event.data.productItem.productId}', ${event.data.productItem.quantity})`,
-        );
+        return SQL`
+          INSERT INTO ${SQL.identifier(tableFullName)} (event_id, product_id, quantity) 
+          VALUES (${(event as ReadEvent<ProductItemAdded>).metadata.messageId}, ${event.data.productItem.productId}, ${event.data.productItem.quantity})`;
       },
     }),
     processedCount: () => processed,
     reset: () => {
       processed = 0;
     },
-    rowCount: async (p: NodePostgresPool) => {
+    rowCount: async (p: Dumbo) => {
       const result = await single<{ count: string }>(
-        p.execute.query(sql(`SELECT COUNT(*) as count FROM ${tableFullName}`)),
+        p.execute.query(
+          SQL`SELECT COUNT(*) as count FROM ${SQL.identifier(tableFullName)}`,
+        ),
       );
       return Number(result.count);
     },
-    getProductIds: async (p: NodePostgresPool) => {
+    getProductIds: async (p: Dumbo) => {
       const result = await p.execute.query<{ product_id: string }>(
-        sql(`SELECT product_id FROM ${tableFullName}`),
+        SQL`SELECT product_id FROM ${SQL.identifier(tableFullName)}`,
       );
       return result.rows.map((row) => row.product_id);
     },

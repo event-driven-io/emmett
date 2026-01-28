@@ -1,11 +1,11 @@
 import {
+  type AnyConnection,
   type DatabaseTransaction,
   type Dumbo,
-  type NodePostgresClient,
-  type NodePostgresTransaction,
   type SQL,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
+import { type PgClient, type PgTransaction } from '@event-driven-io/dumbo/pg';
 import {
   projection,
   type CanHandle,
@@ -26,8 +26,8 @@ export type PostgreSQLProjectionHandlerContext = {
   execute: SQLExecutor;
   connection: {
     connectionString: string;
-    client: NodePostgresClient;
-    transaction: NodePostgresTransaction;
+    client: PgClient;
+    transaction: PgTransaction;
     pool: Dumbo;
   };
 } &
@@ -38,15 +38,13 @@ export type PostgreSQLProjectionHandlerContext = {
 export const transactionToPostgreSQLProjectionHandlerContext = async (
   connectionString: string,
   pool: Dumbo,
-  transaction:
-    | NodePostgresTransaction
-    | DatabaseTransaction<'PostgreSQL:pg', unknown>,
+  transaction: PgTransaction | DatabaseTransaction<AnyConnection>,
 ): Promise<PostgreSQLProjectionHandlerContext> => ({
   execute: transaction.execute,
   connection: {
     connectionString: connectionString,
-    client: (await transaction.connection.open()) as NodePostgresClient,
-    transaction,
+    client: (await transaction.connection.open()) as PgClient,
+    transaction: transaction as PgTransaction,
     pool,
   },
 });
@@ -76,13 +74,8 @@ export type PostgreSQLProjectionHandlerOptions<
 > = {
   events: ReadEvent<EventType, PostgresReadEventMetadata>[];
   projections: PostgreSQLProjectionDefinition<EventType>[];
-  connection: {
-    connectionString: string;
-    transaction: NodePostgresTransaction;
-    pool: Dumbo;
-  };
   partition?: string;
-};
+} & PostgreSQLProjectionHandlerContext;
 
 export const handleProjections = async <EventType extends Event = Event>(
   options: PostgreSQLProjectionHandlerOptions<EventType>,
@@ -100,7 +93,7 @@ export const handleProjections = async <EventType extends Event = Event>(
     p.canHandle.some((type) => eventTypes.includes(type)),
   );
 
-  const client = (await transaction.connection.open()) as NodePostgresClient;
+  const client = (await transaction.connection.open()) as PgClient;
 
   for (const projection of projections) {
     // TODO: Make projection name mandatory

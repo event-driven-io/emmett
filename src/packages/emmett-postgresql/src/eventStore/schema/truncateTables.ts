@@ -1,4 +1,4 @@
-import { rawSql, type SQLExecutor } from '@event-driven-io/dumbo';
+import { SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   messagesTable,
   processorsTable,
@@ -11,8 +11,11 @@ export const truncateTables = async (
   options?: { resetSequences?: boolean },
 ): Promise<void> => {
   await execute.command(
-    rawSql(
-      `TRUNCATE TABLE ${streamsTable.name}, ${messagesTable.name}, ${processorsTable.name}, ${projectionsTable.name} CASCADE${options?.resetSequences ? '; ALTER SEQUENCE emt_global_message_position RESTART WITH 1' : ''};`,
-    ),
+    SQL`TRUNCATE TABLE 
+        ${SQL.identifier(streamsTable.name)}, 
+        ${SQL.identifier(messagesTable.name)}, 
+        ${SQL.identifier(processorsTable.name)}, 
+        ${SQL.identifier(projectionsTable.name)} 
+        CASCADE${SQL.plain(options?.resetSequences ? '; ALTER SEQUENCE emt_global_message_position RESTART WITH 1' : '')};`,
   );
 };

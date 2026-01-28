@@ -1,4 +1,5 @@
-import { dumbo, sql, type Dumbo } from '@event-driven-io/dumbo';
+import { dumbo, SQL } from '@event-driven-io/dumbo';
+import { pgDatabaseDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertEqual,
   assertFalse,
@@ -9,6 +10,7 @@ import {
   type Event,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -18,7 +20,6 @@ import {
   appendToStream,
   type AppendToStreamBeforeCommitHook,
 } from './appendToStream';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 export type PricedProductItem = {
   productId: string;
@@ -46,13 +47,14 @@ export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
 void describe('appendEvent', () => {
   let postgres: StartedPostgreSqlContainer;
-  let pool: Dumbo;
+  let pool: PgPool;
 
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();
     const connectionString = postgres.getConnectionUri();
     pool = dumbo({
       connectionString,
+      driver: pgDatabaseDriver,
     });
 
     await createEventStoreSchema(connectionString, pool);
@@ -269,7 +271,7 @@ void describe('appendEvent', () => {
     assertFalse(secondResult.success);
 
     const resultEvents = await pool.execute.query(
-      sql(`SELECT * FROM emt_messages WHERE stream_id = %L`, streamId),
+      SQL`SELECT * FROM emt_messages WHERE stream_id = ${streamId}`,
     );
 
     assertEqual(events.length, resultEvents.rows.length);
@@ -314,7 +316,7 @@ void describe('appendEvent', () => {
     assertFalse(secondResult.success);
 
     const resultEvents = await pool.execute.query(
-      sql(`SELECT * FROM emt_messages WHERE stream_id = %L`, streamId),
+      SQL`SELECT * FROM emt_messages WHERE stream_id = ${streamId}`,
     );
 
     assertEqual(events.length * 2, resultEvents.rows.length);
@@ -351,7 +353,7 @@ void describe('appendEvent', () => {
     assertTrue(secondResult.success);
 
     const resultEvents = await pool.execute.query(
-      sql(`SELECT * FROM emt_messages WHERE stream_id = %L`, streamId),
+      SQL`SELECT * FROM emt_messages WHERE stream_id = ${streamId}`,
     );
 
     assertEqual(events.length * 2, resultEvents.rows.length);

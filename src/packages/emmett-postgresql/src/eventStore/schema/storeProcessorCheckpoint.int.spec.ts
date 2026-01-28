@@ -1,21 +1,17 @@
-import {
-  dumbo,
-  sql,
-  type Dumbo,
-  type SQLExecutor,
-} from '@event-driven-io/dumbo';
+import { dumbo, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import { pgDatabaseDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import { assertDeepEqual, assertIsNotNull } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { createEventStoreSchema, defaultTag } from '.';
 import { readProcessorCheckpoint } from './readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from './storeProcessorCheckpoint';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
-  let pool: Dumbo;
+  let pool: PgPool;
 
   const checkpoint1 = 100n;
   const checkpoint2 = 200n;
@@ -24,12 +20,10 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
-    pool = dumbo({ connectionString });
+    pool = dumbo({ connectionString, driver: pgDatabaseDriver });
     await createEventStoreSchema(connectionString, pool);
 
-    await pool.execute.command(
-      sql(`SELECT emt_add_partition(%L)`, 'partition-2'),
-    );
+    await pool.execute.command(SQL`SELECT emt_add_partition('partition-2')`);
   });
 
   after(async () => {
@@ -411,11 +405,7 @@ const getProcessorTimestamps = async (
     created_at: Date;
     last_updated: Date;
   }>(
-    sql(
-      'SELECT created_at, last_updated FROM emt_processors WHERE processor_id = %L AND partition = %L',
-      processorId,
-      partition,
-    ),
+    SQL`SELECT created_at, last_updated FROM emt_processors WHERE processor_id = ${processorId} AND partition = ${partition}`,
   );
   return result.rows[0] ?? null;
 };

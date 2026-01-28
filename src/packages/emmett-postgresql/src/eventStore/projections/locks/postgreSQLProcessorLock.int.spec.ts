@@ -1,9 +1,5 @@
-import {
-  dumbo,
-  sql,
-  type Dumbo,
-  type SQLExecutor,
-} from '@event-driven-io/dumbo';
+import { dumbo, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import { pgDatabaseDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   assertFalse,
@@ -11,6 +7,7 @@ import {
   asyncAwaiter,
   getProcessorInstanceId,
 } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { createEventStoreSchema, defaultTag, unknownTag } from '../../schema';
@@ -19,18 +16,17 @@ import {
   postgreSQLProjectionLock,
   toProjectionLockKey,
 } from './postgreSQLProjectionLock';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('tryAcquireProcessorLock', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
-  let pool: Dumbo;
+  let pool: PgPool;
   const defaultPartitionAndVersion1 = { partition: defaultTag, version: 1 };
 
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
-    pool = dumbo({ connectionString });
+    pool = dumbo({ connectionString, driver: pgDatabaseDriver });
     await createEventStoreSchema(connectionString, pool);
   });
 
@@ -1015,16 +1011,9 @@ const insertProcessor = async (
   },
 ) => {
   await execute.command(
-    sql(
-      `INSERT INTO emt_processors (processor_id, partition, version, processor_instance_id, status, last_processed_checkpoint, last_processed_transaction_id)
-       VALUES (%L, %L, %s, %L, %L, %L, '0'::xid8)`,
-      processorId,
-      partition ?? defaultTag,
-      version ?? 1,
-      processorInstanceId ?? unknownTag,
-      status ?? 'stopped',
-      lastProcessedCheckpoint ?? '0',
-    ),
+    SQL`
+      INSERT INTO emt_processors (processor_id, partition, version, processor_instance_id, status, last_processed_checkpoint, last_processed_transaction_id)
+       VALUES (${processorId}, ${partition ?? defaultTag}, ${version ?? 1}, ${processorInstanceId ?? unknownTag}, ${status ?? 'stopped'}, ${lastProcessedCheckpoint ?? '0'}, '0'::xid8)`,
   );
 };
 
@@ -1038,17 +1027,9 @@ const insertProjection = async (
   }: { name: string; status?: string; partition?: string; version?: number },
 ) => {
   await execute.command(
-    sql(
-      `INSERT INTO emt_projections (version, type, name, partition, kind, status, definition)
-       VALUES (%s, %L, %L, %L, %L, %L, %L)`,
-      version ?? 1,
-      'a',
-      name,
-      partition ?? defaultTag,
-      'async',
-      status ?? 'active',
-      '{}',
-    ),
+    SQL`
+      INSERT INTO emt_projections (version, type, name, partition, kind, status, definition)
+       VALUES (${version ?? 1}, 'a', ${name}, ${partition ?? defaultTag}, 'async', ${status ?? 'active'}, '{}')`,
   );
 };
 
@@ -1069,12 +1050,10 @@ const getProcessorStatus = async (
     processor_instance_id: string;
     last_processed_checkpoint: string;
   }>(
-    sql(
-      `SELECT status, processor_instance_id, last_processed_checkpoint FROM emt_processors WHERE processor_id = %L AND partition = %L AND version = %s`,
-      processorId,
-      partition ?? defaultTag,
-      version ?? 1,
-    ),
+    SQL`
+      SELECT status, processor_instance_id, last_processed_checkpoint 
+      FROM emt_processors 
+      WHERE processor_id = ${processorId} AND partition = ${partition ?? defaultTag} AND version = ${version ?? 1}`,
   );
   return result.rows[0] ?? null;
 };
@@ -1088,12 +1067,10 @@ const getProcessorCheckpoint = async (
   }: { processorId: string; partition?: string; version?: number },
 ): Promise<string | null> => {
   const result = await execute.query<{ last_processed_checkpoint: string }>(
-    sql(
-      `SELECT last_processed_checkpoint FROM emt_processors WHERE processor_id = %L AND partition = %L AND version = %s`,
-      processorId,
-      partition ?? defaultTag,
-      version ?? 1,
-    ),
+    SQL`
+      SELECT last_processed_checkpoint 
+      FROM emt_processors 
+      WHERE processor_id = ${processorId} AND partition = ${partition ?? defaultTag} AND version = ${version ?? 1}`,
   );
   return result.rows[0]?.last_processed_checkpoint ?? null;
 };
@@ -1107,12 +1084,10 @@ const getProjectionStatus = async (
   }: { name: string; partition?: string; version?: number },
 ): Promise<{ status: string } | null> => {
   const result = await execute.query<{ status: string }>(
-    sql(
-      `SELECT status FROM emt_projections WHERE name = %L AND partition = %L AND version = %s`,
-      name,
-      partition ?? defaultTag,
-      version ?? 1,
-    ),
+    SQL`
+      SELECT status 
+      FROM emt_projections 
+      WHERE name = ${name} AND partition = ${partition ?? defaultTag} AND version = ${version ?? 1}`,
   );
   return result.rows[0] ?? null;
 };
@@ -1132,14 +1107,9 @@ const setProcessorLastUpdated = async (
   },
 ) => {
   await execute.command(
-    sql(
-      `UPDATE emt_processors
-       SET last_updated = now() - interval '%s seconds'
-       WHERE processor_id = %L AND partition = %L AND version = %s`,
-      secondsAgo.toString(),
-      processorId,
-      partition ?? defaultTag,
-      version ?? 1,
-    ),
+    SQL`
+      UPDATE emt_processors
+       SET last_updated = now() - interval '${secondsAgo} seconds'
+       WHERE processor_id = ${processorId} AND partition = ${partition ?? defaultTag} AND version = ${version ?? 1}`,
   );
 };

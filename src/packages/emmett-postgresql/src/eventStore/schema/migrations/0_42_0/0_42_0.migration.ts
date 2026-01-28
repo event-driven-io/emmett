@@ -1,11 +1,7 @@
-import {
-  rawSql,
-  sqlMigration,
-  type SQLMigration,
-} from '@event-driven-io/dumbo';
+import { SQL, sqlMigration, type SQLMigration } from '@event-driven-io/dumbo';
 import { defaultTag } from '../../typing';
 
-export const migration_0_42_0_FromSubscriptionsToProcessorsSQL = rawSql(`
+export const migration_0_42_0_FromSubscriptionsToProcessorsSQL = SQL`
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_subscriptions') THEN
@@ -62,7 +58,7 @@ BEGIN
         END;
         $fnpar$ LANGUAGE plpgsql;
 
-        PERFORM emt_add_partition('${defaultTag}');
+        PERFORM emt_add_partition('${SQL.plain(defaultTag)}');
 
         -- 3. Copy data from old table to new table
         INSERT INTO "emt_processors"
@@ -178,7 +174,7 @@ BEGIN
           p_position               TEXT,
           p_check_position         TEXT,
           p_transaction_id         xid8,
-          p_partition              TEXT DEFAULT '${defaultTag}',
+          p_partition              TEXT DEFAULT '${SQL.plain(defaultTag)}',
           p_processor_instance_id  TEXT DEFAULT 'emt:unknown'
         ) RETURNS INT AS $fn2$
         DECLARE
@@ -260,7 +256,7 @@ BEGIN
         $fn2$ LANGUAGE plpgsql;
     END IF;
 END $$;
-`);
+`;
 
 export const migration_0_42_0_FromSubscriptionsToProcessors: SQLMigration =
   sqlMigration(
@@ -268,7 +264,7 @@ export const migration_0_42_0_FromSubscriptionsToProcessors: SQLMigration =
     [migration_0_42_0_FromSubscriptionsToProcessorsSQL],
   );
 
-export const migration_0_42_0_2_AddProcessorProjectionFunctionsSQL = rawSql(`
+export const migration_0_42_0_2_AddProcessorProjectionFunctionsSQL = SQL`
 DO $$
 BEGIN
     IF EXISTS (
@@ -316,7 +312,7 @@ CREATE OR REPLACE FUNCTION emt_try_acquire_processor_lock(
     p_lock_key               BIGINT,
     p_processor_id           TEXT,
     p_version                INT,
-    p_partition              TEXT       DEFAULT '${defaultTag}',
+    p_partition              TEXT       DEFAULT '${SQL.plain(defaultTag)}',
     p_processor_instance_id  TEXT       DEFAULT 'emt:unknown',
     p_projection_name        TEXT       DEFAULT NULL,
     p_projection_type        VARCHAR(1) DEFAULT NULL,
@@ -540,7 +536,7 @@ BEGIN
     RETURN v_result;
 END;
 $emt_deactivate_projection$;
-`);
+`;
 
 export const migration_0_42_0_2_AddProcessorProjectionFunctions: SQLMigration =
   sqlMigration(

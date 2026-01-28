@@ -1,9 +1,5 @@
-import {
-  dumbo,
-  sql,
-  type Dumbo,
-  type SQLExecutor,
-} from '@event-driven-io/dumbo';
+import { dumbo, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import { pgDatabaseDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertFalse,
   assertThrowsAsync,
@@ -11,6 +7,7 @@ import {
   asyncAwaiter,
   hashText,
 } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { createEventStoreSchema, defaultTag } from '../../schema';
@@ -18,18 +15,17 @@ import {
   postgreSQLProjectionLock,
   toProjectionLockKey,
 } from './postgreSQLProjectionLock';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('tryAcquireProjectionLock', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
-  let pool: Dumbo;
+  let pool: PgPool;
   const defaultPartitionAndVersion1 = { partition: defaultTag, version: 1 };
 
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
-    pool = dumbo({ connectionString });
+    pool = dumbo({ connectionString, driver: pgDatabaseDriver });
     await createEventStoreSchema(connectionString, pool);
   });
 
@@ -420,17 +416,8 @@ const insertProjection = async (
   }: { name: string; status?: string; partition?: string; version?: number },
 ) => {
   await execute.query(
-    sql(
-      `INSERT INTO emt_projections (version, type, name, partition, kind, status, definition)
-       VALUES (%s, %L, %L, %L, %L, %L, %L)`,
-      version ?? 1,
-      'I',
-      name,
-      partition ?? defaultTag,
-      'inline',
-      status ?? 'active',
-      '{}',
-    ),
+    SQL`INSERT INTO emt_projections (version, type, name, partition, kind, status, definition)
+       VALUES (${version ?? 1}, ${'I'}, ${name}, ${partition ?? defaultTag}, 'inline', ${status ?? 'active'}, '{}'::jsonb)`,
   );
 };
 
@@ -439,10 +426,9 @@ const tryAcquireExclusiveLock = async (
   lockKey: string,
 ): Promise<boolean> => {
   const result = await execute.query<{ acquired: boolean }>(
-    sql(
-      `SELECT pg_try_advisory_xact_lock(%s::bigint) as acquired`,
-      (await hashText(lockKey)).toString(),
-    ),
+    SQL`
+      SELECT pg_try_advisory_xact_lock(${(await hashText(lockKey)).toString()}::bigint) as acquired
+    `,
   );
   return result.rows[0]?.acquired ?? false;
 };
@@ -452,10 +438,9 @@ const acquireExclusiveLock = async (
   lockKey: string,
 ): Promise<void> => {
   await execute.command(
-    sql(
-      `SELECT pg_advisory_lock(%s::bigint)`,
-      (await hashText(lockKey)).toString(),
-    ),
+    SQL`
+      SELECT pg_advisory_lock(${await hashText(lockKey)})
+    `,
   );
 };
 
@@ -464,9 +449,8 @@ const releaseExclusiveLock = async (
   lockKey: string,
 ): Promise<void> => {
   await execute.command(
-    sql(
-      `SELECT pg_advisory_unlock(%s::bigint)`,
-      (await hashText(lockKey)).toString(),
-    ),
+    SQL`
+      SELECT pg_advisory_unlock(${await hashText(lockKey)})
+    `,
   );
 };

@@ -1,16 +1,14 @@
-import { rawSql } from '@event-driven-io/dumbo';
+import { SQL } from '@event-driven-io/dumbo';
 
 export const createFunctionIfDoesNotExistSQL = (
   functionName: string,
-  functionDefinition: string,
+  functionDefinition: SQL,
 ) =>
-  rawSql(
-    `
+  SQL`
 DO $$
 BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '${functionName}') THEN
   ${functionDefinition}
 END IF;
 END $$;
-`,
-  );
+`;

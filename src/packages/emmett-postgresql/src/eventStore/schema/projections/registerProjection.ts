@@ -1,10 +1,10 @@
-import { sql } from '@event-driven-io/dumbo';
+import { SQL } from '@event-driven-io/dumbo';
 import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
 import { projectionsTable } from '../typing';
 
 export const registerProjectionSQL = createFunctionIfDoesNotExistSQL(
   'emt_register_projection',
-  `
+  SQL`
 CREATE OR REPLACE FUNCTION emt_register_projection(
     p_lock_key      BIGINT,
     p_name          TEXT,
@@ -25,7 +25,7 @@ BEGIN
         SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
     ),
     upsert_result AS (
-        INSERT INTO ${projectionsTable.name} (
+        INSERT INTO ${SQL.identifier(projectionsTable.name)} (
             name, partition, version, type, kind, status, definition, created_at, last_updated
         )
         SELECT p_name, p_partition, p_version, p_type, p_kind, p_status, p_definition, now(), now()
@@ -45,7 +45,7 @@ $emt_register_projection$;
 
 export const activateProjectionSQL = createFunctionIfDoesNotExistSQL(
   'emt_activate_projection',
-  `
+  SQL`
 CREATE OR REPLACE FUNCTION emt_activate_projection(
     p_lock_key   BIGINT,
     p_name       TEXT,
@@ -62,7 +62,7 @@ BEGIN
         SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
     ),
     update_result AS (
-        UPDATE ${projectionsTable.name}
+        UPDATE ${SQL.identifier(projectionsTable.name)}
         SET status = 'active',
             last_updated = now()
         WHERE name = p_name
@@ -81,7 +81,7 @@ $emt_activate_projection$;
 
 export const deactivateProjectionSQL = createFunctionIfDoesNotExistSQL(
   'emt_deactivate_projection',
-  `
+  SQL`
 CREATE OR REPLACE FUNCTION emt_deactivate_projection(
     p_lock_key   BIGINT,
     p_name       TEXT,
@@ -98,7 +98,7 @@ BEGIN
         SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
     ),
     update_result AS (
-        UPDATE ${projectionsTable.name}
+        UPDATE ${SQL.identifier(projectionsTable.name)}
         SET status = 'inactive',
             last_updated = now()
         WHERE name = p_name
@@ -127,17 +127,9 @@ type CallRegisterProjectionParams = {
 };
 
 export const callRegisterProjection = (params: CallRegisterProjectionParams) =>
-  sql(
-    `SELECT emt_register_projection(%s, %L, %L, %s, %L, %L, %L, %L) AS registered`,
-    params.lockKey,
-    params.name,
-    params.partition,
-    params.version,
-    params.type,
-    params.kind,
-    params.status,
-    params.definition,
-  );
+  SQL`
+    SELECT emt_register_projection(${params.lockKey}, ${params.name}, ${params.partition}, ${params.version}, ${params.type}, ${params.kind}, ${params.status}, ${params.definition}) AS registered
+  `;
 
 type CallActivateProjectionParams = {
   lockKey: string;
@@ -147,13 +139,7 @@ type CallActivateProjectionParams = {
 };
 
 export const callActivateProjection = (params: CallActivateProjectionParams) =>
-  sql(
-    `SELECT emt_activate_projection(%s, %L, %L, %s) AS activated`,
-    params.lockKey,
-    params.name,
-    params.partition,
-    params.version,
-  );
+  SQL`SELECT emt_activate_projection(${params.lockKey}, ${params.name}, ${params.partition}, ${params.version}) AS activated`;
 
 type CallDeactivateProjectionParams = {
   lockKey: string;
@@ -165,10 +151,4 @@ type CallDeactivateProjectionParams = {
 export const callDeactivateProjection = (
   params: CallDeactivateProjectionParams,
 ) =>
-  sql(
-    `SELECT emt_deactivate_projection(%s, %L, %L, %s) AS deactivated`,
-    params.lockKey,
-    params.name,
-    params.partition,
-    params.version,
-  );
+  SQL`SELECT emt_deactivate_projection(${params.lockKey}, ${params.name}, ${params.partition}, ${params.version}) AS deactivated`;

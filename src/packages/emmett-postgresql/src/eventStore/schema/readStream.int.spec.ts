@@ -1,4 +1,5 @@
-import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
+import { dumbo, SQL } from '@event-driven-io/dumbo';
+import { pgDatabaseDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   assertEqual,
@@ -9,6 +10,7 @@ import {
   asyncRetry,
   type Event,
 } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -16,7 +18,6 @@ import { createEventStoreSchema, defaultTag } from '.';
 import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
 import { appendToStream } from './appendToStream';
 import { readStream } from './readStream';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 export type PricedProductItem = {
   productId: string;
@@ -44,13 +45,14 @@ export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
 void describe('readStream', () => {
   let postgres: StartedPostgreSqlContainer;
-  let pool: Dumbo;
+  let pool: PgPool;
 
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();
     const connectionString = postgres.getConnectionUri();
     pool = dumbo({
       connectionString,
+      driver: pgDatabaseDriver,
     });
 
     await createEventStoreSchema(connectionString, pool);

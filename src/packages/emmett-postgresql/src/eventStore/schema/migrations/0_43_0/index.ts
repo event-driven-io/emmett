@@ -1,6 +1,6 @@
 import {
   dumbo,
-  rawSql,
+  SQL,
   sqlMigration,
   type SQLMigration,
 } from '@event-driven-io/dumbo';
@@ -12,26 +12,26 @@ import {
   streamsTable,
 } from '../../typing';
 
-export const migration_0_43_0_cleanupLegacySubscriptionSQL = rawSql(`
+export const migration_0_43_0_cleanupLegacySubscriptionSQL = SQL`
 DO $$
 BEGIN
 IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_subscriptions') THEN
     -- Restore clean emt_add_partition (remove creation of emt_subscriptions partitions)
     CREATE OR REPLACE FUNCTION emt_add_partition(partition_name TEXT) RETURNS void AS $fnpar$
     BEGIN                
-        PERFORM emt_add_table_partition('${messagesTable.name}', partition_name);
-        PERFORM emt_add_table_partition('${streamsTable.name}', partition_name);
+        PERFORM emt_add_table_partition('${SQL.plain(messagesTable.name)}', partition_name);
+        PERFORM emt_add_table_partition('${SQL.plain(streamsTable.name)}', partition_name);
     
         EXECUTE format('
             CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
             FOR VALUES IN (%L);',
-            emt_sanitize_name('${processorsTable.name}' || '_' || partition_name), '${processorsTable.name}', partition_name
+            emt_sanitize_name('${SQL.plain(processorsTable.name)}' || '_' || partition_name), '${SQL.plain(processorsTable.name)}', partition_name
         );
     
         EXECUTE format('
             CREATE TABLE IF NOT EXISTS %I PARTITION OF %I
             FOR VALUES IN (%L);',
-            emt_sanitize_name('${projectionsTable.name}' || '_' || partition_name), '${projectionsTable.name}', partition_name
+            emt_sanitize_name('${SQL.plain(projectionsTable.name)}' || '_' || partition_name), '${SQL.plain(projectionsTable.name)}', partition_name
         );
     END;
     $fnpar$ LANGUAGE plpgsql;
@@ -49,7 +49,7 @@ IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_subscriptions') THEN
       p_position               TEXT,
       p_check_position         TEXT,
       p_transaction_id         xid8,
-      p_partition              TEXT DEFAULT '${defaultTag}',
+      p_partition              TEXT DEFAULT '${SQL.plain(defaultTag)}',
       p_processor_instance_id  TEXT DEFAULT 'emt:unknown'
     ) RETURNS INT AS $fn$
     DECLARE
@@ -106,7 +106,7 @@ IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_subscriptions') THEN
     $fn$ LANGUAGE plpgsql;
 END IF;
 END $$;
-`);
+`;
 
 export const migration_0_43_0_cleanupLegacySubscription: SQLMigration =
   sqlMigration('emt:postgresql:eventstore:0.43.0:cleanup-legacy-subscription', [

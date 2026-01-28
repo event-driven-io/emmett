@@ -12,6 +12,7 @@ import {
   type PongoFilter,
   type WithId,
 } from '@event-driven-io/pongo';
+import { pgDriver } from '@event-driven-io/pongo/pg';
 import { type PostgreSQLProjectionAssert } from '..';
 
 export type PongoAssertOptions = {
@@ -29,8 +30,10 @@ const withCollection = (
   const { pool, connectionString, inDatabase, inCollection } = options;
 
   return pool.withConnection(async (connection) => {
-    const pongo = pongoClient(connectionString, {
+    const pongo = pongoClient({
+      connectionString,
       connectionOptions: { connection },
+      driver: pgDriver,
     });
     try {
       const collection = pongo.db(inDatabase).collection(inCollection);

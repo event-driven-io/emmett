@@ -1,15 +1,15 @@
 import {
   dumbo,
-  runPostgreSQLMigrations,
+  runSQLMigrations,
   sqlMigration,
-  type NodePostgresClient,
-  type NodePostgresPool,
+  type Dumbo,
   type RunSQLMigrationsResult,
   type SQL,
   type SQLMigration,
 } from '@event-driven-io/dumbo';
+import type { PgPool, PgTransaction } from '@event-driven-io/dumbo/pg';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
-import { type PostgreSQLProjectionHandlerContext } from '../projections';
+import { transactionToPostgreSQLProjectionHandlerContext } from '../projections';
 import { appendToStreamSQL } from './appendToStream';
 import { migration_0_38_7_and_older } from './migrations/0_38_7';
 import {
@@ -91,21 +91,16 @@ export type EventStoreSchemaMigrationOptions = {
 
 export const createEventStoreSchema = (
   connectionString: string,
-  pool: NodePostgresPool,
+  pool: PgPool,
   hooks?: PostgresEventStoreOptions['hooks'],
   options?: CreateEventStoreSchemaOptions,
 ): Promise<RunSQLMigrationsResult> => {
-  return pool.withTransaction(async (tx) => {
-    const client = (await tx.connection.open()) as NodePostgresClient;
-    const context: PostgreSQLProjectionHandlerContext = {
-      execute: tx.execute,
-      connection: {
-        connectionString,
-        client,
-        transaction: tx,
-        pool,
-      },
-    };
+  return pool.withTransaction(async (tx: PgTransaction) => {
+    const context = await transactionToPostgreSQLProjectionHandlerContext(
+      connectionString,
+      pool as Dumbo,
+      tx,
+    );
     const nestedPool = dumbo({ connectionString, connection: tx.connection });
 
     try {
@@ -113,7 +108,7 @@ export const createEventStoreSchema = (
         await hooks.onBeforeSchemaCreated(context);
       }
 
-      const result = await runPostgreSQLMigrations(
+      const result = await runSQLMigrations(
         nestedPool,
         eventStoreSchemaMigrations,
         options,

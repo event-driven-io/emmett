@@ -1,4 +1,4 @@
-import { sql } from '@event-driven-io/dumbo';
+import { SQL } from '@event-driven-io/dumbo';
 import { bigInt } from '@event-driven-io/emmett';
 import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
 import {
@@ -10,13 +10,13 @@ import {
 
 export const tryAcquireProcessorLockSQL = createFunctionIfDoesNotExistSQL(
   'emt_try_acquire_processor_lock',
-  `
+  SQL`
 CREATE OR REPLACE FUNCTION emt_try_acquire_processor_lock(
     p_lock_key               BIGINT,
     p_processor_id           TEXT,
     p_version                INT,
-    p_partition              TEXT       DEFAULT '${defaultTag}',
-    p_processor_instance_id  TEXT       DEFAULT '${unknownTag}',
+    p_partition              TEXT       DEFAULT '${SQL.plain(defaultTag)}',
+    p_processor_instance_id  TEXT       DEFAULT '${SQL.plain(unknownTag)}',
     p_projection_name        TEXT       DEFAULT NULL,
     p_projection_type        VARCHAR(1) DEFAULT NULL,
     p_projection_kind        TEXT       DEFAULT NULL,
@@ -31,7 +31,7 @@ BEGIN
         SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
     ),
     ownership_check AS (
-        INSERT INTO ${processorsTable.name} (
+        INSERT INTO ${SQL.plain(processorsTable.name)} (
             processor_id,
             partition,
             version,
@@ -42,20 +42,20 @@ BEGIN
             created_at,
             last_updated
         )
-        SELECT p_processor_id, p_partition, p_version, p_processor_instance_id, 'running', '${bigInt.toNormalizedString(0n)}', '0'::xid8, now(), now()
+        SELECT p_processor_id, p_partition, p_version, p_processor_instance_id, 'running', '${SQL.plain(bigInt.toNormalizedString(0n))}', '0'::xid8, now(), now()
         WHERE (SELECT lock_acquired FROM lock_check) = true
         ON CONFLICT (processor_id, partition, version) DO UPDATE
         SET processor_instance_id = p_processor_instance_id,
             status = 'running',
             last_updated = now()
-        WHERE ${processorsTable.name}.processor_instance_id = p_processor_instance_id
-           OR ${processorsTable.name}.processor_instance_id = '${unknownTag}'
-           OR ${processorsTable.name}.status = 'stopped'
-           OR ${processorsTable.name}.last_updated < now() - (p_lock_timeout_seconds || ' seconds')::interval
+        WHERE ${SQL.plain(processorsTable.name)}.processor_instance_id = p_processor_instance_id
+           OR ${SQL.plain(processorsTable.name)}.processor_instance_id = '${SQL.plain(unknownTag)}'
+           OR ${SQL.plain(processorsTable.name)}.status = 'stopped'
+           OR ${SQL.plain(processorsTable.name)}.last_updated < now() - (p_lock_timeout_seconds || ' seconds')::interval
         RETURNING last_processed_checkpoint
     ),
     projection_status AS (
-        INSERT INTO ${projectionsTable.name} (
+        INSERT INTO ${SQL.plain(projectionsTable.name)} (
             name,
             partition,
             version,
@@ -81,13 +81,13 @@ $emt_try_acquire_processor_lock$;
 
 export const releaseProcessorLockSQL = createFunctionIfDoesNotExistSQL(
   'emt_release_processor_lock',
-  `
+  SQL`
 CREATE OR REPLACE FUNCTION emt_release_processor_lock(
     p_lock_key              BIGINT,
     p_processor_id          TEXT,
     p_partition             TEXT,
     p_version               INT,
-    p_processor_instance_id TEXT DEFAULT '${unknownTag}',
+    p_processor_instance_id TEXT DEFAULT '${SQL.plain(unknownTag)}',
     p_projection_name       TEXT DEFAULT NULL
 )
 RETURNS BOOLEAN
@@ -97,7 +97,7 @@ DECLARE
     v_rows_updated INT;
 BEGIN
     IF p_projection_name IS NOT NULL THEN
-        UPDATE ${projectionsTable.name}
+        UPDATE ${SQL.plain(projectionsTable.name)}
         SET status = 'active',
             last_updated = now()
         WHERE partition = p_partition
@@ -105,9 +105,9 @@ BEGIN
           AND version = p_version;
     END IF;
 
-    UPDATE ${processorsTable.name}
+    UPDATE ${SQL.plain(processorsTable.name)}
     SET status = 'stopped',
-        processor_instance_id = '${unknownTag}',
+        processor_instance_id = '${SQL.plain(unknownTag)}',
         last_updated = now()
     WHERE processor_id = p_processor_id
       AND partition = p_partition
@@ -139,18 +139,19 @@ type CallTryAcquireProcessorLockParams = {
 export const callTryAcquireProcessorLock = (
   params: CallTryAcquireProcessorLockParams,
 ) =>
-  sql(
-    `SELECT * FROM emt_try_acquire_processor_lock(%s::BIGINT, %L, %s, %L, %L, %L, %L, %L, %s);`,
-    params.lockKey,
-    params.processorId,
-    params.version,
-    params.partition,
-    params.processorInstanceId,
-    params.projectionName,
-    params.projectionType,
-    params.projectionKind,
-    params.lockTimeoutSeconds,
-  );
+  SQL`
+    SELECT * FROM emt_try_acquire_processor_lock(
+      ${params.lockKey}, 
+      ${params.processorId}, 
+      ${params.version}, 
+      ${params.partition}, 
+      ${params.processorInstanceId}, 
+      ${params.projectionName}, 
+      ${params.projectionType}, 
+      ${params.projectionKind}, 
+      ${params.lockTimeoutSeconds}
+    );
+  `;
 
 type CallReleaseProcessorLockParams = {
   lockKey: string;
@@ -164,12 +165,11 @@ type CallReleaseProcessorLockParams = {
 export const callReleaseProcessorLock = (
   params: CallReleaseProcessorLockParams,
 ) =>
-  sql(
-    `SELECT emt_release_processor_lock(%s::BIGINT, %L, %L, %s, %L, %L) as result;`,
-    params.lockKey,
-    params.processorId,
-    params.partition,
-    params.version,
-    params.processorInstanceId,
-    params.projectionName,
-  );
+  SQL`SELECT emt_release_processor_lock(
+    ${params.lockKey}, 
+    ${params.processorId}, 
+    ${params.partition}, 
+    ${params.version}, 
+    ${params.processorInstanceId}, 
+    ${params.projectionName}
+  ) as result;`;

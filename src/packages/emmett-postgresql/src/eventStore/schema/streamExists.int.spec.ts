@@ -1,5 +1,7 @@
-import { dumbo, sql, type Dumbo } from '@event-driven-io/dumbo';
+import { dumbo, SQL } from '@event-driven-io/dumbo';
+import { pgDatabaseDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import { assertFalse, assertTrue, type Event } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -7,7 +9,6 @@ import { createEventStoreSchema, defaultTag } from '.';
 import { appendToStream } from './appendToStream';
 import { streamExists } from './streamExists';
 import { streamsTable } from './typing';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 export type PricedProductItem = {
   productId: string;
@@ -30,13 +31,14 @@ export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
 void describe('streamExists', () => {
   let postgres: StartedPostgreSqlContainer;
-  let pool: Dumbo;
+  let pool: PgPool;
 
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();
     const connectionString = postgres.getConnectionUri();
     pool = dumbo({
       connectionString,
+      driver: pgDatabaseDriver,
     });
 
     await createEventStoreSchema(connectionString, pool);
@@ -105,13 +107,9 @@ void describe('streamExists', () => {
     await appendToStream(pool, streamId, 'shopping_cart', events);
 
     await pool.execute.command(
-      sql(
-        `UPDATE ${streamsTable.name} 
+      SQL`UPDATE ${streamsTable.name} 
          SET is_archived = TRUE 
-         WHERE stream_id = %L AND partition = %L`,
-        streamId,
-        defaultTag,
-      ),
+         WHERE stream_id = ${streamId} AND partition = ${defaultTag}`,
     );
 
     const result = await streamExists(pool.execute, streamId);
@@ -124,15 +122,10 @@ void describe('streamExists', () => {
     await appendToStream(pool, streamId, 'shopping_cart', events);
 
     // Make sure the stream is not archived
-    await pool.execute.command(
-      sql(
-        `UPDATE ${streamsTable.name} 
+    await pool.execute.command(SQL`
+         UPDATE ${streamsTable.name} 
          SET is_archived = FALSE 
-         WHERE stream_id = %L AND partition = %L`,
-        streamId,
-        defaultTag,
-      ),
-    );
+         WHERE stream_id = ${streamId} AND partition = ${defaultTag}`);
 
     const result = await streamExists(pool.execute, streamId);
 
@@ -147,15 +140,10 @@ void describe('streamExists', () => {
     await appendToStream(pool, activeStreamId, 'shopping_cart', events);
 
     // Archive only one stream
-    await pool.execute.command(
-      sql(
-        `UPDATE ${streamsTable.name} 
+    await pool.execute.command(SQL`
+        UPDATE ${streamsTable.name} 
          SET is_archived = TRUE 
-         WHERE stream_id = %L AND partition = %L`,
-        archivedStreamId,
-        defaultTag,
-      ),
-    );
+         WHERE stream_id = ${archivedStreamId} AND partition = ${defaultTag}`);
 
     const archivedResult = await streamExists(pool.execute, archivedStreamId);
     const activeResult = await streamExists(pool.execute, activeStreamId);

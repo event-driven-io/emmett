@@ -1,10 +1,10 @@
-import { sql } from '@event-driven-io/dumbo';
+import { SQL } from '@event-driven-io/dumbo';
 import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
 import { projectionsTable } from '../typing';
 
 export const tryAcquireProjectionLockSQL = createFunctionIfDoesNotExistSQL(
   'emt_try_acquire_projection_lock',
-  `
+  SQL`
 CREATE OR REPLACE FUNCTION emt_try_acquire_projection_lock(
     p_lock_key   BIGINT,
     p_partition  TEXT,
@@ -21,7 +21,7 @@ BEGIN
     ),
     status_check AS (
         SELECT status = 'active' AS is_active
-        FROM ${projectionsTable.name}
+        FROM ${SQL.plain(projectionsTable.name)}
         WHERE partition = p_partition AND name = p_name AND version = p_version
     )
     SELECT
@@ -42,10 +42,4 @@ type CallTryAcquireProjectionLockParams = {
 export const callTryAcquireProjectionLock = (
   params: CallTryAcquireProjectionLockParams,
 ) =>
-  sql(
-    `SELECT * FROM emt_try_acquire_projection_lock(%s::BIGINT, %L, %L, %s);`,
-    params.lockKey,
-    params.partition,
-    params.name,
-    params.version,
-  );
+  SQL`SELECT * FROM emt_try_acquire_projection_lock(${params.lockKey}, ${params.partition}, ${params.name}, ${params.version});`;

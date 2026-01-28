@@ -1,16 +1,11 @@
+import { single, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import { type PgPool, type PgTransaction } from '@event-driven-io/dumbo/pg';
 import {
-  single,
-  sql,
-  type NodePostgresPool,
-  type NodePostgresTransaction,
-  type SQLExecutor,
-} from '@event-driven-io/dumbo';
-import {
-  JSONParser,
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
   type AppendToStreamOptions,
+  type DefaultRecord,
   type ExpectedStreamVersion,
   type Message,
   type RecordedMessage,
@@ -21,7 +16,7 @@ import { defaultTag, messagesTable, streamsTable } from './typing';
 
 export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
   'emt_append_to_stream',
-  `CREATE OR REPLACE FUNCTION emt_append_to_stream(
+  SQL`CREATE OR REPLACE FUNCTION emt_append_to_stream(
       v_message_ids text[],
       v_messages_data jsonb[],
       v_messages_metadata jsonb[],
@@ -51,7 +46,7 @@ export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
       IF v_expected_stream_position IS NULL THEN
           SELECT COALESCE(
             (SELECT stream_position 
-            FROM ${streamsTable.name}
+            FROM ${SQL.identifier(streamsTable.name)}
             WHERE stream_id = v_stream_id 
               AND partition = v_partition 
               AND is_archived = FALSE
@@ -63,12 +58,12 @@ export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
       v_next_stream_position := v_expected_stream_position + array_upper(v_messages_data, 1);
 
       IF v_expected_stream_position = 0 THEN
-          INSERT INTO ${streamsTable.name}
+          INSERT INTO ${SQL.identifier(streamsTable.name)}
               (stream_id, stream_position, partition, stream_type, stream_metadata, is_archived)
           VALUES
               (v_stream_id, v_next_stream_position, v_partition, v_stream_type, '{}', FALSE);
       ELSE
-          UPDATE ${streamsTable.name} as s              
+          UPDATE ${SQL.identifier(streamsTable.name)} as s              
           SET stream_position = v_next_stream_position
           WHERE stream_id = v_stream_id AND stream_position = v_expected_stream_position AND partition = v_partition AND is_archived = FALSE;
 
@@ -96,7 +91,7 @@ export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
           ) AS message
       ),
       all_messages_insert AS (
-          INSERT INTO ${messagesTable.name}
+          INSERT INTO ${SQL.identifier(messagesTable.name)}
               (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_kind, message_id, transaction_id)
           SELECT 
               v_stream_id, ev.stream_position, v_partition, ev.message_data, ev.message_metadata, ev.schema_version, ev.message_type, ev.message_kind, ev.message_id, v_transaction_id
@@ -115,43 +110,32 @@ export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
 );
 
 type CallAppendToStreamParams = {
-  messageIds: string;
-  messagesData: string;
-  messagesMetadata: string;
-  schemaVersions: string;
-  messageTypes: string;
-  messageKinds: string;
+  messageIds: string[];
+  messagesData: DefaultRecord[];
+  messagesMetadata: DefaultRecord[];
+  schemaVersions: string[];
+  messageTypes: string[];
+  messageKinds: string[];
   streamId: string;
   streamType: string;
-  expectedStreamPosition: string;
+  expectedStreamPosition: bigint | null;
   partition: string;
 };
 
+// TODO: check if we need all those casts
 export const callAppendToStream = (params: CallAppendToStreamParams) =>
-  sql(
-    `SELECT * FROM emt_append_to_stream(
-      ARRAY[%s]::text[],
-      ARRAY[%s]::jsonb[],
-      ARRAY[%s]::jsonb[],
-      ARRAY[%s]::text[],
-      ARRAY[%s]::text[],
-      ARRAY[%s]::text[],
-      %L::text,
-      %L::text,
-      %s::bigint,
-      %L::text
-    )`,
-    params.messageIds,
-    params.messagesData,
-    params.messagesMetadata,
-    params.schemaVersions,
-    params.messageTypes,
-    params.messageKinds,
-    params.streamId,
-    params.streamType,
-    params.expectedStreamPosition,
-    params.partition,
-  );
+  SQL`SELECT * FROM emt_append_to_stream(
+      ARRAY[${params.messageIds}]::text[],
+      ARRAY[${params.messagesData}]::jsonb[],
+      ARRAY[${params.messagesMetadata}]::jsonb[],
+      ARRAY[${params.schemaVersions}]::text[],
+      ARRAY[${params.messageTypes}]::text[],
+      ARRAY[${params.messageKinds}]::text[],
+      ${params.streamId}::text,
+      ${params.streamType}::text,
+      ${params.expectedStreamPosition},
+      ${params.partition}::text
+    )`;
 
 type AppendToStreamResult =
   | {
@@ -165,12 +149,12 @@ type AppendToStreamResult =
 export type AppendToStreamBeforeCommitHook = (
   messages: RecordedMessage[],
   context: {
-    transaction: NodePostgresTransaction;
+    transaction: PgTransaction;
   },
 ) => Promise<void>;
 
 export const appendToStream = (
-  pool: NodePostgresPool,
+  pool: PgPool,
   streamName: string,
   streamType: string,
   messages: Message[],
@@ -306,27 +290,18 @@ const appendEventsRaw = (
   single(
     execute.command<AppendToStreamSqlResult>(
       callAppendToStream({
-        messageIds: messages
-          .map((e) => sql('%L', e.metadata.messageId))
-          .join(','),
-        messagesData: messages
-          .map((e) => sql('%L', JSONParser.stringify(e.data)))
-          .join(','),
-        messagesMetadata: messages
-          .map((e) => {
-            const { messageId: _messageId, ...rawMetadata } = e.metadata;
-            return sql('%L', JSONParser.stringify(rawMetadata));
-          })
-          .join(','),
-        schemaVersions: messages.map(() => `'1'`).join(','),
-        messageTypes: messages.map((e) => sql('%L', e.type)).join(','),
-        messageKinds: messages
-          .map((e) => sql('%L', e.kind === 'Event' ? 'E' : 'C'))
-          .join(','),
+        messageIds: messages.map((e) => e.metadata.messageId),
+        messagesData: messages.map((e) => e.data),
+        messagesMetadata: messages.map((e) => {
+          const { messageId: _messageId, ...rawMetadata } = e.metadata;
+          return rawMetadata;
+        }),
+        schemaVersions: messages.map(() => `'1'`),
+        messageTypes: messages.map((e) => e.type),
+        messageKinds: messages.map((e) => (e.kind === 'Event' ? 'E' : 'C')),
         streamId,
         streamType,
-        expectedStreamPosition:
-          options?.expectedStreamVersion?.toString() ?? 'NULL',
+        expectedStreamPosition: options?.expectedStreamVersion ?? null,
         partition: options?.partition ?? defaultTag,
       }),
     ),

@@ -1,4 +1,4 @@
-import { mapRows, sql, type SQLExecutor } from '@event-driven-io/dumbo';
+import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   type CombinedMessageMetadata,
   type Message,
@@ -79,14 +79,12 @@ export const readMessagesBatch = async <
   const messages: RecordedMessage<MessageType, RecordedMessageMetadataType>[] =
     await mapRows(
       execute.query<ReadMessagesBatchSqlResult<MessageType>>(
-        sql(
-          `SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
-           FROM ${messagesTable.name}
-           WHERE partition = %L AND is_archived = FALSE AND transaction_id < pg_snapshot_xmin(pg_current_snapshot()) ${fromCondition} ${toCondition}
+        SQL`
+          SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
+           FROM ${SQL.identifier(messagesTable.name)}
+           WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE AND transaction_id < pg_snapshot_xmin(pg_current_snapshot()) ${SQL.plain(fromCondition)} ${SQL.plain(toCondition)}
            ORDER BY transaction_id, global_position
-           ${limitCondition}`,
-          options?.partition ?? defaultTag,
-        ),
+           ${SQL.plain(limitCondition)}`,
       ),
       (row) => {
         const rawEvent = {

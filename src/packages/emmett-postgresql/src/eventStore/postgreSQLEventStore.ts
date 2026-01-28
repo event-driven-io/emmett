@@ -1,12 +1,15 @@
 import {
   dumbo,
   type MigrationStyle,
-  type NodePostgresClientConnection,
-  type NodePostgresConnector,
-  type NodePostgresPool,
-  type NodePostgresPoolClientConnection,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
+import {
+  type PgClientConnection,
+  type PgConnection,
+  type PgDriverType,
+  type PgPool,
+  type PgPoolClientConnection,
+} from '@event-driven-io/dumbo/pg';
 import {
   assertExpectedVersionMatchesCurrent,
   downcastRecordedMessages,
@@ -100,64 +103,62 @@ export type PostgresReadEvent<EventType extends Event = Event> = ReadEvent<
 
 type PostgresEventStorePooledOptions =
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       connectionString?: string;
       database?: string;
       pooled: true;
       pool: pg.Pool;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       connectionString?: string;
       database?: string;
       pool: pg.Pool;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       connectionString?: string;
       database?: string;
       pooled: true;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       connectionString?: string;
       database?: string;
     };
 
 type PostgresEventStoreNotPooledOptions =
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       connectionString?: string;
       database?: string;
       pooled: false;
       client: pg.Client;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       connectionString?: string;
       database?: string;
       client: pg.Client;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       connectionString?: string;
       database?: string;
       pooled: false;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       connectionString?: string;
       database?: string;
-      connection:
-        | NodePostgresPoolClientConnection
-        | NodePostgresClientConnection;
+      connection: PgPoolClientConnection | PgClientConnection;
       pooled?: false;
     }
   | {
-      connector?: NodePostgresConnector;
+      connector?: PgDriverType;
       connectionString?: string;
       database?: string;
-      dumbo: NodePostgresPool;
+      dumbo: PgPool;
       pooled?: false;
     };
 
@@ -217,9 +218,10 @@ export const getPostgreSQLEventStore = (
 
   const migrate = async (migrationOptions?: CreateEventStoreSchemaOptions) => {
     if (!migrateSchema) {
+      // TODO: Fix this cast when introducing more drivers
       migrateSchema = createEventStoreSchema(
         connectionString,
-        pool,
+        pool as PgPool,
         {
           onBeforeSchemaCreated: async (context) => {
             if (options.hooks?.onBeforeSchemaCreated) {
@@ -256,17 +258,17 @@ export const getPostgreSQLEventStore = (
 
   const beforeCommitHook: AppendToStreamBeforeCommitHook | undefined =
     inlineProjections.length > 0
-      ? (events, { transaction }) =>
+      ? async (events, { transaction }) =>
           handleProjections({
             projections: inlineProjections,
-            connection: {
-              connectionString,
-              pool,
-              transaction,
-            },
             // TODO: Add proper handling of global data
             // Currently it's not available as append doesn't return array of global position but just the last one
             events: events as ReadEvent<Event, PostgresReadEventMetadata>[],
+            ...(await transactionToPostgreSQLProjectionHandlerContext(
+              connectionString,
+              pool,
+              transaction,
+            )),
           })
       : undefined;
 
@@ -380,7 +382,8 @@ export const getPostgreSQLEventStore = (
       const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
 
       const appendResult = await appendToStream(
-        pool,
+        // TODO: Fix this when introducing more drivers
+        pool as PgPool,
         streamName,
         streamType,
         downcastRecordedMessages(events, options?.schema?.versioning),
@@ -433,7 +436,7 @@ export const getPostgreSQLEventStore = (
         const storeOptions: PostgresEventStoreOptions = {
           ...options,
           connectionOptions: {
-            connection,
+            connection: connection as PgConnection,
           },
           schema: {
             ...(options.schema ?? {}),

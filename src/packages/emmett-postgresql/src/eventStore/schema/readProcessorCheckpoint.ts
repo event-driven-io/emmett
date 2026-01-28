@@ -1,4 +1,4 @@
-import { singleOrNull, sql, type SQLExecutor } from '@event-driven-io/dumbo';
+import { singleOrNull, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import { defaultTag, processorsTable } from './typing';
 
 type ReadProcessorCheckpointSqlResult = {
@@ -15,15 +15,10 @@ export const readProcessorCheckpoint = async (
 ): Promise<ReadProcessorCheckpointResult> => {
   const result = await singleOrNull(
     execute.query<ReadProcessorCheckpointSqlResult>(
-      sql(
-        `SELECT last_processed_checkpoint
+      SQL`SELECT last_processed_checkpoint
            FROM ${processorsTable.name}
-           WHERE partition = %L AND processor_id = %L AND version = %s
+           WHERE partition = ${options?.partition ?? defaultTag} AND processor_id = ${options.processorId} AND version = ${options.version ?? 1}
            LIMIT 1`,
-        options?.partition ?? defaultTag,
-        options.processorId,
-        options.version ?? 1,
-      ),
     ),
   );
 

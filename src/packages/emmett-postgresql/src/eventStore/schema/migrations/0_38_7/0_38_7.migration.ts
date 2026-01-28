@@ -1,9 +1,4 @@
-import {
-  SQL,
-  type SQLMigration,
-  rawSql,
-  sqlMigration,
-} from '@event-driven-io/dumbo';
+import { SQL, type SQLMigration, sqlMigration } from '@event-driven-io/dumbo';
 
 export const dropFutureConceptModuleAndTenantFunctions = SQL`
   DO $$
@@ -51,7 +46,7 @@ export const dropOldAppendToSQLWithoutGlobalPositions = SQL`
   END $$;
 `;
 
-export const migrationFromEventsToMessagesSQL = rawSql(`
+export const migrationFromEventsToMessagesSQL = SQL`
 DO $$ 
 DECLARE
     partition_record RECORD;
@@ -97,7 +92,7 @@ BEGIN
                 SET DEFAULT nextval('emt_global_message_position');
         END IF;
     END IF;
-END $$;`);
+END $$;`;
 
 export const migration_0_38_7_and_older: SQLMigration = sqlMigration(
   'emt:postgresql:eventstore:0.38.7:migrate-events-to-messages',

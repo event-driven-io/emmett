@@ -1,10 +1,11 @@
-import { rawSql, tableExists } from '@event-driven-io/dumbo';
+import { SQL } from '@event-driven-io/dumbo/.';
+import { tableExists } from '@event-driven-io/dumbo/pg';
 import { assertTrue } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { postgreSQLRawSQLProjection } from './postgreSQLProjection';
 import { PostgreSQLProjectionSpec } from './postgresProjectionSpec';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('PostgreSQL Projections', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -30,7 +31,7 @@ void describe('PostgreSQL Projections', () => {
       connectionString,
       projection: postgreSQLRawSQLProjection({
         name: 'test',
-        evolve: () => rawSql('SELECT 1;'),
+        evolve: () => SQL`SELECT 1;`,
         canHandle: ['ProductItemAdded'],
         init: () => {
           wasInitCalled = true;
@@ -66,10 +67,10 @@ void describe('PostgreSQL Projections', () => {
       connectionString,
       projection: postgreSQLRawSQLProjection({
         name: 'test',
-        evolve: () => rawSql('SELECT 1;'),
+        evolve: () => SQL`SELECT 1;`,
         canHandle: ['ProductItemAdded'],
         init: () =>
-          rawSql(`CREATE TABLE IF NOT EXISTS ${projection} (id TEXT)`),
+          SQL`CREATE TABLE IF NOT EXISTS ${SQL.identifier(projection)} (id TEXT)`,
       }),
     });
 

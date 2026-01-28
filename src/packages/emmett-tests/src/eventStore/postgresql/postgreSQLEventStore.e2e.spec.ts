@@ -10,7 +10,9 @@ import {
   postgreSQLProjection,
   type PostgresEventStore,
 } from '@event-driven-io/emmett-postgresql';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
+import { pgDriver } from '@event-driven-io/pongo/pg';
 import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -26,7 +28,6 @@ import {
   type ProductItemAdded,
   type ShoppingCartEvent,
 } from '../shoppingCart.domain';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('EventStoreDBEventStore', async () => {
   let postgres: StartedPostgreSqlContainer;
@@ -43,7 +44,7 @@ void describe('EventStoreDBEventStore', async () => {
         { type: 'inline', projection: customProjection },
       ],
     });
-    pongo = pongoClient(connectionString);
+    pongo = pongoClient({ connectionString, driver: pgDriver });
     return eventStore;
   };
 

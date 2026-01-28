@@ -1,19 +1,19 @@
-import { single, sql, type SQLExecutor } from '@event-driven-io/dumbo';
+import { single, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import { bigInt } from '@event-driven-io/emmett';
 import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
 import { defaultTag, processorsTable, unknownTag } from './typing';
 
 export const storeSubscriptionCheckpointSQL = createFunctionIfDoesNotExistSQL(
   'store_processor_checkpoint',
-  `
+  SQL`
 CREATE OR REPLACE FUNCTION store_processor_checkpoint(
   p_processor_id           TEXT,
   p_version                BIGINT,
   p_position               TEXT,
   p_check_position         TEXT,
   p_transaction_id         xid8,
-  p_partition              TEXT DEFAULT '${defaultTag}',
-  p_processor_instance_id  TEXT DEFAULT '${unknownTag}'
+  p_partition              TEXT DEFAULT ${SQL.plain(defaultTag)},
+  p_processor_instance_id  TEXT DEFAULT ${SQL.plain(unknownTag)}
 ) RETURNS INT AS $spc$
 DECLARE
   current_position TEXT;
@@ -21,7 +21,7 @@ BEGIN
   -- Handle the case when p_check_position is provided
   IF p_check_position IS NOT NULL THEN
       -- Try to update if the position matches p_check_position
-      UPDATE "${processorsTable.name}"
+      UPDATE "${SQL.plain(processorsTable.name)}"
       SET
         "last_processed_checkpoint" = p_position,
         "last_processed_transaction_id" = p_transaction_id,
@@ -37,7 +37,7 @@ BEGIN
 
       -- Retrieve the current position
       SELECT "last_processed_checkpoint" INTO current_position
-      FROM "${processorsTable.name}"
+      FROM "${SQL.plain(processorsTable.name)}"
       WHERE "processor_id" = p_processor_id 
         AND "partition" = p_partition 
         AND "version" = p_version;
@@ -54,13 +54,13 @@ BEGIN
 
   -- Handle the case when p_check_position is NULL: Insert if not exists
   BEGIN
-      INSERT INTO "${processorsTable.name}"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id", "created_at", "last_updated")
+      INSERT INTO "${SQL.plain(processorsTable.name)}"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id", "created_at", "last_updated")
       VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id, now(), now());
       RETURN 1;  -- Successfully inserted
   EXCEPTION WHEN unique_violation THEN
       -- If insertion failed, it means the row already exists
       SELECT "last_processed_checkpoint" INTO current_position
-      FROM "${processorsTable.name}"
+      FROM "${SQL.plain(processorsTable.name)}"
       WHERE "processor_id" = p_processor_id 
         AND "partition" = p_partition 
         AND "version" = p_version;
@@ -90,15 +90,16 @@ type CallStoreProcessorCheckpointParams = {
 export const callStoreProcessorCheckpoint = (
   params: CallStoreProcessorCheckpointParams,
 ) =>
-  sql(
-    `SELECT store_processor_checkpoint(%L, %s, %L, %L, pg_current_xact_id(), %L, %L) as result;`,
-    params.processorId,
-    params.version,
-    params.position,
-    params.checkPosition,
-    params.partition,
-    params.processorInstanceId,
-  );
+  SQL`
+    SELECT store_processor_checkpoint(
+      ${params.processorId}, 
+      ${params.version}, 
+      ${params.position}, 
+      ${params.checkPosition}, 
+      pg_current_xact_id(), 
+      ${params.partition}, 
+      ${params.processorInstanceId}
+    ) as result;`;
 
 export type StoreLastProcessedProcessorPositionResult<
   Position extends bigint | null = bigint,
