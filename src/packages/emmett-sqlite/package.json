@@ -68,9 +68,11 @@
   "files": [
     "dist"
   ],
-  "peerDependencies": {
+  "dependencies": {
     "@event-driven-io/emmett": "0.42.0-beta.5",
-    "@event-driven-io/pongo": "0.17.0-beta.10",
+    "@event-driven-io/pongo": "0.17.0-beta.12"
+  },
+  "peerDependencies": {
     "@cloudflare/workers-types": "^4.20260115.0",
     "sqlite3": "^5.1.7"
   },

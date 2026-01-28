@@ -69,11 +69,26 @@
     "dist"
   ],
   "devDependencies": {
+    "@event-driven-io/emmett-testcontainers": "0.42.0-beta.5",
     "@testcontainers/postgresql": "^11.11.0",
-    "@event-driven-io/emmett-testcontainers": "0.42.0-rc.2"
+    "@types/node": "^25.0.10",
+    "@types/pg": "^8.16.0",
+    "pg": "^8.17.2"
+  },
+  "dependencies": {
+    "@event-driven-io/emmett": "0.42.0-beta.5",
+    "@event-driven-io/pongo": "0.17.0-beta.12"
   },
   "peerDependencies": {
-    "@event-driven-io/emmett": "0.42.0-beta.5",
-    "@event-driven-io/pongo": "0.17.0-beta.10"
+    "@types/pg": "^8.16.0",
+    "pg": "^8.17.2"
+  },
+  "peerDependenciesMeta": {
+    "@types/pg": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
   }
 }
