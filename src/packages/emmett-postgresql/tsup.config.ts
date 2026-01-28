@@ -16,6 +16,12 @@ export default defineConfig([
     target: 'esnext',
     outDir: 'dist', //env === 'production' ? 'dist' : 'lib',
     entry: ['src/index.ts'],
+    external: [
+      '@types/pg',
+      'pg',
+      '@event-driven-io/emmett',
+      '@event-driven-io/pongo',
+    ],
     sourcemap: true,
     tsconfig: 'tsconfig.build.json', // workaround for https://github.com/egoist/tsup/issues/571#issuecomment-1760052931
   },
