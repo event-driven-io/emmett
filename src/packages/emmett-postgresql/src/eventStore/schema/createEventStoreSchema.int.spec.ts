@@ -1,4 +1,4 @@
-import { dumbo } from '@event-driven-io/dumbo/.';
+import { dumbo } from '@event-driven-io/dumbo';
 import {
   functionExists,
   pgDatabaseDriver,
