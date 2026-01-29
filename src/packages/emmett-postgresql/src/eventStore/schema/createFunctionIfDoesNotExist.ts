@@ -7,7 +7,7 @@ export const createFunctionIfDoesNotExistSQL = (
   SQL`
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '${functionName}') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '${SQL.plain(functionName)}') THEN
   ${functionDefinition}
 END IF;
 END $$;
