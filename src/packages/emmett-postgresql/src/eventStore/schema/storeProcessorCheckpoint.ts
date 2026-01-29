@@ -12,8 +12,8 @@ CREATE OR REPLACE FUNCTION store_processor_checkpoint(
   p_position               TEXT,
   p_check_position         TEXT,
   p_transaction_id         xid8,
-  p_partition              TEXT DEFAULT ${SQL.plain(defaultTag)},
-  p_processor_instance_id  TEXT DEFAULT ${SQL.plain(unknownTag)}
+  p_partition              TEXT DEFAULT '${SQL.plain(defaultTag)}',
+  p_processor_instance_id  TEXT DEFAULT '${SQL.plain(unknownTag)}'
 ) RETURNS INT AS $spc$
 DECLARE
   current_position TEXT;
