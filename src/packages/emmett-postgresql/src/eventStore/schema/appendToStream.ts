@@ -125,12 +125,12 @@ type CallAppendToStreamParams = {
 // TODO: check if we need all those casts
 export const callAppendToStream = (params: CallAppendToStreamParams) =>
   SQL`SELECT * FROM emt_append_to_stream(
-      ARRAY[${params.messageIds}]::text[],
-      ARRAY[${params.messagesData}]::jsonb[],
-      ARRAY[${params.messagesMetadata}]::jsonb[],
-      ARRAY[${params.schemaVersions}]::text[],
-      ARRAY[${params.messageTypes}]::text[],
-      ARRAY[${params.messageKinds}]::text[],
+      ${params.messageIds},
+      ${params.messagesData},
+      ${params.messagesMetadata},
+      ${params.schemaVersions},
+      ${params.messageTypes},
+      ${params.messageKinds},
       ${params.streamId}::text,
       ${params.streamType}::text,
       ${params.expectedStreamPosition},
