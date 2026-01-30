@@ -1109,7 +1109,7 @@ const setProcessorLastUpdated = async (
   await execute.command(
     SQL`
       UPDATE emt_processors
-       SET last_updated = now() - interval '${secondsAgo} seconds'
+       SET last_updated = now() - interval '${SQL.plain(secondsAgo.toString())} seconds'
        WHERE processor_id = ${processorId} AND partition = ${partition ?? defaultTag} AND version = ${version ?? 1}`,
   );
 };

@@ -16,7 +16,7 @@ export const readLastMessageGlobalPosition = async (
   const result = await singleOrNull(
     execute.query<ReadLastMessageGlobalPositionSqlResult>(
       SQL`SELECT global_position
-           FROM ${SQL.plain(messagesTable.name)}
+           FROM ${SQL.identifier(messagesTable.name)}
            WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE AND transaction_id < pg_snapshot_xmin(pg_current_snapshot())
            ORDER BY transaction_id, global_position
            LIMIT 1`,

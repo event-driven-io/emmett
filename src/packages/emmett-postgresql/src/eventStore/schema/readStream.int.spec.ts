@@ -136,7 +136,7 @@ void describe('readStream', () => {
               tx.execute.command(SQL`INSERT INTO "emt_messages"
           (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_kind, message_id, transaction_id)
         VALUES          
-           (${streamId}, ${index}, ${defaultTag}, '{}'::jsonb, '{}'::jsonb, '1', 'test${index}', 'C', ${uuid()}, pg_current_xact_id())`),
+           (${streamId}, ${index}, ${defaultTag}, '{}'::jsonb, '{}'::jsonb, '1', ${'test' + index}, 'C', ${uuid()}, pg_current_xact_id())`),
             ),
           { forever: true },
         ),

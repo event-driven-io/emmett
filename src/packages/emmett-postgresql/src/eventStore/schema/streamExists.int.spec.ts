@@ -9,6 +9,7 @@ import { createEventStoreSchema, defaultTag } from '.';
 import { appendToStream } from './appendToStream';
 import { streamExists } from './streamExists';
 import { streamsTable } from './typing';
+const { identifier } = SQL;
 
 export type PricedProductItem = {
   productId: string;
@@ -107,7 +108,7 @@ void describe('streamExists', () => {
     await appendToStream(pool, streamId, 'shopping_cart', events);
 
     await pool.execute.command(
-      SQL`UPDATE ${streamsTable.name} 
+      SQL`UPDATE ${identifier(streamsTable.name)} 
          SET is_archived = TRUE 
          WHERE stream_id = ${streamId} AND partition = ${defaultTag}`,
     );
@@ -123,7 +124,7 @@ void describe('streamExists', () => {
 
     // Make sure the stream is not archived
     await pool.execute.command(SQL`
-         UPDATE ${streamsTable.name} 
+         UPDATE ${identifier(streamsTable.name)} 
          SET is_archived = FALSE 
          WHERE stream_id = ${streamId} AND partition = ${defaultTag}`);
 
@@ -141,7 +142,7 @@ void describe('streamExists', () => {
 
     // Archive only one stream
     await pool.execute.command(SQL`
-        UPDATE ${streamsTable.name} 
+        UPDATE ${identifier(streamsTable.name)} 
          SET is_archived = TRUE 
          WHERE stream_id = ${archivedStreamId} AND partition = ${defaultTag}`);
 
