@@ -59,6 +59,7 @@ export type CommandHandlerOptions<State, StreamEvent extends Event> = {
   initialState: () => State;
   mapToStreamId?: (id: string) => string;
   retry?: CommandHandlerRetryOptions;
+  upcast?: (event: Event) => StreamEvent;
 };
 
 export type HandleOptions<Store extends EventStore> = Parameters<
@@ -117,8 +118,10 @@ export const CommandHandler =
               ...(handleOptions ? handleOptions : {}),
               // expected stream version is passed to fail fast
               // if stream is in the wrong state
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               expectedStreamVersion:
                 handleOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
+              ...(options.upcast ? { upcast: options.upcast } : {}),
             },
           });
 

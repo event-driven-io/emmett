@@ -14,6 +14,7 @@ import {
   type AggregateStreamResult,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
+  type BigIntStreamPosition,
   type Event,
   type EventStore,
   type EventStoreSession,
@@ -295,7 +296,7 @@ export const getPostgreSQLEventStore = (
 
       let state = initialState();
 
-      const result = await this.readStream<EventType>(streamName, options.read);
+      const result = await this.readStream<EventType>(streamName, read);
       const currentStreamVersion = result.currentStreamVersion;
 
       assertExpectedVersionMatchesCurrent(
@@ -306,7 +307,6 @@ export const getPostgreSQLEventStore = (
 
       for (const event of result.events) {
         if (!event) continue;
-
         state = evolve(state, event);
       }
 
@@ -319,7 +319,7 @@ export const getPostgreSQLEventStore = (
 
     readStream: async <EventType extends Event>(
       streamName: string,
-      options?: ReadStreamOptions,
+      options?: ReadStreamOptions<BigIntStreamPosition, EventType>,
     ): Promise<ReadStreamResult<EventType, PostgresReadEventMetadata>> => {
       await ensureSchemaExists();
       return readStream<EventType>(pool.execute, streamName, options);

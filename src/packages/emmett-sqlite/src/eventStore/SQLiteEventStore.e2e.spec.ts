@@ -4,6 +4,7 @@ import {
   assertIsNotNull,
   assertThrowsAsync,
   ExpectedVersionConflictError,
+  type Event,
 } from '@event-driven-io/emmett';
 import fs from 'fs';
 import path from 'path';
@@ -308,3 +309,121 @@ const evolve = (
       return document;
   }
 };
+
+void describe('SQLiteEventStore upcasting', () => {
+  type ShoppingCartOpenedFromDB = Event<
+    'ShoppingCartOpened',
+    { openedAt: string; loyaltyPoints: string }
+  >;
+
+  type ShoppingCartOpened = Event<
+    'ShoppingCartOpened',
+    { openedAt: Date; loyaltyPoints: bigint }
+  >;
+
+  type ShoppingCartEventFromDB =
+    | ProductItemAdded
+    | DiscountApplied
+    | ShoppingCartOpenedFromDB;
+
+  type ShoppingCartEventWithDatesAndBigInt =
+    | ProductItemAdded
+    | DiscountApplied
+    | ShoppingCartOpened;
+
+  type ShoppingCartState = {
+    productItems: PricedProductItem[];
+    totalAmount: number;
+    openedAt: Date | null;
+    loyaltyPoints: bigint;
+  };
+
+  const upcast = (event: Event): ShoppingCartEventWithDatesAndBigInt => {
+    switch (event.type) {
+      case 'ShoppingCartOpened': {
+        const e = event as ShoppingCartOpenedFromDB;
+        return {
+          ...e,
+          data: {
+            openedAt: new Date(e.data.openedAt),
+            loyaltyPoints: BigInt(e.data.loyaltyPoints),
+          },
+        };
+      }
+      default:
+        return event as ShoppingCartEventWithDatesAndBigInt;
+    }
+  };
+
+  const evolveState = (
+    state: ShoppingCartState,
+    { type, data }: ShoppingCartEventWithDatesAndBigInt,
+  ): ShoppingCartState => {
+    switch (type) {
+      case 'ShoppingCartOpened':
+        return {
+          ...state,
+          openedAt: data.openedAt,
+          loyaltyPoints: data.loyaltyPoints,
+        };
+      case 'ProductItemAdded':
+        return {
+          ...state,
+          productItems: [...state.productItems, data.productItem],
+          totalAmount:
+            state.totalAmount +
+            data.productItem.price * data.productItem.quantity,
+        };
+      case 'DiscountApplied':
+        return {
+          ...state,
+          totalAmount: (state.totalAmount * (100 - data.percent)) / 100,
+        };
+    }
+  };
+
+  const initialState = (): ShoppingCartState => ({
+    productItems: [],
+    totalAmount: 0,
+    openedAt: null,
+    loyaltyPoints: 0n,
+  });
+
+  void it('should upcast ISO string to Date and string to BigInt when aggregating', async () => {
+    const eventStore = getSQLiteEventStore({
+      schema: { autoMigration: 'CreateOrUpdate' },
+      fileName: InMemorySQLiteDatabase,
+    });
+
+    const openedAtString = '2024-01-15T10:30:00.000Z';
+    const loyaltyPointsString = '9007199254740993';
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEventFromDB>(shoppingCartId, [
+      {
+        type: 'ShoppingCartOpened',
+        data: { openedAt: openedAtString, loyaltyPoints: loyaltyPointsString },
+      },
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    const { state, currentStreamVersion } = await eventStore.aggregateStream<
+      ShoppingCartState,
+      ShoppingCartEventWithDatesAndBigInt
+    >(shoppingCartId, {
+      evolve: evolveState,
+      initialState,
+      read: { upcast },
+    });
+
+    assertEqual(currentStreamVersion, 2n);
+    assertDeepEqual(state.openedAt, new Date(openedAtString));
+    assertEqual(state.loyaltyPoints, BigInt(loyaltyPointsString));
+    assertEqual(state.totalAmount, productItem.price * productItem.quantity);
+  });
+});

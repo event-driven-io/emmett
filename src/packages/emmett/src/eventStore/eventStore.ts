@@ -1,4 +1,5 @@
 import type {
+  AnyEvent,
   AnyReadEventMetadata,
   BigIntGlobalPosition,
   BigIntStreamPosition,
@@ -32,7 +33,8 @@ export interface EventStore<
   readStream<EventType extends Event>(
     streamName: string,
     options?: ReadStreamOptions<
-      StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>
+      StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>,
+      EventType
     >,
   ): Promise<ReadStreamResult<EventType, ReadEventMetadataType>>;
 
@@ -103,17 +105,17 @@ export const nulloSessionFactory = <EventStoreType extends EventStore>(
 /// ReadStream types
 ////////////////////////////////////////////////////////////////////
 
-export type ReadStreamOptions<StreamVersion = BigIntStreamPosition> = (
-  | {
-      from: StreamVersion;
-    }
-  | { to: StreamVersion }
-  | { from: StreamVersion; maxCount?: bigint }
-  | {
-      expectedStreamVersion: ExpectedStreamVersion<StreamVersion>;
-    }
-) & {
+export type ReadStreamOptions<
+  StreamVersion = BigIntStreamPosition,
+  EventType extends Event = Event,
+> = {
+  from?: StreamVersion;
+  to?: StreamVersion;
+  maxCount?: bigint;
   expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
+  upcast?: <UpcastFrom extends AnyEvent = EventType>(
+    event: UpcastFrom,
+  ) => EventType;
 };
 
 export type ReadStreamResult<
@@ -149,7 +151,8 @@ export type AggregateStreamOptions<
   evolve: Evolve<State, EventType, ReadEventMetadataType>;
   initialState: () => State;
   read?: ReadStreamOptions<
-    StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>
+    StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>,
+    EventType
   >;
 };
 

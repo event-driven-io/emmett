@@ -227,7 +227,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
 
   async readStream<EventType extends Event>(
     streamName: StreamName,
-    options?: ReadStreamOptions,
+    options?: ReadStreamOptions<bigint, EventType>,
   ): Promise<
     Exclude<ReadStreamResult<EventType, MongoDBReadEventMetadata>, null>
   > {
@@ -279,8 +279,16 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       MongoDBEventStoreDefaultStreamVersion,
     );
 
+    const upcast = options?.upcast;
+
+    const events = upcast
+      ? stream.messages.map(
+          (e) => upcast(e) as ReadEvent<EventType, MongoDBReadEventMetadata>,
+        )
+      : stream.messages;
+
     return {
-      events: stream.messages,
+      events,
       currentStreamVersion: stream.metadata.streamPosition,
       streamExists: true,
     };
@@ -291,8 +299,9 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     options: AggregateStreamOptions<State, EventType, MongoDBReadEventMetadata>,
   ): Promise<AggregateStreamResult<State>> {
     const stream = await this.readStream<EventType>(streamName, options?.read);
+    const { evolve, initialState } = options;
 
-    const state = stream.events.reduce(options.evolve, options.initialState());
+    const state = stream.events.reduce(evolve, initialState());
     return {
       state,
       currentStreamVersion: stream.currentStreamVersion,
