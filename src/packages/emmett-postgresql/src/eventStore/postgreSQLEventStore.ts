@@ -1,5 +1,8 @@
 import {
   dumbo,
+  fromDatabaseDriverType,
+  getFormatter,
+  SQL,
   type MigrationStyle,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
@@ -274,8 +277,18 @@ export const getPostgreSQLEventStore = (
 
   return {
     schema: {
-      sql: () => schemaSQL.join(''),
-      print: () => console.log(schemaSQL.join('')),
+      sql: () =>
+        SQL.describe(
+          schemaSQL,
+          getFormatter(fromDatabaseDriverType(pool.driverType).databaseType),
+        ),
+      print: () =>
+        console.log(
+          SQL.describe(
+            schemaSQL,
+            getFormatter(fromDatabaseDriverType(pool.driverType).databaseType),
+          ),
+        ),
       migrate,
       dangerous: {
         truncate: (truncateOptions?: {

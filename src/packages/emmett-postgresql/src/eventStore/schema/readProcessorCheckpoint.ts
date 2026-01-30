@@ -16,7 +16,7 @@ export const readProcessorCheckpoint = async (
   const result = await singleOrNull(
     execute.query<ReadProcessorCheckpointSqlResult>(
       SQL`SELECT last_processed_checkpoint
-           FROM ${processorsTable.name}
+           FROM ${SQL.identifier(processorsTable.name)}
            WHERE partition = ${options?.partition ?? defaultTag} AND processor_id = ${options.processorId} AND version = ${options.version ?? 1}
            LIMIT 1`,
     ),

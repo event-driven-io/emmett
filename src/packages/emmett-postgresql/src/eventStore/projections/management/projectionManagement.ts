@@ -163,7 +163,7 @@ export const readProjectionInfo = async (
   const row = await singleOrNull<RawProjectionRow>(
     execute.query(
       SQL`SELECT name, version, type, kind, status, definition, created_at, last_updated
-           FROM ${projectionsTable.name}
+           FROM ${SQL.identifier(projectionsTable.name)}
            WHERE name = ${name} AND partition = ${partition} AND version = ${version}`,
     ),
   );
