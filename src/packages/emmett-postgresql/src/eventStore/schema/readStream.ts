@@ -1,5 +1,6 @@
 import { mapRows, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
+  type BigIntStreamPosition,
   type CombinedReadEventMetadata,
   type Event,
   type EventDataOf,
@@ -28,24 +29,24 @@ type ReadStreamSqlResult<EventType extends Event> = {
 export const readStream = async <EventType extends Event>(
   execute: SQLExecutor,
   streamId: string,
-  options?: ReadStreamOptions & { partition?: string },
+  options?: ReadStreamOptions<BigIntStreamPosition, EventType> & {
+    partition?: string;
+  },
 ): Promise<
   ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
 > => {
-  const fromCondition: string =
-    options && 'from' in options
-      ? `AND stream_position >= ${options.from}`
-      : '';
+  const fromCondition: string = options?.from
+    ? `AND stream_position >= ${options.from}`
+    : '';
 
   const to = Number(
-    options && 'to' in options
-      ? options.to
-      : options && 'maxCount' in options && options.maxCount
-        ? options.from + options.maxCount
-        : NaN,
+    options?.to ??
+      (options?.maxCount ? (options.from ?? 0n) + options.maxCount : NaN),
   );
 
   const toCondition = !isNaN(to) ? `AND stream_position <= ${to}` : '';
+
+  const upcast = options?.upcast;
 
   const events: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
     await mapRows(
@@ -74,7 +75,7 @@ export const readStream = async <EventType extends Event>(
           globalPosition: BigInt(row.global_position),
         };
 
-        return {
+        const event = {
           ...rawEvent,
           kind: 'Event',
           metadata: metadata as CombinedReadEventMetadata<
@@ -82,6 +83,13 @@ export const readStream = async <EventType extends Event>(
             ReadEventMetadataWithGlobalPosition
           >,
         };
+
+        return upcast
+          ? (upcast(event) as ReadEvent<
+              EventType,
+              ReadEventMetadataWithGlobalPosition
+            >)
+          : event;
       },
     );
 

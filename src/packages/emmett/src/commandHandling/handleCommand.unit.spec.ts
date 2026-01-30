@@ -561,4 +561,334 @@ void describe('Command Handler', () => {
       assertEqual(1, tried);
     });
   });
+
+  void describe('upcasting', () => {
+    type ProductItemFromDB = {
+      productId: string;
+      quantity: string;
+      price: string;
+    };
+
+    type ProductItemAddedFromDB = Event<
+      'ProductItemAdded',
+      { productItem: ProductItemFromDB }
+    >;
+    type DiscountAppliedFromDB = Event<'DiscountApplied', { percent: string }>;
+
+    type ShoppingCartEventFromDB =
+      | ProductItemAddedFromDB
+      | DiscountAppliedFromDB;
+
+    const upcast = (event: Event): ShoppingCartEvent => {
+      switch (event.type) {
+        case 'ProductItemAdded': {
+          const e = event as ProductItemAddedFromDB;
+          return {
+            type: 'ProductItemAdded',
+            data: {
+              productItem: {
+                productId: e.data.productItem.productId,
+                quantity: Number(e.data.productItem.quantity),
+                price: Number(e.data.productItem.price),
+              },
+            },
+          };
+        }
+        case 'DiscountApplied': {
+          const e = event as DiscountAppliedFromDB;
+          return {
+            type: 'DiscountApplied',
+            data: { percent: Number(e.data.percent) },
+          };
+        }
+        default:
+          return event as ShoppingCartEvent;
+      }
+    };
+
+    const handleCommandWithUpcast = CommandHandler<
+      ShoppingCart,
+      ShoppingCartEvent
+    >({
+      evolve,
+      initialState,
+      upcast,
+    });
+
+    void it('upcasts string to number when aggregating', async () => {
+      const shoppingCartId = randomUUID();
+
+      await eventStore.appendToStream<ShoppingCartEventFromDB>(shoppingCartId, [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { productId: '123', quantity: '10', price: '3' },
+          },
+        },
+      ]);
+
+      const { newState, nextExpectedStreamVersion } =
+        await handleCommandWithUpcast(eventStore, shoppingCartId, () => []);
+
+      assertEqual(nextExpectedStreamVersion, 1n);
+      assertDeepEqual(newState, {
+        productItems: [{ productId: '123', quantity: 10, price: 3 }],
+        totalAmount: 30,
+      });
+    });
+  });
+
+  void describe('upcasting dates and bigints from JSON', () => {
+    type ShoppingCartWithDatesAndBigInt = {
+      productItems: PricedProductItem[];
+      totalAmount: number;
+      openedAt: Date;
+      loyaltyPoints: bigint;
+    };
+
+    type ShoppingCartOpened = Event<
+      'ShoppingCartOpened',
+      { clientId: string; openedAt: Date; loyaltyPoints: bigint }
+    >;
+
+    type ShoppingCartEventWithDatesAndBigInt =
+      | ShoppingCartOpened
+      | ProductItemAdded
+      | DiscountApplied;
+
+    type ShoppingCartOpenedFromDB = Event<
+      'ShoppingCartOpened',
+      { clientId: string; openedAt: string; loyaltyPoints: string }
+    >;
+
+    type ShoppingCartEventFromDB =
+      | ShoppingCartOpenedFromDB
+      | ProductItemAdded
+      | DiscountApplied;
+
+    const upcastDatesAndBigInt = (
+      event: Event,
+    ): ShoppingCartEventWithDatesAndBigInt => {
+      switch (event.type) {
+        case 'ShoppingCartOpened': {
+          const e = event as ShoppingCartOpenedFromDB;
+          return {
+            type: 'ShoppingCartOpened',
+            data: {
+              clientId: e.data.clientId,
+              openedAt: new Date(e.data.openedAt),
+              loyaltyPoints: BigInt(e.data.loyaltyPoints),
+            },
+          };
+        }
+        default:
+          return event as ShoppingCartEventWithDatesAndBigInt;
+      }
+    };
+
+    const evolveDatesAndBigInt = (
+      state: ShoppingCartWithDatesAndBigInt,
+      { type, data }: ShoppingCartEventWithDatesAndBigInt,
+    ): ShoppingCartWithDatesAndBigInt => {
+      switch (type) {
+        case 'ShoppingCartOpened':
+          return {
+            ...state,
+            openedAt: data.openedAt,
+            loyaltyPoints: data.loyaltyPoints,
+          };
+        case 'ProductItemAdded': {
+          const productItem = data.productItem;
+          return {
+            ...state,
+            productItems: [...state.productItems, productItem],
+            totalAmount:
+              state.totalAmount + productItem.price * productItem.quantity,
+          };
+        }
+        case 'DiscountApplied':
+          return {
+            ...state,
+            totalAmount: state.totalAmount * (1 - data.percent),
+          };
+      }
+    };
+
+    const handleCommandWithUpcast = CommandHandler<
+      ShoppingCartWithDatesAndBigInt,
+      ShoppingCartEventWithDatesAndBigInt
+    >({
+      evolve: evolveDatesAndBigInt,
+      initialState: () => ({
+        productItems: [],
+        totalAmount: 0,
+        openedAt: new Date(0),
+        loyaltyPoints: 0n,
+      }),
+      upcast: upcastDatesAndBigInt,
+    });
+
+    void it('upcasts ISO string to Date and string to BigInt when aggregating', async () => {
+      const shoppingCartId = randomUUID();
+      const openedAtString = '2024-01-15T10:30:00.000Z';
+      const loyaltyPointsString = '9007199254740993';
+
+      await eventStore.appendToStream<ShoppingCartEventFromDB>(shoppingCartId, [
+        {
+          type: 'ShoppingCartOpened',
+          data: {
+            clientId: 'client-1',
+            openedAt: openedAtString,
+            loyaltyPoints: loyaltyPointsString,
+          },
+        },
+        {
+          type: 'ProductItemAdded',
+          data: { productItem: { productId: '123', quantity: 2, price: 10 } },
+        },
+      ]);
+
+      const { newState, nextExpectedStreamVersion } =
+        await handleCommandWithUpcast(eventStore, shoppingCartId, () => []);
+
+      assertEqual(nextExpectedStreamVersion, 2n);
+      assertDeepEqual(newState.openedAt, new Date(openedAtString));
+      assertEqual(newState.loyaltyPoints, BigInt(loyaltyPointsString));
+      assertEqual(newState.totalAmount, 20);
+    });
+  });
+
+  void describe('readStream upcasting', () => {
+    type ProductItemFromDB = {
+      productId: string;
+      quantity: string;
+      price: string;
+    };
+
+    type ProductItemAddedFromDB = Event<
+      'ProductItemAdded',
+      { productItem: ProductItemFromDB }
+    >;
+
+    type ShoppingCartEventFromDB = ProductItemAddedFromDB | DiscountApplied;
+
+    const upcast = (event: Event): ShoppingCartEvent => {
+      switch (event.type) {
+        case 'ProductItemAdded': {
+          const e = event as ProductItemAddedFromDB;
+          return {
+            type: 'ProductItemAdded',
+            data: {
+              productItem: {
+                productId: e.data.productItem.productId,
+                quantity: Number(e.data.productItem.quantity),
+                price: Number(e.data.productItem.price),
+              },
+            },
+          };
+        }
+        default:
+          return event as ShoppingCartEvent;
+      }
+    };
+
+    void it('upcasts events when reading stream directly', async () => {
+      const shoppingCartId = randomUUID();
+
+      await eventStore.appendToStream<ShoppingCartEventFromDB>(shoppingCartId, [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { productId: '123', quantity: '10', price: '3' },
+          },
+        },
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { productId: '456', quantity: '5', price: '2' },
+          },
+        },
+      ]);
+
+      const { events, currentStreamVersion } =
+        await eventStore.readStream<ShoppingCartEvent>(shoppingCartId, {
+          upcast,
+        });
+
+      assertEqual(currentStreamVersion, 2n);
+      assertThatArray(events).hasSize(2);
+
+      const firstEvent = events[0]!;
+      assertEqual(firstEvent.type, 'ProductItemAdded');
+      if (firstEvent.type === 'ProductItemAdded') {
+        assertEqual(firstEvent.data.productItem.quantity, 10);
+        assertEqual(firstEvent.data.productItem.price, 3);
+      }
+
+      const secondEvent = events[1]!;
+      assertEqual(secondEvent.type, 'ProductItemAdded');
+      if (secondEvent.type === 'ProductItemAdded') {
+        assertEqual(secondEvent.data.productItem.quantity, 5);
+        assertEqual(secondEvent.data.productItem.price, 2);
+      }
+    });
+
+    void it('upcasts ISO string to Date and string to BigInt when reading stream directly', async () => {
+      type ShoppingCartOpened = Event<
+        'ShoppingCartOpened',
+        { clientId: string; openedAt: Date; loyaltyPoints: bigint }
+      >;
+
+      type ShoppingCartOpenedFromDB = Event<
+        'ShoppingCartOpened',
+        { clientId: string; openedAt: string; loyaltyPoints: string }
+      >;
+
+      const upcastDatesAndBigInt = (event: Event): ShoppingCartOpened => {
+        if (event.type === 'ShoppingCartOpened') {
+          const e = event as ShoppingCartOpenedFromDB;
+          return {
+            type: 'ShoppingCartOpened',
+            data: {
+              clientId: e.data.clientId,
+              openedAt: new Date(e.data.openedAt),
+              loyaltyPoints: BigInt(e.data.loyaltyPoints),
+            },
+          };
+        }
+        return event as ShoppingCartOpened;
+      };
+
+      const shoppingCartId = randomUUID();
+      const openedAtString = '2024-01-15T10:30:00.000Z';
+      const loyaltyPointsString = '9007199254740993';
+
+      await eventStore.appendToStream<ShoppingCartOpenedFromDB>(
+        shoppingCartId,
+        [
+          {
+            type: 'ShoppingCartOpened',
+            data: {
+              clientId: 'client-1',
+              openedAt: openedAtString,
+              loyaltyPoints: loyaltyPointsString,
+            },
+          },
+        ],
+      );
+
+      const { events, currentStreamVersion } =
+        await eventStore.readStream<ShoppingCartOpened>(shoppingCartId, {
+          upcast: upcastDatesAndBigInt,
+        });
+
+      assertEqual(currentStreamVersion, 1n);
+      assertThatArray(events).hasSize(1);
+
+      const event = events[0]!;
+      assertEqual(event.type, 'ShoppingCartOpened');
+      assertDeepEqual(event.data.openedAt, new Date(openedAtString));
+      assertEqual(event.data.loyaltyPoints, BigInt(loyaltyPointsString));
+    });
+  });
 });

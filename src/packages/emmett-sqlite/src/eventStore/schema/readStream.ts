@@ -25,24 +25,22 @@ type ReadStreamSqlResult = {
 export const readStream = async <EventType extends Event>(
   db: SQLiteConnection,
   streamId: string,
-  options?: ReadStreamOptions & { partition?: string },
+  options?: ReadStreamOptions<bigint, EventType> & { partition?: string },
 ): Promise<
   ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
 > => {
-  const fromCondition: string =
-    options && 'from' in options
-      ? `AND stream_position >= ${options.from}`
-      : '';
+  const fromCondition: string = options?.from
+    ? `AND stream_position >= ${options.from}`
+    : '';
 
   const to = Number(
-    options && 'to' in options
-      ? options.to
-      : options && 'maxCount' in options && options.maxCount
-        ? options.from + options.maxCount
-        : NaN,
+    options?.to ??
+      (options?.maxCount ? (options.from ?? 0n) + options.maxCount : NaN),
   );
 
   const toCondition = !isNaN(to) ? `AND stream_position <= ${to}` : '';
+
+  const upcast = options?.upcast;
 
   const results = await db.query<ReadStreamSqlResult>(
     `SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
@@ -68,7 +66,7 @@ export const readStream = async <EventType extends Event>(
         globalPosition: BigInt(row.global_position),
       };
 
-      return {
+      const event = {
         ...rawEvent,
         kind: 'Event',
         metadata: metadata as CombinedReadEventMetadata<
@@ -76,6 +74,13 @@ export const readStream = async <EventType extends Event>(
           ReadEventMetadataWithGlobalPosition
         >,
       };
+
+      return upcast
+        ? (upcast(event) as ReadEvent<
+            EventType,
+            ReadEventMetadataWithGlobalPosition
+          >)
+        : event;
     });
 
   return messages.length > 0

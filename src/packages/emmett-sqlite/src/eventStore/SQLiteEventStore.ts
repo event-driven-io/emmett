@@ -186,7 +186,7 @@ export const getSQLiteEventStore = (
       }
 
       const result = await withConnection((connection) =>
-        readStream<EventType>(connection, streamName, options.read),
+        readStream<EventType>(connection, streamName, read),
       );
 
       const currentStreamVersion = result.currentStreamVersion;
@@ -199,7 +199,6 @@ export const getSQLiteEventStore = (
 
       for (const event of result.events) {
         if (!event) continue;
-
         state = evolve(state, event);
       }
 
@@ -212,7 +211,7 @@ export const getSQLiteEventStore = (
 
     readStream: async <EventType extends Event>(
       streamName: string,
-      options?: ReadStreamOptions<BigIntStreamPosition>,
+      options?: ReadStreamOptions<BigIntStreamPosition, EventType>,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
     > =>

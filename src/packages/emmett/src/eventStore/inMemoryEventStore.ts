@@ -94,16 +94,18 @@ export const getInMemoryEventStore = (
 
       const events = result?.events ?? [];
 
+      const state = events.reduce((s, e) => evolve(s, e), initialState());
+
       return {
         currentStreamVersion: BigInt(events.length),
-        state: events.reduce(evolve, initialState()),
+        state,
         streamExists: result.streamExists,
       };
     },
 
     readStream: <EventType extends Event>(
       streamName: string,
-      options?: ReadStreamOptions<BigIntStreamPosition>,
+      options?: ReadStreamOptions<BigIntStreamPosition, EventType>,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
     > => {
@@ -118,26 +120,31 @@ export const getInMemoryEventStore = (
         InMemoryEventStoreDefaultStreamVersion,
       );
 
-      const from = Number(options && 'from' in options ? options.from : 0);
+      const from = Number(options?.from ?? 0);
       const to = Number(
-        options && 'to' in options
-          ? options.to
-          : options && 'maxCount' in options && options.maxCount
-            ? options.from + options.maxCount
-            : (events?.length ?? 1),
+        options?.to ??
+          (options?.maxCount
+            ? (options.from ?? 0n) + options.maxCount
+            : (events?.length ?? 1)),
       );
+
+      const upcast = options?.upcast;
 
       const resultEvents =
         events !== undefined && events.length > 0
           ? events
-              .map(
-                (e) =>
-                  e as ReadEvent<
-                    EventType,
-                    ReadEventMetadataWithGlobalPosition
-                  >,
-              )
               .slice(from, to)
+              .map((e) =>
+                upcast
+                  ? (upcast(e) as ReadEvent<
+                      EventType,
+                      ReadEventMetadataWithGlobalPosition
+                    >)
+                  : (e as ReadEvent<
+                      EventType,
+                      ReadEventMetadataWithGlobalPosition
+                    >),
+              )
           : [];
 
       const result: ReadStreamResult<
