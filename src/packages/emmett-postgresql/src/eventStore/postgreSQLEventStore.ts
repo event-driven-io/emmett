@@ -376,7 +376,7 @@ export const getPostgreSQLEventStore = (
         streamType,
         downcastRecordedMessages(events, options?.schema?.versioning),
         {
-          expectedStreamVersion: options?.expectedStreamVersion,
+          ...(options as AppendToStreamOptions),
           beforeCommitHook,
         },
       );
