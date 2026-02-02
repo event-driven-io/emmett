@@ -4,6 +4,7 @@ import {
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
   assertExpectedVersionMatchesCurrent,
+  downcastRecordedMessages,
   upcastRecordedMessage,
   type AggregateStreamOptions,
   type AggregateStreamResultWithGlobalPosition,
@@ -228,8 +229,10 @@ export const getEventStoreDBEventStore = (
       >,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
       try {
-        const downcast = options?.schema?.versioning?.downcast;
-        const eventsToStore = downcast ? events.map(downcast) : events;
+        const eventsToStore = downcastRecordedMessages(
+          events,
+          options?.schema?.versioning,
+        );
         const serializedEvents = eventsToStore.map(jsonEvent);
 
         const expectedRevision = toExpectedRevision(

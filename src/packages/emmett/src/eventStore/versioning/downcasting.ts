@@ -21,7 +21,9 @@ export const downcastRecordedMessage = <
   RecordedMessageMetadataType extends AnyRecordedMessageMetadata =
     AnyRecordedMessageMetadata,
 >(
-  recordedMessage: RecordedMessage<MessageType, RecordedMessageMetadataType>,
+  recordedMessage:
+    | RecordedMessage<MessageType, RecordedMessageMetadataType>
+    | MessageType,
   options?: {
     downcast?: MessageDowncast<
       MessageType,
@@ -36,17 +38,29 @@ export const downcastRecordedMessage = <
       RecordedMessageMetadataType
     >;
 
-  const downcasted = options.downcast(recordedMessage);
+  const downcasted = options.downcast(
+    recordedMessage as RecordedMessage<
+      MessageType,
+      RecordedMessageMetadataType
+    >,
+  );
 
   return {
     ...recordedMessage,
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     data: downcasted.data,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    metadata: {
-      ...recordedMessage.metadata,
-      ...('metadata' in downcasted ? (downcasted.metadata as object) : {}),
-    },
+    ...('metadata' in recordedMessage || 'metadata' in downcasted
+      ? {
+          metadata: {
+            ...('metadata' in recordedMessage
+              ? (recordedMessage.metadata as object)
+              : {}),
+            ...('metadata' in downcasted
+              ? (downcasted.metadata as object)
+              : {}),
+          },
+        }
+      : {}),
   } as unknown as RecordedMessage<
     MessagePayloadType,
     RecordedMessageMetadataType
@@ -59,11 +73,15 @@ export const downcastRecordedMessages = <
   RecordedMessageMetadataType extends AnyRecordedMessageMetadata =
     AnyRecordedMessageMetadata,
 >(
-  recordedMessages: RecordedMessage<MessageType, RecordedMessageMetadataType>[],
+  recordedMessages:
+    | RecordedMessage<MessageType, RecordedMessageMetadataType>[]
+    | MessageType[],
   options?: {
-    downcast?: (
-      event: RecordedMessage<MessageType, RecordedMessageMetadataType>,
-    ) => RecordedMessage<MessagePayloadType, RecordedMessageMetadataType>;
+    downcast?: MessageDowncast<
+      MessageType,
+      MessagePayloadType,
+      RecordedMessageMetadataType
+    >;
   },
 ): RecordedMessage<MessagePayloadType, RecordedMessageMetadataType>[] => {
   if (!options?.downcast)
