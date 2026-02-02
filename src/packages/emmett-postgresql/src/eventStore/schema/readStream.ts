@@ -46,7 +46,7 @@ export const readStream = async <EventType extends Event>(
 
   const toCondition = !isNaN(to) ? `AND stream_position <= ${to}` : '';
 
-  const upcast = options?.upcast;
+  const upcast = options?.schema?.versioning?.upcast;
 
   const events: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
     await mapRows(

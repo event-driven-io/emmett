@@ -259,7 +259,7 @@ void describe('MongoDBEventStore', () => {
       >(streamName, {
         evolve: evolveState,
         initialState,
-        read: { upcast },
+        read: { schema: { versioning: { upcast } } },
       });
 
       assertEqual(currentStreamVersion, 2n);

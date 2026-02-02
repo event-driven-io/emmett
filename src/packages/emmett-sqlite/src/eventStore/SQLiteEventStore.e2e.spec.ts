@@ -418,7 +418,7 @@ void describe('SQLiteEventStore upcasting', () => {
     >(shoppingCartId, {
       evolve: evolveState,
       initialState,
-      read: { upcast },
+      read: { schema: { versioning: { upcast } } },
     });
 
     assertEqual(currentStreamVersion, 2n);
