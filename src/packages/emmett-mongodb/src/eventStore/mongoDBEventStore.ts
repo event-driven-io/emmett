@@ -7,6 +7,7 @@ import {
   type AggregateStreamResult,
   type AppendToStreamOptions,
   type AppendToStreamResult,
+  type BigIntStreamPosition,
   type Closeable,
   type DefaultEventStoreOptions,
   type Event,
@@ -225,9 +226,16 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     };
   }
 
-  async readStream<EventType extends Event>(
+  async readStream<
+    EventType extends Event,
+    EventPayloadType extends Event = EventType,
+  >(
     streamName: StreamName,
-    options?: ReadStreamOptions<bigint, EventType>,
+    options?: ReadStreamOptions<
+      BigIntStreamPosition,
+      EventType,
+      EventPayloadType
+    >,
   ): Promise<
     Exclude<ReadStreamResult<EventType, MongoDBReadEventMetadata>, null>
   > {
@@ -256,7 +264,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       eventsSliceArr.length > 1 ? { $slice: eventsSliceArr } : 1;
 
     const stream = await collection.findOne<
-      WithId<Pick<EventStream<EventType>, 'metadata' | 'messages'>>
+      WithId<Pick<EventStream<EventPayloadType>, 'metadata' | 'messages'>>
     >(filter, {
       useBigInt64: true,
       projection: {
@@ -279,13 +287,13 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       MongoDBEventStoreDefaultStreamVersion,
     );
 
-    const upcast = options?.schema?.versioning?.upcast;
+    const upcast =
+      options?.schema?.versioning?.upcast ??
+      ((event: EventPayloadType) => event as unknown as EventType);
 
-    const events = upcast
-      ? stream.messages.map(
-          (e) => upcast(e) as ReadEvent<EventType, MongoDBReadEventMetadata>,
-        )
-      : stream.messages;
+    const events = stream.messages.map(
+      (e) => upcast(e) as ReadEvent<EventType, MongoDBReadEventMetadata>,
+    );
 
     return {
       events,
@@ -294,11 +302,23 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     };
   }
 
-  async aggregateStream<State, EventType extends Event>(
+  async aggregateStream<
+    State,
+    EventType extends Event,
+    EventPayloadType extends Event = EventType,
+  >(
     streamName: StreamName,
-    options: AggregateStreamOptions<State, EventType, MongoDBReadEventMetadata>,
+    options: AggregateStreamOptions<
+      State,
+      EventType,
+      MongoDBReadEventMetadata,
+      EventPayloadType
+    >,
   ): Promise<AggregateStreamResult<State>> {
-    const stream = await this.readStream<EventType>(streamName, options?.read);
+    const stream = await this.readStream<EventType, EventPayloadType>(
+      streamName,
+      options?.read,
+    );
     const { evolve, initialState } = options;
 
     const state = stream.events.reduce(evolve, initialState());
@@ -309,10 +329,17 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     };
   }
 
-  async appendToStream<EventType extends Event>(
+  async appendToStream<
+    EventType extends Event,
+    EventPayloadType extends Event = EventType,
+  >(
     streamName: StreamName,
     events: EventType[],
-    options?: AppendToStreamOptions<bigint, EventType>,
+    options?: AppendToStreamOptions<
+      BigIntStreamPosition,
+      EventType,
+      EventPayloadType
+    >,
   ): Promise<AppendToStreamResult> {
     const { streamId, streamType } = fromStreamName(streamName);
     const expectedStreamVersion = options?.expectedStreamVersion;
@@ -320,7 +347,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     const collection = await this.storage.collectionFor(streamType);
 
     const stream = await collection.findOne<
-      WithId<Pick<EventStream<EventType>, 'metadata' | 'projections'>>
+      WithId<Pick<EventStream<EventPayloadType>, 'metadata' | 'projections'>>
     >(
       { streamName: { $eq: streamName } },
       {
@@ -341,27 +368,31 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       MongoDBEventStoreDefaultStreamVersion,
     );
 
-    const downcast = options?.schema?.versioning?.downcast;
-    const eventsToStore = downcast ? events.map(downcast) : events;
+    const downcast =
+      options?.schema?.versioning?.downcast ??
+      ((event: EventType) => event as unknown as EventPayloadType);
+    const eventsToStore = events.map(downcast);
 
     let streamOffset = currentStreamVersion;
 
-    const eventsToAppend: ReadEvent<EventType, MongoDBReadEventMetadata>[] =
-      eventsToStore.map((event) => {
-        const metadata: MongoDBReadEventMetadata = {
-          messageId: uuid(),
-          streamName,
-          streamPosition: ++streamOffset,
-        };
-        return {
-          type: event.type,
-          data: event.data,
-          metadata: {
-            ...metadata,
-            ...('metadata' in event ? (event.metadata ?? {}) : {}),
-          },
-        } as ReadEvent<EventType, MongoDBReadEventMetadata>;
-      });
+    const eventsToAppend: ReadEvent<
+      EventPayloadType,
+      MongoDBReadEventMetadata
+    >[] = eventsToStore.map((event) => {
+      const metadata: MongoDBReadEventMetadata = {
+        messageId: uuid(),
+        streamName,
+        streamPosition: ++streamOffset,
+      };
+      return {
+        type: event.type,
+        data: event.data,
+        metadata: {
+          ...metadata,
+          ...('metadata' in event ? (event.metadata ?? {}) : {}),
+        },
+      } as ReadEvent<EventPayloadType, MongoDBReadEventMetadata>;
+    });
 
     const now = new Date();
     const updates: UpdateFilter<EventStream> = {

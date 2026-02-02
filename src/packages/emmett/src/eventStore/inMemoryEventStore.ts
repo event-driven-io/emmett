@@ -80,17 +80,25 @@ export const getInMemoryEventStore = (
   // Create the event store object
   const eventStore: InMemoryEventStore = {
     database,
-    async aggregateStream<State, EventType extends Event>(
+    async aggregateStream<
+      State,
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
       streamName: string,
       options: AggregateStreamOptions<
         State,
         EventType,
-        ReadEventMetadataWithGlobalPosition
+        ReadEventMetadataWithGlobalPosition,
+        EventPayloadType
       >,
     ): Promise<AggregateStreamResult<State>> {
       const { evolve, initialState, read } = options;
 
-      const result = await this.readStream<EventType>(streamName, read);
+      const result = await this.readStream<EventType, EventPayloadType>(
+        streamName,
+        read,
+      );
 
       const events = result?.events ?? [];
 
@@ -103,9 +111,16 @@ export const getInMemoryEventStore = (
       };
     },
 
-    readStream: <EventType extends Event>(
+    readStream: <
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
       streamName: string,
-      options?: ReadStreamOptions<BigIntStreamPosition, EventType>,
+      options?: ReadStreamOptions<
+        BigIntStreamPosition,
+        EventType,
+        EventPayloadType
+      >,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
     > => {
@@ -136,7 +151,7 @@ export const getInMemoryEventStore = (
               .slice(from, to)
               .map((e) =>
                 upcast
-                  ? (upcast(e as EventType) as ReadEvent<
+                  ? (upcast(e as EventPayloadType) as ReadEvent<
                       EventType,
                       ReadEventMetadataWithGlobalPosition
                     >)
@@ -159,10 +174,17 @@ export const getInMemoryEventStore = (
       return Promise.resolve(result);
     },
 
-    appendToStream: async <EventType extends Event>(
+    appendToStream: async <
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions<BigIntStreamPosition, EventType>,
+      options?: AppendToStreamOptions<
+        BigIntStreamPosition,
+        EventType,
+        EventPayloadType
+      >,
     ): Promise<AppendToStreamResult> => {
       const currentEvents = streams.get(streamName) ?? [];
       const currentStreamVersion =
@@ -176,13 +198,14 @@ export const getInMemoryEventStore = (
         InMemoryEventStoreDefaultStreamVersion,
       );
 
-      const downcast = options?.schema?.versioning?.downcast;
-      const eventsToStore = downcast ? events.map(downcast) : events;
+      const downcast =
+        options?.schema?.versioning?.downcast ??
+        ((event: EventType) => event as unknown as EventPayloadType);
 
       const newEvents: ReadEvent<
         EventType,
         ReadEventMetadataWithGlobalPosition
-      >[] = eventsToStore.map((event, index) => {
+      >[] = events.map((event, index) => {
         const metadata: ReadEventMetadataWithGlobalPosition = {
           streamName,
           messageId: uuid(),
@@ -206,7 +229,13 @@ export const getInMemoryEventStore = (
         newEvents.slice(-1)[0]!.metadata.streamPosition,
       );
 
-      streams.set(streamName, [...currentEvents, ...newEvents]);
+      streams.set(streamName, [
+        ...currentEvents,
+        ...newEvents.map((e) => ({
+          ...e,
+          ...downcast(e),
+        })),
+      ]);
 
       // Process projections if there are any registered
       if (inlineProjections.length > 0) {

@@ -53,10 +53,17 @@ export interface PostgresEventStore
   extends
     EventStore<PostgresReadEventMetadata>,
     EventStoreSessionFactory<PostgresEventStore> {
-  appendToStream<EventType extends Event>(
+  appendToStream<
+    EventType extends Event,
+    EventPayloadType extends Event = EventType,
+  >(
     streamName: string,
     events: EventType[],
-    options?: AppendToStreamOptions<bigint, EventType>,
+    options?: AppendToStreamOptions<
+      BigIntStreamPosition,
+      EventType,
+      EventPayloadType
+    >,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerEventType extends Event = Event>(
     options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
@@ -282,12 +289,17 @@ export const getPostgreSQLEventStore = (
           }),
       },
     },
-    async aggregateStream<State, EventType extends Event>(
+    async aggregateStream<
+      State,
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
       streamName: string,
       options: AggregateStreamOptions<
         State,
         EventType,
-        PostgresReadEventMetadata
+        PostgresReadEventMetadata,
+        EventPayloadType
       >,
     ): Promise<AggregateStreamResult<State>> {
       const { evolve, initialState, read } = options;
@@ -296,7 +308,10 @@ export const getPostgreSQLEventStore = (
 
       let state = initialState();
 
-      const result = await this.readStream<EventType>(streamName, read);
+      const result = await this.readStream<EventType, EventPayloadType>(
+        streamName,
+        read,
+      );
       const currentStreamVersion = result.currentStreamVersion;
 
       assertExpectedVersionMatchesCurrent(
@@ -317,18 +332,36 @@ export const getPostgreSQLEventStore = (
       };
     },
 
-    readStream: async <EventType extends Event>(
+    readStream: async <
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
       streamName: string,
-      options?: ReadStreamOptions<BigIntStreamPosition, EventType>,
+      options?: ReadStreamOptions<
+        BigIntStreamPosition,
+        EventType,
+        EventPayloadType
+      >,
     ): Promise<ReadStreamResult<EventType, PostgresReadEventMetadata>> => {
       await ensureSchemaExists();
-      return readStream<EventType>(pool.execute, streamName, options);
+      return readStream<EventType, EventPayloadType>(
+        pool.execute,
+        streamName,
+        options,
+      );
     },
 
-    appendToStream: async <EventType extends Event>(
+    appendToStream: async <
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions<bigint, EventType>,
+      options?: AppendToStreamOptions<
+        BigIntStreamPosition,
+        EventType,
+        EventPayloadType
+      >,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
       await ensureSchemaExists();
       // TODO: This has to be smarter when we introduce urn-based resolution

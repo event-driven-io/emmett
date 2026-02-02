@@ -1,5 +1,6 @@
 import {
   JSONParser,
+  type BigIntStreamPosition,
   type CombinedReadEventMetadata,
   type Event,
   type ReadEvent,
@@ -22,10 +23,19 @@ type ReadStreamSqlResult = {
   created: string;
 };
 
-export const readStream = async <EventType extends Event>(
+export const readStream = async <
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+>(
   db: SQLiteConnection,
   streamId: string,
-  options?: ReadStreamOptions<bigint, EventType> & { partition?: string },
+  options?: ReadStreamOptions<
+    BigIntStreamPosition,
+    EventType,
+    EventPayloadType
+  > & {
+    partition?: string;
+  },
 ): Promise<
   ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
 > => {
@@ -40,7 +50,9 @@ export const readStream = async <EventType extends Event>(
 
   const toCondition = !isNaN(to) ? `AND stream_position <= ${to}` : '';
 
-  const upcast = options?.schema?.versioning?.upcast;
+  const upcast =
+    options?.schema?.versioning?.upcast ??
+    ((event: EventPayloadType) => event as unknown as EventType);
 
   const results = await db.query<ReadStreamSqlResult>(
     `SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
@@ -56,7 +68,7 @@ export const readStream = async <EventType extends Event>(
         type: row.message_type,
         data: JSONParser.parse(row.message_data),
         metadata: JSONParser.parse(row.message_metadata),
-      } as unknown as EventType;
+      } as unknown as EventPayloadType;
 
       const metadata: ReadEventMetadataWithGlobalPosition = {
         ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
@@ -70,17 +82,15 @@ export const readStream = async <EventType extends Event>(
         ...rawEvent,
         kind: 'Event',
         metadata: metadata as CombinedReadEventMetadata<
-          EventType,
+          EventPayloadType,
           ReadEventMetadataWithGlobalPosition
         >,
       };
 
-      return upcast
-        ? (upcast(event) as ReadEvent<
-            EventType,
-            ReadEventMetadataWithGlobalPosition
-          >)
-        : event;
+      return upcast(event) as ReadEvent<
+        EventType,
+        ReadEventMetadataWithGlobalPosition
+      >;
     });
 
   return messages.length > 0
