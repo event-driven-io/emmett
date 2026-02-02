@@ -261,7 +261,7 @@ export const getSQLiteEventStore = (
 
       const appendResult = await withConnection((connection) =>
         appendToStream(connection, streamName, streamType, events, {
-          expectedStreamVersion: options?.expectedStreamVersion,
+          ...(options as AppendToStreamOptions),
           onBeforeCommit: async (messages, context) => {
             if (inlineProjections.length > 0)
               await handleProjections({

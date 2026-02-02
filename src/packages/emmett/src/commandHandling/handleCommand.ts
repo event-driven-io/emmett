@@ -5,12 +5,15 @@ import {
   nulloSessionFactory,
   STREAM_DOES_NOT_EXIST,
   type AppendStreamResultOfEventStore,
+  type AppendToStreamOptions,
   type EventStore,
+  type EventStoreReadEventMetadata,
   type EventStoreSession,
   type ExpectedStreamVersion,
+  type ReadStreamOptions,
   type StreamPositionTypeOfEventStore,
 } from '../eventStore';
-import type { Event } from '../typing';
+import type { Event, StreamPositionTypeOfReadEventMetadata } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
 
 export const CommandHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
@@ -129,12 +132,19 @@ export const CommandHandler =
             evolve,
             initialState,
             read: {
+              schema: options.schema,
+              ...(handleOptions as ReadStreamOptions<
+                StreamPositionTypeOfReadEventMetadata<
+                  EventStoreReadEventMetadata<Store>
+                >,
+                StreamEvent,
+                EventPayloadType
+              >),
               // expected stream version is passed to fail fast
               // if stream is in the wrong state
               // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               expectedStreamVersion:
                 handleOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
-              ...(options.schema ? { schema: options.schema } : {}),
             },
           });
 
@@ -198,8 +208,14 @@ export const CommandHandler =
             streamName,
             eventsToAppend,
             {
+              ...(handleOptions as AppendToStreamOptions<
+                StreamPositionTypeOfReadEventMetadata<
+                  EventStoreReadEventMetadata<Store>
+                >,
+                StreamEvent,
+                EventPayloadType
+              >),
               expectedStreamVersion,
-              ...(options.schema ? { schema: options.schema } : {}),
             },
           );
 
