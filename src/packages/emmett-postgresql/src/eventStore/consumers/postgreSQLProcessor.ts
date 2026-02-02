@@ -178,6 +178,7 @@ type PostgreSQLConnectionOptions = {
 
 type PostgreSQLProcessorOptionsBase = PostgreSQLConnectionOptions & {
   lockPolicy?: LockAcquisitionPolicy;
+  lockTimeoutSeconds?: number;
   partition?: string;
 };
 export type PostgreSQLReactorOptions<MessageType extends Message = Message> =
@@ -320,6 +321,7 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
     version = defaultProcessorVersion,
     partition = defaultProcessorPartition,
     lockPolicy = DefaultPostgreSQLProcessorLockPolicy,
+    lockTimeoutSeconds,
   } = options;
 
   const { pool, connectionString, close } = getProcessorPool(options);
@@ -338,6 +340,7 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
         }
       : undefined,
     lockPolicy,
+    lockTimeoutSeconds,
   });
 
   const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext> =

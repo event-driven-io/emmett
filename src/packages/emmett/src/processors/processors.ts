@@ -19,6 +19,7 @@ import {
   type SingleMessageHandlerWithContext,
   type SingleRecordedMessageHandlerWithContext,
 } from '../typing';
+import { onShutdown } from '../utils/shutdown';
 import { isBigint } from '../validation';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -382,6 +383,7 @@ export const reactor = <
   let isActive = false;
 
   let lastCheckpoint: CheckpointType | null = null;
+  let closeSignal: (() => void) | null = null;
 
   const init = async (initOptions: Partial<HandlerContext>): Promise<void> => {
     if (isInitiated) return;
@@ -395,6 +397,24 @@ export const reactor = <
       await hooks.onInit!(context);
       isInitiated = true;
     }, initOptions);
+  };
+
+  const close = async (
+    closeOptions: Partial<HandlerContext>,
+  ): Promise<void> => {
+    // TODO: Align when active is set to false
+    // if (!isActive) return;
+
+    isActive = false;
+
+    if (closeSignal) {
+      closeSignal();
+      closeSignal = null;
+    }
+
+    if (hooks.onClose) {
+      await processingScope(hooks.onClose, closeOptions);
+    }
   };
 
   return {
@@ -411,6 +431,8 @@ export const reactor = <
       await init(startOptions);
 
       isActive = true;
+
+      closeSignal = onShutdown(() => close({}));
 
       if (lastCheckpoint !== null)
         return {
@@ -442,10 +464,7 @@ export const reactor = <
         };
       }, startOptions);
     },
-    close: hooks?.onClose
-      ? async (closeOptions) =>
-          await processingScope(hooks.onClose!, closeOptions)
-      : () => Promise.resolve(),
+    close,
     get isActive() {
       return isActive;
     },

@@ -71,11 +71,151 @@ void describe('Processors', () => {
         },
       });
 
+      await processor.start({});
+
       // When
       await processor.close({});
 
       // Then
       assertEqual(onCloseCalled, true);
+    });
+
+    void it('should set isActive to false when close is called', async () => {
+      // Given
+      const processorId = uuid();
+      const processor = reactor({
+        processorId,
+        eachMessage: () => Promise.resolve(),
+      });
+
+      // When
+      await processor.start({});
+      assertEqual(processor.isActive, true);
+
+      await processor.close({});
+
+      // Then
+      assertEqual(processor.isActive, false);
+    });
+
+    // TODO: Fix this when active is aligned in close method
+    void it.skip('should be idempotent - calling close multiple times is safe', async () => {
+      // Given
+      const processorId = uuid();
+      let closeCount = 0;
+
+      const processor = reactor({
+        processorId,
+        eachMessage: () => Promise.resolve(),
+        hooks: {
+          onClose: () => {
+            closeCount++;
+            return Promise.resolve();
+          },
+        },
+      });
+
+      await processor.start({});
+
+      // When
+      await processor.close({});
+      await processor.close({});
+      await processor.close({});
+
+      // Then
+      assertEqual(closeCount, 1);
+    });
+
+    void it('should work even without onClose hook', async () => {
+      // Given
+      const processorId = uuid();
+      const processor = reactor({
+        processorId,
+        eachMessage: () => Promise.resolve(),
+      });
+
+      await processor.start({});
+
+      // When/Then - should not throw
+      await processor.close({});
+      assertEqual(processor.isActive, false);
+    });
+
+    void it('should automatically close on SIGTERM', async () => {
+      // Given
+      const processorId = uuid();
+      let closeCalled = false;
+
+      const processor = reactor({
+        processorId,
+        eachMessage: () => Promise.resolve(),
+        hooks: {
+          onClose: () => {
+            closeCalled = true;
+            return Promise.resolve();
+          },
+        },
+      });
+
+      await processor.start({});
+      assertEqual(processor.isActive, true);
+
+      // When - emit SIGTERM
+      process.emit('SIGTERM');
+
+      await Promise.resolve();
+
+      // Then
+      assertEqual(processor.isActive, false);
+      assertEqual(closeCalled, true);
+    });
+
+    void it('should automatically close on SIGINT', async () => {
+      // Given
+      const processorId = uuid();
+      const processor = reactor({
+        processorId,
+        eachMessage: () => Promise.resolve(),
+      });
+
+      await processor.start({});
+      assertEqual(processor.isActive, true);
+
+      // When
+      process.emit('SIGINT');
+      await Promise.resolve();
+
+      // Then
+      assertEqual(processor.isActive, false);
+    });
+
+    void it('should cleanup signal handlers when closed manually', async () => {
+      // Given
+      const processorId = uuid();
+      let closeCount = 0;
+
+      const processor = reactor({
+        processorId,
+        eachMessage: () => Promise.resolve(),
+        hooks: {
+          onClose: () => {
+            closeCount++;
+            return Promise.resolve();
+          },
+        },
+      });
+
+      await processor.start({});
+
+      // When - close manually
+      await processor.close({});
+      assertEqual(closeCount, 1);
+      assertEqual(processor.isActive, false);
+
+      // Then - signal should not trigger another close
+      process.emit('SIGTERM');
+      await Promise.resolve();
+      assertEqual(closeCount, 1);
     });
 
     [

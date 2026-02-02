@@ -6,4 +6,5 @@ export * from './locking';
 export * from './numbers';
 export * from './promises';
 export * from './retry';
+export * from './shutdown';
 export * from './strings';
