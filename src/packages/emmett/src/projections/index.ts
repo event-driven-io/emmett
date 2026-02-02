@@ -1,4 +1,5 @@
 import { EmmettError } from '../errors';
+import type { EventStoreReadSchemaOptions } from '../eventStore';
 import { JSONParser } from '../serialization';
 import type {
   AnyEvent,
@@ -39,6 +40,7 @@ export interface ProjectionDefinition<
   EventType extends Event = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+  EventPayloadType extends Event = EventType,
 > {
   name?: string;
   version?: number;
@@ -53,6 +55,9 @@ export interface ProjectionDefinition<
   init?: (
     options: ProjectionInitOptions<ProjectionHandlerContext>,
   ) => void | Promise<void>;
+  eventsOptions?: {
+    schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
+  };
 }
 
 export type ProjectionRegistration<
@@ -64,7 +69,8 @@ export type ProjectionRegistration<
   projection: ProjectionDefinition<
     AnyEvent,
     ReadEventMetadataType,
-    ProjectionHandlerContext
+    ProjectionHandlerContext,
+    AnyEvent
   >;
 };
 
@@ -102,16 +108,19 @@ export const projection = <
   EventType extends Event = Event,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+  EventPayloadType extends Event = EventType,
 >(
   definition: ProjectionDefinition<
     EventType,
     EventMetaDataType,
-    ProjectionHandlerContext
+    ProjectionHandlerContext,
+    EventPayloadType
   >,
 ): ProjectionDefinition<
   EventType,
   EventMetaDataType,
-  ProjectionHandlerContext
+  ProjectionHandlerContext,
+  EventPayloadType
 > => definition;
 
 export const inlineProjections = <

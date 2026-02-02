@@ -1,12 +1,14 @@
 import {
   type CanHandle,
   type Event,
+  type EventStoreReadSchemaOptions,
   type ReadEvent,
   type TruncateProjection,
 } from '@event-driven-io/emmett';
 import {
   pongoClient,
   type PongoClient,
+  type PongoDBCollectionOptions,
   type PongoDocument,
 } from '@event-driven-io/pongo';
 import {
@@ -60,7 +62,10 @@ export type PongoDocumentEvolve<
   | PongoWithNotNullDocumentEvolve<Document, EventType, EventMetaDataType>
   | PongoWithNullableDocumentEvolve<Document, EventType, EventMetaDataType>;
 
-export type PongoProjectionOptions<EventType extends Event> = {
+export type PongoProjectionOptions<
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+> = {
   name: string;
   kind?: string;
   version?: number;
@@ -71,21 +76,32 @@ export type PongoProjectionOptions<EventType extends Event> = {
   canHandle: CanHandle<EventType>;
   truncate?: TruncateProjection<PongoProjectionHandlerContext>;
   init?: (context: PongoProjectionHandlerContext) => void | Promise<void>;
+  eventsOptions?: {
+    schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
+  };
 };
 
-export const pongoProjection = <EventType extends Event>({
+export const pongoProjection = <
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+>({
   name,
   kind,
   version,
   truncate,
   handle,
   canHandle,
-}: PongoProjectionOptions<EventType>): PostgreSQLProjectionDefinition<EventType> =>
-  postgreSQLProjection<EventType>({
+  eventsOptions,
+}: PongoProjectionOptions<
+  EventType,
+  EventPayloadType
+>): PostgreSQLProjectionDefinition<EventType, EventPayloadType> =>
+  postgreSQLProjection<EventType, EventPayloadType>({
     name,
     version,
     kind: kind ?? 'emt:projections:postgresql:pongo:generic',
     canHandle,
+    eventsOptions,
     handle: async (events, context) => {
       const {
         connection: { connectionString, client, pool },
@@ -127,11 +143,17 @@ export type PongoMultiStreamProjectionOptions<
   EventType extends Event,
   EventMetaDataType extends PostgresReadEventMetadata =
     PostgresReadEventMetadata,
+  EventPayloadType extends Event = EventType,
+  DocumentPayload extends PongoDocument = Document,
 > = {
   kind?: string;
   canHandle: CanHandle<EventType>;
   version?: number;
   collectionName: string;
+  collectionOptions?: PongoDBCollectionOptions<Document, DocumentPayload>;
+  eventsOptions?: {
+    schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
+  };
   getDocumentId: (event: ReadEvent<EventType>) => string;
 } & (
   | {
@@ -156,13 +178,15 @@ export const pongoMultiStreamProjection = <
   EventType extends Event,
   EventMetaDataType extends PostgresReadEventMetadata =
     PostgresReadEventMetadata,
+  EventPayloadType extends Event = EventType,
 >(
   options: PongoMultiStreamProjectionOptions<
     Document,
     EventType,
-    EventMetaDataType
+    EventMetaDataType,
+    EventPayloadType
   >,
-): PostgreSQLProjectionDefinition<EventType> => {
+): PostgreSQLProjectionDefinition<EventType, EventPayloadType> => {
   const { collectionName, getDocumentId, canHandle } = options;
   const collectionNameWithVersion =
     options.version && options.version > 0
@@ -173,10 +197,14 @@ export const pongoMultiStreamProjection = <
     name: collectionNameWithVersion,
     version: options.version,
     kind: options.kind ?? 'emt:projections:postgresql:pongo:multi_stream',
+    eventsOptions: options.eventsOptions,
     handle: async (events, { pongo }) => {
       const collection = pongo
         .db()
-        .collection<Document>(collectionNameWithVersion);
+        .collection<Document>(
+          collectionNameWithVersion,
+          options.collectionOptions,
+        );
 
       for (const event of events) {
         await collection.handle(getDocumentId(event), async (document) => {
@@ -204,7 +232,10 @@ export const pongoMultiStreamProjection = <
       try {
         await pongo
           .db()
-          .collection<Document>(collectionNameWithVersion)
+          .collection<Document>(
+            collectionNameWithVersion,
+            options.collectionOptions,
+          )
           .deleteMany();
       } finally {
         await pongo.close();
@@ -221,7 +252,10 @@ export const pongoMultiStreamProjection = <
       try {
         await pongo
           .db()
-          .collection<Document>(collectionNameWithVersion)
+          .collection<Document>(
+            collectionNameWithVersion,
+            options.collectionOptions,
+          )
           .schema.migrate();
       } finally {
         await pongo.close();
@@ -235,11 +269,17 @@ export type PongoSingleStreamProjectionOptions<
   EventType extends Event,
   EventMetaDataType extends PostgresReadEventMetadata =
     PostgresReadEventMetadata,
+  EventPayloadType extends Event = EventType,
+  DocumentPayload extends PongoDocument = Document,
 > = {
   canHandle: CanHandle<EventType>;
   getDocumentId?: (event: ReadEvent<EventType>) => string;
   version?: number;
   collectionName: string;
+  collectionOptions?: PongoDBCollectionOptions<Document, DocumentPayload>;
+  eventsOptions?: {
+    schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
+  };
 } & (
   | {
       evolve: PongoWithNullableDocumentEvolve<
@@ -263,14 +303,21 @@ export const pongoSingleStreamProjection = <
   EventType extends Event,
   EventMetaDataType extends PostgresReadEventMetadata =
     PostgresReadEventMetadata,
+  EventPayloadType extends Event = EventType,
 >(
   options: PongoSingleStreamProjectionOptions<
     Document,
     EventType,
-    EventMetaDataType
+    EventMetaDataType,
+    EventPayloadType
   >,
-): PostgreSQLProjectionDefinition<EventType> => {
-  return pongoMultiStreamProjection<Document, EventType, EventMetaDataType>({
+): PostgreSQLProjectionDefinition<EventType, EventPayloadType> => {
+  return pongoMultiStreamProjection<
+    Document,
+    EventType,
+    EventMetaDataType,
+    EventPayloadType
+  >({
     ...options,
     kind: 'emt:projections:postgresql:pongo:single_stream',
     getDocumentId:
