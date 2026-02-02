@@ -10,6 +10,7 @@ import {
   projection,
   type CanHandle,
   type Event,
+  type EventStoreReadSchemaOptions,
   type ProjectionDefinition,
   type ProjectionHandler,
   type ProjectionInitOptions,
@@ -56,12 +57,15 @@ export type PostgreSQLProjectionHandler<
   PostgreSQLProjectionHandlerContext
 >;
 
-export type PostgreSQLProjectionDefinition<EventType extends Event = Event> =
-  ProjectionDefinition<
-    EventType,
-    PostgresReadEventMetadata,
-    PostgreSQLProjectionHandlerContext
-  >;
+export type PostgreSQLProjectionDefinition<
+  EventType extends Event = Event,
+  EventPayloadType extends Event = EventType,
+> = ProjectionDefinition<
+  EventType,
+  PostgresReadEventMetadata,
+  PostgreSQLProjectionHandlerContext,
+  EventPayloadType
+>;
 
 export type PostgreSQLProjectionHandlerOptions<
   EventType extends Event = Event,
@@ -120,13 +124,17 @@ export const handleProjections = async <EventType extends Event = Event>(
   }
 };
 
-export const postgreSQLProjection = <EventType extends Event>(
-  definition: PostgreSQLProjectionDefinition<EventType>,
-): PostgreSQLProjectionDefinition<EventType> =>
+export const postgreSQLProjection = <
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+>(
+  definition: PostgreSQLProjectionDefinition<EventType, EventPayloadType>,
+): PostgreSQLProjectionDefinition<EventType, EventPayloadType> =>
   projection<
     EventType,
     PostgresReadEventMetadata,
-    PostgreSQLProjectionHandlerContext
+    PostgreSQLProjectionHandlerContext,
+    EventPayloadType
   >({
     ...definition,
     init: async (options) => {
@@ -150,7 +158,10 @@ export const postgreSQLProjection = <EventType extends Event>(
     },
   });
 
-export type PostgreSQLRawBatchSQLProjection<EventType extends Event> = {
+export type PostgreSQLRawBatchSQLProjection<
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+> = {
   name: string;
   kind?: string;
   version?: number;
@@ -162,16 +173,23 @@ export type PostgreSQLRawBatchSQLProjection<EventType extends Event> = {
   init?: (
     context: ProjectionInitOptions<PostgreSQLProjectionHandlerContext>,
   ) => void | Promise<void> | SQL | Promise<SQL> | Promise<SQL[]> | SQL[];
+  eventsOptions?: {
+    schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
+  };
 };
 
-export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
-  options: PostgreSQLRawBatchSQLProjection<EventType>,
-): PostgreSQLProjectionDefinition<EventType> =>
-  postgreSQLProjection<EventType>({
+export const postgreSQLRawBatchSQLProjection = <
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+>(
+  options: PostgreSQLRawBatchSQLProjection<EventType, EventPayloadType>,
+): PostgreSQLProjectionDefinition<EventType, EventPayloadType> =>
+  postgreSQLProjection<EventType, EventPayloadType>({
     name: options.name,
     kind: options.kind ?? 'emt:projections:postgresql:raw_sql:batch',
     version: options.version,
     canHandle: options.canHandle,
+    eventsOptions: options.eventsOptions,
     handle: async (events, context) => {
       const sqls: SQL[] = await options.evolve(events, context);
 
@@ -192,7 +210,10 @@ export const postgreSQLRawBatchSQLProjection = <EventType extends Event>(
     },
   });
 
-export type PostgreSQLRawSQLProjection<EventType extends Event> = {
+export type PostgreSQLRawSQLProjection<
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+> = {
   name: string;
   kind?: string;
   version?: number;
@@ -204,13 +225,19 @@ export type PostgreSQLRawSQLProjection<EventType extends Event> = {
   init?: (
     context: ProjectionInitOptions<PostgreSQLProjectionHandlerContext>,
   ) => void | Promise<void> | SQL | Promise<SQL> | Promise<SQL[]> | SQL[];
+  eventsOptions?: {
+    schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
+  };
 };
 
-export const postgreSQLRawSQLProjection = <EventType extends Event>(
-  options: PostgreSQLRawSQLProjection<EventType>,
-): PostgreSQLProjectionDefinition<EventType> => {
+export const postgreSQLRawSQLProjection = <
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+>(
+  options: PostgreSQLRawSQLProjection<EventType, EventPayloadType>,
+): PostgreSQLProjectionDefinition<EventType, EventPayloadType> => {
   const { evolve, kind, ...rest } = options;
-  return postgreSQLRawBatchSQLProjection<EventType>({
+  return postgreSQLRawBatchSQLProjection<EventType, EventPayloadType>({
     kind: kind ?? 'emt:projections:postgresql:raw:_sql:single',
     ...rest,
     evolve: async (events, context) => {

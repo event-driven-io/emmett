@@ -1,5 +1,6 @@
 import { v7 as uuid } from 'uuid';
 import type { EmmettError } from '../errors';
+import { upcastRecordedMessage } from '../eventStore';
 import type { ProjectionDefinition } from '../projections';
 import {
   defaultTag,
@@ -230,13 +231,20 @@ export type ReactorOptions<
   HandlerContext extends DefaultRecord = DefaultRecord,
   CheckpointType =
     GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+  MessagePayloadType extends AnyMessage = MessageType,
 > = BaseMessageProcessorOptions<
   MessageType,
   MessageMetadataType,
   HandlerContext,
   CheckpointType
 > &
-  HandlerOptions<MessageType, MessageMetadataType, HandlerContext>;
+  HandlerOptions<MessageType, MessageMetadataType, HandlerContext> & {
+    messageOptions?: {
+      schema?: {
+        versioning?: { upcast?: (event: MessagePayloadType) => MessageType };
+      };
+    };
+  };
 
 export type ProjectorOptions<
   EventType extends AnyEvent = AnyEvent,
@@ -244,6 +252,7 @@ export type ProjectorOptions<
   HandlerContext extends DefaultRecord = DefaultRecord,
   CheckpointType =
     GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+  EventPayloadType extends Event = EventType,
 > = Omit<
   BaseMessageProcessorOptions<
     EventType,
@@ -257,7 +266,8 @@ export type ProjectorOptions<
   projection: ProjectionDefinition<
     EventType,
     MessageMetadataType,
-    HandlerContext
+    HandlerContext,
+    EventPayloadType
   >;
 };
 
@@ -330,12 +340,14 @@ export const reactor = <
   HandlerContext extends DefaultRecord = DefaultRecord,
   CheckpointType =
     GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
+  MessagePayloadType extends Message = MessageType,
 >(
   options: ReactorOptions<
     MessageType,
     MessageMetadataType,
     HandlerContext,
-    CheckpointType
+    CheckpointType,
+    MessagePayloadType
   >,
 ): MessageProcessor<
   MessageType,
@@ -449,10 +461,19 @@ export const reactor = <
         for (const message of messages) {
           if (wasMessageHandled(message, lastCheckpoint)) continue;
 
-          if (canHandle !== undefined && !canHandle.includes(message.type))
+          const upcasted = upcastRecordedMessage(
+            // TODO: Make it smarter
+            message as unknown as RecordedMessage<
+              MessagePayloadType,
+              MessageMetadataType
+            >,
+            options.messageOptions?.schema?.versioning,
+          );
+
+          if (canHandle !== undefined && !canHandle.includes(upcasted.type))
             continue;
 
-          const messageProcessingResult = await eachMessage(message, context);
+          const messageProcessingResult = await eachMessage(upcasted, context);
 
           if (checkpoints) {
             const storeCheckpointResult: StoreProcessorCheckpointResult<CheckpointType | null> =
@@ -460,7 +481,7 @@ export const reactor = <
                 {
                   processorId,
                   version,
-                  message,
+                  message: upcasted,
                   lastCheckpoint,
                   partition,
                 },
@@ -482,7 +503,7 @@ export const reactor = <
             break;
           }
 
-          if (stopAfter && stopAfter(message)) {
+          if (stopAfter && stopAfter(upcasted)) {
             isActive = false;
             result = { type: 'STOP', reason: 'Stop condition reached' };
             break;
@@ -508,12 +529,14 @@ export const projector = <
   HandlerContext extends DefaultRecord = DefaultRecord,
   CheckpointType =
     GlobalPositionTypeOfRecordedMessageMetadata<EventMetaDataType>,
+  EventPayloadType extends Event = EventType,
 >(
   options: ProjectorOptions<
     EventType,
     EventMetaDataType,
     HandlerContext,
-    CheckpointType
+    CheckpointType,
+    EventPayloadType
   >,
 ): MessageProcessor<
   EventType,
@@ -529,11 +552,18 @@ export const projector = <
     ...rest
   } = options;
 
-  return reactor<EventType, EventMetaDataType, HandlerContext, CheckpointType>({
+  return reactor<
+    EventType,
+    EventMetaDataType,
+    HandlerContext,
+    CheckpointType,
+    EventPayloadType
+  >({
     ...rest,
     type: MessageProcessorType.PROJECTOR,
     canHandle: projection.canHandle,
     processorId,
+    messageOptions: options.projection.eventsOptions,
     hooks: {
       onInit: options.hooks?.onInit,
       onStart:
