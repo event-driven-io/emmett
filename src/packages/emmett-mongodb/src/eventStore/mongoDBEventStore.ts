@@ -3,6 +3,7 @@ import {
   ExpectedVersionConflictError,
   filterProjections,
   tryPublishMessagesAfterCommit,
+  upcastRecordedMessages,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
@@ -287,12 +288,9 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       MongoDBEventStoreDefaultStreamVersion,
     );
 
-    const upcast =
-      options?.schema?.versioning?.upcast ??
-      ((event: EventPayloadType) => event as unknown as EventType);
-
-    const events = stream.messages.map(
-      (e) => upcast(e) as ReadEvent<EventType, MongoDBReadEventMetadata>,
+    const events = upcastRecordedMessages(
+      stream.messages,
+      options?.schema?.versioning,
     );
 
     return {

@@ -12,7 +12,6 @@ import type {
   WithGlobalPosition,
 } from '../typing';
 import type { AfterEventStoreCommitHandler } from './afterCommit';
-//import type { GlobalSubscriptionEvent } from './events';
 import type { ExpectedStreamVersion } from './expectedVersion';
 
 // #region event-store

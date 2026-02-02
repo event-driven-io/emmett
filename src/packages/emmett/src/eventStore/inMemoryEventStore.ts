@@ -25,6 +25,7 @@ import {
 } from './eventStore';
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
 import { handleInMemoryProjections } from './projections/inMemory';
+import { upcastRecordedMessages } from './versioning';
 
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
 
@@ -143,23 +144,19 @@ export const getInMemoryEventStore = (
             : (events?.length ?? 1)),
       );
 
-      const upcast = options?.schema?.versioning?.upcast;
-
       const resultEvents =
         events !== undefined && events.length > 0
-          ? events
-              .slice(from, to)
-              .map((e) =>
-                upcast
-                  ? (upcast(e as EventPayloadType) as ReadEvent<
-                      EventType,
-                      ReadEventMetadataWithGlobalPosition
-                    >)
-                  : (e as ReadEvent<
-                      EventType,
-                      ReadEventMetadataWithGlobalPosition
-                    >),
-              )
+          ? upcastRecordedMessages<
+              EventType,
+              EventPayloadType,
+              ReadEventMetadataWithGlobalPosition
+            >(
+              events.slice(from, to) as ReadEvent<
+                EventPayloadType,
+                ReadEventMetadataWithGlobalPosition
+              >[],
+              options?.schema?.versioning,
+            )
           : [];
 
       const result: ReadStreamResult<

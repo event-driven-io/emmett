@@ -1,5 +1,6 @@
 import { mapRows, sql, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
+  upcastRecordedMessage,
   type BigIntStreamPosition,
   type CombinedReadEventMetadata,
   type Event,
@@ -53,10 +54,6 @@ export const readStream = async <
 
   const toCondition = !isNaN(to) ? `AND stream_position <= ${to}` : '';
 
-  const upcast =
-    options?.schema?.versioning?.upcast ??
-    ((event: EventPayloadType) => event as unknown as EventType);
-
   const events: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
     await mapRows(
       execute.query<ReadStreamSqlResult<EventPayloadType>>(
@@ -93,10 +90,7 @@ export const readStream = async <
           >,
         };
 
-        return upcast(event) as ReadEvent<
-          EventType,
-          ReadEventMetadataWithGlobalPosition
-        >;
+        return upcastRecordedMessage(event, options?.schema?.versioning);
       },
     );
 
