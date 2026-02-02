@@ -4,6 +4,7 @@ import {
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
   assertExpectedVersionMatchesCurrent,
+  upcastRecordedMessage,
   type AggregateStreamOptions,
   type AggregateStreamResultWithGlobalPosition,
   type AnyMessage,
@@ -113,9 +114,6 @@ export const getEventStoreDBEventStore = (
       let currentStreamVersion: bigint =
         EventStoreDBEventStoreDefaultStreamVersion;
       let lastEventGlobalPosition: bigint | undefined = undefined;
-      const upcast =
-        options?.read?.schema?.versioning?.upcast ??
-        ((event: EventPayloadType) => event as unknown as EventType);
 
       try {
         for await (const resolvedEvent of eventStore.readStream<EventPayloadType>(
@@ -127,9 +125,10 @@ export const getEventStoreDBEventStore = (
 
           state = evolve(
             state,
-            upcast(
+            upcastRecordedMessage(
               mapFromESDBEvent<EventPayloadType>(resolvedEvent),
-            ) as ReadEvent<EventType, EventStoreDBReadEventMetadata>,
+              options?.read?.schema?.versioning,
+            ),
           );
           currentStreamVersion = event.revision;
           lastEventGlobalPosition = event.position?.commit;
@@ -181,9 +180,6 @@ export const getEventStoreDBEventStore = (
 
       let currentStreamVersion: bigint =
         EventStoreDBEventStoreDefaultStreamVersion;
-      const upcast =
-        options?.schema?.versioning?.upcast ??
-        ((event: EventPayloadType) => event as unknown as EventType);
 
       try {
         for await (const resolvedEvent of eventStore.readStream<EventPayloadType>(
@@ -193,9 +189,10 @@ export const getEventStoreDBEventStore = (
           const { event } = resolvedEvent;
           if (!event) continue;
           events.push(
-            upcast(
+            upcastRecordedMessage(
               mapFromESDBEvent<EventPayloadType>(resolvedEvent),
-            ) as ReadEvent<EventType, EventStoreDBReadEventMetadata>,
+              options?.schema?.versioning,
+            ),
           );
 
           currentStreamVersion = event.revision;
