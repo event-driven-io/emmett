@@ -259,13 +259,8 @@ export const getSQLiteEventStore = (
 
       const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
 
-      const downcast =
-        options?.schema?.versioning?.downcast ??
-        ((event: EventType) => event as unknown as EventPayloadType);
-      const eventsToStore = events.map(downcast);
-
       const appendResult = await withConnection((connection) =>
-        appendToStream(connection, streamName, streamType, eventsToStore, {
+        appendToStream(connection, streamName, streamType, events, {
           expectedStreamVersion: options?.expectedStreamVersion,
           onBeforeCommit: async (messages, context) => {
             if (inlineProjections.length > 0)

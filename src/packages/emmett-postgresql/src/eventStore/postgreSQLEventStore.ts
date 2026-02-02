@@ -8,6 +8,7 @@ import {
 } from '@event-driven-io/dumbo';
 import {
   assertExpectedVersionMatchesCurrent,
+  downcastRecordedMessages,
   ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
   type AggregateStreamOptions,
@@ -369,14 +370,11 @@ export const getPostgreSQLEventStore = (
 
       const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
 
-      const downcast = options?.schema?.versioning?.downcast;
-      const eventsToStore = downcast ? events.map(downcast) : events;
-
       const appendResult = await appendToStream(
         pool,
         streamName,
         streamType,
-        eventsToStore,
+        downcastRecordedMessages(events, options?.schema?.versioning),
         {
           expectedStreamVersion: options?.expectedStreamVersion,
           beforeCommitHook,

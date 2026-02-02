@@ -21,10 +21,9 @@ export const upcastRecordedMessage = <
   RecordedMessageMetadataType extends AnyRecordedMessageMetadata =
     AnyRecordedMessageMetadata,
 >(
-  recordedMessage: RecordedMessage<
-    MessagePayloadType,
-    RecordedMessageMetadataType
-  >,
+  recordedMessage:
+    | RecordedMessage<MessagePayloadType, RecordedMessageMetadataType>
+    | MessagePayloadType,
   options?: {
     upcast?: MessageUpcast<
       MessageType,
@@ -39,17 +38,27 @@ export const upcastRecordedMessage = <
       RecordedMessageMetadataType
     >;
 
-  const upcasted = options.upcast(recordedMessage);
+  const upcasted = options.upcast(
+    recordedMessage as RecordedMessage<
+      MessagePayloadType,
+      RecordedMessageMetadataType
+    >,
+  );
 
   return {
     ...recordedMessage,
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     data: upcasted.data,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    metadata: {
-      ...recordedMessage.metadata,
-      ...('metadata' in upcasted ? (upcasted.metadata as object) : {}),
-    },
+    ...('metadata' in recordedMessage || 'metadata' in upcasted
+      ? {
+          metadata: {
+            ...('metadata' in recordedMessage
+              ? (recordedMessage.metadata as object)
+              : {}),
+            ...('metadata' in upcasted ? (upcasted.metadata as object) : {}),
+          },
+        }
+      : {}),
   } as unknown as RecordedMessage<MessageType, RecordedMessageMetadataType>;
 };
 
@@ -59,10 +68,9 @@ export const upcastRecordedMessages = <
   RecordedMessageMetadataType extends AnyRecordedMessageMetadata =
     AnyRecordedMessageMetadata,
 >(
-  recordedMessages: RecordedMessage<
-    MessagePayloadType,
-    RecordedMessageMetadataType
-  >[],
+  recordedMessages:
+    | RecordedMessage<MessagePayloadType, RecordedMessageMetadataType>[]
+    | MessagePayloadType[],
   options?: {
     upcast?: MessageUpcast<
       MessageType,

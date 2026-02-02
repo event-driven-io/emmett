@@ -1,5 +1,6 @@
 import {
   assertExpectedVersionMatchesCurrent,
+  downcastRecordedMessage,
   ExpectedVersionConflictError,
   filterProjections,
   tryPublishMessagesAfterCommit,
@@ -366,30 +367,28 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       MongoDBEventStoreDefaultStreamVersion,
     );
 
-    const downcast =
-      options?.schema?.versioning?.downcast ??
-      ((event: EventType) => event as unknown as EventPayloadType);
-    const eventsToStore = events.map(downcast);
-
     let streamOffset = currentStreamVersion;
 
     const eventsToAppend: ReadEvent<
       EventPayloadType,
       MongoDBReadEventMetadata
-    >[] = eventsToStore.map((event) => {
+    >[] = events.map((event) => {
       const metadata: MongoDBReadEventMetadata = {
         messageId: uuid(),
         streamName,
         streamPosition: ++streamOffset,
       };
-      return {
-        type: event.type,
-        data: event.data,
-        metadata: {
-          ...metadata,
-          ...('metadata' in event ? (event.metadata ?? {}) : {}),
-        },
-      } as ReadEvent<EventPayloadType, MongoDBReadEventMetadata>;
+      return downcastRecordedMessage(
+        {
+          type: event.type,
+          data: event.data,
+          metadata: {
+            ...metadata,
+            ...('metadata' in event ? (event.metadata ?? {}) : {}),
+          },
+        } as ReadEvent<EventType, MongoDBReadEventMetadata>,
+        options?.schema?.versioning,
+      );
     });
 
     const now = new Date();

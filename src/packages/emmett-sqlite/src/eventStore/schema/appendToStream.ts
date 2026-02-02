@@ -1,4 +1,5 @@
 import {
+  downcastRecordedMessages,
   JSONParser,
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
@@ -76,7 +77,7 @@ export const appendToStream = async <MessageType extends Message>(
       connection,
       streamName,
       streamType,
-      messagesToAppend,
+      downcastRecordedMessages(messagesToAppend, options?.schema?.versioning),
       {
         expectedStreamVersion,
       },
