@@ -612,7 +612,7 @@ void describe('Command Handler', () => {
     >({
       evolve,
       initialState,
-      upcast,
+      schema: { versioning: { upcast } },
     });
 
     void it('upcasts string to number when aggregating', async () => {
@@ -725,7 +725,7 @@ void describe('Command Handler', () => {
         openedAt: new Date(0),
         loyaltyPoints: 0n,
       }),
-      upcast: upcastDatesAndBigInt,
+      schema: { versioning: { upcast: upcastDatesAndBigInt } },
     });
 
     void it('upcasts ISO string to Date and string to BigInt when aggregating', async () => {
@@ -812,7 +812,7 @@ void describe('Command Handler', () => {
 
       const { events, currentStreamVersion } =
         await eventStore.readStream<ShoppingCartEvent>(shoppingCartId, {
-          upcast,
+          schema: { versioning: { upcast } },
         });
 
       assertEqual(currentStreamVersion, 2n);
@@ -879,7 +879,7 @@ void describe('Command Handler', () => {
 
       const { events, currentStreamVersion } =
         await eventStore.readStream<ShoppingCartOpened>(shoppingCartId, {
-          upcast: upcastDatesAndBigInt,
+          schema: { versioning: { upcast: upcastDatesAndBigInt } },
         });
 
       assertEqual(currentStreamVersion, 1n);

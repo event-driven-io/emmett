@@ -279,7 +279,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       MongoDBEventStoreDefaultStreamVersion,
     );
 
-    const upcast = options?.upcast;
+    const upcast = options?.schema?.versioning?.upcast;
 
     const events = upcast
       ? stream.messages.map(
@@ -312,7 +312,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
   async appendToStream<EventType extends Event>(
     streamName: StreamName,
     events: EventType[],
-    options?: AppendToStreamOptions,
+    options?: AppendToStreamOptions<bigint, EventType>,
   ): Promise<AppendToStreamResult> {
     const { streamId, streamType } = fromStreamName(streamName);
     const expectedStreamVersion = options?.expectedStreamVersion;
@@ -341,10 +341,13 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       MongoDBEventStoreDefaultStreamVersion,
     );
 
+    const downcast = options?.schema?.versioning?.downcast;
+    const eventsToStore = downcast ? events.map(downcast) : events;
+
     let streamOffset = currentStreamVersion;
 
     const eventsToAppend: ReadEvent<EventType, MongoDBReadEventMetadata>[] =
-      events.map((event) => {
+      eventsToStore.map((event) => {
         const metadata: MongoDBReadEventMetadata = {
           messageId: uuid(),
           streamName,

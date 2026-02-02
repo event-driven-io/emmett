@@ -56,7 +56,7 @@ export interface PostgresEventStore
   appendToStream<EventType extends Event>(
     streamName: string,
     events: EventType[],
-    options?: AppendToStreamOptions,
+    options?: AppendToStreamOptions<bigint, EventType>,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerEventType extends Event = Event>(
     options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
@@ -328,7 +328,7 @@ export const getPostgreSQLEventStore = (
     appendToStream: async <EventType extends Event>(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions,
+      options?: AppendToStreamOptions<bigint, EventType>,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
       await ensureSchemaExists();
       // TODO: This has to be smarter when we introduce urn-based resolution
@@ -336,13 +336,16 @@ export const getPostgreSQLEventStore = (
 
       const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
 
+      const downcast = options?.schema?.versioning?.downcast;
+      const eventsToStore = downcast ? events.map(downcast) : events;
+
       const appendResult = await appendToStream(
         pool,
         streamName,
         streamType,
-        events,
+        eventsToStore,
         {
-          ...options,
+          expectedStreamVersion: options?.expectedStreamVersion,
           beforeCommitHook,
         },
       );

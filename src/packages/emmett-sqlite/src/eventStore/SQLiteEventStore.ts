@@ -49,7 +49,7 @@ export interface SQLiteEventStore extends EventStore<SQLiteReadEventMetadata> {
   appendToStream<EventType extends Event>(
     streamName: string,
     events: EventType[],
-    options?: AppendToStreamOptions,
+    options?: AppendToStreamOptions<bigint, EventType>,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerEventType extends Event = Event>(
     options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
@@ -222,16 +222,19 @@ export const getSQLiteEventStore = (
     appendToStream: async <EventType extends Event>(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions,
+      options?: AppendToStreamOptions<bigint, EventType>,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
 
       const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
 
+      const downcast = options?.schema?.versioning?.downcast;
+      const eventsToStore = downcast ? events.map(downcast) : events;
+
       const appendResult = await withConnection((connection) =>
-        appendToStream(connection, streamName, streamType, events, {
-          ...options,
+        appendToStream(connection, streamName, streamType, eventsToStore, {
+          expectedStreamVersion: options?.expectedStreamVersion,
           onBeforeCommit: async (messages, context) => {
             if (inlineProjections.length > 0)
               await handleProjections({

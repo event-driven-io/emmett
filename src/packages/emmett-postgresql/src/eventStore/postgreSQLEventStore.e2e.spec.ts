@@ -355,7 +355,7 @@ void describe('EventStoreDBEventStore', () => {
       >(shoppingCartId, {
         evolve: evolveState,
         initialState,
-        read: { upcast },
+        read: { schema: { versioning: { upcast } } },
       });
 
       assertEqual(currentStreamVersion, 3n);

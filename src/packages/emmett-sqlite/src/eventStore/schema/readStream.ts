@@ -40,7 +40,7 @@ export const readStream = async <EventType extends Event>(
 
   const toCondition = !isNaN(to) ? `AND stream_position <= ${to}` : '';
 
-  const upcast = options?.upcast;
+  const upcast = options?.schema?.versioning?.upcast;
 
   const results = await db.query<ReadStreamSqlResult>(
     `SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id

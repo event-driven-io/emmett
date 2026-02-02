@@ -128,7 +128,7 @@ export const getInMemoryEventStore = (
             : (events?.length ?? 1)),
       );
 
-      const upcast = options?.upcast;
+      const upcast = options?.schema?.versioning?.upcast;
 
       const resultEvents =
         events !== undefined && events.length > 0
@@ -136,7 +136,7 @@ export const getInMemoryEventStore = (
               .slice(from, to)
               .map((e) =>
                 upcast
-                  ? (upcast(e) as ReadEvent<
+                  ? (upcast(e as EventType) as ReadEvent<
                       EventType,
                       ReadEventMetadataWithGlobalPosition
                     >)
@@ -162,7 +162,7 @@ export const getInMemoryEventStore = (
     appendToStream: async <EventType extends Event>(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions,
+      options?: AppendToStreamOptions<BigIntStreamPosition, EventType>,
     ): Promise<AppendToStreamResult> => {
       const currentEvents = streams.get(streamName) ?? [];
       const currentStreamVersion =
@@ -176,10 +176,13 @@ export const getInMemoryEventStore = (
         InMemoryEventStoreDefaultStreamVersion,
       );
 
+      const downcast = options?.schema?.versioning?.downcast;
+      const eventsToStore = downcast ? events.map(downcast) : events;
+
       const newEvents: ReadEvent<
         EventType,
         ReadEventMetadataWithGlobalPosition
-      >[] = events.map((event, index) => {
+      >[] = eventsToStore.map((event, index) => {
         const metadata: ReadEventMetadataWithGlobalPosition = {
           streamName,
           messageId: uuid(),

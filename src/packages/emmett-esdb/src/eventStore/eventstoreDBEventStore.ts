@@ -40,7 +40,7 @@ import {
 } from './consumers';
 
 const toEventStoreDBReadOptions = (
-  options: ReadStreamOptions | undefined,
+  options: ReadStreamOptions<bigint, Event> | undefined,
 ): ESDBReadStreamOptions | undefined => {
   return options
     ? {
@@ -68,7 +68,7 @@ export interface EventStoreDBEventStore extends EventStore<EventStoreDBReadEvent
   appendToStream<EventType extends Event>(
     streamName: string,
     events: EventType[],
-    options?: AppendToStreamOptions,
+    options?: AppendToStreamOptions<bigint, EventType>,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerEventType extends Event = Event>(
     options?: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
@@ -99,7 +99,9 @@ export const getEventStoreDBEventStore = (
       try {
         for await (const resolvedEvent of eventStore.readStream<EventType>(
           streamName,
-          toEventStoreDBReadOptions(options.read),
+          toEventStoreDBReadOptions(
+            options.read as ReadStreamOptions<bigint, Event>,
+          ),
         )) {
           const { event } = resolvedEvent;
           if (!event) continue;
@@ -142,7 +144,7 @@ export const getEventStoreDBEventStore = (
 
     readStream: async <EventType extends Event>(
       streamName: string,
-      options?: ReadStreamOptions,
+      options?: ReadStreamOptions<bigint, EventType>,
     ): Promise<ReadStreamResult<EventType, EventStoreDBReadEventMetadata>> => {
       const events: ReadEvent<EventType, EventStoreDBReadEventMetadata>[] = [];
 
@@ -152,7 +154,9 @@ export const getEventStoreDBEventStore = (
       try {
         for await (const resolvedEvent of eventStore.readStream<EventType>(
           streamName,
-          toEventStoreDBReadOptions(options),
+          toEventStoreDBReadOptions(
+            options as ReadStreamOptions<bigint, Event>,
+          ),
         )) {
           const { event } = resolvedEvent;
           if (!event) continue;
@@ -180,10 +184,12 @@ export const getEventStoreDBEventStore = (
     appendToStream: async <EventType extends Event>(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions,
+      options?: AppendToStreamOptions<bigint, EventType>,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
       try {
-        const serializedEvents = events.map(jsonEvent);
+        const downcast = options?.schema?.versioning?.downcast;
+        const eventsToStore = downcast ? events.map(downcast) : events;
+        const serializedEvents = eventsToStore.map(jsonEvent);
 
         const expectedRevision = toExpectedRevision(
           options?.expectedStreamVersion,

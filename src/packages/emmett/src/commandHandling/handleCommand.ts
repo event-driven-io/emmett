@@ -54,12 +54,21 @@ export type CommandHandlerResult<
   newEvents: StreamEvent[];
 };
 
-export type CommandHandlerOptions<State, StreamEvent extends Event> = {
+export type CommandHandlerOptions<
+  State,
+  StreamEvent extends Event,
+  StoredEvent extends Event = StreamEvent,
+> = {
   evolve: (state: State, event: StreamEvent) => State;
   initialState: () => State;
   mapToStreamId?: (id: string) => string;
   retry?: CommandHandlerRetryOptions;
-  upcast?: (event: Event) => StreamEvent;
+  schema?: {
+    versioning?: {
+      upcast?: (event: StoredEvent) => StreamEvent;
+      downcast?: (event: StreamEvent) => StoredEvent;
+    };
+  };
 };
 
 export type HandleOptions<Store extends EventStore> = Parameters<
@@ -115,13 +124,12 @@ export const CommandHandler =
             evolve,
             initialState,
             read: {
-              ...(handleOptions ? handleOptions : {}),
               // expected stream version is passed to fail fast
               // if stream is in the wrong state
               // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               expectedStreamVersion:
                 handleOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
-              ...(options.upcast ? { upcast: options.upcast } : {}),
+              ...(options.schema ? { schema: options.schema } : {}),
             },
           });
 
@@ -185,8 +193,8 @@ export const CommandHandler =
             streamName,
             eventsToAppend,
             {
-              ...handleOptions,
               expectedStreamVersion,
+              ...(options.schema ? { schema: options.schema } : {}),
             },
           );
 

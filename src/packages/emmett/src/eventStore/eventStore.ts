@@ -1,5 +1,4 @@
 import type {
-  AnyEvent,
   AnyReadEventMetadata,
   BigIntGlobalPosition,
   BigIntStreamPosition,
@@ -42,7 +41,8 @@ export interface EventStore<
     streamName: string,
     events: EventType[],
     options?: AppendToStreamOptions<
-      StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>
+      StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>,
+      EventType
     >,
   ): Promise<
     AppendToStreamResult<
@@ -102,6 +102,20 @@ export const nulloSessionFactory = <EventStoreType extends EventStore>(
 });
 
 ////////////////////////////////////////////////////////////////////
+/// Schema Versioning types
+////////////////////////////////////////////////////////////////////
+
+export type EventStoreSchemaOptions<
+  StreamEvent extends Event = Event,
+  StoredEvent extends Event = StreamEvent,
+> = {
+  versioning?: {
+    upcast?: (event: StoredEvent) => StreamEvent;
+    downcast?: (event: StreamEvent) => StoredEvent;
+  };
+};
+
+////////////////////////////////////////////////////////////////////
 /// ReadStream types
 ////////////////////////////////////////////////////////////////////
 
@@ -113,9 +127,7 @@ export type ReadStreamOptions<
   to?: StreamVersion;
   maxCount?: bigint;
   expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
-  upcast?: <UpcastFrom extends AnyEvent = EventType>(
-    event: UpcastFrom,
-  ) => EventType;
+  schema?: EventStoreSchemaOptions<EventType>;
 };
 
 export type ReadStreamResult<
@@ -188,8 +200,12 @@ export type AggregateStreamResultOfEventStore<Store extends EventStore> =
 /// AppendToStream types
 ////////////////////////////////////////////////////////////////////
 
-export type AppendToStreamOptions<StreamVersion = BigIntStreamPosition> = {
+export type AppendToStreamOptions<
+  StreamVersion = BigIntStreamPosition,
+  EventType extends Event = Event,
+> = {
   expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
+  schema?: EventStoreSchemaOptions<EventType>;
 };
 
 export type AppendToStreamResult<StreamVersion = BigIntStreamPosition> = {
