@@ -46,10 +46,17 @@ export type EventHandler<E extends Event = Event> = (
 export const SQLiteEventStoreDefaultStreamVersion = 0n;
 
 export interface SQLiteEventStore extends EventStore<SQLiteReadEventMetadata> {
-  appendToStream<EventType extends Event>(
+  appendToStream<
+    EventType extends Event,
+    EventPayloadType extends Event = EventType,
+  >(
     streamName: string,
     events: EventType[],
-    options?: AppendToStreamOptions<bigint, EventType>,
+    options?: AppendToStreamOptions<
+      BigIntStreamPosition,
+      EventType,
+      EventPayloadType
+    >,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerEventType extends Event = Event>(
     options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
@@ -167,12 +174,17 @@ export const getSQLiteEventStore = (
   };
 
   return {
-    async aggregateStream<State, EventType extends Event>(
+    async aggregateStream<
+      State,
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
       streamName: string,
       options: AggregateStreamOptions<
         State,
         EventType,
-        ReadEventMetadataWithGlobalPosition
+        ReadEventMetadataWithGlobalPosition,
+        EventPayloadType
       >,
     ): Promise<AggregateStreamResult<State>> {
       const { evolve, initialState, read } = options;
@@ -186,7 +198,7 @@ export const getSQLiteEventStore = (
       }
 
       const result = await withConnection((connection) =>
-        readStream<EventType>(connection, streamName, read),
+        readStream<EventType, EventPayloadType>(connection, streamName, read),
       );
 
       const currentStreamVersion = result.currentStreamVersion;
@@ -209,28 +221,48 @@ export const getSQLiteEventStore = (
       };
     },
 
-    readStream: async <EventType extends Event>(
+    readStream: async <
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
       streamName: string,
-      options?: ReadStreamOptions<BigIntStreamPosition, EventType>,
+      options?: ReadStreamOptions<
+        BigIntStreamPosition,
+        EventType,
+        EventPayloadType
+      >,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
     > =>
       withConnection((connection) =>
-        readStream<EventType>(connection, streamName, options),
+        readStream<EventType, EventPayloadType>(
+          connection,
+          streamName,
+          options,
+        ),
       ),
 
-    appendToStream: async <EventType extends Event>(
+    appendToStream: async <
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions<bigint, EventType>,
+      options?: AppendToStreamOptions<
+        BigIntStreamPosition,
+        EventType,
+        EventPayloadType
+      >,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
 
       const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
 
-      const downcast = options?.schema?.versioning?.downcast;
-      const eventsToStore = downcast ? events.map(downcast) : events;
+      const downcast =
+        options?.schema?.versioning?.downcast ??
+        ((event: EventType) => event as unknown as EventPayloadType);
+      const eventsToStore = events.map(downcast);
 
       const appendResult = await withConnection((connection) =>
         appendToStream(connection, streamName, streamType, eventsToStore, {

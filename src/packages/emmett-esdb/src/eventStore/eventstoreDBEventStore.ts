@@ -9,6 +9,7 @@ import {
   type AnyMessage,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
+  type BigIntStreamPosition,
   type Event,
   type EventStore,
   type ExpectedStreamVersion,
@@ -39,8 +40,13 @@ import {
   type EventStoreDBEventStoreConsumerType,
 } from './consumers';
 
-const toEventStoreDBReadOptions = (
-  options: ReadStreamOptions<bigint, Event> | undefined,
+const toEventStoreDBReadOptions = <
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+>(
+  options:
+    | ReadStreamOptions<BigIntStreamPosition, EventType, EventPayloadType>
+    | undefined,
 ): ESDBReadStreamOptions | undefined => {
   return options
     ? {
@@ -65,10 +71,17 @@ export type EventStoreDBReadEvent<EventType extends Event = Event> = ReadEvent<
 >;
 
 export interface EventStoreDBEventStore extends EventStore<EventStoreDBReadEventMetadata> {
-  appendToStream<EventType extends Event>(
+  appendToStream<
+    EventType extends Event,
+    EventPayloadType extends Event = EventType,
+  >(
     streamName: string,
     events: EventType[],
-    options?: AppendToStreamOptions<bigint, EventType>,
+    options?: AppendToStreamOptions<
+      BigIntStreamPosition,
+      EventType,
+      EventPayloadType
+    >,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerEventType extends Event = Event>(
     options?: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
@@ -79,12 +92,17 @@ export const getEventStoreDBEventStore = (
   eventStore: EventStoreDBClient,
 ): EventStoreDBEventStore => {
   return {
-    async aggregateStream<State, EventType extends Event>(
+    async aggregateStream<
+      State,
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
       streamName: string,
       options: AggregateStreamOptions<
         State,
         EventType,
-        EventStoreDBReadEventMetadata
+        EventStoreDBReadEventMetadata,
+        EventPayloadType
       >,
     ): Promise<AggregateStreamResultWithGlobalPosition<State>> {
       const { evolve, initialState, read } = options;
@@ -95,18 +113,24 @@ export const getEventStoreDBEventStore = (
       let currentStreamVersion: bigint =
         EventStoreDBEventStoreDefaultStreamVersion;
       let lastEventGlobalPosition: bigint | undefined = undefined;
+      const upcast =
+        options?.read?.schema?.versioning?.upcast ??
+        ((event: EventPayloadType) => event as unknown as EventType);
 
       try {
-        for await (const resolvedEvent of eventStore.readStream<EventType>(
+        for await (const resolvedEvent of eventStore.readStream<EventPayloadType>(
           streamName,
-          toEventStoreDBReadOptions(
-            options.read as ReadStreamOptions<bigint, Event>,
-          ),
+          toEventStoreDBReadOptions(options.read),
         )) {
           const { event } = resolvedEvent;
           if (!event) continue;
 
-          state = evolve(state, mapFromESDBEvent<EventType>(resolvedEvent));
+          state = evolve(
+            state,
+            upcast(
+              mapFromESDBEvent<EventPayloadType>(resolvedEvent),
+            ) as ReadEvent<EventType, EventStoreDBReadEventMetadata>,
+          );
           currentStreamVersion = event.revision;
           lastEventGlobalPosition = event.position?.commit;
         }
@@ -142,25 +166,38 @@ export const getEventStoreDBEventStore = (
       }
     },
 
-    readStream: async <EventType extends Event>(
+    readStream: async <
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
       streamName: string,
-      options?: ReadStreamOptions<bigint, EventType>,
+      options?: ReadStreamOptions<
+        BigIntStreamPosition,
+        EventType,
+        EventPayloadType
+      >,
     ): Promise<ReadStreamResult<EventType, EventStoreDBReadEventMetadata>> => {
       const events: ReadEvent<EventType, EventStoreDBReadEventMetadata>[] = [];
 
       let currentStreamVersion: bigint =
         EventStoreDBEventStoreDefaultStreamVersion;
+      const upcast =
+        options?.schema?.versioning?.upcast ??
+        ((event: EventPayloadType) => event as unknown as EventType);
 
       try {
-        for await (const resolvedEvent of eventStore.readStream<EventType>(
+        for await (const resolvedEvent of eventStore.readStream<EventPayloadType>(
           streamName,
-          toEventStoreDBReadOptions(
-            options as ReadStreamOptions<bigint, Event>,
-          ),
+          toEventStoreDBReadOptions(options),
         )) {
           const { event } = resolvedEvent;
           if (!event) continue;
-          events.push(mapFromESDBEvent(resolvedEvent));
+          events.push(
+            upcast(
+              mapFromESDBEvent<EventPayloadType>(resolvedEvent),
+            ) as ReadEvent<EventType, EventStoreDBReadEventMetadata>,
+          );
+
           currentStreamVersion = event.revision;
         }
         return {
@@ -181,10 +218,17 @@ export const getEventStoreDBEventStore = (
       }
     },
 
-    appendToStream: async <EventType extends Event>(
+    appendToStream: async <
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions<bigint, EventType>,
+      options?: AppendToStreamOptions<
+        BigIntStreamPosition,
+        EventType,
+        EventPayloadType
+      >,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
       try {
         const downcast = options?.schema?.versioning?.downcast;

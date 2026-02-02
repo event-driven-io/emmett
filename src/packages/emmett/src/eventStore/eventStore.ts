@@ -19,9 +19,18 @@ import type { ExpectedStreamVersion } from './expectedVersion';
 export interface EventStore<
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
 > {
-  aggregateStream<State, EventType extends Event>(
+  aggregateStream<
+    State,
+    EventType extends Event,
+    EventPayloadType extends Event = EventType,
+  >(
     streamName: string,
-    options: AggregateStreamOptions<State, EventType, ReadEventMetadataType>,
+    options: AggregateStreamOptions<
+      State,
+      EventType,
+      ReadEventMetadataType,
+      EventPayloadType
+    >,
   ): Promise<
     AggregateStreamResult<
       State,
@@ -29,20 +38,28 @@ export interface EventStore<
     >
   >;
 
-  readStream<EventType extends Event>(
+  readStream<
+    EventType extends Event,
+    EventPayloadType extends Event = EventType,
+  >(
     streamName: string,
     options?: ReadStreamOptions<
       StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>,
-      EventType
+      EventType,
+      EventPayloadType
     >,
   ): Promise<ReadStreamResult<EventType, ReadEventMetadataType>>;
 
-  appendToStream<EventType extends Event>(
+  appendToStream<
+    EventType extends Event,
+    EventPayloadType extends Event = EventType,
+  >(
     streamName: string,
     events: EventType[],
     options?: AppendToStreamOptions<
       StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>,
-      EventType
+      EventType,
+      EventPayloadType
     >,
   ): Promise<
     AppendToStreamResult<
@@ -105,15 +122,29 @@ export const nulloSessionFactory = <EventStoreType extends EventStore>(
 /// Schema Versioning types
 ////////////////////////////////////////////////////////////////////
 
-export type EventStoreSchemaOptions<
+export type EventStoreReadSchemaOptions<
   StreamEvent extends Event = Event,
   StoredEvent extends Event = StreamEvent,
 > = {
   versioning?: {
     upcast?: (event: StoredEvent) => StreamEvent;
+  };
+};
+
+export type EventStoreAppendSchemaOptions<
+  StreamEvent extends Event = Event,
+  StoredEvent extends Event = StreamEvent,
+> = {
+  versioning?: {
     downcast?: (event: StreamEvent) => StoredEvent;
   };
 };
+
+export type EventStoreSchemaOptions<
+  StreamEvent extends Event = Event,
+  StoredEvent extends Event = StreamEvent,
+> = EventStoreReadSchemaOptions<StreamEvent, StoredEvent> &
+  EventStoreAppendSchemaOptions<StreamEvent, StoredEvent>;
 
 ////////////////////////////////////////////////////////////////////
 /// ReadStream types
@@ -122,12 +153,13 @@ export type EventStoreSchemaOptions<
 export type ReadStreamOptions<
   StreamVersion = BigIntStreamPosition,
   EventType extends Event = Event,
+  EventPayloadType extends Event = EventType,
 > = {
   from?: StreamVersion;
   to?: StreamVersion;
   maxCount?: bigint;
   expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
-  schema?: EventStoreSchemaOptions<EventType>;
+  schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
 };
 
 export type ReadStreamResult<
@@ -159,12 +191,14 @@ export type AggregateStreamOptions<
   State,
   EventType extends Event,
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  EventPayloadType extends Event = EventType,
 > = {
   evolve: Evolve<State, EventType, ReadEventMetadataType>;
   initialState: () => State;
   read?: ReadStreamOptions<
     StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>,
-    EventType
+    EventType,
+    EventPayloadType
   >;
 };
 
@@ -203,9 +237,10 @@ export type AggregateStreamResultOfEventStore<Store extends EventStore> =
 export type AppendToStreamOptions<
   StreamVersion = BigIntStreamPosition,
   EventType extends Event = Event,
+  EventPayloadType extends Event = EventType,
 > = {
   expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
-  schema?: EventStoreSchemaOptions<EventType>;
+  schema?: EventStoreAppendSchemaOptions<EventType, EventPayloadType>;
 };
 
 export type AppendToStreamResult<StreamVersion = BigIntStreamPosition> = {

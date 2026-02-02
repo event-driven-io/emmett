@@ -90,8 +90,12 @@ type CommandHandlerFunction<State, StreamEvent extends Event> = (
 ) => StreamEvent | StreamEvent[] | Promise<StreamEvent | StreamEvent[]>;
 
 export const CommandHandler =
-  <State, StreamEvent extends Event>(
-    options: CommandHandlerOptions<State, StreamEvent>,
+  <
+    State,
+    StreamEvent extends Event,
+    EventPayloadType extends Event = StreamEvent,
+  >(
+    options: CommandHandlerOptions<State, StreamEvent, EventPayloadType>,
   ) =>
   async <Store extends EventStore>(
     store: Store,
@@ -119,7 +123,8 @@ export const CommandHandler =
           // 1. Aggregate the stream
           const aggregationResult = await eventStore.aggregateStream<
             State,
-            StreamEvent
+            StreamEvent,
+            EventPayloadType
           >(streamName, {
             evolve,
             initialState,
