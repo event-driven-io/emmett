@@ -1,4 +1,11 @@
 import {
+  InMemorySQLiteDatabase,
+  sqlite3Pool,
+  type AnySQLiteConnection,
+  type SQLite3DumboOptions,
+  type Sqlite3Pool,
+} from '@event-driven-io/dumbo/sqlite3';
+import {
   assertExpectedVersionMatchesCurrent,
   ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
@@ -17,11 +24,6 @@ import {
   type ReadStreamResult,
   type StreamExistsResult,
 } from '@event-driven-io/emmett';
-import { InMemorySQLiteDatabase, type SQLiteConnection } from '../connection';
-import {
-  SQLiteConnectionPool,
-  type SQLiteConnectionPoolOptions,
-} from '../connection/sqliteConnectionPool';
 import {
   sqliteEventStoreConsumer,
   type SQLiteEventStoreConsumer,
@@ -65,6 +67,7 @@ export interface SQLiteEventStore extends EventStore<SQLiteReadEventMetadata> {
     streamName: string,
     options?: SQLiteStreamExistsOptions,
   ): Promise<StreamExistsResult>;
+  close(): Promise<void>;
   schema: {
     sql(): string;
     print(): void;
@@ -79,10 +82,6 @@ export type SQLiteReadEvent<EventType extends Event = Event> = ReadEvent<
   SQLiteReadEventMetadata
 >;
 
-export type SQLiteEventStoreConnectionOptions = {
-  connection: SQLiteConnection;
-};
-
 export type SQLiteEventStoreOptions = {
   projections?: ProjectionRegistration<
     'inline',
@@ -92,12 +91,13 @@ export type SQLiteEventStoreOptions = {
   schema?: {
     autoMigration?: 'None' | 'CreateOrUpdate';
   };
+  connectionOptions?: SQLite3DumboOptions;
   hooks?: {
     /**
      * This hook will be called **BEFORE** event store schema is created
      */
     onBeforeSchemaCreated?: (context: {
-      connection: SQLiteConnection;
+      connection: AnySQLiteConnection;
     }) => Promise<void> | void;
     /**
      * This hook will be called **BEFORE** events were stored in the event store.
@@ -105,21 +105,32 @@ export type SQLiteEventStoreOptions = {
      */
     onBeforeCommit?: BeforeEventStoreCommitHandler<
       SQLiteEventStore,
-      { connection: SQLiteConnection }
+      { connection: AnySQLiteConnection }
     >;
     /**
      * This hook will be called **AFTER** event store schema was created
      */
     onAfterSchemaCreated?: () => Promise<void> | void;
   };
-} & SQLiteConnectionPoolOptions & { pool?: SQLiteConnectionPool };
+} & { pool?: Sqlite3Pool } & { fileName?: string };
 
 export const getSQLiteEventStore = (
   options: SQLiteEventStoreOptions,
 ): SQLiteEventStore => {
   let autoGenerateSchema = false;
   const fileName = options.fileName ?? InMemorySQLiteDatabase;
-  const pool = options.pool ?? SQLiteConnectionPool(options);
+
+  const poolOptions: SQLite3DumboOptions = {
+    fileName: fileName,
+    transactionOptions: { allowNestedTransactions: true },
+  };
+
+  const pool =
+    options.pool ??
+    sqlite3Pool({
+      ...poolOptions,
+      ...(options.connectionOptions ? options.connectionOptions : {}),
+    } as SQLite3DumboOptions);
   let migrateSchema: Promise<void> | undefined = undefined;
 
   const inlineProjections = (options.projections ?? [])
@@ -129,11 +140,11 @@ export const getSQLiteEventStore = (
   const onBeforeCommitHook = options.hooks?.onBeforeCommit;
 
   const withConnection = async <Result>(
-    handler: (connection: SQLiteConnection) => Promise<Result>,
+    handler: (connection: AnySQLiteConnection) => Promise<Result>,
   ): Promise<Result> =>
-    pool.withConnection(async (database) => {
-      await ensureSchemaExists(database);
-      return await handler(database);
+    pool.withConnection(async (connection) => {
+      await ensureSchemaExists(connection);
+      return await handler(connection);
     });
 
   if (options) {
@@ -142,7 +153,7 @@ export const getSQLiteEventStore = (
       options.schema?.autoMigration !== 'None';
   }
 
-  const migrate = (connection: SQLiteConnection): Promise<void> => {
+  const migrate = (connection: AnySQLiteConnection): Promise<void> => {
     if (!migrateSchema) {
       migrateSchema = createEventStoreSchema(connection, {
         onBeforeSchemaCreated: async (context) => {
@@ -167,7 +178,9 @@ export const getSQLiteEventStore = (
     return migrateSchema;
   };
 
-  const ensureSchemaExists = (connection: SQLiteConnection): Promise<void> => {
+  const ensureSchemaExists = (
+    connection: AnySQLiteConnection,
+  ): Promise<void> => {
     if (!autoGenerateSchema) return Promise.resolve();
 
     return migrate(connection);
@@ -197,8 +210,8 @@ export const getSQLiteEventStore = (
         throw new Error('Stream name is not string');
       }
 
-      const result = await withConnection((connection) =>
-        readStream<EventType, EventPayloadType>(connection, streamName, read),
+      const result = await withConnection(({ execute }) =>
+        readStream<EventType, EventPayloadType>(execute, streamName, read),
       );
 
       const currentStreamVersion = result.currentStreamVersion;
@@ -234,12 +247,8 @@ export const getSQLiteEventStore = (
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
     > =>
-      withConnection((connection) =>
-        readStream<EventType, EventPayloadType>(
-          connection,
-          streamName,
-          options,
-        ),
+      withConnection(({ execute }) =>
+        readStream<EventType, EventPayloadType>(execute, streamName, options),
       ),
 
     appendToStream: async <
@@ -293,8 +302,8 @@ export const getSQLiteEventStore = (
       streamName: string,
       options?: SQLiteStreamExistsOptions,
     ): Promise<StreamExistsResult> {
-      return withConnection((connection) =>
-        streamExists(connection, streamName, options),
+      return withConnection(({ execute }) =>
+        streamExists(execute, streamName, options),
       );
     },
 
@@ -304,9 +313,10 @@ export const getSQLiteEventStore = (
       sqliteEventStoreConsumer<ConsumerEventType>({
         ...(options ?? {}),
         fileName,
-        pool,
+        pool: pool as Sqlite3Pool,
       }),
 
+    close: () => pool.close(),
     schema: {
       sql: () => schemaSQL.join(''),
       print: () => console.log(schemaSQL.join('')),

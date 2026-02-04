@@ -1,8 +1,9 @@
-import { EmmettError, type Event } from '@event-driven-io/emmett';
 import {
-  SQLiteConnectionPool,
-  type SQLiteConnectionPoolOptions,
-} from '../../connection/sqliteConnectionPool';
+  sqlite3Pool,
+  type SQLite3DumboOptions,
+  type Sqlite3Pool,
+} from '@event-driven-io/dumbo/sqlite3';
+import { EmmettError, type Event } from '@event-driven-io/emmett';
 import {
   DefaultSQLiteEventStoreProcessorBatchSize,
   DefaultSQLiteEventStoreProcessorPullingFrequencyInMs,
@@ -29,8 +30,10 @@ export type SQLiteEventStoreConsumerConfig<
 export type SQLiteEventStoreConsumerOptions<
   ConsumerEventType extends Event = Event,
 > = SQLiteEventStoreConsumerConfig<ConsumerEventType> &
-  SQLiteConnectionPoolOptions & {
-    pool?: SQLiteConnectionPool;
+  SQLite3DumboOptions & {
+    pool?: Sqlite3Pool;
+  } & {
+    fileName?: string;
   };
 
 export type SQLiteEventStoreConsumer<ConsumerEventType extends Event = Event> =
@@ -58,7 +61,12 @@ export const sqliteEventStoreConsumer = <
 
   let currentMessagePuller: SQLiteEventStoreMessageBatchPuller | undefined;
 
-  const pool = options.pool ?? SQLiteConnectionPool(options);
+  const pool =
+    options.pool ??
+    sqlite3Pool({
+      transactionOptions: { allowNestedTransactions: true },
+      ...options,
+    });
 
   const eachBatch: SQLiteEventStoreMessagesBatchHandler<ConsumerEventType> = (
     messagesBatch,
@@ -93,7 +101,7 @@ export const sqliteEventStoreConsumer = <
 
   const messagePooler = (currentMessagePuller =
     sqliteEventStoreMessageBatchPuller({
-      pool,
+      pool: pool as Sqlite3Pool,
       eachBatch,
       batchSize:
         pulling?.batchSize ?? DefaultSQLiteEventStoreProcessorBatchSize,

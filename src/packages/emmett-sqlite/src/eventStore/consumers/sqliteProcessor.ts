@@ -1,3 +1,9 @@
+import { JSONSerializer } from '@event-driven-io/dumbo';
+import {
+  sqlite3Connection,
+  type AnySQLiteConnection,
+  type SQLiteTransaction,
+} from '@event-driven-io/dumbo/sqlite3';
 import {
   EmmettError,
   getCheckpoint,
@@ -5,7 +11,6 @@ import {
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import { sqliteConnection, type SQLiteConnection } from '../../connection';
 import type { SQLiteProjectionDefinition } from '../projections';
 import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
 import type { SQLiteEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
@@ -15,19 +20,19 @@ export type SQLiteProcessorEventsBatch<EventType extends Event = Event> = {
 };
 
 export type SQLiteProcessorHandlerContext = {
-  connection: SQLiteConnection;
+  connection: AnySQLiteConnection;
   fileName: string;
 };
 
 export type SQLiteProcessor<EventType extends Event = Event> = {
   id: string;
   start: (
-    connection: SQLiteConnection,
+    connection: AnySQLiteConnection,
   ) => Promise<SQLiteEventStoreMessageBatchPullerStartFrom | undefined>;
   isActive: boolean;
   handle: (
     messagesBatch: SQLiteProcessorEventsBatch<EventType>,
-    context: { connection?: SQLiteConnection; fileName?: string },
+    context: { connection?: AnySQLiteConnection; fileName?: string },
   ) => Promise<SQLiteProcessorMessageHandlerResult>;
 };
 
@@ -75,7 +80,7 @@ export type SQLiteProcessorStartFrom =
 
 export type SQLiteProcessorConnectionOptions = {
   fileName: string;
-  connection?: SQLiteConnection;
+  connection?: AnySQLiteConnection;
 };
 
 export type GenericSQLiteProcessorOptions<EventType extends Event = Event> = {
@@ -115,9 +120,9 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
   //let lastProcessedPosition: number | null = null;
 
   const getDb = (context: {
-    connection?: SQLiteConnection;
+    connection?: AnySQLiteConnection;
     fileName?: string;
-  }): { connection: SQLiteConnection; fileName: string } => {
+  }): { connection: AnySQLiteConnection; fileName: string } => {
     const fileName = context.fileName ?? options.connectionOptions?.fileName;
     if (!fileName)
       throw new EmmettError(
@@ -127,26 +132,25 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
     const connection =
       context.connection ??
       options.connectionOptions?.connection ??
-      sqliteConnection({ fileName });
+      sqlite3Connection({ fileName, serializer: JSONSerializer });
 
     return { connection, fileName };
   };
 
   return {
     id: options.processorId,
-    start: async (
-      connection: SQLiteConnection,
-    ): Promise<SQLiteEventStoreMessageBatchPullerStartFrom | undefined> => {
+    start: async ({
+      execute,
+    }: AnySQLiteConnection): Promise<
+      SQLiteEventStoreMessageBatchPullerStartFrom | undefined
+    > => {
       isActive = true;
       if (options.startFrom !== 'CURRENT') return options.startFrom;
 
-      const { lastProcessedPosition } = await readProcessorCheckpoint(
-        connection,
-        {
-          processorId: options.processorId,
-          partition: options.partition,
-        },
-      );
+      const { lastProcessedPosition } = await readProcessorCheckpoint(execute, {
+        processorId: options.processorId,
+        partition: options.partition,
+      });
 
       if (lastProcessedPosition === null) return 'BEGINNING';
 
@@ -163,7 +167,7 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
 
       const { connection, fileName } = getDb(context);
 
-      return connection.withTransaction(async () => {
+      return connection.withTransaction(async (tx: SQLiteTransaction) => {
         let result: SQLiteProcessorMessageHandlerResult | undefined = undefined;
 
         let lastProcessedPosition: bigint | null = null;
@@ -175,14 +179,14 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
           >;
 
           const messageProcessingResult = await eachMessage(typedMessage, {
-            connection,
+            connection: tx.connection,
             fileName,
           });
 
           const newPosition: bigint | null = getCheckpoint(typedMessage);
 
           // TODO: Add correct handling of the storing checkpoint
-          await storeProcessorCheckpoint(connection, {
+          await storeProcessorCheckpoint(tx.execute, {
             processorId: options.processorId,
             version: options.version,
             lastProcessedPosition,

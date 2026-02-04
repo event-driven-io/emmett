@@ -1,5 +1,7 @@
-export const schema_0_41_0: string[] = [
-  `CREATE TABLE IF NOT EXISTS emt_streams(
+import { SQL } from '@event-driven-io/dumbo';
+
+export const schema_0_41_0: SQL[] = [
+  SQL`CREATE TABLE IF NOT EXISTS emt_streams(
     stream_id         TEXT                      NOT NULL,
     stream_position   BIGINT                    NOT NULL DEFAULT 0,
     partition         TEXT                      NOT NULL DEFAULT 'global',
@@ -9,7 +11,7 @@ export const schema_0_41_0: string[] = [
     PRIMARY KEY (stream_id, partition, is_archived),
     UNIQUE (stream_id, partition, is_archived)
 )`,
-  `CREATE TABLE IF NOT EXISTS emt_messages(
+  SQL`CREATE TABLE IF NOT EXISTS emt_messages(
     stream_id              TEXT                      NOT NULL,
     stream_position        BIGINT                    NOT NULL,
     partition              TEXT                      NOT NULL DEFAULT 'global',
@@ -24,7 +26,7 @@ export const schema_0_41_0: string[] = [
     created                DATETIME                  DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (stream_id, stream_position, partition, is_archived)
 )`,
-  `CREATE TABLE IF NOT EXISTS emt_subscriptions(
+  SQL`CREATE TABLE IF NOT EXISTS emt_subscriptions(
     subscription_id                 TEXT                   NOT NULL,
     version                         INTEGER                NOT NULL DEFAULT 1,
     partition                       TEXT                   NOT NULL DEFAULT 'global',

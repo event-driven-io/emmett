@@ -1,6 +1,16 @@
 import {
+  singleOrNull,
+  SQL,
+  type AnyDatabaseTransaction,
+  type SQLExecutor,
+} from '@event-driven-io/dumbo';
+import {
+  isSQLiteError,
+  type AnySQLiteConnection,
+  type SQLiteError,
+} from '@event-driven-io/dumbo/sqlite3';
+import {
   downcastRecordedMessages,
-  JSONParser,
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
@@ -11,17 +21,13 @@ import {
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import {
-  isSQLiteError,
-  type Parameters,
-  type SQLiteConnection,
-  type SQLiteError,
-} from '../../connection';
 import type {
   SQLiteEventStore,
   SQLiteReadEventMetadata,
 } from '../SQLiteEventStore';
 import { defaultTag, messagesTable, streamsTable } from './typing';
+
+const { identifier, merge } = SQL;
 
 export type AppendEventResult =
   | {
@@ -32,7 +38,7 @@ export type AppendEventResult =
   | { success: false };
 
 export const appendToStream = async <MessageType extends Message>(
-  connection: SQLiteConnection,
+  connection: AnySQLiteConnection,
   streamName: string,
   streamType: string,
   messages: MessageType[],
@@ -40,7 +46,7 @@ export const appendToStream = async <MessageType extends Message>(
     partition?: string;
     onBeforeCommit?: BeforeEventStoreCommitHandler<
       SQLiteEventStore,
-      { connection: SQLiteConnection }
+      { connection: AnySQLiteConnection }
     >;
   },
 ): Promise<AppendEventResult> => {
@@ -70,24 +76,25 @@ export const appendToStream = async <MessageType extends Message>(
       }) as RecordedMessage<MessageType, SQLiteReadEventMetadata>,
   );
 
-  let result: AppendEventResult;
+  return await connection.withTransaction(
+    async (transaction: AnyDatabaseTransaction) => {
+      const result = await appendToStreamRaw(
+        transaction.execute,
+        streamName,
+        streamType,
+        downcastRecordedMessages(messagesToAppend, options?.schema?.versioning),
+        {
+          expectedStreamVersion,
+        },
+      );
 
-  return await connection.withTransaction(async () => {
-    result = await appendToStreamRaw(
-      connection,
-      streamName,
-      streamType,
-      downcastRecordedMessages(messagesToAppend, options?.schema?.versioning),
-      {
-        expectedStreamVersion,
-      },
-    );
+      if (options?.onBeforeCommit)
+        await options.onBeforeCommit(messagesToAppend, { connection });
 
-    if (options?.onBeforeCommit)
-      await options.onBeforeCommit(messagesToAppend, { connection });
-
-    return result;
-  });
+      // TODO: Refactor this to map or not success from appendToStreamRaw
+      return { success: true, result };
+    },
+  );
 };
 
 const toExpectedVersion = (
@@ -107,7 +114,7 @@ const toExpectedVersion = (
 };
 
 const appendToStreamRaw = async (
-  connection: SQLiteConnection,
+  execute: SQLExecutor,
   streamId: string,
   streamType: string,
   messages: RecordedMessage[],
@@ -124,7 +131,7 @@ const appendToStreamRaw = async (
 
     if (expectedStreamVersion == null) {
       expectedStreamVersion = await getLastStreamPosition(
-        connection,
+        execute,
         streamId,
         expectedStreamVersion,
       );
@@ -133,44 +140,37 @@ const appendToStreamRaw = async (
     let position: { stream_position: string } | null;
 
     if (expectedStreamVersion === 0n) {
-      position = await connection.querySingle<{
-        stream_position: string;
-      } | null>(
-        `INSERT INTO ${streamsTable.name}
+      position = await singleOrNull(
+        execute.query<{
+          stream_position: string;
+        }>(
+          SQL`INSERT INTO ${identifier(streamsTable.name)}
             (stream_id, stream_position, partition, stream_type, stream_metadata, is_archived)
             VALUES  (
-                ?,
-                ?,
-                ?,
-                ?,
+                ${streamId},
+                ${messages.length},
+                ${options?.partition ?? streamsTable.columns.partition},
+                ${streamType},
                 '[]',
                 false
             )
             RETURNING stream_position;
           `,
-        [
-          streamId,
-          messages.length,
-          options?.partition ?? streamsTable.columns.partition,
-          streamType,
-        ],
+        ),
       );
     } else {
-      position = await connection.querySingle<{
-        stream_position: string;
-      } | null>(
-        `UPDATE ${streamsTable.name}
-            SET stream_position = stream_position + ?
-            WHERE stream_id = ?
-            AND partition = ?
+      position = await singleOrNull(
+        execute.query<{
+          stream_position: string;
+        }>(
+          SQL`UPDATE ${identifier(streamsTable.name)}
+            SET stream_position = stream_position + ${messages.length}
+            WHERE stream_id = ${streamId}
+            AND partition = ${options?.partition ?? streamsTable.columns.partition}
             AND is_archived = false
             RETURNING stream_position;
           `,
-        [
-          messages.length,
-          streamId,
-          options?.partition ?? streamsTable.columns.partition,
-        ],
+        ),
       );
     }
 
@@ -190,16 +190,16 @@ const appendToStreamRaw = async (
       }
     }
 
-    const { sqlString, values } = buildMessageInsertQuery(
+    const insertSQL = buildMessageInsertQuery(
       messages,
       expectedStreamVersion,
       streamId,
       options?.partition?.toString() ?? defaultTag,
     );
 
-    const returningIds = await connection.query<{
+    const { rows: returningIds } = await execute.query<{
       global_position: string;
-    } | null>(sqlString, values);
+    }>(insertSQL);
 
     if (
       returningIds.length === 0 ||
@@ -233,15 +233,16 @@ const isOptimisticConcurrencyError = (error: SQLiteError): boolean => {
 };
 
 async function getLastStreamPosition(
-  connection: SQLiteConnection,
+  execute: SQLExecutor,
   streamId: string,
   expectedStreamVersion: bigint | null,
 ): Promise<bigint> {
-  const result = await connection.querySingle<{
-    stream_position: string;
-  } | null>(
-    `SELECT CAST(stream_position AS VARCHAR) AS stream_position FROM ${streamsTable.name} WHERE stream_id = ?`,
-    [streamId],
+  const result = await singleOrNull(
+    execute.query<{
+      stream_position: string;
+    }>(
+      SQL`SELECT CAST(stream_position AS VARCHAR) AS stream_position FROM ${identifier(streamsTable.name)} WHERE stream_id = ${streamId}`,
+    ),
   );
 
   if (result?.stream_position == null) {
@@ -257,49 +258,23 @@ const buildMessageInsertQuery = (
   expectedStreamVersion: bigint,
   streamId: string,
   partition: string | null | undefined,
-): {
-  sqlString: string;
-  values: Parameters[];
-} => {
-  const query = messages.reduce(
-    (
-      queryBuilder: { parameterMarkers: string[]; values: Parameters[] },
-      message: RecordedMessage,
-    ) => {
-      if (
-        message.metadata?.streamPosition == null ||
-        typeof message.metadata.streamPosition !== 'bigint'
-      ) {
-        throw new Error('Stream position is required');
-      }
+): SQL => {
+  const values = messages.map((message: RecordedMessage) => {
+    if (
+      message.metadata?.streamPosition == null ||
+      typeof message.metadata.streamPosition !== 'bigint'
+    ) {
+      throw new Error('Stream position is required');
+    }
 
-      const streamPosition =
-        BigInt(message.metadata.streamPosition) + BigInt(expectedStreamVersion);
+    const streamPosition =
+      BigInt(message.metadata.streamPosition) + BigInt(expectedStreamVersion);
 
-      queryBuilder.parameterMarkers.push(`(?,?,?,?,?,?,?,?,?,?)`);
-      queryBuilder.values.push(
-        streamId,
-        streamPosition.toString() ?? 0,
-        partition ?? defaultTag,
-        message.kind === 'Event' ? 'E' : 'C',
-        JSONParser.stringify(message.data),
-        JSONParser.stringify(message.metadata),
-        expectedStreamVersion?.toString() ?? 0,
-        message.type,
-        message.metadata.messageId,
-        false,
-      );
+    return SQL`(${streamId},${streamPosition ?? 0n},${partition ?? defaultTag},${message.kind === 'Event' ? 'E' : 'C'},${message.data},${message.metadata},${expectedStreamVersion ?? 0n},${message.type},${message.metadata.messageId},${false})`;
+  });
 
-      return queryBuilder;
-    },
-    {
-      parameterMarkers: [],
-      values: [],
-    },
-  );
-
-  const sqlString = `
-      INSERT INTO ${messagesTable.name} (
+  return SQL`
+      INSERT INTO ${identifier(messagesTable.name)} (
           stream_id, 
           stream_position, 
           partition, 
@@ -311,9 +286,8 @@ const buildMessageInsertQuery = (
           message_id, 
           is_archived
       ) 
-      VALUES ${query.parameterMarkers.join(', ')} 
+      VALUES ${merge(values, ',')} 
       RETURNING 
         CAST(global_position as VARCHAR) AS global_position
     `;
-  return { sqlString, values: query.values };
 };

@@ -1,4 +1,14 @@
 import {
+  JSONSerializer,
+  SQL,
+  type QueryResultRow,
+} from '@event-driven-io/dumbo';
+import {
+  InMemorySQLiteDatabase,
+  sqlite3Connection,
+  type AnySQLiteConnection,
+} from '@event-driven-io/dumbo/sqlite3';
+import {
   assertFails,
   AssertionError,
   assertThatArray,
@@ -10,11 +20,6 @@ import {
   type ThenThrows,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import {
-  InMemorySQLiteDatabase,
-  sqliteConnection,
-  type SQLiteConnection,
-} from '../../connection';
 import { type SQLiteReadEventMetadata } from '../SQLiteEventStore';
 import {
   handleProjections,
@@ -47,12 +52,12 @@ export type SQLiteProjectionSpec<EventType extends Event> = (
 };
 
 export type SQLiteProjectionAssert = (options: {
-  connection: SQLiteConnection;
+  connection: AnySQLiteConnection;
 }) => Promise<void | boolean>;
 
 export type SQLiteProjectionSpecOptions<EventType extends Event> = {
   fileName?: string;
-  connection?: SQLiteConnection;
+  connection?: AnySQLiteConnection;
   projection: SQLiteProjectionDefinition<EventType>;
 };
 
@@ -63,8 +68,9 @@ export const SQLiteProjectionSpec = {
     {
       const connection =
         options.connection ??
-        sqliteConnection({
+        sqlite3Connection({
           fileName: options.fileName ?? InMemorySQLiteDatabase,
+          serializer: JSONSerializer,
         });
       const projection = options.projection;
       let wasInitialized = false;
@@ -78,7 +84,7 @@ export const SQLiteProjectionSpec = {
             const allEvents: ReadEvent<EventType, SQLiteReadEventMetadata>[] =
               [];
 
-            const run = async (connection: SQLiteConnection) => {
+            const run = async (connection: AnySQLiteConnection) => {
               let globalPosition = 0n;
               const numberOfTimes = options?.numberOfTimes ?? 1;
 
@@ -143,7 +149,7 @@ export const SQLiteProjectionSpec = {
                         "Projection specification didn't match the criteria",
                     );
                 } finally {
-                  connection.close();
+                  await connection.close();
                 }
               },
               thenThrows: async <ErrorType extends Error>(
@@ -177,7 +183,7 @@ export const SQLiteProjectionSpec = {
                     );
                   }
                 } finally {
-                  connection.close();
+                  await connection.close();
                 }
               },
             };
@@ -217,17 +223,22 @@ export const eventsInStream = <
 export const newEventsInStream = eventsInStream;
 
 export const assertSQLQueryResultMatches =
-  <T>(sql: string, rows: T[]): SQLiteProjectionAssert =>
-  async ({ connection }: { connection: SQLiteConnection }): Promise<void> => {
-    const result = await connection.query<T>(sql);
+  <T extends QueryResultRow>(sql: SQL, rows: T[]): SQLiteProjectionAssert =>
+  async ({
+    connection,
+  }: {
+    connection: AnySQLiteConnection;
+  }): Promise<void> => {
+    const result = await connection.execute.query<T>(sql);
 
-    assertThatArray(rows).containsExactlyInAnyOrder(result);
+    assertThatArray(rows).containsExactlyInAnyOrder(result.rows);
   };
 
 export const expectSQL = {
-  query: (sql: string) => ({
+  query: (sql: SQL) => ({
     resultRows: {
-      toBeTheSame: <T>(rows: T[]) => assertSQLQueryResultMatches(sql, rows),
+      toBeTheSame: <T extends QueryResultRow>(rows: T[]) =>
+        assertSQLQueryResultMatches(sql, rows),
     },
   }),
 };

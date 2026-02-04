@@ -1,10 +1,11 @@
+import { JSONSerializer } from '@event-driven-io/dumbo';
+import { sqlite3Connection } from '@event-driven-io/dumbo/sqlite3';
 import { assertThatArray, type Event } from '@event-driven-io/emmett';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import { sqliteConnection } from '../../connection';
 import { createEventStoreSchema } from '../schema';
 import {
   getSQLiteEventStore,
@@ -31,7 +32,9 @@ void describe('SQLite event store started consumer', () => {
 
   beforeEach(() => {
     eventStore = getSQLiteEventStore(config);
-    return createEventStoreSchema(sqliteConnection({ fileName }));
+    return createEventStoreSchema(
+      sqlite3Connection({ fileName, serializer: JSONSerializer }),
+    );
   });
 
   afterEach(() => {

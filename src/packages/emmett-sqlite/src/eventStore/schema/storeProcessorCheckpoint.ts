@@ -1,12 +1,12 @@
-import { bigInt } from '@event-driven-io/emmett';
-import { isSQLiteError, type SQLiteConnection } from '../../connection';
-import { sql } from './tables';
+import { singleOrNull, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import { isSQLiteError } from '@event-driven-io/dumbo/sqlite3';
 import { defaultTag, processorsTable, unknownTag } from './typing';
-import { singleOrNull } from './utils';
+
+const { identifier } = SQL;
 
 // for more infos see the postgresql stored procedure version
 async function storeSubscriptionCheckpointSQLite(
-  db: SQLiteConnection,
+  execute: SQLExecutor,
   processorId: string,
   version: number,
   position: bigint | null,
@@ -16,67 +16,49 @@ async function storeSubscriptionCheckpointSQLite(
 ): Promise<0 | 1 | 2> {
   processorInstanceId ??= unknownTag;
   if (checkPosition !== null) {
-    const updateResult = await db.command(
-      sql(`
-          UPDATE ${processorsTable.name}
+    const updateResult = await execute.command(
+      SQL`
+          UPDATE ${identifier(processorsTable.name)}
           SET 
-            last_processed_checkpoint = ?,
-            processor_instance_id = ?
-          WHERE processor_id = ? 
-            AND last_processed_checkpoint = ? 
-            AND partition = ?
-        `),
-      [
-        bigInt.toNormalizedString(position!),
-        processorInstanceId,
-        processorId,
-        bigInt.toNormalizedString(checkPosition),
-        partition,
-      ],
+            last_processed_checkpoint = ${position},
+            processor_instance_id = ${processorInstanceId}
+          WHERE processor_id = ${processorId} 
+            AND last_processed_checkpoint = ${checkPosition} 
+            AND partition = ${partition}
+        `,
     );
-    if (updateResult.changes > 0) {
+    if (updateResult.rowCount && updateResult.rowCount > 0) {
       return 1;
+    }
+    const current_position = await singleOrNull(
+      execute.query<{ last_processed_checkpoint: string }>(
+        SQL`
+          SELECT last_processed_checkpoint FROM ${identifier(processorsTable.name)} 
+               WHERE processor_id = ${processorId} AND partition = ${partition}`,
+      ),
+    );
+
+    const currentPosition =
+      current_position && current_position?.last_processed_checkpoint !== null
+        ? BigInt(current_position.last_processed_checkpoint)
+        : null;
+
+    if (currentPosition === position) {
+      return 0;
+    } else if (
+      position !== null &&
+      currentPosition !== null &&
+      currentPosition > position
+    ) {
+      return 2;
     } else {
-      const current_position = await singleOrNull(
-        db.query<{ last_processed_checkpoint: string }>(
-          sql(
-            `SELECT last_processed_checkpoint FROM ${processorsTable.name} 
-               WHERE processor_id = ? AND partition = ?`,
-          ),
-          [processorId, partition],
-        ),
-      );
-
-      const currentPosition =
-        current_position && current_position?.last_processed_checkpoint !== null
-          ? BigInt(current_position.last_processed_checkpoint)
-          : null;
-
-      if (currentPosition === position) {
-        return 0;
-      } else if (
-        position !== null &&
-        currentPosition !== null &&
-        currentPosition > position
-      ) {
-        return 2;
-      } else {
-        return 2;
-      }
+      return 2;
     }
   } else {
     try {
-      await db.command(
-        sql(
-          `INSERT INTO ${processorsTable.name} (processor_id, version, last_processed_checkpoint, partition, processor_instance_id) VALUES (?, ?, ?, ?, ?)`,
-        ),
-        [
-          processorId,
-          version,
-          bigInt.toNormalizedString(position!),
-          partition,
-          processorInstanceId,
-        ],
+      await execute.command(
+        SQL`INSERT INTO ${identifier(processorsTable.name)} (processor_id, version, last_processed_checkpoint, partition, processor_instance_id) 
+        VALUES (${processorId}, ${version}, ${position}, ${partition}, ${processorInstanceId})`,
       );
       return 1;
     } catch (err) {
@@ -85,11 +67,10 @@ async function storeSubscriptionCheckpointSQLite(
       }
 
       const current = await singleOrNull(
-        db.query<{ last_processed_checkpoint: string }>(
-          sql(
-            `SELECT last_processed_checkpoint FROM ${processorsTable.name} WHERE processor_id = ? AND partition = ?`,
-          ),
-          [processorId, partition],
+        execute.query<{ last_processed_checkpoint: string }>(
+          SQL`
+            SELECT last_processed_checkpoint FROM ${identifier(processorsTable.name)} 
+            WHERE processor_id = ${processorId} AND partition = ${partition}`,
         ),
       );
       const currentPosition =
@@ -116,7 +97,7 @@ export type StoreLastProcessedProcessorPositionResult<
   | { success: false; reason: 'IGNORED' | 'MISMATCH' };
 
 export async function storeProcessorCheckpoint(
-  db: SQLiteConnection,
+  execute: SQLExecutor,
   options: {
     processorId: string;
     version: number | undefined;
@@ -127,7 +108,7 @@ export async function storeProcessorCheckpoint(
 ): Promise<StoreLastProcessedProcessorPositionResult<bigint | null>> {
   try {
     const result = await storeSubscriptionCheckpointSQLite(
-      db,
+      execute,
       options.processorId,
       options.version ?? 1,
       options.newPosition,

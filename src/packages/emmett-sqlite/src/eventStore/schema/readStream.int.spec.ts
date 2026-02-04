@@ -1,3 +1,9 @@
+import { JSONSerializer } from '@event-driven-io/dumbo';
+import {
+  InMemorySQLiteDatabase,
+  sqlite3Connection,
+  type SQLite3Connection,
+} from '@event-driven-io/dumbo/sqlite3';
 import {
   assertEqual,
   assertFalse,
@@ -8,11 +14,6 @@ import {
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { createEventStoreSchema } from '.';
-import {
-  InMemorySQLiteDatabase,
-  sqliteConnection,
-  type SQLiteConnection,
-} from '../../connection';
 import { appendToStream } from './appendToStream';
 import { readStream } from './readStream';
 
@@ -41,15 +42,18 @@ export type DiscountApplied = Event<
 export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
 void describe('appendEvent', () => {
-  let db: SQLiteConnection;
+  let connection: SQLite3Connection;
 
   beforeAll(async () => {
-    db = sqliteConnection({ fileName: InMemorySQLiteDatabase });
-    await createEventStoreSchema(db);
+    connection = sqlite3Connection({
+      fileName: InMemorySQLiteDatabase,
+      serializer: JSONSerializer,
+    });
+    await createEventStoreSchema(connection);
   });
 
-  afterAll(() => {
-    db.close();
+  afterAll(async () => {
+    await connection.close();
   });
 
   const events: ShoppingCartEvent[] = [
@@ -68,10 +72,10 @@ void describe('appendEvent', () => {
   void it('reads events from non-empty stream', async () => {
     // Given
     const streamId = uuid();
-    await appendToStream(db, streamId, 'shopping_cart', events);
+    await appendToStream(connection, streamId, 'shopping_cart', events);
 
     // When
-    const result = await readStream(db, streamId);
+    const result = await readStream(connection.execute, streamId);
 
     // Then
     assertIsNotNull(result);
@@ -94,7 +98,7 @@ void describe('appendEvent', () => {
     const nonExistingStreamId = uuid();
 
     // When
-    const result = await readStream(db, nonExistingStreamId);
+    const result = await readStream(connection.execute, nonExistingStreamId);
 
     // Then
     assertFalse(result.streamExists);

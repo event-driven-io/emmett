@@ -1,10 +1,10 @@
+import { type Sqlite3Pool } from '@event-driven-io/dumbo/sqlite3';
 import type {
   EmmettError,
   Event,
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import type { SQLiteConnectionPool } from '../../../connection/sqliteConnectionPool';
 import { readLastMessageGlobalPosition } from '../../schema/readLastMessageGlobalPosition';
 import {
   readMessagesBatch,
@@ -35,7 +35,7 @@ export type SQLiteEventStoreMessagesBatchHandler<
 export type SQLiteEventStoreMessageBatchPullerOptions<
   EventType extends Event = Event,
 > = {
-  pool: SQLiteConnectionPool;
+  pool: Sqlite3Pool;
   pullingFrequencyInMs: number;
   batchSize: number;
   eachBatch: SQLiteEventStoreMessagesBatchHandler<EventType>;
@@ -76,8 +76,8 @@ export const sqliteEventStoreMessageBatchPuller = <
         ? 0n
         : options.startFrom === 'END'
           ? ((
-              await pool.withConnection(async (connection) =>
-                readLastMessageGlobalPosition(connection),
+              await pool.withConnection(async ({ execute }) =>
+                readLastMessageGlobalPosition(execute),
               )
             ).currentGlobalPosition ?? 0n)
           : options.startFrom.globalPosition;
@@ -91,8 +91,8 @@ export const sqliteEventStoreMessageBatchPuller = <
 
     do {
       const { messages, currentGlobalPosition, areEventsLeft } =
-        await pool.withConnection((connection) =>
-          readMessagesBatch<EventType>(connection, readMessagesOptions),
+        await pool.withConnection(({ execute }) =>
+          readMessagesBatch<EventType>(execute, readMessagesOptions),
         );
 
       if (messages.length > 0) {

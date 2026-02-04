@@ -1,21 +1,20 @@
+import { single, SQL, type QueryResultRow } from '@event-driven-io/dumbo';
+import { type AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite3';
 import { assertDeepEqual, JSONParser } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { beforeEach, describe, it } from 'vitest';
-import { type SQLiteConnection } from '../../connection';
 import {
   type DiscountApplied,
   type ProductItemAdded,
 } from '../../testing/shoppingCart.domain';
-import {
-  sqliteRawSQLProjection,
-  type SQLiteProjectionHandlerContext,
-} from './sqliteProjection';
+import { sqliteRawSQLProjection } from './sqliteProjection';
 import {
   eventInStream,
   eventsInStream,
   newEventsInStream,
   SQLiteProjectionSpec,
 } from './sqliteProjectionSpec';
+const { identifier } = SQL;
 
 type EventType =
   | (ProductItemAdded & {
@@ -134,18 +133,19 @@ void describe('SQLite Projections', () => {
       );
   });
 });
-const rowExistsWithValues = async <T>({
-  connection,
+const rowExistsWithValues = async <T extends QueryResultRow>({
+  connection: { execute },
   id,
   data,
 }: {
-  connection: SQLiteConnection;
+  connection: AnySQLiteConnection;
   id: string;
   data: T;
 }): Promise<boolean> => {
-  const res = await connection.querySingle<T>(
-    `SELECT * FROM ${projection} WHERE id = ?`,
-    [id],
+  const res = await single(
+    execute.query<T>(
+      SQL`SELECT * FROM ${identifier(projection)} WHERE id = ${id}`,
+    ),
   );
 
   assertDeepEqual(data, res);
@@ -153,16 +153,17 @@ const rowExistsWithValues = async <T>({
   return true;
 };
 
-const rowExists = async <T>({
-  connection,
+const rowExists = async <T extends QueryResultRow>({
+  connection: { execute },
   id,
 }: {
-  connection: SQLiteConnection;
+  connection: AnySQLiteConnection;
   id: string;
 }): Promise<boolean> => {
-  const res = await connection.querySingle<T>(
-    `SELECT * FROM ${projection} WHERE id = ?`,
-    [id],
+  const res = await single(
+    execute.query<T>(
+      SQL`SELECT * FROM ${identifier(projection)} WHERE id = ${id}`,
+    ),
   );
 
   if (res == null) return false;
@@ -171,27 +172,24 @@ const rowExists = async <T>({
 };
 
 const shoppingCartShortInfoProjection = sqliteRawSQLProjection({
-  evolve: (
-    event: EventType,
-    _context: SQLiteProjectionHandlerContext,
-  ): string => {
+  evolve: (event: EventType): SQL => {
     switch (event.type) {
       case 'ProductItemAdded': {
         const productItemsCount = event.data.productItem.quantity;
         const totalAmount =
           event.data.productItem.price * event.data.productItem.quantity;
 
-        const sql = `INSERT INTO 
-          ${projection} 
+        const sql = SQL`INSERT INTO 
+          ${identifier(projection)} 
           (
             id, 
             productItemsCount, 
             totalAmount, 
             discountsApplied
           ) VALUES (
-            "${event.metadata.streamName}", 
-            "${productItemsCount}", 
-            "${totalAmount}", 
+            ${event.metadata.streamName}, 
+            ${productItemsCount}, 
+            ${totalAmount}, 
             "[]"
           )
           ON CONFLICT (id) DO UPDATE SET
@@ -201,15 +199,15 @@ const shoppingCartShortInfoProjection = sqliteRawSQLProjection({
         return sql;
       }
       case 'DiscountApplied': {
-        const sql = `INSERT INTO 
-          ${projection} 
+        const sql = SQL`INSERT INTO 
+          ${identifier(projection)} 
           (
             id, 
             productItemsCount, 
             totalAmount, 
             discountsApplied
           ) VALUES (
-            "${event.metadata.streamName}", 
+            ${event.metadata.streamName}, 
             0, 
             0, 
             "[]"
@@ -220,11 +218,11 @@ const shoppingCartShortInfoProjection = sqliteRawSQLProjection({
                json_insert(
                   COALESCE(discountsApplied, '[]'),
                   '$[#]', 
-                  '${event.data.couponId}')
+                  ${event.data.couponId})
              WHERE json_array_length(discountsApplied) = 0 
                   OR NOT EXISTS (
                     SELECT 1 FROM json_each(discountsApplied) 
-                    WHERE json_each.value = '${event.data.couponId}'
+                    WHERE json_each.value = ${event.data.couponId}
                   )`;
 
         return sql;
@@ -236,7 +234,7 @@ const shoppingCartShortInfoProjection = sqliteRawSQLProjection({
     }
   },
   canHandle: ['ProductItemAdded', 'DiscountApplied'],
-  initSQL: `CREATE TABLE IF NOT EXISTS ${projection}
+  initSQL: SQL`CREATE TABLE IF NOT EXISTS ${identifier(projection)}
         (
           id TEXT PRIMARY KEY,
           productItemsCount INTEGER,
