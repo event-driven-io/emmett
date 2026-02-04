@@ -4,6 +4,7 @@ import {
   sqlMigration,
   type NodePostgresClient,
   type NodePostgresPool,
+  type RunSQLMigrationsResult,
   type SQL,
   type SQLMigration,
 } from '@event-driven-io/dumbo';
@@ -12,8 +13,8 @@ import { type PostgreSQLProjectionHandlerContext } from '../projections';
 import { appendToStreamSQL } from './appendToStream';
 import { migration_0_38_7_and_older } from './migrations/0_38_7';
 import {
-  migration_0_42_0_FromSubscriptionsToProcessors,
   migration_0_42_0_2_AddProcessorProjectionFunctions,
+  migration_0_42_0_FromSubscriptionsToProcessors,
 } from './migrations/0_42_0';
 import {
   releaseProcessorLockSQL,
@@ -79,12 +80,18 @@ export const eventStoreSchemaMigrations: SQLMigration[] = [
   schemaMigration,
 ];
 
-export const createEventStoreSchema = async (
+export type CreateEventStoreSchemaOptions = {
+  dryRun?: boolean | undefined;
+  ignoreMigrationHashMismatch?: boolean | undefined;
+};
+
+export const createEventStoreSchema = (
   connectionString: string,
   pool: NodePostgresPool,
   hooks?: PostgresEventStoreOptions['hooks'],
-): Promise<void> => {
-  await pool.withTransaction(async (tx) => {
+  options?: CreateEventStoreSchemaOptions,
+): Promise<RunSQLMigrationsResult> => {
+  return pool.withTransaction(async (tx) => {
     const client = (await tx.connection.open()) as NodePostgresClient;
     const context: PostgreSQLProjectionHandlerContext = {
       execute: tx.execute,
@@ -102,11 +109,16 @@ export const createEventStoreSchema = async (
         await hooks.onBeforeSchemaCreated(context);
       }
 
-      await runPostgreSQLMigrations(nestedPool, eventStoreSchemaMigrations);
+      const result = await runPostgreSQLMigrations(
+        nestedPool,
+        eventStoreSchemaMigrations,
+        options,
+      );
 
       if (hooks?.onAfterSchemaCreated) {
         await hooks.onAfterSchemaCreated(context);
       }
+      return result;
     } finally {
       await nestedPool.close();
     }
