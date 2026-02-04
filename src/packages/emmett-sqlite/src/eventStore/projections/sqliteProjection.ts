@@ -1,3 +1,5 @@
+import type { SQL } from '@event-driven-io/dumbo';
+import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite3';
 import {
   projection,
   type CanHandle,
@@ -7,11 +9,10 @@ import {
   type ProjectionInitOptions,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import type { SQLiteConnection } from '../../connection';
 import type { SQLiteReadEventMetadata } from '../SQLiteEventStore';
 
 export type SQLiteProjectionHandlerContext = {
-  connection: SQLiteConnection;
+  connection: AnySQLiteConnection;
 };
 
 export type SQLiteProjectionHandler<
@@ -33,7 +34,7 @@ export type SQLiteProjectionDefinition<EventType extends Event = Event> =
 export type SQLiteProjectionHandlerOptions<EventType extends Event = Event> = {
   events: ReadEvent<EventType, SQLiteReadEventMetadata>[];
   projections: SQLiteProjectionDefinition<EventType>[];
-  connection: SQLiteConnection;
+  connection: AnySQLiteConnection;
 };
 
 export const handleProjections = async <EventType extends Event = Event>(
@@ -66,9 +67,9 @@ export type SQLiteRawBatchSQLProjection<EventType extends Event> = {
   evolve: (
     events: EventType[],
     context: SQLiteProjectionHandlerContext,
-  ) => Promise<string[]> | string[];
+  ) => Promise<SQL[]> | SQL[];
   canHandle: CanHandle<EventType>;
-  initSQL?: string | string[];
+  initSQL?: SQL | SQL[];
   init?: (
     context: ProjectionInitOptions<SQLiteProjectionHandlerContext>,
   ) => void | Promise<void>;
@@ -80,9 +81,9 @@ export const sqliteRawBatchSQLProjection = <EventType extends Event>(
   sqliteProjection<EventType>({
     canHandle: options.canHandle,
     handle: async (events, context) => {
-      const sqls: string[] = await options.evolve(events, context);
+      const sqls: SQL[] = await options.evolve(events, context);
 
-      for (const sql of sqls) await context.connection.command(sql);
+      for (const sql of sqls) await context.connection.execute.command(sql);
     },
     init: async (initOptions) => {
       if (options.init) {
@@ -94,7 +95,7 @@ export const sqliteRawBatchSQLProjection = <EventType extends Event>(
           : [options.initSQL];
 
         for (const sql of initSQLs)
-          await initOptions.context.connection.command(sql);
+          await initOptions.context.connection.execute.command(sql);
       }
     },
   });
@@ -103,9 +104,9 @@ export type SQLiteRawSQLProjection<EventType extends Event> = {
   evolve: (
     events: EventType,
     context: SQLiteProjectionHandlerContext,
-  ) => Promise<string[]> | string[] | Promise<string> | string;
+  ) => Promise<SQL[]> | SQL[] | Promise<SQL> | SQL;
   canHandle: CanHandle<EventType>;
-  initSQL?: string | string[];
+  initSQL?: SQL | SQL[];
   init?: (
     context: ProjectionInitOptions<SQLiteProjectionHandlerContext>,
   ) => void | Promise<void>;
@@ -118,7 +119,7 @@ export const sqliteRawSQLProjection = <EventType extends Event>(
   return sqliteRawBatchSQLProjection<EventType>({
     ...rest,
     evolve: async (events, context) => {
-      const sqls: string[] = [];
+      const sqls: SQL[] = [];
 
       for (const event of events) {
         const pendingSqls = await evolve(event, context);

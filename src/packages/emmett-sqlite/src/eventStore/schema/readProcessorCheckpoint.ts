@@ -1,7 +1,6 @@
-import type { SQLiteConnection } from '../../connection';
-import { sql } from './tables';
+import { SQL, type SQLExecutor, singleOrNull } from '@event-driven-io/dumbo';
 import { defaultTag, processorsTable } from './typing';
-import { singleOrNull } from './utils';
+const { identifier } = SQL;
 
 type ReadProcessorCheckpointSqlResult = {
   last_processed_checkpoint: string;
@@ -12,18 +11,15 @@ export type ReadProcessorCheckpointResult = {
 };
 
 export const readProcessorCheckpoint = async (
-  db: SQLiteConnection,
+  execute: SQLExecutor,
   options: { processorId: string; partition?: string },
 ): Promise<ReadProcessorCheckpointResult> => {
   const result = await singleOrNull(
-    db.query<ReadProcessorCheckpointSqlResult>(
-      sql(
-        `SELECT last_processed_checkpoint
-           FROM ${processorsTable.name}
-           WHERE partition = ? AND processor_id = ?
+    execute.query<ReadProcessorCheckpointSqlResult>(
+      SQL`SELECT last_processed_checkpoint
+           FROM ${identifier(processorsTable.name)}
+           WHERE partition = ${options?.partition ?? defaultTag} AND processor_id = ${options.processorId}
            LIMIT 1`,
-      ),
-      [options?.partition ?? defaultTag, options.processorId],
     ),
   );
 

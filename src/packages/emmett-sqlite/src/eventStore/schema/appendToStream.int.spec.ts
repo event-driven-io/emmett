@@ -1,3 +1,9 @@
+import { JSONSerializer, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import {
+  InMemorySQLiteDatabase,
+  sqlite3Connection,
+  type AnySQLiteConnection,
+} from '@event-driven-io/dumbo/sqlite3';
 import {
   assertEqual,
   assertFalse,
@@ -10,11 +16,6 @@ import {
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { createEventStoreSchema } from '.';
-import {
-  InMemorySQLiteDatabase,
-  sqliteConnection,
-  type SQLiteConnection,
-} from '../../connection';
 import { appendToStream } from './appendToStream';
 
 export type PricedProductItem = {
@@ -42,15 +43,20 @@ export type DiscountApplied = Event<
 export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
 void describe('appendEvent', () => {
-  let db: SQLiteConnection;
+  let connection: AnySQLiteConnection;
+  let execute: SQLExecutor;
 
   beforeAll(async () => {
-    db = sqliteConnection({ fileName: InMemorySQLiteDatabase });
-    await createEventStoreSchema(db);
+    connection = sqlite3Connection({
+      fileName: InMemorySQLiteDatabase,
+      serializer: JSONSerializer,
+    });
+    execute = connection.execute;
+    await createEventStoreSchema(connection);
   });
 
-  afterAll(() => {
-    db.close();
+  afterAll(async () => {
+    await connection.close();
   });
 
   const events: ShoppingCartEvent[] = [
@@ -67,9 +73,15 @@ void describe('appendEvent', () => {
   ];
 
   void it('should append events correctly', async () => {
-    const result = await appendToStream(db, uuid(), 'shopping_cart', events, {
-      expectedStreamVersion: 0n,
-    });
+    const result = await appendToStream(
+      connection,
+      uuid(),
+      'shopping_cart',
+      events,
+      {
+        expectedStreamVersion: 0n,
+      },
+    );
 
     assertTrue(result.success);
     assertEqual(result.nextStreamPosition, 2n);
@@ -79,7 +91,7 @@ void describe('appendEvent', () => {
 
   void it('should append events correctly without expected stream position', async () => {
     const result = await appendToStream(
-      db,
+      connection,
       uuid(),
       'shopping_cart',
       events,
@@ -94,11 +106,15 @@ void describe('appendEvent', () => {
 
   void it('should append events correctly without optimistic concurrency', async () => {
     const streamId = uuid();
-    await appendToStream(db, streamId, 'shopping_cart', events);
-    const result = await appendToStream(db, streamId, 'shopping_cart', events);
-    const resultEvents = await db.query(
-      'SELECT * FROM emt_messages WHERE stream_id = $1',
-      [streamId],
+    await appendToStream(connection, streamId, 'shopping_cart', events);
+    const result = await appendToStream(
+      connection,
+      streamId,
+      'shopping_cart',
+      events,
+    );
+    const { rows: resultEvents } = await execute.query(
+      SQL`SELECT * FROM emt_messages WHERE stream_id = ${streamId}`,
     );
 
     assertEqual(4, resultEvents.length);
@@ -110,7 +126,7 @@ void describe('appendEvent', () => {
     const streamId = uuid();
 
     const firstResult = await appendToStream(
-      db,
+      connection,
       streamId,
       'shopping_cart',
       events,
@@ -122,7 +138,7 @@ void describe('appendEvent', () => {
 
     // When
     const secondResult = await appendToStream(
-      db,
+      connection,
       streamId,
       'shopping_cart',
       events,
@@ -134,9 +150,8 @@ void describe('appendEvent', () => {
     // Then
     assertFalse(secondResult.success);
 
-    const resultEvents = await db.query(
-      'SELECT * FROM emt_messages WHERE stream_id = $1',
-      [streamId],
+    const { rows: resultEvents } = await execute.query(
+      SQL`SELECT * FROM emt_messages WHERE stream_id = ${streamId}`,
     );
 
     assertEqual(events.length, resultEvents.length);
@@ -147,7 +162,7 @@ void describe('appendEvent', () => {
     const streamId = uuid();
 
     const firstResult = await appendToStream(
-      db,
+      connection,
       streamId,
       'shopping_cart',
       events,
@@ -159,7 +174,7 @@ void describe('appendEvent', () => {
 
     // When
     const secondResult = await appendToStream(
-      db,
+      connection,
       streamId,
       'shopping_cart',
       events,
@@ -171,9 +186,8 @@ void describe('appendEvent', () => {
     // Then
     assertFalse(secondResult.success);
 
-    const resultEvents = await db.query(
-      'SELECT * FROM emt_messages WHERE stream_id = $1',
-      [streamId],
+    const { rows: resultEvents } = await execute.query(
+      SQL`SELECT * FROM emt_messages WHERE stream_id = ${streamId}`,
     );
 
     assertEqual(events.length, resultEvents.length);
@@ -184,7 +198,7 @@ void describe('appendEvent', () => {
     const streamId = uuid();
 
     const creationResult = await appendToStream(
-      db,
+      connection,
       streamId,
       'shopping_cart',
       events,
@@ -193,7 +207,7 @@ void describe('appendEvent', () => {
     const expectedStreamVersion = creationResult.nextStreamPosition;
 
     const firstResult = await appendToStream(
-      db,
+      connection,
       streamId,
       'shopping_cart',
       events,
@@ -206,7 +220,7 @@ void describe('appendEvent', () => {
 
     // When
     const secondResult = await appendToStream(
-      db,
+      connection,
       streamId,
       'shopping_cart',
       events,
@@ -218,9 +232,8 @@ void describe('appendEvent', () => {
     // Then
     assertFalse(secondResult.success);
 
-    const resultEvents = await db.query(
-      'SELECT * FROM emt_messages WHERE stream_id = $1',
-      [streamId],
+    const { rows: resultEvents } = await execute.query(
+      SQL`SELECT * FROM emt_messages WHERE stream_id = ${streamId}`,
     );
 
     assertEqual(events.length * 2, resultEvents.length);
@@ -232,7 +245,7 @@ void describe('appendEvent', () => {
     const expectedStreamVersion = 0n;
 
     const firstResult = await appendToStream(
-      db,
+      connection,
       streamId,
       'shopping_cart',
       events,
@@ -244,7 +257,7 @@ void describe('appendEvent', () => {
 
     // When
     const secondResult = await appendToStream(
-      db,
+      connection,
       streamId,
       'shopping_cart',
       events,
@@ -256,9 +269,8 @@ void describe('appendEvent', () => {
     // Then
     assertTrue(secondResult.success);
 
-    const resultEvents = await db.query(
-      'SELECT * FROM emt_messages WHERE stream_id = $1',
-      [streamId],
+    const { rows: resultEvents } = await execute.query(
+      SQL`SELECT * FROM emt_messages WHERE stream_id = ${streamId}`,
     );
 
     assertEqual(events.length * 2, resultEvents.length);
@@ -269,7 +281,7 @@ void describe('appendEvent', () => {
 
     let grabbedEvents: Event[] = [];
 
-    await appendToStream(db, streamId, 'shopping_cart', events, {
+    await appendToStream(connection, streamId, 'shopping_cart', events, {
       onBeforeCommit: (messages: RecordedMessage[]): void => {
         grabbedEvents = messages.filter((m) => m.kind === 'Event');
       },
@@ -283,7 +295,7 @@ void describe('appendEvent', () => {
 
     await assertThrowsAsync(
       async () => {
-        await appendToStream(db, streamId, 'shopping_cart', events, {
+        await appendToStream(connection, streamId, 'shopping_cart', events, {
           onBeforeCommit: (_: RecordedMessage[]): void => {
             throw new Error('fake error');
           },
@@ -292,16 +304,20 @@ void describe('appendEvent', () => {
       (err) => err?.message === 'fake error',
     );
 
-    const resultEvents = await db.query(
-      'SELECT * FROM emt_messages WHERE stream_id = $1',
-      [streamId],
+    const { rows: resultEvents } = await execute.query(
+      SQL`SELECT * FROM emt_messages WHERE stream_id = ${streamId}`,
     );
 
     assertEqual(0, resultEvents.length);
   });
 
   void it('should handle appending an empty events array gracefully', async () => {
-    const result = await appendToStream(db, uuid(), 'shopping_cart', []);
+    const result = await appendToStream(
+      connection,
+      uuid(),
+      'shopping_cart',
+      [],
+    );
 
     assertFalse(result.success);
   });

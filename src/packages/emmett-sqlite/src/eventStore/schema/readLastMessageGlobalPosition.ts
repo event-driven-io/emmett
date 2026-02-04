@@ -1,7 +1,6 @@
-import type { SQLiteConnection } from '../../connection';
-import { sql } from './tables';
+import { SQL, type SQLExecutor, singleOrNull } from '@event-driven-io/dumbo';
 import { defaultTag, messagesTable } from './typing';
-import { singleOrNull } from './utils';
+const { identifier } = SQL;
 
 type ReadLastMessageGlobalPositionSqlResult = {
   global_position: string;
@@ -12,19 +11,17 @@ export type ReadLastMessageGlobalPositionResult = {
 };
 
 export const readLastMessageGlobalPosition = async (
-  db: SQLiteConnection,
+  execute: SQLExecutor,
   options?: { partition?: string },
 ): Promise<ReadLastMessageGlobalPositionResult> => {
   const result = await singleOrNull(
-    db.query<ReadLastMessageGlobalPositionSqlResult>(
-      sql(
-        `SELECT global_position
-         FROM ${messagesTable.name}
-         WHERE partition = ? AND is_archived = FALSE
+    execute.query<ReadLastMessageGlobalPositionSqlResult>(
+      SQL`
+         SELECT global_position
+         FROM ${identifier(messagesTable.name)}
+         WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE
          ORDER BY global_position
          LIMIT 1`,
-      ),
-      [options?.partition ?? defaultTag],
     ),
   );
 

@@ -1,3 +1,4 @@
+import { SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   JSONParser,
   type CombinedReadEventMetadata,
@@ -6,9 +7,8 @@ import {
   type ReadEventMetadata,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import type { SQLiteConnection } from '../../connection';
-import { sql } from './tables';
 import { defaultTag, messagesTable } from './typing';
+const { identifier } = SQL;
 
 type ReadMessagesBatchSqlResult = {
   stream_position: string;
@@ -49,7 +49,7 @@ export const readMessagesBatch = async <
   ReadEventMetadataType extends ReadEventMetadataWithGlobalPosition =
     ReadEventMetadataWithGlobalPosition,
 >(
-  db: SQLiteConnection,
+  execute: SQLExecutor,
   options: ReadMessagesBatchOptions & { partition?: string },
 ): Promise<ReadMessagesBatchResult<MessageType, ReadEventMetadataType>> => {
   const from =
@@ -64,26 +64,23 @@ export const readMessagesBatch = async <
       : options.to - options.from;
 
   const fromCondition: string =
-    from !== -0n ? `AND global_position >= ${from}` : '';
+    from !== -0n ? SQL`AND global_position >= ${from}` : '';
 
-  const toCondition =
-    'to' in options ? `AND global_position <= ${options.to}` : '';
+  const toCondition: SQL =
+    'to' in options ? SQL`AND global_position <= ${options.to}` : SQL.EMPTY;
 
-  const limitCondition =
-    'batchSize' in options ? `LIMIT ${options.batchSize}` : '';
+  const limitCondition: SQL =
+    'batchSize' in options ? SQL`LIMIT ${options.batchSize}` : SQL.EMPTY;
 
   const events: ReadEvent<MessageType, ReadEventMetadataType>[] = (
-    await db.query<ReadMessagesBatchSqlResult>(
-      sql(
-        `SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
-           FROM ${messagesTable.name}
-           WHERE partition = ? AND is_archived = FALSE ${fromCondition} ${toCondition}
+    await execute.query<ReadMessagesBatchSqlResult>(
+      SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
+           FROM ${identifier(messagesTable.name)}
+           WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE ${fromCondition} ${toCondition}
            ORDER BY global_position
            ${limitCondition}`,
-      ),
-      [options?.partition ?? defaultTag],
     )
-  ).map((row) => {
+  ).rows.map((row) => {
     const rawEvent = {
       type: row.message_type,
       data: JSONParser.parse(row.message_data),

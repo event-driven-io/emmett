@@ -1,3 +1,4 @@
+import { InMemorySQLiteDatabase } from '@event-driven-io/dumbo/sqlite3';
 import {
   assertDeepEqual,
   assertEqual,
@@ -11,16 +12,15 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import { InMemorySQLiteDatabase, sqliteConnection } from '../connection';
 import {
   type DiscountApplied,
   type PricedProductItem,
   type ProductItemAdded,
   type ShoppingCartEvent,
 } from '../testing/shoppingCart.domain';
-import { createEventStoreSchema } from './schema';
 import {
   getSQLiteEventStore,
+  type SQLiteEventStore,
   type SQLiteEventStoreOptions,
 } from './SQLiteEventStore';
 
@@ -31,6 +31,7 @@ void describe('SQLiteEventStore', () => {
     'testing',
   );
   const fileName = path.resolve(testDatabasePath, 'test.db');
+  let eventStore: SQLiteEventStore;
 
   afterEach(() => {
     if (!fs.existsSync(fileName)) {
@@ -47,11 +48,16 @@ void describe('SQLiteEventStore', () => {
       fileName,
     };
 
-    beforeEach(() => createEventStoreSchema(sqliteConnection({ fileName })));
+    beforeEach(async () => {
+      eventStore = getSQLiteEventStore(config);
+      await eventStore.schema.migrate();
+    });
+
+    afterEach(async () => {
+      await eventStore.close();
+    });
 
     void it('should append events', async () => {
-      const eventStore = getSQLiteEventStore(config);
-
       const productItem: PricedProductItem = {
         productId: '123',
         quantity: 10,
@@ -89,8 +95,6 @@ void describe('SQLiteEventStore', () => {
     });
 
     void it('should aggregate stream', async () => {
-      const eventStore = getSQLiteEventStore(config);
-
       const productItem: PricedProductItem = {
         productId: '123',
         quantity: 10,
@@ -133,8 +137,6 @@ void describe('SQLiteEventStore', () => {
     });
 
     void it('should throw an error if concurrency check has failed when appending stream', async () => {
-      const eventStore = getSQLiteEventStore(config);
-
       const productItem: PricedProductItem = {
         productId: '123',
         quantity: 10,

@@ -1,3 +1,4 @@
+import { SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   JSONParser,
   upcastRecordedMessage,
@@ -9,9 +10,9 @@ import {
   type ReadStreamOptions,
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
-import { type SQLiteConnection } from '../../connection';
 import { SQLiteEventStoreDefaultStreamVersion } from '../SQLiteEventStore';
 import { defaultTag, messagesTable } from './typing';
+const { identifier } = SQL;
 
 type ReadStreamSqlResult = {
   stream_position: string;
@@ -28,7 +29,7 @@ export const readStream = async <
   EventType extends Event,
   EventPayloadType extends Event = EventType,
 >(
-  db: SQLiteConnection,
+  execute: SQLExecutor,
   streamId: string,
   options?: ReadStreamOptions<
     BigIntStreamPosition,
@@ -40,23 +41,24 @@ export const readStream = async <
 ): Promise<
   ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
 > => {
-  const fromCondition: string = options?.from
-    ? `AND stream_position >= ${options.from}`
-    : '';
+  const fromCondition: SQL = options?.from
+    ? SQL`AND stream_position >= ${options.from}`
+    : SQL.EMPTY;
 
   const to = Number(
     options?.to ??
       (options?.maxCount ? (options.from ?? 0n) + options.maxCount : NaN),
   );
 
-  const toCondition = !isNaN(to) ? `AND stream_position <= ${to}` : '';
+  const toCondition: SQL = !isNaN(to)
+    ? SQL`AND stream_position <= ${to}`
+    : SQL.EMPTY;
 
-  const results = await db.query<ReadStreamSqlResult>(
-    `SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
-           FROM ${messagesTable.name}
-           WHERE stream_id = ? AND partition = ? AND is_archived = FALSE ${fromCondition} ${toCondition}
-           ORDER BY stream_position ASC`,
-    [streamId, options?.partition ?? defaultTag],
+  const { rows: results } = await execute.query<ReadStreamSqlResult>(
+    SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
+        FROM ${identifier(messagesTable.name)}
+        WHERE stream_id = ${streamId} AND partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE ${fromCondition} ${toCondition}
+        ORDER BY stream_position ASC`,
   );
 
   const messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
