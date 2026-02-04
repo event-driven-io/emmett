@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/emmett-postgresql",
-  "version": "0.42.0-rc.2",
+  "version": "0.43.0-alpha.1",
   "type": "module",
   "description": "Emmett - PostgreSQL - Event Sourcing development made simple",
   "scripts": {
@@ -69,14 +69,14 @@
     "dist"
   ],
   "devDependencies": {
-    "@event-driven-io/emmett-testcontainers": "0.42.0-beta.5",
+    "@event-driven-io/emmett-testcontainers": "0.43.0-alpha.1",
     "@testcontainers/postgresql": "^11.11.0",
     "@types/node": "^25.0.10",
     "@types/pg": "^8.16.0",
     "pg": "^8.17.2"
   },
   "dependencies": {
-    "@event-driven-io/emmett": "0.42.0-beta.5",
+    "@event-driven-io/emmett": "0.43.0-alpha.1",
     "@event-driven-io/pongo": "0.17.0-beta.14"
   },
   "peerDependencies": {

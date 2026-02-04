@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/emmett-sqlite",
-  "version": "0.42.0-rc.2",
+  "version": "0.43.0-alpha.1",
   "type": "module",
   "description": "Emmett - SQLite - Event Sourcing development made simple",
   "scripts": {
@@ -69,7 +69,7 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/emmett": "0.42.0-beta.5",
+    "@event-driven-io/emmett": "0.43.0-alpha.1",
     "@event-driven-io/pongo": "0.17.0-beta.14"
   },
   "peerDependencies": {
