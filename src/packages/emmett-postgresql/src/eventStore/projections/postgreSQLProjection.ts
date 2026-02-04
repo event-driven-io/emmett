@@ -17,6 +17,7 @@ import {
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
+import type { EventStoreSchemaMigrationOptions } from '../schema';
 import { defaultTag } from '../schema/typing';
 import { postgreSQLProjectionLock } from './locks';
 import { registerProjection } from './management';
@@ -29,7 +30,10 @@ export type PostgreSQLProjectionHandlerContext = {
     transaction: NodePostgresTransaction;
     pool: Dumbo;
   };
-};
+} &
+  // TODO: This should be only for Init options
+  // Make init options type configurable for projections
+  EventStoreSchemaMigrationOptions;
 
 export const transactionToPostgreSQLProjectionHandlerContext = async (
   connectionString: string,

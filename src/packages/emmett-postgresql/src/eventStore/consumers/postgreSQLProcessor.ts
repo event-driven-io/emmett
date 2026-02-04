@@ -40,7 +40,11 @@ import {
   postgreSQLProcessorLock,
   type LockAcquisitionPolicy,
 } from '../projections';
-import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
+import {
+  readProcessorCheckpoint,
+  storeProcessorCheckpoint,
+  type EventStoreSchemaMigrationOptions,
+} from '../schema';
 import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 
 export type PostgreSQLProcessorHandlerContext = {
@@ -52,7 +56,9 @@ export type PostgreSQLProcessorHandlerContext = {
     transaction: NodePostgresTransaction;
     pool: Dumbo;
   };
-};
+} &
+  // TODO: Reconsider if it should be for all processors
+  EventStoreSchemaMigrationOptions;
 
 export type PostgreSQLProcessor<MessageType extends Message = AnyMessage> =
   MessageProcessor<
@@ -195,7 +201,8 @@ export type PostgreSQLProjectorOptions<EventType extends AnyEvent = AnyEvent> =
     ReadEventMetadataWithGlobalPosition,
     PostgreSQLProcessorHandlerContext
   > &
-    PostgreSQLProcessorOptionsBase;
+    PostgreSQLProcessorOptionsBase &
+    EventStoreSchemaMigrationOptions;
 
 export type PostgreSQLProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
@@ -355,9 +362,16 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
                     version: options.projection.version ?? version,
                     status: 'active',
                     registrationType: 'async',
-                    context,
+                    context: {
+                      ...context,
+                      migrationOptions: options.migrationOptions,
+                    },
                   });
-                if (options.hooks?.onInit) await options.hooks.onInit(context);
+                if (options.hooks?.onInit)
+                  await options.hooks.onInit({
+                    ...context,
+                    migrationOptions: options.migrationOptions,
+                  });
               }
             : options.hooks?.onInit,
         onClose: close
