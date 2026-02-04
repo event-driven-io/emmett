@@ -85,6 +85,10 @@ export type CreateEventStoreSchemaOptions = {
   ignoreMigrationHashMismatch?: boolean | undefined;
 };
 
+export type EventStoreSchemaMigrationOptions = {
+  migrationOptions?: CreateEventStoreSchemaOptions;
+};
+
 export const createEventStoreSchema = (
   connectionString: string,
   pool: NodePostgresPool,

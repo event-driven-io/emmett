@@ -215,30 +215,35 @@ export const getPostgreSQLEventStore = (
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
 
-  const migrate = async () => {
+  const migrate = async (migrationOptions?: CreateEventStoreSchemaOptions) => {
     if (!migrateSchema) {
-      migrateSchema = createEventStoreSchema(connectionString, pool, {
-        onBeforeSchemaCreated: async (context) => {
-          if (options.hooks?.onBeforeSchemaCreated) {
-            await options.hooks.onBeforeSchemaCreated(context);
-          }
-        },
-        onAfterSchemaCreated: async (context) => {
-          for (const projection of inlineProjections) {
-            if (projection.init) {
-              await projection.init({
-                version: projection.version ?? 1,
-                status: 'active',
-                registrationType: 'inline',
-                context,
-              });
+      migrateSchema = createEventStoreSchema(
+        connectionString,
+        pool,
+        {
+          onBeforeSchemaCreated: async (context) => {
+            if (options.hooks?.onBeforeSchemaCreated) {
+              await options.hooks.onBeforeSchemaCreated(context);
             }
-          }
-          if (options.hooks?.onAfterSchemaCreated) {
-            await options.hooks.onAfterSchemaCreated(context);
-          }
+          },
+          onAfterSchemaCreated: async (context) => {
+            for (const projection of inlineProjections) {
+              if (projection.init) {
+                await projection.init({
+                  version: projection.version ?? 1,
+                  status: 'active',
+                  registrationType: 'inline',
+                  context: { ...context, migrationOptions },
+                });
+              }
+            }
+            if (options.hooks?.onAfterSchemaCreated) {
+              await options.hooks.onAfterSchemaCreated(context);
+            }
+          },
         },
-      });
+        migrationOptions,
+      );
     }
     return migrateSchema;
   };

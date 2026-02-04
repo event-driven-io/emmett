@@ -256,7 +256,7 @@ export const pongoMultiStreamProjection = <
             collectionNameWithVersion,
             options.collectionOptions,
           )
-          .schema.migrate();
+          .schema.migrate(context.migrationOptions);
       } finally {
         await pongo.close();
       }
