@@ -5,6 +5,7 @@ import {
   type NodePostgresConnector,
   type NodePostgresPool,
   type NodePostgresPoolClientConnection,
+  type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
 import {
   assertExpectedVersionMatchesCurrent,
@@ -46,6 +47,7 @@ import {
   streamExists,
   unknownTag,
   type AppendToStreamBeforeCommitHook,
+  type CreateEventStoreSchemaOptions,
   type PostgresStreamExistsOptions,
 } from './schema';
 import { truncateTables } from './schema/truncateTables';
@@ -77,7 +79,9 @@ export interface PostgresEventStore
   schema: {
     sql(): string;
     print(): void;
-    migrate(): Promise<void>;
+    migrate(
+      options?: CreateEventStoreSchemaOptions,
+    ): Promise<RunSQLMigrationsResult>;
     dangerous: {
       truncate(options?: {
         resetSequences?: boolean;
@@ -201,7 +205,7 @@ export const getPostgreSQLEventStore = (
     ...(options.connectionOptions ? options.connectionOptions : {}),
   };
   const pool = 'dumbo' in poolOptions ? poolOptions.dumbo : dumbo(poolOptions);
-  let migrateSchema: Promise<void> | undefined = undefined;
+  let migrateSchema: Promise<RunSQLMigrationsResult> | undefined = undefined;
 
   const autoGenerateSchema =
     options.schema?.autoMigration === undefined ||
