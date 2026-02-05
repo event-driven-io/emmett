@@ -8,6 +8,8 @@ export * from './messageHandling';
 export * from './decider';
 export * from './workflow';
 
+export * from './result';
+
 export type Brand<K, T> = K & { readonly __brand: T };
 export type Flavour<K, T> = K & { readonly __brand?: T };
 
