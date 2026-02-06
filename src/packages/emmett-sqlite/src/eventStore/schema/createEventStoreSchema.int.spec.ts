@@ -14,7 +14,10 @@ void describe('createEventStoreSchema', () => {
   beforeAll(async () => {
     pool = sqlite3Pool({
       fileName: InMemorySQLiteDatabase,
-      transactionOptions: { allowNestedTransactions: true },
+      transactionOptions: {
+        allowNestedTransactions: true,
+        mode: 'session_based',
+      },
     });
 
     await pool.withConnection((connection) =>

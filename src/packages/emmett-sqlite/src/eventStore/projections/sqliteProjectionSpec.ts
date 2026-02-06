@@ -75,7 +75,10 @@ export const SQLiteProjectionSpec = {
       const pool =
         options.pool ??
         dumbo({
-          transactionOptions: { allowNestedTransactions: true },
+          transactionOptions: {
+            allowNestedTransactions: true,
+            mode: 'session_based',
+          },
           ...options,
         } as DumboConnectionOptions<DatabaseDriver>);
       const projection = options.projection;

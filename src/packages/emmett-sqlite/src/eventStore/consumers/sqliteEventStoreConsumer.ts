@@ -65,7 +65,10 @@ export const sqliteEventStoreConsumer = <
   const pool =
     options.pool ??
     dumbo({
-      transactionOptions: { allowNestedTransactions: true },
+      transactionOptions: {
+        allowNestedTransactions: true,
+        mode: 'session_based',
+      },
       ...options,
     } as DumboConnectionOptions<DatabaseDriver>);
 
