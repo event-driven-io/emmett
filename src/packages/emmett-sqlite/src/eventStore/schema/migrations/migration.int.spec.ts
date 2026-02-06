@@ -7,6 +7,7 @@ import {
 import {
   InMemorySQLiteDatabase,
   sqlite3Connection,
+  sqlite3DatabaseDriver,
   sqlite3Pool,
   type SQLite3Connection,
 } from '@event-driven-io/dumbo/sqlite3';
@@ -64,7 +65,9 @@ void describe('Schema migrations tests', () => {
       connection,
     });
 
+    // TODO: Just let Dumbo handle automatically singleton based on fileName
     eventStore = getSQLiteEventStore({
+      driver: sqlite3DatabaseDriver,
       fileName: InMemorySQLiteDatabase,
       pool,
       schema: { autoMigration: 'None' },

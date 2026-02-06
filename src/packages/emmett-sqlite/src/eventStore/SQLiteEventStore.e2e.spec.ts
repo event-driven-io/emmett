@@ -1,4 +1,7 @@
-import { InMemorySQLiteDatabase } from '@event-driven-io/dumbo/sqlite3';
+import {
+  InMemorySQLiteDatabase,
+  sqlite3DatabaseDriver,
+} from '@event-driven-io/dumbo/sqlite3';
 import {
   assertDeepEqual,
   assertEqual,
@@ -42,6 +45,7 @@ void describe('SQLiteEventStore', () => {
 
   void describe('With manual Schema Creation', () => {
     const config: SQLiteEventStoreOptions = {
+      driver: sqlite3DatabaseDriver,
       schema: {
         autoMigration: 'None',
       },
@@ -166,6 +170,7 @@ void describe('SQLiteEventStore', () => {
 
   void it('should automatically create schema', async () => {
     const eventStore = getSQLiteEventStore({
+      driver: sqlite3DatabaseDriver,
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
@@ -192,6 +197,7 @@ void describe('SQLiteEventStore', () => {
 
   void it('should create the sqlite connection in memory, and not close the connection', async () => {
     const eventStore = getSQLiteEventStore({
+      driver: sqlite3DatabaseDriver,
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
@@ -220,6 +226,7 @@ void describe('SQLiteEventStore', () => {
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
+      driver: sqlite3DatabaseDriver,
       fileName,
     });
 
@@ -240,6 +247,7 @@ void describe('SQLiteEventStore', () => {
     assertIsNotNull(events);
     assertEqual(1, events.length);
     const sameEventStore = getSQLiteEventStore({
+      driver: sqlite3DatabaseDriver,
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
@@ -255,6 +263,7 @@ void describe('SQLiteEventStore', () => {
   void it('should allow events to be processed in the onBeforeCommit hook', async () => {
     const savedEvents = [];
     const eventStore = getSQLiteEventStore({
+      driver: sqlite3DatabaseDriver,
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
@@ -393,6 +402,7 @@ void describe('SQLiteEventStore upcasting', () => {
 
   void it('should upcast ISO string to Date and string to BigInt when aggregating', async () => {
     const eventStore = getSQLiteEventStore({
+      driver: sqlite3DatabaseDriver,
       schema: { autoMigration: 'CreateOrUpdate' },
       fileName: InMemorySQLiteDatabase,
     });

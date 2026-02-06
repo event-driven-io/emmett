@@ -32,7 +32,7 @@ export type SQLiteProcessor<EventType extends Event = Event> = {
   isActive: boolean;
   handle: (
     messagesBatch: SQLiteProcessorEventsBatch<EventType>,
-    context: { connection?: AnySQLiteConnection; fileName?: string },
+    context: { connection?: AnySQLiteConnection }, //fileName?: string },
   ) => Promise<SQLiteProcessorMessageHandlerResult>;
 };
 
