@@ -1,4 +1,4 @@
-import { type Sqlite3Pool } from '@event-driven-io/dumbo/sqlite3';
+import type { Dumbo } from '@event-driven-io/dumbo/.';
 import type {
   EmmettError,
   Event,
@@ -35,7 +35,7 @@ export type SQLiteEventStoreMessagesBatchHandler<
 export type SQLiteEventStoreMessageBatchPullerOptions<
   EventType extends Event = Event,
 > = {
-  pool: Sqlite3Pool;
+  pool: Dumbo;
   pullingFrequencyInMs: number;
   batchSize: number;
   eachBatch: SQLiteEventStoreMessagesBatchHandler<EventType>;

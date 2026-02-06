@@ -1,8 +1,9 @@
 import {
-  sqlite3Pool,
-  type SQLite3DumboOptions,
-  type Sqlite3Pool,
-} from '@event-driven-io/dumbo/sqlite3';
+  dumbo,
+  type AnyDumboDatabaseDriver,
+  type Dumbo,
+  type DumboConnectionOptions,
+} from '@event-driven-io/dumbo';
 import { EmmettError, type Event } from '@event-driven-io/emmett';
 import {
   DefaultSQLiteEventStoreProcessorBatchSize,
@@ -29,12 +30,11 @@ export type SQLiteEventStoreConsumerConfig<
 };
 export type SQLiteEventStoreConsumerOptions<
   ConsumerEventType extends Event = Event,
-> = SQLiteEventStoreConsumerConfig<ConsumerEventType> &
-  SQLite3DumboOptions & {
-    pool?: Sqlite3Pool;
-  } & {
-    fileName?: string;
-  };
+  DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+> = SQLiteEventStoreConsumerConfig<ConsumerEventType> & {
+  driver: DatabaseDriver;
+  pool?: Dumbo;
+} & DumboConnectionOptions<DatabaseDriver>;
 
 export type SQLiteEventStoreConsumer<ConsumerEventType extends Event = Event> =
   Readonly<{
@@ -50,8 +50,9 @@ export type SQLiteEventStoreConsumer<ConsumerEventType extends Event = Event> =
 
 export const sqliteEventStoreConsumer = <
   ConsumerEventType extends Event = Event,
+  DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
 >(
-  options: SQLiteEventStoreConsumerOptions<ConsumerEventType>,
+  options: SQLiteEventStoreConsumerOptions<ConsumerEventType, DatabaseDriver>,
 ): SQLiteEventStoreConsumer<ConsumerEventType> => {
   let isRunning = false;
   const { pulling } = options;
@@ -63,10 +64,10 @@ export const sqliteEventStoreConsumer = <
 
   const pool =
     options.pool ??
-    sqlite3Pool({
+    dumbo({
       transactionOptions: { allowNestedTransactions: true },
       ...options,
-    });
+    } as DumboConnectionOptions<DatabaseDriver>);
 
   const eachBatch: SQLiteEventStoreMessagesBatchHandler<ConsumerEventType> = (
     messagesBatch,
@@ -85,7 +86,6 @@ export const sqliteEventStoreConsumer = <
           // TODO: Add here filtering to only pass messages that can be handled by processor
           return s.handle(messagesBatch, {
             connection,
-            fileName: options.fileName,
           });
         }),
       );
@@ -101,7 +101,7 @@ export const sqliteEventStoreConsumer = <
 
   const messagePooler = (currentMessagePuller =
     sqliteEventStoreMessageBatchPuller({
-      pool: pool as Sqlite3Pool,
+      pool,
       eachBatch,
       batchSize:
         pulling?.batchSize ?? DefaultSQLiteEventStoreProcessorBatchSize,

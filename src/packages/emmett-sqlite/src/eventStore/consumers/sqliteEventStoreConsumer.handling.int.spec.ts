@@ -1,5 +1,8 @@
 import { JSONSerializer } from '@event-driven-io/dumbo';
-import { sqlite3Connection } from '@event-driven-io/dumbo/sqlite3';
+import {
+  sqlite3Connection,
+  sqlite3DatabaseDriver,
+} from '@event-driven-io/dumbo/sqlite3';
 import { assertThatArray, type Event } from '@event-driven-io/emmett';
 import fs from 'fs';
 import path from 'path';
@@ -22,6 +25,7 @@ void describe('SQLite event store started consumer', () => {
   const fileName = path.resolve(testDatabasePath, `test.db`);
 
   const config: SQLiteEventStoreOptions = {
+    driver: sqlite3DatabaseDriver,
     schema: {
       autoMigration: 'None',
     },
@@ -68,6 +72,7 @@ void describe('SQLite event store started consumer', () => {
 
         // When
         const consumer = sqliteEventStoreConsumer({
+          driver: sqlite3DatabaseDriver,
           fileName,
         });
         consumer.processor<GuestStayEvent>({
@@ -102,6 +107,7 @@ void describe('SQLite event store started consumer', () => {
 
         // When
         const consumer = sqliteEventStoreConsumer({
+          driver: sqlite3DatabaseDriver,
           fileName,
         });
         consumer.processor<GuestStayEvent>({
@@ -164,6 +170,7 @@ void describe('SQLite event store started consumer', () => {
 
         // When
         const consumer = sqliteEventStoreConsumer({
+          driver: sqlite3DatabaseDriver,
           fileName,
         });
         consumer.processor<GuestStayEvent>({
@@ -220,6 +227,7 @@ void describe('SQLite event store started consumer', () => {
 
         // When
         const consumer = sqliteEventStoreConsumer({
+          driver: sqlite3DatabaseDriver,
           fileName,
         });
         consumer.processor<GuestStayEvent>({
@@ -281,6 +289,7 @@ void describe('SQLite event store started consumer', () => {
 
         // When
         const consumer = sqliteEventStoreConsumer({
+          driver: sqlite3DatabaseDriver,
           fileName,
         });
         consumer.processor<GuestStayEvent>({
@@ -356,6 +365,7 @@ void describe('SQLite event store started consumer', () => {
 
         // When
         const consumer = sqliteEventStoreConsumer({
+          driver: sqlite3DatabaseDriver,
           fileName,
         });
         try {
@@ -371,6 +381,7 @@ void describe('SQLite event store started consumer', () => {
         stopAfterPosition = undefined;
 
         const newConsumer = sqliteEventStoreConsumer({
+          driver: sqlite3DatabaseDriver,
           fileName,
         });
         newConsumer.processor<GuestStayEvent>(processorOptions);

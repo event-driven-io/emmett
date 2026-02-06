@@ -1,10 +1,10 @@
 import {
-  InMemorySQLiteDatabase,
-  sqlite3Pool,
-  type AnySQLiteConnection,
-  type SQLite3DumboOptions,
-  type Sqlite3Pool,
-} from '@event-driven-io/dumbo/sqlite3';
+  dumbo,
+  type AnyDumboDatabaseDriver,
+  type Dumbo,
+  type DumboConnectionOptions,
+} from '@event-driven-io/dumbo';
+import { type AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite3';
 import {
   assertExpectedVersionMatchesCurrent,
   ExpectedVersionConflictError,
@@ -33,13 +33,15 @@ import {
   handleProjections,
   type SQLiteProjectionHandlerContext,
 } from './projections';
-import { createEventStoreSchema, schemaSQL, unknownTag } from './schema';
-import { appendToStream } from './schema/appendToStream';
-import { readStream } from './schema/readStream';
 import {
+  appendToStream,
+  createEventStoreSchema,
+  readStream,
+  schemaSQL,
   streamExists,
+  unknownTag,
   type SQLiteStreamExistsOptions,
-} from './schema/streamExists';
+} from './schema';
 
 export type EventHandler<E extends Event = Event> = (
   eventEnvelope: ReadEvent<E>,
@@ -82,7 +84,10 @@ export type SQLiteReadEvent<EventType extends Event = Event> = ReadEvent<
   SQLiteReadEventMetadata
 >;
 
-export type SQLiteEventStoreOptions = {
+export type SQLiteEventStoreOptions<
+  DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+> = {
+  driver: DatabaseDriver;
   projections?: ProjectionRegistration<
     'inline',
     SQLiteReadEventMetadata,
@@ -91,7 +96,6 @@ export type SQLiteEventStoreOptions = {
   schema?: {
     autoMigration?: 'None' | 'CreateOrUpdate';
   };
-  connectionOptions?: SQLite3DumboOptions;
   hooks?: {
     /**
      * This hook will be called **BEFORE** event store schema is created
@@ -112,25 +116,17 @@ export type SQLiteEventStoreOptions = {
      */
     onAfterSchemaCreated?: () => Promise<void> | void;
   };
-} & { pool?: Sqlite3Pool } & { fileName?: string };
+} & { pool?: Dumbo } & DumboConnectionOptions<DatabaseDriver>;
 
-export const getSQLiteEventStore = (
-  options: SQLiteEventStoreOptions,
+export const getSQLiteEventStore = <
+  DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+>(
+  options: SQLiteEventStoreOptions<DatabaseDriver>,
 ): SQLiteEventStore => {
   let autoGenerateSchema = false;
-  const fileName = options.fileName ?? InMemorySQLiteDatabase;
-
-  const poolOptions: SQLite3DumboOptions = {
-    fileName: fileName,
-    transactionOptions: { allowNestedTransactions: true },
-  };
 
   const pool =
-    options.pool ??
-    sqlite3Pool({
-      ...poolOptions,
-      ...(options.connectionOptions ? options.connectionOptions : {}),
-    } as SQLite3DumboOptions);
+    options.pool ?? dumbo(options as DumboConnectionOptions<DatabaseDriver>);
   let migrateSchema: Promise<void> | undefined = undefined;
 
   const inlineProjections = (options.projections ?? [])
@@ -308,12 +304,12 @@ export const getSQLiteEventStore = (
     },
 
     consumer: <ConsumerEventType extends Event = Event>(
-      options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
+      consumerOptions?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
     ): SQLiteEventStoreConsumer<ConsumerEventType> =>
-      sqliteEventStoreConsumer<ConsumerEventType>({
+      sqliteEventStoreConsumer<ConsumerEventType, DatabaseDriver>({
         ...(options ?? {}),
-        fileName,
-        pool: pool as Sqlite3Pool,
+        ...(consumerOptions ?? {}),
+        pool,
       }),
 
     close: () => pool.close(),
