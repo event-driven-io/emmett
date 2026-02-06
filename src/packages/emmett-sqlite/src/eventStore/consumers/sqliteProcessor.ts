@@ -1,6 +1,4 @@
-import { JSONSerializer } from '@event-driven-io/dumbo';
 import {
-  sqlite3Connection,
   type AnySQLiteConnection,
   type SQLiteTransaction,
 } from '@event-driven-io/dumbo/sqlite3';
@@ -21,7 +19,6 @@ export type SQLiteProcessorEventsBatch<EventType extends Event = Event> = {
 
 export type SQLiteProcessorHandlerContext = {
   connection: AnySQLiteConnection;
-  fileName: string;
 };
 
 export type SQLiteProcessor<EventType extends Event = Event> = {
@@ -119,22 +116,17 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
   let isActive = true;
   //let lastProcessedPosition: number | null = null;
 
-  const getDb = (context: {
+  const mapToContext = (context: {
     connection?: AnySQLiteConnection;
-    fileName?: string;
-  }): { connection: AnySQLiteConnection; fileName: string } => {
-    const fileName = context.fileName ?? options.connectionOptions?.fileName;
-    if (!fileName)
-      throw new EmmettError(
-        `SQLite processor '${options.processorId}' is missing file name. Ensure that you passed it through options`,
-      );
-
+  }): { connection: AnySQLiteConnection } => {
     const connection =
-      context.connection ??
-      options.connectionOptions?.connection ??
-      sqlite3Connection({ fileName, serializer: JSONSerializer });
+      context.connection ?? options.connectionOptions?.connection;
 
-    return { connection, fileName };
+    if (!connection)
+      // TODO: Map it to dumbo connection correctly
+      throw new Error('Connection is required in context or options');
+
+    return { connection };
   };
 
   return {
@@ -165,7 +157,7 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
     ): Promise<SQLiteProcessorMessageHandlerResult> => {
       if (!isActive) return;
 
-      const { connection, fileName } = getDb(context);
+      const { connection } = mapToContext(context);
 
       return connection.withTransaction(async (tx: SQLiteTransaction) => {
         let result: SQLiteProcessorMessageHandlerResult | undefined = undefined;
@@ -180,7 +172,6 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
 
           const messageProcessingResult = await eachMessage(typedMessage, {
             connection: tx.connection,
-            fileName,
           });
 
           const newPosition: bigint | null = getCheckpoint(typedMessage);
