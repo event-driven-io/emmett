@@ -1,5 +1,8 @@
 import { single, SQL, type QueryResultRow } from '@event-driven-io/dumbo';
-import { type AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite3';
+import {
+  sqlite3DatabaseDriver,
+  type AnySQLiteConnection,
+} from '@event-driven-io/dumbo/sqlite3';
 import { assertDeepEqual, JSONParser } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { beforeEach, describe, it } from 'vitest';
@@ -34,6 +37,7 @@ void describe('SQLite Projections', () => {
     shoppingCartId = `shoppingCart:${uuid()}:${uuid()}`;
 
     given = SQLiteProjectionSpec.for({
+      driver: sqlite3DatabaseDriver,
       projection: shoppingCartShortInfoProjection,
     });
   });

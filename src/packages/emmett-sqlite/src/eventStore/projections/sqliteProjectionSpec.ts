@@ -1,13 +1,12 @@
 import {
-  JSONSerializer,
+  dumbo,
   SQL,
+  type AnyDumboDatabaseDriver,
+  type Dumbo,
+  type DumboConnectionOptions,
   type QueryResultRow,
 } from '@event-driven-io/dumbo';
-import {
-  InMemorySQLiteDatabase,
-  sqlite3Connection,
-  type AnySQLiteConnection,
-} from '@event-driven-io/dumbo/sqlite3';
+import { type AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite3';
 import {
   assertFails,
   AssertionError,
@@ -55,23 +54,30 @@ export type SQLiteProjectionAssert = (options: {
   connection: AnySQLiteConnection;
 }) => Promise<void | boolean>;
 
-export type SQLiteProjectionSpecOptions<EventType extends Event> = {
-  fileName?: string;
-  connection?: AnySQLiteConnection;
+export type SQLiteProjectionSpecOptions<
+  EventType extends Event,
+  DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+> = {
   projection: SQLiteProjectionDefinition<EventType>;
-};
+
+  driver: DatabaseDriver;
+  pool?: Dumbo;
+} & DumboConnectionOptions<DatabaseDriver>;
 
 export const SQLiteProjectionSpec = {
-  for: <EventType extends Event>(
-    options: SQLiteProjectionSpecOptions<EventType>,
+  for: <
+    EventType extends Event,
+    DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+  >(
+    options: SQLiteProjectionSpecOptions<EventType, DatabaseDriver>,
   ): SQLiteProjectionSpec<EventType> => {
     {
-      const connection =
-        options.connection ??
-        sqlite3Connection({
-          fileName: options.fileName ?? InMemorySQLiteDatabase,
-          serializer: JSONSerializer,
-        });
+      const pool =
+        options.pool ??
+        dumbo({
+          transactionOptions: { allowNestedTransactions: true },
+          ...options,
+        } as DumboConnectionOptions<DatabaseDriver>);
       const projection = options.projection;
       let wasInitialized = false;
 
@@ -132,11 +138,11 @@ export const SQLiteProjectionSpec = {
             };
 
             return {
-              then: async (
+              then: (
                 assert: SQLiteProjectionAssert,
                 message?: string,
-              ): Promise<void> => {
-                try {
+              ): Promise<void> =>
+                pool.withConnection(async (connection) => {
                   await run(connection);
 
                   const succeeded = await assert({
@@ -148,44 +154,42 @@ export const SQLiteProjectionSpec = {
                       message ??
                         "Projection specification didn't match the criteria",
                     );
-                } finally {
-                  await connection.close();
-                }
-              },
-              thenThrows: async <ErrorType extends Error>(
+                }),
+              thenThrows: <ErrorType extends Error>(
                 ...args: Parameters<ThenThrows<ErrorType>>
-              ): Promise<void> => {
-                try {
-                  await run(connection);
-                  throw new AssertionError('Handler did not fail as expected');
-                } catch (error) {
-                  if (error instanceof AssertionError) throw error;
-
-                  if (args.length === 0) return;
-
-                  if (!isErrorConstructor(args[0])) {
-                    assertTrue(
-                      args[0](error as ErrorType),
-                      `Error didn't match the error condition: ${error?.toString()}`,
+              ): Promise<void> =>
+                pool.withConnection(async (connection) => {
+                  try {
+                    await run(connection);
+                    throw new AssertionError(
+                      'Handler did not fail as expected',
                     );
-                    return;
-                  }
+                  } catch (error) {
+                    if (error instanceof AssertionError) throw error;
 
-                  assertTrue(
-                    error instanceof args[0],
-                    `Caught error is not an instance of the expected type: ${error?.toString()}`,
-                  );
+                    if (args.length === 0) return;
 
-                  if (args[1]) {
+                    if (!isErrorConstructor(args[0])) {
+                      assertTrue(
+                        args[0](error as ErrorType),
+                        `Error didn't match the error condition: ${error?.toString()}`,
+                      );
+                      return;
+                    }
+
                     assertTrue(
-                      args[1](error as ErrorType),
-                      `Error didn't match the error condition: ${error?.toString()}`,
+                      error instanceof args[0],
+                      `Caught error is not an instance of the expected type: ${error?.toString()}`,
                     );
+
+                    if (args[1]) {
+                      assertTrue(
+                        args[1](error as ErrorType),
+                        `Error didn't match the error condition: ${error?.toString()}`,
+                      );
+                    }
                   }
-                } finally {
-                  await connection.close();
-                }
-              },
+                }),
             };
           },
         };
