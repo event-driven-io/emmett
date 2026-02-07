@@ -1,4 +1,10 @@
-import { single, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import {
+  DumboError,
+  single,
+  SQL,
+  UniqueConstraintError,
+  type SQLExecutor,
+} from '@event-driven-io/dumbo';
 import { type PgPool, type PgTransaction } from '@event-driven-io/dumbo/pg';
 import {
   NO_CONCURRENCY_CHECK,
@@ -268,7 +274,9 @@ const toExpectedVersion = (
 };
 
 const isOptimisticConcurrencyError = (error: unknown): boolean =>
-  error instanceof Error && 'code' in error && error.code === '23505';
+  DumboError.isInstanceOf(error, {
+    errorType: UniqueConstraintError.ErrorType,
+  });
 
 type AppendToStreamSqlResult = {
   success: boolean;
