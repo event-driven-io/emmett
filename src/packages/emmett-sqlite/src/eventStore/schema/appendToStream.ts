@@ -19,6 +19,8 @@ import {
   type ExpectedStreamVersion,
   type Event as Message,
   type RecordedMessage,
+  ExpectedVersionConflictError,
+  isExpectedVersionConflictError,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import type {
@@ -76,25 +78,38 @@ export const appendToStream = async <MessageType extends Message>(
       }) as RecordedMessage<MessageType, SQLiteReadEventMetadata>,
   );
 
-  return await connection.withTransaction(
-    async (transaction: AnyDatabaseTransaction) => {
-      const result = await appendToStreamRaw(
-        transaction.execute,
-        streamName,
-        streamType,
-        downcastRecordedMessages(messagesToAppend, options?.schema?.versioning),
-        {
-          expectedStreamVersion,
-        },
-      );
+  try {
+    return await connection.withTransaction(
+      async (transaction: AnyDatabaseTransaction) => {
+        const result = await appendToStreamRaw(
+          transaction.execute,
+          streamName,
+          streamType,
+          downcastRecordedMessages(
+            messagesToAppend,
+            options?.schema?.versioning,
+          ),
+          {
+            expectedStreamVersion,
+          },
+        );
 
-      if (options?.onBeforeCommit)
-        await options.onBeforeCommit(messagesToAppend, { connection });
+        if (options?.onBeforeCommit)
+          await options.onBeforeCommit(messagesToAppend, { connection });
 
-      // TODO: Refactor this to map or not success from appendToStreamRaw
-      return { success: true, result };
-    },
-  );
+        // TODO: Refactor this to map or not success from appendToStreamRaw
+        return { success: true, result };
+      },
+    );
+  } catch (err: unknown) {
+    if (
+      isExpectedVersionConflictError(err) ||
+      (isSQLiteError(err) && isOptimisticConcurrencyError(err))
+    ) {
+      return { success: false };
+    }
+    throw err;
+  }
 };
 
 const toExpectedVersion = (
@@ -123,28 +138,19 @@ const appendToStreamRaw = async (
     partition?: string;
   },
 ): Promise<AppendEventResult> => {
-  let streamPosition;
-  let globalPosition;
+  let expectedStreamVersion = options?.expectedStreamVersion ?? null;
 
-  try {
-    let expectedStreamVersion = options?.expectedStreamVersion ?? null;
+  if (expectedStreamVersion == null) {
+    expectedStreamVersion = await getLastStreamPosition(
+      execute,
+      streamId,
+      expectedStreamVersion,
+    );
+  }
 
-    if (expectedStreamVersion == null) {
-      expectedStreamVersion = await getLastStreamPosition(
-        execute,
-        streamId,
-        expectedStreamVersion,
-      );
-    }
-
-    let position: { stream_position: string } | null;
-
-    if (expectedStreamVersion === 0n) {
-      position = await singleOrNull(
-        execute.query<{
-          stream_position: string;
-        }>(
-          SQL`INSERT INTO ${identifier(streamsTable.name)}
+  const streamSQL =
+    expectedStreamVersion === 0n
+      ? SQL`INSERT INTO ${identifier(streamsTable.name)}
             (stream_id, stream_position, partition, stream_type, stream_metadata, is_archived)
             VALUES  (
                 ${streamId},
@@ -155,76 +161,41 @@ const appendToStreamRaw = async (
                 false
             )
             RETURNING stream_position;
-          `,
-        ),
-      );
-    } else {
-      position = await singleOrNull(
-        execute.query<{
-          stream_position: string;
-        }>(
-          SQL`UPDATE ${identifier(streamsTable.name)}
+          `
+      : SQL`UPDATE ${identifier(streamsTable.name)}
             SET stream_position = stream_position + ${messages.length}
             WHERE stream_id = ${streamId}
+            AND stream_position = ${expectedStreamVersion}
             AND partition = ${options?.partition ?? streamsTable.columns.partition}
             AND is_archived = false
             RETURNING stream_position;
-          `,
-        ),
-      );
-    }
+          `;
 
-    if (position == null) {
-      throw new Error('Could not find stream position');
-    }
+  const insertSQL = buildMessageInsertQuery(
+    messages,
+    expectedStreamVersion,
+    streamId,
+    options?.partition?.toString() ?? defaultTag,
+  );
 
-    streamPosition = BigInt(position.stream_position);
+  const results = await execute.batchCommand<{
+    stream_position?: string;
+    global_position?: string;
+  }>([streamSQL, insertSQL]);
 
-    if (expectedStreamVersion != null) {
-      const expectedStreamPositionAfterSave =
-        BigInt(expectedStreamVersion) + BigInt(messages.length);
-      if (streamPosition !== expectedStreamPositionAfterSave) {
-        return {
-          success: false,
-        };
-      }
-    }
+  const [streamResult, messagesResult] = results;
 
-    const insertSQL = buildMessageInsertQuery(
-      messages,
-      expectedStreamVersion,
-      streamId,
-      options?.partition?.toString() ?? defaultTag,
-    );
+  const streamPosition = streamResult?.rows[0]?.stream_position;
+  const globalPosition = messagesResult?.rows.at(-1)?.global_position;
 
-    const { rows: returningIds } = await execute.query<{
-      global_position: string;
-    }>(insertSQL);
-
-    if (
-      returningIds.length === 0 ||
-      !returningIds[returningIds.length - 1]?.global_position
-    ) {
-      throw new Error('Could not find global position');
-    }
-
-    globalPosition = BigInt(
-      returningIds[returningIds.length - 1]!.global_position,
-    );
-  } catch (err: unknown) {
-    if (isSQLiteError(err) && isOptimisticConcurrencyError(err)) {
-      return {
-        success: false,
-      };
-    }
-
-    throw err;
-  }
+  if (!streamPosition)
+    throw new ExpectedVersionConflictError(0n, expectedStreamVersion ?? 0n);
+  if (!globalPosition) throw new Error('Could not find global position');
 
   return {
     success: true,
-    nextStreamPosition: streamPosition,
-    lastGlobalPosition: globalPosition,
+    nextStreamPosition: BigInt(streamPosition),
+    lastGlobalPosition: BigInt(globalPosition),
   };
 };
 
