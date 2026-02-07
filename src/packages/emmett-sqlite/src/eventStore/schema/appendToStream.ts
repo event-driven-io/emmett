@@ -1,16 +1,17 @@
 import {
+  BatchCommandNoChangesError,
+  DumboError,
   singleOrNull,
   SQL,
+  UniqueConstraintError,
   type AnyDatabaseTransaction,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
-import {
-  isSQLiteError,
-  type AnySQLiteConnection,
-  type SQLiteError,
-} from '@event-driven-io/dumbo/sqlite3';
+import { type AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite3';
 import {
   downcastRecordedMessages,
+  ExpectedVersionConflictError,
+  isExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
@@ -19,8 +20,6 @@ import {
   type ExpectedStreamVersion,
   type Event as Message,
   type RecordedMessage,
-  ExpectedVersionConflictError,
-  isExpectedVersionConflictError,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import type {
@@ -104,7 +103,12 @@ export const appendToStream = async <MessageType extends Message>(
   } catch (err: unknown) {
     if (
       isExpectedVersionConflictError(err) ||
-      (isSQLiteError(err) && isOptimisticConcurrencyError(err))
+      DumboError.isInstanceOf(err, {
+        errorType: UniqueConstraintError.ErrorType,
+      }) ||
+      DumboError.isInstanceOf(err, {
+        errorType: BatchCommandNoChangesError.ErrorType,
+      })
     ) {
       return { success: false };
     }
@@ -140,10 +144,19 @@ const appendToStreamRaw = async (
 ): Promise<AppendEventResult> => {
   let expectedStreamVersion = options?.expectedStreamVersion ?? null;
 
-  if (expectedStreamVersion == null) {
-    expectedStreamVersion = await getLastStreamPosition(
-      execute,
-      streamId,
+  // TODO: Add eventually strategy not to call that for sqlite,
+  // Now it's a shortcut to make it right for D1 trading of a bit performance
+  const currentStreamVersion: bigint | null = await getLastStreamPosition(
+    execute,
+    streamId,
+    expectedStreamVersion,
+  );
+
+  expectedStreamVersion ??= currentStreamVersion ?? 0n;
+
+  if (expectedStreamVersion !== currentStreamVersion) {
+    throw new ExpectedVersionConflictError(
+      currentStreamVersion,
       expectedStreamVersion,
     );
   }
@@ -181,7 +194,7 @@ const appendToStreamRaw = async (
   const results = await execute.batchCommand<{
     stream_position?: string;
     global_position?: string;
-  }>([streamSQL, insertSQL]);
+  }>([streamSQL, insertSQL], { assertChanges: true });
 
   const [streamResult, messagesResult] = results;
 
@@ -197,10 +210,6 @@ const appendToStreamRaw = async (
     nextStreamPosition: BigInt(streamPosition),
     lastGlobalPosition: BigInt(globalPosition),
   };
-};
-
-const isOptimisticConcurrencyError = (error: SQLiteError): boolean => {
-  return error?.errno !== undefined && error.errno === 19;
 };
 
 async function getLastStreamPosition(
