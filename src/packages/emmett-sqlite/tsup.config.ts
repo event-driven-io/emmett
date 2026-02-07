@@ -14,7 +14,7 @@ export default defineConfig({
   watch: env === 'development',
   target: 'esnext',
   outDir: 'dist', //env === 'production' ? 'dist' : 'lib',
-  entry: ['src/index.ts', 'src/cli.ts'],
+  entry: ['src/index.ts', 'src/cli.ts', 'src/cloudflare.ts', 'src/sqlite3.ts'],
   sourcemap: true,
   external: [
     'sqlite3',

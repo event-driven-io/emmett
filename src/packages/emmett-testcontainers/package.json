@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/emmett-testcontainers",
-  "version": "0.43.0-apha.2",
+  "version": "0.43.0-alpha.3",
   "type": "module",
   "description": "Emmett - TestContainers - Event Sourcing development made simple",
   "scripts": {
@@ -47,7 +47,7 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/emmett": "0.43.0-apha.2",
+    "@event-driven-io/emmett": "0.43.0-alpha.3",
     "@testcontainers/mongodb": "^11.11.0",
     "@testcontainers/postgresql": "^11.11.0",
     "testcontainers": "^11.11.0"
