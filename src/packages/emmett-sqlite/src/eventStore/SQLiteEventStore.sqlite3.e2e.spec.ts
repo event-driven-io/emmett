@@ -1,7 +1,4 @@
-import {
-  InMemorySQLiteDatabase,
-  sqlite3DatabaseDriver,
-} from '@event-driven-io/dumbo/sqlite3';
+import { InMemorySQLiteDatabase } from '@event-driven-io/dumbo/sqlite3';
 import {
   assertDeepEqual,
   assertEqual,
@@ -15,6 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
+import { sqlite3EventStoreDriver } from '../sqlite3';
 import {
   type DiscountApplied,
   type PricedProductItem,
@@ -45,7 +43,7 @@ void describe('SQLiteEventStore', () => {
 
   void describe('With manual Schema Creation', () => {
     const config: SQLiteEventStoreOptions = {
-      driver: sqlite3DatabaseDriver,
+      driver: sqlite3EventStoreDriver,
       schema: {
         autoMigration: 'None',
       },
@@ -170,7 +168,7 @@ void describe('SQLiteEventStore', () => {
 
   void it('should automatically create schema', async () => {
     const eventStore = getSQLiteEventStore({
-      driver: sqlite3DatabaseDriver,
+      driver: sqlite3EventStoreDriver,
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
@@ -197,7 +195,7 @@ void describe('SQLiteEventStore', () => {
 
   void it('should create the sqlite connection in memory, and not close the connection', async () => {
     const eventStore = getSQLiteEventStore({
-      driver: sqlite3DatabaseDriver,
+      driver: sqlite3EventStoreDriver,
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
@@ -226,7 +224,7 @@ void describe('SQLiteEventStore', () => {
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
-      driver: sqlite3DatabaseDriver,
+      driver: sqlite3EventStoreDriver,
       fileName,
     });
 
@@ -247,7 +245,7 @@ void describe('SQLiteEventStore', () => {
     assertIsNotNull(events);
     assertEqual(1, events.length);
     const sameEventStore = getSQLiteEventStore({
-      driver: sqlite3DatabaseDriver,
+      driver: sqlite3EventStoreDriver,
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
@@ -263,7 +261,7 @@ void describe('SQLiteEventStore', () => {
   void it('should allow events to be processed in the onBeforeCommit hook', async () => {
     const savedEvents = [];
     const eventStore = getSQLiteEventStore({
-      driver: sqlite3DatabaseDriver,
+      driver: sqlite3EventStoreDriver,
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
@@ -402,7 +400,7 @@ void describe('SQLiteEventStore upcasting', () => {
 
   void it('should upcast ISO string to Date and string to BigInt when aggregating', async () => {
     const eventStore = getSQLiteEventStore({
-      driver: sqlite3DatabaseDriver,
+      driver: sqlite3EventStoreDriver,
       schema: { autoMigration: 'CreateOrUpdate' },
       fileName: InMemorySQLiteDatabase,
     });
