@@ -1,5 +1,10 @@
-import { singleOrNull, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
-import { isSQLiteError } from '@event-driven-io/dumbo/sqlite';
+import {
+  DumboError,
+  singleOrNull,
+  SQL,
+  UniqueConstraintError,
+  type SQLExecutor,
+} from '@event-driven-io/dumbo';
 import { defaultTag, processorsTable, unknownTag } from './typing';
 
 const { identifier } = SQL;
@@ -62,7 +67,11 @@ async function storeSubscriptionCheckpointSQLite(
       );
       return 1;
     } catch (err) {
-      if (!(isSQLiteError(err) && (err.errno === 19 || err.errno === 2067))) {
+      if (
+        !DumboError.isInstanceOf(err, {
+          errorType: UniqueConstraintError.ErrorType,
+        })
+      ) {
         throw err;
       }
 
