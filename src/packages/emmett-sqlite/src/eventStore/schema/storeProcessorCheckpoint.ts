@@ -1,5 +1,5 @@
 import { singleOrNull, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
-import { isSQLiteError } from '@event-driven-io/dumbo/sqlite3';
+import { isSQLiteError } from '@event-driven-io/dumbo/sqlite';
 import { defaultTag, processorsTable, unknownTag } from './typing';
 
 const { identifier } = SQL;

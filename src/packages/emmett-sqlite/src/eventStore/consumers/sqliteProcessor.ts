@@ -1,7 +1,7 @@
 import {
   type AnySQLiteConnection,
   type SQLiteTransaction,
-} from '@event-driven-io/dumbo/sqlite3';
+} from '@event-driven-io/dumbo/sqlite';
 import {
   EmmettError,
   getCheckpoint,

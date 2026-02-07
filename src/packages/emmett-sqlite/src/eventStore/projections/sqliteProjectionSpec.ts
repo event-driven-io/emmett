@@ -6,7 +6,7 @@ import {
   type DumboConnectionOptions,
   type QueryResultRow,
 } from '@event-driven-io/dumbo';
-import { type AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite3';
+import { type AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   assertFails,
   AssertionError,
