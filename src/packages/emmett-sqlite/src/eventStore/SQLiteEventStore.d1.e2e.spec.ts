@@ -1,5 +1,4 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { d1DatabaseDriver } from '@event-driven-io/dumbo/cloudflare';
 import {
   assertDeepEqual,
   assertEqual,
@@ -18,6 +17,7 @@ import {
   describe,
   it,
 } from 'vitest';
+import { d1EventStoreDriver } from '../cloudflare';
 import {
   type DiscountApplied,
   type PricedProductItem,
@@ -44,7 +44,7 @@ void describe('SQLiteEventStore', () => {
     });
     database = await mf.getD1Database('DB');
     config = {
-      driver: d1DatabaseDriver,
+      driver: d1EventStoreDriver,
       schema: {
         autoMigration: 'None',
       },
@@ -175,7 +175,7 @@ void describe('SQLiteEventStore', () => {
 
   void it('should automatically create schema', async () => {
     const eventStore = getSQLiteEventStore({
-      driver: d1DatabaseDriver,
+      driver: d1EventStoreDriver,
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
@@ -205,7 +205,7 @@ void describe('SQLiteEventStore', () => {
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
-      driver: d1DatabaseDriver,
+      driver: d1EventStoreDriver,
       database,
     });
 
@@ -226,7 +226,7 @@ void describe('SQLiteEventStore', () => {
     assertIsNotNull(events);
     assertEqual(1, events.length);
     const sameEventStore = getSQLiteEventStore({
-      driver: d1DatabaseDriver,
+      driver: d1EventStoreDriver,
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
@@ -242,7 +242,7 @@ void describe('SQLiteEventStore', () => {
   void it('should allow events to be processed in the onBeforeCommit hook', async () => {
     const savedEvents = [];
     const eventStore = getSQLiteEventStore({
-      driver: d1DatabaseDriver,
+      driver: d1EventStoreDriver,
       schema: {
         autoMigration: 'CreateOrUpdate',
       },
@@ -397,7 +397,7 @@ void describe('SQLiteEventStore upcasting', () => {
 
   void it('should upcast ISO string to Date and string to BigInt when aggregating', async () => {
     const eventStore = getSQLiteEventStore({
-      driver: d1DatabaseDriver,
+      driver: d1EventStoreDriver,
       schema: { autoMigration: 'CreateOrUpdate' },
       database,
     });

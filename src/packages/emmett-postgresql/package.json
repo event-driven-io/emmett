@@ -54,9 +54,6 @@
   },
   "typesVersions": {
     "*": {
-      ".": [
-        "./dist/index.d.ts"
-      ],
       "cli": [
         "./dist/cli.d.ts"
       ]

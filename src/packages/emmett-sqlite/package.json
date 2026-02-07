@@ -50,15 +50,38 @@
         "types": "./dist/cli.d.cts",
         "default": "./dist/cli.cjs"
       }
+    },
+    "./sqlite3": {
+      "import": {
+        "types": "./dist/sqlite3.d.ts",
+        "default": "./dist/sqlite3.js"
+      },
+      "require": {
+        "types": "./dist/sqlite3.d.cts",
+        "default": "./dist/sqlite3.cjs"
+      }
+    },
+    "./cloudflare": {
+      "import": {
+        "types": "./dist/cloudflare.d.ts",
+        "default": "./dist/cloudflare.js"
+      },
+      "require": {
+        "types": "./dist/cloudflare.d.cts",
+        "default": "./dist/cloudflare.cjs"
+      }
     }
   },
   "typesVersions": {
     "*": {
-      ".": [
-        "./dist/index.d.ts"
-      ],
       "cli": [
         "./dist/cli.d.ts"
+      ],
+      "sqlite3": [
+        "./dist/sqlite3.d.ts"
+      ],
+      "cloudflare": [
+        "./dist/cloudflare.d.ts"
       ]
     }
   },

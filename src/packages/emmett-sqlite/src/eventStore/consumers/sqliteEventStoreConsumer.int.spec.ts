@@ -1,7 +1,4 @@
-import {
-  InMemorySQLiteDatabase,
-  sqlite3DatabaseDriver,
-} from '@event-driven-io/dumbo/sqlite3';
+import { InMemorySQLiteDatabase } from '@event-driven-io/dumbo/sqlite3';
 import {
   assertFalse,
   assertThrowsAsync,
@@ -9,6 +6,7 @@ import {
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
+import { sqlite3EventStoreDriver } from '../../sqlite3';
 import {
   sqliteEventStoreConsumer,
   type SQLiteEventStoreConsumer,
@@ -25,7 +23,7 @@ void describe('SQLite event store consumer', () => {
 
   void it('creates not-started consumer for the specified connection string', () => {
     const consumer = sqliteEventStoreConsumer({
-      driver: sqlite3DatabaseDriver,
+      driver: sqlite3EventStoreDriver,
       fileName: InMemorySQLiteDatabase,
       processors: [dummyProcessor],
     });
@@ -38,7 +36,7 @@ void describe('SQLite event store consumer', () => {
 
     beforeEach(() => {
       consumer = sqliteEventStoreConsumer({
-        driver: sqlite3DatabaseDriver,
+        driver: sqlite3EventStoreDriver,
         fileName: InMemorySQLiteDatabase,
         processors: [dummyProcessor],
       });
@@ -47,7 +45,7 @@ void describe('SQLite event store consumer', () => {
 
     void it('fails to start if there are no processors', async () => {
       const consumerToNotExistingServer = sqliteEventStoreConsumer({
-        driver: sqlite3DatabaseDriver,
+        driver: sqlite3EventStoreDriver,
         fileName: InMemorySQLiteDatabase,
         processors: [],
       });
@@ -81,7 +79,7 @@ void describe('SQLite event store consumer', () => {
 
     beforeEach(() => {
       consumer = sqliteEventStoreConsumer({
-        driver: sqlite3DatabaseDriver,
+        driver: sqlite3EventStoreDriver,
         fileName: InMemorySQLiteDatabase,
         processors: [dummyProcessor],
       });
