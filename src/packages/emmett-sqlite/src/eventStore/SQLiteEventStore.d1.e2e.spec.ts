@@ -34,6 +34,7 @@ void describe('SQLiteEventStore', () => {
   let mf: Miniflare;
   let database: D1Database;
   let eventStore: SQLiteEventStore;
+  let config: SQLiteEventStoreOptions;
 
   beforeAll(async () => {
     mf = new Miniflare({
@@ -42,6 +43,13 @@ void describe('SQLiteEventStore', () => {
       d1Databases: { DB: 'test-db-id' },
     });
     database = await mf.getD1Database('DB');
+    config = {
+      driver: d1DatabaseDriver,
+      schema: {
+        autoMigration: 'None',
+      },
+      database,
+    };
   });
 
   afterAll(async () => {
@@ -49,14 +57,6 @@ void describe('SQLiteEventStore', () => {
   });
 
   void describe('With manual Schema Creation', () => {
-    const config: SQLiteEventStoreOptions = {
-      driver: d1DatabaseDriver,
-      schema: {
-        autoMigration: 'None',
-      },
-      database,
-    };
-
     beforeEach(async () => {
       eventStore = getSQLiteEventStore(config);
       await eventStore.schema.migrate();

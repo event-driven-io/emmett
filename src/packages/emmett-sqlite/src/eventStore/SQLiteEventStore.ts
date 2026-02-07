@@ -126,7 +126,14 @@ export const getSQLiteEventStore = <
   let autoGenerateSchema = false;
 
   const pool =
-    options.pool ?? dumbo(options as DumboConnectionOptions<DatabaseDriver>);
+    options.pool ??
+    dumbo({
+      transactionOptions: {
+        allowNestedTransactions: true,
+        mode: 'session_based',
+      },
+      ...options,
+    } as DumboConnectionOptions<DatabaseDriver>);
   let migrateSchema: Promise<void> | undefined = undefined;
 
   const inlineProjections = (options.projections ?? [])
