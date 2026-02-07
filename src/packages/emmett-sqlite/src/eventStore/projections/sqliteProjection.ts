@@ -1,5 +1,5 @@
 import type { SQL } from '@event-driven-io/dumbo';
-import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite3';
+import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   projection,
   type CanHandle,
