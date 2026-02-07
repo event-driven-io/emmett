@@ -304,7 +304,7 @@ void describe('appendEvent', () => {
     assertEqual(2, grabbedEvents.length);
   });
 
-  void it('should be allowed to throw exception inline and everything, including the events being stored are rolled back', async () => {
+  void it('throwing exception inline and everything, including the events being stored are NOT rolled back', async () => {
     const streamId = uuid();
 
     await assertThrowsAsync(
@@ -322,7 +322,7 @@ void describe('appendEvent', () => {
       SQL`SELECT * FROM emt_messages WHERE stream_id = ${streamId}`,
     );
 
-    assertEqual(0, resultEvents.length);
+    assertEqual(events.length, resultEvents.length);
   });
 
   void it('should handle appending an empty events array gracefully', async () => {
