@@ -17,7 +17,7 @@ import {
   type ThenThrows,
 } from '../../../testing';
 import type { CombinedReadEventMetadata, ReadEvent } from '../../../typing';
-import { type Event } from '../../../typing';
+import type { Event } from '../../../typing';
 import type {
   InMemoryEventStore,
   InMemoryReadEventMetadata,

@@ -1,11 +1,11 @@
-import {
-  type AnyConnection,
-  type DatabaseTransaction,
-  type Dumbo,
-  type SQL,
-  type SQLExecutor,
+import type {
+  AnyConnection,
+  DatabaseTransaction,
+  Dumbo,
+  SQL,
+  SQLExecutor,
 } from '@event-driven-io/dumbo';
-import { type PgClient, type PgTransaction } from '@event-driven-io/dumbo/pg';
+import type { PgClient, PgTransaction } from '@event-driven-io/dumbo/pg';
 import {
   projection,
   type CanHandle,

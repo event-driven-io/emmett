@@ -1,4 +1,4 @@
-import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
@@ -10,9 +10,9 @@ import {
   pongoSingleStreamProjection,
   PostgreSQLProjectionSpec,
 } from '.';
-import {
-  type DiscountApplied,
-  type ProductItemAdded,
+import type {
+  DiscountApplied,
+  ProductItemAdded,
 } from '../../testing/shoppingCart.domain';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 

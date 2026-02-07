@@ -6,7 +6,7 @@ import {
   projections,
   STREAM_DOES_NOT_EXIST,
 } from '@event-driven-io/emmett';
-import { type StartedMongoDBContainer } from '@testcontainers/mongodb';
+import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient, type Collection } from 'mongodb';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -18,12 +18,12 @@ import {
   type EventStream,
   type MongoDBEventStore,
 } from '../';
-import {
-  type DeletedShoppingCart,
-  type DiscountApplied,
-  type PricedProductItem,
-  type ProductItemAdded,
-  type ShoppingCartEvent,
+import type {
+  DeletedShoppingCart,
+  DiscountApplied,
+  PricedProductItem,
+  ProductItemAdded,
+  ShoppingCartEvent,
 } from '../../testing';
 import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 

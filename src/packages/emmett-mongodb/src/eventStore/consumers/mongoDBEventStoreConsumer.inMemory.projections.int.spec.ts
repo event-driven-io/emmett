@@ -7,7 +7,7 @@ import {
   type InMemoryDocumentsCollection,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import { type StartedMongoDBContainer } from '@testcontainers/mongodb';
+import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import type {

@@ -12,16 +12,16 @@ import type {
   ReadEventMetadataWithGlobalPosition,
 } from '../typing';
 import { tryPublishMessagesAfterCommit } from './afterCommit';
-import {
-  type AggregateStreamOptions,
-  type AggregateStreamResult,
-  type AppendToStreamOptions,
-  type AppendToStreamResult,
-  type DefaultEventStoreOptions,
-  type EventStore,
-  type ReadStreamOptions,
-  type ReadStreamResult,
-  type StreamExistsResult,
+import type {
+  AggregateStreamOptions,
+  AggregateStreamResult,
+  AppendToStreamOptions,
+  AppendToStreamResult,
+  DefaultEventStoreOptions,
+  EventStore,
+  ReadStreamOptions,
+  ReadStreamResult,
+  StreamExistsResult,
 } from './eventStore';
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
 import { handleInMemoryProjections } from './projections/inMemory';

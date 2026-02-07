@@ -1,3 +1,4 @@
+import type { MessageProcessor } from '@event-driven-io/emmett';
 import {
   type AnyEvent,
   type AnyMessage,
@@ -6,7 +7,6 @@ import {
   type Message,
   type MessageHandlerResult,
   type MessageProcessingScope,
-  MessageProcessor,
   type ProjectorOptions,
   type ReactorOptions,
   projector,

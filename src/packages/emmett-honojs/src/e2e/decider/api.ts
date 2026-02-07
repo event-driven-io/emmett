@@ -17,7 +17,7 @@ import {
   toWeakETag,
 } from '../..';
 import { decider } from './businessLogic';
-import { type PricedProductItem, type ProductItem } from './shoppingCart';
+import type { PricedProductItem, ProductItem } from './shoppingCart';
 
 type AddProductItemContext = ContextWithBody<{
   productId: string;

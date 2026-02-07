@@ -22,10 +22,10 @@ import {
   type RecordedMessage,
   type StreamExistsResult,
 } from '@event-driven-io/emmett';
+import type { EventStoreDBClient } from '@eventstore/db-client';
 import {
   ANY,
   STREAM_EXISTS as ESDB_STREAM_EXISTS,
-  EventStoreDBClient,
   NO_STREAM,
   StreamNotFoundError,
   WrongExpectedVersionError,

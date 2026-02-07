@@ -1,5 +1,5 @@
 import type { ReadEvent } from '@event-driven-io/emmett';
-import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
@@ -11,9 +11,9 @@ import {
   pongoMultiStreamProjection,
   PostgreSQLProjectionSpec,
 } from '.';
-import {
-  type ProductItemAdded,
-  type ShoppingCartConfirmed,
+import type {
+  ProductItemAdded,
+  ShoppingCartConfirmed,
 } from '../../testing/shoppingCart.domain';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 

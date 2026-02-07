@@ -10,10 +10,8 @@ import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from '@event-driven-io/emmett-postgresql';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
 
 void describe('ShoppingCart E2E', () => {
   let postgreSQLContainer: StartedPostgreSqlContainer;

@@ -6,7 +6,7 @@ import {
   EmmettError,
   type ProjectionRegistration,
 } from '@event-driven-io/emmett';
-import { MongoParseError } from 'mongodb';
+import type { MongoParseError } from 'mongodb';
 import { describe, it } from 'node:test';
 import {
   getMongoDBEventStore,

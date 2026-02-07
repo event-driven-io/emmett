@@ -7,7 +7,7 @@ import {
   type EventStore,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import { type Request, type Router } from 'express';
+import type { Request, Router } from 'express';
 import {
   Created,
   NoContent,
@@ -16,7 +16,7 @@ import {
   toWeakETag,
 } from '../../';
 import { decider } from './businessLogic';
-import { type PricedProductItem, type ProductItem } from './shoppingCart';
+import type { PricedProductItem, ProductItem } from './shoppingCart';
 
 export const handle = DeciderCommandHandler(decider);
 

@@ -6,11 +6,11 @@ import {
   STREAM_DOES_NOT_EXIST,
   type Event,
 } from '@event-driven-io/emmett';
-import { type StartedMongoDBContainer } from '@testcontainers/mongodb';
+import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient, type Collection } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
-import { type PricedProductItem, type ShoppingCartEvent } from '../testing';
+import type { PricedProductItem, ShoppingCartEvent } from '../testing';
 import {
   getMongoDBEventStore,
   toStreamCollectionName,

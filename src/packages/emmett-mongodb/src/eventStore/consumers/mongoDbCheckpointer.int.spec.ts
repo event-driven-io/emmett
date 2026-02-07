@@ -1,5 +1,5 @@
 import { assertDeepEqual } from '@event-driven-io/emmett';
-import { type StartedMongoDBContainer } from '@testcontainers/mongodb';
+import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import {

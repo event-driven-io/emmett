@@ -6,10 +6,8 @@ import type {
 import { v4 as uuid } from 'uuid';
 import { notifyAboutNoActiveReadersStream } from '../../streaming/transformations/notifyAboutNoActiveReaders';
 import { writeToStream } from '../../streaming/writers';
-import {
-  CaughtUpTransformStream,
-  streamTrackingGlobalPosition,
-} from './caughtUpTransformStream';
+import type { CaughtUpTransformStream } from './caughtUpTransformStream';
+import { streamTrackingGlobalPosition } from './caughtUpTransformStream';
 
 export const StreamingCoordinator = () => {
   const allEvents: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[] = [];

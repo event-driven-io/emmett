@@ -4,13 +4,9 @@ import {
   assertPositiveNumber,
   type EventStore,
 } from '@event-driven-io/emmett';
-import {
-  type FastifyInstance,
-  type FastifyReply,
-  type FastifyRequest,
-} from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { decider } from './businessLogic';
-import { type PricedProductItem, type ProductItem } from './shoppingCart';
+import type { PricedProductItem, ProductItem } from './shoppingCart';
 
 export const handle = DeciderCommandHandler(decider);
 const dummyPriceProvider = (_productId: string) => {

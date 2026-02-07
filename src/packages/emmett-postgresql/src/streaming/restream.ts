@@ -1,8 +1,8 @@
 import type { AsyncRetryOptions } from '@event-driven-io/emmett';
-import {
-  type ReadableStream,
-  type ReadableStreamReadResult,
-  type TransformStreamDefaultController,
+import type {
+  ReadableStream,
+  ReadableStreamReadResult,
+  TransformStreamDefaultController,
 } from 'node:stream/web';
 import type { Decoder } from './decoders';
 import { DefaultDecoder } from './decoders/composite';

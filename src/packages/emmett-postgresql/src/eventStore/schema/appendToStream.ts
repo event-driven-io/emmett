@@ -5,7 +5,7 @@ import {
   UniqueConstraintError,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
-import { type PgPool, type PgTransaction } from '@event-driven-io/dumbo/pg';
+import type { PgPool, PgTransaction } from '@event-driven-io/dumbo/pg';
 import {
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,

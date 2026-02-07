@@ -6,7 +6,7 @@ import {
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import type { PostgreSQLProjectionDefinition } from '../projections';
-import { type LockAcquisitionPolicy } from '../projections/locks';
+import type { LockAcquisitionPolicy } from '../projections/locks';
 import {
   postgreSQLEventStoreConsumer,
   type PostgreSQLEventStoreConsumer,

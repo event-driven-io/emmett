@@ -2,7 +2,7 @@ import { dumbo, SQL } from '@event-driven-io/dumbo';
 import { pgDatabaseDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import { assertFalse, assertTrue, type Event } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import { type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import { createEventStoreSchema, defaultTag } from '.';

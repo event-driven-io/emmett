@@ -6,7 +6,7 @@ import {
   getInMemoryEventStore,
   type EventStore,
 } from '@event-driven-io/emmett';
-import { type FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it } from 'node:test';
 import { getApplication } from '../..';

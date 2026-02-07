@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import { IllegalStateError, ValidationError } from '../errors';
 import { AssertionError, assertThrows } from '../testing/assertions';
-import { type Command, type Event } from '../typing';
+import type { Command, Event } from '../typing';
 import { DeciderSpecification } from './deciderSpecification';
 
 type DoSomething = Command<'Do', { something: string }>;

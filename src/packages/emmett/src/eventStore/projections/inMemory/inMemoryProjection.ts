@@ -4,9 +4,9 @@ import type {
   TruncateProjection,
 } from '../../../projections';
 import type { CanHandle, Event, ReadEvent } from '../../../typing';
-import {
-  type InMemoryProjectionHandlerContext,
-  type InMemoryReadEventMetadata,
+import type {
+  InMemoryProjectionHandlerContext,
+  InMemoryReadEventMetadata,
 } from '../../inMemoryEventStore';
 
 export const DATABASE_REQUIRED_ERROR_MESSAGE =

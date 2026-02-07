@@ -1,9 +1,9 @@
-import {
-  type BatchRecordedMessageHandlerWithContext,
-  type BatchRecordedMessageHandlerWithoutContext,
-  type DefaultRecord,
-  type Event,
-  type ReadEvent,
+import type {
+  BatchRecordedMessageHandlerWithContext,
+  BatchRecordedMessageHandlerWithoutContext,
+  DefaultRecord,
+  Event,
+  ReadEvent,
 } from '../../typing';
 import type { EventStore, EventStoreReadEventMetadata } from '../eventStore';
 

@@ -1,4 +1,4 @@
-import { type Event, type ReadEvent } from '@event-driven-io/emmett';
+import type { Event, ReadEvent } from '@event-driven-io/emmett';
 
 export type PricedProductItem = {
   productId: string;

@@ -1,7 +1,7 @@
 import { assertDeepEqual, assertEqual } from '@event-driven-io/emmett';
-import {
-  type ReadableStreamReadResult,
-  type TransformStreamDefaultController,
+import type {
+  ReadableStreamReadResult,
+  TransformStreamDefaultController,
 } from 'node:stream/web';
 import { describe, it } from 'node:test';
 import { fromArray } from '../generators/fromArray';

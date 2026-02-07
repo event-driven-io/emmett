@@ -1,9 +1,9 @@
-import {
-  type CanHandle,
-  type Event,
-  type ProjectionDefinition,
-  type ProjectionHandler,
-  type ReadEvent,
+import type {
+  CanHandle,
+  Event,
+  ProjectionDefinition,
+  ProjectionHandler,
+  ReadEvent,
 } from '@event-driven-io/emmett';
 import type { Collection, Document, UpdateFilter } from 'mongodb';
 import type {

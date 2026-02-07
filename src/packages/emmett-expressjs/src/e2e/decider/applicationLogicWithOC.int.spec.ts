@@ -6,7 +6,7 @@ import {
   getInMemoryEventStore,
   type InMemoryEventStore,
 } from '@event-driven-io/emmett';
-import { type Application } from 'express';
+import type { Application } from 'express';
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it } from 'node:test';
 import request from 'supertest';

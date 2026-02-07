@@ -7,10 +7,8 @@ import {
   type InMemoryReactorOptions,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
-import {
-  EventStoreDBContainer,
-  StartedEventStoreDBContainer,
-} from '@event-driven-io/emmett-testcontainers';
+import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
+import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {

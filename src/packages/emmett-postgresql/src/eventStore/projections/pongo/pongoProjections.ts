@@ -1,9 +1,9 @@
-import {
-  type CanHandle,
-  type Event,
-  type EventStoreReadSchemaOptions,
-  type ReadEvent,
-  type TruncateProjection,
+import type {
+  CanHandle,
+  Event,
+  EventStoreReadSchemaOptions,
+  ReadEvent,
+  TruncateProjection,
 } from '@event-driven-io/emmett';
 import {
   pongoClient,

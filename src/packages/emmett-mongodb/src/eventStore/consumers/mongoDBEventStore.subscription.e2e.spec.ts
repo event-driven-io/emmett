@@ -21,10 +21,10 @@ import {
   type EventStream,
   type MongoDBEventStore,
 } from '..';
-import {
-  type PricedProductItem,
-  type ProductItemAdded,
-  type ShoppingCartEvent,
+import type {
+  PricedProductItem,
+  ProductItemAdded,
+  ShoppingCartEvent,
 } from '../../testing';
 import { CancellationPromise } from './CancellablePromise';
 import {

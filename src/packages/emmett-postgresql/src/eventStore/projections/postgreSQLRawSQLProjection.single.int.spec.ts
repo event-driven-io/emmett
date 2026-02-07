@@ -2,7 +2,7 @@ import { SQL } from '@event-driven-io/dumbo';
 import { tableExists } from '@event-driven-io/dumbo/pg';
 import { assertTrue } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { postgreSQLRawSQLProjection } from './postgreSQLProjection';
 import { PostgreSQLProjectionSpec } from './postgresProjectionSpec';

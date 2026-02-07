@@ -1,4 +1,4 @@
-import { type Event, type ReadEvent } from '../typing';
+import type { Event, ReadEvent } from '../typing';
 
 export type PricedProductItem = {
   productId: string;

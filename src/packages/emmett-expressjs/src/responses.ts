@@ -1,4 +1,4 @@
-import { type Request, type Response } from 'express';
+import type { Request, Response } from 'express';
 import { ProblemDocument } from 'http-problem-details';
 import { setETag, type ETag } from './etag';
 

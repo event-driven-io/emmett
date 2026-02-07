@@ -1,4 +1,4 @@
-import { type SQLExecutor } from '@event-driven-io/dumbo';
+import type { SQLExecutor } from '@event-driven-io/dumbo';
 import type {
   BatchRecordedMessageHandlerWithoutContext,
   EmmettError,

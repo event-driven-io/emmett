@@ -1,4 +1,4 @@
-import { Command as CliCommand } from 'commander';
+import type { Command as CliCommand } from 'commander';
 import path from 'path';
 import {
   isPluginConfig,

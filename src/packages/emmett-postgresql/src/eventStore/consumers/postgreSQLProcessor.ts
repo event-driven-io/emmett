@@ -1,12 +1,13 @@
 import { dumbo, type Dumbo, type SQLExecutor } from '@event-driven-io/dumbo';
-import {
-  type PgClient,
-  type PgClientConnection,
-  type PgDriverType,
-  type PgPool,
-  type PgPoolClientConnection,
-  type PgTransaction,
+import type {
+  PgClient,
+  PgClientConnection,
+  PgDriverType,
+  PgPool,
+  PgPoolClientConnection,
+  PgTransaction,
 } from '@event-driven-io/dumbo/pg';
+import type { MessageProcessor } from '@event-driven-io/emmett';
 import {
   defaultProcessorPartition,
   defaultProcessorVersion,
@@ -14,7 +15,6 @@ import {
   getCheckpoint,
   getProcessorInstanceId,
   getProjectorId,
-  MessageProcessor,
   projector,
   reactor,
   unknownTag,
@@ -32,7 +32,7 @@ import {
   type ReadEventMetadataWithGlobalPosition,
   type SingleRecordedMessageHandlerWithContext,
 } from '@event-driven-io/emmett';
-import pg from 'pg';
+import type pg from 'pg';
 import {
   DefaultPostgreSQLProcessorLockPolicy,
   postgreSQLProcessorLock,
