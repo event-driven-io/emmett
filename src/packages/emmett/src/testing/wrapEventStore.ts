@@ -9,7 +9,7 @@ import type {
   ReadStreamResult,
   StreamPositionTypeOfEventStore,
 } from '../eventStore';
-import { type Event, type EventMetaDataOf } from '../typing';
+import type { Event, EventMetaDataOf } from '../typing';
 
 export type TestEventStream<EventType extends Event = Event> = [
   string,

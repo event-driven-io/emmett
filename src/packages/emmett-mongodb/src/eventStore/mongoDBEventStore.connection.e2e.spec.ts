@@ -1,5 +1,5 @@
 import { assertIsNotNull, assertThrowsAsync } from '@event-driven-io/emmett';
-import { type StartedMongoDBContainer } from '@testcontainers/mongodb';
+import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient, MongoNotConnectedError } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { getMongoDBEventStore, toStreamCollectionName } from '.';

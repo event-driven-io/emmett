@@ -9,9 +9,9 @@ import {
   InMemoryProjectionSpec,
   newEventsInStream,
 } from '.';
-import {
-  type ProductItemAdded,
-  type ShoppingCartConfirmed,
+import type {
+  ProductItemAdded,
+  ShoppingCartConfirmed,
 } from '../../../testing/shoppingCart.domain';
 import type { ReadEvent } from '../../../typing';
 

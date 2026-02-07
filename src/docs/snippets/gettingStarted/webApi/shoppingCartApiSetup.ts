@@ -12,7 +12,7 @@ import type { AddProductItemToShoppingCart } from '../commands';
 import { getShoppingCartId } from './simpleApi';
 
 // #region getting-started-api-setup
-import { type WebApiSetup } from '@event-driven-io/emmett-expressjs';
+import type { WebApiSetup } from '@event-driven-io/emmett-expressjs';
 import { Router } from 'express';
 import { evolve, initialState } from '../shoppingCart';
 
@@ -39,7 +39,7 @@ const getUnitPrice = (_productId: string) => {
 
 const eventStore = getInMemoryEventStore();
 
-import { type Request } from 'express';
+import type { Request } from 'express';
 
 type AddProductItemRequest = Request<
   Partial<{ clientId: string; shoppingCartId: string }>,

@@ -1,10 +1,10 @@
-import { StartedMongoDBContainer } from '@testcontainers/mongodb';
+import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient } from 'mongodb';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
-import {
-  type DiscountApplied,
-  type ProductItemAdded,
+import type {
+  DiscountApplied,
+  ProductItemAdded,
 } from '../../testing/shoppingCart.domain';
 import { toStreamName, type StreamName } from '../mongoDBEventStore';
 import {

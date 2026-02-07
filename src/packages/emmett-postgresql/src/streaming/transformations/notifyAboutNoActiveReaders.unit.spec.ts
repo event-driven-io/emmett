@@ -7,10 +7,8 @@ import {
 import { ReadableStream, TransformStream } from 'node:stream/web';
 import { describe, it } from 'node:test';
 import { collect } from '../collectors/collect';
-import {
-  NotifyAboutNoActiveReadersStream,
-  notifyAboutNoActiveReadersStream,
-} from './notifyAboutNoActiveReaders';
+import type { NotifyAboutNoActiveReadersStream } from './notifyAboutNoActiveReaders';
+import { notifyAboutNoActiveReadersStream } from './notifyAboutNoActiveReaders';
 
 void describe('NotifyAboutNoActiveReadersStream', () => {
   const customStreamId = 'custom-id';

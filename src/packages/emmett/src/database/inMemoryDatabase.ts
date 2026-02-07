@@ -1,18 +1,18 @@
 import { v7 as uuid } from 'uuid';
 import { deepEquals } from '../utils';
-import {
-  type DatabaseHandleOptionErrors,
-  type DatabaseHandleOptions,
-  type DatabaseHandleResult,
-  type DeleteResult,
-  type Document,
-  type DocumentHandler,
-  type InsertOneResult,
-  type OptionalUnlessRequiredIdAndVersion,
-  type ReplaceOneOptions,
-  type UpdateResult,
-  type WithIdAndVersion,
-  type WithoutId,
+import type {
+  DatabaseHandleOptionErrors,
+  DatabaseHandleOptions,
+  DatabaseHandleResult,
+  DeleteResult,
+  Document,
+  DocumentHandler,
+  InsertOneResult,
+  OptionalUnlessRequiredIdAndVersion,
+  ReplaceOneOptions,
+  UpdateResult,
+  WithIdAndVersion,
+  WithoutId,
 } from './types';
 import { expectedVersionValue, operationResult } from './utils';
 

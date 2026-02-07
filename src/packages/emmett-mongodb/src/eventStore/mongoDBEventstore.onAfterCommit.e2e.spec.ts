@@ -1,5 +1,5 @@
 import { assertEqual, type Event } from '@event-driven-io/emmett';
-import { StartedMongoDBContainer } from '@testcontainers/mongodb';
+import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v7 as uuid } from 'uuid';

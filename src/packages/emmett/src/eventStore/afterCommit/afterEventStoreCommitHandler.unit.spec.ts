@@ -7,7 +7,7 @@ import type {
   ReadEventMetadataWithGlobalPosition,
 } from '../../typing';
 import type { EventStore } from '../eventStore';
-import { type InMemoryReadEvent } from '../inMemoryEventStore';
+import type { InMemoryReadEvent } from '../inMemoryEventStore';
 import { tryPublishMessagesAfterCommit } from './afterEventStoreCommitHandler';
 
 type TestEvent = Event<'test', { counter: number }, { some: boolean }>;

@@ -8,7 +8,7 @@ import {
   getProcessorInstanceId,
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { createEventStoreSchema, defaultTag, unknownTag } from '../../schema';
 import { postgreSQLProcessorLock } from './postgreSQLProcessorLock';

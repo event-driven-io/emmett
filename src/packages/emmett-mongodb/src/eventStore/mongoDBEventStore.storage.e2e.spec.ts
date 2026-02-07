@@ -3,8 +3,9 @@ import {
   assertOk,
   assertThatArray,
 } from '@event-driven-io/emmett';
-import { type StartedMongoDBContainer } from '@testcontainers/mongodb';
-import { Collection, Db, MongoClient } from 'mongodb';
+import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
+import type { Collection, Db } from 'mongodb';
+import { MongoClient } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {

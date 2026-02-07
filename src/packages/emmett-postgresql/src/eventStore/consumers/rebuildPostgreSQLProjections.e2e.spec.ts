@@ -6,7 +6,7 @@ import {
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import type { ProductItemAdded } from '../../testing/shoppingCart.domain';

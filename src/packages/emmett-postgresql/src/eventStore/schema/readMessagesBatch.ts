@@ -1,13 +1,13 @@
 import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
-import {
-  type CombinedMessageMetadata,
-  type Message,
-  type MessageDataOf,
-  type MessageMetaDataOf,
-  type MessageTypeOf,
-  type RecordedMessage,
-  type RecordedMessageMetadata,
-  type RecordedMessageMetadataWithGlobalPosition,
+import type {
+  CombinedMessageMetadata,
+  Message,
+  MessageDataOf,
+  MessageMetaDataOf,
+  MessageTypeOf,
+  RecordedMessage,
+  RecordedMessageMetadata,
+  RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { defaultTag, messagesTable } from './typing';
 

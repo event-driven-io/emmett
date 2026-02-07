@@ -13,7 +13,7 @@ import {
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import { type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import {
   getPostgreSQLEventStore,

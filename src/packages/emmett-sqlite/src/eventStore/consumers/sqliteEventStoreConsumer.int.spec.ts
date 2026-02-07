@@ -1,9 +1,6 @@
 import { InMemorySQLiteDatabase } from '@event-driven-io/dumbo/sqlite3';
-import {
-  assertFalse,
-  assertThrowsAsync,
-  EmmettError,
-} from '@event-driven-io/emmett';
+import type { EmmettError } from '@event-driven-io/emmett';
+import { assertFalse, assertThrowsAsync } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import { sqlite3EventStoreDriver } from '../../sqlite3';

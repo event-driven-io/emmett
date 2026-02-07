@@ -1,12 +1,12 @@
+import type { EmmettError } from '@event-driven-io/emmett';
 import {
   assertFails,
   assertFalse,
   assertThrowsAsync,
   assertTrue,
-  EmmettError,
   type MessageProcessor,
 } from '@event-driven-io/emmett';
-import { type StartedMongoDBContainer } from '@testcontainers/mongodb';
+import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {

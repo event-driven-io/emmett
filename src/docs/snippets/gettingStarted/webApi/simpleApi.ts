@@ -11,7 +11,7 @@ import {
   on,
   type WebApiSetup,
 } from '@event-driven-io/emmett-expressjs';
-import { type Request, type Router } from 'express';
+import type { Request, Router } from 'express';
 import {
   addProductItem,
   cancel,

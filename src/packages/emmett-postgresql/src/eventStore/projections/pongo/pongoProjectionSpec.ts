@@ -1,4 +1,4 @@
-import { type Dumbo } from '@event-driven-io/dumbo';
+import type { Dumbo } from '@event-driven-io/dumbo';
 import {
   assertDeepEqual,
   assertEqual,
@@ -13,7 +13,7 @@ import {
   type WithId,
 } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
-import { type PostgreSQLProjectionAssert } from '..';
+import type { PostgreSQLProjectionAssert } from '..';
 
 export type PongoAssertOptions = {
   inCollection: string;

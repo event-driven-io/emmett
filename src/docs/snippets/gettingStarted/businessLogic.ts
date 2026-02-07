@@ -139,7 +139,7 @@ export const decide = (command: ShoppingCartCommand, state: ShoppingCart) => {
 // #endregion getting-started-business-logic-decide
 
 // #endregion getting-started-business-logic-decider
-import { type Decider } from '@event-driven-io/emmett';
+import type { Decider } from '@event-driven-io/emmett';
 
 export const decider: Decider<
   ShoppingCart,

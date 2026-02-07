@@ -1,5 +1,5 @@
 import { SQL, type AnyDatabaseTransaction } from '@event-driven-io/dumbo';
-import { type AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
+import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import type { SQLiteEventStoreOptions } from '../SQLiteEventStore';
 import { migration_0_42_0_FromSubscriptionsToProcessors } from './migrations';
 import {

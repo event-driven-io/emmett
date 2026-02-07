@@ -1,5 +1,5 @@
 import type { EventStore } from '../eventStore';
-import { type Command, type Event } from '../typing';
+import type { Command, Event } from '../typing';
 import type { Decider } from '../typing/decider';
 import {
   CommandHandler,

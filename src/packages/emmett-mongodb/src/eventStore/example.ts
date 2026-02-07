@@ -1,4 +1,4 @@
-import { type Event } from '@event-driven-io/emmett';
+import type { Event } from '@event-driven-io/emmett';
 import { MongoClient } from 'mongodb';
 import { getMongoDBEventStore } from '../eventStore';
 

@@ -1,12 +1,12 @@
 import { single, SQL, type QueryResultRow } from '@event-driven-io/dumbo';
-import { type AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite3';
+import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite3';
 import { assertDeepEqual, JSONParser } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { beforeEach, describe, it } from 'vitest';
 import { sqlite3EventStoreDriver } from '../../sqlite3';
-import {
-  type DiscountApplied,
-  type ProductItemAdded,
+import type {
+  DiscountApplied,
+  ProductItemAdded,
 } from '../../testing/shoppingCart.domain';
 import { sqliteRawSQLProjection } from './sqliteProjection';
 import {

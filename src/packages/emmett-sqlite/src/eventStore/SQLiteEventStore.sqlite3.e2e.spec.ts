@@ -1,10 +1,10 @@
 import { InMemorySQLiteDatabase } from '@event-driven-io/dumbo/sqlite3';
+import type { ExpectedVersionConflictError } from '@event-driven-io/emmett';
 import {
   assertDeepEqual,
   assertEqual,
   assertIsNotNull,
   assertThrowsAsync,
-  ExpectedVersionConflictError,
   type Event,
 } from '@event-driven-io/emmett';
 import fs from 'fs';
@@ -13,11 +13,11 @@ import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import { sqlite3EventStoreDriver } from '../sqlite3';
-import {
-  type DiscountApplied,
-  type PricedProductItem,
-  type ProductItemAdded,
-  type ShoppingCartEvent,
+import type {
+  DiscountApplied,
+  PricedProductItem,
+  ProductItemAdded,
+  ShoppingCartEvent,
 } from '../testing/shoppingCart.domain';
 import {
   getSQLiteEventStore,

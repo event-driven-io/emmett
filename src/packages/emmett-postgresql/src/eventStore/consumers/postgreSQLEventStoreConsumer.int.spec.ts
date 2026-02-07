@@ -1,12 +1,12 @@
+import type { EmmettError } from '@event-driven-io/emmett';
 import {
   assertFails,
   assertFalse,
   assertThrowsAsync,
   assertTrue,
-  EmmettError,
   MessageProcessorType,
 } from '@event-driven-io/emmett';
-import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {

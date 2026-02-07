@@ -9,9 +9,9 @@ import {
   inMemorySingleStreamProjection,
   newEventsInStream,
 } from '.';
-import {
-  type DiscountApplied,
-  type ProductItemAdded,
+import type {
+  DiscountApplied,
+  ProductItemAdded,
 } from '../../../testing/shoppingCart.domain';
 
 type ShoppingCartShortInfo = {

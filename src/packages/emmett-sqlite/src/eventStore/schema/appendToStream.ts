@@ -7,7 +7,7 @@ import {
   type AnyDatabaseTransaction,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
-import { type AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
+import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   downcastRecordedMessages,
   ExpectedVersionConflictError,

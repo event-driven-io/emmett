@@ -1,8 +1,6 @@
 import { EventStoreDBClient } from '@eventstore/db-client';
-import {
-  EventStoreDBContainer,
-  StartedEventStoreDBContainer,
-} from './eventStoreDBContainer';
+import type { StartedEventStoreDBContainer } from './eventStoreDBContainer';
+import { EventStoreDBContainer } from './eventStoreDBContainer';
 
 export * from './eventStoreDBContainer';
 

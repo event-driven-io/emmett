@@ -4,7 +4,7 @@ import {
   type QueryResultRow,
   type SQL,
 } from '@event-driven-io/dumbo';
-import { type PgPool, type PgPoolOptions } from '@event-driven-io/dumbo/pg';
+import type { PgPool, PgPoolOptions } from '@event-driven-io/dumbo/pg';
 import {
   assertFails,
   AssertionError,

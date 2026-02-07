@@ -12,7 +12,7 @@ import {
   assertThrowsAsync,
   assertTrue,
 } from '../testing';
-import { type Event } from '../typing';
+import type { Event } from '../typing';
 import { CommandHandler } from './handleCommand';
 
 // Events & Entity

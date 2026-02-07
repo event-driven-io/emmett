@@ -13,8 +13,8 @@ import {
   type RecordedMessage,
   type RecordedMessageMetadata,
 } from '@event-driven-io/emmett';
+import type { ChangeStream } from 'mongodb';
 import {
-  ChangeStream,
   Timestamp,
   type ChangeStreamInsertDocument,
   type ChangeStreamReplaceDocument,

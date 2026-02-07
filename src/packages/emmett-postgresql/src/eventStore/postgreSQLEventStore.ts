@@ -6,12 +6,12 @@ import {
   type MigrationStyle,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
-import {
-  type PgClientConnection,
-  type PgConnection,
-  type PgDriverType,
-  type PgPool,
-  type PgPoolClientConnection,
+import type {
+  PgClientConnection,
+  PgConnection,
+  PgDriverType,
+  PgPool,
+  PgPoolClientConnection,
 } from '@event-driven-io/dumbo/pg';
 import {
   assertExpectedVersionMatchesCurrent,
@@ -34,7 +34,7 @@ import {
   type ReadStreamResult,
   type StreamExistsResult,
 } from '@event-driven-io/emmett';
-import pg from 'pg';
+import type pg from 'pg';
 import {
   postgreSQLEventStoreConsumer,
   type PostgreSQLEventStoreConsumer,

@@ -13,7 +13,7 @@ import {
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
-import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
@@ -22,11 +22,11 @@ import {
   testStreamExists,
   type EventStoreFactory,
 } from '../features';
-import {
-  type DiscountApplied,
-  type PricedProductItem,
-  type ProductItemAdded,
-  type ShoppingCartEvent,
+import type {
+  DiscountApplied,
+  PricedProductItem,
+  ProductItemAdded,
+  ShoppingCartEvent,
 } from '../shoppingCart.domain';
 
 void describe('EventStoreDBEventStore', async () => {

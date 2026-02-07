@@ -3,7 +3,8 @@ import {
   assertOk,
   assertUnsignedBigInt,
 } from '@event-driven-io/emmett';
-import { Test, type Response } from 'supertest';
+import type { Test } from 'supertest';
+import type { Response } from 'supertest';
 import { getWeakETagValue, type ETag } from '../etag';
 
 export type TestResponse<RequestBody> = Omit<

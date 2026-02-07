@@ -1,10 +1,10 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import type { ExpectedVersionConflictError } from '@event-driven-io/emmett';
 import {
   assertDeepEqual,
   assertEqual,
   assertIsNotNull,
   assertThrowsAsync,
-  ExpectedVersionConflictError,
   type Event,
 } from '@event-driven-io/emmett';
 import { Miniflare } from 'miniflare';
@@ -18,11 +18,11 @@ import {
   it,
 } from 'vitest';
 import { d1EventStoreDriver } from '../cloudflare';
-import {
-  type DiscountApplied,
-  type PricedProductItem,
-  type ProductItemAdded,
-  type ShoppingCartEvent,
+import type {
+  DiscountApplied,
+  PricedProductItem,
+  ProductItemAdded,
+  ShoppingCartEvent,
 } from '../testing/shoppingCart.domain';
 import {
   getSQLiteEventStore,

@@ -1,12 +1,12 @@
+import type { SQL } from '@event-driven-io/dumbo';
 import {
   dumbo,
-  SQL,
   type AnyDumboDatabaseDriver,
   type Dumbo,
   type DumboConnectionOptions,
   type QueryResultRow,
 } from '@event-driven-io/dumbo';
-import { type AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
+import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   assertFails,
   AssertionError,
@@ -19,7 +19,7 @@ import {
   type ThenThrows,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import { type SQLiteReadEventMetadata } from '../SQLiteEventStore';
+import type { SQLiteReadEventMetadata } from '../SQLiteEventStore';
 import {
   handleProjections,
   type SQLiteProjectionDefinition,

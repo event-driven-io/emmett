@@ -1,9 +1,9 @@
-import {
-  type AnySQLiteConnection,
-  type SQLiteTransaction,
+import type {
+  AnySQLiteConnection,
+  SQLiteTransaction,
 } from '@event-driven-io/dumbo/sqlite';
+import type { EmmettError } from '@event-driven-io/emmett';
 import {
-  EmmettError,
   getCheckpoint,
   type Event,
   type ReadEvent,

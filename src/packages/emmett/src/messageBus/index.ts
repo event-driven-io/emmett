@@ -1,14 +1,14 @@
 import { EmmettError } from '../errors';
-import {
-  type AnyCommand,
-  type AnyMessage,
-  type Command,
-  type CommandTypeOf,
-  type Event,
-  type EventTypeOf,
-  type Message,
-  type SingleMessageHandler,
-  type SingleRawMessageHandlerWithoutContext,
+import type {
+  AnyCommand,
+  AnyMessage,
+  Command,
+  CommandTypeOf,
+  Event,
+  EventTypeOf,
+  Message,
+  SingleMessageHandler,
+  SingleRawMessageHandlerWithoutContext,
 } from '../typing';
 
 export interface CommandSender {

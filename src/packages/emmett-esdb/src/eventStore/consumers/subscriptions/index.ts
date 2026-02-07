@@ -10,9 +10,9 @@ import {
   type Message,
   type MessageHandlerResult,
 } from '@event-driven-io/emmett';
+import type { EventStoreDBClient } from '@eventstore/db-client';
 import {
   END,
-  EventStoreDBClient,
   excludeSystemEvents,
   START,
   type ResolvedEvent,

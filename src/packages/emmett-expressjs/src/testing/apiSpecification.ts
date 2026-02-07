@@ -7,7 +7,7 @@ import {
   type EventStore,
   type TestEventStream,
 } from '@event-driven-io/emmett';
-import { type Application } from 'express';
+import type { Application } from 'express';
 import type { ProblemDocument } from 'http-problem-details';
 import type { Response, Test } from 'supertest';
 import supertest from 'supertest';

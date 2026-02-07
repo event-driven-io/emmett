@@ -1,6 +1,6 @@
+import type { MessageProcessor } from '@event-driven-io/emmett';
 import {
   EmmettError,
-  MessageProcessor,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,

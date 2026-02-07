@@ -1,16 +1,16 @@
 import { getInMemoryDatabase, type InMemoryDatabase } from '../database';
 import { EmmettError } from '../errors';
-import {
-  type AnyEvent,
-  type AnyMessage,
-  type BatchRecordedMessageHandlerWithContext,
-  type MessageHandlerResult,
-  type ReadEventMetadataWithGlobalPosition,
-  type SingleRecordedMessageHandlerWithContext,
+import type {
+  AnyEvent,
+  AnyMessage,
+  BatchRecordedMessageHandlerWithContext,
+  MessageHandlerResult,
+  ReadEventMetadataWithGlobalPosition,
+  SingleRecordedMessageHandlerWithContext,
 } from '../typing';
+import type { MessageProcessor } from './processors';
 import {
   getCheckpoint,
-  MessageProcessor,
   projector,
   reactor,
   type Checkpointer,

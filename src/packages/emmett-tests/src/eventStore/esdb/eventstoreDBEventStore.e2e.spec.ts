@@ -1,9 +1,9 @@
 //import { streamTransformations, type Event } from '@event-driven-io/emmett';
 import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
+import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import {
   getSharedEventStoreDBTestContainer,
   releaseSharedEventStoreDBTestContainer,
-  StartedEventStoreDBContainer,
 } from '@event-driven-io/emmett-testcontainers';
 import { describe } from 'node:test';
 import {

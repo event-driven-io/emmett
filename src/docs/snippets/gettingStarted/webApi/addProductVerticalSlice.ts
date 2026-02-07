@@ -11,9 +11,10 @@ import {
   on,
   type WebApiSetup,
 } from '@event-driven-io/emmett-expressjs';
-import { Router, type Request } from 'express';
+import type { Router } from 'express';
+import type { Request } from 'express';
 import type { ProductItemAddedToShoppingCart } from '../events';
-import { type PricedProductItem } from '../events';
+import type { PricedProductItem } from '../events';
 import { evolve, initialState, type ShoppingCart } from '../shoppingCart';
 import { getShoppingCartId } from './simpleApi';
 
