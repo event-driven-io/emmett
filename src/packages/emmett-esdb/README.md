@@ -34,7 +34,7 @@ import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 
 // Connect to EventStoreDB
 const client = EventStoreDBClient.connectionString(
-  'esdb://localhost:2113?tls=false'
+  'esdb://localhost:2113?tls=false',
 );
 
 // Create the Emmett event store adapter
@@ -47,7 +47,10 @@ const eventStore = getEventStoreDBEventStore(client);
 import type { Event } from '@event-driven-io/emmett';
 
 // Define your event types
-type GuestCheckedIn = Event<'GuestCheckedIn', { guestId: string; roomNumber: string }>;
+type GuestCheckedIn = Event<
+  'GuestCheckedIn',
+  { guestId: string; roomNumber: string }
+>;
 type GuestCheckedOut = Event<'GuestCheckedOut', { guestId: string }>;
 type GuestStayEvent = GuestCheckedIn | GuestCheckedOut;
 
@@ -67,33 +70,39 @@ console.log('Global position:', result.lastEventGlobalPosition);
 
 ```typescript
 // Read all events from a stream
-const { events, currentStreamVersion } = await eventStore.readStream<GuestStayEvent>(
-  streamName
-);
+const { events, currentStreamVersion } =
+  await eventStore.readStream<GuestStayEvent>(streamName);
 
 // Aggregate stream state using a reducer
-const { state, currentStreamVersion } = await eventStore.aggregateStream<GuestState, GuestStayEvent>(
-  streamName,
-  {
-    evolve: (state, event) => {
-      switch (event.type) {
-        case 'GuestCheckedIn':
-          return { ...state, status: 'checked-in', roomNumber: event.data.roomNumber };
-        case 'GuestCheckedOut':
-          return { ...state, status: 'checked-out' };
-        default:
-          return state;
-      }
-    },
-    initialState: () => ({ status: 'unknown', roomNumber: undefined }),
-  }
-);
+const { state, currentStreamVersion } = await eventStore.aggregateStream<
+  GuestState,
+  GuestStayEvent
+>(streamName, {
+  evolve: (state, event) => {
+    switch (event.type) {
+      case 'GuestCheckedIn':
+        return {
+          ...state,
+          status: 'checked-in',
+          roomNumber: event.data.roomNumber,
+        };
+      case 'GuestCheckedOut':
+        return { ...state, status: 'checked-out' };
+      default:
+        return state;
+    }
+  },
+  initialState: () => ({ status: 'unknown', roomNumber: undefined }),
+});
 ```
 
 ### Subscribing to Events with a Reactor
 
 ```typescript
-import { $all, eventStoreDBEventStoreConsumer } from '@event-driven-io/emmett-esdb';
+import {
+  $all,
+  eventStoreDBEventStoreConsumer,
+} from '@event-driven-io/emmett-esdb';
 
 // Create a consumer that subscribes to all events
 const consumer = eventStoreDBEventStoreConsumer({
@@ -106,7 +115,9 @@ consumer.reactor<GuestStayEvent>({
   processorId: 'guest-notifications',
   eachMessage: async (event) => {
     if (event.type === 'GuestCheckedIn') {
-      console.log(`Guest ${event.data.guestId} checked into room ${event.data.roomNumber}`);
+      console.log(
+        `Guest ${event.data.guestId} checked into room ${event.data.roomNumber}`,
+      );
       // Send welcome email, update availability, etc.
     }
   },
@@ -291,7 +302,9 @@ consumer.reactor<GuestStayEvent>({
 ### getEventStoreDBEventStore
 
 ```typescript
-function getEventStoreDBEventStore(client: EventStoreDBClient): EventStoreDBEventStore
+function getEventStoreDBEventStore(
+  client: EventStoreDBClient,
+): EventStoreDBEventStore;
 ```
 
 Creates an Emmett event store adapter from an EventStoreDB client.
@@ -300,62 +313,62 @@ Creates an Emmett event store adapter from an EventStoreDB client.
 
 Extended `EventStore` interface with:
 
-| Method | Description |
-|--------|-------------|
-| `appendToStream(streamName, events, options?)` | Append events and return global position |
-| `readStream(streamName, options?)` | Read events from a stream |
-| `aggregateStream(streamName, options)` | Aggregate stream state using evolve function |
-| `consumer(options?)` | Create a subscription-based consumer |
+| Method                                         | Description                                  |
+| ---------------------------------------------- | -------------------------------------------- |
+| `appendToStream(streamName, events, options?)` | Append events and return global position     |
+| `readStream(streamName, options?)`             | Read events from a stream                    |
+| `aggregateStream(streamName, options)`         | Aggregate stream state using evolve function |
+| `consumer(options?)`                           | Create a subscription-based consumer         |
 
 ### eventStoreDBEventStoreConsumer
 
 ```typescript
 function eventStoreDBEventStoreConsumer<MessageType>(
-  options: EventStoreDBEventStoreConsumerOptions<MessageType>
-): EventStoreDBEventStoreConsumer<MessageType>
+  options: EventStoreDBEventStoreConsumerOptions<MessageType>,
+): EventStoreDBEventStoreConsumer<MessageType>;
 ```
 
 **Options:**
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `connectionString` | `string` | EventStoreDB connection string |
-| `client` | `EventStoreDBClient` | Alternative: provide client directly |
-| `from` | `EventStoreDBEventStoreConsumerType` | Stream to subscribe to (`$all` or specific stream) |
-| `processors` | `MessageProcessor[]` | Pre-configured processors |
-| `pulling.batchSize` | `number` | Messages per batch (default: 100) |
-| `resilience.resubscribeOptions` | `AsyncRetryOptions` | Retry configuration |
+| Property                        | Type                                 | Description                                        |
+| ------------------------------- | ------------------------------------ | -------------------------------------------------- |
+| `connectionString`              | `string`                             | EventStoreDB connection string                     |
+| `client`                        | `EventStoreDBClient`                 | Alternative: provide client directly               |
+| `from`                          | `EventStoreDBEventStoreConsumerType` | Stream to subscribe to (`$all` or specific stream) |
+| `processors`                    | `MessageProcessor[]`                 | Pre-configured processors                          |
+| `pulling.batchSize`             | `number`                             | Messages per batch (default: 100)                  |
+| `resilience.resubscribeOptions` | `AsyncRetryOptions`                  | Retry configuration                                |
 
 **Consumer Methods:**
 
-| Method | Description |
-|--------|-------------|
-| `reactor(options)` | Create a reactor processor |
+| Method               | Description                  |
+| -------------------- | ---------------------------- |
+| `reactor(options)`   | Create a reactor processor   |
 | `projector(options)` | Create a projector processor |
-| `start()` | Start consuming events |
-| `stop()` | Stop consuming (can restart) |
-| `close()` | Stop and clean up resources |
+| `start()`            | Start consuming events       |
+| `stop()`             | Stop consuming (can restart) |
+| `close()`            | Stop and clean up resources  |
 
 ### EventStoreDBReadEventMetadata
 
 Metadata included with each read event:
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `eventId` | `string` | Unique event identifier |
-| `streamName` | `string` | Source stream name |
+| Property         | Type     | Description                |
+| ---------------- | -------- | -------------------------- |
+| `eventId`        | `string` | Unique event identifier    |
+| `streamName`     | `string` | Source stream name         |
 | `streamPosition` | `bigint` | Position within the stream |
 | `globalPosition` | `bigint` | Position in the global log |
-| `checkpoint` | `bigint` | Position for resumption |
+| `checkpoint`     | `bigint` | Position for resumption    |
 
 ### Subscription Start Options
 
-| Value | Description |
-|-------|-------------|
-| `'BEGINNING'` | Start from the first event |
-| `'END'` | Start from current end (new events only) |
-| `'CURRENT'` | Resume from last stored checkpoint |
-| `{ lastCheckpoint: bigint }` | Resume from specific position |
+| Value                        | Description                              |
+| ---------------------------- | ---------------------------------------- |
+| `'BEGINNING'`                | Start from the first event               |
+| `'END'`                      | Start from current end (new events only) |
+| `'CURRENT'`                  | Resume from last stored checkpoint       |
+| `{ lastCheckpoint: bigint }` | Resume from specific position            |
 
 ## Architecture
 
@@ -389,6 +402,7 @@ Metadata included with each read event:
 **Retry Behavior:**
 
 The adapter includes built-in retry logic for database unavailability (gRPC error code 14). Default retry options:
+
 - Retries forever
 - Minimum timeout: 100ms
 - Exponential backoff factor: 1.5

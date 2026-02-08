@@ -9,13 +9,13 @@ We welcome contributions! This guide covers everything you need to get started.
 
 ## Ways to Contribute
 
-| Type | Description |
-|------|-------------|
-| 🐛 Bug Reports | Found something broken? Open an issue |
-| 💡 Feature Requests | Have an idea? Start a discussion |
-| 📖 Documentation | Improve guides, fix typos, add examples |
-| 🧪 Tests | Increase coverage, add edge cases |
-| 💻 Code | Fix bugs, implement features |
+| Type                | Description                             |
+| ------------------- | --------------------------------------- |
+| 🐛 Bug Reports      | Found something broken? Open an issue   |
+| 💡 Feature Requests | Have an idea? Start a discussion        |
+| 📖 Documentation    | Improve guides, fix typos, add examples |
+| 🧪 Tests            | Increase coverage, add edge cases       |
+| 💻 Code             | Fix bugs, implement features            |
 
 ## Getting Started
 
@@ -175,9 +175,7 @@ interface ShoppingCart {
 const STATUSES = ['Pending', 'Confirmed', 'Cancelled'] as const;
 
 // ✅ Good: Use discriminated unions
-type Result<T> =
-  | { success: true; value: T }
-  | { success: false; error: Error };
+type Result<T> = { success: true; value: T } | { success: false; error: Error };
 ```
 
 ### Testing Guidelines
@@ -186,9 +184,7 @@ type Result<T> =
 // ✅ Good: Use BDD-style specifications
 describe('Shopping Cart', () => {
   it('adds product to empty cart', () =>
-    spec([])
-      .when(addProductCommand)
-      .then([productAddedEvent]));
+    spec([]).when(addProductCommand).then([productAddedEvent]));
 });
 
 // ✅ Good: Test edge cases
@@ -231,6 +227,7 @@ pnpm run dev
 ### Bug Reports
 
 Include:
+
 - Emmett version
 - Node.js version
 - Minimal reproduction
@@ -240,6 +237,7 @@ Include:
 ### Feature Requests
 
 Include:
+
 - Use case description
 - Proposed API (if applicable)
 - Alternatives considered
@@ -253,6 +251,7 @@ Include:
 ## Recognition
 
 Contributors are recognized in:
+
 - Release notes
 - README contributors section
 - GitHub contributors page

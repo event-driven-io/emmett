@@ -61,27 +61,47 @@ import {
   DeciderCommandHandler,
   getInMemoryEventStore,
   type EventStore,
-  type Decider
+  type Decider,
 } from '@event-driven-io/emmett';
 import { getApplication, startAPI } from '@event-driven-io/emmett-fastify';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 // Define events
 type ShoppingCartEvent =
-  | { type: 'ShoppingCartOpened'; data: { cartId: string; clientId: string; openedAt: Date } }
-  | { type: 'ProductItemAdded'; data: { cartId: string; productId: string; quantity: number } }
-  | { type: 'ShoppingCartConfirmed'; data: { cartId: string; confirmedAt: Date } };
+  | {
+      type: 'ShoppingCartOpened';
+      data: { cartId: string; clientId: string; openedAt: Date };
+    }
+  | {
+      type: 'ProductItemAdded';
+      data: { cartId: string; productId: string; quantity: number };
+    }
+  | {
+      type: 'ShoppingCartConfirmed';
+      data: { cartId: string; confirmedAt: Date };
+    };
 
 // Define commands
 type ShoppingCartCommand =
-  | { type: 'OpenShoppingCart'; data: { cartId: string; clientId: string; now: Date } }
-  | { type: 'AddProductItem'; data: { cartId: string; productId: string; quantity: number } }
+  | {
+      type: 'OpenShoppingCart';
+      data: { cartId: string; clientId: string; now: Date };
+    }
+  | {
+      type: 'AddProductItem';
+      data: { cartId: string; productId: string; quantity: number };
+    }
   | { type: 'ConfirmShoppingCart'; data: { cartId: string; now: Date } };
 
 // Define state
 type ShoppingCart =
   | { status: 'Empty' }
-  | { status: 'Pending'; id: string; clientId: string; items: Array<{ productId: string; quantity: number }> }
+  | {
+      status: 'Pending';
+      id: string;
+      clientId: string;
+      items: Array<{ productId: string; quantity: number }>;
+    }
   | { status: 'Confirmed'; id: string; confirmedAt: Date };
 
 // Implement the decider
@@ -91,30 +111,53 @@ const decider: Decider<ShoppingCart, ShoppingCartCommand, ShoppingCartEvent> = {
       case 'OpenShoppingCart':
         return {
           type: 'ShoppingCartOpened',
-          data: { cartId: command.data.cartId, clientId: command.data.clientId, openedAt: command.data.now }
+          data: {
+            cartId: command.data.cartId,
+            clientId: command.data.clientId,
+            openedAt: command.data.now,
+          },
         };
       case 'AddProductItem':
         return {
           type: 'ProductItemAdded',
-          data: { cartId: command.data.cartId, productId: command.data.productId, quantity: command.data.quantity }
+          data: {
+            cartId: command.data.cartId,
+            productId: command.data.productId,
+            quantity: command.data.quantity,
+          },
         };
       case 'ConfirmShoppingCart':
         return {
           type: 'ShoppingCartConfirmed',
-          data: { cartId: command.data.cartId, confirmedAt: command.data.now }
+          data: { cartId: command.data.cartId, confirmedAt: command.data.now },
         };
     }
   },
   evolve: (state, event) => {
     switch (event.type) {
       case 'ShoppingCartOpened':
-        return { status: 'Pending', id: event.data.cartId, clientId: event.data.clientId, items: [] };
+        return {
+          status: 'Pending',
+          id: event.data.cartId,
+          clientId: event.data.clientId,
+          items: [],
+        };
       case 'ProductItemAdded':
         if (state.status !== 'Pending') return state;
-        return { ...state, items: [...state.items, { productId: event.data.productId, quantity: event.data.quantity }] };
+        return {
+          ...state,
+          items: [
+            ...state.items,
+            { productId: event.data.productId, quantity: event.data.quantity },
+          ],
+        };
       case 'ShoppingCartConfirmed':
         if (state.status !== 'Pending') return state;
-        return { status: 'Confirmed', id: state.id, confirmedAt: event.data.confirmedAt };
+        return {
+          status: 'Confirmed',
+          id: state.id,
+          confirmedAt: event.data.confirmedAt,
+        };
     }
   },
   initialState: () => ({ status: 'Empty' }),
@@ -125,46 +168,58 @@ const handle = DeciderCommandHandler(decider);
 
 // Register routes
 const registerRoutes = (eventStore: EventStore) => (app: FastifyInstance) => {
-  app.post('/clients/:clientId/shopping-carts', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { clientId } = request.params as { clientId: string };
-    const cartId = clientId;
+  app.post(
+    '/clients/:clientId/shopping-carts',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { clientId } = request.params as { clientId: string };
+      const cartId = clientId;
 
-    await handle(eventStore, cartId, {
-      type: 'OpenShoppingCart',
-      data: { cartId, clientId, now: new Date() },
-    });
+      await handle(eventStore, cartId, {
+        type: 'OpenShoppingCart',
+        data: { cartId, clientId, now: new Date() },
+      });
 
-    return reply.code(201).send({ id: cartId });
-  });
+      return reply.code(201).send({ id: cartId });
+    },
+  );
 
-  app.post('/clients/:clientId/shopping-carts/:cartId/items', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { cartId } = request.params as { cartId: string };
-    const { productId, quantity } = request.body as { productId: string; quantity: number };
+  app.post(
+    '/clients/:clientId/shopping-carts/:cartId/items',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { cartId } = request.params as { cartId: string };
+      const { productId, quantity } = request.body as {
+        productId: string;
+        quantity: number;
+      };
 
-    await handle(eventStore, cartId, {
-      type: 'AddProductItem',
-      data: { cartId, productId, quantity },
-    });
+      await handle(eventStore, cartId, {
+        type: 'AddProductItem',
+        data: { cartId, productId, quantity },
+      });
 
-    return reply.code(204).send();
-  });
+      return reply.code(204).send();
+    },
+  );
 
-  app.post('/clients/:clientId/shopping-carts/:cartId/confirm', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { cartId } = request.params as { cartId: string };
+  app.post(
+    '/clients/:clientId/shopping-carts/:cartId/confirm',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { cartId } = request.params as { cartId: string };
 
-    await handle(eventStore, cartId, {
-      type: 'ConfirmShoppingCart',
-      data: { cartId, now: new Date() },
-    });
+      await handle(eventStore, cartId, {
+        type: 'ConfirmShoppingCart',
+        data: { cartId, now: new Date() },
+      });
 
-    return reply.code(204).send();
-  });
+      return reply.code(204).send();
+    },
+  );
 };
 
 // Start the server
 const eventStore = getInMemoryEventStore();
 const app = await getApplication({
-  registerRoutes: registerRoutes(eventStore)
+  registerRoutes: registerRoutes(eventStore),
 });
 await startAPI(app, { port: 3000 });
 ```
@@ -179,7 +234,7 @@ Configure Fastify server options, including logging:
 const app = await getApplication({
   registerRoutes,
   serverOptions: {
-    logger: true,  // Enable Fastify logging
+    logger: true, // Enable Fastify logging
   },
 });
 ```
@@ -221,7 +276,7 @@ import { getInMemoryEventStore } from '@event-driven-io/emmett';
 
 const eventStore = getInMemoryEventStore();
 const app = await getApplication({
-  registerRoutes: registerRoutes(eventStore)
+  registerRoutes: registerRoutes(eventStore),
 });
 
 // Test a route
@@ -231,7 +286,7 @@ const response = await app.inject({
 });
 
 console.log(response.statusCode); // 201
-console.log(response.json());     // { id: 'client-123' }
+console.log(response.json()); // { id: 'client-123' }
 ```
 
 ### Using with Different Event Stores
@@ -244,7 +299,7 @@ import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
 
 const eventStore = getPostgreSQLEventStore(connectionPool);
 const app = await getApplication({
-  registerRoutes: registerRoutes(eventStore)
+  registerRoutes: registerRoutes(eventStore),
 });
 
 // With EventStoreDB
@@ -252,7 +307,7 @@ import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 
 const eventStore = getEventStoreDBEventStore(client);
 const app = await getApplication({
-  registerRoutes: registerRoutes(eventStore)
+  registerRoutes: registerRoutes(eventStore),
 });
 ```
 
@@ -264,11 +319,11 @@ Creates a configured Fastify application instance.
 
 **Parameters:**
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `registerRoutes` | `(app: FastifyInstance) => void` | `undefined` | Function to register your routes |
-| `serverOptions` | `{ logger: boolean }` | `{ logger: true }` | Fastify server configuration |
-| `activeDefaultPlugins` | `Plugin[]` | `[ETag, Compress, FormBody]` | Plugins to register |
+| Option                 | Type                             | Default                      | Description                      |
+| ---------------------- | -------------------------------- | ---------------------------- | -------------------------------- |
+| `registerRoutes`       | `(app: FastifyInstance) => void` | `undefined`                  | Function to register your routes |
+| `serverOptions`        | `{ logger: boolean }`            | `{ logger: true }`           | Fastify server configuration     |
+| `activeDefaultPlugins` | `Plugin[]`                       | `[ETag, Compress, FormBody]` | Plugins to register              |
 
 **Returns:** A Promise that resolves to a configured `FastifyInstance`.
 
@@ -278,10 +333,10 @@ Starts the Fastify server.
 
 **Parameters:**
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `app` | `FastifyInstance` | required | The Fastify application instance |
-| `options.port` | `number` | `5000` | Port number to listen on |
+| Option         | Type              | Default  | Description                      |
+| -------------- | ----------------- | -------- | -------------------------------- |
+| `app`          | `FastifyInstance` | required | The Fastify application instance |
+| `options.port` | `number`          | `5000`   | Port number to listen on         |
 
 ### `ApplicationOptions`
 
@@ -316,11 +371,11 @@ type Plugin = {
 
 The package registers these plugins by default:
 
-| Plugin | Purpose |
-|--------|---------|
-| `@fastify/etag` | Automatic ETag header generation for caching |
+| Plugin              | Purpose                                             |
+| ------------------- | --------------------------------------------------- |
+| `@fastify/etag`     | Automatic ETag header generation for caching        |
 | `@fastify/compress` | Response compression (disabled globally by default) |
-| `@fastify/formbody` | Form body parsing support |
+| `@fastify/formbody` | Form body parsing support                           |
 
 ### Graceful Shutdown
 
@@ -348,11 +403,11 @@ Fastify Route -> Command -> DeciderCommandHandler -> EventStore -> Events
 
 ### Peer Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `@event-driven-io/emmett` | `0.38.3` | Core event sourcing library |
-| `fastify` | `^4.28.1` | Web framework |
-| `@fastify/compress` | `^7.0.3` | Response compression |
-| `@fastify/etag` | `^5.2.0` | ETag support |
-| `@fastify/formbody` | `^7.4.0` | Form body parsing |
-| `close-with-grace` | `^2.1.0` | Graceful shutdown |
+| Package                   | Version   | Purpose                     |
+| ------------------------- | --------- | --------------------------- |
+| `@event-driven-io/emmett` | `0.38.3`  | Core event sourcing library |
+| `fastify`                 | `^4.28.1` | Web framework               |
+| `@fastify/compress`       | `^7.0.3`  | Response compression        |
+| `@fastify/etag`           | `^5.2.0`  | ETag support                |
+| `@fastify/formbody`       | `^7.4.0`  | Form body parsing           |
+| `close-with-grace`        | `^2.1.0`  | Graceful shutdown           |

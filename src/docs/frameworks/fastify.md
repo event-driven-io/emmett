@@ -50,8 +50,8 @@ await startAPI(app, { port: 3000 });
 ```typescript
 import type { FastifyInstance } from 'fastify';
 
-export const shoppingCartApi = (eventStore: EventStore) =>
-  async (fastify: FastifyInstance) => {
+export const shoppingCartApi =
+  (eventStore: EventStore) => async (fastify: FastifyInstance) => {
     const handle = CommandHandler(eventStore, shoppingCartDecider);
 
     // GET - Read shopping cart
@@ -60,22 +60,23 @@ export const shoppingCartApi = (eventStore: EventStore) =>
 
       const { state, currentStreamVersion } = await eventStore.aggregateStream(
         `shopping_cart-${cartId}`,
-        { evolve, initialState }
+        { evolve, initialState },
       );
 
       if (currentStreamVersion === 0n) {
         return reply.status(404).send({ detail: 'Cart not found' });
       }
 
-      return reply
-        .header('ETag', `"${currentStreamVersion}"`)
-        .send(state);
+      return reply.header('ETag', `"${currentStreamVersion}"`).send(state);
     });
 
     // POST - Add product item
     fastify.post('/carts/:cartId/items', async (request, reply) => {
       const { cartId } = request.params as { cartId: string };
-      const { productId, quantity } = request.body as { productId: string; quantity: number };
+      const { productId, quantity } = request.body as {
+        productId: string;
+        quantity: number;
+      };
 
       const result = await handle(cartId, {
         type: 'AddProductItem',
@@ -117,13 +118,11 @@ const shoppingCartDecider = {
 };
 
 // Create event store
-const eventStore = getPostgreSQLEventStore(
-  process.env.DATABASE_URL!
-);
+const eventStore = getPostgreSQLEventStore(process.env.DATABASE_URL!);
 
 // Define API
-const shoppingCartApi = (eventStore: EventStore) =>
-  async (fastify: FastifyInstance) => {
+const shoppingCartApi =
+  (eventStore: EventStore) => async (fastify: FastifyInstance) => {
     const handle = CommandHandler(shoppingCartDecider, eventStore);
 
     fastify.post<{
@@ -159,11 +158,11 @@ await startAPI(app, { port: 3000 });
 
 Emmett's Fastify setup includes these plugins by default:
 
-| Plugin | Purpose |
-|--------|---------|
-| `@fastify/etag` | Automatic ETag generation |
-| `@fastify/compress` | Response compression |
-| `@fastify/formbody` | Form body parsing |
+| Plugin              | Purpose                   |
+| ------------------- | ------------------------- |
+| `@fastify/etag`     | Automatic ETag generation |
+| `@fastify/compress` | Response compression      |
+| `@fastify/formbody` | Form body parsing         |
 
 ### Disabling Default Plugins
 
@@ -339,29 +338,33 @@ fastify.post<{
   Params: AddItemParams;
   Body: AddItemBody;
   Reply: AddItemResponse;
-}>('/carts/:cartId/items', {
-  schema: {
-    params: {
-      type: 'object',
-      properties: {
-        cartId: { type: 'string' },
+}>(
+  '/carts/:cartId/items',
+  {
+    schema: {
+      params: {
+        type: 'object',
+        properties: {
+          cartId: { type: 'string' },
+        },
+        required: ['cartId'],
       },
-      required: ['cartId'],
-    },
-    body: {
-      type: 'object',
-      properties: {
-        productId: { type: 'string' },
-        quantity: { type: 'integer', minimum: 1 },
+      body: {
+        type: 'object',
+        properties: {
+          productId: { type: 'string' },
+          quantity: { type: 'integer', minimum: 1 },
+        },
+        required: ['productId', 'quantity'],
       },
-      required: ['productId', 'quantity'],
     },
   },
-}, async (request, reply) => {
-  // request.params.cartId is typed as string
-  // request.body.productId is typed as string
-  // request.body.quantity is typed as number
-});
+  async (request, reply) => {
+    // request.params.cartId is typed as string
+    // request.body.productId is typed as string
+    // request.body.quantity is typed as number
+  },
+);
 ```
 
 ## Error Handling

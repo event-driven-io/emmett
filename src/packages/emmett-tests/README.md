@@ -55,7 +55,10 @@ pnpm run test:e2e:watch
 Event store implementations can use the shared test suite:
 
 ```typescript
-import { testAggregateStream, testCommandHandling } from '@event-driven-io/emmett-tests';
+import {
+  testAggregateStream,
+  testCommandHandling,
+} from '@event-driven-io/emmett-tests';
 
 describe('MyEventStore', () => {
   const eventStoreFactory = async () => {

@@ -15,18 +15,18 @@ Projections subscribe to events and build denormalized views:
 Events → Projection → Read Model
 ```
 
-| Concept | Purpose |
-|---------|---------|
+| Concept        | Purpose                                     |
+| -------------- | ------------------------------------------- |
 | **Projection** | Logic that transforms events into documents |
-| **Read Model** | The resulting queryable data structure |
-| **Handler** | Function that processes events |
+| **Read Model** | The resulting queryable data structure      |
+| **Handler**    | Function that processes events              |
 
 ## Projection Types
 
-| Type | Execution | Consistency | Use Case |
-|------|-----------|-------------|----------|
-| **Inline** | Same transaction | Strong | Critical reads |
-| **Async** | Background process | Eventual | Scalable reads |
+| Type       | Execution          | Consistency | Use Case       |
+| ---------- | ------------------ | ----------- | -------------- |
+| **Inline** | Same transaction   | Strong      | Critical reads |
+| **Async**  | Background process | Eventual    | Scalable reads |
 
 ## Core Types
 
@@ -40,19 +40,23 @@ interface ProjectionDefinition<
 > {
   name?: string;
   canHandle: CanHandle<EventType>;
-  handle: ProjectionHandler<EventType, EventMetaDataType, ProjectionHandlerContext>;
+  handle: ProjectionHandler<
+    EventType,
+    EventMetaDataType,
+    ProjectionHandlerContext
+  >;
   truncate?: (context: ProjectionHandlerContext) => Promise<void>;
   init?: (context: ProjectionHandlerContext) => void | Promise<void>;
 }
 ```
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `name` | `string?` | Unique identifier for the projection |
-| `canHandle` | `string[]` | Event types this projection processes |
-| `handle` | `function` | Event handler function |
-| `truncate` | `function?` | Reset the projection state |
-| `init` | `function?` | One-time initialization |
+| Property    | Type        | Description                           |
+| ----------- | ----------- | ------------------------------------- |
+| `name`      | `string?`   | Unique identifier for the projection  |
+| `canHandle` | `string[]`  | Event types this projection processes |
+| `handle`    | `function`  | Event handler function                |
+| `truncate`  | `function?` | Reset the projection state            |
+| `init`      | `function?` | One-time initialization               |
 
 ### ProjectionHandler
 
@@ -72,7 +76,11 @@ import { projection } from '@event-driven-io/emmett';
 
 const cartSummaryProjection = projection<ShoppingCartEvent>({
   name: 'CartSummary',
-  canHandle: ['ProductItemAdded', 'ProductItemRemoved', 'ShoppingCartConfirmed'],
+  canHandle: [
+    'ProductItemAdded',
+    'ProductItemRemoved',
+    'ShoppingCartConfirmed',
+  ],
   handle: async (events, context) => {
     for (const event of events) {
       const { streamName } = event.metadata;
@@ -83,7 +91,8 @@ const cartSummaryProjection = projection<ShoppingCartEvent>({
           await updateCartSummary(cartId, (summary) => ({
             ...summary,
             totalItems: summary.totalItems + event.data.quantity,
-            totalAmount: summary.totalAmount + event.data.price * event.data.quantity,
+            totalAmount:
+              summary.totalAmount + event.data.price * event.data.quantity,
           }));
           break;
 
@@ -134,7 +143,8 @@ const cartSummaryProjection = pongoSingleStreamProjection({
         return {
           ...current,
           totalItems: current.totalItems + event.data.quantity,
-          totalAmount: current.totalAmount + event.data.price * event.data.quantity,
+          totalAmount:
+            current.totalAmount + event.data.price * event.data.quantity,
         };
       case 'ProductItemRemoved':
         return {
@@ -156,7 +166,10 @@ const productSalesProjection = pongoMultiStreamProjection({
   getDocumentId: (event) => event.data.productId,
   canHandle: ['ProductItemAdded'],
   evolve: (document, event) => {
-    const current = document ?? { productId: event.data.productId, totalSold: 0 };
+    const current = document ?? {
+      productId: event.data.productId,
+      totalSold: 0,
+    };
     return {
       ...current,
       totalSold: current.totalSold + event.data.quantity,
@@ -170,7 +183,10 @@ const productSalesProjection = pongoMultiStreamProjection({
 ```typescript
 import { sqliteSingleStreamProjection } from '@event-driven-io/emmett-sqlite';
 
-const cartProjection = sqliteSingleStreamProjection<CartSummary, ShoppingCartEvent>({
+const cartProjection = sqliteSingleStreamProjection<
+  CartSummary,
+  ShoppingCartEvent
+>({
   tableName: 'cart_summaries',
   canHandle: ['ProductItemAdded', 'ProductItemRemoved'],
   evolve: (document, event) => {
@@ -206,9 +222,9 @@ await consumer.start();
 
 ```typescript
 const consumer = eventStore.consumer({
-  pollingIntervalMs: 100,    // How often to check for new events
-  batchSize: 100,            // Max events per batch
-  eagerCheckpoint: false,    // Checkpoint after each batch vs per event
+  pollingIntervalMs: 100, // How often to check for new events
+  batchSize: 100, // Max events per batch
+  eagerCheckpoint: false, // Checkpoint after each batch vs per event
 });
 ```
 
@@ -220,16 +236,10 @@ const consumer = eventStore.consumer({
 import { projections } from '@event-driven-io/emmett';
 
 // Inline projections (same transaction)
-const inlineRegs = projections.inline([
-  projection1,
-  projection2,
-]);
+const inlineRegs = projections.inline([projection1, projection2]);
 
 // Async projections (background)
-const asyncRegs = projections.async([
-  asyncProjection1,
-  asyncProjection2,
-]);
+const asyncRegs = projections.async([asyncProjection1, asyncProjection2]);
 ```
 
 ## Testing Projections
@@ -267,25 +277,31 @@ describe('Cart Summary Projection', () => {
         expectPongoDocuments
           .fromCollection<CartSummary>('cart_summaries')
           .withId('123')
-          .toBeEqual({ totalItems: 2, totalAmount: 200 })
+          .toBeEqual({ totalItems: 2, totalAmount: 200 }),
       ));
 
   it('updates summary on additional products', () =>
     given(
       eventsInStream('shopping_cart-123', [
-        { type: 'ProductItemAdded', data: { productId: 'shoes', quantity: 2, price: 100 } },
-      ])
+        {
+          type: 'ProductItemAdded',
+          data: { productId: 'shoes', quantity: 2, price: 100 },
+        },
+      ]),
     )
       .when(
         newEventsInStream('shopping_cart-123', [
-          { type: 'ProductItemAdded', data: { productId: 'shirt', quantity: 1, price: 50 } },
-        ])
+          {
+            type: 'ProductItemAdded',
+            data: { productId: 'shirt', quantity: 1, price: 50 },
+          },
+        ]),
       )
       .then(
         expectPongoDocuments
           .fromCollection<CartSummary>('cart_summaries')
           .withId('123')
-          .toBeEqual({ totalItems: 3, totalAmount: 250 })
+          .toBeEqual({ totalItems: 3, totalAmount: 250 }),
       ));
 });
 ```
@@ -333,7 +349,7 @@ const evolve = (document: CartSummary | null, event: ShoppingCartEvent) => {
       };
 
     case 'ShoppingCartConfirmed':
-      return null;  // Delete document
+      return null; // Delete document
 
     default:
       return document;
@@ -350,13 +366,17 @@ const evolve = (document: CartSummary | null, event: ShoppingCartEvent) => {
 const cartSummary = projection({
   name: 'CartSummary',
   canHandle: ['ProductItemAdded'],
-  handle: async (events) => { /* ... */ },
+  handle: async (events) => {
+    /* ... */
+  },
 });
 
 // ❌ Bad: Anonymous projection
 const cartSummary = projection({
   canHandle: ['ProductItemAdded'],
-  handle: async (events) => { /* ... */ },
+  handle: async (events) => {
+    /* ... */
+  },
 });
 ```
 
@@ -366,13 +386,17 @@ const cartSummary = projection({
 // ✅ Good: Only handle needed events
 const projection = {
   canHandle: ['ProductItemAdded', 'ProductItemRemoved'],
-  handle: (events) => { /* ... */ },
+  handle: (events) => {
+    /* ... */
+  },
 };
 
 // ❌ Bad: Handle all events
 const projection = {
-  canHandle: ['*'],  // Don't do this
-  handle: (events) => { /* ... */ },
+  canHandle: ['*'], // Don't do this
+  handle: (events) => {
+    /* ... */
+  },
 };
 ```
 
@@ -386,7 +410,7 @@ const handle = async (events, context) => {
     // Check if already processed
     const existing = await getDocument(id);
     if (existing?.lastProcessedPosition >= streamPosition) {
-      continue;  // Already processed
+      continue; // Already processed
     }
 
     await updateDocument(id, {
@@ -412,7 +436,7 @@ const handle = async (events, context) => {
 // ❌ Bad: Individual operations
 const handle = async (events, context) => {
   for (const event of events) {
-    await update(event);  // N database calls
+    await update(event); // N database calls
   }
 };
 ```

@@ -12,6 +12,7 @@ Projections transform event streams into read models optimized for queries. This
 In Event Sourcing, rebuilding state from events works well for single entities. But queries like "show all shopping carts" would require reading thousands of streams and rebuilding each cart in memory.
 
 **Projections solve this by:**
+
 - Pre-computing query results as events occur
 - Storing optimized read models in queryable formats
 - Updating incrementally rather than recomputing
@@ -47,13 +48,15 @@ const cartSummaryProjection = pongoSingleStreamProjection<
         return {
           ...current,
           productItemsCount: current.productItemsCount + event.data.quantity,
-          totalAmount: current.totalAmount + event.data.price * event.data.quantity,
+          totalAmount:
+            current.totalAmount + event.data.price * event.data.quantity,
         };
       case 'ProductItemRemoved':
         return {
           ...current,
           productItemsCount: current.productItemsCount - event.data.quantity,
-          totalAmount: current.totalAmount - event.data.price * event.data.quantity,
+          totalAmount:
+            current.totalAmount - event.data.price * event.data.quantity,
         };
     }
   },
@@ -114,11 +117,13 @@ const clientSummaryProjection = pongoMultiStreamProjection<
 Execute within the same transaction as the event append.
 
 **Pros:**
+
 - Strong consistency - read model always matches events
 - No eventual consistency delays
 - Simpler mental model
 
 **Cons:**
+
 - Slower appends (projection runs synchronously)
 - Transaction scope limitations
 - Can't project to external systems
@@ -137,11 +142,13 @@ const eventStore = getPostgreSQLEventStore(connectionString, {
 Process events in background consumers with checkpointing.
 
 **Pros:**
+
 - Faster appends
 - Can project to external systems
 - Better scalability
 
 **Cons:**
+
 - Eventual consistency
 - Requires checkpoint management
 - More infrastructure
@@ -179,7 +186,8 @@ const projection = pongoSingleStreamProjection({
         return {
           ...document,
           items: [...document.items, event.data],
-          totalAmount: document.totalAmount + event.data.price * event.data.quantity,
+          totalAmount:
+            document.totalAmount + event.data.price * event.data.quantity,
         };
       case 'ShoppingCartConfirmed':
         return { ...document, status: 'Confirmed' };
@@ -196,12 +204,14 @@ Return `null` to delete the document:
 evolve: (document, event) => {
   switch (event.type) {
     case 'ProductItemAdded':
-      return { /* updated document */ };
+      return {
+        /* updated document */
+      };
     case 'ShoppingCartConfirmed':
       // Delete the pending cart document
       return null;
   }
-}
+};
 ```
 
 ### Selective Handling
@@ -247,7 +257,9 @@ const projection = pongoMultiStreamProjection({
 import { pongoClient } from '@event-driven-io/pongo';
 
 const pongo = pongoClient(connectionString);
-const cartSummaries = pongo.db().collection<ShoppingCartSummary>('cart_summaries');
+const cartSummaries = pongo
+  .db()
+  .collection<ShoppingCartSummary>('cart_summaries');
 
 // Find by ID
 const cart = await cartSummaries.findOne({ _id: 'cart-123' });
@@ -268,26 +280,32 @@ const recentCarts = await cartSummaries
 ### In API Routes
 
 ```typescript
-router.get('/carts/:cartId/summary', on(async (request) => {
-  const cartId = request.params.cartId;
-  const summary = await cartSummaries.findOne({ _id: cartId });
+router.get(
+  '/carts/:cartId/summary',
+  on(async (request) => {
+    const cartId = request.params.cartId;
+    const summary = await cartSummaries.findOne({ _id: cartId });
 
-  if (!summary) {
-    return notFound({ detail: 'Cart not found' });
-  }
+    if (!summary) {
+      return notFound({ detail: 'Cart not found' });
+    }
 
-  return ok(summary);
-}));
+    return ok(summary);
+  }),
+);
 
-router.get('/carts', on(async (request) => {
-  const minAmount = parseFloat(request.query.minAmount ?? '0');
+router.get(
+  '/carts',
+  on(async (request) => {
+    const minAmount = parseFloat(request.query.minAmount ?? '0');
 
-  const carts = await cartSummaries
-    .find({ totalAmount: { $gte: minAmount } })
-    .toArray();
+    const carts = await cartSummaries
+      .find({ totalAmount: { $gte: minAmount } })
+      .toArray();
 
-  return ok({ carts });
-}));
+    return ok({ carts });
+  }),
+);
 ```
 
 ## Testing Projections
@@ -295,7 +313,12 @@ router.get('/carts', on(async (request) => {
 Use the `PostgreSQLProjectionSpec` for BDD-style tests:
 
 ```typescript
-import { PostgreSQLProjectionSpec, expectPongoDocuments, eventsInStream, newEventsInStream } from '@event-driven-io/emmett-postgresql';
+import {
+  PostgreSQLProjectionSpec,
+  expectPongoDocuments,
+  eventsInStream,
+  newEventsInStream,
+} from '@event-driven-io/emmett-postgresql';
 
 describe('Cart Summary Projection', () => {
   let given: PostgreSQLProjectionSpec<ShoppingCartEvent>;
@@ -331,12 +354,18 @@ describe('Cart Summary Projection', () => {
   it('accumulates across events', () =>
     given(
       eventsInStream('cart-123', [
-        { type: 'ProductItemAdded', data: { productId: 'shoes', quantity: 2, price: 100 } },
+        {
+          type: 'ProductItemAdded',
+          data: { productId: 'shoes', quantity: 2, price: 100 },
+        },
       ]),
     )
       .when(
         newEventsInStream('cart-123', [
-          { type: 'ProductItemAdded', data: { productId: 'shirt', quantity: 1, price: 50 } },
+          {
+            type: 'ProductItemAdded',
+            data: { productId: 'shirt', quantity: 1, price: 50 },
+          },
         ]),
       )
       .then(
@@ -388,8 +417,8 @@ evolve: (document, event) => {
   const current = document ?? defaultState();
 
   // Now safely update
-  return { ...current, /* updates */ };
-}
+  return { ...current /* updates */ };
+};
 ```
 
 ### 4. Version Your Projections
@@ -406,6 +435,7 @@ const projection = pongoSingleStreamProjection({
 ### 5. Consider Rebuild Strategy
 
 For production changes:
+
 1. Deploy new projection alongside old
 2. Rebuild from event history
 3. Switch reads to new projection

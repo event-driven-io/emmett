@@ -8,12 +8,12 @@ This package provides a pre-configured Docker container wrapper for EventStoreDB
 
 ## Key Concepts
 
-| Concept | Description |
-|---------|-------------|
-| **EventStoreDBContainer** | A configured Docker container wrapper extending Testcontainers' `GenericContainer` |
-| **StartedEventStoreDBContainer** | A running container instance providing connection strings and client access |
-| **Shared Container** | Thread-safe singleton pattern for reusing a single container across multiple tests |
-| **Architecture Detection** | Automatic selection of appropriate Docker image for x86 or ARM64 systems |
+| Concept                          | Description                                                                        |
+| -------------------------------- | ---------------------------------------------------------------------------------- |
+| **EventStoreDBContainer**        | A configured Docker container wrapper extending Testcontainers' `GenericContainer` |
+| **StartedEventStoreDBContainer** | A running container instance providing connection strings and client access        |
+| **Shared Container**             | Thread-safe singleton pattern for reusing a single container across multiple tests |
+| **Architecture Detection**       | Automatic selection of appropriate Docker image for x86 or ARM64 systems           |
 
 ## Installation
 
@@ -103,13 +103,16 @@ describe('My Event Store Tests', () => {
 Customize the container behavior using `EventStoreDBContainerOptions`:
 
 ```typescript
-import { EventStoreDBContainer, EVENTSTOREDB_DEFAULT_IMAGE } from '@event-driven-io/emmett-testcontainers';
+import {
+  EventStoreDBContainer,
+  EVENTSTOREDB_DEFAULT_IMAGE,
+} from '@event-driven-io/emmett-testcontainers';
 
 const container = new EventStoreDBContainer(EVENTSTOREDB_DEFAULT_IMAGE, {
   disableProjections: false, // Enable EventStoreDB projections (default: false)
-  isSecure: false,           // Run without TLS (default: false)
-  useFileStorage: true,      // Persist data to disk instead of memory
-  withReuse: true,           // Reuse container across test runs (Testcontainers feature)
+  isSecure: false, // Run without TLS (default: false)
+  useFileStorage: true, // Persist data to disk instead of memory
+  withReuse: true, // Reuse container across test runs (Testcontainers feature)
 });
 
 const started = await container.start();
@@ -122,7 +125,9 @@ Specify a different EventStoreDB image:
 ```typescript
 import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 
-const container = new EventStoreDBContainer('eventstore/eventstore:23.10.0-bookworm-slim');
+const container = new EventStoreDBContainer(
+  'eventstore/eventstore:23.10.0-bookworm-slim',
+);
 const started = await container.start();
 ```
 
@@ -160,24 +165,24 @@ const localClient = await getEventStoreDBTestClient(false);
 
 ### Constants
 
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `EVENTSTOREDB_PORT` | `2113` | Default EventStoreDB HTTP/gRPC port |
-| `EVENTSTOREDB_IMAGE_NAME` | `'eventstore/eventstore'` | Docker image name |
-| `EVENTSTOREDB_IMAGE_TAG` | `'24.10.0-bookworm-slim'` | x86 image tag |
-| `EVENTSTOREDB_ARM64_IMAGE_TAG` | `'24.10.0-alpha-arm64v8'` | ARM64 image tag |
-| `EVENTSTOREDB_DEFAULT_IMAGE` | Auto-detected | Full image name based on system architecture |
+| Constant                       | Value                     | Description                                  |
+| ------------------------------ | ------------------------- | -------------------------------------------- |
+| `EVENTSTOREDB_PORT`            | `2113`                    | Default EventStoreDB HTTP/gRPC port          |
+| `EVENTSTOREDB_IMAGE_NAME`      | `'eventstore/eventstore'` | Docker image name                            |
+| `EVENTSTOREDB_IMAGE_TAG`       | `'24.10.0-bookworm-slim'` | x86 image tag                                |
+| `EVENTSTOREDB_ARM64_IMAGE_TAG` | `'24.10.0-alpha-arm64v8'` | ARM64 image tag                              |
+| `EVENTSTOREDB_DEFAULT_IMAGE`   | Auto-detected             | Full image name based on system architecture |
 
 ### EventStoreDBContainerOptions
 
 Configuration options for the container:
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `disableProjections` | `boolean` | `false` | When `true`, disables EventStoreDB projections |
-| `isSecure` | `boolean` | `false` | When `true`, enables TLS security |
-| `useFileStorage` | `boolean` | `false` | When `true`, uses file storage instead of in-memory |
-| `withReuse` | `boolean` | `false` | When `true`, enables Testcontainers reuse feature |
+| Option               | Type      | Default | Description                                         |
+| -------------------- | --------- | ------- | --------------------------------------------------- |
+| `disableProjections` | `boolean` | `false` | When `true`, disables EventStoreDB projections      |
+| `isSecure`           | `boolean` | `false` | When `true`, enables TLS security                   |
+| `useFileStorage`     | `boolean` | `false` | When `true`, uses file storage instead of in-memory |
+| `withReuse`          | `boolean` | `false` | When `true`, enables Testcontainers reuse feature   |
 
 ### EventStoreDBContainer
 
@@ -186,8 +191,8 @@ Extends Testcontainers' `GenericContainer` with EventStoreDB-specific configurat
 ```typescript
 class EventStoreDBContainer extends GenericContainer {
   constructor(
-    image?: string,  // Default: EVENTSTOREDB_DEFAULT_IMAGE
-    options?: EventStoreDBContainerOptions  // Default: defaultEventStoreDBContainerOptions
+    image?: string, // Default: EVENTSTOREDB_DEFAULT_IMAGE
+    options?: EventStoreDBContainerOptions, // Default: defaultEventStoreDBContainerOptions
   );
 
   start(): Promise<StartedEventStoreDBContainer>;
@@ -200,8 +205,8 @@ A running EventStoreDB container with access methods.
 
 ```typescript
 class StartedEventStoreDBContainer extends AbstractStartedContainer {
-  getConnectionString(): string;  // Returns esdb:// connection string
-  getClient(): EventStoreDBClient;  // Returns configured client instance
+  getConnectionString(): string; // Returns esdb:// connection string
+  getClient(): EventStoreDBClient; // Returns configured client instance
 }
 ```
 
@@ -209,10 +214,10 @@ class StartedEventStoreDBContainer extends AbstractStartedContainer {
 
 Thread-safe functions for sharing a single container across tests:
 
-| Function | Description |
-|----------|-------------|
-| `getSharedEventStoreDBTestContainer()` | Gets or creates the shared container instance |
-| `getSharedTestEventStoreDBClient()` | Gets a client from the shared container |
+| Function                                   | Description                                       |
+| ------------------------------------------ | ------------------------------------------------- |
+| `getSharedEventStoreDBTestContainer()`     | Gets or creates the shared container instance     |
+| `getSharedTestEventStoreDBClient()`        | Gets a client from the shared container           |
 | `releaseSharedEventStoreDBTestContainer()` | Decrements usage count; stops container when zero |
 
 ### getEventStoreDBTestClient
@@ -221,14 +226,14 @@ Helper function for quick test setup:
 
 ```typescript
 function getEventStoreDBTestClient(
-  useTestContainers?: boolean  // Default: false
+  useTestContainers?: boolean, // Default: false
 ): Promise<EventStoreDBClient>;
 ```
 
 ## Dependencies
 
-| Package | Purpose |
-|---------|---------|
+| Package                   | Purpose                                                       |
+| ------------------------- | ------------------------------------------------------------- |
 | `@event-driven-io/emmett` | Provides `InProcessLock` for thread-safe container management |
-| `testcontainers` | Docker container management and lifecycle |
-| `@eventstore/db-client` | EventStoreDB client (peer dependency) |
+| `testcontainers`          | Docker container management and lifecycle                     |
+| `@eventstore/db-client`   | EventStoreDB client (peer dependency)                         |

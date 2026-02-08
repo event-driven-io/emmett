@@ -11,12 +11,12 @@ Emmett provides a structured approach to error handling with built-in error type
 
 Emmett includes several error types that map to common scenarios:
 
-| Error Type | HTTP Status | Use Case |
-|------------|-------------|----------|
-| `ValidationError` | 400 | Invalid input data |
-| `IllegalStateError` | 403 | Business rule violation |
-| `NotFoundError` | 404 | Resource doesn't exist |
-| `ConcurrencyError` | 412 | Version conflict |
+| Error Type          | HTTP Status | Use Case                |
+| ------------------- | ----------- | ----------------------- |
+| `ValidationError`   | 400         | Invalid input data      |
+| `IllegalStateError` | 403         | Business rule violation |
+| `NotFoundError`     | 404         | Resource doesn't exist  |
+| `ConcurrencyError`  | 412         | Version conflict        |
 
 ### ValidationError
 
@@ -91,10 +91,7 @@ const updateCart = async (cartId: string, expectedVersion: bigint) => {
   const { currentStreamVersion } = await eventStore.readStream(streamName);
 
   if (currentStreamVersion !== expectedVersion) {
-    throw new ConcurrencyError(
-      currentStreamVersion,
-      expectedVersion,
-    );
+    throw new ConcurrencyError(currentStreamVersion, expectedVersion);
   }
 };
 ```
@@ -135,7 +132,10 @@ const app = getApplication({
 Add your own error types with custom mappings:
 
 ```typescript
-import { getApplication, problemDetails } from '@event-driven-io/emmett-expressjs';
+import {
+  getApplication,
+  problemDetails,
+} from '@event-driven-io/emmett-expressjs';
 
 class InsufficientFundsError extends Error {
   constructor(
@@ -170,41 +170,50 @@ const app = getApplication({
 ### Using Response Helpers
 
 ```typescript
-import { on, ok, notFound, badRequest, forbidden } from '@event-driven-io/emmett-expressjs';
+import {
+  on,
+  ok,
+  notFound,
+  badRequest,
+  forbidden,
+} from '@event-driven-io/emmett-expressjs';
 
-router.get('/carts/:cartId', on(async (request) => {
-  const cartId = request.params.cartId;
+router.get(
+  '/carts/:cartId',
+  on(async (request) => {
+    const cartId = request.params.cartId;
 
-  if (!cartId) {
-    return badRequest({ detail: 'Cart ID is required' });
-  }
+    if (!cartId) {
+      return badRequest({ detail: 'Cart ID is required' });
+    }
 
-  const cart = await getCart(cartId);
+    const cart = await getCart(cartId);
 
-  if (!cart) {
-    return notFound({ detail: `Cart ${cartId} not found` });
-  }
+    if (!cart) {
+      return notFound({ detail: `Cart ${cartId} not found` });
+    }
 
-  if (cart.status === 'Private') {
-    return forbidden({ detail: 'Access denied' });
-  }
+    if (cart.status === 'Private') {
+      return forbidden({ detail: 'Access denied' });
+    }
 
-  return ok(cart);
-}));
+    return ok(cart);
+  }),
+);
 ```
 
 ### Available Response Helpers
 
-| Helper | Status | Use Case |
-|--------|--------|----------|
-| `ok(body)` | 200 | Successful response |
-| `created(body, location)` | 201 | Resource created |
-| `noContent()` | 204 | Success, no body |
-| `badRequest(problem)` | 400 | Invalid request |
-| `forbidden(problem)` | 403 | Not allowed |
-| `notFound(problem)` | 404 | Not found |
-| `conflict(problem)` | 409 | State conflict |
-| `preconditionFailed(problem)` | 412 | Version mismatch |
+| Helper                        | Status | Use Case            |
+| ----------------------------- | ------ | ------------------- |
+| `ok(body)`                    | 200    | Successful response |
+| `created(body, location)`     | 201    | Resource created    |
+| `noContent()`                 | 204    | Success, no body    |
+| `badRequest(problem)`         | 400    | Invalid request     |
+| `forbidden(problem)`          | 403    | Not allowed         |
+| `notFound(problem)`           | 404    | Not found           |
+| `conflict(problem)`           | 409    | State conflict      |
+| `preconditionFailed(problem)` | 412    | Version mismatch    |
 
 ### Throwing vs Returning
 
@@ -220,13 +229,16 @@ const decide = (command, state) => {
 };
 
 // Returning - cleaner for HTTP layer
-router.get('/carts/:id', on(async (request) => {
-  const cart = await findCart(request.params.id);
-  if (!cart) {
-    return notFound({ detail: 'Cart not found' });
-  }
-  return ok(cart);
-}));
+router.get(
+  '/carts/:id',
+  on(async (request) => {
+    const cart = await findCart(request.params.id);
+    if (!cart) {
+      return notFound({ detail: 'Cart not found' });
+    }
+    return ok(cart);
+  }),
+);
 ```
 
 ## Optimistic Concurrency
@@ -237,29 +249,34 @@ Express.js integration supports ETag-based concurrency:
 
 ```typescript
 // Client sends: If-Match: "5"
-router.post('/carts/:cartId/confirm', on(async (request) => {
-  const cartId = request.params.cartId;
-  const expectedVersion = getExpectedVersionFromRequest(request);
+router.post(
+  '/carts/:cartId/confirm',
+  on(async (request) => {
+    const cartId = request.params.cartId;
+    const expectedVersion = getExpectedVersionFromRequest(request);
 
-  await handle(cartId, {
-    type: 'ConfirmShoppingCart',
-    data: { confirmedAt: new Date() },
-  }, { expectedStreamVersion: expectedVersion });
+    await handle(
+      cartId,
+      {
+        type: 'ConfirmShoppingCart',
+        data: { confirmedAt: new Date() },
+      },
+      { expectedStreamVersion: expectedVersion },
+    );
 
-  // Returns ETag: "6" in response
-  return ok({ status: 'Confirmed' });
-}));
+    // Returns ETag: "6" in response
+    return ok({ status: 'Confirmed' });
+  }),
+);
 ```
 
 ### Handling Version Conflicts
 
 ```typescript
 try {
-  await eventStore.appendToStream(
-    streamName,
-    events,
-    { expectedStreamVersion: 5n },
-  );
+  await eventStore.appendToStream(streamName, events, {
+    expectedStreamVersion: 5n,
+  });
 } catch (error) {
   if (error instanceof ConcurrencyError) {
     // Handle conflict - maybe retry with fresh state
@@ -281,7 +298,10 @@ describe('Shopping Cart Errors', () => {
 
   it('rejects adding to confirmed cart', () =>
     spec([
-      { type: 'ProductItemAdded', data: { productId: 'p1', quantity: 1, price: 10 } },
+      {
+        type: 'ProductItemAdded',
+        data: { productId: 'p1', quantity: 1, price: 10 },
+      },
       { type: 'ShoppingCartConfirmed', data: { confirmedAt: new Date() } },
     ])
       .when({
@@ -328,7 +348,7 @@ it('returns 412 for version conflict', () =>
 ```typescript
 // ✅ Good: Specific, actionable
 throw new ValidationError(
-  `Quantity must be between 1 and 100, got ${quantity}`
+  `Quantity must be between 1 and 100, got ${quantity}`,
 );
 
 // ❌ Bad: Vague
@@ -360,21 +380,24 @@ return badRequest({ detail: `SQL Error: ${sqlError.message}` });
 ### 4. Log Errors Appropriately
 
 ```typescript
-router.post('/carts/:id/items', on(async (request) => {
-  try {
-    await handle(/* ... */);
-    return ok({ success: true });
-  } catch (error) {
-    if (error instanceof ValidationError) {
-      // Don't log validation errors - they're expected
+router.post(
+  '/carts/:id/items',
+  on(async (request) => {
+    try {
+      await handle(/* ... */);
+      return ok({ success: true });
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        // Don't log validation errors - they're expected
+        throw error;
+      }
+
+      // Log unexpected errors
+      console.error('Unexpected error:', error);
       throw error;
     }
-
-    // Log unexpected errors
-    console.error('Unexpected error:', error);
-    throw error;
-  }
-}));
+  }),
+);
 ```
 
 ## See Also

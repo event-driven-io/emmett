@@ -35,12 +35,21 @@ npm install @event-driven-io/emmett mongodb
 ### Basic Event Store Setup
 
 ```typescript
-import { getMongoDBEventStore, toStreamName } from '@event-driven-io/emmett-mongodb';
+import {
+  getMongoDBEventStore,
+  toStreamName,
+} from '@event-driven-io/emmett-mongodb';
 import { type Event, STREAM_DOES_NOT_EXIST } from '@event-driven-io/emmett';
 
 // Define your events
-type ProductItemAdded = Event<'ProductItemAdded', { productItem: { productId: string; quantity: number; price: number } }>;
-type DiscountApplied = Event<'DiscountApplied', { percent: number; couponId: string }>;
+type ProductItemAdded = Event<
+  'ProductItemAdded',
+  { productItem: { productId: string; quantity: number; price: number } }
+>;
+type DiscountApplied = Event<
+  'DiscountApplied',
+  { percent: number; couponId: string }
+>;
 type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
 // Create event store with connection string
@@ -53,12 +62,18 @@ const streamName = toStreamName('shopping_cart', 'cart-123');
 
 await eventStore.appendToStream<ShoppingCartEvent>(
   streamName,
-  [{ type: 'ProductItemAdded', data: { productItem: { productId: 'prod-1', quantity: 2, price: 29.99 } } }],
-  { expectedStreamVersion: STREAM_DOES_NOT_EXIST }
+  [
+    {
+      type: 'ProductItemAdded',
+      data: { productItem: { productId: 'prod-1', quantity: 2, price: 29.99 } },
+    },
+  ],
+  { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
 );
 
 // Read events from stream
-const { events, currentStreamVersion } = await eventStore.readStream(streamName);
+const { events, currentStreamVersion } =
+  await eventStore.readStream(streamName);
 
 // Close the event store when done (only needed when using connection string)
 await eventStore.close();
@@ -85,12 +100,17 @@ type ShoppingCart = {
   totalAmount: number;
 };
 
-const evolve = (state: ShoppingCart, event: ShoppingCartEvent): ShoppingCart => {
+const evolve = (
+  state: ShoppingCart,
+  event: ShoppingCartEvent,
+): ShoppingCart => {
   switch (event.type) {
     case 'ProductItemAdded':
       return {
         productItems: [...state.productItems, event.data.productItem],
-        totalAmount: state.totalAmount + event.data.productItem.price * event.data.productItem.quantity,
+        totalAmount:
+          state.totalAmount +
+          event.data.productItem.price * event.data.productItem.quantity,
       };
     case 'DiscountApplied':
       return {
@@ -100,10 +120,13 @@ const evolve = (state: ShoppingCart, event: ShoppingCartEvent): ShoppingCart => 
   }
 };
 
-const { state, currentStreamVersion } = await eventStore.aggregateStream(streamName, {
-  evolve,
-  initialState: () => ({ productItems: [], totalAmount: 0 }),
-});
+const { state, currentStreamVersion } = await eventStore.aggregateStream(
+  streamName,
+  {
+    evolve,
+    initialState: () => ({ productItems: [], totalAmount: 0 }),
+  },
+);
 ```
 
 ## How-to Guides
@@ -161,7 +184,10 @@ const eventStore = getMongoDBEventStore({
 Inline projections are stored alongside events and updated atomically:
 
 ```typescript
-import { mongoDBInlineProjection, getMongoDBEventStore } from '@event-driven-io/emmett-mongodb';
+import {
+  mongoDBInlineProjection,
+  getMongoDBEventStore,
+} from '@event-driven-io/emmett-mongodb';
 import { projections } from '@event-driven-io/emmett';
 
 type ShoppingCartDetails = {
@@ -170,7 +196,10 @@ type ShoppingCartDetails = {
   itemCount: number;
 };
 
-const shoppingCartDetailsProjection = mongoDBInlineProjection<ShoppingCartDetails, ShoppingCartEvent>({
+const shoppingCartDetailsProjection = mongoDBInlineProjection<
+  ShoppingCartDetails,
+  ShoppingCartEvent
+>({
   name: 'shopping_cart_details', // optional, defaults to '_default'
   schemaVersion: 1,
   canHandle: ['ProductItemAdded', 'DiscountApplied'],
@@ -181,7 +210,9 @@ const shoppingCartDetailsProjection = mongoDBInlineProjection<ShoppingCartDetail
       case 'ProductItemAdded':
         return {
           productItems: [...doc.productItems, event.data.productItem],
-          totalAmount: doc.totalAmount + event.data.productItem.price * event.data.productItem.quantity,
+          totalAmount:
+            doc.totalAmount +
+            event.data.productItem.price * event.data.productItem.quantity,
           itemCount: doc.itemCount + 1,
         };
       case 'DiscountApplied':
@@ -202,7 +233,10 @@ const eventStore = getMongoDBEventStore({
 With an initial state:
 
 ```typescript
-const projectionWithInitialState = mongoDBInlineProjection<ShoppingCartDetails, ShoppingCartEvent>({
+const projectionWithInitialState = mongoDBInlineProjection<
+  ShoppingCartDetails,
+  ShoppingCartEvent
+>({
   canHandle: ['ProductItemAdded', 'DiscountApplied'],
   initialState: () => ({ productItems: [], totalAmount: 0, itemCount: 0 }),
   evolve: (document, event) => {
@@ -211,7 +245,9 @@ const projectionWithInitialState = mongoDBInlineProjection<ShoppingCartDetails, 
       case 'ProductItemAdded':
         return {
           productItems: [...document.productItems, event.data.productItem],
-          totalAmount: document.totalAmount + event.data.productItem.price * event.data.productItem.quantity,
+          totalAmount:
+            document.totalAmount +
+            event.data.productItem.price * event.data.productItem.quantity,
           itemCount: document.itemCount + 1,
         };
       case 'DiscountApplied':
@@ -230,27 +266,31 @@ The event store provides helpers for querying inline projections:
 
 ```typescript
 // Find a single projection by stream name
-const details = await eventStore.projections.inline.findOne<ShoppingCartDetails>(
-  { streamName: 'shopping_cart:cart-123' },
-  { totalAmount: { $gt: 100 } } // optional MongoDB filter
-);
+const details =
+  await eventStore.projections.inline.findOne<ShoppingCartDetails>(
+    { streamName: 'shopping_cart:cart-123' },
+    { totalAmount: { $gt: 100 } }, // optional MongoDB filter
+  );
 
 // Find by stream type and ID
-const details2 = await eventStore.projections.inline.findOne<ShoppingCartDetails>(
-  { streamType: 'shopping_cart', streamId: 'cart-123', projectionName: 'shopping_cart_details' }
-);
+const details2 =
+  await eventStore.projections.inline.findOne<ShoppingCartDetails>({
+    streamType: 'shopping_cart',
+    streamId: 'cart-123',
+    projectionName: 'shopping_cart_details',
+  });
 
 // Find multiple projections
 const allCarts = await eventStore.projections.inline.find<ShoppingCartDetails>(
   { streamType: 'shopping_cart' },
   { totalAmount: { $gt: 50 } },
-  { skip: 0, limit: 10, sort: { totalAmount: -1 } }
+  { skip: 0, limit: 10, sort: { totalAmount: -1 } },
 );
 
 // Count projections
 const count = await eventStore.projections.inline.count<ShoppingCartDetails>(
   { streamType: 'shopping_cart' },
-  { itemCount: { $gte: 5 } }
+  { itemCount: { $gte: 5 } },
 );
 ```
 
@@ -259,10 +299,13 @@ const count = await eventStore.projections.inline.count<ShoppingCartDetails>(
 For advanced queries, access the underlying MongoDB collection:
 
 ```typescript
-const collection = await eventStore.collectionFor<ShoppingCartEvent>('shopping_cart');
+const collection =
+  await eventStore.collectionFor<ShoppingCartEvent>('shopping_cart');
 
 // Use standard MongoDB operations
-const streams = await collection.find({ 'metadata.streamPosition': { $gt: 10n } }).toArray();
+const streams = await collection
+  .find({ 'metadata.streamPosition': { $gt: 10n } })
+  .toArray();
 ```
 
 ### Test Inline Projections
@@ -270,9 +313,16 @@ const streams = await collection.find({ 'metadata.streamPosition': { $gt: 10n } 
 Use the BDD-style specification helpers:
 
 ```typescript
-import { MongoDBInlineProjectionSpec, eventInStream, expectInlineReadModel } from '@event-driven-io/emmett-mongodb';
+import {
+  MongoDBInlineProjectionSpec,
+  eventInStream,
+  expectInlineReadModel,
+} from '@event-driven-io/emmett-mongodb';
 
-const given = MongoDBInlineProjectionSpec.for<`shopping_cart:${string}`, ShoppingCartEvent>({
+const given = MongoDBInlineProjectionSpec.for<
+  `shopping_cart:${string}`,
+  ShoppingCartEvent
+>({
   projection: shoppingCartDetailsProjection,
   connectionString: 'mongodb://localhost:27017/testdb',
 });
@@ -280,14 +330,16 @@ const given = MongoDBInlineProjectionSpec.for<`shopping_cart:${string}`, Shoppin
 await given(
   eventInStream('shopping_cart:test-1', {
     type: 'ProductItemAdded',
-    data: { productItem: { productId: 'p1', quantity: 1, price: 100 } }
-  })
+    data: { productItem: { productId: 'p1', quantity: 1, price: 100 } },
+  }),
 )
   .when([
-    { type: 'DiscountApplied', data: { percent: 10, couponId: 'SAVE10' } }
+    { type: 'DiscountApplied', data: { percent: 10, couponId: 'SAVE10' } },
   ])
   .then(
-    expectInlineReadModel.withName('shopping_cart_details').toHave({ totalAmount: 90 })
+    expectInlineReadModel
+      .withName('shopping_cart_details')
+      .toHave({ totalAmount: 90 }),
   );
 ```
 
@@ -298,42 +350,44 @@ await given(
 Creates a MongoDB event store instance.
 
 ```typescript
-function getMongoDBEventStore(options: MongoDBEventStoreOptions): MongoDBEventStore;
+function getMongoDBEventStore(
+  options: MongoDBEventStoreOptions,
+): MongoDBEventStore;
 ```
 
 **Options:**
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `client` | `MongoClient` | Existing MongoDB client (mutually exclusive with `connectionString`) |
-| `connectionString` | `string` | MongoDB connection URI (mutually exclusive with `client`) |
-| `clientOptions` | `MongoClientOptions` | Options for MongoClient when using connection string |
-| `projections` | `ProjectionRegistration[]` | Array of inline projection definitions |
-| `storage` | `MongoDBEventStoreStorageOptions` | Storage strategy configuration |
+| Property           | Type                              | Description                                                          |
+| ------------------ | --------------------------------- | -------------------------------------------------------------------- |
+| `client`           | `MongoClient`                     | Existing MongoDB client (mutually exclusive with `connectionString`) |
+| `connectionString` | `string`                          | MongoDB connection URI (mutually exclusive with `client`)            |
+| `clientOptions`    | `MongoClientOptions`              | Options for MongoClient when using connection string                 |
+| `projections`      | `ProjectionRegistration[]`        | Array of inline projection definitions                               |
+| `storage`          | `MongoDBEventStoreStorageOptions` | Storage strategy configuration                                       |
 
 ### MongoDBEventStore
 
 Extended EventStore interface with MongoDB-specific features:
 
-| Method | Description |
-|--------|-------------|
-| `readStream(streamName, options?)` | Read events from a stream |
-| `appendToStream(streamName, events, options?)` | Append events to a stream |
-| `aggregateStream(streamName, options)` | Fold events into aggregate state |
-| `collectionFor(streamType)` | Get raw MongoDB collection for a stream type |
-| `projections.inline.findOne(filter, query?)` | Find single inline projection |
-| `projections.inline.find(filter, query?, options?)` | Find multiple inline projections |
-| `projections.inline.count(filter, query?)` | Count inline projections |
-| `close()` | Close the MongoDB client (only when created with connection string) |
+| Method                                              | Description                                                         |
+| --------------------------------------------------- | ------------------------------------------------------------------- |
+| `readStream(streamName, options?)`                  | Read events from a stream                                           |
+| `appendToStream(streamName, events, options?)`      | Append events to a stream                                           |
+| `aggregateStream(streamName, options)`              | Fold events into aggregate state                                    |
+| `collectionFor(streamType)`                         | Get raw MongoDB collection for a stream type                        |
+| `projections.inline.findOne(filter, query?)`        | Find single inline projection                                       |
+| `projections.inline.find(filter, query?, options?)` | Find multiple inline projections                                    |
+| `projections.inline.count(filter, query?)`          | Count inline projections                                            |
+| `close()`                                           | Close the MongoDB client (only when created with connection string) |
 
 ### Stream Naming Functions
 
-| Function | Description |
-|----------|-------------|
-| `toStreamName(streamType, streamId)` | Create stream name: `streamType:streamId` |
-| `fromStreamName(streamName)` | Parse stream name into `{ streamType, streamId }` |
-| `toStreamCollectionName(streamType)` | Create collection name: `emt:streamType` |
-| `fromStreamCollectionName(collectionName)` | Parse collection name into `{ streamType }` |
+| Function                                   | Description                                       |
+| ------------------------------------------ | ------------------------------------------------- |
+| `toStreamName(streamType, streamId)`       | Create stream name: `streamType:streamId`         |
+| `fromStreamName(streamName)`               | Parse stream name into `{ streamType, streamId }` |
+| `toStreamCollectionName(streamType)`       | Create collection name: `emt:streamType`          |
+| `fromStreamCollectionName(collectionName)` | Parse collection name into `{ streamType }`       |
 
 ### mongoDBInlineProjection
 
@@ -341,19 +395,19 @@ Creates an inline projection definition.
 
 ```typescript
 function mongoDBInlineProjection<Doc, EventType>(
-  options: MongoDBInlineProjectionOptions<Doc, EventType>
+  options: MongoDBInlineProjectionOptions<Doc, EventType>,
 ): MongoDBInlineProjectionDefinition;
 ```
 
 **Options:**
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `name` | `string` | Projection name (default: `_default`) |
-| `schemaVersion` | `number` | Schema version for migrations (default: `1`) |
-| `canHandle` | `string[]` | Event types this projection handles |
-| `evolve` | `Function` | State evolution function |
-| `initialState` | `() => Doc` | Optional initial state factory |
+| Property        | Type        | Description                                  |
+| --------------- | ----------- | -------------------------------------------- |
+| `name`          | `string`    | Projection name (default: `_default`)        |
+| `schemaVersion` | `number`    | Schema version for migrations (default: `1`) |
+| `canHandle`     | `string[]`  | Event types this projection handles          |
+| `evolve`        | `Function`  | State evolution function                     |
+| `initialState`  | `() => Doc` | Optional initial state factory               |
 
 ## Architecture
 
@@ -363,16 +417,17 @@ Each event stream is stored as a single MongoDB document:
 
 ```typescript
 interface EventStream {
-  streamName: string;              // e.g., "shopping_cart:abc-123"
-  messages: ReadEvent[];           // Array of events with metadata
+  streamName: string; // e.g., "shopping_cart:abc-123"
+  messages: ReadEvent[]; // Array of events with metadata
   metadata: {
     streamId: string;
     streamType: string;
-    streamPosition: bigint;        // Current version (BigInt)
+    streamPosition: bigint; // Current version (BigInt)
     createdAt: Date;
     updatedAt: Date;
   };
-  projections: {                   // Inline projections
+  projections: {
+    // Inline projections
     [projectionName: string]: MongoDBReadModel;
   };
 }
@@ -402,7 +457,7 @@ The event store uses MongoDB's atomic update operations with version checking:
 await eventStore.appendToStream(
   streamName,
   events,
-  { expectedStreamVersion: 5n } // Fails if current version !== 5
+  { expectedStreamVersion: 5n }, // Fails if current version !== 5
 );
 ```
 
@@ -416,14 +471,14 @@ Special version constants:
 
 ### Peer Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `@event-driven-io/emmett` | `0.38.3` | Core event sourcing abstractions |
-| `mongodb` | `^6.10.0` | MongoDB driver |
+| Package                   | Version   | Purpose                          |
+| ------------------------- | --------- | -------------------------------- |
+| `@event-driven-io/emmett` | `0.38.3`  | Core event sourcing abstractions |
+| `mongodb`                 | `^6.10.0` | MongoDB driver                   |
 
 ### Development Dependencies
 
-| Package | Purpose |
-|---------|---------|
+| Package                                  | Purpose                  |
+| ---------------------------------------- | ------------------------ |
 | `@event-driven-io/emmett-testcontainers` | Test container utilities |
-| `@testcontainers/mongodb` | MongoDB testcontainer |
+| `@testcontainers/mongodb`                | MongoDB testcontainer    |

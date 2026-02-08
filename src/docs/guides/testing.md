@@ -77,7 +77,10 @@ it('confirms cart with items', () =>
 ```typescript
 it('rejects adding to confirmed cart', () =>
   spec([
-    { type: 'ProductItemAdded', data: { productId: 'p1', quantity: 1, price: 10 } },
+    {
+      type: 'ProductItemAdded',
+      data: { productId: 'p1', quantity: 1, price: 10 },
+    },
     { type: 'ShoppingCartConfirmed', data: { confirmedAt: new Date() } },
   ])
     .when({
@@ -92,7 +95,10 @@ it('rejects adding to confirmed cart', () =>
 ```typescript
 it('ignores duplicate product removal', () =>
   spec([
-    { type: 'ProductItemAdded', data: { productId: 'p1', quantity: 1, price: 10 } },
+    {
+      type: 'ProductItemAdded',
+      data: { productId: 'p1', quantity: 1, price: 10 },
+    },
     { type: 'ProductItemRemoved', data: { productId: 'p1' } },
   ])
     .when({
@@ -136,7 +142,11 @@ describe('Shopping Cart API', () => {
 ### Testing Endpoints
 
 ```typescript
-import { existingStream, expectResponse, expectEvents } from '@event-driven-io/emmett-expressjs';
+import {
+  existingStream,
+  expectResponse,
+  expectEvents,
+} from '@event-driven-io/emmett-expressjs';
 
 it('adds product item', () =>
   given(
@@ -173,15 +183,16 @@ it('adds product item', () =>
 ```typescript
 it('returns 404 for non-existent cart', () =>
   given() // No existing streams
-    .when((request) =>
-      request.get('/clients/client-1/shopping-carts/999'),
-    )
+    .when((request) => request.get('/clients/client-1/shopping-carts/999'))
     .then([expectResponse(404)]));
 
 it('returns 409 for version conflict', () =>
   given(
     existingStream('shopping_cart-123', [
-      { type: 'ProductItemAdded', data: { productId: 'p1', quantity: 1, price: 50 } },
+      {
+        type: 'ProductItemAdded',
+        data: { productId: 'p1', quantity: 1, price: 50 },
+      },
     ]),
   )
     .when((request) =>
@@ -202,7 +213,10 @@ Test against real infrastructure using TestContainers.
 ```typescript
 import { ApiE2ESpecification } from '@event-driven-io/emmett-expressjs';
 import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import {
+  PostgreSqlContainer,
+  StartedPostgreSqlContainer,
+} from '@testcontainers/postgresql';
 
 describe('Shopping Cart API (E2E)', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -286,7 +300,12 @@ Test that events correctly update read models.
 ### PostgreSQL Projection Testing
 
 ```typescript
-import { PostgreSQLProjectionSpec, expectPongoDocuments, eventsInStream, newEventsInStream } from '@event-driven-io/emmett-postgresql';
+import {
+  PostgreSQLProjectionSpec,
+  expectPongoDocuments,
+  eventsInStream,
+  newEventsInStream,
+} from '@event-driven-io/emmett-postgresql';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 
 describe('Shopping Cart Summary Projection', () => {
@@ -351,7 +370,10 @@ describe('Shopping Cart Summary Projection', () => {
   it('removes document on cart confirmation', () =>
     given(
       eventsInStream('cart-123', [
-        { type: 'ProductItemAdded', data: { productId: 'shoes', quantity: 1, price: 100 } },
+        {
+          type: 'ProductItemAdded',
+          data: { productId: 'shoes', quantity: 1, price: 100 },
+        },
       ]),
     )
       .when(
@@ -405,7 +427,12 @@ src/
 
 ```typescript
 // ✅ Good: Focus on business rules
-spec([{ type: 'ProductItemAdded', data: { productId: 'p1', quantity: 10, price: 5 } }])
+spec([
+  {
+    type: 'ProductItemAdded',
+    data: { productId: 'p1', quantity: 10, price: 5 },
+  },
+])
   .when({ type: 'ConfirmShoppingCart', data: { now: new Date() } })
   .then([{ type: 'ShoppingCartConfirmed', data: expect.any(Object) }]);
 ```
@@ -415,7 +442,11 @@ spec([{ type: 'ProductItemAdded', data: { productId: 'p1', quantity: 10, price: 
 ```typescript
 // ✅ Good: Clear, realistic data
 const clientId = 'client-premium-123';
-const expensiveProduct = { productId: 'luxury-watch', quantity: 1, price: 5000 };
+const expensiveProduct = {
+  productId: 'luxury-watch',
+  quantity: 1,
+  price: 5000,
+};
 
 // ❌ Bad: Meaningless data
 const x = { productId: 'p1', quantity: 1, price: 1 };

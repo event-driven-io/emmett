@@ -14,25 +14,32 @@ All event stores implement the same `EventStore` interface, making it easy to sw
 ```typescript
 interface EventStore {
   // Append events to a stream
-  appendToStream(streamName: string, events: Event[], options?: AppendOptions): Promise<AppendResult>;
+  appendToStream(
+    streamName: string,
+    events: Event[],
+    options?: AppendOptions,
+  ): Promise<AppendResult>;
 
   // Read events from a stream
   readStream(streamName: string, options?: ReadOptions): Promise<ReadResult>;
 
   // Aggregate events into state
-  aggregateStream(streamName: string, options: AggregateOptions): Promise<AggregateResult>;
+  aggregateStream(
+    streamName: string,
+    options: AggregateOptions,
+  ): Promise<AggregateResult>;
 }
 ```
 
 ## Quick Comparison
 
-| Store | Best For | Persistence | Transactions | Scaling |
-|-------|----------|-------------|--------------|---------|
-| [PostgreSQL](/event-stores/postgresql) | Production apps | Yes | Full ACID | Horizontal |
-| [EventStoreDB](/event-stores/esdb) | Native ES | Yes | Stream-level | Cluster |
-| [MongoDB](/event-stores/mongodb) | Document-centric | Yes | Document-level | Horizontal |
-| [SQLite](/event-stores/sqlite) | Dev/embedded | Yes | Full ACID | Single node |
-| In-Memory | Testing | No | N/A | N/A |
+| Store                                  | Best For         | Persistence | Transactions   | Scaling     |
+| -------------------------------------- | ---------------- | ----------- | -------------- | ----------- |
+| [PostgreSQL](/event-stores/postgresql) | Production apps  | Yes         | Full ACID      | Horizontal  |
+| [EventStoreDB](/event-stores/esdb)     | Native ES        | Yes         | Stream-level   | Cluster     |
+| [MongoDB](/event-stores/mongodb)       | Document-centric | Yes         | Document-level | Horizontal  |
+| [SQLite](/event-stores/sqlite)         | Dev/embedded     | Yes         | Full ACID      | Single node |
+| In-Memory                              | Testing          | No          | N/A            | N/A         |
 
 ## Installation
 
@@ -71,7 +78,7 @@ npm install @event-driven-io/emmett
 import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
 
 const eventStore = getPostgreSQLEventStore(
-  'postgresql://user:password@localhost:5432/mydb'
+  'postgresql://user:password@localhost:5432/mydb',
 );
 ```
 
@@ -79,7 +86,9 @@ const eventStore = getPostgreSQLEventStore(
 import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import { EventStoreDBClient } from '@eventstore/db-client';
 
-const client = EventStoreDBClient.connectionString('esdb://localhost:2113?tls=false');
+const client = EventStoreDBClient.connectionString(
+  'esdb://localhost:2113?tls=false',
+);
 const eventStore = getEventStoreDBEventStore(client);
 ```
 
@@ -115,10 +124,16 @@ const eventStore = getInMemoryEventStore();
 const result = await eventStore.appendToStream(
   'shopping_cart-123',
   [
-    { type: 'ProductItemAdded', data: { productId: 'shoes', quantity: 1, price: 99 } },
-    { type: 'ProductItemAdded', data: { productId: 'shirt', quantity: 2, price: 49 } },
+    {
+      type: 'ProductItemAdded',
+      data: { productId: 'shoes', quantity: 1, price: 99 },
+    },
+    {
+      type: 'ProductItemAdded',
+      data: { productId: 'shirt', quantity: 2, price: 49 },
+    },
   ],
-  { expectedStreamVersion: 0n }
+  { expectedStreamVersion: 0n },
 );
 
 console.log(result.nextExpectedStreamVersion); // 2n
@@ -127,9 +142,8 @@ console.log(result.nextExpectedStreamVersion); // 2n
 ### Reading Events
 
 ```typescript
-const { events, currentStreamVersion } = await eventStore.readStream(
-  'shopping_cart-123'
-);
+const { events, currentStreamVersion } =
+  await eventStore.readStream('shopping_cart-123');
 
 for (const event of events) {
   console.log(`${event.type}: ${JSON.stringify(event.data)}`);
@@ -155,7 +169,7 @@ const { state, currentStreamVersion } = await eventStore.aggregateStream(
       }
     },
     initialState: () => ({ items: [], total: 0 }),
-  }
+  },
 );
 ```
 

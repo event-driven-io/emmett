@@ -19,7 +19,7 @@ Command handling follows a repeatable pattern:
 // The pattern Command Handler automates:
 const { state, currentStreamVersion } = await eventStore.aggregateStream(
   streamName,
-  { evolve, initialState }
+  { evolve, initialState },
 );
 
 const events = handle(command, state);
@@ -65,12 +65,12 @@ type CommandHandlerOptions<State, StreamEvent extends Event> = {
 };
 ```
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `evolve` | `(state, event) => state` | State evolution function |
-| `initialState` | `() => State` | Factory for initial state |
-| `mapToStreamId` | `(id: string) => string` | Maps ID to stream name (default: identity) |
-| `retry` | `CommandHandlerRetryOptions` | Retry configuration |
+| Property        | Type                         | Description                                |
+| --------------- | ---------------------------- | ------------------------------------------ |
+| `evolve`        | `(state, event) => state`    | State evolution function                   |
+| `initialState`  | `() => State`                | Factory for initial state                  |
+| `mapToStreamId` | `(id: string) => string`     | Maps ID to stream name (default: identity) |
+| `retry`         | `CommandHandlerRetryOptions` | Retry configuration                        |
 
 ### CommandHandlerResult
 
@@ -117,7 +117,7 @@ await handle(eventStore, cartId, (state) => ({
 ```typescript
 await handle(eventStore, cartId, (state) => [
   { type: 'DiscountApplied', data: { code: 'SAVE10' } },
-  { type: 'TaxCalculated', data: { amount: 15.50 } },
+  { type: 'TaxCalculated', data: { amount: 15.5 } },
 ]);
 ```
 
@@ -138,20 +138,16 @@ await handle(eventStore, cartId, async (state) => {
 Execute multiple handlers in sequence, each seeing the updated state:
 
 ```typescript
-await handle(
-  eventStore,
-  cartId,
-  [
-    (state) => ({ type: 'ProductItemAdded', data: productData }),
-    (state) => {
-      // state now includes the effect of ProductItemAdded
-      if (state.items.length >= 3) {
-        return { type: 'BulkDiscountApplied', data: { discount: 10 } };
-      }
-      return [];
-    },
-  ]
-);
+await handle(eventStore, cartId, [
+  (state) => ({ type: 'ProductItemAdded', data: productData }),
+  (state) => {
+    // state now includes the effect of ProductItemAdded
+    if (state.items.length >= 3) {
+      return { type: 'BulkDiscountApplied', data: { discount: 10 } };
+    }
+    return [];
+  },
+]);
 ```
 
 ## Optimistic Concurrency
@@ -175,12 +171,9 @@ await handle(eventStore, 'cart-123', (state) => thirdEvent);
 ### Explicit Version
 
 ```typescript
-await handle(
-  eventStore,
-  cartId,
-  (state) => events,
-  { expectedStreamVersion: 5n }
-);
+await handle(eventStore, cartId, (state) => events, {
+  expectedStreamVersion: 5n,
+});
 ```
 
 ### Require New Stream
@@ -190,7 +183,7 @@ await handle(
   eventStore,
   cartId,
   (state) => [{ type: 'CartOpened', data: {} }],
-  { expectedStreamVersion: 'no_stream' }
+  { expectedStreamVersion: 'no_stream' },
 );
 ```
 
@@ -231,12 +224,9 @@ const handle = CommandHandler({
 ### Per-Call Retry Override
 
 ```typescript
-await handle(
-  eventStore,
-  cartId,
-  (state) => events,
-  { retry: { onVersionConflict: 10 } }
-);
+await handle(eventStore, cartId, (state) => events, {
+  retry: { onVersionConflict: 10 },
+});
 ```
 
 ## No-Op Handling
@@ -283,7 +273,9 @@ try {
 } catch (error) {
   if (error instanceof ConcurrencyError) {
     // Stream was modified by another process
-    console.log(`Version conflict: expected ${error.expected}, got ${error.actual}`);
+    console.log(
+      `Version conflict: expected ${error.expected}, got ${error.actual}`,
+    );
     // Retry with fresh state or notify user
   }
   throw error;
@@ -297,38 +289,44 @@ try {
 ```typescript
 import { on, ok } from '@event-driven-io/emmett-expressjs';
 
-router.post('/carts/:id/items', on(async (request) => {
-  const { id } = request.params;
-  const { productId, quantity } = request.body;
+router.post(
+  '/carts/:id/items',
+  on(async (request) => {
+    const { id } = request.params;
+    const { productId, quantity } = request.body;
 
-  const result = await handle(eventStore, id, (state) => ({
-    type: 'ProductItemAdded',
-    data: { productId, quantity, price: await getPrice(productId) },
-  }));
+    const result = await handle(eventStore, id, (state) => ({
+      type: 'ProductItemAdded',
+      data: { productId, quantity, price: await getPrice(productId) },
+    }));
 
-  return ok({
-    status: 'Added',
-    version: result.nextExpectedStreamVersion.toString(),
-  });
-}));
+    return ok({
+      status: 'Added',
+      version: result.nextExpectedStreamVersion.toString(),
+    });
+  }),
+);
 ```
 
 ### With ETag Concurrency
 
 ```typescript
-router.post('/carts/:id/confirm', on(async (request) => {
-  const { id } = request.params;
-  const expectedVersion = getExpectedVersionFromRequest(request);
+router.post(
+  '/carts/:id/confirm',
+  on(async (request) => {
+    const { id } = request.params;
+    const expectedVersion = getExpectedVersionFromRequest(request);
 
-  const result = await handle(
-    eventStore,
-    id,
-    (state) => ({ type: 'CartConfirmed', data: { confirmedAt: new Date() } }),
-    { expectedStreamVersion: expectedVersion }
-  );
+    const result = await handle(
+      eventStore,
+      id,
+      (state) => ({ type: 'CartConfirmed', data: { confirmedAt: new Date() } }),
+      { expectedStreamVersion: expectedVersion },
+    );
 
-  return ok({ status: 'Confirmed' });
-}));
+    return ok({ status: 'Confirmed' });
+  }),
+);
 ```
 
 ## Best Practices
@@ -344,7 +342,7 @@ await handle(eventStore, cartId, (state) => ({
 
 // ⚠️ Less ideal: Side effects in handler
 await handle(eventStore, cartId, async (state) => {
-  await externalService.notify();  // Side effect
+  await externalService.notify(); // Side effect
   return [event];
 });
 ```

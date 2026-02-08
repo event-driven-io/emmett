@@ -24,6 +24,7 @@ Workflows in Emmett handle complex, multi-step business processes that span acro
 Multi-step processes need to survive failures. A group checkout may be quick, but a document review workflow can span days. When things fail, you need to know exactly where you stopped and why.
 
 DIY solutions always have gaps:
+
 - Messages lost during deployment
 - Processes stuck after partial failures
 - No way to resume after fixing bugs
@@ -92,37 +93,55 @@ const initialState = (): GroupCheckout => ({ status: 'NotExisting' });
 ```typescript
 // Commands and events the workflow receives
 type GroupCheckoutInput =
-  | Command<'InitiateGroupCheckout', {
-      groupCheckoutId: string;
-      guestStayAccountIds: string[]
-    }>
-  | Event<'GuestCheckedOut', {
-      guestStayAccountId: string;
-      groupCheckoutId: string;
-    }>
-  | Event<'GuestCheckoutFailed', {
-      guestStayAccountId: string;
-      groupCheckoutId: string;
-      reason: string;
-    }>
+  | Command<
+      'InitiateGroupCheckout',
+      {
+        groupCheckoutId: string;
+        guestStayAccountIds: string[];
+      }
+    >
+  | Event<
+      'GuestCheckedOut',
+      {
+        guestStayAccountId: string;
+        groupCheckoutId: string;
+      }
+    >
+  | Event<
+      'GuestCheckoutFailed',
+      {
+        guestStayAccountId: string;
+        groupCheckoutId: string;
+        reason: string;
+      }
+    >
   | Command<'TimeoutGroupCheckout', { groupCheckoutId: string }>;
 
 // Commands and events the workflow produces
 type GroupCheckoutOutput =
-  | Event<'GroupCheckoutInitiated', {
-      groupCheckoutId: string;
-      guestStayAccountIds: string[];
-    }>
+  | Event<
+      'GroupCheckoutInitiated',
+      {
+        groupCheckoutId: string;
+        guestStayAccountIds: string[];
+      }
+    >
   | Command<'CheckOut', { guestStayAccountId: string }>
-  | Event<'GroupCheckoutCompleted', {
-      groupCheckoutId: string;
-      completedCheckouts: string[];
-    }>
-  | Event<'GroupCheckoutFailed', {
-      groupCheckoutId: string;
-      completedCheckouts: string[];
-      failedCheckouts: string[];
-    }>
+  | Event<
+      'GroupCheckoutCompleted',
+      {
+        groupCheckoutId: string;
+        completedCheckouts: string[];
+      }
+    >
+  | Event<
+      'GroupCheckoutFailed',
+      {
+        groupCheckoutId: string;
+        completedCheckouts: string[];
+        failedCheckouts: string[];
+      }
+    >
   | Event<'GroupCheckoutTimedOut', { groupCheckoutId: string }>;
 ```
 
@@ -145,10 +164,13 @@ const decide = (
 };
 
 const initiateGroupCheckout = (
-  command: Command<'InitiateGroupCheckout', {
-    groupCheckoutId: string;
-    guestStayAccountIds: string[]
-  }>,
+  command: Command<
+    'InitiateGroupCheckout',
+    {
+      groupCheckoutId: string;
+      guestStayAccountIds: string[];
+    }
+  >,
   state: GroupCheckout,
 ): WorkflowOutput<GroupCheckoutOutput> => {
   if (state.status !== 'NotExisting') {
@@ -174,10 +196,13 @@ const initiateGroupCheckout = (
 };
 
 const onCheckoutFinished = (
-  event: Event<'GuestCheckedOut' | 'GuestCheckoutFailed', {
-    guestStayAccountId: string;
-    groupCheckoutId: string;
-  }>,
+  event: Event<
+    'GuestCheckedOut' | 'GuestCheckoutFailed',
+    {
+      guestStayAccountId: string;
+      groupCheckoutId: string;
+    }
+  >,
   state: GroupCheckout,
 ): WorkflowOutput<GroupCheckoutOutput> => {
   if (state.status !== 'Pending') {
@@ -187,8 +212,7 @@ const onCheckoutFinished = (
   // Check if all checkouts are complete
   const allCompleted = [...state.guestStayAccountIds.entries()].every(
     ([id, status]) =>
-      status !== 'Pending' ||
-      id === event.data.guestStayAccountId
+      status !== 'Pending' || id === event.data.guestStayAccountId,
   );
 
   if (!allCompleted) {
@@ -213,25 +237,29 @@ const onCheckoutFinished = (
   }
 
   if (failed.length === 0) {
-    return [{
+    return [
+      {
+        kind: 'Event',
+        type: 'GroupCheckoutCompleted',
+        data: {
+          groupCheckoutId: event.data.groupCheckoutId,
+          completedCheckouts: completed,
+        },
+      },
+    ];
+  }
+
+  return [
+    {
       kind: 'Event',
-      type: 'GroupCheckoutCompleted',
+      type: 'GroupCheckoutFailed',
       data: {
         groupCheckoutId: event.data.groupCheckoutId,
         completedCheckouts: completed,
+        failedCheckouts: failed,
       },
-    }];
-  }
-
-  return [{
-    kind: 'Event',
-    type: 'GroupCheckoutFailed',
-    data: {
-      groupCheckoutId: event.data.groupCheckoutId,
-      completedCheckouts: completed,
-      failedCheckouts: failed,
     },
-  }];
+  ];
 };
 ```
 
@@ -385,12 +413,14 @@ describe('GroupCheckoutWorkflow', () => {
 ## When to Use Workflows
 
 **Use workflows for:**
+
 - Multi-step processes spanning multiple aggregates
 - Long-running operations (hours, days)
 - Processes requiring coordination across streams
 - Operations needing full audit trail
 
 **Don't use workflows for:**
+
 - Simple request-response operations → use [command handlers](/api-reference/commandhandler)
 - Building read models → use [projections](/guides/projections)
 - Simple event reactions → use reactors

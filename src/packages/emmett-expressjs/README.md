@@ -27,7 +27,11 @@ export type HttpHandler<RequestType extends Request> = (
 
 export const on =
   <RequestType extends Request>(handle: HttpHandler<RequestType>) =>
-  async (request: RequestType, response: Response, next: NextFunction): Promise<void> => {
+  async (
+    request: RequestType,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     const setResponse = await Promise.resolve(handle(request));
     return setResponse(response);
   };
@@ -199,7 +203,10 @@ import {
   expectError,
   getApplication,
 } from '@event-driven-io/emmett-expressjs';
-import { getInMemoryEventStore, type EventStore } from '@event-driven-io/emmett';
+import {
+  getInMemoryEventStore,
+  type EventStore,
+} from '@event-driven-io/emmett';
 import { describe, it } from 'node:test';
 
 describe('ShoppingCart API', () => {
@@ -263,11 +270,10 @@ const given = ApiE2ESpecification.for(
 );
 
 it('should confirm cart after adding products', () => {
-  return given(
-    (request) =>
-      request
-        .post('/clients/123/shopping-carts/current/product-items')
-        .send({ productId: 'shoes', quantity: 1 }),
+  return given((request) =>
+    request
+      .post('/clients/123/shopping-carts/current/product-items')
+      .send({ productId: 'shoes', quantity: 1 }),
   )
     .when((request) =>
       request.post('/clients/123/shopping-carts/current/confirm'),
@@ -280,65 +286,65 @@ it('should confirm cart after adding products', () => {
 
 ### Application
 
-| Export | Type | Description |
-|--------|------|-------------|
-| `WebApiSetup` | `(router: Router) => void` | Function type for registering API routes |
-| `ApplicationOptions` | Object | Configuration for Express app (apis, error mapping, middleware toggles) |
-| `getApplication` | Function | Creates configured Express application |
-| `StartApiOptions` | Object | Server startup configuration |
-| `startAPI` | Function | Starts HTTP server on specified port |
+| Export               | Type                       | Description                                                             |
+| -------------------- | -------------------------- | ----------------------------------------------------------------------- |
+| `WebApiSetup`        | `(router: Router) => void` | Function type for registering API routes                                |
+| `ApplicationOptions` | Object                     | Configuration for Express app (apis, error mapping, middleware toggles) |
+| `getApplication`     | Function                   | Creates configured Express application                                  |
+| `StartApiOptions`    | Object                     | Server startup configuration                                            |
+| `startAPI`           | Function                   | Starts HTTP server on specified port                                    |
 
 ### Handler & Responses
 
-| Export | Type | Description |
-|--------|------|-------------|
-| `HttpResponse` | `(response: Response) => void` | Deferred response function |
-| `HttpHandler<RequestType>` | Function | Async handler returning HttpResponse |
-| `on` | Function | Wrapper for HttpHandler functions |
-| `OK` | Function | Returns 200 response |
-| `Created` | Function | Returns 201 response with Location header |
-| `Accepted` | Function | Returns 202 response |
-| `NoContent` | Function | Returns 204 response |
-| `BadRequest` | Function | Returns 400 Problem Details |
-| `Forbidden` | Function | Returns 403 Problem Details |
-| `NotFound` | Function | Returns 404 Problem Details |
-| `Conflict` | Function | Returns 409 Problem Details |
-| `PreconditionFailed` | Function | Returns 412 Problem Details |
-| `HttpProblem` | Function | Returns custom status Problem Details |
+| Export                     | Type                           | Description                               |
+| -------------------------- | ------------------------------ | ----------------------------------------- |
+| `HttpResponse`             | `(response: Response) => void` | Deferred response function                |
+| `HttpHandler<RequestType>` | Function                       | Async handler returning HttpResponse      |
+| `on`                       | Function                       | Wrapper for HttpHandler functions         |
+| `OK`                       | Function                       | Returns 200 response                      |
+| `Created`                  | Function                       | Returns 201 response with Location header |
+| `Accepted`                 | Function                       | Returns 202 response                      |
+| `NoContent`                | Function                       | Returns 204 response                      |
+| `BadRequest`               | Function                       | Returns 400 Problem Details               |
+| `Forbidden`                | Function                       | Returns 403 Problem Details               |
+| `NotFound`                 | Function                       | Returns 404 Problem Details               |
+| `Conflict`                 | Function                       | Returns 409 Problem Details               |
+| `PreconditionFailed`       | Function                       | Returns 412 Problem Details               |
+| `HttpProblem`              | Function                       | Returns custom status Problem Details     |
 
 ### ETag Utilities
 
-| Export | Type | Description |
-|--------|------|-------------|
-| `ETag` | Branded string | Strong ETag type |
-| `WeakETag` | Branded string | Weak ETag type (W/"...") |
-| `toWeakETag` | Function | Creates WeakETag from version number |
-| `getETagFromIfMatch` | Function | Extracts ETag from if-match header |
-| `getETagFromIfNotMatch` | Function | Extracts ETag from if-not-match header |
-| `getWeakETagValue` | Function | Extracts version value from WeakETag |
-| `getETagValueFromIfMatch` | Function | Gets version value from if-match header |
-| `setETag` | Function | Sets ETag response header |
-| `isWeakETag` | Function | Type guard for WeakETag |
+| Export                    | Type           | Description                             |
+| ------------------------- | -------------- | --------------------------------------- |
+| `ETag`                    | Branded string | Strong ETag type                        |
+| `WeakETag`                | Branded string | Weak ETag type (W/"...")                |
+| `toWeakETag`              | Function       | Creates WeakETag from version number    |
+| `getETagFromIfMatch`      | Function       | Extracts ETag from if-match header      |
+| `getETagFromIfNotMatch`   | Function       | Extracts ETag from if-not-match header  |
+| `getWeakETagValue`        | Function       | Extracts version value from WeakETag    |
+| `getETagValueFromIfMatch` | Function       | Gets version value from if-match header |
+| `setETag`                 | Function       | Sets ETag response header               |
+| `isWeakETag`              | Function       | Type guard for WeakETag                 |
 
 ### Testing
 
-| Export | Type | Description |
-|--------|------|-------------|
-| `ApiSpecification` | Object | BDD test builder for unit testing |
-| `ApiE2ESpecification` | Object | BDD test builder for E2E testing |
-| `existingStream` | Function | Defines pre-existing event stream for tests |
-| `expectNewEvents` | Function | Asserts expected new events in stream |
-| `expectResponse` | Function | Asserts response status and body |
-| `expectError` | Function | Asserts error response with Problem Details |
-| `TestRequest` | Type | Function type for supertest requests |
+| Export                | Type     | Description                                 |
+| --------------------- | -------- | ------------------------------------------- |
+| `ApiSpecification`    | Object   | BDD test builder for unit testing           |
+| `ApiE2ESpecification` | Object   | BDD test builder for E2E testing            |
+| `existingStream`      | Function | Defines pre-existing event stream for tests |
+| `expectNewEvents`     | Function | Asserts expected new events in stream       |
+| `expectResponse`      | Function | Asserts response status and body            |
+| `expectError`         | Function | Asserts error response with Problem Details |
+| `TestRequest`         | Type     | Function type for supertest requests        |
 
 ### Middleware
 
-| Export | Type | Description |
-|--------|------|-------------|
-| `problemDetailsMiddleware` | Function | Express error middleware for RFC 7807 |
+| Export                                | Type     | Description                              |
+| ------------------------------------- | -------- | ---------------------------------------- |
+| `problemDetailsMiddleware`            | Function | Express error middleware for RFC 7807    |
 | `defaultErrorToProblemDetailsMapping` | Function | Default error to ProblemDocument mapping |
-| `ErrorToProblemDetailsMapping` | Type | Custom error mapping function type |
+| `ErrorToProblemDetailsMapping`        | Type     | Custom error mapping function type       |
 
 ## Architecture
 
@@ -373,12 +379,12 @@ The `ApiSpecification` wraps the event store to track appended events, enabling 
 
 ### Peer Dependencies (must be installed separately)
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `@event-driven-io/emmett` | 0.38.3 | Core event sourcing library |
-| `express` | ^4.19.2 | Web framework |
-| `express-async-errors` | ^3.1.1 | Async error handling |
-| `http-problem-details` | ^0.1.5 | RFC 7807 Problem Details |
-| `supertest` | ^7.0.0 | HTTP testing library |
-| `@types/express` | ^4.17.21 | Express type definitions |
-| `@types/supertest` | ^6.0.2 | Supertest type definitions |
+| Package                   | Version  | Purpose                     |
+| ------------------------- | -------- | --------------------------- |
+| `@event-driven-io/emmett` | 0.38.3   | Core event sourcing library |
+| `express`                 | ^4.19.2  | Web framework               |
+| `express-async-errors`    | ^3.1.1   | Async error handling        |
+| `http-problem-details`    | ^0.1.5   | RFC 7807 Problem Details    |
+| `supertest`               | ^7.0.0   | HTTP testing library        |
+| `@types/express`          | ^4.17.21 | Express type definitions    |
+| `@types/supertest`        | ^6.0.2   | Supertest type definitions  |
