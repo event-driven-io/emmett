@@ -6,12 +6,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import { sqlite3EventStoreDriver } from '../../sqlite3';
+import {
+  sqlite3EventStoreDriver,
+  type SQLite3EventStoreOptions,
+} from '../../sqlite3';
 import { createEventStoreSchema } from '../schema';
 import {
   getSQLiteEventStore,
   type SQLiteEventStore,
-  type SQLiteEventStoreOptions,
 } from '../SQLiteEventStore';
 import { sqliteEventStoreConsumer } from './sqliteEventStoreConsumer';
 import type { SQLiteProcessorOptions } from './sqliteProcessor';
@@ -22,7 +24,7 @@ void describe('SQLite event store started consumer', () => {
   const testDatabasePath = path.dirname(fileURLToPath(import.meta.url));
   const fileName = path.resolve(testDatabasePath, `test.db`);
 
-  const config: SQLiteEventStoreOptions = {
+  const config: SQLite3EventStoreOptions = {
     driver: sqlite3EventStoreDriver,
     schema: {
       autoMigration: 'None',

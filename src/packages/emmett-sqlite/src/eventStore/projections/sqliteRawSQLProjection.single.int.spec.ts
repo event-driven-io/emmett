@@ -1,5 +1,8 @@
 import { single, SQL, type QueryResultRow } from '@event-driven-io/dumbo';
-import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite3';
+import {
+  InMemorySQLiteDatabase,
+  type AnySQLiteConnection,
+} from '@event-driven-io/dumbo/sqlite3';
 import { assertDeepEqual, JSONParser } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { beforeEach, describe, it } from 'vitest';
@@ -37,6 +40,7 @@ void describe('SQLite Projections', () => {
     given = SQLiteProjectionSpec.for({
       driver: sqlite3EventStoreDriver,
       projection: shoppingCartShortInfoProjection,
+      fileName: InMemorySQLiteDatabase,
     });
   });
 

@@ -31,11 +31,11 @@ void describe('createEventStoreSchema', () => {
 
   void describe('creates tables', () => {
     void it('creates the streams table', async () => {
-      assert.ok(await tableExists(pool, 'emt_streams'));
+      assert.ok(await tableExists(pool.execute, 'emt_streams'));
     });
 
     void it('creates the events table', async () => {
-      assert.ok(await tableExists(pool, 'emt_messages'));
+      assert.ok(await tableExists(pool.execute, 'emt_messages'));
     });
   });
 });

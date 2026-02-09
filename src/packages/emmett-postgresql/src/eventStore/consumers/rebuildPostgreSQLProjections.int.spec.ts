@@ -1,5 +1,5 @@
 import { dumbo, single, SQL, type Dumbo } from '@event-driven-io/dumbo';
-import { pgDatabaseDriver } from '@event-driven-io/dumbo/pg';
+import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   asyncAwaiter,
@@ -66,7 +66,7 @@ void describe('Rebuilding PostgreSQL Projections', () => {
     otherSummariesV2 = db.collection(
       `${otherShoppingCartsSummaryCollectionName}_v2`,
     );
-    pool = dumbo({ connectionString, driver: pgDatabaseDriver });
+    pool = dumbo({ connectionString, driver: pgDumboDriver });
   });
 
   beforeEach(async () => {

@@ -1,7 +1,7 @@
 import { dumbo } from '@event-driven-io/dumbo';
 import {
   functionExists,
-  pgDatabaseDriver,
+  pgDumboDriver,
   tableExists,
   type PgPool,
 } from '@event-driven-io/dumbo/pg';
@@ -20,7 +20,7 @@ void describe('createEventStoreSchema', () => {
     const connectionString = postgres.getConnectionUri();
     pool = dumbo({
       connectionString,
-      driver: pgDatabaseDriver,
+      driver: pgDumboDriver,
     });
     await createEventStoreSchema(connectionString, pool);
   });
@@ -36,53 +36,61 @@ void describe('createEventStoreSchema', () => {
 
   void describe('creates tables', () => {
     void it('creates the streams table', async () => {
-      assertTrue(await tableExists(pool, 'emt_streams'));
+      assertTrue(await tableExists(pool.execute, 'emt_streams'));
     });
 
     void it('creates the events table', async () => {
-      assertTrue(await tableExists(pool, 'emt_messages'));
+      assertTrue(await tableExists(pool.execute, 'emt_messages'));
     });
 
     void it('creates the processors table', async () => {
-      assertTrue(await tableExists(pool, 'emt_processors'));
+      assertTrue(await tableExists(pool.execute, 'emt_processors'));
     });
 
     void it('creates the events default partition', async () => {
-      assertTrue(await tableExists(pool, 'emt_messages_emt_default'));
+      assertTrue(await tableExists(pool.execute, 'emt_messages_emt_default'));
     });
 
     void it('creates the events secondary level active partition', async () => {
-      assertTrue(await tableExists(pool, 'emt_messages_emt_default_active'));
+      assertTrue(
+        await tableExists(pool.execute, 'emt_messages_emt_default_active'),
+      );
     });
 
     void it('creates the events secondary level archived partition', async () => {
-      assertTrue(await tableExists(pool, 'emt_messages_emt_default_archived'));
+      assertTrue(
+        await tableExists(pool.execute, 'emt_messages_emt_default_archived'),
+      );
     });
   });
 
   void describe('creates functions', () => {
     void it('creates the append_event function', async () => {
-      assertTrue(await functionExists(pool, 'emt_append_to_stream'));
+      assertTrue(await functionExists(pool.execute, 'emt_append_to_stream'));
     });
 
     void it('creates the emt_add_partition function', async () => {
-      assertTrue(await functionExists(pool, 'emt_add_partition'));
+      assertTrue(await functionExists(pool.execute, 'emt_add_partition'));
     });
 
     void it('does not create the add_module function', async () => {
-      assertFalse(await functionExists(pool, 'add_module'));
+      assertFalse(await functionExists(pool.execute, 'add_module'));
     });
 
     void it('does not create the add_tenant function', async () => {
-      assertFalse(await functionExists(pool, 'add_tenant'));
+      assertFalse(await functionExists(pool.execute, 'add_tenant'));
     });
 
     void it('does not create the add_module_for_all_tenants function', async () => {
-      assertFalse(await functionExists(pool, 'add_module_for_all_tenants'));
+      assertFalse(
+        await functionExists(pool.execute, 'add_module_for_all_tenants'),
+      );
     });
 
     void it('does not create the add_tenant_for_all_modules function', async () => {
-      assertFalse(await functionExists(pool, 'add_tenant_for_all_modules'));
+      assertFalse(
+        await functionExists(pool.execute, 'add_tenant_for_all_modules'),
+      );
     });
   });
 

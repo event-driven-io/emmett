@@ -12,7 +12,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import { sqlite3EventStoreDriver } from '../sqlite3';
+import {
+  sqlite3EventStoreDriver,
+  type SQLite3EventStoreDriver,
+} from '../sqlite3';
 import type {
   DiscountApplied,
   PricedProductItem,
@@ -42,7 +45,7 @@ void describe('SQLiteEventStore', () => {
   });
 
   void describe('With manual Schema Creation', () => {
-    const config: SQLiteEventStoreOptions = {
+    const config: SQLiteEventStoreOptions<SQLite3EventStoreDriver> = {
       driver: sqlite3EventStoreDriver,
       schema: {
         autoMigration: 'None',

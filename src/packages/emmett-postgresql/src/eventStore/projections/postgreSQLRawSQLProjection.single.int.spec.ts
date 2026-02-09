@@ -88,7 +88,7 @@ void describe('PostgreSQL Projections', () => {
         },
       ])
       .then(async ({ pool }) => {
-        const result = await tableExists(pool, projection);
+        const result = await tableExists(pool.execute, projection);
 
         assertTrue(result);
       });

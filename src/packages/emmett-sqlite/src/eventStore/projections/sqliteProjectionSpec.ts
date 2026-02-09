@@ -1,11 +1,5 @@
 import type { SQL } from '@event-driven-io/dumbo';
-import {
-  dumbo,
-  type AnyDumboDatabaseDriver,
-  type Dumbo,
-  type DumboConnectionOptions,
-  type QueryResultRow,
-} from '@event-driven-io/dumbo';
+import { dumbo, type Dumbo, type QueryResultRow } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   assertFails,
@@ -19,6 +13,10 @@ import {
   type ThenThrows,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
+import type {
+  AnyEventStoreDriver,
+  InferOptionsFromEventStoreDriver,
+} from '../eventStoreDriver';
 import type { SQLiteReadEventMetadata } from '../SQLiteEventStore';
 import {
   handleProjections,
@@ -56,31 +54,27 @@ export type SQLiteProjectionAssert = (options: {
 
 export type SQLiteProjectionSpecOptions<
   EventType extends Event,
-  DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+  Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
 > = {
   projection: SQLiteProjectionDefinition<EventType>;
 
-  driver: DatabaseDriver;
+  driver: Driver;
   pool?: Dumbo;
-} & DumboConnectionOptions<DatabaseDriver>;
+} & InferOptionsFromEventStoreDriver<Driver>;
 
 export const SQLiteProjectionSpec = {
   for: <
     EventType extends Event,
-    DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+    Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
   >(
-    options: SQLiteProjectionSpecOptions<EventType, DatabaseDriver>,
+    options: SQLiteProjectionSpecOptions<EventType, Driver>,
   ): SQLiteProjectionSpec<EventType> => {
     {
       const pool =
         options.pool ??
         dumbo({
-          transactionOptions: {
-            allowNestedTransactions: true,
-            mode: 'session_based',
-          },
-          ...options,
-        } as DumboConnectionOptions<DatabaseDriver>);
+          ...options.driver.mapToDumboOptions(options),
+        });
       const projection = options.projection;
       let wasInitialized = false;
 

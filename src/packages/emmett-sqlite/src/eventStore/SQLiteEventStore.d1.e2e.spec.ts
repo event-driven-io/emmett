@@ -17,7 +17,7 @@ import {
   describe,
   it,
 } from 'vitest';
-import { d1EventStoreDriver } from '../cloudflare';
+import { d1EventStoreDriver, type D1EventStoreDriver } from '../cloudflare';
 import type {
   DiscountApplied,
   PricedProductItem,
@@ -34,7 +34,7 @@ void describe('SQLiteEventStore', () => {
   let mf: Miniflare;
   let database: D1Database;
   let eventStore: SQLiteEventStore;
-  let config: SQLiteEventStoreOptions;
+  let config: SQLiteEventStoreOptions<D1EventStoreDriver>;
 
   beforeAll(async () => {
     mf = new Miniflare({

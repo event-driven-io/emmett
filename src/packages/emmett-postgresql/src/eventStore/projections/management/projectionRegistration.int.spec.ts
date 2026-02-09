@@ -1,5 +1,5 @@
 import { dumbo, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
-import { pgDatabaseDriver, type PgPool } from '@event-driven-io/dumbo/pg';
+import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertEqual,
   assertFalse,
@@ -30,7 +30,7 @@ void describe('projectionRegistration', () => {
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();
     const connectionString = postgres.getConnectionUri();
-    pool = dumbo({ connectionString, driver: pgDatabaseDriver });
+    pool = dumbo({ connectionString, driver: pgDumboDriver });
     await createEventStoreSchema(connectionString, pool);
   });
 
