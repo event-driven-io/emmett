@@ -1,5 +1,5 @@
 import { dumbo, SQL } from '@event-driven-io/dumbo';
-import { pgDatabaseDriver, type PgPool } from '@event-driven-io/dumbo/pg';
+import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import { assertFalse, assertTrue, type Event } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
@@ -39,7 +39,7 @@ void describe('streamExists', () => {
     const connectionString = postgres.getConnectionUri();
     pool = dumbo({
       connectionString,
-      driver: pgDatabaseDriver,
+      driver: pgDumboDriver,
     });
 
     await createEventStoreSchema(connectionString, pool);

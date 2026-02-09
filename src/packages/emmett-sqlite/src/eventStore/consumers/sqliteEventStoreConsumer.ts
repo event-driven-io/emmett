@@ -1,10 +1,9 @@
-import {
-  dumbo,
-  type AnyDumboDatabaseDriver,
-  type Dumbo,
-  type DumboConnectionOptions,
-} from '@event-driven-io/dumbo';
+import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import { EmmettError, type Event } from '@event-driven-io/emmett';
+import type {
+  AnyEventStoreDriver,
+  InferOptionsFromEventStoreDriver,
+} from '../eventStoreDriver';
 import {
   DefaultSQLiteEventStoreProcessorBatchSize,
   DefaultSQLiteEventStoreProcessorPullingFrequencyInMs,
@@ -30,11 +29,11 @@ export type SQLiteEventStoreConsumerConfig<
 };
 export type SQLiteEventStoreConsumerOptions<
   ConsumerEventType extends Event = Event,
-  DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+  Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
 > = SQLiteEventStoreConsumerConfig<ConsumerEventType> & {
-  driver: DatabaseDriver;
+  driver: Driver;
   pool?: Dumbo;
-} & DumboConnectionOptions<DatabaseDriver>;
+} & InferOptionsFromEventStoreDriver<Driver>;
 
 export type SQLiteEventStoreConsumer<ConsumerEventType extends Event = Event> =
   Readonly<{
@@ -50,9 +49,9 @@ export type SQLiteEventStoreConsumer<ConsumerEventType extends Event = Event> =
 
 export const sqliteEventStoreConsumer = <
   ConsumerEventType extends Event = Event,
-  DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+  Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
 >(
-  options: SQLiteEventStoreConsumerOptions<ConsumerEventType, DatabaseDriver>,
+  options: SQLiteEventStoreConsumerOptions<ConsumerEventType, Driver>,
 ): SQLiteEventStoreConsumer<ConsumerEventType> => {
   let isRunning = false;
   const { pulling } = options;
@@ -65,12 +64,12 @@ export const sqliteEventStoreConsumer = <
   const pool =
     options.pool ??
     dumbo({
+      ...options.driver.mapToDumboOptions(options),
       transactionOptions: {
         allowNestedTransactions: true,
         mode: 'session_based',
       },
-      ...options,
-    } as DumboConnectionOptions<DatabaseDriver>);
+    });
 
   const eachBatch: SQLiteEventStoreMessagesBatchHandler<ConsumerEventType> = (
     messagesBatch,

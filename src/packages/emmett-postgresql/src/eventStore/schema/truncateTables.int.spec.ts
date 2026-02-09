@@ -1,5 +1,5 @@
 import { count, dumbo, singleOrNull, SQL } from '@event-driven-io/dumbo';
-import { pgDatabaseDriver, type PgPool } from '@event-driven-io/dumbo/pg';
+import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertEqual,
   assertIsNotNull,
@@ -43,7 +43,7 @@ void describe('truncateTables', () => {
     const connectionString = postgres.getConnectionUri();
     pool = dumbo({
       connectionString,
-      driver: pgDatabaseDriver,
+      driver: pgDumboDriver,
     });
 
     await createEventStoreSchema(connectionString, pool);

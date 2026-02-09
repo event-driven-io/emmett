@@ -1,9 +1,4 @@
-import {
-  dumbo,
-  type AnyDumboDatabaseDriver,
-  type Dumbo,
-  type DumboConnectionOptions,
-} from '@event-driven-io/dumbo';
+import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   assertExpectedVersionMatchesCurrent,
@@ -29,6 +24,10 @@ import {
   type SQLiteEventStoreConsumer,
   type SQLiteEventStoreConsumerConfig,
 } from './consumers';
+import type {
+  AnyEventStoreDriver,
+  InferOptionsFromEventStoreDriver,
+} from './eventStoreDriver';
 import {
   handleProjections,
   type SQLiteProjectionHandlerContext,
@@ -85,9 +84,9 @@ export type SQLiteReadEvent<EventType extends Event = Event> = ReadEvent<
 >;
 
 export type SQLiteEventStoreOptions<
-  DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+  EventStoreDriver extends AnyEventStoreDriver = AnyEventStoreDriver,
 > = {
-  driver: DatabaseDriver;
+  driver: EventStoreDriver;
   projections?: ProjectionRegistration<
     'inline',
     SQLiteReadEventMetadata,
@@ -116,24 +115,24 @@ export type SQLiteEventStoreOptions<
      */
     onAfterSchemaCreated?: () => Promise<void> | void;
   };
-} & { pool?: Dumbo } & DumboConnectionOptions<DatabaseDriver>;
+} & { pool?: Dumbo } & InferOptionsFromEventStoreDriver<EventStoreDriver>;
 
 export const getSQLiteEventStore = <
-  DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+  Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
 >(
-  options: SQLiteEventStoreOptions<DatabaseDriver>,
+  options: SQLiteEventStoreOptions<Driver>,
 ): SQLiteEventStore => {
   let autoGenerateSchema = false;
 
   const pool =
     options.pool ??
     dumbo({
+      ...options.driver.mapToDumboOptions(options),
       transactionOptions: {
         allowNestedTransactions: true,
         mode: 'session_based',
       },
-      ...options,
-    } as DumboConnectionOptions<DatabaseDriver>);
+    });
   let migrateSchema: Promise<void> | undefined = undefined;
 
   const inlineProjections = (options.projections ?? [])
@@ -313,7 +312,7 @@ export const getSQLiteEventStore = <
     consumer: <ConsumerEventType extends Event = Event>(
       consumerOptions?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
     ): SQLiteEventStoreConsumer<ConsumerEventType> =>
-      sqliteEventStoreConsumer<ConsumerEventType, DatabaseDriver>({
+      sqliteEventStoreConsumer<ConsumerEventType, Driver>({
         ...(options ?? {}),
         ...(consumerOptions ?? {}),
         pool,

@@ -1,7 +1,7 @@
 import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
 import {
   functionExists,
-  pgDatabaseDriver,
+  pgDumboDriver,
   type PgPool,
 } from '@event-driven-io/dumbo/pg';
 import {
@@ -66,7 +66,7 @@ void describe('Schema migrations tests', () => {
 
     pool = dumbo({
       connectionString,
-      driver: pgDatabaseDriver,
+      driver: pgDumboDriver,
     });
 
     // TODO: Change setup to schemas, when they're supported in Emmett instead of using separate containers
@@ -117,11 +117,15 @@ void describe('Schema migrations tests', () => {
     await assertCanStoreAndReadCheckpoints(pool, result);
 
     // Then
-    assertTrue(await functionExists(pool, 'emt_try_acquire_processor_lock'));
-    assertTrue(await functionExists(pool, 'emt_release_processor_lock'));
-    assertTrue(await functionExists(pool, 'emt_register_projection'));
-    assertTrue(await functionExists(pool, 'emt_activate_projection'));
-    assertTrue(await functionExists(pool, 'emt_deactivate_projection'));
+    assertTrue(
+      await functionExists(pool.execute, 'emt_try_acquire_processor_lock'),
+    );
+    assertTrue(
+      await functionExists(pool.execute, 'emt_release_processor_lock'),
+    );
+    assertTrue(await functionExists(pool.execute, 'emt_register_projection'));
+    assertTrue(await functionExists(pool.execute, 'emt_activate_projection'));
+    assertTrue(await functionExists(pool.execute, 'emt_deactivate_projection'));
 
     // Verify columns exist on emt_processors
     const processorsCreatedAtResult = await pool.execute.query<{

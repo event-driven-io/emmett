@@ -1,4 +1,5 @@
 import { dumbo, single, SQL, type Dumbo } from '@event-driven-io/dumbo';
+import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   asyncAwaiter,
@@ -16,7 +17,6 @@ import {
 } from '../postgreSQLEventStore';
 import { postgreSQLRawSQLProjection } from '../projections';
 import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
-import { pgDatabaseDriver } from '@event-driven-io/dumbo/pg';
 
 const withDeadline = { timeout: 10000 };
 
@@ -33,7 +33,7 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
     eventStore = getPostgreSQLEventStore(connectionString, {
       projections: projections.inline([]),
     });
-    pool = dumbo({ connectionString, driver: pgDatabaseDriver });
+    pool = dumbo({ connectionString, driver: pgDumboDriver });
   });
 
   beforeEach(async () => {
