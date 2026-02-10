@@ -183,8 +183,10 @@ type PostgreSQLConnectionOptions = {
 };
 
 type PostgreSQLProcessorOptionsBase = PostgreSQLConnectionOptions & {
-  lockPolicy?: LockAcquisitionPolicy;
-  lockTimeoutSeconds?: number;
+  lock?: {
+    acquisitionPolicy?: LockAcquisitionPolicy;
+    timeoutSeconds?: number;
+  };
   partition?: string;
 };
 export type PostgreSQLReactorOptions<MessageType extends Message = Message> =
@@ -327,8 +329,7 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
     processorInstanceId = getProcessorInstanceId(processorId),
     version = defaultProcessorVersion,
     partition = defaultProcessorPartition,
-    lockPolicy = DefaultPostgreSQLProcessorLockPolicy,
-    lockTimeoutSeconds,
+    lock,
   } = options;
 
   const { pool, connectionString, close } = getProcessorPool(options);
@@ -346,8 +347,9 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
           handlingType: 'async' as const,
         }
       : undefined,
-    lockPolicy,
-    lockTimeoutSeconds,
+    lockAcquisitionPolicy:
+      lock?.acquisitionPolicy ?? DefaultPostgreSQLProcessorLockPolicy,
+    lockTimeoutSeconds: lock?.timeoutSeconds,
   });
 
   const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext> =
@@ -415,7 +417,7 @@ export const postgreSQLReactor = <MessageType extends Message = Message>(
     processorInstanceId = getProcessorInstanceId(processorId),
     version = defaultProcessorVersion,
     partition = defaultProcessorPartition,
-    lockPolicy = DefaultPostgreSQLProcessorLockPolicy,
+    lock,
   } = options;
 
   const { pool, connectionString, close } = getProcessorPool(options);
@@ -426,7 +428,9 @@ export const postgreSQLReactor = <MessageType extends Message = Message>(
     partition,
     processorInstanceId,
     projection: undefined,
-    lockPolicy,
+    lockAcquisitionPolicy:
+      lock?.acquisitionPolicy ?? DefaultPostgreSQLProcessorLockPolicy,
+    lockTimeoutSeconds: lock?.timeoutSeconds,
   });
 
   const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext> =

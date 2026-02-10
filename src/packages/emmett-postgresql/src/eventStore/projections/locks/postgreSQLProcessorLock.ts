@@ -3,13 +3,13 @@ import {
   EmmettError,
   type ProjectionHandlingType,
 } from '@event-driven-io/emmett';
+import { toProjectionLockKey } from './postgreSQLProjectionLock';
 import {
   releaseProcessorLock,
   tryAcquireProcessorLockWithRetry,
   type LockAcquisitionPolicy,
   type TryAcquireProcessorLockOptions,
 } from './tryAcquireProcessorLock';
-import { toProjectionLockKey } from './postgreSQLProjectionLock';
 
 export type PostgreSQLProcessorLockOptions = {
   processorId: string;
@@ -24,7 +24,7 @@ export type PostgreSQLProcessorLockOptions = {
   };
   lockKey?: string | bigint;
   lockTimeoutSeconds?: number;
-  lockPolicy?: LockAcquisitionPolicy;
+  lockAcquisitionPolicy?: LockAcquisitionPolicy;
 };
 
 export type PostgreSQLProcessorLockContext = {
@@ -60,7 +60,7 @@ export const postgreSQLProcessorLock = (
       });
 
       // TODO: This should be moved o prcessor
-      if (!result.acquired && options.lockPolicy?.type !== 'skip') {
+      if (!result.acquired && options.lockAcquisitionPolicy?.type !== 'skip') {
         throw new EmmettError(
           `Failed to acquire lock for processor '${options.processorId}'`,
         );
