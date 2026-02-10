@@ -27,7 +27,13 @@ export const rebuildPostgreSQLProjections = <
   options: Omit<
     PostgreSQLEventStoreConsumerOptions<EventType>,
     'stopWhen' | 'processors'
-  > & { lockPolicy?: LockAcquisitionPolicy } & (
+  > & {
+    lock?: {
+      lockAcquisitionPolicy?: LockAcquisitionPolicy;
+      acquisitionPolicy?: LockAcquisitionPolicy;
+      timeoutSeconds?: number;
+    };
+  } & (
       | {
           projections: (
             | ProjectorOptions<
@@ -50,6 +56,8 @@ export const rebuildPostgreSQLProjections = <
     stopWhen: { noMessagesLeft: true },
   });
 
+  const lock = { acquisitionPolicy: defaultRebuildLockPolicy, ...options.lock };
+
   const projections: (Omit<
     ProjectorOptions<
       EventType,
@@ -62,7 +70,6 @@ export const rebuildPostgreSQLProjections = <
       ? options.projections.map((p) =>
           'projection' in p
             ? {
-                lockPolicy: defaultRebuildLockPolicy,
                 truncateOnStart: true,
                 processorId: getProjectorId({
                   projectionName: p.projection.name ?? unknownTag,
@@ -75,7 +82,6 @@ export const rebuildPostgreSQLProjections = <
                   projectionName: p.name ?? unknownTag,
                 }),
                 truncateOnStart: true,
-                lockPolicy: defaultRebuildLockPolicy,
               },
         )
       : [options];
@@ -84,6 +90,7 @@ export const rebuildPostgreSQLProjections = <
     consumer.projector({
       ...projectionDefinition,
       truncateOnStart: projectionDefinition.truncateOnStart ?? true,
+      lock,
     });
   }
 

@@ -6,8 +6,8 @@ import {
   type ProjectionHandlingType,
 } from '@event-driven-io/emmett';
 import {
-  callTryAcquireProcessorLock,
   callReleaseProcessorLock,
+  callTryAcquireProcessorLock,
 } from '../../schema/processors/processorsLocks';
 import { DefaultPostgreSQLProcessorLockPolicy } from './postgreSQLProcessorLock';
 
@@ -82,10 +82,11 @@ export const tryAcquireProcessorLock = async (
 export const tryAcquireProcessorLockWithRetry = async (
   execute: SQLExecutor,
   options: TryAcquireProcessorLockOptions & {
-    lockPolicy?: LockAcquisitionPolicy;
+    lockAcquisitionPolicy?: LockAcquisitionPolicy;
   },
 ): Promise<TryAcquireProcessorLockResult> => {
-  const policy = options.lockPolicy ?? DefaultPostgreSQLProcessorLockPolicy;
+  const policy =
+    options.lockAcquisitionPolicy ?? DefaultPostgreSQLProcessorLockPolicy;
 
   if (policy.type === 'retry') {
     return asyncRetry(() => tryAcquireProcessorLock(execute, options), {
