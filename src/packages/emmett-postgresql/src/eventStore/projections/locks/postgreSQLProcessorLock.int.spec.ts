@@ -60,7 +60,7 @@ void describe('tryAcquireProcessorLock', () => {
         processorId: processorId2,
         ...defaultPartitionAndVersion1,
         processorInstanceId: 'instance_2',
-        lockPolicy: { type: 'skip' },
+        lockAcquisitionPolicy: { type: 'skip' },
       });
 
       const [firstResult, secondResult] = await Promise.all([
@@ -198,7 +198,7 @@ void describe('tryAcquireProcessorLock', () => {
         processorId,
         ...defaultPartitionAndVersion1,
         processorInstanceId: instanceId2,
-        lockPolicy: { type: 'skip' },
+        lockAcquisitionPolicy: { type: 'skip' },
       });
 
       const [firstResult, secondResult] = await Promise.all([
@@ -245,7 +245,7 @@ void describe('tryAcquireProcessorLock', () => {
         processorId,
         ...defaultPartitionAndVersion1,
         processorInstanceId: instanceId2,
-        lockPolicy: { type: 'skip' },
+        lockAcquisitionPolicy: { type: 'skip' },
       });
 
       const result = await pool.withConnection((connection) =>
@@ -534,7 +534,7 @@ void describe('tryAcquireProcessorLock', () => {
           version: 1,
         },
         processorInstanceId: getProcessorInstanceId(processorId),
-        lockPolicy: { type: 'skip' },
+        lockAcquisitionPolicy: { type: 'skip' },
       });
 
       await Promise.all([
@@ -823,7 +823,7 @@ void describe('tryAcquireProcessorLock', () => {
         lockKey,
         processorId,
         processorInstanceId: getProcessorInstanceId(processorId),
-        lockPolicy: { type: 'skip' },
+        lockAcquisitionPolicy: { type: 'skip' },
       });
 
       const [sharedLockAcquired, exclusiveLockResult] = await Promise.all([
@@ -877,7 +877,7 @@ void describe('tryAcquireProcessorLock', () => {
         ...defaultPartitionAndVersion1,
         processorInstanceId: instanceId2,
         lockTimeoutSeconds,
-        lockPolicy: { type: 'skip' },
+        lockAcquisitionPolicy: { type: 'skip' },
       });
 
       const result = await pool.withConnection((connection) =>
@@ -954,7 +954,7 @@ void describe('tryAcquireProcessorLock', () => {
         ...defaultPartitionAndVersion1,
         processorInstanceId: instanceId2,
         lockTimeoutSeconds: customTimeout,
-        lockPolicy: { type: 'skip' },
+        lockAcquisitionPolicy: { type: 'skip' },
       });
 
       const blockedResult = await pool.withConnection((connection) =>
