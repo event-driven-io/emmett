@@ -83,6 +83,7 @@ export const eventStoreSchemaMigrations: SQLMigration[] = [
 export type CreateEventStoreSchemaOptions = {
   dryRun?: boolean | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
+  migrationTimeoutMs?: number | undefined;
 };
 
 export type EventStoreSchemaMigrationOptions = {
