@@ -2,7 +2,6 @@ import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   bigIntProcessorCheckpoint,
   upcastRecordedMessage,
-  type BigIntStreamPosition,
   type CombinedReadEventMetadata,
   type Event,
   type EventDataOf,
@@ -34,11 +33,7 @@ export const readStream = async <
 >(
   execute: SQLExecutor,
   streamId: string,
-  options?: ReadStreamOptions<
-    BigIntStreamPosition,
-    EventType,
-    EventPayloadType
-  > & {
+  options?: ReadStreamOptions<EventType, EventPayloadType> & {
     partition?: string;
   },
 ): Promise<

@@ -121,7 +121,7 @@ void describe('MongoDBEventStore subscription', () => {
           );
         },
         eachMessage: (event) => {
-          lastResumeToken = event.metadata.globalPosition;
+          lastResumeToken = event.metadata.checkpoint as MongoDBCheckpoint;
 
           assertTrue(receivedMessageCount <= 3);
           assertEqual(

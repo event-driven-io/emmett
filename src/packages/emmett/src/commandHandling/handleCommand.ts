@@ -7,13 +7,11 @@ import {
   type AppendStreamResultOfEventStore,
   type AppendToStreamOptions,
   type EventStore,
-  type EventStoreReadEventMetadata,
   type EventStoreSession,
   type ExpectedStreamVersion,
   type ReadStreamOptions,
-  type StreamPositionTypeOfEventStore,
 } from '../eventStore';
-import type { Event, StreamPositionTypeOfReadEventMetadata } from '../typing';
+import type { Event } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
 
 export const CommandHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
@@ -79,9 +77,7 @@ export type HandleOptions<Store extends EventStore> = Parameters<
 >[2] &
   (
     | {
-        expectedStreamVersion?: ExpectedStreamVersion<
-          StreamPositionTypeOfEventStore<Store>
-        >;
+        expectedStreamVersion?: ExpectedStreamVersion;
       }
     | {
         retry?: CommandHandlerRetryOptions;
@@ -112,11 +108,7 @@ export const CommandHandler =
       async () => {
         const result = await withSession<
           Store,
-          CommandHandlerResult<
-            State,
-            StreamEvent,
-            StreamPositionTypeOfEventStore<Store>
-          >
+          CommandHandlerResult<State, StreamEvent, Store>
         >(store, async ({ eventStore }) => {
           const { evolve, initialState } = options;
           const mapToStreamId = options.mapToStreamId ?? ((id) => id);
@@ -134,15 +126,12 @@ export const CommandHandler =
             read: {
               schema: options.schema,
               ...(handleOptions as ReadStreamOptions<
-                StreamPositionTypeOfReadEventMetadata<
-                  EventStoreReadEventMetadata<Store>
-                >,
                 StreamEvent,
                 EventPayloadType
               >),
               // expected stream version is passed to fail fast
               // if stream is in the wrong state
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
               expectedStreamVersion:
                 handleOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
             },
@@ -151,7 +140,6 @@ export const CommandHandler =
           // 2. Use the aggregate state
 
           const {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             currentStreamVersion,
             streamExists: _streamExists,
             ...restOfAggregationResult
@@ -182,7 +170,7 @@ export const CommandHandler =
               ...restOfAggregationResult,
               newEvents: [],
               newState: state,
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
               nextExpectedStreamVersion: currentStreamVersion,
               createdNewStream: false,
             } as unknown as CommandHandlerResult<State, StreamEvent, Store>;
@@ -192,15 +180,11 @@ export const CommandHandler =
           // - provided expected stream version,
           // - current stream version got from stream aggregation,
           // - or expect stream not to exists otherwise.
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          const expectedStreamVersion: ExpectedStreamVersion<
-            StreamPositionTypeOfEventStore<Store>
-          > =
+
+          const expectedStreamVersion: ExpectedStreamVersion =
             handleOptions?.expectedStreamVersion ??
             (aggregationResult.streamExists
-              ? (currentStreamVersion as ExpectedStreamVersion<
-                  StreamPositionTypeOfEventStore<Store>
-                >)
+              ? currentStreamVersion
               : STREAM_DOES_NOT_EXIST);
 
           // 4. Append result to the stream
@@ -209,9 +193,6 @@ export const CommandHandler =
             eventsToAppend,
             {
               ...(handleOptions as AppendToStreamOptions<
-                StreamPositionTypeOfReadEventMetadata<
-                  EventStoreReadEventMetadata<Store>
-                >,
                 StreamEvent,
                 EventPayloadType
               >),

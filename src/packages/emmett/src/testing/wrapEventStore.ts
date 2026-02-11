@@ -7,7 +7,6 @@ import type {
   EventStoreReadEventMetadata,
   ReadStreamOptions,
   ReadStreamResult,
-  StreamPositionTypeOfEventStore,
 } from '../eventStore';
 import type { Event, EventMetaDataOf } from '../typing';
 
@@ -21,7 +20,7 @@ export type EventStoreWrapper<Store extends EventStore> = Store & {
   setup<EventType extends Event>(
     streamName: string,
     events: EventType[],
-  ): Promise<AppendToStreamResult<StreamPositionTypeOfEventStore<Store>>>;
+  ): Promise<AppendToStreamResult>;
 };
 
 export const WrapEventStore = <Store extends EventStore>(
@@ -34,15 +33,13 @@ export const WrapEventStore = <Store extends EventStore>(
     aggregateStream<State, EventType extends Event>(
       streamName: string,
       options: AggregateStreamOptions<State, EventType>,
-    ): Promise<
-      AggregateStreamResult<State, StreamPositionTypeOfEventStore<Store>>
-    > {
+    ): Promise<AggregateStreamResult<State>> {
       return eventStore.aggregateStream(streamName, options);
     },
 
     async readStream<EventType extends Event>(
       streamName: string,
-      options?: ReadStreamOptions<StreamPositionTypeOfEventStore<Store>>,
+      options?: ReadStreamOptions<EventType>,
     ): Promise<
       ReadStreamResult<
         EventType,
@@ -61,8 +58,8 @@ export const WrapEventStore = <Store extends EventStore>(
     appendToStream: async <EventType extends Event>(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions<StreamPositionTypeOfEventStore<Store>>,
-    ): Promise<AppendToStreamResult<StreamPositionTypeOfEventStore<Store>>> => {
+      options?: AppendToStreamOptions<EventType>,
+    ): Promise<AppendToStreamResult> => {
       const result = await eventStore.appendToStream(
         streamName,
         events,
@@ -84,7 +81,7 @@ export const WrapEventStore = <Store extends EventStore>(
     setup: async <EventType extends Event>(
       streamName: string,
       events: EventType[],
-    ): Promise<AppendToStreamResult<StreamPositionTypeOfEventStore<Store>>> => {
+    ): Promise<AppendToStreamResult> => {
       return eventStore.appendToStream(streamName, events);
     },
 

@@ -3,7 +3,6 @@ import {
   bigIntProcessorCheckpoint,
   JSONParser,
   upcastRecordedMessage,
-  type BigIntStreamPosition,
   type CombinedReadEventMetadata,
   type Event,
   type ReadEvent,
@@ -32,11 +31,7 @@ export const readStream = async <
 >(
   execute: SQLExecutor,
   streamId: string,
-  options?: ReadStreamOptions<
-    BigIntStreamPosition,
-    EventType,
-    EventPayloadType
-  > & {
+  options?: ReadStreamOptions<EventType, EventPayloadType> & {
     partition?: string;
   },
 ): Promise<

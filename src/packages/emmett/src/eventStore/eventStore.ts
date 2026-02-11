@@ -1,14 +1,12 @@
 import type {
   AnyReadEventMetadata,
-  BigIntGlobalPosition,
-  BigIntStreamPosition,
   CommonReadEventMetadata,
   DefaultRecord,
   Event,
-  GlobalPositionTypeOfReadEventMetadata,
+  GlobalPosition,
   ReadEvent,
   ReadEventMetadata,
-  StreamPositionTypeOfReadEventMetadata,
+  StreamPosition,
   WithGlobalPosition,
 } from '../typing';
 import type { AfterEventStoreCommitHandler } from './afterCommit';
@@ -30,23 +28,14 @@ export interface EventStore<
       ReadEventMetadataType,
       EventPayloadType
     >,
-  ): Promise<
-    AggregateStreamResult<
-      State,
-      StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>
-    >
-  >;
+  ): Promise<AggregateStreamResult<State>>;
 
   readStream<
     EventType extends Event,
     EventPayloadType extends Event = EventType,
   >(
     streamName: string,
-    options?: ReadStreamOptions<
-      StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>,
-      EventType,
-      EventPayloadType
-    >,
+    options?: ReadStreamOptions<EventType, EventPayloadType>,
   ): Promise<ReadStreamResult<EventType, ReadEventMetadataType>>;
 
   appendToStream<
@@ -55,16 +44,8 @@ export interface EventStore<
   >(
     streamName: string,
     events: EventType[],
-    options?: AppendToStreamOptions<
-      StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>,
-      EventType,
-      EventPayloadType
-    >,
-  ): Promise<
-    AppendToStreamResult<
-      StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>
-    >
-  >;
+    options?: AppendToStreamOptions<EventType, EventPayloadType>,
+  ): Promise<AppendToStreamResult>;
 
   streamExists(streamName: string): Promise<StreamExistsResult>;
 
@@ -75,18 +56,12 @@ export interface EventStore<
 
 export type EventStoreReadEventMetadata<Store extends EventStore> =
   Store extends EventStore<infer T>
-    ? T extends CommonReadEventMetadata<infer SP>
-      ? T extends WithGlobalPosition<infer GP>
-        ? ReadEventMetadata<GP, SP> & T
-        : ReadEventMetadata<undefined, SP> & T
+    ? T extends CommonReadEventMetadata
+      ? T extends WithGlobalPosition
+        ? ReadEventMetadata<true> & T
+        : ReadEventMetadata<undefined> & T
       : never
     : never;
-
-export type GlobalPositionTypeOfEventStore<Store extends EventStore> =
-  GlobalPositionTypeOfReadEventMetadata<EventStoreReadEventMetadata<Store>>;
-
-export type StreamPositionTypeOfEventStore<Store extends EventStore> =
-  StreamPositionTypeOfReadEventMetadata<EventStoreReadEventMetadata<Store>>;
 
 export type EventStoreSession<EventStoreType extends EventStore> = {
   eventStore: EventStoreType;
@@ -150,14 +125,13 @@ export type EventStoreSchemaOptions<
 ////////////////////////////////////////////////////////////////////
 
 export type ReadStreamOptions<
-  StreamVersion = BigIntStreamPosition,
   EventType extends Event = Event,
   EventPayloadType extends Event = EventType,
 > = {
-  from?: StreamVersion;
-  to?: StreamVersion;
+  from?: StreamPosition;
+  to?: StreamPosition;
   maxCount?: bigint;
-  expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
+  expectedStreamVersion?: ExpectedStreamVersion;
   schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
 };
 
@@ -165,7 +139,7 @@ export type ReadStreamResult<
   EventType extends Event,
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
 > = {
-  currentStreamVersion: StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>;
+  currentStreamVersion: StreamPosition;
   events: ReadEvent<EventType, ReadEventMetadataType>[];
   streamExists: boolean;
 };
@@ -194,32 +168,21 @@ export type AggregateStreamOptions<
 > = {
   evolve: Evolve<State, EventType, ReadEventMetadataType>;
   initialState: () => State;
-  read?: ReadStreamOptions<
-    StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType>,
-    EventType,
-    EventPayloadType
-  >;
+  read?: ReadStreamOptions<EventType, EventPayloadType>;
 };
 
-export type AggregateStreamResult<
-  State,
-  StreamPosition = BigIntStreamPosition,
-> = {
+export type AggregateStreamResult<State> = {
   currentStreamVersion: StreamPosition;
   state: State;
   streamExists: boolean;
 };
 
-export type AggregateStreamResultWithGlobalPosition<
-  State,
-  StreamPosition = BigIntStreamPosition,
-  GlobalPosition = BigIntGlobalPosition,
-> =
-  | (AggregateStreamResult<State, StreamPosition> & {
+export type AggregateStreamResultWithGlobalPosition<State> =
+  | (AggregateStreamResult<State> & {
       streamExists: true;
       lastEventGlobalPosition: GlobalPosition;
     })
-  | (AggregateStreamResult<State, StreamPosition> & {
+  | (AggregateStreamResult<State> & {
       streamExists: false;
     });
 
@@ -234,23 +197,19 @@ export type AggregateStreamResultOfEventStore<Store extends EventStore> =
 ////////////////////////////////////////////////////////////////////
 
 export type AppendToStreamOptions<
-  StreamVersion = BigIntStreamPosition,
   EventType extends Event = Event,
   EventPayloadType extends Event = EventType,
 > = {
-  expectedStreamVersion?: ExpectedStreamVersion<StreamVersion>;
+  expectedStreamVersion?: ExpectedStreamVersion;
   schema?: EventStoreAppendSchemaOptions<EventType, EventPayloadType>;
 };
 
-export type AppendToStreamResult<StreamVersion = BigIntStreamPosition> = {
-  nextExpectedStreamVersion: StreamVersion;
+export type AppendToStreamResult = {
+  nextExpectedStreamVersion: StreamPosition;
   createdNewStream: boolean;
 };
 
-export type AppendToStreamResultWithGlobalPosition<
-  StreamVersion = BigIntStreamPosition,
-  GlobalPosition = BigIntGlobalPosition,
-> = AppendToStreamResult<StreamVersion> & {
+export type AppendToStreamResultWithGlobalPosition = AppendToStreamResult & {
   lastEventGlobalPosition: GlobalPosition;
 };
 

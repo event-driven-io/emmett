@@ -180,7 +180,7 @@ export async function testCommandHandling(
         async () => {
           await handleCommand(eventStore, shoppingCartId, () => {
             tried++;
-            throw new ExpectedVersionConflictError(0, 1);
+            throw new ExpectedVersionConflictError(0n, 1n);
           });
         },
         (error) => error instanceof ExpectedVersionConflictError,

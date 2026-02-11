@@ -9,7 +9,6 @@ import {
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
   type BeforeEventStoreCommitHandler,
-  type BigIntStreamPosition,
   type Event,
   type EventStore,
   type ProjectionRegistration,
@@ -55,11 +54,7 @@ export interface SQLiteEventStore extends EventStore<SQLiteReadEventMetadata> {
   >(
     streamName: string,
     events: EventType[],
-    options?: AppendToStreamOptions<
-      BigIntStreamPosition,
-      EventType,
-      EventPayloadType
-    >,
+    options?: AppendToStreamOptions<EventType, EventPayloadType>,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerEventType extends Event = Event>(
     options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
@@ -244,11 +239,7 @@ export const getSQLiteEventStore = <
       EventPayloadType extends Event = EventType,
     >(
       streamName: string,
-      options?: ReadStreamOptions<
-        BigIntStreamPosition,
-        EventType,
-        EventPayloadType
-      >,
+      options?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
     > =>
@@ -262,11 +253,7 @@ export const getSQLiteEventStore = <
     >(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions<
-        BigIntStreamPosition,
-        EventType,
-        EventPayloadType
-      >,
+      options?: AppendToStreamOptions<EventType, EventPayloadType>,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
@@ -291,7 +278,7 @@ export const getSQLiteEventStore = <
       );
 
       if (!appendResult.success)
-        throw new ExpectedVersionConflictError<bigint>(
+        throw new ExpectedVersionConflictError(
           -1n, //TODO: Return actual version in case of error
           options?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
         );
