@@ -178,6 +178,7 @@ const rowExists = async <T extends QueryResultRow>({
 };
 
 const shoppingCartShortInfoProjection = sqliteRawSQLProjection({
+  name: 'shoppingCartShortInfo',
   evolve: (event: EventType): SQL => {
     switch (event.type) {
       case 'ProductItemAdded': {
@@ -240,7 +241,7 @@ const shoppingCartShortInfoProjection = sqliteRawSQLProjection({
     }
   },
   canHandle: ['ProductItemAdded', 'DiscountApplied'],
-  initSQL: SQL`CREATE TABLE IF NOT EXISTS ${identifier(projection)}
+  init: () => SQL`CREATE TABLE IF NOT EXISTS ${identifier(projection)}
         (
           id TEXT PRIMARY KEY,
           productItemsCount INTEGER,
