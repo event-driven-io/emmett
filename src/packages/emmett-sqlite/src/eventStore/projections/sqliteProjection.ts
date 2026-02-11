@@ -1,9 +1,10 @@
-import type { SQL } from '@event-driven-io/dumbo';
+import type { SQL, SQLExecutor } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   projection,
   type CanHandle,
   type Event,
+  type EventStoreReadSchemaOptions,
   type ProjectionDefinition,
   type ProjectionHandler,
   type ProjectionInitOptions,
@@ -12,6 +13,7 @@ import {
 import type { SQLiteReadEventMetadata } from '../SQLiteEventStore';
 
 export type SQLiteProjectionHandlerContext = {
+  execute: SQLExecutor;
   connection: AnySQLiteConnection;
 };
 
@@ -24,23 +26,25 @@ export type SQLiteProjectionHandler<
   SQLiteProjectionHandlerContext
 >;
 
-export type SQLiteProjectionDefinition<EventType extends Event = Event> =
-  ProjectionDefinition<
-    EventType,
-    SQLiteReadEventMetadata,
-    SQLiteProjectionHandlerContext
-  >;
+export type SQLiteProjectionDefinition<
+  EventType extends Event = Event,
+  EventPayloadType extends Event = EventType,
+> = ProjectionDefinition<
+  EventType,
+  SQLiteReadEventMetadata,
+  SQLiteProjectionHandlerContext,
+  EventPayloadType
+>;
 
 export type SQLiteProjectionHandlerOptions<EventType extends Event = Event> = {
   events: ReadEvent<EventType, SQLiteReadEventMetadata>[];
   projections: SQLiteProjectionDefinition<EventType>[];
-  connection: AnySQLiteConnection;
-};
+} & SQLiteProjectionHandlerContext;
 
 export const handleProjections = async <EventType extends Event = Event>(
   options: SQLiteProjectionHandlerOptions<EventType>,
 ): Promise<void> => {
-  const { projections: allProjections, events, connection } = options;
+  const { projections: allProjections, events, connection, execute } = options;
 
   const eventTypes = events.map((e) => e.type);
 
@@ -50,73 +54,105 @@ export const handleProjections = async <EventType extends Event = Event>(
     }
     await projection.handle(events, {
       connection,
+      execute,
     });
   }
 };
 
-export const sqliteProjection = <EventType extends Event>(
-  definition: SQLiteProjectionDefinition<EventType>,
-): SQLiteProjectionDefinition<EventType> =>
+export const sqliteProjection = <
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+>(
+  definition: SQLiteProjectionDefinition<EventType, EventPayloadType>,
+): SQLiteProjectionDefinition<EventType, EventPayloadType> =>
   projection<
     EventType,
     SQLiteReadEventMetadata,
-    SQLiteProjectionHandlerContext
+    SQLiteProjectionHandlerContext,
+    EventPayloadType
   >(definition);
 
-export type SQLiteRawBatchSQLProjection<EventType extends Event> = {
+export type SQLiteRawBatchSQLProjection<
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+> = {
+  name: string;
+  kind?: string;
+  version?: number;
   evolve: (
     events: EventType[],
     context: SQLiteProjectionHandlerContext,
   ) => Promise<SQL[]> | SQL[];
   canHandle: CanHandle<EventType>;
-  initSQL?: SQL | SQL[];
   init?: (
     context: ProjectionInitOptions<SQLiteProjectionHandlerContext>,
-  ) => void | Promise<void>;
+  ) => void | Promise<void> | SQL | Promise<SQL> | Promise<SQL[]> | SQL[];
+  eventsOptions?: {
+    schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
+  };
 };
 
-export const sqliteRawBatchSQLProjection = <EventType extends Event>(
-  options: SQLiteRawBatchSQLProjection<EventType>,
-): SQLiteProjectionDefinition<EventType> =>
-  sqliteProjection<EventType>({
+export const sqliteRawBatchSQLProjection = <
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+>(
+  options: SQLiteRawBatchSQLProjection<EventType, EventPayloadType>,
+): SQLiteProjectionDefinition<EventType, EventPayloadType> =>
+  sqliteProjection<EventType, EventPayloadType>({
+    name: options.name,
+    kind: options.kind ?? 'emt:projections:sqlite:raw_sql:batch',
+    version: options.version,
     canHandle: options.canHandle,
+    eventsOptions: options.eventsOptions,
     handle: async (events, context) => {
       const sqls: SQL[] = await options.evolve(events, context);
 
-      for (const sql of sqls) await context.connection.execute.command(sql);
+      await context.execute.batchCommand(sqls);
     },
     init: async (initOptions) => {
-      if (options.init) {
-        await options.init(initOptions);
-      }
-      if (options.initSQL) {
-        const initSQLs = Array.isArray(options.initSQL)
-          ? options.initSQL
-          : [options.initSQL];
+      const initSQL = options.init
+        ? await options.init(initOptions)
+        : undefined;
 
-        for (const sql of initSQLs)
-          await initOptions.context.connection.execute.command(sql);
+      if (initSQL) {
+        if (Array.isArray(initSQL)) {
+          await initOptions.context.execute.batchCommand(initSQL);
+        } else {
+          await initOptions.context.execute.command(initSQL);
+        }
       }
     },
   });
 
-export type SQLiteRawSQLProjection<EventType extends Event> = {
+export type SQLiteRawSQLProjection<
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+> = {
+  name: string;
+  kind?: string;
+  version?: number;
   evolve: (
     events: EventType,
     context: SQLiteProjectionHandlerContext,
   ) => Promise<SQL[]> | SQL[] | Promise<SQL> | SQL;
   canHandle: CanHandle<EventType>;
-  initSQL?: SQL | SQL[];
   init?: (
     context: ProjectionInitOptions<SQLiteProjectionHandlerContext>,
-  ) => void | Promise<void>;
+  ) => void | Promise<void> | SQL | Promise<SQL> | Promise<SQL[]> | SQL[];
+  eventsOptions?: {
+    schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
+  };
 };
 
-export const sqliteRawSQLProjection = <EventType extends Event>(
-  options: SQLiteRawSQLProjection<EventType>,
-): SQLiteProjectionDefinition<EventType> => {
-  const { evolve, ...rest } = options;
-  return sqliteRawBatchSQLProjection<EventType>({
+export const sqliteRawSQLProjection = <
+  EventType extends Event,
+  EventPayloadType extends Event = EventType,
+>(
+  options: SQLiteRawSQLProjection<EventType, EventPayloadType>,
+): SQLiteProjectionDefinition<EventType, EventPayloadType> => {
+  const { evolve, kind, ...rest } = options;
+  return sqliteRawBatchSQLProjection<EventType, EventPayloadType>({
+    kind: kind ?? 'emt:projections:sqlite:raw:_sql:single',
     ...rest,
     evolve: async (events, context) => {
       const sqls: SQL[] = [];

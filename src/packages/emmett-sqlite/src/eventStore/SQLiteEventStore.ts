@@ -165,7 +165,10 @@ export const getSQLiteEventStore = <
                 version: projection.version ?? 1,
                 registrationType: 'async',
                 status: 'active',
-                context,
+                context: {
+                  execute: context.connection.execute,
+                  connection: context.connection,
+                },
               });
             }
           }
@@ -278,7 +281,8 @@ export const getSQLiteEventStore = <
               await handleProjections({
                 projections: inlineProjections,
                 events: messages,
-                ...context,
+                execute: context.connection.execute,
+                connection: context.connection,
               });
 
             if (onBeforeCommitHook) await onBeforeCommitHook(messages, context);

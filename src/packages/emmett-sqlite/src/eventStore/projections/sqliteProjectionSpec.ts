@@ -119,7 +119,7 @@ export const SQLiteProjectionSpec = {
                 await projection.init({
                   registrationType: 'async',
                   status: 'active',
-                  context: { connection },
+                  context: { execute: connection.execute, connection },
                   version: projection.version ?? 1,
                 });
                 wasInitialized = true;
@@ -129,6 +129,7 @@ export const SQLiteProjectionSpec = {
                 handleProjections({
                   events: allEvents,
                   projections: [projection],
+                  execute: connection.execute,
                   connection,
                 }),
               );

@@ -224,7 +224,10 @@ export const sqliteProjectionProcessor = <EventType extends Event = Event>(
     eachMessage: async (event, context) => {
       if (!projection.canHandle.includes(event.type)) return;
 
-      await projection.handle([event], { connection: context.connection });
+      await projection.handle([event], {
+        execute: context.connection.execute,
+        connection: context.connection,
+      });
     },
     ...options,
   });
