@@ -16,7 +16,7 @@ export const isSubset = (superObj: unknown, subObj: unknown): boolean => {
   assertOk(sub);
 
   return Object.keys(sub).every((ele: string) => {
-    if (typeof sub[ele] == 'object') {
+    if (sub[ele] !== null && typeof sub[ele] == 'object') {
       return isSubset(sup[ele], sub[ele]);
     }
     return sub[ele] === sup[ele];

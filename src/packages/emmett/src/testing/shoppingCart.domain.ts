@@ -1,4 +1,4 @@
-import type { Event, ReadEvent } from '../typing';
+import type { Command, Event, ReadEvent } from '../typing';
 
 export type PricedProductItem = {
   productId: string;
@@ -19,6 +19,13 @@ export type DiscountApplied = Event<
   'DiscountApplied',
   { percent: number; couponId: string }
 >;
+export type ProductItemRemoved = Event<
+  'ProductItemRemoved',
+  {
+    productItem: PricedProductItem;
+    removedBy: string | null; // null = system removal (out of stock, expired)
+  }
+>;
 export type ShoppingCartConfirmed = Event<
   'ShoppingCartConfirmed',
   { confirmedAt: Date }
@@ -26,6 +33,7 @@ export type ShoppingCartConfirmed = Event<
 
 export type ShoppingCartEvent =
   | ProductItemAdded
+  | ProductItemRemoved
   | DiscountApplied
   | ShoppingCartConfirmed;
 
@@ -40,6 +48,16 @@ export const evolve = (
         productItems: [...state.productItems, productItem],
         totalAmount:
           state.totalAmount + productItem.price * productItem.quantity,
+      };
+    }
+    case 'ProductItemRemoved': {
+      const productItem = data.productItem;
+      return {
+        productItems: state.productItems.filter(
+          (p) => p.productId !== productItem.productId,
+        ),
+        totalAmount:
+          state.totalAmount - productItem.price * productItem.quantity,
       };
     }
     case 'DiscountApplied':
@@ -65,6 +83,16 @@ export const evolveWithMetadata = (
           state.totalAmount + productItem.price * productItem.quantity,
       };
     }
+    case 'ProductItemRemoved': {
+      const productItem = data.productItem;
+      return {
+        productItems: state.productItems.filter(
+          (p) => p.productId !== productItem.productId,
+        ),
+        totalAmount:
+          state.totalAmount - productItem.price * productItem.quantity,
+      };
+    }
     case 'DiscountApplied':
       return {
         ...state,
@@ -78,3 +106,19 @@ export const evolveWithMetadata = (
 export const initialState = (): ShoppingCart => {
   return { productItems: [], totalAmount: 0 };
 };
+
+export type RemoveProductItem = Command<
+  'RemoveProductItem',
+  {
+    productItem: PricedProductItem;
+    removedBy: string | null; // null = system removal (out of stock, expired)
+  }
+>;
+
+export const removeProductItem = (
+  { data }: RemoveProductItem,
+  _state: ShoppingCart,
+): ShoppingCartEvent => ({
+  type: 'ProductItemRemoved',
+  data,
+});

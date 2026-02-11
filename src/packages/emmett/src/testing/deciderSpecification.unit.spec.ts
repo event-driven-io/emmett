@@ -3,6 +3,12 @@ import { IllegalStateError, ValidationError } from '../errors';
 import { AssertionError, assertThrows } from '../testing/assertions';
 import type { Command, Event } from '../typing';
 import { DeciderSpecification } from './deciderSpecification';
+import {
+  evolve as cartEvolve,
+  initialState as cartInitialState,
+  removeProductItem,
+  type PricedProductItem,
+} from './shoppingCart.domain';
 
 type DoSomething = Command<'Do', { something: string }>;
 type SomethingHappened = Event<'Did', { something: string }>;
@@ -230,5 +236,47 @@ void describe('DeciderSpecification', () => {
             `Error didn't match the error condition: Error: Nope!`,
       );
     });
+  });
+});
+
+const givenCart = DeciderSpecification.for({
+  decide: removeProductItem,
+  evolve: cartEvolve,
+  initialState: cartInitialState,
+});
+
+const shoes: PricedProductItem = {
+  productId: 'shoes-123',
+  quantity: 1,
+  price: 100,
+};
+
+void describe('DeciderSpecification with null event properties', () => {
+  void it('handles system removal where removedBy is null', () => {
+    givenCart([{ type: 'ProductItemAdded', data: { productItem: shoes } }])
+      .when({
+        type: 'RemoveProductItem',
+        data: { productItem: shoes, removedBy: null },
+      })
+      .then([
+        {
+          type: 'ProductItemRemoved',
+          data: { productItem: shoes, removedBy: null },
+        },
+      ]);
+  });
+
+  void it('handles user removal where removedBy is set', () => {
+    givenCart([{ type: 'ProductItemAdded', data: { productItem: shoes } }])
+      .when({
+        type: 'RemoveProductItem',
+        data: { productItem: shoes, removedBy: 'user-456' },
+      })
+      .then([
+        {
+          type: 'ProductItemRemoved',
+          data: { productItem: shoes, removedBy: 'user-456' },
+        },
+      ]);
   });
 });
