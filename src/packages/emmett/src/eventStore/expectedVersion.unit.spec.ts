@@ -8,9 +8,9 @@ import {
 } from './expectedVersion';
 
 void describe('matchesExpectedVersion', () => {
-  const defaultVersion = -123;
+  const defaultVersion = -123n;
   void it('When NO_CONCURRENCY_CHECK provided returns `true` for any current version', () => {
-    const allCurrentVersions = [defaultVersion, 0, -1, 1, 100, 'random', ''];
+    const allCurrentVersions = [defaultVersion, 0n, -1n, 1n, 100n];
 
     for (const currentStreamVersion of allCurrentVersions) {
       assertOk(
@@ -34,7 +34,7 @@ void describe('matchesExpectedVersion', () => {
   });
 
   void it('When STREAM_DOES_NOT_EXIST provided returns `false` for current different than default version', () => {
-    const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
+    const definedStreamVersion = [0n, -1n, 1n, 100n];
 
     for (const currentStreamVersion of definedStreamVersion) {
       assertEqual(
@@ -49,7 +49,7 @@ void describe('matchesExpectedVersion', () => {
   });
 
   void it('When STREAM_EXISTS provided returns `true` for current different than default version', () => {
-    const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
+    const definedStreamVersion = [0n, -1n, 1n, 100n];
 
     for (const currentStreamVersion of definedStreamVersion) {
       assertOk(
@@ -70,7 +70,7 @@ void describe('matchesExpectedVersion', () => {
   });
 
   void it('When value provided returns `true` for current matching expected value', () => {
-    const definedStreamVersion = [0, -1, 1, 100, 'random', ''];
+    const definedStreamVersion = [0n, -1n, 1n, 100n];
 
     for (const streamVersion of definedStreamVersion) {
       assertOk(
@@ -81,12 +81,10 @@ void describe('matchesExpectedVersion', () => {
 
   void it('When value provided returns `false` for current notmatching expected value', () => {
     const definedStreamVersion = [
-      { current: 100, expected: 0 },
-      { current: 0, expected: -1 },
-      { current: -1, expected: 1 },
-      { current: 0, expected: 100 },
-      { current: '', expected: 'random' },
-      { current: 'random', expected: '' },
+      { current: 100n, expected: 0n },
+      { current: 0n, expected: -1n },
+      { current: -1n, expected: 1n },
+      { current: 0n, expected: 100n },
     ];
 
     for (const streamVersion of definedStreamVersion) {

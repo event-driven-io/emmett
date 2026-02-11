@@ -6,7 +6,6 @@ import {
 import { bigIntProcessorCheckpoint } from '../processors';
 import type { ProjectionRegistration } from '../projections';
 import type {
-  BigIntStreamPosition,
   CombinedReadEventMetadata,
   Event,
   ReadEvent,
@@ -118,11 +117,7 @@ export const getInMemoryEventStore = (
       EventPayloadType extends Event = EventType,
     >(
       streamName: string,
-      options?: ReadStreamOptions<
-        BigIntStreamPosition,
-        EventType,
-        EventPayloadType
-      >,
+      options?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
     > => {
@@ -178,11 +173,7 @@ export const getInMemoryEventStore = (
     >(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions<
-        BigIntStreamPosition,
-        EventType,
-        EventPayloadType
-      >,
+      options?: AppendToStreamOptions<EventType, EventPayloadType>,
     ): Promise<AppendToStreamResult> => {
       const currentEvents = streams.get(streamName) ?? [];
       const currentStreamVersion =

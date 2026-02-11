@@ -1,11 +1,11 @@
 import type {
   AnyCommand,
   AnyEvent,
-  BigIntGlobalPosition,
-  BigIntStreamPosition,
   Command,
   DefaultRecord,
   Event,
+  GlobalPosition,
+  StreamPosition,
 } from '.';
 import type { ProcessorCheckpoint } from '../processors';
 
@@ -73,52 +73,30 @@ export type RecordedMessage<
   kind: NonNullable<MessageKindOf<Message>>;
 };
 
-export type CommonRecordedMessageMetadata<
-  StreamPosition = BigIntStreamPosition,
-> = Readonly<{
+export type CommonRecordedMessageMetadata = Readonly<{
   messageId: string;
   streamPosition: StreamPosition;
   streamName: string;
   checkpoint?: ProcessorCheckpoint | null;
 }>;
 
-export type WithGlobalPosition<GlobalPosition> = Readonly<{
+export type WithGlobalPosition = Readonly<{
   globalPosition: GlobalPosition;
 }>;
 
-export type RecordedMessageMetadata<
-  GlobalPosition = undefined,
-  StreamPosition = BigIntStreamPosition,
-> = CommonRecordedMessageMetadata<StreamPosition> &
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-  (GlobalPosition extends undefined ? {} : WithGlobalPosition<GlobalPosition>);
+export type RecordedMessageMetadata<HasGlobalPosition = undefined> =
+  CommonRecordedMessageMetadata &
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+    (HasGlobalPosition extends undefined ? {} : WithGlobalPosition);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyRecordedMessage = Message<any, any, any>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyRecordedMessageMetadata = RecordedMessageMetadata<any, any>;
+export type AnyRecordedMessageMetadata = RecordedMessageMetadata<any>;
 
-export type RecordedMessageMetadataWithGlobalPosition<
-  GlobalPosition = BigIntGlobalPosition,
-> = RecordedMessageMetadata<GlobalPosition>;
+export type RecordedMessageMetadataWithGlobalPosition =
+  RecordedMessageMetadata<true>;
 
-export type RecordedMessageMetadataWithoutGlobalPosition<
-  StreamPosition = BigIntStreamPosition,
-> = RecordedMessageMetadata<undefined, StreamPosition>;
-
-export type GlobalPositionTypeOfRecordedMessageMetadata<
-  RecordedMessageMetadataType,
-> =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  RecordedMessageMetadataType extends RecordedMessageMetadata<infer GP, any>
-    ? GP
-    : never;
-
-export type StreamPositionTypeOfRecordedMessageMetadata<
-  RecordedMessageMetadataType,
-> =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  RecordedMessageMetadataType extends RecordedMessageMetadata<any, infer SV>
-    ? SV
-    : never;
+export type RecordedMessageMetadataWithoutGlobalPosition =
+  RecordedMessageMetadata<undefined>;

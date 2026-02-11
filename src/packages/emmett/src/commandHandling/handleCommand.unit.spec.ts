@@ -279,7 +279,7 @@ void describe('Command Handler', () => {
         (state) => {
           // This should be thrown in parallel operations not in the business logic
           // but for this test needs, that's the simplest way to do it
-          if (tried++ === 0) throw new ExpectedVersionConflictError(0, 1);
+          if (tried++ === 0) throw new ExpectedVersionConflictError(0n, 1n);
           return addProductItem(command, state);
         },
         {
@@ -432,7 +432,7 @@ void describe('Command Handler', () => {
             shoppingCartId,
             () => {
               tried++;
-              throw new ExpectedVersionConflictError(0, 1);
+              throw new ExpectedVersionConflictError(0n, 1n);
             },
             {
               retry: { onVersionConflict: 2 },
@@ -472,7 +472,7 @@ void describe('Command Handler', () => {
         eventStore,
         shoppingCartId,
         (state) => {
-          if (tried++ < 3) throw new ExpectedVersionConflictError(0, 1);
+          if (tried++ < 3) throw new ExpectedVersionConflictError(0n, 1n);
           return addProductItem(command, state);
         },
         {
@@ -552,7 +552,7 @@ void describe('Command Handler', () => {
         async () => {
           await handleCommand(eventStore, shoppingCartId, () => {
             tried++;
-            throw new ExpectedVersionConflictError(0, 1);
+            throw new ExpectedVersionConflictError(0n, 1n);
           });
         },
         (error) => error instanceof ExpectedVersionConflictError,

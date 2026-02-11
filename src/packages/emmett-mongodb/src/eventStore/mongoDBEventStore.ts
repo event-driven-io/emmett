@@ -9,7 +9,6 @@ import {
   type AggregateStreamResult,
   type AppendToStreamOptions,
   type AppendToStreamResult,
-  type BigIntStreamPosition,
   type Closeable,
   type DefaultEventStoreOptions,
   type Event,
@@ -88,8 +87,7 @@ export interface EventStream<
   projections: Record<string, MongoDBReadModel>;
 }
 
-export type MongoDBReadEventMetadata =
-  ReadEventMetadataWithoutGlobalPosition<bigint>;
+export type MongoDBReadEventMetadata = ReadEventMetadataWithoutGlobalPosition;
 
 export type MongoDBReadEvent<EventType extends Event = Event> = ReadEvent<
   EventType,
@@ -233,11 +231,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     EventPayloadType extends Event = EventType,
   >(
     streamName: StreamName,
-    options?: ReadStreamOptions<
-      BigIntStreamPosition,
-      EventType,
-      EventPayloadType
-    >,
+    options?: ReadStreamOptions<EventType, EventPayloadType>,
   ): Promise<
     Exclude<ReadStreamResult<EventType, MongoDBReadEventMetadata>, null>
   > {
@@ -334,11 +328,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
   >(
     streamName: StreamName,
     events: EventType[],
-    options?: AppendToStreamOptions<
-      BigIntStreamPosition,
-      EventType,
-      EventPayloadType
-    >,
+    options?: AppendToStreamOptions<EventType, EventPayloadType>,
   ): Promise<AppendToStreamResult> {
     const { streamId, streamType } = fromStreamName(streamName);
     const expectedStreamVersion = options?.expectedStreamVersion;

@@ -22,7 +22,6 @@ import {
   type AggregateStreamResult,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
-  type BigIntStreamPosition,
   type Event,
   type EventStore,
   type EventStoreSession,
@@ -68,11 +67,7 @@ export interface PostgresEventStore
   >(
     streamName: string,
     events: EventType[],
-    options?: AppendToStreamOptions<
-      BigIntStreamPosition,
-      EventType,
-      EventPayloadType
-    >,
+    options?: AppendToStreamOptions<EventType, EventPayloadType>,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerEventType extends Event = Event>(
     options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
@@ -362,11 +357,7 @@ export const getPostgreSQLEventStore = (
       EventPayloadType extends Event = EventType,
     >(
       streamName: string,
-      options?: ReadStreamOptions<
-        BigIntStreamPosition,
-        EventType,
-        EventPayloadType
-      >,
+      options?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<ReadStreamResult<EventType, PostgresReadEventMetadata>> => {
       await ensureSchemaExists();
       return readStream<EventType, EventPayloadType>(
@@ -382,11 +373,7 @@ export const getPostgreSQLEventStore = (
     >(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions<
-        BigIntStreamPosition,
-        EventType,
-        EventPayloadType
-      >,
+      options?: AppendToStreamOptions<EventType, EventPayloadType>,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
       await ensureSchemaExists();
       // TODO: This has to be smarter when we introduce urn-based resolution
@@ -407,7 +394,7 @@ export const getPostgreSQLEventStore = (
       );
 
       if (!appendResult.success)
-        throw new ExpectedVersionConflictError<bigint>(
+        throw new ExpectedVersionConflictError(
           -1n, //TODO: Return actual version in case of error
           options?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
         );

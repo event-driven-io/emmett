@@ -12,7 +12,6 @@ import {
   type AnyMessage,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
-  type BigIntStreamPosition,
   type Event,
   type EventStore,
   type ExpectedStreamVersion,
@@ -47,9 +46,7 @@ const toEventStoreDBReadOptions = <
   EventType extends Event,
   EventPayloadType extends Event = EventType,
 >(
-  options:
-    | ReadStreamOptions<BigIntStreamPosition, EventType, EventPayloadType>
-    | undefined,
+  options: ReadStreamOptions<EventType, EventPayloadType> | undefined,
 ): ESDBReadStreamOptions | undefined => {
   return options
     ? {
@@ -80,11 +77,7 @@ export interface EventStoreDBEventStore extends EventStore<EventStoreDBReadEvent
   >(
     streamName: string,
     events: EventType[],
-    options?: AppendToStreamOptions<
-      BigIntStreamPosition,
-      EventType,
-      EventPayloadType
-    >,
+    options?: AppendToStreamOptions<EventType, EventPayloadType>,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerEventType extends Event = Event>(
     options?: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
@@ -172,11 +165,7 @@ export const getEventStoreDBEventStore = (
       EventPayloadType extends Event = EventType,
     >(
       streamName: string,
-      options?: ReadStreamOptions<
-        BigIntStreamPosition,
-        EventType,
-        EventPayloadType
-      >,
+      options?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<ReadStreamResult<EventType, EventStoreDBReadEventMetadata>> => {
       const events: ReadEvent<EventType, EventStoreDBReadEventMetadata>[] = [];
 
@@ -223,11 +212,7 @@ export const getEventStoreDBEventStore = (
     >(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions<
-        BigIntStreamPosition,
-        EventType,
-        EventPayloadType
-      >,
+      options?: AppendToStreamOptions<EventType, EventPayloadType>,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
       try {
         const eventsToStore = downcastRecordedMessages(
@@ -258,7 +243,7 @@ export const getEventStoreDBEventStore = (
       } catch (error) {
         if (error instanceof WrongExpectedVersionError) {
           throw new ExpectedVersionConflictError(
-            error.actualVersion,
+            BigInt(error.actualVersion),
             toExpectedVersion(error.expectedVersion),
           );
         }

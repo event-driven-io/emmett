@@ -154,22 +154,20 @@ void describe('SQLiteEventStore', () => {
 
       const shoppingCartId = `shopping_cart-${uuid()}`;
 
-      await assertThrowsAsync<ExpectedVersionConflictError<bigint>>(
-        async () => {
-          await eventStore.appendToStream<ShoppingCartEvent>(
-            shoppingCartId,
-            [
-              {
-                type: 'ProductItemAdded',
-                data: { productItem },
-              },
-            ],
+      await assertThrowsAsync<ExpectedVersionConflictError>(async () => {
+        await eventStore.appendToStream<ShoppingCartEvent>(
+          shoppingCartId,
+          [
             {
-              expectedStreamVersion: 5n,
+              type: 'ProductItemAdded',
+              data: { productItem },
             },
-          );
-        },
-      );
+          ],
+          {
+            expectedStreamVersion: 5n,
+          },
+        );
+      });
     });
   });
 

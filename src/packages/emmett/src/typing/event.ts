@@ -3,16 +3,14 @@ import type {
   AnyRecordedMessageMetadata,
   CombinedMessageMetadata,
   CommonRecordedMessageMetadata,
-  GlobalPositionTypeOfRecordedMessageMetadata,
   RecordedMessage,
   RecordedMessageMetadata,
   RecordedMessageMetadataWithGlobalPosition,
   RecordedMessageMetadataWithoutGlobalPosition,
-  StreamPositionTypeOfRecordedMessageMetadata,
 } from './message';
 
-export type BigIntStreamPosition = bigint;
-export type BigIntGlobalPosition = bigint;
+export type StreamPosition = bigint;
+export type GlobalPosition = bigint;
 
 export type Event<
   EventType extends string = string,
@@ -90,26 +88,15 @@ export type AnyReadEvent<
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
 > = ReadEvent<AnyEvent, EventMetaDataType>;
 
-export type CommonReadEventMetadata<StreamPosition = BigIntStreamPosition> =
-  CommonRecordedMessageMetadata<StreamPosition>;
+export type CommonReadEventMetadata = CommonRecordedMessageMetadata;
 
-export type ReadEventMetadata<
-  GlobalPosition = undefined,
-  StreamPosition = BigIntStreamPosition,
-> = RecordedMessageMetadata<GlobalPosition, StreamPosition>;
+export type ReadEventMetadata<HasGlobalPosition = undefined> =
+  RecordedMessageMetadata<HasGlobalPosition>;
 
 export type AnyReadEventMetadata = AnyRecordedMessageMetadata;
 
-export type ReadEventMetadataWithGlobalPosition<
-  GlobalPosition = BigIntGlobalPosition,
-> = RecordedMessageMetadataWithGlobalPosition<GlobalPosition>;
+export type ReadEventMetadataWithGlobalPosition =
+  RecordedMessageMetadataWithGlobalPosition;
 
-export type ReadEventMetadataWithoutGlobalPosition<
-  StreamPosition = BigIntStreamPosition,
-> = RecordedMessageMetadataWithoutGlobalPosition<StreamPosition>;
-
-export type GlobalPositionTypeOfReadEventMetadata<ReadEventMetadataType> =
-  GlobalPositionTypeOfRecordedMessageMetadata<ReadEventMetadataType>;
-
-export type StreamPositionTypeOfReadEventMetadata<ReadEventMetadataType> =
-  StreamPositionTypeOfRecordedMessageMetadata<ReadEventMetadataType>;
+export type ReadEventMetadataWithoutGlobalPosition =
+  RecordedMessageMetadataWithoutGlobalPosition;

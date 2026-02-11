@@ -1,4 +1,7 @@
-import type { MessageProcessor } from '@event-driven-io/emmett';
+import type {
+  MessageProcessor,
+  RecordedMessageMetadataWithoutGlobalPosition,
+} from '@event-driven-io/emmett';
 import {
   EmmettError,
   type AnyEvent,
@@ -10,7 +13,6 @@ import {
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
-  type RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
 import { v4 as uuid } from 'uuid';
@@ -26,10 +28,9 @@ import {
   zipMongoDBMessageBatchPullerStartFrom,
   type MongoDBSubscription,
 } from './subscriptions';
-import type { MongoDBCheckpoint } from './subscriptions/mongoDBCheckpoint';
 
 export type MongoDBChangeStreamMessageMetadata =
-  RecordedMessageMetadataWithGlobalPosition<MongoDBCheckpoint>;
+  RecordedMessageMetadataWithoutGlobalPosition;
 
 export type MongoDBEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
