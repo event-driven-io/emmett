@@ -3,7 +3,11 @@ import type {
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import { assertDeepEqual, globalStreamCaughtUp } from '@event-driven-io/emmett';
+import {
+  assertDeepEqual,
+  bigIntProcessorCheckpoint,
+  globalStreamCaughtUp,
+} from '@event-driven-io/emmett';
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -27,6 +31,7 @@ void describe('CaughtUpTransformStream', () => {
       messageId: uuid(),
       globalPosition,
       streamPosition: globalPosition,
+      checkpoint: bigIntProcessorCheckpoint(globalPosition),
       streamName: 'test',
     },
   });

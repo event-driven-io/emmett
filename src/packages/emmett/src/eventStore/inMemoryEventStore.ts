@@ -3,6 +3,7 @@ import {
   getInMemoryDatabase,
   type InMemoryDatabase,
 } from '../database/inMemoryDatabase';
+import { bigIntProcessorCheckpoint } from '../processors';
 import type { ProjectionRegistration } from '../projections';
 import type {
   BigIntStreamPosition,
@@ -199,11 +200,13 @@ export const getInMemoryEventStore = (
         EventType,
         ReadEventMetadataWithGlobalPosition
       >[] = events.map((event, index) => {
+        const globalPosition = BigInt(getAllEventsCount() + index + 1);
         const metadata: ReadEventMetadataWithGlobalPosition = {
           streamName,
           messageId: uuid(),
           streamPosition: BigInt(currentEvents.length + index + 1),
-          globalPosition: BigInt(getAllEventsCount() + index + 1),
+          globalPosition,
+          checkpoint: bigIntProcessorCheckpoint(globalPosition),
         };
         return {
           ...event,

@@ -1,4 +1,9 @@
-import { assertThatArray, type Event } from '@event-driven-io/emmett';
+import {
+  assertThatArray,
+  bigIntProcessorCheckpoint,
+  type Event,
+} from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -8,7 +13,6 @@ import {
 } from '../postgreSQLEventStore';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 import type { PostgreSQLReactorOptions } from './postgreSQLProcessor';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 30000 };
 
@@ -160,7 +164,9 @@ void describe('PostgreSQL event store started consumer', () => {
         });
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
-          startFrom: { lastCheckpoint: startPosition },
+          startFrom: {
+            lastCheckpoint: bigIntProcessorCheckpoint(startPosition),
+          },
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {

@@ -1,6 +1,7 @@
 import {
   assertDeepEqual,
   assertEqual,
+  bigIntProcessorCheckpoint,
   caughtUpEventFrom,
   globalStreamCaughtUp,
   type Event,
@@ -165,5 +166,6 @@ const createMockEvent = (
     messageId: `message-${position}`,
     streamPosition: position,
     globalPosition: position,
+    checkpoint: bigIntProcessorCheckpoint(position),
   },
 });

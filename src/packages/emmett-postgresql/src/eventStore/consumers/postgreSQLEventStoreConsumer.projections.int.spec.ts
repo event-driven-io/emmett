@@ -1,4 +1,8 @@
-import { assertDeepEqual, type ReadEvent } from '@event-driven-io/emmett';
+import {
+  assertDeepEqual,
+  bigIntProcessorCheckpoint,
+  type ReadEvent,
+} from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import {
   pongoClient,
@@ -188,7 +192,9 @@ void describe('PostgreSQL event store started consumer', () => {
         consumer.projector({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
-          startFrom: { lastCheckpoint: startPosition },
+          startFrom: {
+            lastCheckpoint: bigIntProcessorCheckpoint(startPosition),
+          },
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
         });

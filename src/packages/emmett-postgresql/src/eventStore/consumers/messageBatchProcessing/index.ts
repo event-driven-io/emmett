@@ -1,9 +1,11 @@
 import type { SQLExecutor } from '@event-driven-io/dumbo';
-import type {
-  BatchRecordedMessageHandlerWithoutContext,
-  EmmettError,
-  Message,
-  ReadEventMetadataWithGlobalPosition,
+import {
+  parseBigIntProcessorCheckpoint,
+  type BatchRecordedMessageHandlerWithoutContext,
+  type EmmettError,
+  type Message,
+  type ProcessorCheckpoint,
+  type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { readLastMessageGlobalPosition } from '../../schema/readLastMessageGlobalPosition';
 import {
@@ -37,7 +39,7 @@ export type PostgreSQLEventStoreMessageBatchPullerOptions<
 };
 
 export type PostgreSQLEventStoreMessageBatchPullerStartFrom =
-  | { lastCheckpoint: bigint }
+  | { lastCheckpoint: ProcessorCheckpoint }
   | 'BEGINNING'
   | 'END';
 
@@ -77,7 +79,7 @@ export const postgreSQLEventStoreMessageBatchPuller = <
         : options.startFrom === 'END'
           ? ((await readLastMessageGlobalPosition(executor))
               .currentGlobalPosition ?? 0n)
-          : options.startFrom.lastCheckpoint;
+          : parseBigIntProcessorCheckpoint(options.startFrom.lastCheckpoint);
 
     const readMessagesOptions: ReadMessagesBatchOptions = {
       after,

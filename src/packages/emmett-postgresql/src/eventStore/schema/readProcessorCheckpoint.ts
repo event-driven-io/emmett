@@ -1,4 +1,5 @@
 import { singleOrNull, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import type { ProcessorCheckpoint } from '@event-driven-io/emmett';
 import { defaultTag, processorsTable } from './typing';
 
 type ReadProcessorCheckpointSqlResult = {
@@ -6,7 +7,7 @@ type ReadProcessorCheckpointSqlResult = {
 };
 
 export type ReadProcessorCheckpointResult = {
-  lastProcessedCheckpoint: bigint | null;
+  lastProcessedCheckpoint: ProcessorCheckpoint | null;
 };
 
 export const readProcessorCheckpoint = async (
@@ -24,6 +25,8 @@ export const readProcessorCheckpoint = async (
 
   return {
     lastProcessedCheckpoint:
-      result !== null ? BigInt(result.last_processed_checkpoint) : null,
+      result !== null
+        ? (result.last_processed_checkpoint as ProcessorCheckpoint)
+        : null,
   };
 };

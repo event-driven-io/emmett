@@ -9,7 +9,9 @@ import {
   assertFalse,
   assertMatches,
   assertTrue,
+  bigIntProcessorCheckpoint,
   type Event,
+  type ProcessorCheckpoint,
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
@@ -261,7 +263,11 @@ void describe('Schema migrations tests', () => {
     await eventStore.schema.migrate();
 
     // Then
-    await assertDualWriteConsistency(pool, 'legacy-processor-1', 42n);
+    await assertDualWriteConsistency(
+      pool,
+      'legacy-processor-1',
+      bigIntProcessorCheckpoint(42n),
+    );
   });
 
   void it('old API insert propagates to new table', async () => {
@@ -273,14 +279,21 @@ void describe('Schema migrations tests', () => {
     await storeSubscriptionCheckpoint(pool, 'dual-write-test-1', 50n, null);
 
     // Then
-    await assertDualWriteConsistency(pool, 'dual-write-test-1', 50n);
+    await assertDualWriteConsistency(
+      pool,
+      'dual-write-test-1',
+      bigIntProcessorCheckpoint(50n),
+    );
 
     const checkpoint = await readProcessorCheckpoint(pool.execute, {
       processorId: 'dual-write-test-1',
       partition: undefined,
     });
 
-    assertDeepEqual(checkpoint.lastProcessedCheckpoint, 50n);
+    assertDeepEqual(
+      checkpoint.lastProcessedCheckpoint,
+      bigIntProcessorCheckpoint(50n),
+    );
   });
 
   void it('interleaved operations: old insert -> new read -> new update', async () => {
@@ -297,27 +310,37 @@ void describe('Schema migrations tests', () => {
       processorId,
       partition: undefined,
     });
-    assertDeepEqual(readResult.lastProcessedCheckpoint, 5n);
+    assertDeepEqual(
+      readResult.lastProcessedCheckpoint,
+      bigIntProcessorCheckpoint(5n),
+    );
 
     const updateResult = await storeProcessorCheckpoint(pool.execute, {
       processorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: 10n,
-      lastProcessedCheckpoint: 5n,
+      newCheckpoint: bigIntProcessorCheckpoint(10n),
+      lastProcessedCheckpoint: bigIntProcessorCheckpoint(5n),
       processorInstanceId: processorId,
     });
 
     // Then
     assertTrue(updateResult.success);
-    assertDeepEqual(updateResult.newCheckpoint, 10n);
-    await assertDualWriteConsistency(pool, processorId, 10n);
+    assertDeepEqual(updateResult.newCheckpoint, bigIntProcessorCheckpoint(10n));
+    await assertDualWriteConsistency(
+      pool,
+      processorId,
+      bigIntProcessorCheckpoint(10n),
+    );
 
     const finalRead = await readProcessorCheckpoint(pool.execute, {
       processorId,
       partition: undefined,
     });
-    assertDeepEqual(finalRead.lastProcessedCheckpoint, 10n);
+    assertDeepEqual(
+      finalRead.lastProcessedCheckpoint,
+      bigIntProcessorCheckpoint(10n),
+    );
   });
 
   void it('interleaved operations: new insert -> old query -> old update', async () => {
@@ -332,7 +355,7 @@ void describe('Schema migrations tests', () => {
       processorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: 7n,
+      newCheckpoint: bigIntProcessorCheckpoint(7n),
       lastProcessedCheckpoint: null,
       processorInstanceId: processorId,
     });
@@ -348,7 +371,11 @@ void describe('Schema migrations tests', () => {
     await storeSubscriptionCheckpoint(pool, processorId, 14n, 7n);
 
     // Then
-    await assertDualWriteConsistency(pool, processorId, 14n);
+    await assertDualWriteConsistency(
+      pool,
+      processorId,
+      bigIntProcessorCheckpoint(14n),
+    );
   });
 
   void it('concurrent inserts via different APIs handled safely', async () => {
@@ -365,7 +392,7 @@ void describe('Schema migrations tests', () => {
       processorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: 20n,
+      newCheckpoint: bigIntProcessorCheckpoint(20n),
       lastProcessedCheckpoint: null,
       processorInstanceId: processorId,
     });
@@ -378,7 +405,11 @@ void describe('Schema migrations tests', () => {
         newApiResult.reason === 'CURRENT_AHEAD',
     );
 
-    await assertDualWriteConsistency(pool, processorId, 15n);
+    await assertDualWriteConsistency(
+      pool,
+      processorId,
+      bigIntProcessorCheckpoint(15n),
+    );
   });
 
   void it('handles maximum safe bigint value', async () => {
@@ -394,14 +425,17 @@ void describe('Schema migrations tests', () => {
       processorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: maxBigInt,
+      newCheckpoint: bigIntProcessorCheckpoint(maxBigInt),
       lastProcessedCheckpoint: null,
       processorInstanceId: processorId,
     });
 
     // Then
     assertTrue(insertResult.success);
-    assertDeepEqual(insertResult.newCheckpoint, maxBigInt);
+    assertDeepEqual(
+      insertResult.newCheckpoint,
+      bigIntProcessorCheckpoint(maxBigInt),
+    );
 
     const processorData = await queryProcessorCheckpoint(pool, processorId);
     assertDeepEqual(
@@ -414,7 +448,10 @@ void describe('Schema migrations tests', () => {
       processorId,
       partition: undefined,
     });
-    assertDeepEqual(readResult.lastProcessedCheckpoint, maxBigInt);
+    assertDeepEqual(
+      readResult.lastProcessedCheckpoint,
+      bigIntProcessorCheckpoint(maxBigInt),
+    );
 
     assertDeepEqual(BigInt(processorData.lastProcessedCheckpoint!), maxBigInt);
   });
@@ -430,13 +467,13 @@ void describe('Schema migrations tests', () => {
       processorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: 50n,
+      newCheckpoint: bigIntProcessorCheckpoint(50n),
       lastProcessedCheckpoint: null,
       processorInstanceId: processorId,
     });
 
     assertTrue(initialStore.success);
-    assertDeepEqual(initialStore.newCheckpoint, 50n);
+    assertDeepEqual(initialStore.newCheckpoint, bigIntProcessorCheckpoint(50n));
 
     // When
     await cleanupLegacySubscriptionTables(connectionString);
@@ -456,25 +493,31 @@ void describe('Schema migrations tests', () => {
       processorId,
       partition: undefined,
     });
-    assertDeepEqual(readResult.lastProcessedCheckpoint, 50n);
+    assertDeepEqual(
+      readResult.lastProcessedCheckpoint,
+      bigIntProcessorCheckpoint(50n),
+    );
 
     const updateResult = await storeProcessorCheckpoint(pool.execute, {
       processorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: 60n,
-      lastProcessedCheckpoint: 50n,
+      newCheckpoint: bigIntProcessorCheckpoint(60n),
+      lastProcessedCheckpoint: bigIntProcessorCheckpoint(50n),
       processorInstanceId: processorId,
     });
 
     assertTrue(updateResult.success);
-    assertDeepEqual(updateResult.newCheckpoint, 60n);
+    assertDeepEqual(updateResult.newCheckpoint, bigIntProcessorCheckpoint(60n));
 
     const finalRead = await readProcessorCheckpoint(pool.execute, {
       processorId,
       partition: undefined,
     });
-    assertDeepEqual(finalRead.lastProcessedCheckpoint, 60n);
+    assertDeepEqual(
+      finalRead.lastProcessedCheckpoint,
+      bigIntProcessorCheckpoint(60n),
+    );
   });
   const assertCanAppendAndRead = async (eventStore: PostgresEventStore) => {
     const shoppingCartId = 'cart-123';
@@ -559,27 +602,29 @@ void describe('Schema migrations tests', () => {
       processorId: shoppingCartProcessorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: 1n,
+      newCheckpoint: bigIntProcessorCheckpoint(1n),
       lastProcessedCheckpoint: null,
       processorInstanceId: shoppingCartProcessorId,
     });
 
     assertTrue(storeResult.success);
-    assertDeepEqual(storeResult.newCheckpoint, 1n);
+    assertDeepEqual(storeResult.newCheckpoint, bigIntProcessorCheckpoint(1n));
 
     storeResult = await storeProcessorCheckpoint(pool.execute, {
       processorId: shoppingCartProcessorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: shoppingCart.lastEvent.metadata.globalPosition,
-      lastProcessedCheckpoint: 1n,
+      newCheckpoint: bigIntProcessorCheckpoint(
+        shoppingCart.lastEvent.metadata.globalPosition,
+      ),
+      lastProcessedCheckpoint: bigIntProcessorCheckpoint(1n),
       processorInstanceId: shoppingCartProcessorId,
     });
 
     assertTrue(storeResult.success);
     assertDeepEqual(
       storeResult.newCheckpoint,
-      shoppingCart.lastEvent.metadata.globalPosition,
+      bigIntProcessorCheckpoint(shoppingCart.lastEvent.metadata.globalPosition),
     );
 
     const shoppingCartCheckpoint = await readProcessorCheckpoint(pool.execute, {
@@ -589,7 +634,7 @@ void describe('Schema migrations tests', () => {
 
     assertDeepEqual(
       shoppingCartCheckpoint.lastProcessedCheckpoint,
-      shoppingCart.lastEvent.metadata.globalPosition,
+      bigIntProcessorCheckpoint(shoppingCart.lastEvent.metadata.globalPosition),
     );
 
     const orderProcessorId = `processor-order-${order.streamId}`;
@@ -605,7 +650,9 @@ void describe('Schema migrations tests', () => {
       processorId: orderProcessorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: order.lastEvent.metadata.globalPosition,
+      newCheckpoint: bigIntProcessorCheckpoint(
+        order.lastEvent.metadata.globalPosition,
+      ),
       lastProcessedCheckpoint: null,
       processorInstanceId: orderProcessorId,
     });
@@ -613,7 +660,7 @@ void describe('Schema migrations tests', () => {
     assertTrue(storeResult.success);
     assertDeepEqual(
       storeResult.newCheckpoint,
-      order.lastEvent.metadata.globalPosition,
+      bigIntProcessorCheckpoint(order.lastEvent.metadata.globalPosition),
     );
 
     orderCheckpoint = await readProcessorCheckpoint(pool.execute, {
@@ -623,7 +670,7 @@ void describe('Schema migrations tests', () => {
 
     assertDeepEqual(
       orderCheckpoint.lastProcessedCheckpoint,
-      order.lastEvent.metadata.globalPosition,
+      bigIntProcessorCheckpoint(order.lastEvent.metadata.globalPosition),
     );
   };
 
@@ -700,7 +747,7 @@ void describe('Schema migrations tests', () => {
   const assertDualWriteConsistency = async (
     pool: Dumbo,
     processorId: string,
-    expectedPosition: bigint,
+    expectedPosition: ProcessorCheckpoint,
     partition?: string,
   ): Promise<void> => {
     const subscriptionData = await querySubscriptionCheckpoint(
@@ -714,11 +761,11 @@ void describe('Schema migrations tests', () => {
       partition,
     );
 
-    assertDeepEqual(subscriptionData.position, expectedPosition);
     assertDeepEqual(
-      processorData.lastProcessedCheckpoint,
-      expectedPosition.toString().padStart(19, '0'),
+      bigIntProcessorCheckpoint(subscriptionData.position!),
+      expectedPosition,
     );
+    assertDeepEqual(processorData.lastProcessedCheckpoint, expectedPosition);
     assertDeepEqual(
       subscriptionData.transactionId,
       processorData.transactionId,

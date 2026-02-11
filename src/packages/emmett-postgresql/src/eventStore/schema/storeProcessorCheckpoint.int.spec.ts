@@ -1,6 +1,10 @@
 import { dumbo, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
-import { assertDeepEqual, assertIsNotNull } from '@event-driven-io/emmett';
+import {
+  assertDeepEqual,
+  assertIsNotNull,
+  bigIntProcessorCheckpoint,
+} from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
@@ -13,9 +17,9 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
   let connectionString: string;
   let pool: PgPool;
 
-  const checkpoint1 = 100n;
-  const checkpoint2 = 200n;
-  const checkpoint3 = 300n;
+  const checkpoint1 = bigIntProcessorCheckpoint(100n);
+  const checkpoint2 = bigIntProcessorCheckpoint(200n);
+  const checkpoint3 = bigIntProcessorCheckpoint(300n);
 
   before(async () => {
     postgres = await getPostgreSQLStartedContainer();

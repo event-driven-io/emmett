@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import { v7 as uuid } from 'uuid';
+import { bigIntProcessorCheckpoint } from '../../processors';
 import { assertDeepEqual, assertEqual } from '../../testing';
 import type {
   Event,
@@ -37,6 +38,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
         metadata: {
           some: true,
           messageId: uuid(),
+          checkpoint: bigIntProcessorCheckpoint(1n),
           globalPosition: 1n,
           streamName,
           streamPosition: 1n,
@@ -49,9 +51,10 @@ void describe('InMemoryEventStore onAfterCommit', () => {
         metadata: {
           some: false,
           messageId: uuid(),
-          globalPosition: 1n,
+          checkpoint: bigIntProcessorCheckpoint(2n),
+          globalPosition: 2n,
           streamName,
-          streamPosition: 1n,
+          streamPosition: 2n,
         },
       },
     ];
@@ -84,6 +87,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
         metadata: {
           some: true,
           messageId: uuid(),
+          checkpoint: bigIntProcessorCheckpoint(1n),
           globalPosition: 1n,
           streamName,
           streamPosition: 1n,
@@ -96,9 +100,10 @@ void describe('InMemoryEventStore onAfterCommit', () => {
         metadata: {
           some: false,
           messageId: uuid(),
-          globalPosition: 1n,
+          checkpoint: bigIntProcessorCheckpoint(2n),
+          globalPosition: 2n,
           streamName,
-          streamPosition: 1n,
+          streamPosition: 2n,
         },
       },
     ];
@@ -110,9 +115,10 @@ void describe('InMemoryEventStore onAfterCommit', () => {
         metadata: {
           some: true,
           messageId: uuid(),
-          globalPosition: 1n,
+          checkpoint: bigIntProcessorCheckpoint(3n),
+          globalPosition: 3n,
           streamName,
-          streamPosition: 1n,
+          streamPosition: 3n,
         },
       },
       {
@@ -122,9 +128,10 @@ void describe('InMemoryEventStore onAfterCommit', () => {
         metadata: {
           some: false,
           messageId: uuid(),
-          globalPosition: 1n,
+          checkpoint: bigIntProcessorCheckpoint(4n),
+          globalPosition: 4n,
           streamName,
-          streamPosition: 1n,
+          streamPosition: 4n,
         },
       },
     ];
@@ -164,6 +171,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
         metadata: {
           some: true,
           messageId: uuid(),
+          checkpoint: bigIntProcessorCheckpoint(1n),
           globalPosition: 1n,
           streamName,
           streamPosition: 1n,
@@ -176,9 +184,10 @@ void describe('InMemoryEventStore onAfterCommit', () => {
         metadata: {
           some: false,
           messageId: uuid(),
-          globalPosition: 1n,
+          checkpoint: bigIntProcessorCheckpoint(2n),
+          globalPosition: 2n,
           streamName,
-          streamPosition: 1n,
+          streamPosition: 2n,
         },
       },
     ];

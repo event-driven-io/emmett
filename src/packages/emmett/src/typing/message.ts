@@ -7,6 +7,7 @@ import type {
   DefaultRecord,
   Event,
 } from '.';
+import type { ProcessorCheckpoint } from '../processors';
 
 export type Message<
   Type extends string = string,
@@ -78,6 +79,7 @@ export type CommonRecordedMessageMetadata<
   messageId: string;
   streamPosition: StreamPosition;
   streamName: string;
+  checkpoint?: ProcessorCheckpoint | null;
 }>;
 
 export type WithGlobalPosition<GlobalPosition> = Readonly<{

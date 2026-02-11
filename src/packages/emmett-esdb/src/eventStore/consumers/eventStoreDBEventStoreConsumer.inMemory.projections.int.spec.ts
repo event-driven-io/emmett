@@ -1,5 +1,6 @@
 import {
   assertMatches,
+  bigIntProcessorCheckpoint,
   getInMemoryDatabase,
   inMemoryProjector,
   inMemorySingleStreamProjection,
@@ -189,7 +190,9 @@ void describe('EventStoreDB event store started consumer', () => {
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
-          startFrom: { lastCheckpoint: startPosition },
+          startFrom: {
+            lastCheckpoint: bigIntProcessorCheckpoint(startPosition),
+          },
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
         });
