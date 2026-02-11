@@ -1,12 +1,12 @@
-import { SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   bigIntProcessorCheckpoint,
   JSONParser,
-  type CombinedReadEventMetadata,
-  type Event,
-  type ReadEvent,
-  type ReadEventMetadata,
-  type ReadEventMetadataWithGlobalPosition,
+  type CombinedMessageMetadata,
+  type Message,
+  type RecordedMessage,
+  type RecordedMessageMetadata,
+  type RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { defaultTag, messagesTable } from './typing';
 const { identifier } = SQL;
@@ -37,35 +37,36 @@ export type ReadMessagesBatchOptions =
   | { from: bigint; to: bigint };
 
 export type ReadMessagesBatchResult<
-  EventType extends Event,
-  ReadEventMetadataType extends ReadEventMetadata = ReadEventMetadata,
+  MessageType extends Message,
+  MessageMetadataType extends RecordedMessageMetadata = RecordedMessageMetadata,
 > = {
   currentGlobalPosition: bigint;
-  messages: ReadEvent<EventType, ReadEventMetadataType>[];
-  areEventsLeft: boolean;
+  messages: RecordedMessage<MessageType, MessageMetadataType>[];
+  areMessagesLeft: boolean;
 };
 
 export const readMessagesBatch = async <
-  MessageType extends Event,
-  ReadEventMetadataType extends ReadEventMetadataWithGlobalPosition =
-    ReadEventMetadataWithGlobalPosition,
+  MessageType extends Message,
+  RecordedMessageMetadataType extends
+    RecordedMessageMetadataWithGlobalPosition =
+    RecordedMessageMetadataWithGlobalPosition,
 >(
   execute: SQLExecutor,
   options: ReadMessagesBatchOptions & { partition?: string },
-): Promise<ReadMessagesBatchResult<MessageType, ReadEventMetadataType>> => {
-  const from =
-    'from' in options
-      ? options.from
-      : 'after' in options
-        ? options.after + 1n
-        : 0n;
+): Promise<
+  ReadMessagesBatchResult<MessageType, RecordedMessageMetadataType>
+> => {
+  const from = 'from' in options ? options.from : undefined;
+  const after = 'after' in options ? options.after : undefined;
   const batchSize =
-    options && 'batchSize' in options
-      ? options.batchSize
-      : options.to - options.from;
+    'batchSize' in options ? options.batchSize : options.to - options.from;
 
-  const fromCondition: string =
-    from !== -0n ? SQL`AND global_position >= ${from}` : '';
+  const fromCondition: SQL =
+    from !== undefined
+      ? SQL`AND global_position >= ${from}`
+      : after !== undefined
+        ? SQL`AND global_position > ${after}`
+        : SQL.EMPTY;
 
   const toCondition: SQL =
     'to' in options ? SQL`AND global_position <= ${options.to}` : SQL.EMPTY;
@@ -73,46 +74,48 @@ export const readMessagesBatch = async <
   const limitCondition: SQL =
     'batchSize' in options ? SQL`LIMIT ${options.batchSize}` : SQL.EMPTY;
 
-  const events: ReadEvent<MessageType, ReadEventMetadataType>[] = (
-    await execute.query<ReadMessagesBatchSqlResult>(
-      SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
+  const messages: RecordedMessage<MessageType, RecordedMessageMetadataType>[] =
+    await mapRows(
+      execute.query<ReadMessagesBatchSqlResult>(
+        SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
            FROM ${identifier(messagesTable.name)}
            WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE ${fromCondition} ${toCondition}
            ORDER BY global_position
            ${limitCondition}`,
-    )
-  ).rows.map((row) => {
-    const rawEvent = {
-      type: row.message_type,
-      data: JSONParser.parse(row.message_data),
-      metadata: JSONParser.parse(row.message_metadata),
-    } as unknown as MessageType;
+      ),
+      (row) => {
+        const rawEvent = {
+          type: row.message_type,
+          data: JSONParser.parse(row.message_data),
+          metadata: JSONParser.parse(row.message_metadata),
+        } as unknown as MessageType;
 
-    const metadata: ReadEventMetadataWithGlobalPosition = {
-      ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
-      messageId: row.message_id,
-      streamName: row.stream_id,
-      streamPosition: BigInt(row.stream_position),
-      globalPosition: BigInt(row.global_position),
-      checkpoint: bigIntProcessorCheckpoint(BigInt(row.global_position)),
-    };
+        const metadata: RecordedMessageMetadataWithGlobalPosition = {
+          ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
+          messageId: row.message_id,
+          streamName: row.stream_id,
+          streamPosition: BigInt(row.stream_position),
+          globalPosition: BigInt(row.global_position),
+          checkpoint: bigIntProcessorCheckpoint(BigInt(row.global_position)),
+        };
 
-    return {
-      ...rawEvent,
-      kind: 'Event',
-      metadata: metadata as CombinedReadEventMetadata<
-        MessageType,
-        ReadEventMetadataType
-      >,
-    };
-  });
+        return {
+          ...rawEvent,
+          kind: 'Event',
+          metadata: metadata as CombinedMessageMetadata<
+            MessageType,
+            RecordedMessageMetadataType
+          >,
+        };
+      },
+    );
 
-  return events.length > 0
+  return messages.length > 0
     ? {
         currentGlobalPosition:
-          events[events.length - 1]!.metadata.globalPosition,
-        messages: events,
-        areEventsLeft: events.length === batchSize,
+          messages[messages.length - 1]!.metadata.globalPosition,
+        messages: messages,
+        areMessagesLeft: messages.length === batchSize,
       }
     : {
         currentGlobalPosition:
@@ -122,6 +125,6 @@ export const readMessagesBatch = async <
               ? options.after
               : 0n,
         messages: [],
-        areEventsLeft: false,
+        areMessagesLeft: false,
       };
 };

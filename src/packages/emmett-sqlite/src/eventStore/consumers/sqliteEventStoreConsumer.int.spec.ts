@@ -1,6 +1,10 @@
 import { InMemorySQLiteDatabase } from '@event-driven-io/dumbo/sqlite3';
 import type { EmmettError } from '@event-driven-io/emmett';
-import { assertFalse, assertThrowsAsync } from '@event-driven-io/emmett';
+import {
+  assertFalse,
+  assertThrowsAsync,
+  MessageProcessorType,
+} from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import { sqlite3EventStoreDriver } from '../../sqlite3';
@@ -12,8 +16,12 @@ import type { SQLiteProcessor } from './sqliteProcessor';
 
 void describe('SQLite event store consumer', () => {
   const dummyProcessor: SQLiteProcessor = {
+    type: MessageProcessorType.REACTOR,
     id: uuid(),
+    instanceId: uuid(),
+    init: () => Promise.resolve(),
     start: () => Promise.resolve('BEGINNING'),
+    close: () => Promise.resolve(),
     handle: () => Promise.resolve(),
     isActive: false,
   };

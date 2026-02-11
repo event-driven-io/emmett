@@ -101,7 +101,7 @@ export const callStoreProcessorCheckpoint = (
       ${params.processorInstanceId}
     ) as result;`;
 
-export type StoreLastProcessedProcessorPositionResult =
+export type StoreProcessorCheckpointResult =
   | {
       success: true;
       newCheckpoint: ProcessorCheckpoint | null;
@@ -118,7 +118,7 @@ export const storeProcessorCheckpoint = async (
     partition?: string;
     processorInstanceId?: string;
   },
-): Promise<StoreLastProcessedProcessorPositionResult> => {
+): Promise<StoreProcessorCheckpointResult> => {
   try {
     const { result } = await single(
       execute.command<{ result: 0 | 1 | 2 | 3 }>(

@@ -1,5 +1,18 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
-import { EmmettError, type Event } from '@event-driven-io/emmett';
+import type { MessageProcessor } from '@event-driven-io/emmett';
+import {
+  EmmettError,
+  type AnyEvent,
+  type AnyMessage,
+  type AnyRecordedMessageMetadata,
+  type BatchRecordedMessageHandlerWithoutContext,
+  type DefaultRecord,
+  type Message,
+  type MessageConsumer,
+  type MessageConsumerOptions,
+  type ReadEventMetadataWithGlobalPosition,
+} from '@event-driven-io/emmett';
+import { v7 as uuid } from 'uuid';
 import type {
   AnyEventStoreDriver,
   InferOptionsFromEventStoreDriver,
@@ -10,56 +23,70 @@ import {
   sqliteEventStoreMessageBatchPuller,
   zipSQLiteEventStoreMessageBatchPullerStartFrom,
   type SQLiteEventStoreMessageBatchPuller,
-  type SQLiteEventStoreMessagesBatchHandler,
 } from './messageBatchProcessing';
 import {
-  sqliteProcessor,
+  sqliteProjector,
+  sqliteReactor,
   type SQLiteProcessor,
-  type SQLiteProcessorOptions,
+  type SQLiteProjectorOptions,
+  type SQLiteReactorOptions,
 } from './sqliteProcessor';
 
 export type SQLiteEventStoreConsumerConfig<
-  ConsumerEventType extends Event = Event,
-> = {
-  processors?: SQLiteProcessor<ConsumerEventType>[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends Message = any,
+> = MessageConsumerOptions<ConsumerMessageType> & {
+  stopWhen?: {
+    noMessagesLeft?: boolean;
+  };
   pulling?: {
     batchSize?: number;
     pullingFrequencyInMs?: number;
   };
 };
+
 export type SQLiteEventStoreConsumerOptions<
-  ConsumerEventType extends Event = Event,
+  ConsumerMessageType extends Message = Message,
   Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
-> = SQLiteEventStoreConsumerConfig<ConsumerEventType> & {
+> = SQLiteEventStoreConsumerConfig<ConsumerMessageType> & {
   driver: Driver;
   pool?: Dumbo;
 } & InferOptionsFromEventStoreDriver<Driver>;
 
-export type SQLiteEventStoreConsumer<ConsumerEventType extends Event = Event> =
+export type SQLiteEventStoreConsumer<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = MessageConsumer<ConsumerMessageType> &
   Readonly<{
-    isRunning: boolean;
-    processors: SQLiteProcessor<ConsumerEventType>[];
-    processor: <EventType extends ConsumerEventType = ConsumerEventType>(
-      options: SQLiteProcessorOptions<EventType>,
-    ) => SQLiteProcessor<EventType>;
-    start: () => Promise<void>;
-    stop: () => Promise<void>;
-    close: () => Promise<void>;
-  }>;
+    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+      options: SQLiteReactorOptions<MessageType>,
+    ) => SQLiteProcessor<MessageType>;
+  }> &
+  (AnyEvent extends ConsumerMessageType
+    ? Readonly<{
+        projector: <
+          EventType extends AnyEvent = ConsumerMessageType & AnyEvent,
+        >(
+          options: SQLiteProjectorOptions<EventType>,
+        ) => SQLiteProcessor<EventType>;
+      }>
+    : object);
 
 export const sqliteEventStoreConsumer = <
-  ConsumerEventType extends Event = Event,
+  ConsumerMessageType extends Message = AnyMessage,
   Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
 >(
-  options: SQLiteEventStoreConsumerOptions<ConsumerEventType, Driver>,
-): SQLiteEventStoreConsumer<ConsumerEventType> => {
+  options: SQLiteEventStoreConsumerOptions<ConsumerMessageType, Driver>,
+): SQLiteEventStoreConsumer<ConsumerMessageType> => {
   let isRunning = false;
+  let isInitialized = false;
   const { pulling } = options;
   const processors = options.processors ?? [];
+  let abortController: AbortController | null = null;
 
   let start: Promise<void>;
 
-  let currentMessagePuller: SQLiteEventStoreMessageBatchPuller | undefined;
+  let messagePuller: SQLiteEventStoreMessageBatchPuller | undefined;
 
   const pool =
     options.pool ??
@@ -71,9 +98,10 @@ export const sqliteEventStoreConsumer = <
       },
     });
 
-  const eachBatch: SQLiteEventStoreMessagesBatchHandler<ConsumerEventType> = (
-    messagesBatch,
-  ) =>
+  const eachBatch: BatchRecordedMessageHandlerWithoutContext<
+    ConsumerMessageType,
+    ReadEventMetadataWithGlobalPosition
+  > = (messagesBatch) =>
     pool.withConnection(async (connection) => {
       const activeProcessors = processors.filter((s) => s.isActive);
 
@@ -84,10 +112,11 @@ export const sqliteEventStoreConsumer = <
         };
 
       const result = await Promise.allSettled(
-        activeProcessors.map((s) => {
+        activeProcessors.map(async (s) => {
           // TODO: Add here filtering to only pass messages that can be handled by processor
-          return s.handle(messagesBatch, {
+          return await s.handle(messagesBatch, {
             connection,
+            execute: connection.execute,
           });
         }),
       );
@@ -101,61 +130,136 @@ export const sqliteEventStoreConsumer = <
           };
     });
 
-  const messagePooler = (currentMessagePuller =
-    sqliteEventStoreMessageBatchPuller({
-      pool,
-      eachBatch,
-      batchSize:
-        pulling?.batchSize ?? DefaultSQLiteEventStoreProcessorBatchSize,
-      pullingFrequencyInMs:
-        pulling?.pullingFrequencyInMs ??
-        DefaultSQLiteEventStoreProcessorPullingFrequencyInMs,
-    }));
+  const processorContext = {
+    execute: undefined,
+    connection: undefined,
+  };
+
+  const stopProcessors = () =>
+    Promise.all(processors.map((p) => p.close(processorContext)));
 
   const stop = async () => {
     if (!isRunning) return;
     isRunning = false;
-    if (currentMessagePuller) {
-      await currentMessagePuller.stop();
-      currentMessagePuller = undefined;
+    if (messagePuller) {
+      abortController?.abort();
+      await messagePuller.stop();
+      messagePuller = undefined;
+      abortController = null;
     }
     await start;
+
+    await stopProcessors();
+  };
+
+  const init = async (): Promise<void> => {
+    if (isInitialized) return;
+
+    const sqliteProcessors = processors as unknown as SQLiteProcessor[];
+
+    await pool.withConnection(async (connection) => {
+      for (const processor of sqliteProcessors) {
+        if (processor.init) {
+          await processor.init({
+            ...processorContext,
+            connection,
+            execute: connection.execute,
+          });
+        }
+      }
+    });
+    isInitialized = true;
   };
 
   return {
-    processors,
+    consumerId: options.consumerId ?? uuid(),
     get isRunning() {
       return isRunning;
     },
-    processor: <EventType extends ConsumerEventType = ConsumerEventType>(
-      options: SQLiteProcessorOptions<EventType>,
-    ): SQLiteProcessor<EventType> => {
-      const processor = sqliteProcessor<EventType>(options);
+    processors,
+    init,
+    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+      options: SQLiteReactorOptions<MessageType>,
+    ): SQLiteProcessor<MessageType> => {
+      const processor = sqliteReactor(options);
 
-      processors.push(processor);
+      processors.push(
+        // TODO: change that
+        processor as unknown as MessageProcessor<
+          ConsumerMessageType,
+          AnyRecordedMessageMetadata,
+          DefaultRecord
+        >,
+      );
+
+      return processor;
+    },
+    projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
+      options: SQLiteProjectorOptions<EventType>,
+    ): SQLiteProcessor<EventType> => {
+      const processor = sqliteProjector(options);
+
+      processors.push(
+        // TODO: change that
+        processor as unknown as MessageProcessor<
+          ConsumerMessageType,
+          AnyRecordedMessageMetadata,
+          DefaultRecord
+        >,
+      );
 
       return processor;
     },
     start: () => {
       if (isRunning) return start;
 
+      if (processors.length === 0)
+        throw new EmmettError(
+          'Cannot start consumer without at least a single processor',
+        );
+
+      isRunning = true;
+      abortController = new AbortController();
+
+      messagePuller = sqliteEventStoreMessageBatchPuller({
+        stopWhen: options.stopWhen,
+        executor: pool.execute,
+        eachBatch,
+        batchSize:
+          pulling?.batchSize ?? DefaultSQLiteEventStoreProcessorBatchSize,
+        pullingFrequencyInMs:
+          pulling?.pullingFrequencyInMs ??
+          DefaultSQLiteEventStoreProcessorPullingFrequencyInMs,
+        signal: abortController.signal,
+      });
+
       start = (async () => {
-        if (processors.length === 0)
-          return Promise.reject(
-            new EmmettError(
-              'Cannot start consumer without at least a single processor',
+        if (!isRunning) return;
+
+        if (!isInitialized) {
+          await init();
+        }
+
+        const startFrom = await pool.withConnection(async (connection) =>
+          zipSQLiteEventStoreMessageBatchPullerStartFrom(
+            await Promise.all(
+              processors.map(async (o) => {
+                const result = await o.start({
+                  execute: connection.execute,
+                  connection,
+                });
+
+                return result;
+              }),
             ),
-          );
-
-        isRunning = true;
-
-        const startFrom = zipSQLiteEventStoreMessageBatchPullerStartFrom(
-          await pool.withConnection((connection) =>
-            Promise.all(processors.map((o) => o.start(connection))),
           ),
         );
 
-        return messagePooler.start({ startFrom });
+        await messagePuller.start({ startFrom });
+
+        await stopProcessors();
+
+        isRunning = false;
       })();
 
       return start;
@@ -163,10 +267,7 @@ export const sqliteEventStoreConsumer = <
     stop,
     close: async () => {
       await stop();
-
       await pool.close();
-
-      await new Promise((resolve) => setTimeout(resolve, 250));
     },
   };
 };
