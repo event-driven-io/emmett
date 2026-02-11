@@ -7,7 +7,22 @@ import type {
   PgPoolClientConnection,
   PgTransaction,
 } from '@event-driven-io/dumbo/pg';
-import type { MessageProcessor } from '@event-driven-io/emmett';
+import type {
+  AnyEvent,
+  AnyMessage,
+  BatchRecordedMessageHandlerWithContext,
+  Checkpointer,
+  Event,
+  Message,
+  MessageHandlerResult,
+  MessageProcessingScope,
+  MessageProcessor,
+  ProcessorHooks,
+  ProjectorOptions,
+  ReactorOptions,
+  ReadEventMetadataWithGlobalPosition,
+  SingleRecordedMessageHandlerWithContext,
+} from '@event-driven-io/emmett';
 import {
   defaultProcessorPartition,
   defaultProcessorVersion,
@@ -18,19 +33,6 @@ import {
   projector,
   reactor,
   unknownTag,
-  type AnyEvent,
-  type AnyMessage,
-  type BatchRecordedMessageHandlerWithContext,
-  type Checkpointer,
-  type Event,
-  type Message,
-  type MessageHandlerResult,
-  type MessageProcessingScope,
-  type ProcessorHooks,
-  type ProjectorOptions,
-  type ReactorOptions,
-  type ReadEventMetadataWithGlobalPosition,
-  type SingleRecordedMessageHandlerWithContext,
 } from '@event-driven-io/emmett';
 import type pg from 'pg';
 import {
@@ -185,28 +187,38 @@ type PostgreSQLProcessorOptionsBase = PostgreSQLConnectionOptions & {
   };
   partition?: string;
 };
-export type PostgreSQLReactorOptions<MessageType extends Message = Message> =
-  ReactorOptions<
-    MessageType,
-    ReadEventMetadataWithGlobalPosition,
-    PostgreSQLProcessorHandlerContext
-  > &
-    PostgreSQLProcessorOptionsBase;
+export type PostgreSQLReactorOptions<
+  MessageType extends Message = Message,
+  MessagePayloadType extends AnyMessage = MessageType,
+> = ReactorOptions<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  PostgreSQLProcessorHandlerContext,
+  MessagePayloadType
+> &
+  PostgreSQLProcessorOptionsBase;
 
-export type PostgreSQLProjectorOptions<EventType extends AnyEvent = AnyEvent> =
-  ProjectorOptions<
-    EventType,
-    ReadEventMetadataWithGlobalPosition,
-    PostgreSQLProcessorHandlerContext
-  > &
-    PostgreSQLProcessorOptionsBase &
-    EventStoreSchemaMigrationOptions;
+export type PostgreSQLProjectorOptions<
+  EventType extends AnyEvent = AnyEvent,
+  EventPayloadType extends Event = EventType,
+> = ProjectorOptions<
+  EventType,
+  ReadEventMetadataWithGlobalPosition,
+  PostgreSQLProcessorHandlerContext,
+  EventPayloadType
+> &
+  PostgreSQLProcessorOptionsBase &
+  EventStoreSchemaMigrationOptions;
 
 export type PostgreSQLProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
+  MessagePayloadType extends AnyMessage = MessageType,
 > =
-  | PostgreSQLReactorOptions<MessageType>
-  | PostgreSQLProjectorOptions<MessageType & AnyEvent>;
+  | PostgreSQLReactorOptions<MessageType, MessagePayloadType>
+  | PostgreSQLProjectorOptions<
+      MessageType & AnyEvent,
+      MessagePayloadType & AnyEvent
+    >;
 
 const postgreSQLProcessingScope = (options: {
   pool: Dumbo | null;
@@ -314,8 +326,11 @@ const wrapHooksWithProcessorLocks = (
       : undefined,
 });
 
-export const postgreSQLProjector = <EventType extends Event = Event>(
-  options: PostgreSQLProjectorOptions<EventType>,
+export const postgreSQLProjector = <
+  EventType extends Event = Event,
+  EventPayloadType extends Event = EventType,
+>(
+  options: PostgreSQLProjectorOptions<EventType, EventPayloadType>,
 ): PostgreSQLProcessor<EventType> => {
   const {
     processorId = getProjectorId({
@@ -384,7 +399,8 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
   const processor = projector<
     EventType,
     ReadEventMetadataWithGlobalPosition,
-    PostgreSQLProcessorHandlerContext
+    PostgreSQLProcessorHandlerContext,
+    EventPayloadType
   >({
     ...options,
     processorId,
@@ -404,8 +420,11 @@ export const postgreSQLProjector = <EventType extends Event = Event>(
   return processor;
 };
 
-export const postgreSQLReactor = <MessageType extends Message = Message>(
-  options: PostgreSQLReactorOptions<MessageType>,
+export const postgreSQLReactor = <
+  MessageType extends Message = Message,
+  MessagePayloadType extends AnyMessage = MessageType,
+>(
+  options: PostgreSQLReactorOptions<MessageType, MessagePayloadType>,
 ): PostgreSQLProcessor<MessageType> => {
   const {
     processorId = options.processorId,
@@ -457,18 +476,4 @@ export const postgreSQLReactor = <MessageType extends Message = Message>(
     }),
     checkpoints: postgreSQLCheckpointer<MessageType>(),
   });
-};
-
-export const postgreSQLMessageProcessor = <
-  MessageType extends AnyMessage = AnyMessage,
->(
-  options: PostgreSQLProcessorOptions<MessageType>,
-): PostgreSQLProcessor<MessageType> => {
-  if ('projection' in options) {
-    return postgreSQLProjector(
-      options as unknown as PostgreSQLProjectorOptions<Event>,
-    ) as PostgreSQLProcessor<MessageType>;
-  }
-
-  return postgreSQLReactor(options);
 };

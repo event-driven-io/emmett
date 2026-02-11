@@ -1,6 +1,10 @@
 import { JSONSerializer } from '@event-driven-io/dumbo';
 import { sqlite3Connection } from '@event-driven-io/dumbo/sqlite3';
-import { assertThatArray, type Event } from '@event-driven-io/emmett';
+import {
+  assertThatArray,
+  bigIntProcessorCheckpoint,
+  type Event,
+} from '@event-driven-io/emmett';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -16,7 +20,7 @@ import {
   type SQLiteEventStore,
 } from '../SQLiteEventStore';
 import { sqliteEventStoreConsumer } from './sqliteEventStoreConsumer';
-import type { SQLiteProcessorOptions } from './sqliteProcessor';
+import type { SQLiteReactorOptions } from './sqliteProcessor';
 
 const withDeadline = { timeout: 30000 };
 
@@ -75,7 +79,7 @@ void describe('SQLite event store started consumer', () => {
           driver: sqlite3EventStoreDriver,
           fileName,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           stopAfter: (event) =>
             event.metadata.globalPosition ===
@@ -110,7 +114,7 @@ void describe('SQLite event store started consumer', () => {
           driver: sqlite3EventStoreDriver,
           fileName,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
@@ -173,9 +177,11 @@ void describe('SQLite event store started consumer', () => {
           driver: sqlite3EventStoreDriver,
           fileName,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
-          startFrom: { globalPosition: startPosition },
+          startFrom: {
+            lastCheckpoint: bigIntProcessorCheckpoint(startPosition),
+          },
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
@@ -230,7 +236,7 @@ void describe('SQLite event store started consumer', () => {
           driver: sqlite3EventStoreDriver,
           fileName,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
@@ -292,7 +298,7 @@ void describe('SQLite event store started consumer', () => {
           driver: sqlite3EventStoreDriver,
           fileName,
         });
-        consumer.processor<GuestStayEvent>({
+        consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
@@ -353,7 +359,7 @@ void describe('SQLite event store started consumer', () => {
         let result: GuestStayEvent[] = [];
         let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
 
-        const processorOptions: SQLiteProcessorOptions<GuestStayEvent> = {
+        const processorOptions: SQLiteReactorOptions<GuestStayEvent> = {
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
@@ -369,7 +375,7 @@ void describe('SQLite event store started consumer', () => {
           fileName,
         });
         try {
-          consumer.processor<GuestStayEvent>(processorOptions);
+          consumer.reactor<GuestStayEvent>(processorOptions);
 
           await consumer.start();
         } finally {
@@ -384,7 +390,7 @@ void describe('SQLite event store started consumer', () => {
           driver: sqlite3EventStoreDriver,
           fileName,
         });
-        newConsumer.processor<GuestStayEvent>(processorOptions);
+        newConsumer.reactor<GuestStayEvent>(processorOptions);
 
         try {
           const consumerPromise = newConsumer.start();

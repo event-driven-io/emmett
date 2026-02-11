@@ -1,4 +1,4 @@
-import { dumbo, type Dumbo, type SQLExecutor } from '@event-driven-io/dumbo';
+import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import type { MessageProcessor } from '@event-driven-io/emmett';
 import {
   EmmettError,
@@ -27,17 +27,6 @@ import {
   type PostgreSQLProjectorOptions,
   type PostgreSQLReactorOptions,
 } from './postgreSQLProcessor';
-
-export type PostgreSQLConsumerContext = {
-  execute: SQLExecutor;
-  connection: {
-    connectionString: string;
-    pool: Dumbo;
-  };
-};
-
-export type ExtendableContext = Partial<PostgreSQLConsumerContext> &
-  DefaultRecord;
 
 export type PostgreSQLEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

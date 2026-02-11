@@ -1,248 +1,224 @@
+import type { SQLExecutor } from '@event-driven-io/dumbo';
 import type {
   AnySQLiteConnection,
   SQLiteTransaction,
 } from '@event-driven-io/dumbo/sqlite';
-import type { EmmettError } from '@event-driven-io/emmett';
+import type {
+  AnyEvent,
+  AnyMessage,
+  BatchRecordedMessageHandlerWithContext,
+  Message,
+  MessageHandlerResult,
+  MessageProcessingScope,
+  MessageProcessor,
+  ProcessorHooks,
+  ProjectorOptions,
+  ReactorOptions,
+  ReadEventMetadataWithGlobalPosition,
+  SingleRecordedMessageHandlerWithContext,
+} from '@event-driven-io/emmett';
 import {
-  bigIntProcessorCheckpoint,
-  getCheckpoint,
+  defaultProcessorPartition,
+  defaultProcessorVersion,
+  EmmettError,
+  getProcessorInstanceId,
+  getProjectorId,
+  projector,
+  reactor,
   type Event,
   type ReadEvent,
-  type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import type { SQLiteProjectionDefinition } from '../projections';
-import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
+import type { EventStoreSchemaMigrationOptions } from '../schema';
 import type { SQLiteEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
+import { sqliteCheckpointer } from './sqliteCheckpointer';
 
 export type SQLiteProcessorEventsBatch<EventType extends Event = Event> = {
   messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
 };
 
 export type SQLiteProcessorHandlerContext = {
+  execute: SQLExecutor;
   connection: AnySQLiteConnection;
-};
+} &
+  // TODO: Reconsider if it should be for all processors
+  EventStoreSchemaMigrationOptions;
 
-export type SQLiteProcessor<EventType extends Event = Event> = {
-  id: string;
-  start: (
-    connection: AnySQLiteConnection,
-  ) => Promise<SQLiteEventStoreMessageBatchPullerStartFrom | undefined>;
-  isActive: boolean;
-  handle: (
-    messagesBatch: SQLiteProcessorEventsBatch<EventType>,
-    context: { connection?: AnySQLiteConnection }, //fileName?: string },
-  ) => Promise<SQLiteProcessorMessageHandlerResult>;
-};
+export type SQLiteProcessor<MessageType extends Message = AnyMessage> =
+  MessageProcessor<
+    MessageType,
+    ReadEventMetadataWithGlobalPosition,
+    SQLiteProcessorHandlerContext
+  >;
 
-export const SQLiteProcessor = {
-  result: {
-    skip: (options?: {
-      reason?: string;
-    }): SQLiteProcessorMessageHandlerResult => ({
-      type: 'SKIP',
-      ...(options ?? {}),
-    }),
-    stop: (options?: {
-      reason?: string;
-      error?: EmmettError;
-    }): SQLiteProcessorMessageHandlerResult => ({
-      type: 'STOP',
-      ...(options ?? {}),
-    }),
-  },
-};
+export type SQLiteProcessorEachMessageHandler<
+  MessageType extends Message = Message,
+> = SingleRecordedMessageHandlerWithContext<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  SQLiteProcessorHandlerContext
+>;
 
-export type SQLiteProcessorMessageHandlerResult =
-  | void
-  | { type: 'SKIP'; reason?: string }
-  | { type: 'STOP'; reason?: string; error?: EmmettError };
-
-export type SQLiteProcessorEachMessageHandler<EventType extends Event = Event> =
-  (
-    event: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
-    context: SQLiteProcessorHandlerContext,
-  ) =>
-    | Promise<SQLiteProcessorMessageHandlerResult>
-    | SQLiteProcessorMessageHandlerResult;
-
-export type SQLiteProcessorEachBatchHandler<EventType extends Event = Event> = (
-  event: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[],
-  context: SQLiteProcessorHandlerContext,
-) =>
-  | Promise<SQLiteProcessorMessageHandlerResult>
-  | SQLiteProcessorMessageHandlerResult;
+export type SQLiteProcessorEachBatchHandler<
+  MessageType extends Message = Message,
+> = BatchRecordedMessageHandlerWithContext<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  SQLiteProcessorHandlerContext
+>;
 
 export type SQLiteProcessorStartFrom =
   | SQLiteEventStoreMessageBatchPullerStartFrom
   | 'CURRENT';
 
 export type SQLiteProcessorConnectionOptions = {
-  fileName: string;
   connection?: AnySQLiteConnection;
 };
 
-export type GenericSQLiteProcessorOptions<EventType extends Event = Event> = {
-  processorId: string;
-  version?: number;
-  partition?: string;
-  startFrom?: SQLiteProcessorStartFrom;
-  stopAfter?: (
-    message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
-  ) => boolean;
-  eachMessage: SQLiteProcessorEachMessageHandler<EventType>;
-  connectionOptions?: SQLiteProcessorConnectionOptions;
-  // TODO: Add eachBatch
-};
+export type SQLiteReactorOptions<
+  MessageType extends Message = Message,
+  MessagePayloadType extends AnyMessage = MessageType,
+> = ReactorOptions<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  SQLiteProcessorHandlerContext,
+  MessagePayloadType
+> &
+  SQLiteProcessorConnectionOptions;
 
-export type SQLiteProjectionProcessorOptions<EventType extends Event = Event> =
-  {
-    processorId?: string;
-    version?: number;
-    projection: SQLiteProjectionDefinition<EventType>;
-    partition?: string;
-    startFrom?: SQLiteProcessorStartFrom;
-    stopAfter?: (
-      message: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>,
-    ) => boolean;
-  };
+export type SQLiteProjectorOptions<
+  EventType extends AnyEvent = AnyEvent,
+  EventPayloadType extends Event = EventType,
+> = ProjectorOptions<
+  EventType,
+  ReadEventMetadataWithGlobalPosition,
+  SQLiteProcessorHandlerContext,
+  EventPayloadType
+> &
+  SQLiteProcessorConnectionOptions &
+  EventStoreSchemaMigrationOptions;
 
-export type SQLiteProcessorOptions<EventType extends Event = Event> =
-  | GenericSQLiteProcessorOptions<EventType>
-  | SQLiteProjectionProcessorOptions<EventType>;
+export type SQLiteProcessorOptions<
+  MessageType extends AnyMessage = AnyMessage,
+  MessagePayloadType extends AnyMessage = MessageType,
+> =
+  | SQLiteReactorOptions<MessageType, MessagePayloadType>
+  | SQLiteProjectorOptions<
+      MessageType & AnyEvent,
+      MessagePayloadType & AnyEvent
+    >;
 
-const genericSQLiteProcessor = <EventType extends Event = Event>(
-  options: GenericSQLiteProcessorOptions<EventType>,
-): SQLiteProcessor => {
-  const { eachMessage } = options;
-  let isActive = true;
-  //let lastProcessedPosition: number | null = null;
+const sqliteProcessingScope =
+  (): MessageProcessingScope<SQLiteProcessorHandlerContext> => {
+    const processingScope: MessageProcessingScope<
+      SQLiteProcessorHandlerContext
+    > = async <Result = MessageHandlerResult>(
+      handler: (
+        context: SQLiteProcessorHandlerContext,
+      ) => Result | Promise<Result>,
+      partialContext: Partial<SQLiteProcessorHandlerContext>,
+    ) => {
+      const connection = partialContext?.connection;
 
-  const mapToContext = (context: {
-    connection?: AnySQLiteConnection;
-  }): { connection: AnySQLiteConnection } => {
-    const connection =
-      context.connection ?? options.connectionOptions?.connection;
+      if (!connection)
+        // TODO: Map it to dumbo connection correctly
+        throw new EmmettError('Connection is required in context or options');
 
-    if (!connection)
-      // TODO: Map it to dumbo connection correctly
-      throw new Error('Connection is required in context or options');
-
-    return { connection };
-  };
-
-  return {
-    id: options.processorId,
-    start: async ({
-      execute,
-    }: AnySQLiteConnection): Promise<
-      SQLiteEventStoreMessageBatchPullerStartFrom | undefined
-    > => {
-      isActive = true;
-      if (options.startFrom !== 'CURRENT') return options.startFrom;
-
-      const { lastProcessedPosition } = await readProcessorCheckpoint(execute, {
-        processorId: options.processorId,
-        partition: options.partition,
-      });
-
-      if (lastProcessedPosition === null) return 'BEGINNING';
-
-      return { globalPosition: lastProcessedPosition };
-    },
-    get isActive() {
-      return isActive;
-    },
-    handle: async (
-      { messages },
-      context,
-    ): Promise<SQLiteProcessorMessageHandlerResult> => {
-      if (!isActive) return;
-
-      const { connection } = mapToContext(context);
-
-      return connection.withTransaction(async (tx: SQLiteTransaction) => {
-        let result: SQLiteProcessorMessageHandlerResult | undefined = undefined;
-
-        let lastProcessedPosition: bigint | null = null;
-
-        for (const message of messages) {
-          const typedMessage = message as ReadEvent<
-            EventType,
-            ReadEventMetadataWithGlobalPosition
-          >;
-
-          const messageProcessingResult = await eachMessage(typedMessage, {
-            connection: tx.connection,
+      return connection.withTransaction(
+        async (transaction: SQLiteTransaction) => {
+          return handler({
+            ...partialContext,
+            connection: connection,
+            execute: transaction.execute,
           });
+        },
+      );
+    };
 
-          const newPosition = getCheckpoint(typedMessage);
-
-          // TODO: Add correct handling of the storing checkpoint
-          await storeProcessorCheckpoint(tx.execute, {
-            processorId: options.processorId,
-            version: options.version,
-            lastProcessedCheckpoint:
-              lastProcessedPosition != null
-                ? bigIntProcessorCheckpoint(lastProcessedPosition)
-                : null,
-            newCheckpoint: newPosition,
-            partition: options.partition,
-          });
-
-          lastProcessedPosition = typedMessage.metadata.globalPosition;
-
-          if (
-            messageProcessingResult &&
-            messageProcessingResult.type === 'STOP'
-          ) {
-            isActive = false;
-            result = messageProcessingResult;
-            break;
-          }
-
-          if (options.stopAfter && options.stopAfter(typedMessage)) {
-            isActive = false;
-            result = { type: 'STOP', reason: 'Stop condition reached' };
-            break;
-          }
-
-          if (
-            messageProcessingResult &&
-            messageProcessingResult.type === 'SKIP'
-          )
-            continue;
-        }
-        return result;
-      });
-    },
+    return processingScope;
   };
-};
 
-export const sqliteProjectionProcessor = <EventType extends Event = Event>(
-  options: SQLiteProjectionProcessorOptions<EventType>,
-): SQLiteProcessor => {
-  const projection = options.projection;
+export const sqliteReactor = <
+  MessageType extends Message = Message,
+  MessagePayloadType extends AnyMessage = MessageType,
+>(
+  options: SQLiteReactorOptions<MessageType, MessagePayloadType>,
+): SQLiteProcessor<MessageType> => {
+  const {
+    processorId = options.processorId,
+    processorInstanceId = getProcessorInstanceId(processorId),
+    version = defaultProcessorVersion,
+    partition = defaultProcessorPartition,
+    hooks,
+  } = options;
 
-  return genericSQLiteProcessor<EventType>({
-    processorId: options.processorId ?? `projection:${projection.name}`,
-    eachMessage: async (event, context) => {
-      if (!projection.canHandle.includes(event.type)) return;
-
-      await projection.handle([event], {
-        execute: context.connection.execute,
-        connection: context.connection,
-      });
-    },
+  return reactor({
     ...options,
+    processorId,
+    processorInstanceId,
+    version,
+    partition,
+    hooks,
+    processingScope: sqliteProcessingScope(),
+
+    checkpoints: sqliteCheckpointer<MessageType>(),
   });
 };
 
-export const sqliteProcessor = <EventType extends Event = Event>(
-  options: SQLiteProcessorOptions<EventType>,
-): SQLiteProcessor => {
-  if ('projection' in options) {
-    return sqliteProjectionProcessor(options);
-  }
+export const sqliteProjector = <
+  EventType extends Event = Event,
+  EventPayloadType extends Event = EventType,
+>(
+  options: SQLiteProjectorOptions<EventType, EventPayloadType>,
+): SQLiteProcessor<EventType> => {
+  const {
+    processorId = getProjectorId({
+      projectionName: options.projection.name ?? 'unknown',
+    }),
+    processorInstanceId = getProcessorInstanceId(processorId),
+    version = defaultProcessorVersion,
+    partition = defaultProcessorPartition,
+  } = options;
 
-  return genericSQLiteProcessor(options);
+  const hooks: ProcessorHooks<SQLiteProcessorHandlerContext> = {
+    ...(options.hooks ?? {}),
+    onInit:
+      options.projection.init !== undefined || options.hooks?.onInit
+        ? async (context: SQLiteProcessorHandlerContext) => {
+            if (options.projection.init)
+              await options.projection.init({
+                version: options.projection.version ?? version,
+                status: 'active',
+                registrationType: 'async',
+                context: {
+                  ...context,
+                  migrationOptions: options.migrationOptions,
+                },
+              });
+            if (options.hooks?.onInit)
+              await options.hooks.onInit({
+                ...context,
+                migrationOptions: options.migrationOptions,
+              });
+          }
+        : options.hooks?.onInit,
+    onClose: options.hooks?.onClose,
+  };
+
+  const processor = projector<
+    EventType,
+    ReadEventMetadataWithGlobalPosition,
+    SQLiteProcessorHandlerContext,
+    EventPayloadType
+  >({
+    ...options,
+    processorId,
+    processorInstanceId,
+    version,
+    partition,
+    hooks,
+    processingScope: sqliteProcessingScope(),
+    checkpoints: sqliteCheckpointer<EventType>(),
+  });
+
+  return processor;
 };

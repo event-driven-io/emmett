@@ -73,6 +73,16 @@ export const schemaSQL: SQL[] = [
   projectionsTableSQL,
 ];
 
+export type CreateEventStoreSchemaOptions = {
+  dryRun?: boolean | undefined;
+  ignoreMigrationHashMismatch?: boolean | undefined;
+  migrationTimeoutMs?: number | undefined;
+};
+
+export type EventStoreSchemaMigrationOptions = {
+  migrationOptions?: CreateEventStoreSchemaOptions;
+};
+
 export const createEventStoreSchema = async (
   pool: AnySQLiteConnection,
   hooks?: SQLiteEventStoreOptions['hooks'],

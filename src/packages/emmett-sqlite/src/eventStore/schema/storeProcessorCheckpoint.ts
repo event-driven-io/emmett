@@ -97,10 +97,10 @@ async function storeSubscriptionCheckpointSQLite(
   }
 }
 
-export type StoreLastProcessedProcessorPositionResult =
+export type StoreProcessorCheckpointResult =
   | {
       success: true;
-      newPosition: ProcessorCheckpoint | null;
+      newCheckpoint: ProcessorCheckpoint | null;
     }
   | { success: false; reason: 'IGNORED' | 'MISMATCH' };
 
@@ -112,8 +112,9 @@ export async function storeProcessorCheckpoint(
     newCheckpoint: ProcessorCheckpoint | null;
     lastProcessedCheckpoint: ProcessorCheckpoint | null;
     partition?: string;
+    processorInstanceId?: string;
   },
-): Promise<StoreLastProcessedProcessorPositionResult> {
+): Promise<StoreProcessorCheckpointResult> {
   try {
     const result = await storeSubscriptionCheckpointSQLite(
       execute,
@@ -125,7 +126,7 @@ export async function storeProcessorCheckpoint(
     );
 
     return result === 1
-      ? { success: true, newPosition: options.newCheckpoint }
+      ? { success: true, newCheckpoint: options.newCheckpoint }
       : { success: false, reason: result === 0 ? 'IGNORED' : 'MISMATCH' };
   } catch (error) {
     console.log(error);

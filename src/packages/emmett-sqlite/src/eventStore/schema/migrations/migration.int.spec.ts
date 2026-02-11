@@ -223,7 +223,7 @@ void describe('Schema migrations tests', () => {
       partition: undefined,
     });
 
-    assertDeepEqual(shoppingCartCheckpoint.lastProcessedPosition, null);
+    assertDeepEqual(shoppingCartCheckpoint.lastProcessedCheckpoint, null);
 
     const orderProcessorId = `processor-order-${order.streamId}`;
 
@@ -232,6 +232,6 @@ void describe('Schema migrations tests', () => {
       partition: undefined,
     });
 
-    assertDeepEqual(orderCheckpoint, { lastProcessedPosition: null });
+    assertDeepEqual(orderCheckpoint, { lastProcessedCheckpoint: null });
   };
 });

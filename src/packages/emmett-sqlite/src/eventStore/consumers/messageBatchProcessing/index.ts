@@ -1,9 +1,13 @@
-import type { Dumbo } from '@event-driven-io/dumbo/.';
-import type {
-  EmmettError,
-  Event,
-  ReadEvent,
-  ReadEventMetadataWithGlobalPosition,
+import type { SQLExecutor } from '@event-driven-io/dumbo';
+import {
+  parseBigIntProcessorCheckpoint,
+  type BatchRecordedMessageHandlerWithoutContext,
+  type EmmettError,
+  type Event,
+  type Message,
+  type ProcessorCheckpoint,
+  type ReadEvent,
+  type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { readLastMessageGlobalPosition } from '../../schema/readLastMessageGlobalPosition';
 import {
@@ -24,30 +28,30 @@ export type SQLiteEventStoreMessagesBatchHandlerResult = void | {
   error?: EmmettError;
 };
 
-export type SQLiteEventStoreMessagesBatchHandler<
-  EventType extends Event = Event,
-> = (
-  messagesBatch: SQLiteEventStoreMessagesBatch<EventType>,
-) =>
-  | Promise<SQLiteEventStoreMessagesBatchHandlerResult>
-  | SQLiteEventStoreMessagesBatchHandlerResult;
-
 export type SQLiteEventStoreMessageBatchPullerOptions<
-  EventType extends Event = Event,
+  MessageType extends Message = Message,
 > = {
-  pool: Dumbo;
+  executor: SQLExecutor;
   pullingFrequencyInMs: number;
   batchSize: number;
-  eachBatch: SQLiteEventStoreMessagesBatchHandler<EventType>;
+  eachBatch: BatchRecordedMessageHandlerWithoutContext<
+    MessageType,
+    ReadEventMetadataWithGlobalPosition
+  >;
+  stopWhen?: {
+    noMessagesLeft?: boolean;
+  };
+  signal: AbortSignal;
 };
 
 export type SQLiteEventStoreMessageBatchPullerStartFrom =
-  | { globalPosition: bigint }
+  | { lastCheckpoint: ProcessorCheckpoint }
   | 'BEGINNING'
   | 'END';
 
 export type SQLiteEventStoreMessageBatchPullerStartOptions = {
   startFrom: SQLiteEventStoreMessageBatchPullerStartFrom;
+  signal?: AbortSignal;
 };
 
 export type SQLiteEventStoreMessageBatchPuller = {
@@ -57,13 +61,15 @@ export type SQLiteEventStoreMessageBatchPuller = {
 };
 
 export const sqliteEventStoreMessageBatchPuller = <
-  EventType extends Event = Event,
+  MessageType extends Message = Message,
 >({
-  pool,
+  executor,
   batchSize,
   eachBatch,
   pullingFrequencyInMs,
-}: SQLiteEventStoreMessageBatchPullerOptions<EventType>): SQLiteEventStoreMessageBatchPuller => {
+  stopWhen,
+  signal,
+}: SQLiteEventStoreMessageBatchPullerOptions<MessageType>): SQLiteEventStoreMessageBatchPuller => {
   let isRunning = false;
 
   let start: Promise<void>;
@@ -75,12 +81,9 @@ export const sqliteEventStoreMessageBatchPuller = <
       options.startFrom === 'BEGINNING'
         ? 0n
         : options.startFrom === 'END'
-          ? ((
-              await pool.withConnection(async ({ execute }) =>
-                readLastMessageGlobalPosition(execute),
-              )
-            ).currentGlobalPosition ?? 0n)
-          : options.startFrom.globalPosition;
+          ? ((await readLastMessageGlobalPosition(executor))
+              .currentGlobalPosition ?? 0n)
+          : parseBigIntProcessorCheckpoint(options.startFrom.lastCheckpoint);
 
     const readMessagesOptions: ReadMessagesBatchOptions = {
       after,
@@ -89,14 +92,12 @@ export const sqliteEventStoreMessageBatchPuller = <
 
     let waitTime = 100;
 
-    do {
-      const { messages, currentGlobalPosition, areEventsLeft } =
-        await pool.withConnection(({ execute }) =>
-          readMessagesBatch<EventType>(execute, readMessagesOptions),
-        );
+    while (isRunning && !signal?.aborted) {
+      const { messages, currentGlobalPosition, areMessagesLeft } =
+        await readMessagesBatch<MessageType>(executor, readMessagesOptions);
 
       if (messages.length > 0) {
-        const result = await eachBatch({ messages });
+        const result = await eachBatch(messages);
 
         if (result && result.type === 'STOP') {
           isRunning = false;
@@ -108,12 +109,17 @@ export const sqliteEventStoreMessageBatchPuller = <
 
       await new Promise((resolve) => setTimeout(resolve, waitTime));
 
-      if (!areEventsLeft) {
+      if (stopWhen?.noMessagesLeft === true && !areMessagesLeft) {
+        isRunning = false;
+        break;
+      }
+
+      if (!areMessagesLeft) {
         waitTime = Math.min(waitTime * 2, 1000);
       } else {
         waitTime = pullingFrequencyInMs;
       }
-    } while (isRunning);
+    }
   };
 
   return {
@@ -122,10 +128,9 @@ export const sqliteEventStoreMessageBatchPuller = <
     },
     start: (options) => {
       if (isRunning) return start;
+      isRunning = true;
 
       start = (async () => {
-        isRunning = true;
-
         return pullMessages(options);
       })();
 
