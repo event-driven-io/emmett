@@ -5,6 +5,7 @@ import {
   type Closeable,
   type Event,
 } from '@event-driven-io/emmett';
+import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -13,7 +14,6 @@ import {
   type MongoDBEventStore,
 } from '../mongoDBEventStore';
 import { mongoDBEventStoreConsumer } from './mongoDBEventStoreConsumer';
-import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 30000 };
 
@@ -81,6 +81,8 @@ void describe('MongoDB event store started consumer', () => {
       });
 
       try {
+        await consumer.start();
+
         await consumer.start();
 
         assertThatArray(

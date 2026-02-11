@@ -8,7 +8,7 @@ import type {
   ReadEventMetadataWithGlobalPosition,
   SingleRecordedMessageHandlerWithContext,
 } from '../typing';
-import type { MessageProcessor } from './processors';
+import type { MessageProcessor, ProcessorCheckpoint } from './processors';
 import {
   getCheckpoint,
   projector,
@@ -53,7 +53,7 @@ export type InMemoryProcessorConnectionOptions = {
 
 type CheckpointDocument = {
   _id: string;
-  lastCheckpoint: bigint | null;
+  lastCheckpoint: ProcessorCheckpoint | null;
 };
 
 export type InMemoryCheckpointer<MessageType extends AnyMessage = AnyMessage> =
@@ -88,7 +88,7 @@ export const inMemoryCheckpointer = <
 
       const currentPosition = checkpoint?.lastCheckpoint ?? null;
 
-      const newCheckpoint: bigint | null = getCheckpoint(message);
+      const newCheckpoint: ProcessorCheckpoint | null = getCheckpoint(message);
 
       if (
         currentPosition &&

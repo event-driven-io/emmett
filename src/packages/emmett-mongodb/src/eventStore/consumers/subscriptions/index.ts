@@ -39,7 +39,7 @@ import {
 
 export type MongoDBSubscriptionOptions<MessageType extends Message = Message> =
   {
-    from?: CurrentMessageProcessorPosition<MongoDBCheckpoint>;
+    from?: CurrentMessageProcessorPosition;
     client: MongoClient;
     // batchSize: number;
     eachBatch: BatchRecordedMessageHandlerWithoutContext<
@@ -74,8 +74,7 @@ export type BuildInfo = {
   storageEngines: string[];
   ok: number;
 };
-export type MongoDBSubscriptionStartFrom =
-  CurrentMessageProcessorPosition<MongoDBCheckpoint>;
+export type MongoDBSubscriptionStartFrom = CurrentMessageProcessorPosition;
 
 export type MongoDBSubscriptionStartOptions = {
   startFrom: MongoDBSubscriptionStartFrom;
@@ -282,7 +281,7 @@ export const getDatabaseVersionPolicies = async (db: Db) => {
 const createChangeStream = <EventType extends Message = AnyMessage>(
   getFullDocumentValue: ChangeStreamFullDocumentValuePolicy,
   db: Db,
-  resumeToken?: CurrentMessageProcessorPosition<MongoDBCheckpoint>,
+  resumeToken?: CurrentMessageProcessorPosition,
   // partitionKey: string = DEFAULT_PARTITION_KEY_NAME,
 ) => {
   const $match = {
@@ -325,7 +324,11 @@ const createChangeStream = <EventType extends Message = AnyMessage>(
         }
       : resumeToken === 'END'
         ? void 0
-        : { resumeAfter: toMongoDBResumeToken(resumeToken.lastCheckpoint) }),
+        : {
+            resumeAfter: toMongoDBResumeToken(
+              resumeToken.lastCheckpoint as MongoDBCheckpoint,
+            ),
+          }),
   });
 };
 

@@ -8,7 +8,13 @@ import {
 } from '../testing';
 import type { Event, ReadEventMetadata, RecordedMessage } from '../typing';
 import { isString } from '../validation';
-import { projector, reactor, type Checkpointer } from './processors';
+import {
+  bigIntProcessorCheckpoint,
+  projector,
+  reactor,
+  type Checkpointer,
+  type ProcessorCheckpoint,
+} from './processors';
 
 type TestEvent = Event<'test', { counter: number }>;
 
@@ -254,6 +260,7 @@ void describe('Processors', () => {
             metadata: {
               streamName: 'test-stream',
               messageId: uuid(),
+              checkpoint: bigIntProcessorCheckpoint(1n),
               globalPosition: 1n,
               streamPosition: 1n,
             },
@@ -264,6 +271,7 @@ void describe('Processors', () => {
             metadata: {
               streamName: 'test-stream',
               messageId: uuid(),
+              checkpoint: bigIntProcessorCheckpoint(2n),
               globalPosition: 2n,
               streamPosition: 2n,
             },
@@ -319,6 +327,7 @@ void describe('Processors', () => {
             metadata: {
               streamName: 'test-stream',
               messageId: uuid(),
+              checkpoint: bigIntProcessorCheckpoint(1n),
               globalPosition: 1n,
               streamPosition: 1n,
             },
@@ -329,6 +338,7 @@ void describe('Processors', () => {
             metadata: {
               streamName: 'test-stream',
               messageId: uuid(),
+              checkpoint: bigIntProcessorCheckpoint(2n),
               globalPosition: 2n,
               streamPosition: 2n,
             },
@@ -377,6 +387,7 @@ void describe('Processors', () => {
           metadata: {
             streamName: 'test-stream',
             messageId: uuid(),
+            checkpoint: bigIntProcessorCheckpoint(1n),
             globalPosition: 1n,
             streamPosition: 1n,
           },
@@ -387,6 +398,7 @@ void describe('Processors', () => {
           metadata: {
             streamName: 'test-stream',
             messageId: uuid(),
+            checkpoint: bigIntProcessorCheckpoint(2n),
             globalPosition: 2n,
             streamPosition: 2n,
           },
@@ -397,6 +409,7 @@ void describe('Processors', () => {
           metadata: {
             streamName: 'test-stream',
             messageId: uuid(),
+            checkpoint: bigIntProcessorCheckpoint(3n),
             globalPosition: 3n,
             streamPosition: 3n,
           },
@@ -407,6 +420,7 @@ void describe('Processors', () => {
           metadata: {
             streamName: 'test-stream',
             messageId: uuid(),
+            checkpoint: bigIntProcessorCheckpoint(4n),
             globalPosition: 4n,
             streamPosition: 4n,
           },
@@ -427,7 +441,7 @@ void describe('Processors', () => {
     void it('should read checkpoint on start', async () => {
       // Given
       const processorId = uuid();
-      const checkpoint = 123n;
+      const checkpoint = bigIntProcessorCheckpoint(123n);
 
       const processor = reactor({
         processorId,
@@ -448,7 +462,7 @@ void describe('Processors', () => {
     void it('should store checkpoint after handling message', async () => {
       // Given
       const processorId = uuid();
-      let storedCheckpoint: bigint | null = null;
+      let storedCheckpoint: ProcessorCheckpoint | null = null;
 
       const checkpoints: Checkpointer<
         TestEvent,
@@ -456,7 +470,9 @@ void describe('Processors', () => {
       > = {
         read: () => Promise.resolve({ lastCheckpoint: null }),
         store: (options) => {
-          const newCheckpoint = options.message.metadata.globalPosition;
+          const newCheckpoint = bigIntProcessorCheckpoint(
+            options.message.metadata.globalPosition,
+          );
           storedCheckpoint = newCheckpoint;
           return Promise.resolve({ success: true, newCheckpoint });
         },
@@ -478,6 +494,7 @@ void describe('Processors', () => {
         metadata: {
           streamName: 'test-stream',
           messageId: uuid(),
+          checkpoint: bigIntProcessorCheckpoint(0n),
           globalPosition: 1n,
           streamPosition: 1n,
         },
@@ -488,7 +505,7 @@ void describe('Processors', () => {
       await processor.handle([recordedEvent], {});
 
       // Then
-      assertEqual(storedCheckpoint, 1n);
+      assertEqual(storedCheckpoint, bigIntProcessorCheckpoint(1n));
     });
   });
 
@@ -571,6 +588,7 @@ void describe('Processors', () => {
           metadata: {
             streamName: 'test-stream',
             messageId: uuid(),
+            checkpoint: bigIntProcessorCheckpoint(1n),
             globalPosition: 1n,
             streamPosition: 1n,
           },
@@ -581,6 +599,7 @@ void describe('Processors', () => {
           metadata: {
             streamName: 'test-stream',
             messageId: uuid(),
+            checkpoint: bigIntProcessorCheckpoint(2n),
             globalPosition: 2n,
             streamPosition: 2n,
           },

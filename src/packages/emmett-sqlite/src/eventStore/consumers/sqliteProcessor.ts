@@ -4,6 +4,7 @@ import type {
 } from '@event-driven-io/dumbo/sqlite';
 import type { EmmettError } from '@event-driven-io/emmett';
 import {
+  bigIntProcessorCheckpoint,
   getCheckpoint,
   type Event,
   type ReadEvent,
@@ -174,14 +175,17 @@ const genericSQLiteProcessor = <EventType extends Event = Event>(
             connection: tx.connection,
           });
 
-          const newPosition: bigint | null = getCheckpoint(typedMessage);
+          const newPosition = getCheckpoint(typedMessage);
 
           // TODO: Add correct handling of the storing checkpoint
           await storeProcessorCheckpoint(tx.execute, {
             processorId: options.processorId,
             version: options.version,
-            lastProcessedPosition,
-            newPosition,
+            lastProcessedCheckpoint:
+              lastProcessedPosition != null
+                ? bigIntProcessorCheckpoint(lastProcessedPosition)
+                : null,
+            newCheckpoint: newPosition,
             partition: options.partition,
           });
 

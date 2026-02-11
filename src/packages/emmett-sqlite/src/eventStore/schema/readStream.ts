@@ -1,5 +1,6 @@
 import { SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
+  bigIntProcessorCheckpoint,
   JSONParser,
   upcastRecordedMessage,
   type BigIntStreamPosition,
@@ -75,6 +76,7 @@ export const readStream = async <
         streamName: streamId,
         streamPosition: BigInt(row.stream_position),
         globalPosition: BigInt(row.global_position),
+        checkpoint: bigIntProcessorCheckpoint(BigInt(row.global_position)),
       };
 
       const event = {

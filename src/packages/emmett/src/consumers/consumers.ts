@@ -7,7 +7,7 @@ export type MessageConsumerOptions<
 > = {
   consumerId?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  processors?: Array<MessageProcessor<ConsumerMessageType, any, any, any>>;
+  processors?: Array<MessageProcessor<ConsumerMessageType, any, any>>;
 };
 
 export type MessageConsumer<

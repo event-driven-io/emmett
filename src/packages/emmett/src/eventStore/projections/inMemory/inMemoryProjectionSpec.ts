@@ -3,6 +3,7 @@ import {
   handleInMemoryProjections,
   type InMemoryProjectionDefinition,
 } from '.';
+import { bigIntProcessorCheckpoint } from '../../..';
 import {
   getInMemoryDatabase,
   type Document,
@@ -16,8 +17,11 @@ import {
   assertTrue,
   type ThenThrows,
 } from '../../../testing';
-import type { CombinedReadEventMetadata, ReadEvent } from '../../../typing';
-import type { Event } from '../../../typing';
+import type {
+  CombinedReadEventMetadata,
+  Event,
+  ReadEvent,
+} from '../../../typing';
 import type {
   InMemoryEventStore,
   InMemoryReadEventMetadata,
@@ -82,7 +86,8 @@ export const InMemoryProjectionSpec = {
               ...Array.from({ length: numberOfTimes }).flatMap(() => events),
             ]) {
               const metadata: InMemoryReadEventMetadata = {
-                globalPosition: ++globalPosition,
+                checkpoint: bigIntProcessorCheckpoint(++globalPosition),
+                globalPosition,
                 streamPosition: globalPosition,
                 streamName: event.metadata?.streamName ?? `test-${uuid()}`,
                 messageId: uuid(),

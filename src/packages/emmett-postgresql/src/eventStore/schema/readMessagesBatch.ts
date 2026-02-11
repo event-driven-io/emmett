@@ -1,13 +1,14 @@
 import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
-import type {
-  CombinedMessageMetadata,
-  Message,
-  MessageDataOf,
-  MessageMetaDataOf,
-  MessageTypeOf,
-  RecordedMessage,
-  RecordedMessageMetadata,
-  RecordedMessageMetadataWithGlobalPosition,
+import {
+  bigIntProcessorCheckpoint,
+  type CombinedMessageMetadata,
+  type Message,
+  type MessageDataOf,
+  type MessageMetaDataOf,
+  type MessageTypeOf,
+  type RecordedMessage,
+  type RecordedMessageMetadata,
+  type RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { defaultTag, messagesTable } from './typing';
 
@@ -56,25 +57,23 @@ export const readMessagesBatch = async <
 ): Promise<
   ReadMessagesBatchResult<MessageType, RecordedMessageMetadataType>
 > => {
-  const from =
-    'from' in options
-      ? options.from
-      : 'after' in options
-        ? options.after + 1n
-        : 0n;
+  const from = 'from' in options ? options.from : undefined;
+  const after = 'after' in options ? options.after : undefined;
   const batchSize =
-    options && 'batchSize' in options
-      ? options.batchSize
-      : options.to - options.from;
+    'batchSize' in options ? options.batchSize : options.to - options.from;
 
-  const fromCondition: string =
-    from !== -0n ? `AND global_position >= ${from}` : '';
+  const fromCondition: SQL =
+    from !== undefined
+      ? SQL`AND global_position >= ${from}`
+      : after !== undefined
+        ? SQL`AND global_position > ${after}`
+        : SQL.EMPTY;
 
-  const toCondition =
-    'to' in options ? `AND global_position <= ${options.to}` : '';
+  const toCondition: SQL =
+    'to' in options ? SQL`AND global_position <= ${options.to}` : SQL.EMPTY;
 
-  const limitCondition =
-    'batchSize' in options ? `LIMIT ${options.batchSize}` : '';
+  const limitCondition: SQL =
+    'batchSize' in options ? SQL`LIMIT ${options.batchSize}` : SQL.EMPTY;
 
   const messages: RecordedMessage<MessageType, RecordedMessageMetadataType>[] =
     await mapRows(
@@ -82,9 +81,9 @@ export const readMessagesBatch = async <
         SQL`
           SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
            FROM ${SQL.identifier(messagesTable.name)}
-           WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE AND transaction_id < pg_snapshot_xmin(pg_current_snapshot()) ${SQL.plain(fromCondition)} ${SQL.plain(toCondition)}
+           WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE AND transaction_id < pg_snapshot_xmin(pg_current_snapshot()) ${fromCondition} ${toCondition}
            ORDER BY transaction_id, global_position
-           ${SQL.plain(limitCondition)}`,
+           ${limitCondition}`,
       ),
       (row) => {
         const rawEvent = {
@@ -99,6 +98,7 @@ export const readMessagesBatch = async <
           streamName: row.stream_id,
           streamPosition: BigInt(row.stream_position),
           globalPosition: BigInt(row.global_position),
+          checkpoint: bigIntProcessorCheckpoint(BigInt(row.global_position)),
         };
 
         return {

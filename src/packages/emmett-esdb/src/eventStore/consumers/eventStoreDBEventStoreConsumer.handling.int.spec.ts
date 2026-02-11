@@ -1,6 +1,7 @@
 import {
   assertThatArray,
   asyncAwaiter,
+  bigIntProcessorCheckpoint,
   delay,
   getInMemoryDatabase,
   type Event,
@@ -355,7 +356,9 @@ void describe('EventStoreDB event store started consumer', () => {
         });
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
-          startFrom: { lastCheckpoint: startPosition },
+          startFrom: {
+            lastCheckpoint: bigIntProcessorCheckpoint(startPosition),
+          },
           stopAfter: (event) =>
             event.metadata.streamPosition === stopAfterPosition,
           eachMessage: (event) => {
@@ -412,7 +415,9 @@ void describe('EventStoreDB event store started consumer', () => {
         });
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
-          startFrom: { lastCheckpoint: startPosition },
+          startFrom: {
+            lastCheckpoint: bigIntProcessorCheckpoint(startPosition),
+          },
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {

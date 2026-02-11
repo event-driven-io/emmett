@@ -1,11 +1,13 @@
 import {
   assertMatches,
+  bigIntProcessorCheckpoint,
   getInMemoryDatabase,
   inMemoryProjector,
   inMemorySingleStreamProjection,
   type InMemoryDocumentsCollection,
   type ReadEvent,
 } from '@event-driven-io/emmett';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
@@ -18,7 +20,6 @@ import {
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 30000 };
 
@@ -191,7 +192,9 @@ void describe('PostgreSQL event store started consumer', () => {
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
-          startFrom: { lastCheckpoint: startPosition },
+          startFrom: {
+            lastCheckpoint: bigIntProcessorCheckpoint(startPosition),
+          },
           stopAfter: (event) =>
             event.metadata.globalPosition === stopAfterPosition,
         });

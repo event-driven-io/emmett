@@ -14,7 +14,6 @@ export const mongoDBCheckpointer = <
   read: async (options, context) => {
     const result = await readProcessorCheckpoint(context.client, options);
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     return { lastCheckpoint: result?.lastCheckpoint };
   },
   store: async (options, context) => {
@@ -42,8 +41,7 @@ type ReadProcessorCheckpointMongoDBResult<Position = any> = {
   version: number;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const readProcessorCheckpoint = async <CheckpointType = any>(
+export const readProcessorCheckpoint = async (
   client: MongoClient,
   options: {
     processorId: string;
@@ -51,10 +49,10 @@ export const readProcessorCheckpoint = async <CheckpointType = any>(
     collectionName?: string;
     databaseName?: string;
   },
-): Promise<ReadProcessorCheckpointResult<CheckpointType>> => {
+): Promise<ReadProcessorCheckpointResult> => {
   const result = await client
     .db(options.databaseName)
-    .collection<ReadProcessorCheckpointMongoDBResult<CheckpointType>>(
+    .collection<ReadProcessorCheckpointMongoDBResult>(
       options.collectionName || DefaultProcessotCheckpointCollectionName,
     )
     .findOne({
@@ -63,6 +61,7 @@ export const readProcessorCheckpoint = async <CheckpointType = any>(
     });
 
   return {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     lastCheckpoint: result !== null ? result.lastProcessedCheckpoint : null,
   };
 };

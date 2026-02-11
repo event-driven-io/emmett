@@ -1,5 +1,5 @@
 import { single, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
-import { bigInt } from '@event-driven-io/emmett';
+import type { ProcessorCheckpoint } from '@event-driven-io/emmett';
 import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
 import { defaultTag, processorsTable, unknownTag } from './typing';
 
@@ -101,30 +101,24 @@ export const callStoreProcessorCheckpoint = (
       ${params.processorInstanceId}
     ) as result;`;
 
-export type StoreLastProcessedProcessorPositionResult<
-  Position extends bigint | null = bigint,
-> =
+export type StoreLastProcessedProcessorPositionResult =
   | {
       success: true;
-      newCheckpoint: Position;
+      newCheckpoint: ProcessorCheckpoint | null;
     }
   | { success: false; reason: 'IGNORED' | 'MISMATCH' | 'CURRENT_AHEAD' };
 
-export const storeProcessorCheckpoint = async <Position extends bigint | null>(
+export const storeProcessorCheckpoint = async (
   execute: SQLExecutor,
   options: {
     processorId: string;
     version: number | undefined;
-    newCheckpoint: null extends Position ? bigint | null : bigint;
-    lastProcessedCheckpoint: bigint | null;
+    newCheckpoint: ProcessorCheckpoint | null;
+    lastProcessedCheckpoint: ProcessorCheckpoint | null;
     partition?: string;
     processorInstanceId?: string;
   },
-): Promise<
-  StoreLastProcessedProcessorPositionResult<
-    null extends Position ? bigint | null : bigint
-  >
-> => {
+): Promise<StoreLastProcessedProcessorPositionResult> => {
   try {
     const { result } = await single(
       execute.command<{ result: 0 | 1 | 2 | 3 }>(
@@ -132,12 +126,10 @@ export const storeProcessorCheckpoint = async <Position extends bigint | null>(
           processorId: options.processorId,
           version: options.version ?? 1,
           position:
-            options.newCheckpoint !== null
-              ? bigInt.toNormalizedString(options.newCheckpoint)
-              : null,
+            options.newCheckpoint !== null ? options.newCheckpoint : null,
           checkPosition:
             options.lastProcessedCheckpoint !== null
-              ? bigInt.toNormalizedString(options.lastProcessedCheckpoint)
+              ? options.lastProcessedCheckpoint
               : null,
           partition: options.partition ?? defaultTag,
           processorInstanceId: options.processorInstanceId ?? unknownTag,

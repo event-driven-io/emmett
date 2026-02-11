@@ -1,14 +1,16 @@
 import {
   asyncRetry,
   getCheckpoint,
-  isBigint,
+  isString,
   JSONParser,
+  parseBigIntProcessorCheckpoint,
   type AnyMessage,
   type AsyncRetryOptions,
   type BatchRecordedMessageHandlerWithoutContext,
   type EmmettError,
   type Message,
   type MessageHandlerResult,
+  type ProcessorCheckpoint,
 } from '@event-driven-io/emmett';
 import type { EventStoreDBClient } from '@eventstore/db-client';
 import {
@@ -53,7 +55,7 @@ export type EventStoreDBSubscriptionOptions<
 };
 
 export type EventStoreDBSubscriptionStartFrom =
-  | { lastCheckpoint: bigint }
+  | { lastCheckpoint: ProcessorCheckpoint }
   | 'BEGINNING'
   | 'END';
 
@@ -73,8 +75,8 @@ const toGlobalPosition = (startFrom: EventStoreDBSubscriptionStartFrom) =>
     : startFrom === 'END'
       ? END
       : {
-          prepare: startFrom.lastCheckpoint,
-          commit: startFrom.lastCheckpoint,
+          prepare: parseBigIntProcessorCheckpoint(startFrom.lastCheckpoint),
+          commit: parseBigIntProcessorCheckpoint(startFrom.lastCheckpoint),
         };
 
 const toStreamPosition = (startFrom: EventStoreDBSubscriptionStartFrom) =>
@@ -82,7 +84,7 @@ const toStreamPosition = (startFrom: EventStoreDBSubscriptionStartFrom) =>
     ? START
     : startFrom === 'END'
       ? END
-      : startFrom.lastCheckpoint;
+      : parseBigIntProcessorCheckpoint(startFrom.lastCheckpoint);
 
 const subscribe = (
   client: EventStoreDBClient,
@@ -229,13 +231,13 @@ export const eventStoreDBSubscription = <
 
           const handler = new (class extends Writable {
             async _write(
-              result: bigint | MessageHandlerResult,
+              result: ProcessorCheckpoint | MessageHandlerResult,
               _encoding: string,
               done: () => void,
             ) {
               if (!isRunning) return;
 
-              if (isBigint(result)) {
+              if (isString(result)) {
                 options.startFrom = {
                   lastCheckpoint: result,
                 };

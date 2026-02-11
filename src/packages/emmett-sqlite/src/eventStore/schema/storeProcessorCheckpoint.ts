@@ -5,6 +5,7 @@ import {
   UniqueConstraintError,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
+import type { ProcessorCheckpoint } from '@event-driven-io/emmett';
 import { defaultTag, processorsTable, unknownTag } from './typing';
 
 const { identifier } = SQL;
@@ -14,8 +15,8 @@ async function storeSubscriptionCheckpointSQLite(
   execute: SQLExecutor,
   processorId: string,
   version: number,
-  position: bigint | null,
-  checkPosition: bigint | null,
+  position: ProcessorCheckpoint | null,
+  checkPosition: ProcessorCheckpoint | null,
   partition: string,
   processorInstanceId?: string,
 ): Promise<0 | 1 | 2> {
@@ -45,7 +46,7 @@ async function storeSubscriptionCheckpointSQLite(
 
     const currentPosition =
       current_position && current_position?.last_processed_checkpoint !== null
-        ? BigInt(current_position.last_processed_checkpoint)
+        ? current_position.last_processed_checkpoint
         : null;
 
     if (currentPosition === position) {
@@ -96,12 +97,10 @@ async function storeSubscriptionCheckpointSQLite(
   }
 }
 
-export type StoreLastProcessedProcessorPositionResult<
-  Position extends bigint | null = bigint,
-> =
+export type StoreLastProcessedProcessorPositionResult =
   | {
       success: true;
-      newPosition: Position;
+      newPosition: ProcessorCheckpoint | null;
     }
   | { success: false; reason: 'IGNORED' | 'MISMATCH' };
 
@@ -110,23 +109,23 @@ export async function storeProcessorCheckpoint(
   options: {
     processorId: string;
     version: number | undefined;
-    newPosition: bigint | null;
-    lastProcessedPosition: bigint | null;
+    newCheckpoint: ProcessorCheckpoint | null;
+    lastProcessedCheckpoint: ProcessorCheckpoint | null;
     partition?: string;
   },
-): Promise<StoreLastProcessedProcessorPositionResult<bigint | null>> {
+): Promise<StoreLastProcessedProcessorPositionResult> {
   try {
     const result = await storeSubscriptionCheckpointSQLite(
       execute,
       options.processorId,
       options.version ?? 1,
-      options.newPosition,
-      options.lastProcessedPosition,
+      options.newCheckpoint,
+      options.lastProcessedCheckpoint,
       options.partition ?? defaultTag,
     );
 
     return result === 1
-      ? { success: true, newPosition: options.newPosition }
+      ? { success: true, newPosition: options.newCheckpoint }
       : { success: false, reason: result === 0 ? 'IGNORED' : 'MISMATCH' };
   } catch (error) {
     console.log(error);

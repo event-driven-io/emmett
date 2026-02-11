@@ -1,12 +1,14 @@
 import {
   IllegalStateError,
   type CurrentMessageProcessorPosition,
+  type ProcessorCheckpoint,
 } from '@event-driven-io/emmett';
 
 export type MongoDBResumeToken = Readonly<{ _data: string }>;
 
 export type MongoDBCheckpoint =
-  `emt:chkpt:mongodb:${MongoDBResumeToken['_data']}:${bigint}`;
+  `emt:chkpt:mongodb:${MongoDBResumeToken['_data']}:${bigint}` &
+    ProcessorCheckpoint;
 
 export const isMongoDBCheckpoint = (
   value: unknown,
@@ -124,10 +126,9 @@ export const compareTwoTokens = (token1: unknown, token2: unknown) => {
   throw new IllegalStateError(`Type of tokens is not comparable`);
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const zipMongoDBMessageBatchPullerStartFrom = <CheckpointType = any>(
-  options: (CurrentMessageProcessorPosition<CheckpointType> | undefined)[],
-): CurrentMessageProcessorPosition<CheckpointType> => {
+export const zipMongoDBMessageBatchPullerStartFrom = (
+  options: (CurrentMessageProcessorPosition | undefined)[],
+): CurrentMessageProcessorPosition => {
   if (
     options.length === 0 ||
     options.some((o) => o === undefined || o === 'BEGINNING')

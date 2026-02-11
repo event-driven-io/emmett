@@ -4,6 +4,7 @@ import {
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
   assertExpectedVersionMatchesCurrent,
+  bigIntProcessorCheckpoint,
   downcastRecordedMessages,
   upcastRecordedMessage,
   type AggregateStreamOptions,
@@ -298,7 +299,7 @@ export const getEventStoreDBEventStore = (
   };
 };
 
-const getCheckpoint = <MessageType extends AnyMessage = AnyMessage>(
+const getESDBCheckpoint = <MessageType extends AnyMessage = AnyMessage>(
   resolvedEvent: ResolvedEvent<MessageType>,
   from?: EventStoreDBEventStoreConsumerType,
 ): bigint => {
@@ -323,7 +324,9 @@ export const mapFromESDBEvent = <MessageType extends AnyMessage = AnyMessage>(
       streamName: event.streamId,
       streamPosition: event.revision,
       globalPosition: event.position!.commit,
-      checkpoint: getCheckpoint(resolvedEvent, from),
+      checkpoint: bigIntProcessorCheckpoint(
+        getESDBCheckpoint(resolvedEvent, from),
+      ),
     },
   };
 };

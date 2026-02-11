@@ -6,6 +6,7 @@ import {
   AssertionError,
   assertThatArray,
   assertTrue,
+  bigIntProcessorCheckpoint,
   isErrorConstructor,
   type CombinedReadEventMetadata,
   type Event,
@@ -96,7 +97,8 @@ export const SQLiteProjectionSpec = {
                 ...Array.from({ length: numberOfTimes }).flatMap(() => events),
               ]) {
                 const metadata: SQLiteReadEventMetadata = {
-                  globalPosition: ++globalPosition,
+                  checkpoint: bigIntProcessorCheckpoint(++globalPosition),
+                  globalPosition,
                   streamPosition: globalPosition,
                   streamName: `test-${uuid()}`,
                   messageId: uuid(),

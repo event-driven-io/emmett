@@ -1,6 +1,6 @@
 import {
-  assertDefined,
   assertEqual,
+  assertFails,
   assertIsNotNull,
   assertNotEqual,
   assertOk,
@@ -197,12 +197,19 @@ void describe('MongoDBEventStore subscription', () => {
 
     assertOk(position);
     assertNotEqual(typeof position, 'string');
-    assertDefined(typeof position !== 'string');
+    assertOk(typeof position !== 'string');
+    if (typeof position === 'string') {
+      assertFails('Position should not be a string');
+      return;
+    }
 
     // processor after restart is renewed after the 3rd position.
     assertEqual(
       0,
-      compareTwoMongoDBCheckpoints(position.lastCheckpoint, lastResumeToken!),
+      compareTwoMongoDBCheckpoints(
+        position.lastCheckpoint as MongoDBCheckpoint,
+        lastResumeToken!,
+      ),
     );
 
     const consumerPromise = consumer.start();
@@ -229,7 +236,10 @@ void describe('MongoDBEventStore subscription', () => {
     // lastResumeToken has changed after the last message
     assertEqual(
       1,
-      compareTwoMongoDBCheckpoints(lastResumeToken!, position.lastCheckpoint),
+      compareTwoMongoDBCheckpoints(
+        lastResumeToken!,
+        position.lastCheckpoint as MongoDBCheckpoint,
+      ),
     );
 
     await consumer.stop();

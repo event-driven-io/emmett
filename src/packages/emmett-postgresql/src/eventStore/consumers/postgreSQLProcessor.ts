@@ -158,11 +158,11 @@ export const postgreSQLCheckpointer = <
     return { lastCheckpoint: result?.lastProcessedCheckpoint };
   },
   store: async (options, context) => {
-    const newPosition: bigint | null = getCheckpoint(options.message);
+    const newCheckpoint = getCheckpoint(options.message);
 
     const result = await storeProcessorCheckpoint(context.execute, {
       lastProcessedCheckpoint: options.lastCheckpoint,
-      newCheckpoint: newPosition,
+      newCheckpoint,
       processorId: options.processorId,
       partition: options.partition,
       version: options.version,
