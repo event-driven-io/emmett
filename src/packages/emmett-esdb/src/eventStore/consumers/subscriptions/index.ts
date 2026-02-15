@@ -14,13 +14,18 @@ import {
 } from '@event-driven-io/emmett';
 import type { EventStoreDBClient } from '@eventstore/db-client';
 import {
+  SequentialTransform,
+  type SequentialTransformHandler,
+  type SequentialTransformHandlerResult,
+} from '@event-driven-io/emmett/nodejs';
+import {
   END,
   excludeSystemEvents,
   START,
   type ResolvedEvent,
   type StreamSubscription,
 } from '@eventstore/db-client';
-import { pipeline, Transform, Writable, type WritableOptions } from 'stream';
+import { pipeline, Writable, type WritableOptions } from 'stream';
 import {
   mapFromESDBEvent,
   type EventStoreDBReadEventMetadata,
@@ -122,49 +127,45 @@ type SubscriptionSequentialHandlerOptions<
 
 class SubscriptionSequentialHandler<
   MessageType extends AnyMessage = AnyMessage,
-> extends Transform {
+> extends SequentialTransform<ResolvedEvent<MessageType>, bigint | null> {
   private options: SubscriptionSequentialHandlerOptions<MessageType>;
   private from: EventStoreDBEventStoreConsumerType | undefined;
   public isRunning: boolean;
 
   constructor(options: SubscriptionSequentialHandlerOptions<MessageType>) {
-    super({ objectMode: true, ...options });
-    this.options = options;
-    this.from = options.from;
-    this.isRunning = true;
-  }
-
-  async _transform(
-    resolvedEvent: ResolvedEvent<MessageType>,
-    _encoding: BufferEncoding,
-    callback: (error?: Error | null) => void,
-  ): Promise<void> {
-    try {
+    const handler: SequentialTransformHandler<
+      ResolvedEvent<MessageType>,
+      bigint
+    > = async (
+      resolvedEvent: ResolvedEvent<MessageType>,
+    ): Promise<SequentialTransformHandlerResult<bigint>> => {
       if (!this.isRunning || !resolvedEvent.event) {
-        callback();
-        return;
+        return { resultType: 'SKIP' };
       }
 
       const message = mapFromESDBEvent(resolvedEvent, this.from);
-      const messageCheckpoint = getCheckpoint(message);
+      const messageCheckpoint = getCheckpoint(message)!;
 
       const result = await this.options.eachBatch([message]);
 
       if (result && result.type === 'STOP') {
         this.isRunning = false;
-        if (!result.error) this.push(messageCheckpoint);
+        if (!result.error) {
+          return { resultType: 'ACK', message: messageCheckpoint };
+        }
 
-        this.push(result);
-        this.push(null);
-        callback();
-        return;
+        return { resultType: 'STOP', ...result };
       }
 
-      this.push(messageCheckpoint);
-      callback();
-    } catch (error) {
-      callback(error as Error);
-    }
+      return { resultType: 'ACK', message: messageCheckpoint };
+    };
+    super({
+      ...options,
+      handler,
+    });
+    this.options = options;
+    this.from = options.from;
+    this.isRunning = true;
   }
 }
 
