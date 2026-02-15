@@ -163,6 +163,7 @@ export const getSQLiteEventStore = <
                 context: {
                   execute: context.connection.execute,
                   connection: context.connection,
+                  driverType: options.driver.driverType,
                 },
               });
             }
@@ -253,7 +254,7 @@ export const getSQLiteEventStore = <
     >(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions<EventType, EventPayloadType>,
+      appendOptions?: AppendToStreamOptions<EventType, EventPayloadType>,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
@@ -262,7 +263,7 @@ export const getSQLiteEventStore = <
 
       const appendResult = await withConnection((connection) =>
         appendToStream(connection, streamName, streamType, events, {
-          ...(options as AppendToStreamOptions),
+          ...(appendOptions as AppendToStreamOptions),
           onBeforeCommit: async (messages, context) => {
             if (inlineProjections.length > 0)
               await handleProjections({
@@ -270,6 +271,7 @@ export const getSQLiteEventStore = <
                 events: messages,
                 execute: context.connection.execute,
                 connection: context.connection,
+                driverType: options.driver.driverType,
               });
 
             if (onBeforeCommitHook) await onBeforeCommitHook(messages, context);
@@ -280,7 +282,7 @@ export const getSQLiteEventStore = <
       if (!appendResult.success)
         throw new ExpectedVersionConflictError(
           -1n, //TODO: Return actual version in case of error
-          options?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
+          appendOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
         );
 
       return {
