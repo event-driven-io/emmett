@@ -71,6 +71,7 @@ export const SQLiteProjectionSpec = {
     options: SQLiteProjectionSpecOptions<EventType, Driver>,
   ): SQLiteProjectionSpec<EventType> => {
     {
+      const driverType = options.driver.driverType;
       const pool =
         options.pool ??
         dumbo({
@@ -121,7 +122,11 @@ export const SQLiteProjectionSpec = {
                 await projection.init({
                   registrationType: 'async',
                   status: 'active',
-                  context: { execute: connection.execute, connection },
+                  context: {
+                    execute: connection.execute,
+                    connection,
+                    driverType,
+                  },
                   version: projection.version ?? 1,
                 });
                 wasInitialized = true;
@@ -133,6 +138,7 @@ export const SQLiteProjectionSpec = {
                   projections: [projection],
                   execute: connection.execute,
                   connection,
+                  driverType,
                 }),
               );
             };

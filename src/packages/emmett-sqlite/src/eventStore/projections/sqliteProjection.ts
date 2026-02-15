@@ -1,4 +1,8 @@
-import type { SQL, SQLExecutor } from '@event-driven-io/dumbo';
+import type {
+  DatabaseDriverType,
+  SQL,
+  SQLExecutor,
+} from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   projection,
@@ -15,6 +19,7 @@ import type { SQLiteReadEventMetadata } from '../SQLiteEventStore';
 export type SQLiteProjectionHandlerContext = {
   execute: SQLExecutor;
   connection: AnySQLiteConnection;
+  driverType: DatabaseDriverType;
 };
 
 export type SQLiteProjectionHandler<
@@ -44,7 +49,13 @@ export type SQLiteProjectionHandlerOptions<EventType extends Event = Event> = {
 export const handleProjections = async <EventType extends Event = Event>(
   options: SQLiteProjectionHandlerOptions<EventType>,
 ): Promise<void> => {
-  const { projections: allProjections, events, connection, execute } = options;
+  const {
+    projections: allProjections,
+    events,
+    connection,
+    execute,
+    driverType,
+  } = options;
 
   const eventTypes = events.map((e) => e.type);
 
@@ -55,6 +66,7 @@ export const handleProjections = async <EventType extends Event = Event>(
     await projection.handle(events, {
       connection,
       execute,
+      driverType,
     });
   }
 };
