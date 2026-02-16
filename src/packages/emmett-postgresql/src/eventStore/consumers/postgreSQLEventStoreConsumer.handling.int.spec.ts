@@ -1,4 +1,6 @@
+import { dumbo } from '@event-driven-io/dumbo';
 import {
+  assertEqual,
   assertThatArray,
   bigIntProcessorCheckpoint,
   type Event,
@@ -12,7 +14,10 @@ import {
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
-import type { PostgreSQLReactorOptions } from './postgreSQLProcessor';
+import {
+  postgreSQLReactor,
+  type PostgreSQLReactorOptions,
+} from './postgreSQLProcessor';
 
 const withDeadline = { timeout: 30000 };
 
@@ -439,6 +444,37 @@ void describe('PostgreSQL event store started consumer', () => {
         } finally {
           await consumer.close();
         }
+      },
+    );
+  });
+
+  void describe('SIGTERM shutdown', () => {
+    void it(
+      'closes PostgreSQL processor without error on SIGTERM',
+      withDeadline,
+      async () => {
+        // Given
+        const pool = dumbo({ connectionString });
+        const processor = postgreSQLReactor<GuestStayEvent>({
+          processorId: uuid(),
+          eachMessage: () => Promise.resolve(),
+        });
+
+        const startOptions = {
+          execute: pool.execute,
+          connection: { connectionString, pool },
+        } as Parameters<typeof processor.start>[0];
+
+        await processor.start(startOptions);
+
+        // When
+        process.emit('SIGTERM');
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        // Then
+        assertEqual(processor.isActive, false);
+
+        await pool.close();
       },
     );
   });
