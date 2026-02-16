@@ -195,6 +195,40 @@ void describe('Processors', () => {
       assertEqual(processor.isActive, false);
     });
 
+    void it('should pass startOptions to onClose hook on SIGTERM', async () => {
+      // Given
+      const processorId = uuid();
+      let receivedContext: Record<string, unknown> | undefined;
+
+      const startOptions = {
+        connectionString: 'postgresql://localhost:5432/testdb',
+      };
+
+      const processor = reactor({
+        processorId,
+        eachMessage: () => Promise.resolve(),
+        hooks: {
+          onClose: (context) => {
+            receivedContext = context as Record<string, unknown>;
+            return Promise.resolve();
+          },
+        },
+      });
+
+      await processor.start(startOptions);
+
+      // When - emit SIGTERM
+      process.emit('SIGTERM');
+      await Promise.resolve();
+
+      // Then - onClose should have received the connection context
+      assertOk(receivedContext !== undefined);
+      assertEqual(
+        receivedContext!.connectionString,
+        'postgresql://localhost:5432/testdb',
+      );
+    });
+
     void it('should cleanup signal handlers when closed manually', async () => {
       // Given
       const processorId = uuid();

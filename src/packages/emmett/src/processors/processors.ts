@@ -376,7 +376,7 @@ export const reactor = <
 
       isActive = true;
 
-      closeSignal = onShutdown(() => close({}));
+      closeSignal = onShutdown(() => close(startOptions));
 
       if (lastCheckpoint !== null)
         return {
