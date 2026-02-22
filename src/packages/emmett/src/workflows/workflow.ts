@@ -25,6 +25,23 @@ export type WorkflowCommand<Output extends AnyEvent | AnyCommand> = Extract<
   { kind?: 'Command' }
 >;
 
+export type WorkflowMessageAction =
+  | 'InitiatedBy'
+  | 'Received'
+  | 'Sent'
+  | 'Published'
+  | 'Scheduled';
+
+export type WorkflowInputMessageMetadata = Readonly<{
+  originalMessageId: string;
+  input: true;
+  action?: Extract<WorkflowMessageAction, 'InitiatedBy' | 'Received'>;
+}>;
+
+export type WorkflowOutputMessageMetadata = Readonly<{
+  action?: Extract<WorkflowMessageAction, 'Sent' | 'Published' | 'Scheduled'>;
+}>;
+
 export type WorkflowOutput<Output extends AnyEvent | AnyCommand | EmmettError> =
   | Output
   | Output[];

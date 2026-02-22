@@ -32,6 +32,7 @@ export type WorkflowOptions<
     input: Input | RecordedMessage<Input, MessageMetadataType>,
   ) => string | null;
   mapWorkflowId?: (workflowId: string) => string;
+  separateInputInboxFromProcessing?: boolean;
   inputs: {
     commands: CanHandle<WorkflowCommand<Input>>;
     events: CanHandle<WorkflowEvent<Input>>;
@@ -95,7 +96,14 @@ export const workflowProcessor = <
   >,
 ): MessageProcessor<Input, MetaDataType, HandlerContext> => {
   const { workflow, ...rest } = options;
-  const canHandle = [...options.inputs.commands, ...options.inputs.events];
+  const canHandle = options.separateInputInboxFromProcessing
+    ? [
+        ...options.inputs.commands,
+        ...options.inputs.events,
+        ...options.inputs.commands.map((t) => `${workflow.name}:${t}`),
+        ...options.inputs.events.map((t) => `${workflow.name}:${t}`),
+      ]
+    : [...options.inputs.commands, ...options.inputs.events];
 
   const handle = WorkflowHandler(options);
 
