@@ -1,5 +1,9 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
-import type { MessageProcessor } from '@event-driven-io/emmett';
+import type {
+  AnyCommand,
+  MessageProcessor,
+  WorkflowProcessorContext,
+} from '@event-driven-io/emmett';
 import {
   EmmettError,
   type AnyEvent,
@@ -23,9 +27,12 @@ import {
 import {
   postgreSQLProjector,
   postgreSQLReactor,
+  postgreSQLWorkflowProcessor,
   type PostgreSQLProcessor,
+  type PostgreSQLProcessorHandlerContext,
   type PostgreSQLProjectorOptions,
   type PostgreSQLReactorOptions,
+  type PostgreSQLWorkflowProcessorOptions,
 } from './postgreSQLProcessor';
 
 export type PostgreSQLEventStoreConsumerConfig<
@@ -56,6 +63,27 @@ export type PostgreSQLEventStoreConsumer<
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       options: PostgreSQLReactorOptions<MessageType>,
     ) => PostgreSQLProcessor<MessageType>;
+
+    workflowProcessor: <
+      Input extends AnyEvent | AnyCommand,
+      State,
+      Output extends AnyEvent | AnyCommand,
+      MetaDataType extends AnyRecordedMessageMetadata =
+        AnyRecordedMessageMetadata,
+      HandlerContext extends PostgreSQLProcessorHandlerContext &
+        WorkflowProcessorContext = PostgreSQLProcessorHandlerContext &
+        WorkflowProcessorContext,
+      StoredMessage extends AnyEvent | AnyCommand = Output,
+    >(
+      options: PostgreSQLWorkflowProcessorOptions<
+        Input,
+        State,
+        Output,
+        MetaDataType,
+        HandlerContext,
+        StoredMessage
+      >,
+    ) => PostgreSQLProcessor<Input>;
   }> &
   (AnyEvent extends ConsumerMessageType
     ? Readonly<{
@@ -188,6 +216,39 @@ export const postgreSQLEventStoreConsumer = <
       options: PostgreSQLProjectorOptions<EventType>,
     ): PostgreSQLProcessor<EventType> => {
       const processor = postgreSQLProjector(options);
+
+      processors.push(
+        // TODO: change that
+        processor as unknown as MessageProcessor<
+          ConsumerMessageType,
+          AnyRecordedMessageMetadata,
+          DefaultRecord
+        >,
+      );
+
+      return processor;
+    },
+    workflowProcessor: <
+      Input extends AnyEvent | AnyCommand,
+      State,
+      Output extends AnyEvent | AnyCommand,
+      MetaDataType extends AnyRecordedMessageMetadata =
+        AnyRecordedMessageMetadata,
+      HandlerContext extends PostgreSQLProcessorHandlerContext &
+        WorkflowProcessorContext = PostgreSQLProcessorHandlerContext &
+        WorkflowProcessorContext,
+      StoredMessage extends AnyEvent | AnyCommand = Output,
+    >(
+      options: PostgreSQLWorkflowProcessorOptions<
+        Input,
+        State,
+        Output,
+        MetaDataType,
+        HandlerContext,
+        StoredMessage
+      >,
+    ): PostgreSQLProcessor<Input> => {
+      const processor = postgreSQLWorkflowProcessor(options);
 
       processors.push(
         // TODO: change that
