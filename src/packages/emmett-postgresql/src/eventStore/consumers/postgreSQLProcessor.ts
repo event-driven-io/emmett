@@ -298,7 +298,7 @@ const postgreSQLProcessingScope = (options: {
           client,
           transaction: transaction as PgTransaction,
           messageStore: getPostgreSQLEventStore(connectionString, {
-            connectionOptions: { dumbo: pool as PgPool },
+            connectionOptions: { client },
           }),
         },
       });
@@ -471,7 +471,7 @@ export const postgreSQLWorkflowProcessor = <
     HandlerContext,
     StoredMessage
   >,
-): PostgreSQLProcessor<Input> => {
+): PostgreSQLProcessor<Input | Output> => {
   const {
     processorId = options.processorId ??
       getWorkflowId({
@@ -523,12 +523,12 @@ export const postgreSQLWorkflowProcessor = <
       processorId,
       partition,
     }) as unknown as MessageProcessingScope<HandlerContext>,
-    checkpoints: postgreSQLCheckpointer<Input>() as Checkpointer<
-      Input,
+    checkpoints: postgreSQLCheckpointer<Input | Output>() as Checkpointer<
+      Input | Output,
       MetaDataType,
       HandlerContext
     >,
-  }) as PostgreSQLProcessor<Input>;
+  }) as PostgreSQLProcessor<Input | Output>;
 };
 
 export const postgreSQLReactor = <

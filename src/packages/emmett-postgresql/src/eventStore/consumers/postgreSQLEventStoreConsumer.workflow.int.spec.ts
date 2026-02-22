@@ -1,6 +1,7 @@
 import {
   assertEqual,
   assertThatArray,
+  WorkflowHandler,
   type WorkflowOptions,
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
@@ -89,8 +90,9 @@ void describe('PostgreSQL event store workflow processor', () => {
         GroupCheckoutOutput
       >({
         ...workflowProcessorOptions,
+        separateInputInboxFromProcessing: true,
         stopAfter: (message) =>
-          message.type === 'InitiateGroupCheckout' &&
+          message.type === 'GroupCheckoutInitiated' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
 
@@ -149,9 +151,10 @@ void describe('PostgreSQL event store workflow processor', () => {
         GroupCheckoutOutput
       >({
         ...workflowProcessorOptions,
+        separateInputInboxFromProcessing: true,
         processorId: `workflow-${groupCheckoutId}-initiate`,
         stopAfter: (message) =>
-          message.type === 'InitiateGroupCheckout' &&
+          message.type === 'GroupCheckoutInitiated' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
 
@@ -186,10 +189,11 @@ void describe('PostgreSQL event store workflow processor', () => {
         GroupCheckoutOutput
       >({
         ...workflowProcessorOptions,
+        separateInputInboxFromProcessing: true,
         processorId: `workflow-${groupCheckoutId}-complete`,
         stopAfter: (message) =>
-          message.type === 'GuestCheckedOut' &&
-          message.data.guestStayAccountId === guestId,
+          message.type === 'GroupCheckoutCompleted' &&
+          message.data.groupCheckoutId === groupCheckoutId,
       });
 
       try {
@@ -266,6 +270,220 @@ void describe('PostgreSQL event store workflow processor', () => {
         // No workflow stream should have been created
         const { events } = await eventStore.readStream(nonExistentStreamId);
         assertThatArray(events).isEmpty();
+      } finally {
+        await consumer.close();
+      }
+    },
+  );
+
+  void it(
+    'processes messages directly in regular mode (separateInputInboxFromProcessing: false)',
+    withDeadline,
+    async () => {
+      const groupCheckoutId = uuid();
+      const guestStayAccountIds = [uuid()];
+      const now = new Date();
+
+      const consumer = postgreSQLEventStoreConsumer({
+        connectionString,
+      });
+
+      consumer.workflowProcessor<
+        GroupCheckoutInput,
+        GroupCheckout,
+        GroupCheckoutOutput
+      >({
+        ...workflowProcessorOptions,
+        separateInputInboxFromProcessing: false,
+        stopAfter: (message) =>
+          message.type === 'InitiateGroupCheckout' &&
+          message.data.groupCheckoutId === groupCheckoutId,
+      });
+
+      try {
+        const consumerPromise = consumer.start();
+
+        await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
+          {
+            type: 'InitiateGroupCheckout',
+            data: {
+              groupCheckoutId,
+              clerkId: 'clerk-1',
+              guestStayAccountIds,
+              now,
+            },
+          },
+        ]);
+
+        await consumerPromise;
+
+        const { events } = await eventStore.readStream(
+          `emt:workflow:${groupCheckoutId}`,
+        );
+
+        assertThatArray(events).isNotEmpty();
+        // In regular mode, input IS stored with workflow prefix, but together with outputs
+        // This is the single-operation: input + outputs appended together
+        assertEqual(
+          events[0]!.type,
+          'GroupCheckoutWorkflow:InitiateGroupCheckout',
+        );
+        assertEqual(events[1]!.type, 'GroupCheckoutInitiated');
+        assertEqual(events[2]!.type, 'CheckOut');
+
+        // Verify we got all messages in one operation (NOT double-hop)
+        assertThatArray(events).hasSize(3);
+      } finally {
+        await consumer.close();
+      }
+    },
+  );
+
+  void it(
+    'stores input first then processes in double-hop mode (separateInputInboxFromProcessing: true)',
+    withDeadline,
+    async () => {
+      const groupCheckoutId = uuid();
+      const guestStayAccountIds = [uuid(), uuid()];
+      const now = new Date();
+
+      const consumer = postgreSQLEventStoreConsumer({
+        connectionString,
+      });
+
+      consumer.workflowProcessor<
+        GroupCheckoutInput,
+        GroupCheckout,
+        GroupCheckoutOutput
+      >({
+        ...workflowProcessorOptions,
+        separateInputInboxFromProcessing: true,
+        stopAfter: (message) =>
+          message.type === 'GroupCheckoutInitiated' &&
+          message.data.groupCheckoutId === groupCheckoutId,
+      });
+
+      try {
+        const consumerPromise = consumer.start();
+
+        await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
+          {
+            type: 'InitiateGroupCheckout',
+            data: {
+              groupCheckoutId,
+              clerkId: 'clerk-1',
+              guestStayAccountIds,
+              now,
+            },
+          },
+        ]);
+
+        await consumerPromise;
+
+        const { events } = await eventStore.readStream(
+          `emt:workflow:${groupCheckoutId}`,
+        );
+
+        assertThatArray(events).isNotEmpty();
+        // In double-hop mode, first message should be the prefixed input
+        assertEqual(
+          events[0]!.type,
+          'GroupCheckoutWorkflow:InitiateGroupCheckout',
+        );
+        // Then the workflow outputs
+        assertEqual(events[1]!.type, 'GroupCheckoutInitiated');
+        assertEqual(events[2]!.type, 'CheckOut');
+        assertEqual(events[3]!.type, 'CheckOut');
+      } finally {
+        await consumer.close();
+      }
+    },
+  );
+
+  void it(
+    'processes external events in double-hop mode after storing with prefix',
+    withDeadline,
+    async () => {
+      const groupCheckoutId = uuid();
+      const guestId = uuid();
+      const now = new Date();
+
+      const handleWorkflow = WorkflowHandler(workflowProcessorOptions);
+      await handleWorkflow(eventStore, {
+        type: 'InitiateGroupCheckout',
+        data: {
+          groupCheckoutId,
+          clerkId: 'clerk-1',
+          guestStayAccountIds: [guestId],
+          now,
+        },
+      });
+
+      const consumer = postgreSQLEventStoreConsumer({
+        connectionString,
+      });
+
+      consumer.workflowProcessor<
+        GroupCheckoutInput,
+        GroupCheckout,
+        GroupCheckoutOutput
+      >({
+        ...workflowProcessorOptions,
+        separateInputInboxFromProcessing: true,
+        stopAfter: (message) =>
+          message.type === 'GroupCheckoutCompleted' &&
+          message.data.groupCheckoutId === groupCheckoutId,
+      });
+
+      try {
+        const consumerPromise = consumer.start();
+
+        await eventStore.appendToStream(`guestStay-${guestId}`, [
+          {
+            type: 'GuestCheckedOut',
+            data: {
+              guestStayAccountId: guestId,
+              checkedOutAt: now,
+              groupCheckoutId,
+            },
+          },
+        ]);
+
+        await consumerPromise;
+
+        const { events } = await eventStore.readStream(
+          `emt:workflow:${groupCheckoutId}`,
+        );
+
+        const eventTypes = events.map((e) => e.type);
+        // Verify both prefixed inputs are stored
+        assertThatArray(eventTypes).containsElements([
+          'GroupCheckoutWorkflow:InitiateGroupCheckout',
+          'GroupCheckoutInitiated',
+          'GroupCheckoutWorkflow:GuestCheckedOut',
+          'GroupCheckoutCompleted',
+        ]);
+
+        // Verify the prefixed messages appear before their corresponding outputs
+        const initiateIndex = eventTypes.indexOf(
+          'GroupCheckoutWorkflow:InitiateGroupCheckout',
+        );
+        const initiatedIndex = eventTypes.indexOf('GroupCheckoutInitiated');
+        assertEqual(
+          initiateIndex < initiatedIndex,
+          true,
+          'Prefixed input should appear before its output',
+        );
+
+        const guestCheckedOutIndex = eventTypes.indexOf(
+          'GroupCheckoutWorkflow:GuestCheckedOut',
+        );
+        const completedIndex = eventTypes.indexOf('GroupCheckoutCompleted');
+        assertEqual(
+          guestCheckedOutIndex < completedIndex,
+          true,
+          'Prefixed external input should appear before completion output',
+        );
       } finally {
         await consumer.close();
       }

@@ -1,3 +1,4 @@
+import { v7 as uuid } from 'uuid';
 import {
   canCreateEventStoreSession,
   isExpectedVersionConflictError,
@@ -66,7 +67,7 @@ export type WorkflowHandlerResult<
   newMessages: Output[];
 };
 
-export type HandleOptions<Store extends EventStore> = Parameters<
+export type WorkflowHandleOptions<Store extends EventStore> = Parameters<
   Store['appendToStream']
 >[2] & {
   expectedStreamVersion?: ExpectedStreamVersion;
@@ -195,9 +196,8 @@ export const WorkflowHandler =
   ) =>
   async <Store extends EventStore>(
     store: Store,
-    message: RecordedMessage<Input, MessageMetadataType>,
-    _context: HandlerContext,
-    handleOptions?: HandleOptions<Store>,
+    message: Input | RecordedMessage<Input, MessageMetadataType>,
+    handleOptions?: WorkflowHandleOptions<Store>,
   ): Promise<WorkflowHandlerResult<Output, Store>> =>
     asyncRetry(
       async () => {
@@ -210,7 +210,27 @@ export const WorkflowHandler =
             getWorkflowId,
           } = options;
 
-          const workflowId = getWorkflowId(message);
+          const inputMessageId =
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            ('metadata' in message && message.metadata?.messageId
+              ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                (message.metadata.messageId as string | undefined)
+              : undefined) ?? uuid();
+
+          const messageWithMetadata: RecordedMessage<
+            Input,
+            MessageMetadataType
+          > = {
+            ...message,
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            metadata: {
+              messageId: inputMessageId,
+              ...(message as RecordedMessage<Input, MessageMetadataType>)
+                .metadata,
+            },
+          } as RecordedMessage<Input, MessageMetadataType>;
+
+          const workflowId = getWorkflowId(messageWithMetadata);
 
           if (!workflowId) {
             return emptyHandlerResult<Output, Store>();
@@ -220,21 +240,20 @@ export const WorkflowHandler =
             ? options.mapWorkflowId(workflowId)
             : `emt:workflow:${workflowId}`;
 
-          const messageType = message.type as string;
+          const messageType = messageWithMetadata.type as string;
           const hasWorkflowPrefix = messageType.startsWith(`${workflowName}:`);
 
           // Separated inbox mode: store-only path (no prefix = external input)
           if (options.separateInputInboxFromProcessing && !hasWorkflowPrefix) {
             const inputMetadata = createInputMetadata(
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-              message.metadata.messageId,
+              inputMessageId,
               'InitiatedBy',
             );
 
             const inputToStore = {
-              type: `${workflowName}:${message.type}`,
-              data: message.data,
-              kind: message.kind,
+              type: `${workflowName}:${messageWithMetadata.type}`,
+              data: messageWithMetadata.data,
+              kind: messageWithMetadata.kind,
               metadata: inputMetadata,
             } as StoredMessage;
 
@@ -297,8 +316,8 @@ export const WorkflowHandler =
             aggregationResult.state;
 
           // Idempotency: skip if this input was already processed
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-          if (processedInputIds.has(message.metadata.messageId)) {
+
+          if (processedInputIds.has(inputMessageId)) {
             return emptyHandlerResult<Output, Store>(currentStreamVersion);
           }
 
@@ -306,23 +325,22 @@ export const WorkflowHandler =
           // Strip workflow prefix from message type if present (for separated inbox processing)
           const messageForDecide = hasWorkflowPrefix
             ? ({
-                ...message,
+                ...messageWithMetadata,
                 type: messageType.replace(`${workflowName}:`, ''),
               } as Input)
-            : (message as Input);
+            : (messageWithMetadata as Input);
 
           const result = decide(messageForDecide, state);
 
           const inputMetadata = createInputMetadata(
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-            message.metadata.messageId,
+            inputMessageId,
             aggregationResult.streamExists ? 'Received' : 'InitiatedBy',
           );
 
           const inputToStore = {
-            type: `${workflowName}:${message.type}`,
-            data: message.data,
-            kind: message.kind,
+            type: `${workflowName}:${messageWithMetadata.type}`,
+            data: messageWithMetadata.data,
+            kind: messageWithMetadata.kind,
             metadata: inputMetadata,
           } as StoredMessage;
 

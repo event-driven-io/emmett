@@ -63,7 +63,11 @@ export type WorkflowProcessorOptions<
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
 > = Omit<
-  BaseMessageProcessorOptions<Input, MessageMetadataType, HandlerContext>,
+  BaseMessageProcessorOptions<
+    Input | Output,
+    MessageMetadataType,
+    HandlerContext
+  >,
   'type' | 'canHandle' | 'processorId'
 > & { processorId?: string } & WorkflowOptions<
     Input,
@@ -120,7 +124,26 @@ export const workflowProcessor = <
       const messageType = message.type as string;
       if (!canHandle.includes(messageType)) return;
 
-      await handle(context.connection.messageStore, message, context);
+      const result = await handle(
+        context.connection.messageStore,
+        message,
+        context,
+      );
+
+      // Check stopAfter on output messages
+      if (options.stopAfter && result.newMessages.length > 0) {
+        for (const outputMessage of result.newMessages) {
+          if (
+            options.stopAfter(
+              outputMessage as RecordedMessage<Output, MetaDataType>,
+            )
+          ) {
+            return { type: 'STOP', reason: 'Stop condition reached' };
+          }
+        }
+      }
+
+      return;
     },
   });
 };

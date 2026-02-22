@@ -33,7 +33,7 @@ export type WorkflowMessageAction =
   | 'Scheduled';
 
 export type WorkflowInputMessageMetadata = Readonly<{
-  originalMessageId: string;
+  originalMessageId: string | undefined;
   input: true;
   action?: Extract<WorkflowMessageAction, 'InitiatedBy' | 'Received'>;
 }>;
