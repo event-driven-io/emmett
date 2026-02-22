@@ -20,7 +20,11 @@ import type {
   RecordedMessage,
 } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
-import type { WorkflowEvent } from './workflow';
+import type {
+  WorkflowEvent,
+  WorkflowInputMessageMetadata,
+  WorkflowMessageAction,
+} from './workflow';
 import type { WorkflowOptions } from './workflowProcessor';
 
 export const WorkflowHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
@@ -64,15 +68,111 @@ export type WorkflowHandlerResult<
 
 export type HandleOptions<Store extends EventStore> = Parameters<
   Store['appendToStream']
->[2] &
-  (
-    | {
-        expectedStreamVersion?: ExpectedStreamVersion;
-      }
-    | {
-        retry?: WorkflowHandlerRetryOptions;
-      }
-  );
+>[2] & {
+  expectedStreamVersion?: ExpectedStreamVersion;
+  retry?: WorkflowHandlerRetryOptions;
+};
+
+type WorkflowInternalState<State> = {
+  userState: State;
+  processedInputIds: Set<string>;
+};
+
+const emptyHandlerResult = <
+  Output extends AnyEvent | AnyCommand,
+  Store extends EventStore,
+>(
+  nextExpectedStreamVersion: bigint = 0n,
+): WorkflowHandlerResult<Output, Store> =>
+  ({
+    newMessages: [] as Output[],
+    createdNewStream: false,
+    nextExpectedStreamVersion,
+  }) as unknown as WorkflowHandlerResult<Output, Store>;
+
+const createInputMetadata = (
+  originalMessageId: string,
+  action: Extract<WorkflowMessageAction, 'InitiatedBy' | 'Received'>,
+): WorkflowInputMessageMetadata => ({
+  originalMessageId,
+  input: true,
+  action,
+});
+
+const tagOutputMessage = <Output extends AnyEvent | AnyCommand>(
+  msg: Output,
+  action: Extract<WorkflowMessageAction, 'Sent' | 'Published' | 'Scheduled'>,
+): Output => {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const existingMetadata =
+    'metadata' in msg && msg.metadata ? msg.metadata : {};
+  return {
+    ...msg,
+    metadata: {
+      ...existingMetadata,
+      action,
+    },
+  } as Output;
+};
+
+const createWrappedInitialState = <State>(initialState: () => State) => {
+  return (): WorkflowInternalState<State> => ({
+    userState: initialState(),
+    processedInputIds: new Set(),
+  });
+};
+
+const createWrappedEvolve = <
+  Input extends AnyEvent | AnyCommand,
+  Output extends AnyEvent | AnyCommand,
+  State,
+>(
+  evolve: (state: State, event: WorkflowEvent<Input | Output>) => State,
+  workflowName: string,
+  separateInputInboxFromProcessing: boolean,
+) => {
+  return (
+    state: WorkflowInternalState<State>,
+    event: WorkflowEvent<Input | Output>,
+  ): WorkflowInternalState<State> => {
+    const metadata = (event as Record<string, unknown>).metadata as
+      | Record<string, unknown>
+      | undefined;
+
+    // Track processed inputs for idempotency
+    let processedInputIds = state.processedInputIds;
+    if (
+      metadata?.input === true &&
+      typeof metadata?.originalMessageId === 'string'
+    ) {
+      processedInputIds = new Set(state.processedInputIds);
+      processedInputIds.add(metadata.originalMessageId);
+    }
+
+    // In separated inbox mode, don't apply inputs to state - they're just sitting in inbox
+    // Only outputs (from processing) should update state
+    if (separateInputInboxFromProcessing && metadata?.input === true) {
+      return {
+        userState: state.userState,
+        processedInputIds,
+      };
+    }
+
+    // Strip workflow prefix from input event types
+    const eventType = event.type as string;
+    const eventForEvolve = eventType.startsWith(`${workflowName}:`)
+      ? ({
+          ...event,
+          type: eventType.replace(`${workflowName}:`, ''),
+        } as WorkflowEvent<Input | Output>)
+      : event;
+
+    return {
+      userState: evolve(state.userState, eventForEvolve),
+      processedInputIds,
+    };
+  };
+};
 
 export const WorkflowHandler =
   <
@@ -113,51 +213,70 @@ export const WorkflowHandler =
           const workflowId = getWorkflowId(message);
 
           if (!workflowId) {
-            return {
-              newMessages: [],
-              createdNewStream: false,
-              nextExpectedStreamVersion: 0n,
-            } as unknown as WorkflowHandlerResult<Output, Store>;
+            return emptyHandlerResult<Output, Store>();
           }
 
           const streamName = options.mapWorkflowId
             ? options.mapWorkflowId(workflowId)
             : `emt:workflow:${workflowId}`;
 
+          const messageType = message.type as string;
+          const hasWorkflowPrefix = messageType.startsWith(`${workflowName}:`);
+
+          // Separated inbox mode: store-only path (no prefix = external input)
+          if (options.separateInputInboxFromProcessing && !hasWorkflowPrefix) {
+            const inputMetadata = createInputMetadata(
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+              message.metadata.messageId,
+              'InitiatedBy',
+            );
+
+            const inputToStore = {
+              type: `${workflowName}:${message.type}`,
+              data: message.data,
+              kind: message.kind,
+              metadata: inputMetadata,
+            } as StoredMessage;
+
+            const appendResult = await eventStore.appendToStream(
+              streamName,
+              [inputToStore] as unknown as Event[],
+              {
+                ...(handleOptions as AppendToStreamOptions<
+                  Event,
+                  StoredMessage & Event
+                >),
+                expectedStreamVersion:
+                  handleOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
+              },
+            );
+
+            return {
+              ...appendResult,
+              newMessages: [] as Output[],
+            } as unknown as WorkflowHandlerResult<Output, Store>;
+          }
+
+          // Wrap the evolve and initialState for idempotency tracking
+          const wrappedInitialState = createWrappedInitialState(initialState);
+          const wrappedEvolve = createWrappedEvolve(
+            evolve,
+            workflowName,
+            options.separateInputInboxFromProcessing ?? false,
+          ) as (
+            state: WorkflowInternalState<State>,
+            event: WorkflowEvent<Input | Output>,
+          ) => WorkflowInternalState<State>;
+
           // 1. Aggregate the stream
           const aggregationResult = await eventStore.aggregateStream<
-            State,
+            WorkflowInternalState<State>,
             WorkflowEvent<Input | Output>,
             StoredMessage & Event
           >(streamName, {
-            evolve,
-            initialState,
+            evolve: wrappedEvolve,
+            initialState: wrappedInitialState,
             read: {
-              schema: {
-                ...options.schema,
-                // TODO: fix this any
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                versioning: {
-                  upcast: (event: StoredMessage) => {
-                    const eventType = event.type as string;
-
-                    const mappedInput = eventType.startsWith(`${workflowName}:`)
-                      ? ({
-                          ...event,
-
-                          type: eventType.replace(`${workflowName}:`, ''),
-                        } as unknown as StoredMessage)
-                      : event;
-
-                    if (options.schema?.versioning?.upcast) {
-                      return options.schema.versioning.upcast(mappedInput);
-                    }
-
-                    return mappedInput as unknown as Input;
-                  },
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                } as any,
-              },
               ...(handleOptions as ReadStreamOptions<
                 WorkflowEvent<Input | Output>,
                 StoredMessage & Event
@@ -174,25 +293,62 @@ export const WorkflowHandler =
 
           const { currentStreamVersion } = aggregationResult;
 
-          const state = aggregationResult.state;
+          const { userState: state, processedInputIds } =
+            aggregationResult.state;
+
+          // Idempotency: skip if this input was already processed
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+          if (processedInputIds.has(message.metadata.messageId)) {
+            return emptyHandlerResult<Output, Store>(currentStreamVersion);
+          }
 
           // 3. Run business logic
-          const result = decide(message as Input, state);
+          // Strip workflow prefix from message type if present (for separated inbox processing)
+          const messageForDecide = hasWorkflowPrefix
+            ? ({
+                ...message,
+                type: messageType.replace(`${workflowName}:`, ''),
+              } as Input)
+            : (message as Input);
+
+          const result = decide(messageForDecide, state);
+
+          const inputMetadata = createInputMetadata(
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+            message.metadata.messageId,
+            aggregationResult.streamExists ? 'Received' : 'InitiatedBy',
+          );
 
           const inputToStore = {
             type: `${workflowName}:${message.type}`,
             data: message.data,
             kind: message.kind,
-
-            metadata: {
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-              originalMessageId: message.metadata.messageId,
-              input: true,
-            },
+            metadata: inputMetadata,
           } as StoredMessage;
 
-          const outputMessages = Array.isArray(result) ? result : [result];
-          const messagesToAppend = [inputToStore, ...outputMessages];
+          const outputMessages = (
+            Array.isArray(result) ? result : [result]
+          ).filter((msg): msg is Output => msg !== undefined && msg !== null);
+
+          const outputCommandTypes = options.outputs?.commands ?? [];
+          const taggedOutputMessages = outputMessages.map((msg) => {
+            const action: WorkflowMessageAction = outputCommandTypes.includes(
+              msg.type as string,
+            )
+              ? 'Sent'
+              : 'Published';
+            return tagOutputMessage(msg, action);
+          });
+
+          const messagesToAppend =
+            options.separateInputInboxFromProcessing && hasWorkflowPrefix
+              ? [...taggedOutputMessages] // input already in stream
+              : [inputToStore, ...taggedOutputMessages]; // normal: store input + outputs
+
+          // If there are no messages to append, return early with current state
+          if (messagesToAppend.length === 0) {
+            return emptyHandlerResult<Output, Store>(currentStreamVersion);
+          }
 
           // Either use:
           // - provided expected stream version,
