@@ -8,8 +8,10 @@ import type {
   PgTransaction,
 } from '@event-driven-io/dumbo/pg';
 import type {
+  AnyCommand,
   AnyEvent,
   AnyMessage,
+  AnyRecordedMessageMetadata,
   BatchRecordedMessageHandlerWithContext,
   Checkpointer,
   Event,
@@ -22,6 +24,8 @@ import type {
   ReactorOptions,
   ReadEventMetadataWithGlobalPosition,
   SingleRecordedMessageHandlerWithContext,
+  WorkflowProcessorContext,
+  WorkflowProcessorOptions,
 } from '@event-driven-io/emmett';
 import {
   defaultProcessorPartition,
@@ -30,11 +34,17 @@ import {
   getCheckpoint,
   getProcessorInstanceId,
   getProjectorId,
+  getWorkflowId,
   projector,
   reactor,
   unknownTag,
+  workflowProcessor,
 } from '@event-driven-io/emmett';
 import type pg from 'pg';
+import {
+  getPostgreSQLEventStore,
+  type PostgresEventStore,
+} from '../postgreSQLEventStore';
 import {
   DefaultPostgreSQLProcessorLockPolicy,
   postgreSQLProcessorLock,
@@ -55,6 +65,7 @@ export type PostgreSQLProcessorHandlerContext = {
     client: PgClient;
     transaction: PgTransaction;
     pool: Dumbo;
+    messageStore: PostgresEventStore;
   };
 } &
   // TODO: Reconsider if it should be for all processors
@@ -210,6 +221,23 @@ export type PostgreSQLProjectorOptions<
   PostgreSQLProcessorOptionsBase &
   EventStoreSchemaMigrationOptions;
 
+export type PostgreSQLWorkflowProcessorOptions<
+  Input extends AnyEvent | AnyCommand,
+  State,
+  Output extends AnyEvent | AnyCommand,
+  MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
+  StoredMessage extends AnyEvent | AnyCommand = Output,
+> = WorkflowProcessorOptions<
+  Input,
+  State,
+  Output,
+  MetaDataType,
+  HandlerContext,
+  StoredMessage
+> &
+  PostgreSQLProcessorOptionsBase;
+
 export type PostgreSQLProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessagePayloadType extends AnyMessage = MessageType,
@@ -269,6 +297,9 @@ const postgreSQLProcessingScope = (options: {
           pool,
           client,
           transaction: transaction as PgTransaction,
+          messageStore: getPostgreSQLEventStore(connectionString, {
+            connectionOptions: { dumbo: pool as PgPool },
+          }),
         },
       });
     });
@@ -306,19 +337,21 @@ const getProcessorPool = (options: PostgreSQLConnectionOptions) => {
   };
 };
 
-const wrapHooksWithProcessorLocks = (
-  hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext> | undefined,
+const wrapHooksWithProcessorLocks = <
+  HandlerContext extends PostgreSQLProcessorHandlerContext,
+>(
+  hooks: ProcessorHooks<HandlerContext> | undefined,
   processorLock: ReturnType<typeof postgreSQLProcessorLock>,
-): ProcessorHooks<PostgreSQLProcessorHandlerContext> => ({
+): ProcessorHooks<HandlerContext> => ({
   ...(hooks ?? {}),
-  onStart: async (context: PostgreSQLProcessorHandlerContext) => {
+  onStart: async (context: HandlerContext) => {
     await processorLock.tryAcquire({ execute: context.execute });
 
     if (hooks?.onStart) await hooks.onStart(context);
   },
   onClose:
     hooks?.onClose || processorLock
-      ? async (context: PostgreSQLProcessorHandlerContext) => {
+      ? async (context: HandlerContext) => {
           await processorLock.release({ execute: context.execute });
 
           if (hooks?.onClose) await hooks.onClose(context);
@@ -418,6 +451,86 @@ export const postgreSQLProjector = <
   });
 
   return processor;
+};
+
+export const postgreSQLWorkflowProcessor = <
+  Input extends AnyEvent | AnyCommand,
+  State,
+  Output extends AnyEvent | AnyCommand,
+  MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  HandlerContext extends PostgreSQLProcessorHandlerContext &
+    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+    WorkflowProcessorContext = PostgreSQLProcessorHandlerContext &
+    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+    WorkflowProcessorContext,
+  StoredMessage extends AnyEvent | AnyCommand = Output,
+>(
+  options: PostgreSQLWorkflowProcessorOptions<
+    Input,
+    State,
+    Output,
+    MetaDataType,
+    HandlerContext,
+    StoredMessage
+  >,
+): PostgreSQLProcessor<Input> => {
+  const {
+    processorId = options.processorId ??
+      getWorkflowId({
+        workflowName: options.workflow.name ?? 'unknown',
+      }),
+    processorInstanceId = getProcessorInstanceId(processorId),
+    version = defaultProcessorVersion,
+    partition = defaultProcessorPartition,
+    lock,
+  } = options;
+
+  const { pool, connectionString, close } = getProcessorPool(options);
+
+  const processorLock = postgreSQLProcessorLock({
+    processorId,
+    version,
+    partition,
+    processorInstanceId,
+    projection: undefined,
+    lockAcquisitionPolicy:
+      lock?.acquisitionPolicy ?? DefaultPostgreSQLProcessorLockPolicy,
+    lockTimeoutSeconds: lock?.timeoutSeconds,
+  });
+
+  const hooks: ProcessorHooks<HandlerContext> = wrapHooksWithProcessorLocks(
+    {
+      ...(options.hooks ?? {}),
+      onClose: close
+        ? async (context: PostgreSQLProcessorHandlerContext) => {
+            if (options.hooks?.onClose)
+              await options.hooks?.onClose(context as HandlerContext);
+            if (close) await close();
+          }
+        : options.hooks?.onClose,
+    },
+    processorLock,
+  );
+
+  return workflowProcessor({
+    ...options,
+    processorId,
+    processorInstanceId,
+    version,
+    partition,
+    hooks,
+    processingScope: postgreSQLProcessingScope({
+      pool,
+      connectionString,
+      processorId,
+      partition,
+    }) as unknown as MessageProcessingScope<HandlerContext>,
+    checkpoints: postgreSQLCheckpointer<Input>() as Checkpointer<
+      Input,
+      MetaDataType,
+      HandlerContext
+    >,
+  }) as PostgreSQLProcessor<Input>;
 };
 
 export const postgreSQLReactor = <
