@@ -459,9 +459,7 @@ export const postgreSQLWorkflowProcessor = <
   Output extends AnyEvent | AnyCommand,
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends PostgreSQLProcessorHandlerContext &
-    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
     WorkflowProcessorContext = PostgreSQLProcessorHandlerContext &
-    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
     WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
 >(
