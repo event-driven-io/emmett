@@ -84,9 +84,20 @@ export const workflowProcessor = <
       if (workflowId === null) return;
 
       const streamName = `workflow-${options.processorId}-${workflowId}`;
-      await context.eventStore.appendToStream(streamName, [
-        { type: message.type, data: message.data } as Event,
-      ]);
+
+      const { state } = await context.eventStore.aggregateStream(streamName, {
+        evolve: options.workflow.evolve,
+        initialState: options.workflow.initialState,
+      });
+
+      const rawOutputs = options.workflow.decide(message, state);
+      const outputs = Array.isArray(rawOutputs) ? rawOutputs : [rawOutputs];
+
+      const eventsToStore: Event[] = [
+        { type: message.type, data: message.data },
+        ...outputs.map((o) => ({ type: o.type, data: o.data })),
+      ];
+      await context.eventStore.appendToStream(streamName, eventsToStore);
     },
   });
 };
