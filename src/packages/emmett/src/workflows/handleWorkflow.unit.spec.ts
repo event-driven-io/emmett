@@ -227,8 +227,8 @@ void describe('Workflow Handler', () => {
       {},
     );
 
-    // 1 GroupCheckoutInitiated + 2 CheckOut = version 3
-    assertEqual(first.nextExpectedStreamVersion, 3n);
+    // 1 input + 1 GroupCheckoutInitiated + 2 CheckOut = version 4
+    assertEqual(first.nextExpectedStreamVersion, 4n);
 
     const second = await handleWorkflow(
       eventStore,
@@ -243,9 +243,9 @@ void describe('Workflow Handler', () => {
       {},
     );
 
-    // Still one pending guest, so no output, version stays at 3
+    // No output from decide, but input is still stored, so version bumps to 5
     assertThatArray(second.newMessages).isEmpty();
-    assertEqual(second.nextExpectedStreamVersion, 3n);
+    assertEqual(second.nextExpectedStreamVersion, 5n);
   });
 
   void it('fails the group checkout when a guest checkout fails', async () => {
@@ -645,6 +645,167 @@ void describe('Workflow Handler', () => {
           completedAt: now,
         },
       });
+    });
+  });
+
+  void describe('input storage', () => {
+    void it('stores input with prefixed type and metadata in the workflow stream', async () => {
+      const groupCheckoutId = randomUUID();
+      const guestStayAccountIds = [randomUUID()];
+      const now = new Date();
+
+      const message = recorded<InitiateGroupCheckout>({
+        type: 'InitiateGroupCheckout',
+        data: {
+          groupCheckoutId,
+          clerkId: 'clerk-1',
+          guestStayAccountIds,
+          now,
+        },
+      });
+
+      await handleWorkflow(eventStore, message, {});
+
+      const { events } = await eventStore.readStream(
+        `emt:workflow:${groupCheckoutId}`,
+      );
+
+      const storedInput = events[0]!;
+      const inputMetadata = storedInput.metadata as Record<string, unknown>;
+
+      assertEqual(
+        storedInput.type,
+        'GroupCheckoutWorkflow:InitiateGroupCheckout',
+      );
+      assertEqual(inputMetadata.input, true);
+      assertEqual(inputMetadata.originalMessageId, message.metadata.messageId);
+    });
+
+    void it('upcasts prefixed input types back during state rebuild', async () => {
+      const groupCheckoutId = randomUUID();
+      const guestId = randomUUID();
+      const now = new Date();
+
+      await handleWorkflow(
+        eventStore,
+        recorded<InitiateGroupCheckout>({
+          type: 'InitiateGroupCheckout',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk-1',
+            guestStayAccountIds: [guestId],
+            now,
+          },
+        }),
+        {},
+      );
+
+      // Second call rebuilds state from the stream, which contains
+      // the prefixed input "GroupCheckout:InitiateGroupCheckout".
+      // The upcast must strip the prefix so evolve sees "GroupCheckoutInitiated"
+      // (the output event) and the input "InitiateGroupCheckout" correctly.
+      const { newMessages } = await handleWorkflow(
+        eventStore,
+        recorded<GuestCheckedOut>({
+          type: 'GuestCheckedOut',
+          data: {
+            guestStayAccountId: guestId,
+            checkedOutAt: now,
+            groupCheckoutId,
+          },
+        }),
+        {},
+      );
+
+      // If upcast failed, evolve wouldn't build the Pending state,
+      // and decide would return nothing for GuestCheckedOut on a NotExisting state.
+      assertThatArray(newMessages).hasSize(1);
+      assertEqual(newMessages[0]!.type, 'GroupCheckoutCompleted');
+    });
+
+    void it('stores input even when decide produces no output', async () => {
+      const groupCheckoutId = randomUUID();
+      const guestIds = [randomUUID(), randomUUID()];
+      const now = new Date();
+
+      await handleWorkflow(
+        eventStore,
+        recorded<InitiateGroupCheckout>({
+          type: 'InitiateGroupCheckout',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk-1',
+            guestStayAccountIds: guestIds,
+            now,
+          },
+        }),
+        {},
+      );
+
+      // Only one guest checks out — decide returns nothing
+      const { newMessages } = await handleWorkflow(
+        eventStore,
+        recorded<GuestCheckedOut>({
+          type: 'GuestCheckedOut',
+          data: {
+            guestStayAccountId: guestIds[0]!,
+            checkedOutAt: now,
+            groupCheckoutId,
+          },
+        }),
+        {},
+      );
+
+      assertThatArray(newMessages).isEmpty();
+
+      const { events } = await eventStore.readStream(
+        `emt:workflow:${groupCheckoutId}`,
+      );
+
+      // 4 from first call (input + 3 outputs) + 1 input from second call = 5
+      assertThatArray(events).hasSize(5);
+
+      const lastEvent = events[4]!;
+      assertEqual(lastEvent.type, 'GroupCheckoutWorkflow:GuestCheckedOut');
+      assertEqual((lastEvent.metadata as Record<string, unknown>).input, true);
+    });
+  });
+
+  void describe('mapWorkflowId', () => {
+    void it('uses custom stream name mapping', async () => {
+      const groupCheckoutId = randomUUID();
+      const customStreamName = `custom:checkout:${groupCheckoutId}`;
+
+      const handleWithMapping = WorkflowHandler<
+        GroupCheckoutInput,
+        GroupCheckout,
+        GroupCheckoutOutput,
+        WorkflowMeta
+      >({
+        ...workflowOptions,
+        mapWorkflowId: (id) => `custom:checkout:${id}`,
+      });
+
+      await handleWithMapping(
+        eventStore,
+        recorded<InitiateGroupCheckout>({
+          type: 'InitiateGroupCheckout',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk-1',
+            guestStayAccountIds: [randomUUID()],
+            now: new Date(),
+          },
+        }),
+        {},
+      );
+
+      const { events } = await eventStore.readStream(customStreamName);
+      assertTrue(events.length > 0);
+      assertEqual(
+        events[0]!.type,
+        'GroupCheckoutWorkflow:InitiateGroupCheckout',
+      );
     });
   });
 });

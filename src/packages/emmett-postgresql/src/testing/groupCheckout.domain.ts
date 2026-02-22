@@ -243,18 +243,16 @@ const initiateGroupCheckout = (
 ): [GroupCheckoutInitiated, ...CheckOut[]] | [] => {
   if (state.status !== 'NotExisting') return [];
 
-  const checkoutGuestStays: CheckOut[] = data.guestStayAccountIds.map(
-    (id) => ({
-      type: 'CheckOut',
-      data: {
-        guestStayAccountId: id,
-        groupCheckoutId: data.groupCheckoutId,
-      },
-      metadata: {
-        now: data.now,
-      },
-    }),
-  );
+  const checkoutGuestStays: CheckOut[] = data.guestStayAccountIds.map((id) => ({
+    type: 'CheckOut',
+    data: {
+      guestStayAccountId: id,
+      groupCheckoutId: data.groupCheckoutId,
+    },
+    metadata: {
+      now: data.now,
+    },
+  }));
 
   return [
     {
