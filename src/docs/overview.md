@@ -10,93 +10,122 @@ Welcome to Emmett's documentation!
 
 ## Main Features
 
-| Feature                           | Description                                                                           |
-| --------------------------------- | ------------------------------------------------------------------------------------- |
-| **Event-Centric Modeling**        | Structured approach to modeling business processes through events                     |
-| **Multiple Event Stores**         | Built-in support for PostgreSQL, EventStoreDB, MongoDB, SQLite, and In-Memory storage |
-| **Command Handling Patterns**     | Standardized approach to command processing and event handling                        |
-| **Building read models**          | Built-in projections to build read models from recorded events.                       |
-| **Type Safety**                   | First-class TypeScript support with structural typing                                 |
-| **Express.js Integration**        | Seamless integration with Express.js, including conventional error handling etc.      |
-| **Comprehensive Testing Support** | Tools for unit, integration, and E2E testing with BDD-style syntax                    |
-| **Lightweight Design**            | Focused on composition over replacement, allowing integration with existing systems   |
-| **Docker Testing Integration**    | Support for TestContainers to simplify database setup in tests                        |
+| Feature                       | Description                                                                                                                                                                              |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Event-Centric Modeling**    | Structured approach to modeling business processes through events                                                                                                                        |
+| **Multiple Event Stores**     | Built-in support for [PostgreSQL](/event-stores/postgresql), [EventStoreDB](/event-stores/esdb), [MongoDB](/event-stores/mongodb), [SQLite](/event-stores/sqlite), and In-Memory storage |
+| **Command Handling Patterns** | Standardized approach with the [Decider pattern](/api-reference/decider)                                                                                                                 |
+| **Projections**               | Built-in [projections](/guides/projections) to build read models from events                                                                                                             |
+| **Workflows**                 | Coordinate multi-step processes with [durable execution](/guides/workflows)                                                                                                              |
+| **Type Safety**               | First-class TypeScript support with structural typing                                                                                                                                    |
+| **Web Framework Integration** | Seamless integration with [Express.js](/frameworks/expressjs) and [Fastify](/frameworks/fastify)                                                                                         |
+| **Comprehensive Testing**     | [BDD-style testing](/guides/testing) with DeciderSpecification and ApiSpecification                                                                                                      |
+| **TestContainers Support**    | Docker-based testing with pre-configured containers                                                                                                                                      |
 
 ## Why Use Emmett?
 
-Nowadays, storage is cheap, but the information is priceless.
+Storage is cheap, but information is priceless.
 
-Event Sourcing, keeps all the facts that happened in our system as events. That provides an observability of the business process and enabling event-driven capabilities like building read models, easier integration between components.
+Event Sourcing keeps all the facts that happened in your system as events. This provides observability of business processes and enables event-driven capabilities like building read models and easier integration between components.
 
-**However, implementing Event Sourcing can be challenging due to:**
+**However, implementing Event Sourcing can be challenging:**
 
-- additional learning curves for new developers,
-- knowing how to structure your code,
-- implementing event storage,
-- difficulty in setting up proper testing strategies,
-- integrating with existing frameworks and infrastructure.
+- Learning curve for new developers
+- Uncertainty about code structure
+- Implementing event storage from scratch
+- Setting up proper testing strategies
+- Integrating with existing frameworks
 
-**Emmett solves these problems by:**
+**Emmett solves these problems:**
 
-- Reducing boilerplate with pragmatic abstractions,
-- Providing clear patterns for common operations,
-- Supporting multiple testing approaches with built-in utilities,
-- Including ready-to-use event store implementations,
-- Offering simple integration with Express.js.
+- Reduces boilerplate with pragmatic abstractions
+- Provides clear patterns (Decider, Command Handler, Projections)
+- Includes ready-to-use event store implementations
+- Offers comprehensive testing utilities
+- Integrates with Express.js and Fastify
 
-## First steps
+## Quick Navigation
 
-If you are new to Emmett or Event Sourcing, that is no problem, we've got you covered!
+<div class="grid-cards">
 
-Check the [Quick Intro](/quick-intro) tutorial to familiarise you with basic concepts.
+### Getting Started
 
-Then, the [Getting Started](/getting-started) guide will help you set up the first real application with Emmett.
+New to Emmett? Start here.
 
-You can also watch a full introduction video on how to build application:
+- [Quick Intro](/quick-intro) - Core concepts in 5 minutes
+- [Getting Started](/getting-started) - Build your first app
+
+### Guides
+
+Learn key patterns and techniques.
+
+- [Projections](/guides/projections) - Build read models
+- [Testing](/guides/testing) - Test strategies
+- [Error Handling](/guides/error-handling) - Handle errors gracefully
+- [Workflows](/guides/workflows) - Multi-step processes
+
+### Event Stores
+
+Choose your persistence layer.
+
+- [Comparison](/guides/choosing-event-store) - Which one to use?
+- [PostgreSQL](/event-stores/postgresql) - Production-ready
+- [EventStoreDB](/event-stores/esdb) - Native Event Sourcing
+- [MongoDB](/event-stores/mongodb) - Document storage
+- [SQLite](/event-stores/sqlite) - Development & testing
+
+### Resources
+
+Learn more and get help.
+
+- [Samples](/samples/) - Working examples
+- [Articles](/resources/articles) - Blog posts & tutorials
+- [Packages](/resources/packages) - npm packages
+- [Discord](https://discord.gg/fTpqUTMmVa) - Community help
+
+</div>
+
+## Video Introduction
+
+Watch a full introduction on building applications with Emmett:
 
 <YouTubeEmbed id="SDXdcymKv-8" />
 
-## Getting help
+## Getting Help
 
-If you need help or get stuck, feel free to ask on the [Emmett Community Discord Server](https://discord.gg/fTpqUTMmVa).
+- **Discord**: Join the [Emmett Community](https://discord.gg/fTpqUTMmVa) for questions and discussions
+- **GitHub Issues**: Report bugs at [event-driven-io/emmett](https://github.com/event-driven-io/emmett/issues)
+- **Articles**: Browse [blog posts](/resources/articles) for in-depth tutorials
 
-## API reference
+## Core Building Blocks
 
-The [API reference](/api-reference/) provides you with definitions and insights into Emmett's core building blocks:
+The [API reference](/api-reference/) covers Emmett's core abstractions:
 
-- **Events** are the centrepiece of event-sourced systems. They represent both critical points of the business process but are also used as the state.
-- **Commands** represent the intent to perform a business operation.
-- **Event Store** for recording events
-- **Command Handlers** are responsible for handling business logic. They read events from the event store for specific events and build a decision model. Then, check business rules and perform the intended business operation, resulting in one or more events to record the change.
+| Concept                                          | Description                                  |
+| ------------------------------------------------ | -------------------------------------------- |
+| [Event](/api-reference/event)                    | Immutable facts that happened in your system |
+| [Command](/api-reference/command)                | Requests to change state                     |
+| [Event Store](/api-reference/eventstore)         | Persistence layer for event streams          |
+| [Command Handler](/api-reference/commandhandler) | Processes commands into events               |
+| [Decider](/api-reference/decider)                | Pattern for business logic (decide + evolve) |
+| [Projections](/api-reference/projections)        | Build read models from events                |
+| [Workflows](/api-reference/workflows)            | Coordinate multi-aggregate processes         |
 
-## How the documentation is organized
+## Documentation Structure
 
-Currently, documentation for Emmett is spread across several places: This website, the [Emmett Discord](https://discord.gg/fTpqUTMmVa) and [quite a few blog articles](/overview#further-reading).
-We are currently in the process of consolidating and refactoring these into a single document on this website.
+This documentation follows the [Diataxis](https://diataxis.fr) framework:
 
-Our aim is that each part of the documentation roughly falls into one of these four categories:
+| Type              | Purpose                          | Examples                                                       |
+| ----------------- | -------------------------------- | -------------------------------------------------------------- |
+| **Tutorials**     | Learning-oriented, step-by-step  | [Getting Started](/getting-started)                            |
+| **How-to Guides** | Task-oriented, problem-solving   | [Testing](/guides/testing), [Projections](/guides/projections) |
+| **Reference**     | Information-oriented, technical  | [API Reference](/api-reference/)                               |
+| **Explanation**   | Understanding-oriented, concepts | [Choosing an Event Store](/guides/choosing-event-store)        |
 
-- **Tutorials** are lessons that take you by the hand, guiding you step-by-step towards building your own applications with Emmett. Start here if you are new to Emmett, Event Sourcing or writing applications with Typescript. Our [Getting Started](/getting-started) guide is a good place to look.
-- **Topic guides** discuss key topics and concepts fairly well and provide useful background information and explanation.
-- **Reference guides** contain technical references for APIs and other aspects of Emmett. They describe how it works and how to use it, but assume you have a basic understanding of key concepts.
-- **How-to guides** are recipes. They guide you through the steps involved in addressing key problems and use-cases. They are more advanced than tutorials and assume some knowledge of how Emmett works.
+## Featured Articles
 
-We aim to use [Diataxis](https://diataxis.fr) and its [workflow](https://diataxis.fr/how-to-use-diataxis/) as a systematic, user-centric approach to documentation.
+- [Announcing Emmett!](https://event-driven.io/en/introducing_emmett/) - Introduction and design philosophy
+- [Event Sourcing on PostgreSQL](https://event-driven.io/en/emmett_postgresql_event_store/) - Setting up PostgreSQL
+- [Testing Event Sourcing](https://event-driven.io/en/testing_event_sourcing_emmett_edition/) - Comprehensive testing guide
 
-## Further reading
-
-### Blog articles about Emmett
-
-- [Announcing Emmett! Take your event-driven applications back to the future!](https://event-driven.io/en/introducing_emmett/)
-- [Event Sourcing on PostgreSQL in Node.js just became possible with Emmett](https://event-driven.io/en/emmett_postgresql_event_store/)
-- [Writing and testing event-driven projections with Emmett, Pongo and PostgreSQL](https://event-driven.io/en/emmett_projections_testing/)
-- [Event Sourcing with Emmett: Reducing the Entry Barrier](https://medium.com/@mbneto/event-sourcing-with-emmett-how-to-reduce-the-entry-barrier-bf2d638c0437)
-- [Testing Event Sourcing, Emmett edition](https://event-driven.io/en/testing_event_sourcing_emmett_edition/)
-- [Using event metadata in event-driven projections](https://event-driven.io/en/projections_and_event_metadata/)
-- [How to configure a custom Test Container on the EventStoreDB example](https://event-driven.io/en/custom_test_container_on_esdb_example/)
-
-### Related Blogs
-
-- [How TypeScript can help in modelling business workflows](https://event-driven.io/en/how_to_have_fun_with_typescript_and_workflow/)
-- [How to build an in-memory Message Bus in TypeScript](https://event-driven.io/en/inmemory_message_bus_in_typescript/)
-- [How to tackle compatibility issues in ECMA Script modules (and in general)](https://event-driven.io/en/how_to_tackle_esmodules_compatibility_issues/)
+See all [blog articles](/resources/articles) for more tutorials and deep dives.
