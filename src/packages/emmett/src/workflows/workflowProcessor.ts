@@ -51,6 +51,8 @@ export type WorkflowOptions<
     commands: MessageTypeOf<WorkflowCommand<Output>>[];
     events: MessageTypeOf<WorkflowEvent<Output>>[];
   };
+  onCommand?: (command: Output) => Promise<void>;
+  onEvent?: (event: Output) => Promise<void>;
 };
 
 export const workflowProcessor = <
@@ -70,7 +72,10 @@ export const workflowProcessor = <
     CheckpointType
   >,
 ): MessageProcessor<Input, MetaDataType, HandlerContext, CheckpointType> => {
-  const { workflow: _workflow, ...rest } = options;
+  const { workflow: _workflow, onCommand, onEvent, ...rest } = options;
+
+  const commandTypes = new Set<string>(options.outputs.commands);
+  const eventTypes = new Set<string>(options.outputs.events);
 
   return reactor<Input, MetaDataType, HandlerContext, CheckpointType>({
     ...rest,
@@ -98,6 +103,14 @@ export const workflowProcessor = <
         ...outputs.map((o) => ({ type: o.type, data: o.data })),
       ];
       await context.eventStore.appendToStream(streamName, eventsToStore);
+
+      for (const output of outputs) {
+        if (commandTypes.has(output.type) && onCommand) {
+          await onCommand(output);
+        } else if (eventTypes.has(output.type) && onEvent) {
+          await onEvent(output);
+        }
+      }
     },
   });
 };

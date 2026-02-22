@@ -135,4 +135,60 @@ void describe('workflowProcessor', () => {
     assertEqual(result.events[3]!.type, 'Counted');
     assertDeepEqual(result.events[3]!.data, { id: 'wf-1', total: 2 });
   });
+
+  void it('routes output commands and events to separate handlers', async () => {
+    const eventStore = getInMemoryEventStore();
+    const routedCommands: Array<{ type: string; data: Record<string, unknown> }> =
+      [];
+    const routedEvents: Array<{ type: string; data: Record<string, unknown> }> =
+      [];
+
+    type MixedInput = Command<'Start', { id: string }>;
+    type MixedOutput =
+      | Command<'DoWork', { id: string }>
+      | Event<'Started', { id: string }>;
+
+    const mixedWorkflow: Workflow<
+      MixedInput,
+      { started: boolean },
+      MixedOutput
+    > = {
+      decide: (input) => [
+        { type: 'Started', data: { id: input.data.id } },
+        { type: 'DoWork', data: { id: input.data.id } },
+      ],
+      evolve: (state, event) => {
+        if (event.type === 'Started') return { started: true };
+        return state;
+      },
+      initialState: () => ({ started: false }),
+    };
+
+    const processor = workflowProcessor({
+      processorId: 'MixedWorkflow',
+      workflow: mixedWorkflow,
+      getWorkflowId: (msg) => msg.data.id,
+      inputs: { commands: ['Start'], events: [] },
+      outputs: { commands: ['DoWork'], events: ['Started'] },
+      onCommand: async (command) => {
+        routedCommands.push(command);
+      },
+      onEvent: async (event) => {
+        routedEvents.push(event);
+      },
+    });
+
+    await processor.start({ eventStore });
+
+    await processor.handle([recordedMessage('Start', { id: 'wf-1' }, 1n)], {
+      eventStore,
+    });
+
+    assertEqual(routedCommands.length, 1);
+    assertEqual(routedCommands[0]!.type, 'DoWork');
+    assertDeepEqual(routedCommands[0]!.data, { id: 'wf-1' });
+    assertEqual(routedEvents.length, 1);
+    assertEqual(routedEvents[0]!.type, 'Started');
+    assertDeepEqual(routedEvents[0]!.data, { id: 'wf-1' });
+  });
 });
