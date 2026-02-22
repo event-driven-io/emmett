@@ -44,6 +44,8 @@ const workflowProcessorOptions: WorkflowOptions<
   },
 };
 
+const handleWorkflow = WorkflowHandler(workflowProcessorOptions);
+
 void describe('PostgreSQL event store workflow processor', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
@@ -140,43 +142,16 @@ void describe('PostgreSQL event store workflow processor', () => {
       const guestId = uuid();
       const now = new Date();
 
-      // Step 1: Initiate the group checkout
-      const initiateConsumer = postgreSQLEventStoreConsumer({
-        connectionString,
+      // Step 1: Initiate the group checkout directly via WorkflowHandler
+      await handleWorkflow(eventStore, {
+        type: 'InitiateGroupCheckout',
+        data: {
+          groupCheckoutId,
+          clerkId: 'clerk-1',
+          guestStayAccountIds: [guestId],
+          now,
+        },
       });
-
-      initiateConsumer.workflowProcessor<
-        GroupCheckoutInput,
-        GroupCheckout,
-        GroupCheckoutOutput
-      >({
-        ...workflowProcessorOptions,
-        separateInputInboxFromProcessing: true,
-        processorId: `workflow-${groupCheckoutId}-initiate`,
-        stopAfter: (message) =>
-          message.type === 'GroupCheckoutInitiated' &&
-          message.data.groupCheckoutId === groupCheckoutId,
-      });
-
-      try {
-        const initiatePromise = initiateConsumer.start();
-
-        await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
-          {
-            type: 'InitiateGroupCheckout',
-            data: {
-              groupCheckoutId,
-              clerkId: 'clerk-1',
-              guestStayAccountIds: [guestId],
-              now,
-            },
-          },
-        ]);
-
-        await initiatePromise;
-      } finally {
-        await initiateConsumer.close();
-      }
 
       // Step 2: Guest checks out, completing the group checkout
       const completeConsumer = postgreSQLEventStoreConsumer({
@@ -408,7 +383,6 @@ void describe('PostgreSQL event store workflow processor', () => {
       const guestId = uuid();
       const now = new Date();
 
-      const handleWorkflow = WorkflowHandler(workflowProcessorOptions);
       await handleWorkflow(eventStore, {
         type: 'InitiateGroupCheckout',
         data: {

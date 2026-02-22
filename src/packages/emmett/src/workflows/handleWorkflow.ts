@@ -16,7 +16,6 @@ import type {
   AnyCommand,
   AnyEvent,
   AnyReadEventMetadata,
-  DefaultRecord,
   Event,
   RecordedMessage,
 } from '../typing';
@@ -181,7 +180,6 @@ export const WorkflowHandler =
     State,
     Output extends AnyEvent | AnyCommand,
     MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-    HandlerContext extends DefaultRecord = DefaultRecord,
     StoredMessage extends AnyEvent | AnyCommand = Output,
   >(
     options: WorkflowOptions<
