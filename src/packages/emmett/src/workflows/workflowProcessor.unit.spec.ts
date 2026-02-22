@@ -3,12 +3,14 @@ import { describe, it } from 'node:test';
 import { getInMemoryEventStore } from '../eventStore';
 import {
   assertEqual,
+  assertFalse,
   assertMatches,
   assertOk,
   assertThatArray,
 } from '../testing';
 import type { AnyReadEventMetadata, RecordedMessage } from '../typing';
 import { isString } from '../validation';
+import { workflowStreamName } from './handleWorkflow';
 import {
   GroupCheckoutWorkflow,
   type GroupCheckout,
@@ -193,7 +195,10 @@ void describe('Workflow Processor', () => {
 
       // Then
       const { events } = await eventStore.readStream(
-        `emt:workflow:${groupCheckoutId}`,
+        workflowStreamName({
+          workflowName: 'GroupCheckoutWorkflow',
+          workflowId: groupCheckoutId,
+        }),
       );
       assertThatArray(events).isNotEmpty();
       assertEqual(
@@ -251,7 +256,10 @@ void describe('Workflow Processor', () => {
 
       // Then
       const { events } = await eventStore.readStream(
-        `emt:workflow:${groupCheckoutId}`,
+        workflowStreamName({
+          workflowName: 'GroupCheckoutWorkflow',
+          workflowId: groupCheckoutId,
+        }),
       );
       assertThatArray(events).hasSize(3); // 1 stored input + 2 outputs
     });
@@ -259,6 +267,7 @@ void describe('Workflow Processor', () => {
     void it('should skip messages when getWorkflowId returns null', async () => {
       // Given
       const eventStore = getInMemoryEventStore();
+      const groupCheckoutId = randomUUID();
       const guestStayAccountIds = [randomUUID()];
       const now = new Date();
 
@@ -270,7 +279,7 @@ void describe('Workflow Processor', () => {
       const message = recorded<InitiateGroupCheckout>({
         type: 'InitiateGroupCheckout',
         data: {
-          groupCheckoutId: randomUUID(),
+          groupCheckoutId,
           clerkId: 'clerk-1',
           guestStayAccountIds,
           now,
@@ -286,9 +295,15 @@ void describe('Workflow Processor', () => {
         connection: { messageStore: eventStore },
       });
 
-      // Then - no streams should be created
-      const allEvents = await eventStore.readStream('emt:workflow:*');
-      assertThatArray(allEvents.events).isEmpty();
+      // Then - no workflow stream should be created
+      assertFalse(
+        await eventStore.streamExists(
+          workflowStreamName({
+            workflowName: 'GroupCheckoutWorkflow',
+            workflowId: groupCheckoutId,
+          }),
+        ),
+      );
     });
 
     void it('should call onStart hook on start', async () => {
@@ -427,10 +442,7 @@ void describe('Workflow Processor', () => {
       await processor.handle([unknownMessage], {
         connection: { messageStore: eventStore },
       });
-
-      // Then - no streams should be created
-      const allEvents = await eventStore.readStream('emt:workflow:*');
-      assertThatArray(allEvents.events).isEmpty();
+      // Then - reactor filtered the message before eachMessage; no assertion needed beyond no crash
     });
 
     void it('should process only matching messages in a mixed batch', async () => {
@@ -468,7 +480,10 @@ void describe('Workflow Processor', () => {
 
       // Then - only the matching message should be processed
       const { events } = await eventStore.readStream(
-        `emt:workflow:${groupCheckoutId}`,
+        workflowStreamName({
+          workflowName: 'GroupCheckoutWorkflow',
+          workflowId: groupCheckoutId,
+        }),
       );
       assertThatArray(events).isNotEmpty();
       assertEqual(

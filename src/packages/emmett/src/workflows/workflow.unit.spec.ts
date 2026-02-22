@@ -226,7 +226,8 @@ export const decide = (
 export const GroupCheckoutWorkflow: Workflow<
   GroupCheckoutInput,
   GroupCheckout,
-  GroupCheckoutOutput
+  GroupCheckoutOutput,
+  'GroupCheckoutWorkflow'
 > = {
   name: 'GroupCheckoutWorkflow',
   decide,

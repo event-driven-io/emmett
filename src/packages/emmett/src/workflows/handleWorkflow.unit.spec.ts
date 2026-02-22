@@ -13,7 +13,7 @@ import {
   assertTrue,
 } from '../testing';
 import type { AnyReadEventMetadata, RecordedMessage } from '../typing';
-import { WorkflowHandler } from './handleWorkflow';
+import { WorkflowHandler, workflowStreamName } from './handleWorkflow';
 import type { WorkflowInputMessageMetadata } from './workflow';
 import {
   type GroupCheckout,
@@ -724,7 +724,10 @@ void describe('Workflow Handler', () => {
       await handleWorkflow(eventStore, message, {});
 
       const { events } = await eventStore.readStream(
-        `emt:workflow:${groupCheckoutId}`,
+        workflowStreamName({
+          workflowName: 'GroupCheckoutWorkflow',
+          workflowId: groupCheckoutId,
+        }),
       );
 
       const storedInput = events[0]!;
@@ -818,7 +821,10 @@ void describe('Workflow Handler', () => {
       assertThatArray(newMessages).isEmpty();
 
       const { events } = await eventStore.readStream(
-        `emt:workflow:${groupCheckoutId}`,
+        workflowStreamName({
+          workflowName: 'GroupCheckoutWorkflow',
+          workflowId: groupCheckoutId,
+        }),
       );
 
       // 4 from first call (input + 3 outputs) + 1 input from second call = 5
@@ -858,11 +864,13 @@ void describe('Workflow Handler', () => {
             groupCheckoutId,
           },
         }),
-        {},
       );
 
       const { events } = await eventStore.readStream(
-        `emt:workflow:${groupCheckoutId}`,
+        workflowStreamName({
+          workflowName: 'GroupCheckoutWorkflow',
+          workflowId: groupCheckoutId,
+        }),
       );
       // Position 4 is the second input (0: first input, 1-3: outputs, 4: second input)
       const secondInput = events[4]!;
@@ -890,11 +898,13 @@ void describe('Workflow Handler', () => {
             now,
           },
         }),
-        {},
       );
 
       const { events } = await eventStore.readStream(
-        `emt:workflow:${groupCheckoutId}`,
+        workflowStreamName({
+          workflowName: 'GroupCheckoutWorkflow',
+          workflowId: groupCheckoutId,
+        }),
       );
       // Position 1 is GroupCheckoutInitiated (an event output)
       const outputEvent = events[1]!;
@@ -920,11 +930,13 @@ void describe('Workflow Handler', () => {
             now,
           },
         }),
-        {},
       );
 
       const { events } = await eventStore.readStream(
-        `emt:workflow:${groupCheckoutId}`,
+        workflowStreamName({
+          workflowName: 'GroupCheckoutWorkflow',
+          workflowId: groupCheckoutId,
+        }),
       );
       // Position 2 is CheckOut (a command output)
       const outputCommand = events[2]!;
@@ -982,11 +994,13 @@ void describe('Workflow Handler', () => {
             now,
           },
         }),
-        {},
       );
 
       const { events } = await eventStore.readStream(
-        `emt:workflow:${groupCheckoutId}`,
+        workflowStreamName({
+          workflowName: 'GroupCheckoutWorkflow',
+          workflowId: groupCheckoutId,
+        }),
       );
       const outputEvent = events[1]!;
       const metadata = outputEvent.metadata as Record<string, unknown>;
@@ -1023,7 +1037,10 @@ void describe('Workflow Handler', () => {
 
       // Stream has 3 messages (1 input + 2 outputs), not 6
       const { events } = await eventStore.readStream(
-        `emt:workflow:${groupCheckoutId}`,
+        workflowStreamName({
+          workflowName: 'GroupCheckoutWorkflow',
+          workflowId: groupCheckoutId,
+        }),
       );
       assertThatArray(events).hasSize(3);
     });
@@ -1044,7 +1061,6 @@ void describe('Workflow Handler', () => {
             now,
           },
         }),
-        {},
       );
 
       // Different message — should process normally
@@ -1093,14 +1109,16 @@ void describe('Workflow Handler', () => {
             now: new Date(),
           },
         }),
-        {},
       );
 
       // No outputs — just stored the input
       assertThatArray(newMessages).isEmpty();
 
       const { events } = await eventStore.readStream(
-        `emt:workflow:${groupCheckoutId}`,
+        workflowStreamName({
+          workflowName: 'GroupCheckoutWorkflow',
+          workflowId: groupCheckoutId,
+        }),
       );
       assertThatArray(events).hasSize(1);
       assertEqual(
@@ -1130,7 +1148,6 @@ void describe('Workflow Handler', () => {
             now,
           },
         }),
-        {},
       );
 
       // Second: process the stored input (has prefix → process only)
@@ -1145,14 +1162,16 @@ void describe('Workflow Handler', () => {
             now,
           },
         } as unknown as InitiateGroupCheckout),
-        {},
       );
 
       assertThatArray(newMessages).hasSize(2);
 
       // Stream: 1 stored input + 2 outputs = 3 (input NOT re-stored)
       const { events } = await eventStore.readStream(
-        `emt:workflow:${groupCheckoutId}`,
+        workflowStreamName({
+          workflowName: 'GroupCheckoutWorkflow',
+          workflowId: groupCheckoutId,
+        }),
       );
       assertThatArray(events).hasSize(3);
     });
@@ -1191,11 +1210,7 @@ void describe('Workflow Handler', () => {
         },
       } as unknown as InitiateGroupCheckout);
 
-      const first = await handleSeparatedWorkflow(
-        eventStore,
-        prefixedMessage,
-        {},
-      );
+      const first = await handleSeparatedWorkflow(eventStore, prefixedMessage);
       assertThatArray(first.newMessages).hasSize(2);
 
       // Third: try to process the same prefixed input again → should be skipped
@@ -1208,7 +1223,10 @@ void describe('Workflow Handler', () => {
 
       // Stream: 1 stored input + 2 outputs = 3 (not 1 + 2 + 2)
       const { events } = await eventStore.readStream(
-        `emt:workflow:${groupCheckoutId}`,
+        workflowStreamName({
+          workflowName: 'GroupCheckoutWorkflow',
+          workflowId: groupCheckoutId,
+        }),
       );
       assertThatArray(events).hasSize(3);
     });

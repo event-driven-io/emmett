@@ -2,6 +2,7 @@ import {
   assertEqual,
   assertThatArray,
   WorkflowHandler,
+  workflowStreamName,
   type WorkflowOptions,
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
@@ -9,10 +10,10 @@ import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import {
+  GroupCheckoutWorkflow,
   type GroupCheckout,
   type GroupCheckoutInput,
   type GroupCheckoutOutput,
-  GroupCheckoutWorkflow,
 } from '../../testing/groupCheckout.domain';
 import {
   getPostgreSQLEventStore,
@@ -116,7 +117,10 @@ void describe('PostgreSQL event store workflow processor', () => {
         await consumerPromise;
 
         const { events } = await eventStore.readStream(
-          `emt:workflow:${groupCheckoutId}`,
+          workflowStreamName({
+            workflowName: 'GroupCheckoutWorkflow',
+            workflowId: groupCheckoutId,
+          }),
         );
 
         assertThatArray(events).isNotEmpty();
@@ -188,7 +192,10 @@ void describe('PostgreSQL event store workflow processor', () => {
         await completePromise;
 
         const { events } = await eventStore.readStream(
-          `emt:workflow:${groupCheckoutId}`,
+          workflowStreamName({
+            workflowName: 'GroupCheckoutWorkflow',
+            workflowId: groupCheckoutId,
+          }),
         );
 
         const eventTypes = events.map((e) => e.type);
@@ -293,7 +300,10 @@ void describe('PostgreSQL event store workflow processor', () => {
         await consumerPromise;
 
         const { events } = await eventStore.readStream(
-          `emt:workflow:${groupCheckoutId}`,
+          workflowStreamName({
+            workflowName: 'GroupCheckoutWorkflow',
+            workflowId: groupCheckoutId,
+          }),
         );
 
         assertThatArray(events).isNotEmpty();
@@ -356,7 +366,10 @@ void describe('PostgreSQL event store workflow processor', () => {
         await consumerPromise;
 
         const { events } = await eventStore.readStream(
-          `emt:workflow:${groupCheckoutId}`,
+          workflowStreamName({
+            workflowName: 'GroupCheckoutWorkflow',
+            workflowId: groupCheckoutId,
+          }),
         );
 
         assertThatArray(events).isNotEmpty();
@@ -426,7 +439,10 @@ void describe('PostgreSQL event store workflow processor', () => {
         await consumerPromise;
 
         const { events } = await eventStore.readStream(
-          `emt:workflow:${groupCheckoutId}`,
+          workflowStreamName({
+            workflowName: 'GroupCheckoutWorkflow',
+            workflowId: groupCheckoutId,
+          }),
         );
 
         const eventTypes = events.map((e) => e.type);
