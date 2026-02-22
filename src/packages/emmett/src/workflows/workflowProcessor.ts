@@ -13,7 +13,6 @@ import type {
   CanHandle,
   DefaultRecord,
   Event,
-  GlobalPositionTypeOfRecordedMessageMetadata,
   MessageTypeOf,
   RecordedMessage,
 } from '../typing';
@@ -29,14 +28,8 @@ export type WorkflowOptions<
   Output extends AnyEvent | AnyCommand,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends WorkflowHandlerContext = WorkflowHandlerContext,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = Omit<
-  BaseMessageProcessorOptions<
-    Input,
-    MessageMetadataType,
-    HandlerContext,
-    CheckpointType
-  >,
+  BaseMessageProcessorOptions<Input, MessageMetadataType, HandlerContext>,
   'type' | 'canHandle'
 > & {
   workflow: Workflow<Input, State, Output>;
@@ -61,23 +54,15 @@ export const workflowProcessor = <
   Output extends AnyEvent | AnyCommand,
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends WorkflowHandlerContext = WorkflowHandlerContext,
-  CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MetaDataType>,
 >(
-  options: WorkflowOptions<
-    Input,
-    State,
-    Output,
-    MetaDataType,
-    HandlerContext,
-    CheckpointType
-  >,
-): MessageProcessor<Input, MetaDataType, HandlerContext, CheckpointType> => {
+  options: WorkflowOptions<Input, State, Output, MetaDataType, HandlerContext>,
+): MessageProcessor<Input, MetaDataType, HandlerContext> => {
   const { workflow: _workflow, onCommand, onEvent, ...rest } = options;
 
   const commandTypes = new Set<string>(options.outputs.commands);
   const eventTypes = new Set<string>(options.outputs.events);
 
-  return reactor<Input, MetaDataType, HandlerContext, CheckpointType>({
+  return reactor<Input, MetaDataType, HandlerContext>({
     ...rest,
     canHandle: [...options.inputs.commands, ...options.inputs.events],
     type: MessageProcessorType.REACTOR,
