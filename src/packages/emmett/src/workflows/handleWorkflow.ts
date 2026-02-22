@@ -115,7 +115,9 @@ export const WorkflowHandler =
           if (!streamName) {
             return {
               newMessages: [],
-            } as WorkflowHandlerResult<Output, Store>;
+              createdNewStream: false,
+              nextExpectedStreamVersion: 0n,
+            } as unknown as WorkflowHandlerResult<Output, Store>;
           }
 
           // 1. Aggregate the stream
