@@ -1,9 +1,10 @@
 import {
-  MessageProcessor,
   MessageProcessorType,
   reactor,
   type BaseMessageProcessorOptions,
+  type MessageProcessor,
 } from '../processors';
+import type { EventStore } from '../eventStore';
 import type {
   AnyCommand,
   AnyEvent,
@@ -11,18 +12,23 @@ import type {
   AnyRecordedMessageMetadata,
   CanHandle,
   DefaultRecord,
+  Event,
   GlobalPositionTypeOfRecordedMessageMetadata,
   MessageTypeOf,
   RecordedMessage,
 } from '../typing';
 import type { Workflow, WorkflowCommand, WorkflowEvent } from './workflow';
 
+export type WorkflowHandlerContext = DefaultRecord & {
+  eventStore: EventStore;
+};
+
 export type WorkflowOptions<
   Input extends AnyEvent | AnyCommand,
   State,
   Output extends AnyEvent | AnyCommand,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends DefaultRecord = DefaultRecord,
+  HandlerContext extends WorkflowHandlerContext = WorkflowHandlerContext,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MessageMetadataType>,
 > = Omit<
   BaseMessageProcessorOptions<
@@ -52,7 +58,7 @@ export const workflowProcessor = <
   State,
   Output extends AnyEvent | AnyCommand,
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
-  HandlerContext extends DefaultRecord = DefaultRecord,
+  HandlerContext extends WorkflowHandlerContext = WorkflowHandlerContext,
   CheckpointType = GlobalPositionTypeOfRecordedMessageMetadata<MetaDataType>,
 >(
   options: WorkflowOptions<
@@ -69,13 +75,18 @@ export const workflowProcessor = <
   return reactor<Input, MetaDataType, HandlerContext, CheckpointType>({
     ...rest,
     canHandle: [...options.inputs.commands, ...options.inputs.events],
-    type: MessageProcessorType.PROJECTOR,
+    type: MessageProcessorType.REACTOR,
     eachMessage: async (
-      _message: RecordedMessage<Input, MetaDataType>,
-      _context: HandlerContext,
+      message: RecordedMessage<Input, MetaDataType>,
+      context: HandlerContext,
     ) => {
-      // if (!options.input.includes(message.type)) return;
-      // await projection.handle([message], context);
+      const workflowId = options.getWorkflowId(message);
+      if (workflowId === null) return;
+
+      const streamName = `workflow-${options.processorId}-${workflowId}`;
+      await context.eventStore.appendToStream(streamName, [
+        { type: message.type, data: message.data } as Event,
+      ]);
     },
   });
 };
