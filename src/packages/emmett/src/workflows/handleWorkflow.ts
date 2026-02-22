@@ -174,6 +174,14 @@ const createWrappedEvolve = <
   };
 };
 
+export const workflowStreamName = ({
+  workflowName,
+  workflowId,
+}: {
+  workflowName: string;
+  workflowId: string;
+}) => `emt:workflow:${workflowName}:${workflowId}`;
+
 export const WorkflowHandler =
   <
     Input extends AnyEvent | AnyCommand,
@@ -236,7 +244,7 @@ export const WorkflowHandler =
 
           const streamName = options.mapWorkflowId
             ? options.mapWorkflowId(workflowId)
-            : `emt:workflow:${workflowId}`;
+            : workflowStreamName({ workflowName, workflowId });
 
           const messageType = messageWithMetadata.type as string;
           const hasWorkflowPrefix = messageType.startsWith(`${workflowName}:`);

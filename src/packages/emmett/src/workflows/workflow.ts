@@ -8,8 +8,9 @@ export type Workflow<
   Input extends AnyEvent | AnyCommand,
   State,
   Output extends AnyEvent | AnyCommand,
+  Name extends string = string,
 > = {
-  name: string;
+  name: Name;
   decide: (command: Input, state: State) => WorkflowOutput<Output>;
   evolve: (currentState: State, event: WorkflowEvent<Input | Output>) => State;
   initialState: () => State;
