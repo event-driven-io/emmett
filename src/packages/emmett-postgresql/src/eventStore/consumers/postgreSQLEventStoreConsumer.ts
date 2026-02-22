@@ -126,6 +126,7 @@ export const postgreSQLEventStoreConsumer = <
       pool,
       client: undefined as never,
       transaction: undefined as never,
+      messageStore: undefined as never,
     },
   };
 
