@@ -111,12 +111,19 @@ void describe('PostgreSQL event store workflow processor', () => {
 
         await consumerPromise;
 
-        const { events } = await eventStore.readStream(groupCheckoutId);
+        const { events } = await eventStore.readStream(
+          `emt:workflow:${groupCheckoutId}`,
+        );
 
         assertThatArray(events).isNotEmpty();
-        assertEqual(events[0]!.type, 'GroupCheckoutInitiated');
-        assertEqual(events[1]!.type, 'CheckOut');
+        // First stored message is the input with prefixed type
+        assertEqual(
+          events[0]!.type,
+          'GroupCheckoutWorkflow:InitiateGroupCheckout',
+        );
+        assertEqual(events[1]!.type, 'GroupCheckoutInitiated');
         assertEqual(events[2]!.type, 'CheckOut');
+        assertEqual(events[3]!.type, 'CheckOut');
       } finally {
         await consumer.close();
       }
@@ -201,11 +208,15 @@ void describe('PostgreSQL event store workflow processor', () => {
 
         await completePromise;
 
-        const { events } = await eventStore.readStream(groupCheckoutId);
+        const { events } = await eventStore.readStream(
+          `emt:workflow:${groupCheckoutId}`,
+        );
 
         const eventTypes = events.map((e) => e.type);
         assertThatArray(eventTypes).containsElements([
+          'GroupCheckoutWorkflow:InitiateGroupCheckout',
           'GroupCheckoutInitiated',
+          'GroupCheckoutWorkflow:GuestCheckedOut',
           'GroupCheckoutCompleted',
         ]);
       } finally {

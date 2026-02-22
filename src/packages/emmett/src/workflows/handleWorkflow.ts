@@ -106,19 +106,23 @@ export const WorkflowHandler =
           WorkflowHandlerResult<Output, Store>
         >(store, async ({ eventStore }) => {
           const {
-            workflow: { evolve, initialState, decide },
+            workflow: { evolve, initialState, decide, name: workflowName },
             getWorkflowId,
           } = options;
 
-          const streamName = getWorkflowId(message);
+          const workflowId = getWorkflowId(message);
 
-          if (!streamName) {
+          if (!workflowId) {
             return {
               newMessages: [],
               createdNewStream: false,
               nextExpectedStreamVersion: 0n,
             } as unknown as WorkflowHandlerResult<Output, Store>;
           }
+
+          const streamName = options.mapWorkflowId
+            ? options.mapWorkflowId(workflowId)
+            : `emt:workflow:${workflowId}`;
 
           // 1. Aggregate the stream
           const aggregationResult = await eventStore.aggregateStream<
@@ -129,9 +133,31 @@ export const WorkflowHandler =
             evolve,
             initialState,
             read: {
-              // TODO: Fix this any
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
-              schema: options.schema as any,
+              schema: {
+                ...options.schema,
+                // TODO: fix this any
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+                versioning: {
+                  upcast: (event: StoredMessage) => {
+                    const eventType = event.type as string;
+
+                    const mappedInput = eventType.startsWith(`${workflowName}:`)
+                      ? ({
+                          ...event,
+
+                          type: eventType.replace(`${workflowName}:`, ''),
+                        } as unknown as StoredMessage)
+                      : event;
+
+                    if (options.schema?.versioning?.upcast) {
+                      return options.schema.versioning.upcast(mappedInput);
+                    }
+
+                    return mappedInput as unknown as Input;
+                  },
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as any,
+              },
               ...(handleOptions as ReadStreamOptions<
                 WorkflowEvent<Input | Output>,
                 StoredMessage & Event
@@ -146,30 +172,27 @@ export const WorkflowHandler =
 
           // 2. Use the aggregate state
 
-          const {
-            currentStreamVersion,
-            streamExists: _streamExists,
-            ...restOfAggregationResult
-          } = aggregationResult;
+          const { currentStreamVersion } = aggregationResult;
 
           const state = aggregationResult.state;
 
           // 3. Run business logic
           const result = decide(message as Input, state);
 
-          const messagesToAppend = Array.isArray(result) ? result : [result];
+          const inputToStore = {
+            type: `${workflowName}:${message.type}`,
+            data: message.data,
+            kind: message.kind,
 
-          //const newEvents = Array.isArray(result) ? result : [result];
+            metadata: {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+              originalMessageId: message.metadata.messageId,
+              input: true,
+            },
+          } as StoredMessage;
 
-          if (messagesToAppend.length === 0) {
-            return {
-              ...restOfAggregationResult,
-              newMessages: [],
-
-              nextExpectedStreamVersion: currentStreamVersion,
-              createdNewStream: false,
-            } as unknown as WorkflowHandlerResult<Output, Store>;
-          }
+          const outputMessages = Array.isArray(result) ? result : [result];
+          const messagesToAppend = [inputToStore, ...outputMessages];
 
           // Either use:
           // - provided expected stream version,
@@ -196,10 +219,10 @@ export const WorkflowHandler =
             },
           );
 
-          // 5. Return result with updated state
+          // 5. Return result with output messages only
           return {
             ...appendResult,
-            newMessages: messagesToAppend,
+            newMessages: outputMessages,
           } as unknown as WorkflowHandlerResult<Output, Store>;
         });
 
