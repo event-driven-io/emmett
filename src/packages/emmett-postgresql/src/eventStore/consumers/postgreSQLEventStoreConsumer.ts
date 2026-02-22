@@ -83,7 +83,7 @@ export type PostgreSQLEventStoreConsumer<
         HandlerContext,
         StoredMessage
       >,
-    ) => PostgreSQLProcessor<Input>;
+    ) => PostgreSQLProcessor<Input | Output>;
   }> &
   (AnyEvent extends ConsumerMessageType
     ? Readonly<{
@@ -247,7 +247,7 @@ export const postgreSQLEventStoreConsumer = <
         HandlerContext,
         StoredMessage
       >,
-    ): PostgreSQLProcessor<Input> => {
+    ): PostgreSQLProcessor<Input | Output> => {
       const processor = postgreSQLWorkflowProcessor(options);
 
       processors.push(

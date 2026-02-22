@@ -357,7 +357,6 @@ void describe('Workflow Handler', () => {
             now: new Date(),
           },
         }),
-        {},
         { expectedStreamVersion: 'STREAM_DOES_NOT_EXIST' },
       );
 
@@ -395,7 +394,6 @@ void describe('Workflow Handler', () => {
               now: new Date(),
             },
           }),
-          {},
           { expectedStreamVersion: 'STREAM_DOES_NOT_EXIST' },
         );
       },
@@ -648,6 +646,63 @@ void describe('Workflow Handler', () => {
         },
       });
     });
+
+    void it('retries with numeric onVersionConflict', async () => {
+      const groupCheckoutId = randomUUID();
+      const guestId = randomUUID();
+      const now = new Date();
+
+      await handleWorkflow(
+        eventStore,
+        recorded<InitiateGroupCheckout>({
+          type: 'InitiateGroupCheckout',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk-1',
+            guestStayAccountIds: [guestId],
+            now,
+          },
+        }),
+        {},
+      );
+
+      let tried = 0;
+
+      const handleWithNumericRetry = WorkflowHandler<
+        GroupCheckoutInput,
+        GroupCheckout,
+        GroupCheckoutOutput,
+        WorkflowMeta
+      >({
+        ...workflowOptions,
+        workflow: {
+          ...GroupCheckoutWorkflow,
+          decide: (input, state) => {
+            if (tried++ < 2) throw new ExpectedVersionConflictError(0n, 1n);
+            return decide(input, state);
+          },
+        },
+        retry: {
+          onVersionConflict: 5,
+        },
+      });
+
+      const { newMessages } = await handleWithNumericRetry(
+        eventStore,
+        recorded<GuestCheckedOut>({
+          type: 'GuestCheckedOut',
+          data: {
+            guestStayAccountId: guestId,
+            checkedOutAt: now,
+            groupCheckoutId,
+          },
+        }),
+        {},
+      );
+
+      assertEqual(3, tried);
+      assertThatArray(newMessages).hasSize(1);
+    });
   });
 
   void describe('input storage', () => {
@@ -878,6 +933,68 @@ void describe('Workflow Handler', () => {
         'Sent',
       );
     });
+
+    void it('preserves existing metadata on output messages', async () => {
+      const groupCheckoutId = randomUUID();
+      const guestStayAccountIds = [randomUUID()];
+      const now = new Date();
+      const customValue = 'custom-correlation-id';
+
+      const handleWithMetadata = WorkflowHandler<
+        GroupCheckoutInput,
+        GroupCheckout,
+        GroupCheckoutOutput,
+        WorkflowMeta
+      >({
+        ...workflowOptions,
+        workflow: {
+          ...GroupCheckoutWorkflow,
+          decide: (input) => {
+            if (input.type === 'InitiateGroupCheckout') {
+              return [
+                {
+                  type: 'GroupCheckoutInitiated',
+                  data: {
+                    groupCheckoutId: input.data.groupCheckoutId,
+                    clerkId: input.data.clerkId,
+                    guestStayAccountIds: input.data.guestStayAccountIds,
+                    initiatedAt: input.data.now,
+                  },
+                  metadata: {
+                    customCorrelation: customValue,
+                  },
+                },
+              ];
+            }
+            return [];
+          },
+        },
+      });
+
+      await handleWithMetadata(
+        eventStore,
+        recorded<InitiateGroupCheckout>({
+          type: 'InitiateGroupCheckout',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk-1',
+            guestStayAccountIds,
+            now,
+          },
+        }),
+        {},
+      );
+
+      const { events } = await eventStore.readStream(
+        `emt:workflow:${groupCheckoutId}`,
+      );
+      const outputEvent = events[1]!;
+      const metadata = outputEvent.metadata as Record<string, unknown>;
+
+      // Both custom metadata and action should be present
+      assertEqual(metadata.customCorrelation, customValue);
+      assertEqual(metadata.action, 'Published');
+    });
   });
 
   void describe('idempotency', () => {
@@ -1040,6 +1157,62 @@ void describe('Workflow Handler', () => {
       assertThatArray(events).hasSize(3);
     });
 
+    void it('maintains idempotency across double-hop storage and processing', async () => {
+      const groupCheckoutId = randomUUID();
+      const guestStayAccountIds = [randomUUID()];
+      const now = new Date();
+
+      const externalMessage = recorded<InitiateGroupCheckout>({
+        type: 'InitiateGroupCheckout',
+        data: {
+          groupCheckoutId,
+          clerkId: 'clerk-1',
+          guestStayAccountIds,
+          now,
+        },
+      });
+
+      // First: store the input (no prefix → store only)
+      await handleSeparatedWorkflow(eventStore, externalMessage, {});
+
+      // Second: process the stored input (has prefix → process only)
+      const prefixedMessage = recorded({
+        type: 'GroupCheckoutWorkflow:InitiateGroupCheckout',
+        data: {
+          groupCheckoutId,
+          clerkId: 'clerk-1',
+          guestStayAccountIds,
+          now,
+        },
+        metadata: {
+          ...externalMessage.metadata,
+          // Same messageId as external input
+          messageId: externalMessage.metadata.messageId,
+        },
+      } as unknown as InitiateGroupCheckout);
+
+      const first = await handleSeparatedWorkflow(
+        eventStore,
+        prefixedMessage,
+        {},
+      );
+      assertThatArray(first.newMessages).hasSize(2);
+
+      // Third: try to process the same prefixed input again → should be skipped
+      const second = await handleSeparatedWorkflow(
+        eventStore,
+        prefixedMessage,
+        {},
+      );
+      assertThatArray(second.newMessages).isEmpty();
+
+      // Stream: 1 stored input + 2 outputs = 3 (not 1 + 2 + 2)
+      const { events } = await eventStore.readStream(
+        `emt:workflow:${groupCheckoutId}`,
+      );
+      assertThatArray(events).hasSize(3);
+    });
+
     void it('works as normal when flag is false', async () => {
       const groupCheckoutId = randomUUID();
       const guestStayAccountIds = [randomUUID()];
@@ -1113,7 +1286,6 @@ void describe('Workflow Handler', () => {
         type: 'InitiateGroupCheckout',
         data: { groupCheckoutId, clerkId: 'clerk-1', guestStayAccountIds, now },
       }),
-      {},
       {
         expectedStreamVersion: 'STREAM_DOES_NOT_EXIST',
         retry: { onVersionConflict: true },
