@@ -29,7 +29,6 @@ export const rebuildPostgreSQLProjections = <
     'stopWhen' | 'processors'
   > & {
     lock?: {
-      lockAcquisitionPolicy?: LockAcquisitionPolicy;
       acquisitionPolicy?: LockAcquisitionPolicy;
       timeoutSeconds?: number;
     };
