@@ -4,6 +4,7 @@ import {
   assertDeepEqual,
   assertEqual,
   assertIsNotNull,
+  assertIsNull,
   assertThatArray,
 } from '@event-driven-io/emmett';
 import {
@@ -180,7 +181,7 @@ export const documentDoesNotExist =
             : options.matchingFilter,
         );
 
-        assertIsNotNull(result);
+        assertIsNull(result);
       },
       { ...options, ...assertOptions },
     );

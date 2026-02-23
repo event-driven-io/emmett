@@ -81,6 +81,7 @@ export type MessageProcessor<
   id: string;
   instanceId: string;
   type: string;
+  canHandle?: string[];
   init: (options: Partial<HandlerContext>) => Promise<void>;
   start: (
     options: Partial<HandlerContext>,
@@ -366,6 +367,7 @@ export const reactor = <
     id: processorId,
     instanceId,
     type,
+    canHandle,
     init,
     start: async (
       startOptions: Partial<HandlerContext>,

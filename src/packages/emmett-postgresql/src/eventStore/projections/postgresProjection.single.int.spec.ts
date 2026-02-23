@@ -127,6 +127,18 @@ void describe('Postgres Projections', () => {
       );
   });
 
+  void it('notToExist returns success when document does not exist', () =>
+    given([])
+      .when([])
+      .then(
+        expectPongoDocuments
+          .fromCollection<ShoppingCartShortInfo>(
+            shoppingCartShortInfoCollectionName,
+          )
+          .withId('non-existent-id')
+          .notToExist(),
+      ));
+
   void it('with idempotency check', () => {
     const couponId = uuid();
 
