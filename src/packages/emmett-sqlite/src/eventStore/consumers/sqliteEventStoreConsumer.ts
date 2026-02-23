@@ -1,5 +1,9 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
-import type { MessageProcessor } from '@event-driven-io/emmett';
+import type {
+  AnyCommand,
+  MessageProcessor,
+  WorkflowProcessorContext,
+} from '@event-driven-io/emmett';
 import {
   EmmettError,
   type AnyEvent,
@@ -17,6 +21,7 @@ import type {
   AnyEventStoreDriver,
   InferOptionsFromEventStoreDriver,
 } from '../eventStoreDriver';
+import { getSQLiteEventStore } from '../SQLiteEventStore';
 import {
   DefaultSQLiteEventStoreProcessorBatchSize,
   DefaultSQLiteEventStoreProcessorPullingFrequencyInMs,
@@ -27,9 +32,12 @@ import {
 import {
   sqliteProjector,
   sqliteReactor,
+  sqliteWorkflowProcessor,
   type SQLiteProcessor,
+  type SQLiteProcessorHandlerContext,
   type SQLiteProjectorOptions,
   type SQLiteReactorOptions,
+  type SQLiteWorkflowProcessorOptions,
 } from './sqliteProcessor';
 
 export type SQLiteEventStoreConsumerConfig<
@@ -61,6 +69,30 @@ export type SQLiteEventStoreConsumer<
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       options: SQLiteReactorOptions<MessageType>,
     ) => SQLiteProcessor<MessageType>;
+
+    workflowProcessor: <
+      Input extends AnyEvent | AnyCommand,
+      State,
+      Output extends AnyEvent | AnyCommand,
+      MetaDataType extends AnyRecordedMessageMetadata =
+        AnyRecordedMessageMetadata,
+      HandlerContext extends SQLiteProcessorHandlerContext &
+        WorkflowProcessorContext = SQLiteProcessorHandlerContext &
+        WorkflowProcessorContext,
+      StoredMessage extends AnyEvent | AnyCommand = Output,
+    >(
+      options: Omit<
+        SQLiteWorkflowProcessorOptions<
+          Input,
+          State,
+          Output,
+          MetaDataType,
+          HandlerContext,
+          StoredMessage
+        >,
+        'messageStore'
+      >,
+    ) => SQLiteProcessor<Input | Output>;
   }> &
   (AnyEvent extends ConsumerMessageType
     ? Readonly<{
@@ -198,6 +230,51 @@ export const sqliteEventStoreConsumer = <
       options: SQLiteProjectorOptions<EventType>,
     ): SQLiteProcessor<EventType> => {
       const processor = sqliteProjector(options);
+
+      processors.push(
+        // TODO: change that
+        processor as unknown as MessageProcessor<
+          ConsumerMessageType,
+          AnyRecordedMessageMetadata,
+          DefaultRecord
+        >,
+      );
+
+      return processor;
+    },
+    workflowProcessor: <
+      Input extends AnyEvent | AnyCommand,
+      State,
+      Output extends AnyEvent | AnyCommand,
+      MetaDataType extends AnyRecordedMessageMetadata =
+        AnyRecordedMessageMetadata,
+      HandlerContext extends SQLiteProcessorHandlerContext &
+        WorkflowProcessorContext = SQLiteProcessorHandlerContext &
+        WorkflowProcessorContext,
+      StoredMessage extends AnyEvent | AnyCommand = Output,
+    >(
+      processorOptions: Omit<
+        SQLiteWorkflowProcessorOptions<
+          Input,
+          State,
+          Output,
+          MetaDataType,
+          HandlerContext,
+          StoredMessage
+        >,
+        'messageStore'
+      >,
+    ): SQLiteProcessor<Input | Output> => {
+      const messageStore = getSQLiteEventStore({
+        ...options,
+        pool,
+        schema: { autoMigration: 'None' },
+      });
+
+      const processor = sqliteWorkflowProcessor({
+        ...processorOptions,
+        messageStore,
+      });
 
       processors.push(
         // TODO: change that

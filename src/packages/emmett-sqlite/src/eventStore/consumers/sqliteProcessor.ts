@@ -4,9 +4,12 @@ import type {
   SQLiteTransaction,
 } from '@event-driven-io/dumbo/sqlite';
 import type {
+  AnyCommand,
   AnyEvent,
   AnyMessage,
+  AnyRecordedMessageMetadata,
   BatchRecordedMessageHandlerWithContext,
+  Checkpointer,
   Message,
   MessageHandlerResult,
   MessageProcessingScope,
@@ -16,6 +19,8 @@ import type {
   ReactorOptions,
   ReadEventMetadataWithGlobalPosition,
   SingleRecordedMessageHandlerWithContext,
+  WorkflowProcessorContext,
+  WorkflowProcessorOptions,
 } from '@event-driven-io/emmett';
 import {
   defaultProcessorPartition,
@@ -23,8 +28,10 @@ import {
   EmmettError,
   getProcessorInstanceId,
   getProjectorId,
+  getWorkflowId,
   projector,
   reactor,
+  workflowProcessor,
   type Event,
   type ReadEvent,
 } from '@event-driven-io/emmett';
@@ -97,15 +104,24 @@ export type SQLiteProjectorOptions<
   SQLiteProcessorConnectionOptions &
   EventStoreSchemaMigrationOptions;
 
-export type SQLiteProcessorOptions<
-  MessageType extends AnyMessage = AnyMessage,
-  MessagePayloadType extends AnyMessage = MessageType,
-> =
-  | SQLiteReactorOptions<MessageType, MessagePayloadType>
-  | SQLiteProjectorOptions<
-      MessageType & AnyEvent,
-      MessagePayloadType & AnyEvent
-    >;
+export type SQLiteWorkflowProcessorOptions<
+  Input extends AnyEvent | AnyCommand,
+  State,
+  Output extends AnyEvent | AnyCommand,
+  MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
+  StoredMessage extends AnyEvent | AnyCommand = Output,
+> = WorkflowProcessorOptions<
+  Input,
+  State,
+  Output,
+  MetaDataType,
+  HandlerContext,
+  StoredMessage
+> &
+  SQLiteProcessorConnectionOptions & {
+    messageStore: WorkflowProcessorContext['connection']['messageStore'];
+  };
 
 const sqliteProcessingScope =
   (): MessageProcessingScope<SQLiteProcessorHandlerContext> => {
@@ -136,6 +152,92 @@ const sqliteProcessingScope =
 
     return processingScope;
   };
+
+const sqliteWorkflowProcessingScope = (
+  messageStore: WorkflowProcessorContext['connection']['messageStore'],
+): MessageProcessingScope<
+  SQLiteProcessorHandlerContext & WorkflowProcessorContext
+> => {
+  const processingScope: MessageProcessingScope<
+    SQLiteProcessorHandlerContext & WorkflowProcessorContext
+  > = async <Result = MessageHandlerResult>(
+    handler: (
+      context: SQLiteProcessorHandlerContext & WorkflowProcessorContext,
+    ) => Result | Promise<Result>,
+    partialContext: Partial<
+      SQLiteProcessorHandlerContext & WorkflowProcessorContext
+    >,
+  ) => {
+    const connection = partialContext?.connection;
+
+    if (!connection)
+      throw new EmmettError('Connection is required in context or options');
+
+    return connection.withTransaction(
+      async (transaction: SQLiteTransaction) => {
+        return handler({
+          ...partialContext,
+          connection: Object.assign(connection, { messageStore }),
+          execute: transaction.execute,
+        });
+      },
+    );
+  };
+
+  return processingScope;
+};
+
+export const sqliteWorkflowProcessor = <
+  Input extends AnyEvent | AnyCommand,
+  State,
+  Output extends AnyEvent | AnyCommand,
+  MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  HandlerContext extends SQLiteProcessorHandlerContext &
+    WorkflowProcessorContext = SQLiteProcessorHandlerContext &
+    WorkflowProcessorContext,
+  StoredMessage extends AnyEvent | AnyCommand = Output,
+>(
+  options: SQLiteWorkflowProcessorOptions<
+    Input,
+    State,
+    Output,
+    MetaDataType,
+    HandlerContext,
+    StoredMessage
+  >,
+): SQLiteProcessor<Input | Output> => {
+  const {
+    processorId = options.processorId ??
+      getWorkflowId({
+        workflowName: options.workflow.name ?? 'unknown',
+      }),
+    processorInstanceId = getProcessorInstanceId(processorId),
+    version = defaultProcessorVersion,
+    partition = defaultProcessorPartition,
+  } = options;
+
+  const hooks: ProcessorHooks<HandlerContext> = {
+    ...(options.hooks ?? {}),
+    onClose: options.hooks?.onClose,
+  };
+
+  return workflowProcessor({
+    ...options,
+    processorId,
+    processorInstanceId,
+    version,
+    partition,
+    hooks,
+    processingScope: sqliteWorkflowProcessingScope(
+      options.messageStore,
+    ) as unknown as MessageProcessingScope<HandlerContext>,
+    checkpoints: sqliteCheckpointer<Input | Output>() as Checkpointer<
+      Input | Output,
+      MetaDataType,
+      HandlerContext
+    >,
+  }) as SQLiteProcessor<Input | Output>;
+};
 
 export const sqliteReactor = <
   MessageType extends Message = Message,
