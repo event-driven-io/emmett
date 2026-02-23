@@ -238,16 +238,6 @@ export type PostgreSQLWorkflowProcessorOptions<
 > &
   PostgreSQLProcessorOptionsBase;
 
-export type PostgreSQLProcessorOptions<
-  MessageType extends AnyMessage = AnyMessage,
-  MessagePayloadType extends AnyMessage = MessageType,
-> =
-  | PostgreSQLReactorOptions<MessageType, MessagePayloadType>
-  | PostgreSQLProjectorOptions<
-      MessageType & AnyEvent,
-      MessagePayloadType & AnyEvent
-    >;
-
 const postgreSQLProcessingScope = (options: {
   pool: Dumbo | null;
   connectionString: string | null;

@@ -2,14 +2,6 @@ import { describe, it } from 'node:test';
 import {
   GroupCheckoutWorkflow,
   GuestStayStatus,
-  type GroupCheckoutCompleted,
-  type GroupCheckoutFailed,
-  type GroupCheckoutInitiated,
-  type GroupCheckoutTimedOut,
-  type GuestCheckedOut,
-  type GuestCheckoutFailed,
-  type InitiateGroupCheckout,
-  type TimeoutGroupCheckout,
 } from '../workflows/workflow.unit.spec';
 import { WorkflowSpecification } from './workflowSpecification';
 
@@ -29,7 +21,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-1', 'guest-2'],
             now,
           },
-        } satisfies InitiateGroupCheckout)
+        })
         .then([
           {
             type: 'GroupCheckoutInitiated',
@@ -39,7 +31,7 @@ void describe('GroupCheckout workflow', () => {
               guestStayAccountIds: ['guest-1', 'guest-2'],
               initiatedAt: now,
             },
-          } satisfies GroupCheckoutInitiated,
+          },
           {
             type: 'CheckOut',
             data: { guestStayAccountId: 'guest-1', groupCheckoutId: 'gc-1' },
@@ -63,7 +55,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-1'],
             initiatedAt: now,
           },
-        } satisfies GroupCheckoutInitiated,
+        },
       ])
         .when({
           type: 'InitiateGroupCheckout',
@@ -73,7 +65,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-2'],
             now,
           },
-        } satisfies InitiateGroupCheckout)
+        })
         .thenNothingHappened();
     });
   });
@@ -84,7 +76,7 @@ void describe('GroupCheckout workflow', () => {
         .when({
           type: 'GuestCheckedOut',
           data: { guestStayAccountId: 'guest-1', checkedOutAt: now },
-        } satisfies GuestCheckedOut)
+        })
         .thenNothingHappened();
     });
 
@@ -97,7 +89,7 @@ void describe('GroupCheckout workflow', () => {
             checkedOutAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckedOut)
+        })
         .thenNothingHappened();
     });
 
@@ -111,7 +103,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-1'],
             initiatedAt: now,
           },
-        } satisfies GroupCheckoutInitiated,
+        },
         {
           type: 'GroupCheckoutCompleted',
           data: {
@@ -119,7 +111,7 @@ void describe('GroupCheckout workflow', () => {
             completedCheckouts: [GuestStayStatus.Completed],
             completedAt: now,
           },
-        } satisfies GroupCheckoutCompleted,
+        },
       ])
         .when({
           type: 'GuestCheckedOut',
@@ -128,7 +120,7 @@ void describe('GroupCheckout workflow', () => {
             checkedOutAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckedOut)
+        })
         .thenNothingHappened();
     });
 
@@ -142,7 +134,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-1', 'guest-2'],
             initiatedAt: now,
           },
-        } satisfies GroupCheckoutInitiated,
+        },
         {
           type: 'GuestCheckedOut',
           data: {
@@ -150,7 +142,7 @@ void describe('GroupCheckout workflow', () => {
             checkedOutAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckedOut,
+        },
       ])
         .when({
           type: 'GuestCheckedOut',
@@ -159,7 +151,7 @@ void describe('GroupCheckout workflow', () => {
             checkedOutAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckedOut)
+        })
         .thenNothingHappened();
     });
 
@@ -173,7 +165,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-1', 'guest-2'],
             initiatedAt: now,
           },
-        } satisfies GroupCheckoutInitiated,
+        },
       ])
         .when({
           type: 'GuestCheckedOut',
@@ -182,7 +174,7 @@ void describe('GroupCheckout workflow', () => {
             checkedOutAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckedOut)
+        })
         .thenNothingHappened();
     });
 
@@ -196,7 +188,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-1', 'guest-2'],
             initiatedAt: now,
           },
-        } satisfies GroupCheckoutInitiated,
+        },
         {
           type: 'GuestCheckedOut',
           data: {
@@ -204,7 +196,7 @@ void describe('GroupCheckout workflow', () => {
             checkedOutAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckedOut,
+        },
       ])
         .when({
           type: 'GuestCheckedOut',
@@ -213,7 +205,7 @@ void describe('GroupCheckout workflow', () => {
             checkedOutAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckedOut)
+        })
         .then({
           type: 'GroupCheckoutCompleted',
           data: {
@@ -224,7 +216,7 @@ void describe('GroupCheckout workflow', () => {
             ],
             completedAt: now,
           },
-        } satisfies GroupCheckoutCompleted);
+        });
     });
 
     void it('produces GroupCheckoutCompleted when at least one guest completed', () => {
@@ -237,7 +229,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-1', 'guest-2'],
             initiatedAt: now,
           },
-        } satisfies GroupCheckoutInitiated,
+        },
         {
           type: 'GuestCheckoutFailed',
           data: {
@@ -246,7 +238,7 @@ void describe('GroupCheckout workflow', () => {
             failedAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckoutFailed,
+        },
       ])
         .when({
           type: 'GuestCheckedOut',
@@ -255,7 +247,7 @@ void describe('GroupCheckout workflow', () => {
             checkedOutAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckedOut)
+        })
         .then({
           type: 'GroupCheckoutCompleted',
           data: {
@@ -266,7 +258,7 @@ void describe('GroupCheckout workflow', () => {
             ],
             completedAt: now,
           },
-        } satisfies GroupCheckoutCompleted);
+        });
     });
   });
 
@@ -280,7 +272,7 @@ void describe('GroupCheckout workflow', () => {
             reason: 'NotCheckedIn',
             failedAt: now,
           },
-        } satisfies GuestCheckoutFailed)
+        })
         .thenNothingHappened();
     });
 
@@ -294,7 +286,7 @@ void describe('GroupCheckout workflow', () => {
             failedAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckoutFailed)
+        })
         .thenNothingHappened();
     });
 
@@ -308,7 +300,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-1'],
             initiatedAt: now,
           },
-        } satisfies GroupCheckoutInitiated,
+        },
         {
           type: 'GroupCheckoutCompleted',
           data: {
@@ -316,7 +308,7 @@ void describe('GroupCheckout workflow', () => {
             completedCheckouts: [GuestStayStatus.Completed],
             completedAt: now,
           },
-        } satisfies GroupCheckoutCompleted,
+        },
       ])
         .when({
           type: 'GuestCheckoutFailed',
@@ -326,7 +318,7 @@ void describe('GroupCheckout workflow', () => {
             failedAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckoutFailed)
+        })
         .thenNothingHappened();
     });
 
@@ -340,7 +332,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-1', 'guest-2'],
             initiatedAt: now,
           },
-        } satisfies GroupCheckoutInitiated,
+        },
         {
           type: 'GuestCheckoutFailed',
           data: {
@@ -349,7 +341,7 @@ void describe('GroupCheckout workflow', () => {
             failedAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckoutFailed,
+        },
       ])
         .when({
           type: 'GuestCheckoutFailed',
@@ -359,7 +351,7 @@ void describe('GroupCheckout workflow', () => {
             failedAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckoutFailed)
+        })
         .thenNothingHappened();
     });
 
@@ -373,7 +365,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-1', 'guest-2'],
             initiatedAt: now,
           },
-        } satisfies GroupCheckoutInitiated,
+        },
       ])
         .when({
           type: 'GuestCheckoutFailed',
@@ -383,7 +375,7 @@ void describe('GroupCheckout workflow', () => {
             failedAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckoutFailed)
+        })
         .thenNothingHappened();
     });
 
@@ -397,7 +389,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-1', 'guest-2'],
             initiatedAt: now,
           },
-        } satisfies GroupCheckoutInitiated,
+        },
         {
           type: 'GuestCheckoutFailed',
           data: {
@@ -406,7 +398,7 @@ void describe('GroupCheckout workflow', () => {
             failedAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckoutFailed,
+        },
       ])
         .when({
           type: 'GuestCheckoutFailed',
@@ -416,7 +408,7 @@ void describe('GroupCheckout workflow', () => {
             failedAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckoutFailed)
+        })
         .then({
           type: 'GroupCheckoutFailed',
           data: {
@@ -425,7 +417,7 @@ void describe('GroupCheckout workflow', () => {
             failedCheckouts: ['guest-1', 'guest-2'],
             failedAt: now,
           },
-        } satisfies GroupCheckoutFailed);
+        });
     });
   });
 
@@ -440,7 +432,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-1', 'guest-2', 'guest-3'],
             initiatedAt: now,
           },
-        } satisfies GroupCheckoutInitiated,
+        },
         {
           type: 'GuestCheckedOut',
           data: {
@@ -448,7 +440,7 @@ void describe('GroupCheckout workflow', () => {
             checkedOutAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckedOut,
+        },
         {
           type: 'GuestCheckoutFailed',
           data: {
@@ -457,7 +449,7 @@ void describe('GroupCheckout workflow', () => {
             failedAt: now,
             groupCheckoutId: 'gc-1',
           },
-        } satisfies GuestCheckoutFailed,
+        },
       ])
         .when({
           type: 'TimeoutGroupCheckout',
@@ -466,7 +458,7 @@ void describe('GroupCheckout workflow', () => {
             startedAt: now,
             timeOutAt: now,
           },
-        } satisfies TimeoutGroupCheckout)
+        })
         .then({
           type: 'GroupCheckoutTimedOut',
           data: {
@@ -476,7 +468,7 @@ void describe('GroupCheckout workflow', () => {
             failedCheckouts: ['guest-2'],
             timedOutAt: now,
           },
-        } satisfies GroupCheckoutTimedOut);
+        });
     });
 
     void it('ignores when workflow not existing', () => {
@@ -488,7 +480,7 @@ void describe('GroupCheckout workflow', () => {
             startedAt: now,
             timeOutAt: now,
           },
-        } satisfies TimeoutGroupCheckout)
+        })
         .thenNothingHappened();
     });
 
@@ -502,7 +494,7 @@ void describe('GroupCheckout workflow', () => {
             guestStayAccountIds: ['guest-1'],
             initiatedAt: now,
           },
-        } satisfies GroupCheckoutInitiated,
+        },
         {
           type: 'GroupCheckoutCompleted',
           data: {
@@ -510,7 +502,7 @@ void describe('GroupCheckout workflow', () => {
             completedCheckouts: [GuestStayStatus.Completed],
             completedAt: now,
           },
-        } satisfies GroupCheckoutCompleted,
+        },
       ])
         .when({
           type: 'TimeoutGroupCheckout',
@@ -519,7 +511,7 @@ void describe('GroupCheckout workflow', () => {
             startedAt: now,
             timeOutAt: now,
           },
-        } satisfies TimeoutGroupCheckout)
+        })
         .thenNothingHappened();
     });
   });
