@@ -277,6 +277,7 @@ const postgreSQLProcessingScope = (options: {
       );
 
     return pool.withTransaction(async (transaction) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const client = (await transaction.connection.open()) as PgClient;
       return handler({
         ...partialContext,

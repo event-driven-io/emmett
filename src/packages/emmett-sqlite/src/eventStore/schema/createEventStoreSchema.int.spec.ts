@@ -16,7 +16,6 @@ void describe('createEventStoreSchema', () => {
       fileName: InMemorySQLiteDatabase,
       transactionOptions: {
         allowNestedTransactions: true,
-        mode: 'session_based',
       },
     });
 
