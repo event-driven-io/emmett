@@ -409,6 +409,77 @@ void describe('SQLite event store started consumer', () => {
         }
       },
     );
+    void it(
+      'handles concurrent writes with multiple processors without SQLITE_BUSY errors',
+      withDeadline,
+      async () => {
+        // Given
+        const concurrentStreams = 1000;
+        const projectionResult: GuestStayEvent[] = [];
+        const forwarderResult: GuestStayEvent[] = [];
+        let stopAfterPosition: bigint | undefined = undefined;
+
+        const consumer = sqliteEventStoreConsumer({
+          driver: sqlite3EventStoreDriver,
+          fileName,
+        });
+
+        const guestIds = Array.from({ length: concurrentStreams }, () =>
+          uuid(),
+        );
+
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          stopAfter: (event) =>
+            guestIds.includes(event.data.guestId) &&
+            event.metadata.globalPosition === stopAfterPosition,
+          eachMessage: (event) => {
+            if (guestIds.includes(event.data.guestId))
+              projectionResult.push(event);
+          },
+        });
+
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          stopAfter: (event) =>
+            guestIds.includes(event.data.guestId) &&
+            event.metadata.globalPosition === stopAfterPosition,
+          eachMessage: (event) => {
+            if (guestIds.includes(event.data.guestId))
+              forwarderResult.push(event);
+          },
+        });
+
+        // When
+        try {
+          const consumerPromise = consumer.start();
+
+          const appendResults = await Promise.all(
+            guestIds.map((guestId) =>
+              eventStore.appendToStream(`guestStay-${guestId}`, [
+                { type: 'GuestCheckedIn', data: { guestId } },
+                { type: 'GuestCheckedOut', data: { guestId } },
+              ]),
+            ),
+          );
+
+          stopAfterPosition = appendResults.reduce(
+            (max, r) =>
+              r.lastEventGlobalPosition > max ? r.lastEventGlobalPosition : max,
+            0n,
+          );
+
+          await consumerPromise;
+
+          // Then
+          const expectedCount = concurrentStreams * 2;
+          assertThatArray(projectionResult).hasSize(expectedCount);
+          assertThatArray(forwarderResult).hasSize(expectedCount);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
   });
 });
 
