@@ -176,10 +176,11 @@ export const sqliteEventStoreConsumer = <
     if (messagePuller) {
       abortController?.abort();
       await messagePuller.stop();
-      messagePuller = undefined;
-      abortController = null;
     }
     await start;
+
+    messagePuller = undefined;
+    abortController = null;
 
     await stopProcessors();
   };
