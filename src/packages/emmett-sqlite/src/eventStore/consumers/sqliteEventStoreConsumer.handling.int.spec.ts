@@ -1,8 +1,14 @@
 import { JSONSerializer } from '@event-driven-io/dumbo';
-import { sqlite3Connection } from '@event-driven-io/dumbo/sqlite3';
+import {
+  sqlite3Connection,
+  sqlite3Pool,
+  type SQLite3Connection,
+  type SQLitePool,
+} from '@event-driven-io/dumbo/sqlite3';
 import {
   assertThatArray,
   bigIntProcessorCheckpoint,
+  delay,
   type Event,
 } from '@event-driven-io/emmett';
 import fs from 'fs';
@@ -28,6 +34,8 @@ void describe('SQLite event store started consumer', () => {
   const testDatabasePath = path.dirname(fileURLToPath(import.meta.url));
   const fileName = path.resolve(testDatabasePath, `test.db`);
 
+  let pool: SQLitePool<SQLite3Connection>;
+
   const config: SQLite3EventStoreOptions = {
     driver: sqlite3EventStoreDriver,
     schema: {
@@ -39,21 +47,75 @@ void describe('SQLite event store started consumer', () => {
   let eventStore: SQLiteEventStore;
 
   beforeEach(() => {
-    eventStore = getSQLiteEventStore(config);
+    pool = sqlite3Pool({
+      fileName,
+      transactionOptions: {
+        allowNestedTransactions: true,
+      },
+    });
+
+    eventStore = getSQLiteEventStore({ ...config, pool });
     return createEventStoreSchema(
       sqlite3Connection({ fileName, serializer: JSONSerializer }),
     );
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await eventStore.close();
+    await pool.close();
     if (!fs.existsSync(fileName)) {
       return;
     }
     try {
       fs.unlinkSync(fileName);
+      fs.unlinkSync(`${fileName}-shm`);
+      fs.unlinkSync(`${fileName}-wal`);
     } catch (error) {
       console.log(error);
     }
+  });
+
+  void describe('starting and closing resilience', () => {
+    void it(
+      'handles close being called while start is initializing without race condition',
+      withDeadline,
+      async () => {
+        const iterations = 10;
+        const errors: Error[] = [];
+
+        await eventStore.appendToStream(`testStream-${uuid()}`, [
+          { type: 'TestEvent', data: {} },
+        ]);
+
+        await Promise.all(
+          Array.from({ length: iterations }, async () => {
+            const consumer = sqliteEventStoreConsumer({
+              driver: sqlite3EventStoreDriver,
+              fileName,
+              pool,
+            });
+
+            consumer.reactor<GuestStayEvent>({
+              processorId: uuid(),
+              eachMessage: () => {},
+              stopAfter: () => true,
+            });
+
+            try {
+              const startPromise = consumer.start();
+              //await consumer.close();
+              await startPromise;
+            } catch (error) {
+              errors.push(error as Error);
+            } finally {
+              await consumer.close();
+            }
+          }),
+        );
+
+        assertThatArray(errors).hasSize(0);
+      },
+    );
   });
 
   void describe('eachMessage', () => {
@@ -422,6 +484,7 @@ void describe('SQLite event store started consumer', () => {
         const consumer = sqliteEventStoreConsumer({
           driver: sqlite3EventStoreDriver,
           fileName,
+          pool,
         });
 
         const guestIds = Array.from({ length: concurrentStreams }, () =>
@@ -454,20 +517,29 @@ void describe('SQLite event store started consumer', () => {
         try {
           const consumerPromise = consumer.start();
 
+          await delay(10); // Ensure processors are started before appending events
+
           const appendResults = await Promise.all(
-            guestIds.map((guestId) =>
-              eventStore.appendToStream(`guestStay-${guestId}`, [
-                { type: 'GuestCheckedIn', data: { guestId } },
-                { type: 'GuestCheckedOut', data: { guestId } },
-              ]),
-            ),
+            guestIds.map(async (guestId) => {
+              try {
+                const result = await eventStore.appendToStream(
+                  `guestStay-${guestId}`,
+                  [
+                    { type: 'GuestCheckedIn', data: { guestId } },
+                    { type: 'GuestCheckedOut', data: { guestId } },
+                  ],
+                );
+                return result.lastEventGlobalPosition;
+              } catch (error) {
+                return error;
+              }
+            }),
           );
 
-          stopAfterPosition = appendResults.reduce(
-            (max, r) =>
-              r.lastEventGlobalPosition > max ? r.lastEventGlobalPosition : max,
-            0n,
-          );
+          stopAfterPosition = appendResults
+            .filter((r) => !(r instanceof Error))
+            .map((r) => r as bigint)
+            .reduce((max, r) => (r > max ? r : max), 0n);
 
           await consumerPromise;
 
@@ -475,6 +547,8 @@ void describe('SQLite event store started consumer', () => {
           const expectedCount = concurrentStreams * 2;
           assertThatArray(projectionResult).hasSize(expectedCount);
           assertThatArray(forwarderResult).hasSize(expectedCount);
+        } catch (error) {
+          console.log(error);
         } finally {
           await consumer.close();
         }

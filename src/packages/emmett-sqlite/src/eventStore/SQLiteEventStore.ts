@@ -1,7 +1,13 @@
-import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  DumboError,
+  LockNotAvailableError,
+  type Dumbo,
+} from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   assertExpectedVersionMatchesCurrent,
+  asyncRetry,
   ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
   type AggregateStreamOptions,
@@ -136,7 +142,7 @@ export const getSQLiteEventStore = <
 
   const onBeforeCommitHook = options.hooks?.onBeforeCommit;
 
-  const withConnection = async <Result>(
+  const withConnection = <Result>(
     handler: (connection: AnySQLiteConnection) => Promise<Result>,
   ): Promise<Result> =>
     pool.withConnection(async (connection) => {
@@ -245,7 +251,11 @@ export const getSQLiteEventStore = <
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
     > =>
       withConnection(({ execute }) =>
-        readStream<EventType, EventPayloadType>(execute, streamName, options),
+        readStream<EventType, EventPayloadType>(
+          pool.execute,
+          streamName,
+          options,
+        ),
       ),
 
     appendToStream: async <
@@ -261,22 +271,40 @@ export const getSQLiteEventStore = <
 
       const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
 
-      const appendResult = await withConnection((connection) =>
-        appendToStream(connection, streamName, streamType, events, {
-          ...(appendOptions as AppendToStreamOptions),
-          onBeforeCommit: async (messages, context) => {
-            if (inlineProjections.length > 0)
-              await handleProjections({
-                projections: inlineProjections,
-                events: messages,
-                execute: context.connection.execute,
-                connection: context.connection,
-                driverType: options.driver.driverType,
-              });
+      const appendResult = await asyncRetry(
+        () =>
+          withConnection((connection) =>
+            appendToStream(connection, streamName, streamType, events, {
+              ...(appendOptions as AppendToStreamOptions),
+              onBeforeCommit: async (messages, context) => {
+                if (inlineProjections.length > 0)
+                  await handleProjections({
+                    projections: inlineProjections,
+                    events: messages,
+                    execute: context.connection.execute,
+                    connection: context.connection,
+                    driverType: options.driver.driverType,
+                  });
 
-            if (onBeforeCommitHook) await onBeforeCommitHook(messages, context);
+                if (onBeforeCommitHook)
+                  await onBeforeCommitHook(messages, context);
+              },
+            }),
+          ),
+        {
+          retries: 3,
+          minTimeout: 250,
+          factor: 1.5,
+          shouldRetryError: (error) => {
+            return (
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+              (error as any).code === 'SQLITE_BUSY' ||
+              DumboError.isInstanceOf(error, {
+                errorType: LockNotAvailableError.ErrorType,
+              })
+            );
           },
-        }),
+        },
       );
 
       if (!appendResult.success)
