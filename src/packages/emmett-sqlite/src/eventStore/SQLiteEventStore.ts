@@ -251,11 +251,7 @@ export const getSQLiteEventStore = <
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
     > =>
       withConnection(({ execute }) =>
-        readStream<EventType, EventPayloadType>(
-          pool.execute,
-          streamName,
-          options,
-        ),
+        readStream<EventType, EventPayloadType>(execute, streamName, options),
       ),
 
     appendToStream: async <

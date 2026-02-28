@@ -8,7 +8,6 @@ import {
 import {
   assertThatArray,
   bigIntProcessorCheckpoint,
-  delay,
   type Event,
 } from '@event-driven-io/emmett';
 import fs from 'fs';
@@ -516,8 +515,6 @@ void describe('SQLite event store started consumer', () => {
         // When
         try {
           const consumerPromise = consumer.start();
-
-          await delay(10); // Ensure processors are started before appending events
 
           const appendResults = await Promise.all(
             guestIds.map(async (guestId) => {
