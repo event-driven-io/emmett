@@ -1,13 +1,11 @@
 import {
   dumbo,
-  DumboError,
-  LockNotAvailableError,
   type Dumbo,
+  type WithConnectionOptions,
 } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   assertExpectedVersionMatchesCurrent,
-  asyncRetry,
   ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
   type AggregateStreamOptions,
@@ -144,11 +142,12 @@ export const getSQLiteEventStore = <
 
   const withConnection = <Result>(
     handler: (connection: AnySQLiteConnection) => Promise<Result>,
+    options: WithConnectionOptions,
   ): Promise<Result> =>
     pool.withConnection(async (connection) => {
       await ensureSchemaExists(connection);
       return await handler(connection);
-    });
+    }, options);
 
   if (options) {
     autoGenerateSchema =
@@ -217,8 +216,10 @@ export const getSQLiteEventStore = <
         throw new Error('Stream name is not string');
       }
 
-      const result = await withConnection(({ execute }) =>
-        readStream<EventType, EventPayloadType>(execute, streamName, read),
+      const result = await withConnection(
+        ({ execute }) =>
+          readStream<EventType, EventPayloadType>(execute, streamName, read),
+        { readonly: true },
       );
 
       const currentStreamVersion = result.currentStreamVersion;
@@ -250,8 +251,10 @@ export const getSQLiteEventStore = <
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
     > =>
-      withConnection(({ execute }) =>
-        readStream<EventType, EventPayloadType>(execute, streamName, options),
+      withConnection(
+        ({ execute }) =>
+          readStream<EventType, EventPayloadType>(execute, streamName, options),
+        { readonly: true },
       ),
 
     appendToStream: async <
@@ -267,40 +270,25 @@ export const getSQLiteEventStore = <
 
       const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
 
-      const appendResult = await asyncRetry(
-        () =>
-          withConnection((connection) =>
-            appendToStream(connection, streamName, streamType, events, {
-              ...(appendOptions as AppendToStreamOptions),
-              onBeforeCommit: async (messages, context) => {
-                if (inlineProjections.length > 0)
-                  await handleProjections({
-                    projections: inlineProjections,
-                    events: messages,
-                    execute: context.connection.execute,
-                    connection: context.connection,
-                    driverType: options.driver.driverType,
-                  });
+      const appendResult = await withConnection(
+        (connection) =>
+          appendToStream(connection, streamName, streamType, events, {
+            ...(appendOptions as AppendToStreamOptions),
+            onBeforeCommit: async (messages, context) => {
+              if (inlineProjections.length > 0)
+                await handleProjections({
+                  projections: inlineProjections,
+                  events: messages,
+                  execute: context.connection.execute,
+                  connection: context.connection,
+                  driverType: options.driver.driverType,
+                });
 
-                if (onBeforeCommitHook)
-                  await onBeforeCommitHook(messages, context);
-              },
-            }),
-          ),
-        {
-          retries: 3,
-          minTimeout: 250,
-          factor: 1.5,
-          shouldRetryError: (error) => {
-            return (
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-              (error as any).code === 'SQLITE_BUSY' ||
-              DumboError.isInstanceOf(error, {
-                errorType: LockNotAvailableError.ErrorType,
-              })
-            );
-          },
-        },
+              if (onBeforeCommitHook)
+                await onBeforeCommitHook(messages, context);
+            },
+          }),
+        { readonly: false },
       );
 
       if (!appendResult.success)
@@ -321,8 +309,9 @@ export const getSQLiteEventStore = <
       streamName: string,
       options?: SQLiteStreamExistsOptions,
     ): Promise<StreamExistsResult> {
-      return withConnection(({ execute }) =>
-        streamExists(execute, streamName, options),
+      return withConnection(
+        ({ execute }) => streamExists(execute, streamName, options),
+        { readonly: true },
       );
     },
 
