@@ -1,8 +1,4 @@
-import {
-  dumbo,
-  type Dumbo,
-  type WithConnectionOptions,
-} from '@event-driven-io/dumbo';
+import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   assertExpectedVersionMatchesCurrent,
@@ -15,6 +11,8 @@ import {
   type BeforeEventStoreCommitHandler,
   type Event,
   type EventStore,
+  type EventStoreSession,
+  type EventStoreSessionFactory,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -51,7 +49,10 @@ export type EventHandler<E extends Event = Event> = (
 
 export const SQLiteEventStoreDefaultStreamVersion = 0n;
 
-export interface SQLiteEventStore extends EventStore<SQLiteReadEventMetadata> {
+export interface SQLiteEventStore
+  extends
+    EventStore<SQLiteReadEventMetadata>,
+    EventStoreSessionFactory<SQLiteEventStore> {
   appendToStream<
     EventType extends Event,
     EventPayloadType extends Event = EventType,
@@ -140,15 +141,6 @@ export const getSQLiteEventStore = <
 
   const onBeforeCommitHook = options.hooks?.onBeforeCommit;
 
-  const withConnection = <Result>(
-    handler: (connection: AnySQLiteConnection) => Promise<Result>,
-    options: WithConnectionOptions,
-  ): Promise<Result> =>
-    pool.withConnection(async (connection) => {
-      await ensureSchemaExists(connection);
-      return await handler(connection);
-    }, options);
-
   if (options) {
     autoGenerateSchema =
       options.schema?.autoMigration === undefined ||
@@ -184,12 +176,10 @@ export const getSQLiteEventStore = <
     return migrateSchema;
   };
 
-  const ensureSchemaExists = (
-    connection: AnySQLiteConnection,
-  ): Promise<void> => {
+  const ensureSchemaExists = (): Promise<void> => {
     if (!autoGenerateSchema) return Promise.resolve();
 
-    return migrate(connection);
+    return pool.withConnection((connection) => migrate(connection));
   };
 
   return {
@@ -206,6 +196,7 @@ export const getSQLiteEventStore = <
         EventPayloadType
       >,
     ): Promise<AggregateStreamResult<State>> {
+      await ensureSchemaExists();
       const { evolve, initialState, read } = options;
 
       const expectedStreamVersion = read?.expectedStreamVersion;
@@ -216,10 +207,10 @@ export const getSQLiteEventStore = <
         throw new Error('Stream name is not string');
       }
 
-      const result = await withConnection(
-        ({ execute }) =>
-          readStream<EventType, EventPayloadType>(execute, streamName, read),
-        { readonly: true },
+      const result = await readStream<EventType, EventPayloadType>(
+        pool.execute,
+        streamName,
+        read,
       );
 
       const currentStreamVersion = result.currentStreamVersion;
@@ -250,12 +241,15 @@ export const getSQLiteEventStore = <
       options?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
-    > =>
-      withConnection(
-        ({ execute }) =>
-          readStream<EventType, EventPayloadType>(execute, streamName, options),
-        { readonly: true },
-      ),
+    > => {
+      await ensureSchemaExists();
+
+      return readStream<EventType, EventPayloadType>(
+        pool.execute,
+        streamName,
+        options,
+      );
+    },
 
     appendToStream: async <
       EventType extends Event,
@@ -265,12 +259,13 @@ export const getSQLiteEventStore = <
       events: EventType[],
       appendOptions?: AppendToStreamOptions<EventType, EventPayloadType>,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
+      await ensureSchemaExists();
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
 
       const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
 
-      const appendResult = await withConnection(
+      const appendResult = await pool.withConnection(
         (connection) =>
           appendToStream(connection, streamName, streamType, events, {
             ...(appendOptions as AppendToStreamOptions),
@@ -305,14 +300,12 @@ export const getSQLiteEventStore = <
       };
     },
 
-    streamExists(
+    async streamExists(
       streamName: string,
       options?: SQLiteStreamExistsOptions,
     ): Promise<StreamExistsResult> {
-      return withConnection(
-        ({ execute }) => streamExists(execute, streamName, options),
-        { readonly: true },
-      );
+      await ensureSchemaExists();
+      return streamExists(pool.execute, streamName, options);
     },
 
     consumer: <ConsumerEventType extends Event = Event>(
@@ -323,6 +316,35 @@ export const getSQLiteEventStore = <
         ...(consumerOptions ?? {}),
         pool,
       }),
+
+    async withSession<T = unknown>(
+      callback: (session: EventStoreSession<SQLiteEventStore>) => Promise<T>,
+    ): Promise<T> {
+      return await pool.withConnection(async (connection) => {
+        const sessionStore = getSQLiteEventStore({
+          ...options,
+          pool: dumbo({
+            ...options.driver.mapToDumboOptions(options),
+            connection,
+          }),
+          transactionOptions: {
+            allowNestedTransactions: true,
+            mode: 'session_based',
+          },
+          schema: {
+            ...options.schema,
+            autoMigration: 'None',
+          },
+        });
+
+        await ensureSchemaExists();
+
+        return callback({
+          eventStore: sessionStore,
+          close: () => Promise.resolve(),
+        });
+      });
+    },
 
     close: () => pool.close(),
     schema: {
