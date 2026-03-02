@@ -1,29 +1,36 @@
 import 'dotenv/config';
 
 import { CommandHandler, type Event } from '@event-driven-io/emmett';
-import Benchmark from 'benchmark';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import { bench, group, run, summary } from 'mitata';
 import { randomUUID } from 'node:crypto';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStoreConnectionOptions,
 } from '..';
 
+let postgres: StartedPostgreSqlContainer = undefined!;
+
+if (!process.env.BENCHMARK_POSTGRESQL_CONNECTION_STRING)
+  postgres = await new PostgreSqlContainer('postgres').start();
+
 const connectionString =
   process.env.BENCHMARK_POSTGRESQL_CONNECTION_STRING ??
-  'postgresql://postgres@localhost:5432/postgres';
+  postgres.getConnectionUri();
+
+console.log(`Using PostgreSQL connection string: ${connectionString}`);
 
 const connectionOptions: PostgresEventStoreConnectionOptions | undefined =
   process.env.BENCHMARK_CONNECTION_POOLED === 'true'
     ? undefined
-    : {
-        pooled: false,
-      };
+    : { pooled: false };
 
 const generateSchemaUpfront =
   process.env.BENCHMARK_GENERATE_SCHEMA_UPFRONT === 'true';
 
 const eventStore = getPostgreSQLEventStore(connectionString, {
-  connectionOptions: connectionOptions,
+  connectionOptions,
   schema: {
     autoMigration: generateSchemaUpfront ? 'None' : 'CreateOrUpdate',
   },
@@ -39,18 +46,16 @@ type WhatDidIDo =
 const evolve = (_state: WhatDidIDo, event: DidSomething): WhatDidIDo =>
   event.data;
 
-const initialState = (): WhatDidIDo => ({
-  description: 'Nothing!',
-});
+const initialState = (): WhatDidIDo => ({ description: 'Nothing!' });
 // TYPING
+
+if (generateSchemaUpfront) await eventStore.schema.migrate();
 
 // BENCHMARKS
 const ids: string[] = [];
 
-const appendEvents = () => {
-  const streamName = `weird-${randomUUID()}`;
+const appendEvents = (streamName = `weird-${randomUUID()}`) => {
   ids.push(streamName);
-
   return eventStore.appendToStream(streamName, [
     { type: 'DidSomething', data: { id: 1, description: 'something weird' } },
   ]);
@@ -76,80 +81,73 @@ const handleCommand = () =>
   }));
 // BENCHMARKS
 
-async function runBenchmark() {
-  const suite = new Benchmark.Suite();
+// Warm up before benchmarking
+await appendEvents();
 
-  if (generateSchemaUpfront) {
-    // this will trigger generating schema
-    await eventStore.schema.migrate();
-  }
+summary(() => {
+  bench('Appending events', async () => {
+    await appendEvents();
+  });
 
-  return (
-    suite
-      .add('Appending events', {
-        defer: true,
-        fn: async function (deferred: Benchmark.Deferred) {
-          await appendEvents();
-          deferred.resolve();
-        },
-      })
-      .add('Reading events', {
-        defer: true,
-        fn: async function (deferred: Benchmark.Deferred) {
-          await readEvents();
-          deferred.resolve();
-        },
-      })
-      .add('Aggregating stream', {
-        defer: true,
-        fn: async function (deferred: Benchmark.Deferred) {
-          await aggregateStream();
-          deferred.resolve();
-        },
-      })
-      .add('Aggregating and Appending stream', {
-        defer: true,
-        fn: async function (deferred: Benchmark.Deferred) {
-          await aggregateStream();
-          await appendEvents();
-          deferred.resolve();
-        },
-      })
-      .add('Command handling', {
-        defer: true,
-        fn: async function (deferred: Benchmark.Deferred) {
-          await handleCommand();
-          deferred.resolve();
-        },
-      })
-      .on('cycle', function (event: Benchmark.Event) {
-        // eslint-disable-next-line @typescript-eslint/no-base-to-string
-        console.log(String(event.target));
-      })
-      .on('complete', function (this: Benchmark.Suite) {
-        this.forEach((bench: Benchmark.Target) => {
-          const stats = bench.stats;
-          console.log(`\nBenchmark: ${bench.name}`);
-          console.log(
-            `  Operations per second: ${bench.hz!.toFixed(2)} ops/sec`,
-          );
-          console.log(
-            `  Mean execution time: ${(stats!.mean * 1000).toFixed(2)} ms`,
-          );
-          console.log(
-            `  Standard deviation: ${(stats!.deviation * 1000).toFixed(2)} ms`,
-          );
-          console.log(`  Margin of error: ±${stats!.rme.toFixed(2)}%`);
-          console.log(`  Sample size: ${stats!.sample.length} runs`);
-          console.log();
-        });
+  bench('Reading events', async () => {
+    await readEvents();
+  });
 
-        console.log('Benchmarking complete.');
-        return eventStore.close(); // Close the database connection
-      })
-      // Run the benchmarks
-      .run({ async: true })
+  bench('Aggregating stream', async () => {
+    await aggregateStream();
+  });
+});
+
+summary(() => {
+  bench('Aggregating and Appending stream', async () => {
+    await aggregateStream();
+    await appendEvents();
+  });
+
+  bench('Command handling', async () => {
+    await handleCommand();
+  });
+});
+
+group('sequential throughput', () => {
+  bench('1000 sequential appends', async () => {
+    const batchId = `seq-${Date.now()}`;
+    for (let i = 0; i < 1000; i++) {
+      await appendEvents(`${batchId}-${i}`);
+    }
+  });
+});
+
+group('concurrent throughput (Promise.all)', () => {
+  bench('1000 concurrent appends to unique streams', async () => {
+    const batchId = `concurrent-${Date.now()}`;
+    await Promise.all(
+      Array.from({ length: 1000 }, (_, i) => appendEvents(`${batchId}-${i}`)),
+    );
+  });
+});
+
+const results = await run();
+
+const rows = results.benchmarks.flatMap((trial) =>
+  trial.runs
+    .filter((r) => r.stats !== undefined)
+    .map((r) => {
+      const match = r.name.match(/^(\d+)\s/);
+      const multiplier = match ? parseInt(match[1]!, 10) : 1;
+      const opsPerSec = Math.round((multiplier * 1e9) / r.stats.avg);
+      return { name: r.name, opsPerSec };
+    }),
+);
+
+const nameWidth = Math.max(...rows.map((r) => r.name.length));
+console.log('\nops/sec');
+console.log('-'.repeat(nameWidth + 20));
+for (const { name, opsPerSec } of rows) {
+  console.log(
+    `${name.padEnd(nameWidth)}  ${opsPerSec.toLocaleString().padStart(12)} ops/sec`,
   );
 }
 
-runBenchmark().catch(console.error);
+await eventStore.close();
+if (postgres) await postgres.stop();
