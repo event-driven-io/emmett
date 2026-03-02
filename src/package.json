@@ -53,7 +53,10 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "test:vitest": "vitest run",
-    "test:vitest:watch": "vitest"
+    "test:vitest:watch": "vitest",
+    "bench": "run-s bench:sqlite bench:postgresql",
+    "bench:sqlite": "npm run bench -w packages/emmett-sqlite",
+    "bench:postgresql": "npm run bench -w packages/emmett-postgresql"
   },
   "repository": {
     "type": "git",

@@ -1,36 +1,23 @@
-import 'dotenv/config';
-
 import { CommandHandler, type Event } from '@event-driven-io/emmett';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { bench, group, run, summary } from 'mitata';
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
-  getPostgreSQLEventStore,
-  type PostgresEventStoreConnectionOptions,
-} from '..';
+  getSQLiteEventStore,
+  type SQLiteEventStore,
+} from '../eventStore/SQLiteEventStore';
+import { sqlite3EventStoreDriver } from '../sqlite3';
 
-let postgres: StartedPostgreSqlContainer = undefined!;
-
-if (!process.env.BENCHMARK_POSTGRESQL_CONNECTION_STRING)
-  postgres = await new PostgreSqlContainer('postgres').start();
-
-const connectionString =
-  process.env.BENCHMARK_POSTGRESQL_CONNECTION_STRING ??
-  postgres.getConnectionUri();
-
-console.log(`Using PostgreSQL connection string: ${connectionString}`);
-
-const connectionOptions: PostgresEventStoreConnectionOptions | undefined =
-  process.env.BENCHMARK_CONNECTION_POOLED !== 'false'
-    ? undefined
-    : { pooled: false };
+const dbPath = path.join(os.tmpdir(), `emmett-bench-${Date.now()}.db`);
 
 const generateSchemaUpfront =
   process.env.BENCHMARK_GENERATE_SCHEMA_UPFRONT !== 'false';
 
-const eventStore = getPostgreSQLEventStore(connectionString, {
-  connectionOptions,
+const eventStore: SQLiteEventStore = getSQLiteEventStore({
+  driver: sqlite3EventStoreDriver,
+  fileName: dbPath,
   schema: {
     autoMigration: generateSchemaUpfront ? 'None' : 'CreateOrUpdate',
   },
@@ -49,6 +36,7 @@ const evolve = (_state: WhatDidIDo, event: DidSomething): WhatDidIDo =>
   event.data;
 
 const initialState = (): WhatDidIDo => ({ description: 'Nothing!' });
+// TYPING
 
 // BENCHMARKS
 const ids: string[] = [];
@@ -70,7 +58,7 @@ const aggregateStream = () =>
 
 export const handle = CommandHandler({ evolve, initialState });
 
-const handleCommand = (streamName = ids[0]!) =>
+const handleCommand = async (streamName = ids[0]!) =>
   handle(eventStore, streamName, (state) => ({
     type: 'DidSomething',
     data: {
@@ -156,4 +144,11 @@ for (const { name, display } of rows) {
 }
 
 await eventStore.close();
-if (postgres) await postgres.stop();
+
+try {
+  fs.unlinkSync(dbPath);
+  fs.unlinkSync(`${dbPath}-shm`);
+  fs.unlinkSync(`${dbPath}-wal`);
+} catch {
+  // DB files may not all exist
+}
