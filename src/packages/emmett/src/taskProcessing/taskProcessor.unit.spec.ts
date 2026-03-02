@@ -230,7 +230,7 @@ void describe('TaskProcessor', () => {
 
     await assert.rejects(
       () => Promise.all(tasks),
-      /Too many pending connections/,
+      /Too many pending tasks/,
       'Should reject tasks when queue size is exceeded',
     );
   });

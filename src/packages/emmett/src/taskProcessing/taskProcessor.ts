@@ -4,7 +4,7 @@ export type TaskQueue = TaskQueueItem[];
 
 export type TaskQueueItem = {
   task: () => Promise<void>;
-  options?: EnqueueTaskOptions;
+  options?: EnqueueTaskOptions | undefined;
 };
 
 export type TaskProcessorOptions = {
@@ -26,15 +26,21 @@ export class TaskProcessor {
   private isProcessing = false;
   private activeTasks = 0;
   private activeGroups: Set<string> = new Set();
+  private options: TaskProcessorOptions;
+  private stopped = false;
 
-  constructor(private options: TaskProcessorOptions) {}
+  constructor(options: TaskProcessorOptions) {
+    this.options = options;
+  }
 
   enqueue<T>(task: Task<T>, options?: EnqueueTaskOptions): Promise<T> {
+    if (this.stopped) {
+      return Promise.reject(new EmmettError('TaskProcessor has been stopped'));
+    }
+
     if (this.queue.length >= this.options.maxQueueSize) {
       return Promise.reject(
-        new EmmettError(
-          'Too many pending connections. Please try again later.',
-        ),
+        new EmmettError('Too many pending tasks. Please try again later.'),
       );
     }
 
@@ -43,6 +49,17 @@ export class TaskProcessor {
 
   waitForEndOfProcessing(): Promise<void> {
     return this.schedule(({ ack }) => Promise.resolve(ack()));
+  }
+
+  async stop(options?: { force?: boolean }): Promise<void> {
+    if (this.stopped) return;
+    this.stopped = true;
+    this.queue.length = 0;
+    this.activeGroups.clear();
+
+    if (!options?.force) {
+      await this.waitForEndOfProcessing();
+    }
   }
 
   private schedule<T>(task: Task<T>, options?: EnqueueTaskOptions): Promise<T> {
@@ -159,28 +176,40 @@ const promiseWithDeadline = <T>(
     resolve: (value: T | PromiseLike<T>) => void,
     reject: (reason?: unknown) => void,
   ) => void,
-  options: { deadline?: number },
+  options: { deadline?: number | undefined },
 ) => {
   return new Promise<T>((resolve, reject) => {
     let taskStarted = false;
+    let timeoutId: NodeJS.Timeout | null = null;
 
-    const maxWaitingTime = options.deadline || DEFAULT_PROMISE_DEADLINE;
+    const deadline = options.deadline ?? DEFAULT_PROMISE_DEADLINE;
 
-    let timeoutId: NodeJS.Timeout | null = setTimeout(() => {
+    timeoutId = setTimeout(() => {
       if (!taskStarted) {
         reject(
           new Error('Task was not started within the maximum waiting time'),
         );
       }
-    }, maxWaitingTime);
+    }, deadline);
+    timeoutId.unref();
 
-    executor((value) => {
-      taskStarted = true;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      timeoutId = null;
-      resolve(value);
-    }, reject);
+    executor(
+      (value) => {
+        taskStarted = true;
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        timeoutId = null;
+        resolve(value);
+      },
+      (reason) => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        timeoutId = null;
+        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+        reject(reason);
+      },
+    );
   });
 };
