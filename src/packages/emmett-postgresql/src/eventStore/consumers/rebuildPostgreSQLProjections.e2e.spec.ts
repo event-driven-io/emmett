@@ -8,7 +8,7 @@ import {
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import type { ProductItemAdded } from '../../testing/shoppingCart.domain';
 import {
@@ -26,7 +26,7 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
   let eventStore: PostgresEventStore;
   let pool: Dumbo;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
 
@@ -40,7 +40,7 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
     await eventStore.schema.dangerous.truncate({ truncateProjections: true });
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await eventStore.close();
       await pool.close();

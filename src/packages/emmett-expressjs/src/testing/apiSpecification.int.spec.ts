@@ -4,7 +4,7 @@ import {
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { randomUUID } from 'node:crypto';
-import { beforeEach, describe, it } from 'node:test';
+import { beforeEach, describe, it } from 'vitest';
 import { getApplication, HeaderNames, toWeakETag } from '..';
 import { shoppingCartApi } from '../e2e/decider/api';
 import type {

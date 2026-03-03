@@ -1,6 +1,6 @@
 import { strict as assert } from 'assert';
 import { execSync } from 'child_process';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 
 void describe('Emmett CLI Integration Tests', () => {
   void it.skip('should run emmett CLI and execute plugin commands', () => {

@@ -10,7 +10,7 @@ import {
 } from '@event-driven-io/emmett';
 import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
   getEventStoreDBEventStore,
@@ -30,13 +30,13 @@ void describe('EventStoreDB event store started consumer', () => {
   let eventStore: EventStoreDBEventStore;
   const database = getInMemoryDatabase();
 
-  before(async () => {
+  beforeAll(async () => {
     eventStoreDB = await new EventStoreDBContainer().start();
     connectionString = eventStoreDB.getConnectionString();
     eventStore = getEventStoreDBEventStore(eventStoreDB.getClient());
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await eventStoreDB.stop();
     } catch (error) {

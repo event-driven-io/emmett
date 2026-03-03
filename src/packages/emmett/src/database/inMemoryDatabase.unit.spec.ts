@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { assertDeepEqual, assertEqual, assertOk } from '../testing';
 import { getInMemoryDatabase } from './inMemoryDatabase';
 

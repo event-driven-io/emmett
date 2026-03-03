@@ -4,7 +4,7 @@ import {
   assertRejects,
   EmmettError,
 } from '@event-driven-io/emmett';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { fromArray } from '../generators/fromArray';
 import { single, singleOrDefault } from './single';
 

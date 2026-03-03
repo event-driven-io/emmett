@@ -8,7 +8,7 @@ import {
 } from '@event-driven-io/emmett';
 import type { Application } from 'express';
 import { randomUUID } from 'node:crypto';
-import { beforeEach, describe, it } from 'node:test';
+import { beforeEach, describe, it } from 'vitest';
 import request from 'supertest';
 import { getApplication } from '../..';
 import { HeaderNames, toWeakETag } from '../../etag';

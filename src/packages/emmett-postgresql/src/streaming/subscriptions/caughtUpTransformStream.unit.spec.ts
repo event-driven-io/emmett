@@ -8,9 +8,8 @@ import {
   bigIntProcessorCheckpoint,
   globalStreamCaughtUp,
 } from '@event-driven-io/emmett';
-import assert from 'node:assert';
-import { describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
+import { describe, it } from 'vitest';
 import { collect } from '../../streaming';
 import { noMoreWritingOn, writeToStream } from '../../streaming/writers';
 import {
@@ -62,7 +61,7 @@ void describe('CaughtUpTransformStream', () => {
       collect(stream.readable),
     ]);
 
-    assert.deepEqual(results, [
+    assertDeepEqual(results, [
       ...initialEvents,
       globalStreamCaughtUp({ globalPosition: 2n }),
       newEvent,

@@ -7,7 +7,7 @@ import {
 } from '@event-driven-io/emmett';
 import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
   getMongoDBEventStore,
@@ -23,7 +23,7 @@ void describe('MongoDB event store started consumer', () => {
   let eventStore: MongoDBEventStore & Closeable;
   //const database = getInMemoryDatabase();
 
-  before(async () => {
+  beforeAll(async () => {
     mongoDB = await getMongoDBStartedContainer();
     connectionString = mongoDB.getConnectionString();
     eventStore = getMongoDBEventStore({
@@ -32,7 +32,7 @@ void describe('MongoDB event store started consumer', () => {
     });
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await eventStore.close();
       await mongoDB.stop();

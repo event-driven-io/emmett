@@ -7,7 +7,7 @@ import {
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { createEventStoreSchema, defaultTag } from '.';
 import { readProcessorCheckpoint } from './readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from './storeProcessorCheckpoint';
@@ -21,7 +21,7 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
   const checkpoint2 = bigIntProcessorCheckpoint(200n);
   const checkpoint3 = bigIntProcessorCheckpoint(300n);
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     pool = dumbo({ connectionString, driver: pgDumboDriver });
@@ -30,7 +30,7 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
     await pool.execute.command(SQL`SELECT emt_add_partition('partition-2')`);
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await pool.close();
       await postgres.stop();

@@ -1,5 +1,5 @@
 import { assertEqual } from '@event-driven-io/emmett';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import {
   toMongoDBCheckpoint,
   zipMongoDBMessageBatchPullerStartFrom,

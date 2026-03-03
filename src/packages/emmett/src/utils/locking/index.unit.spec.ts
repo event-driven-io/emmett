@@ -1,4 +1,4 @@
-import { beforeEach, describe, it } from 'node:test';
+import { beforeEach, describe, it } from 'vitest';
 import { InProcessLock, type Lock } from '.';
 import { assertDeepEqual, assertEqual } from '../../testing';
 

@@ -1,7 +1,7 @@
 import { assertIsNotNull, assertThrowsAsync } from '@event-driven-io/emmett';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient, MongoNotConnectedError } from 'mongodb';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { getMongoDBEventStore, toStreamCollectionName } from '.';
 import { assertCanAppend, ShoppingCartStreamType } from '../testing';
 import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
@@ -9,11 +9,11 @@ import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontaine
 void describe('MongoDBEventStore connection', () => {
   let mongodb: StartedMongoDBContainer;
 
-  before(async () => {
+  beforeAll(async () => {
     mongodb = await getMongoDBStartedContainer();
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await mongodb.stop();
     } catch (error) {

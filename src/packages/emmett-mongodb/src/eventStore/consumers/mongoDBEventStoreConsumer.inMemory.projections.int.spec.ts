@@ -8,7 +8,7 @@ import {
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import type {
   ProductItemAdded,
@@ -32,7 +32,7 @@ void describe.skip('mongoDB event store started consumer', () => {
   const confirmedAt = new Date();
   const database = getInMemoryDatabase();
 
-  before(async () => {
+  beforeAll(async () => {
     mongoDB = await getMongoDBStartedContainer();
     connectionString = mongoDB.getConnectionString();
     eventStore = getMongoDBEventStore({
@@ -42,7 +42,7 @@ void describe.skip('mongoDB event store started consumer', () => {
     summaries = database.collection(shoppingCartsSummaryCollectionName);
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await eventStore.close();
       await mongoDB.stop();

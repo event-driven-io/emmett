@@ -9,7 +9,14 @@ import {
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  it,
+} from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
   getPostgreSQLEventStore,
@@ -34,7 +41,7 @@ void describe('EventStoreDBEventStore', () => {
   let shoppingCartId: string;
   let schemaHookCreationHookCalls = 0;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     pongo = pongoClient({ connectionString, driver: pgDriver });
@@ -65,7 +72,7 @@ void describe('EventStoreDBEventStore', () => {
     }
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await pongo.close();
       await postgres.stop();

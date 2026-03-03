@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { assertFalse, assertOk, assertTrue } from '../../testing';
 import { hashText } from './hashText';
 

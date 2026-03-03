@@ -3,7 +3,7 @@ import { tableExists } from '@event-driven-io/dumbo/pg';
 import { assertTrue } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { postgreSQLRawSQLProjection } from './postgreSQLProjection';
 import { PostgreSQLProjectionSpec } from './postgresProjectionSpec';
 
@@ -11,12 +11,12 @@ void describe('PostgreSQL Projections', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await postgres.stop();
     } catch (error) {

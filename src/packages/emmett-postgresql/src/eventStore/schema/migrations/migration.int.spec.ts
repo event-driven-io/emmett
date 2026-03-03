@@ -16,7 +16,14 @@ import {
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  it,
+} from 'vitest';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -56,7 +63,7 @@ void describe('Schema migrations tests', () => {
   let eventStore: PostgresEventStore;
   let connectionString: string;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
 
@@ -87,7 +94,7 @@ void describe('Schema migrations tests', () => {
     }
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await postgres.stop();
     } catch (error) {

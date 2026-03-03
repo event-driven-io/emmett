@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { getInMemoryEventStore } from '../eventStore';
 import {
   assertEqual,
@@ -17,7 +17,7 @@ import {
   type GroupCheckoutInput,
   type GroupCheckoutOutput,
   type InitiateGroupCheckout,
-} from './workflow.unit.spec';
+} from './workflow.testHelpers';
 import {
   getWorkflowId,
   workflowProcessor,

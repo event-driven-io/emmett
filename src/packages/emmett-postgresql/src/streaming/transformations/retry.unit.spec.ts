@@ -3,7 +3,7 @@ import type {
   ReadableStreamReadResult,
   TransformStreamDefaultController,
 } from 'node:stream/web';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { fromArray } from '../generators/fromArray';
 import { retryStream } from './retry';
 

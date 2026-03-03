@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { assertDeepEqual, assertEqual } from '../../testing';
 import { getDuplicates, hasDuplicates } from './duplicates';
 

@@ -1,7 +1,11 @@
-import { type DefaultRecord, assertEqual } from '@event-driven-io/emmett';
-import assert from 'node:assert';
+import {
+  type DefaultRecord,
+  assertEqual,
+  assertFails,
+  assertTrue,
+} from '@event-driven-io/emmett';
 import { ReadableStream } from 'node:stream/web';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { collect } from './collectors/collect';
 import { DefaultDecoder } from './decoders/composite';
 import { JsonDecoder } from './decoders/json';
@@ -182,7 +186,7 @@ void describe('restreamer', () => {
 
     try {
       await collect(restreamer);
-      assert.fail('Expected an error during stream processing');
+      assertFails('Expected an error during stream processing');
     } catch (error) {
       assertEqual((error as Error).message, 'Source stream error');
     }
@@ -516,12 +520,13 @@ void describe('restreamer', () => {
 
       try {
         await collect(restreamer);
-        assert.fail('Expected an error due to incomplete final chunk');
+        assertFails('Expected an error due to incomplete final chunk');
       } catch (error) {
         // Adjust the expected error message to match the actual error thrown
-        assert.match(
-          (error as Error).message,
-          /Unterminated string in JSON at position/,
+        assertTrue(
+          /Unterminated string in JSON at position/.test(
+            (error as Error).message,
+          ),
         );
       }
     });
@@ -673,7 +678,7 @@ void describe('restreamer', () => {
 
       try {
         await collect(restreamer);
-        assert.fail('Expected an unrecoverable error');
+        assertFails('Expected an unrecoverable error');
       } catch (error) {
         assertEqual((error as Error).message, 'Unrecoverable stream error');
       }
@@ -731,7 +736,7 @@ void describe('restreamer', () => {
       const results = await collect(restreamer);
 
       assertEqual(results.length, 10000);
-      assert(results.every((item) => item.transformed === true));
+      assertTrue(results.every((item) => item.transformed === true));
     });
 
     void it('handles varying chunk sizes', async () => {

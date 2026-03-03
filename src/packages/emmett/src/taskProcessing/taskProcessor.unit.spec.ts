@@ -1,5 +1,9 @@
-import assert from 'assert';
-import { beforeEach, describe, it } from 'node:test';
+import {
+  assertDeepEqual,
+  assertOk,
+  assertThrowsAsync,
+} from '../testing/assertions';
+import { beforeEach, describe, it } from 'vitest';
 import { TaskProcessor, type Task } from './taskProcessor';
 
 void describe('TaskProcessor', () => {
@@ -19,7 +23,7 @@ void describe('TaskProcessor', () => {
     };
     const result = await taskProcessor.enqueue(task);
 
-    assert.ok(result, 'Task should be processed successfully');
+    assertOk(result, 'Task should be processed successfully');
   });
 
   void it('should process multiple tasks concurrently', async () => {
@@ -39,7 +43,7 @@ void describe('TaskProcessor', () => {
 
     await Promise.all(tasks);
 
-    assert.deepStrictEqual(
+    assertDeepEqual(
       taskResults,
       ['Task 1 completed', 'Task 2 completed'],
       'All tasks should be processed concurrently',
@@ -77,7 +81,7 @@ void describe('TaskProcessor', () => {
       'Queued Task completed',
     ];
 
-    assert.ok(
+    assertOk(
       tasks.every((task) => expected.includes(task)),
       'Queued task should be processed after active tasks are completed',
     );
@@ -105,7 +109,7 @@ void describe('TaskProcessor', () => {
 
     await Promise.all(tasks);
 
-    assert.deepStrictEqual(
+    assertDeepEqual(
       taskResults,
       ['Task 1 completed', 'Task 2 completed', 'Task 3 completed'],
       'Tasks should be processed in FIFO order',
@@ -135,7 +139,7 @@ void describe('TaskProcessor', () => {
 
     await Promise.all(tasks);
 
-    assert.deepStrictEqual(
+    assertDeepEqual(
       taskResults,
       ['Group 1 - Task 1', 'Group 1 - Task 2'],
       'Tasks with the same taskGroupId should be processed sequentially',
@@ -165,7 +169,7 @@ void describe('TaskProcessor', () => {
 
     await Promise.all(tasks);
 
-    assert.deepStrictEqual(
+    assertDeepEqual(
       taskResults.sort(), // Sorting because concurrent order may vary
       ['Group 1 - Task 1', 'Group 2 - Task 1'],
       'Tasks with different taskGroupIds should be processed concurrently',
@@ -192,7 +196,7 @@ void describe('TaskProcessor', () => {
 
     await Promise.all(tasks);
 
-    assert.deepStrictEqual(
+    assertDeepEqual(
       taskResults.sort(),
       ['Grouped Task', 'Ungrouped Task'],
       'Ungrouped tasks should be processed concurrently with grouped tasks',
@@ -228,10 +232,9 @@ void describe('TaskProcessor', () => {
       }),
     ];
 
-    await assert.rejects(
+    await assertThrowsAsync(
       () => Promise.all(tasks),
-      /Too many pending tasks/,
-      'Should reject tasks when queue size is exceeded',
+      (e) => /Too many pending tasks/.test(e.message),
     );
   });
 
@@ -258,7 +261,7 @@ void describe('TaskProcessor', () => {
 
     await Promise.all(tasks);
 
-    assert.deepStrictEqual(
+    assertDeepEqual(
       taskResults,
       ['Group 1 - Task 1', 'Group 1 - Task 2'],
       'Tasks from a blocked group should be processed in FIFO order after unblocking',
@@ -289,7 +292,7 @@ void describe('TaskProcessor', () => {
 
     await Promise.all(tasks);
 
-    assert.deepStrictEqual(
+    assertDeepEqual(
       taskResults,
       ['Task 1 completed', 'Task 2 completed', 'Task 3 completed'],
       'Tasks should be processed in strict FIFO order without taskGroupId',
@@ -327,7 +330,7 @@ void describe('TaskProcessor', () => {
 
     await Promise.all(tasks);
 
-    assert.deepStrictEqual(taskResults, [
+    assertDeepEqual(taskResults, [
       'Group 1 - Task 1',
       'Group 1 - Task 2',
       'Group 2 - Task 1',
@@ -365,7 +368,7 @@ void describe('TaskProcessor', () => {
 
     await Promise.all(tasks);
 
-    assert.deepStrictEqual(taskResults, [
+    assertDeepEqual(taskResults, [
       'Group 1 - Task 1',
       'Group 2 - Task 1',
       'Group 1 - Task 2',
@@ -400,7 +403,7 @@ void describe('TaskProcessor', () => {
 
     await Promise.all(tasks);
 
-    assert.deepStrictEqual(taskResults, [
+    assertDeepEqual(taskResults, [
       'Group 1 - Task 1',
       'Ungrouped Task 1',
       'Group 1 - Task 2',
@@ -435,7 +438,7 @@ void describe('TaskProcessor', () => {
 
     await Promise.all(tasks);
 
-    assert.deepStrictEqual(taskResults, [
+    assertDeepEqual(taskResults, [
       'Ungrouped Task',
       'Group 1 - Task 1',
       'Group 1 - Task 2',

@@ -1,15 +1,15 @@
 import { getInMemoryEventStore } from '@event-driven-io/emmett';
-import { describe } from 'node:test';
+import { describe } from 'vitest';
 import { testAggregateStream, testStreamExists } from '../features';
 
 // const { stopOn } = streamTransformations;
 
 // type MockEvent = Event<'Mocked', { mocked: true }>;
 
-void describe('InMemoryEventStore', async () => {
-  void testAggregateStream(() => Promise.resolve(getInMemoryEventStore()));
+describe('InMemoryEventStore', () => {
+  testAggregateStream(() => Promise.resolve(getInMemoryEventStore()));
 
-  await testStreamExists(() => Promise.resolve(getInMemoryEventStore()));
+  testStreamExists(() => Promise.resolve(getInMemoryEventStore()));
 
   // void it('Successful subscription and processing of events', async () => {
   //   const eventStore = getInMemoryEventStore();

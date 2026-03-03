@@ -1,5 +1,5 @@
 import { assertDeepEqual, assertEqual } from '@event-driven-io/emmett';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { fromArray } from '../generators/fromArray';
 import { reduce } from './reduce'; // Adjust the import path
 
