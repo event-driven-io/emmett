@@ -8,7 +8,7 @@
     "build": "tsup",
     "build:ts": "tsc",
     "build:ts:watch": "tsc -b --watch",
-    "test": "vitest run",
+    "test": "run-s test:unit test:int test:e2e",
     "test:unit": "vitest run \".unit.spec\"",
     "test:int": "vitest run \".int.spec\"",
     "test:e2e": "vitest run \".e2e.spec\"",
