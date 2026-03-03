@@ -1,5 +1,5 @@
-import { deepStrictEqual, equal, ok } from 'node:assert/strict';
-import { beforeEach, describe, it } from 'node:test';
+import { beforeEach, describe, it } from 'vitest';
+import { assertDeepEqual, assertEqual, assertOk } from '../testing/assertions';
 import {
   type InMemoryDocumentsCollection,
   getInMemoryDatabase,
@@ -37,12 +37,12 @@ void describe('InMemoryDatabase Handle Operations', () => {
     const resultInMemoryDatabase = await users.handle(nonExistingId, handle, {
       expectedVersion: 'DOCUMENT_EXISTS',
     });
-    equal(resultInMemoryDatabase.successful, false);
-    equal(resultInMemoryDatabase.document, null);
+    assertEqual(resultInMemoryDatabase.successful, false);
+    assertEqual(resultInMemoryDatabase.document, null);
     const inMemoryDatabaseDoc = await users.findOne(
       ({ _id }) => _id === nonExistingId,
     );
-    equal(inMemoryDatabaseDoc, null);
+    assertEqual(inMemoryDatabaseDoc, null);
   });
 
   void it('should NOT insert a new document if it does not exist and expected is numeric value', async () => {
@@ -54,12 +54,12 @@ void describe('InMemoryDatabase Handle Operations', () => {
       expectedVersion: 1n,
     });
 
-    equal(resultInMemoryDatabase.successful, false);
-    equal(resultInMemoryDatabase.document, null);
+    assertEqual(resultInMemoryDatabase.successful, false);
+    assertEqual(resultInMemoryDatabase.document, null);
     const inMemoryDatabaseDoc = await users.findOne(
       ({ _id }) => _id === nonExistingId,
     );
-    equal(inMemoryDatabaseDoc, null);
+    assertEqual(inMemoryDatabaseDoc, null);
   });
 
   void it('should replace an existing document when expected version matches', async () => {
@@ -73,15 +73,15 @@ void describe('InMemoryDatabase Handle Operations', () => {
       handle,
     );
 
-    ok(resultInMemoryDatabase.successful);
-    deepStrictEqual(resultInMemoryDatabase.document, {
+    assertOk(resultInMemoryDatabase.successful);
+    assertDeepEqual(resultInMemoryDatabase.document, {
       ...updatedDoc,
       _version: 2n,
     });
     const inMemoryDatabaseDoc = await users.findOne(
       ({ _id }) => _id === inMemoryDatabaseInsertResult.insertedId,
     );
-    deepStrictEqual(inMemoryDatabaseDoc, {
+    assertDeepEqual(inMemoryDatabaseDoc, {
       ...updatedDoc,
       _version: 2n,
     });
@@ -98,15 +98,15 @@ void describe('InMemoryDatabase Handle Operations', () => {
         expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
       },
     );
-    equal(resultInMemoryDatabase.successful, false);
-    deepStrictEqual(resultInMemoryDatabase.document, {
+    assertEqual(resultInMemoryDatabase.successful, false);
+    assertDeepEqual(resultInMemoryDatabase.document, {
       ...existingDoc,
       _version: 1n,
     });
     const inMemoryDatabaseDoc = await users.findOne(
       ({ _id }) => _id === inMemoryDatabaseInsertResult.insertedId,
     );
-    deepStrictEqual(inMemoryDatabaseDoc, {
+    assertDeepEqual(inMemoryDatabaseDoc, {
       ...existingDoc,
       _version: 1n,
     });
@@ -123,15 +123,15 @@ void describe('InMemoryDatabase Handle Operations', () => {
         expectedVersion: 333n,
       },
     );
-    equal(resultInMemoryDatabase.successful, false);
-    deepStrictEqual(resultInMemoryDatabase.document, {
+    assertEqual(resultInMemoryDatabase.successful, false);
+    assertDeepEqual(resultInMemoryDatabase.document, {
       ...existingDoc,
       _version: 1n,
     });
     const inMemoryDatabaseDoc = await users.findOne(
       ({ _id }) => _id === inMemoryDatabaseInsertResult.insertedId,
     );
-    deepStrictEqual(inMemoryDatabaseDoc, {
+    assertDeepEqual(inMemoryDatabaseDoc, {
       ...existingDoc,
       _version: 1n,
     });
@@ -147,12 +147,12 @@ void describe('InMemoryDatabase Handle Operations', () => {
         expectedVersion: 1n,
       },
     );
-    ok(resultInMemoryDatabase.successful);
-    equal(resultInMemoryDatabase.document, null);
+    assertOk(resultInMemoryDatabase.successful);
+    assertEqual(resultInMemoryDatabase.document, null);
     const inMemoryDatabaseDoc = await users.findOne(
       ({ _id }) => _id === inMemoryDatabaseInsertResult.insertedId,
     );
-    equal(inMemoryDatabaseDoc, null);
+    assertEqual(inMemoryDatabaseDoc, null);
   });
   void it('should NOT delete an existing document when expected DOCUMENT_DOES_NOT_EXIST', async () => {
     const existingDoc: User = { name: 'John', age: 25 };
@@ -165,8 +165,8 @@ void describe('InMemoryDatabase Handle Operations', () => {
         expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
       },
     );
-    equal(resultInMemoryDatabase.successful, false);
-    deepStrictEqual(resultInMemoryDatabase.document, {
+    assertEqual(resultInMemoryDatabase.successful, false);
+    assertDeepEqual(resultInMemoryDatabase.document, {
       ...existingDoc,
       _id: inMemoryDatabaseInsertResult.insertedId!,
       _version: 1n,
@@ -174,7 +174,7 @@ void describe('InMemoryDatabase Handle Operations', () => {
     const inMemoryDatabaseDoc = await users.findOne(
       ({ _id }) => _id === inMemoryDatabaseInsertResult.insertedId,
     );
-    deepStrictEqual(inMemoryDatabaseDoc, {
+    assertDeepEqual(inMemoryDatabaseDoc, {
       ...existingDoc,
       _id: inMemoryDatabaseInsertResult.insertedId!,
       _version: 1n,
@@ -191,8 +191,8 @@ void describe('InMemoryDatabase Handle Operations', () => {
         expectedVersion: 333n,
       },
     );
-    equal(resultInMemoryDatabase.successful, false);
-    deepStrictEqual(resultInMemoryDatabase.document, {
+    assertEqual(resultInMemoryDatabase.successful, false);
+    assertDeepEqual(resultInMemoryDatabase.document, {
       ...existingDoc,
       _id: inMemoryDatabaseInsertResult.insertedId!,
       _version: 1n,
@@ -200,7 +200,7 @@ void describe('InMemoryDatabase Handle Operations', () => {
     const inMemoryDatabaseDoc = await users.findOne(
       ({ _id }) => _id === inMemoryDatabaseInsertResult.insertedId,
     );
-    deepStrictEqual(inMemoryDatabaseDoc, {
+    assertDeepEqual(inMemoryDatabaseDoc, {
       ...existingDoc,
       _id: inMemoryDatabaseInsertResult.insertedId!,
       _version: 1n,

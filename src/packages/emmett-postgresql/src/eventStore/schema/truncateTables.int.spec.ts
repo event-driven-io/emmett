@@ -8,7 +8,7 @@ import {
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import { createEventStoreSchema } from '.';
 import { appendToStream } from './appendToStream';
@@ -38,7 +38,7 @@ void describe('truncateTables', () => {
   let postgres: StartedPostgreSqlContainer;
   let pool: PgPool;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     const connectionString = postgres.getConnectionUri();
     pool = dumbo({
@@ -49,7 +49,7 @@ void describe('truncateTables', () => {
     await createEventStoreSchema(connectionString, pool);
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await pool.close();
       await postgres.stop();

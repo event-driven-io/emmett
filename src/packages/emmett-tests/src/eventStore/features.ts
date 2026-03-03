@@ -11,8 +11,8 @@ import {
   type EventStore,
 } from '@event-driven-io/emmett';
 import { randomUUID } from 'crypto';
-import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   addProductItem,
   evolve,
@@ -31,13 +31,13 @@ type TestOptions = {
 
 export type EventStoreFactory = () => Promise<EventStore>;
 
-export async function testAggregateStream(
+export function testAggregateStream(
   eventStoreFactory: EventStoreFactory,
   options: TestOptions = {
     getInitialIndex: () => 1n,
   },
 ) {
-  return describe('aggregateStream', async () => {
+  describe('aggregateStream', () => {
     let eventStore: EventStore;
     const evolveTestCases = [
       {
@@ -47,17 +47,17 @@ export async function testAggregateStream(
       { evolve: evolveWithMetadata, info: 'evolve with event and metadata' },
     ];
 
-    before(async () => {
+    beforeAll(async () => {
       eventStore = await eventStoreFactory();
     });
 
-    after(async () => {
+    afterAll(async () => {
       const teardownHook = options.teardownHook;
       if (teardownHook) await teardownHook();
     });
 
     for (const testCase of evolveTestCases) {
-      await it(`When called with 'to' allows time traveling using ${testCase.info}`, async () => {
+      it(`When called with 'to' allows time traveling using ${testCase.info}`, async () => {
         // Given
         const productItem: PricedProductItem = {
           productId: 'p123',
@@ -130,13 +130,13 @@ export async function testAggregateStream(
   });
 }
 
-export async function testCommandHandling(
+export function testCommandHandling(
   eventStoreFactory: EventStoreFactory,
   options: TestOptions = {
     getInitialIndex: () => 1n,
   },
 ) {
-  return describe('Command handling', async () => {
+  describe('Command handling', () => {
     let eventStore: EventStore;
 
     const handleCommand = CommandHandler<ShoppingCart, ShoppingCartEvent>({
@@ -144,16 +144,16 @@ export async function testCommandHandling(
       initialState,
     });
 
-    before(async () => {
+    beforeAll(async () => {
       eventStore = await eventStoreFactory();
     });
 
-    after(async () => {
+    afterAll(async () => {
       const teardownHook = options.teardownHook;
       if (teardownHook) await teardownHook();
     });
 
-    await it('Correctly handles no retries on version conflict when retry is disabled', async () => {
+    it('Correctly handles no retries on version conflict when retry is disabled', async () => {
       const productItem: PricedProductItem = {
         productId: '123',
         quantity: 10,
@@ -193,22 +193,22 @@ export async function testCommandHandling(
   });
 }
 
-export async function testStreamExists(
+export function testStreamExists(
   eventStoreFactory: EventStoreFactory,
   options?: { teardownHook?: () => Promise<void> },
 ) {
-  return describe('streamExists', async () => {
+  describe('streamExists', () => {
     let eventStore: EventStore;
-    before(async () => {
+    beforeAll(async () => {
       eventStore = await eventStoreFactory();
     });
 
-    after(async () => {
+    afterAll(async () => {
       const teardownHook = options?.teardownHook;
       if (teardownHook) await teardownHook();
     });
 
-    await it('Returns true when stream exists and is the only stream', async () => {
+    it('Returns true when stream exists and is the only stream', async () => {
       const productItem: PricedProductItem = {
         productId: '123',
         quantity: 10,
@@ -224,13 +224,13 @@ export async function testStreamExists(
       assertTrue(await eventStore.streamExists(shoppingCartId));
     });
 
-    await it('Returns false when does not stream exist and there are no other streams', async () => {
+    it('Returns false when does not stream exist and there are no other streams', async () => {
       const shoppingCartId = randomUUID();
 
       assertFalse(await eventStore.streamExists(shoppingCartId));
     });
 
-    await it('Returns true when stream exists and there are other streams', async () => {
+    it('Returns true when stream exists and there are other streams', async () => {
       const productItemA: PricedProductItem = {
         productId: '123',
         quantity: 10,
@@ -256,7 +256,7 @@ export async function testStreamExists(
       assertTrue(await eventStore.streamExists(shoppingCartIdB));
     });
 
-    await it('Returns false when stream does not exist but there are other streams', async () => {
+    it('Returns false when stream does not exist but there are other streams', async () => {
       const existingProductItem: PricedProductItem = {
         productId: '123',
         quantity: 10,

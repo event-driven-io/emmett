@@ -9,7 +9,7 @@ import {
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { createEventStoreSchema, defaultTag, unknownTag } from '../../schema';
 import { postgreSQLProcessorLock } from './postgreSQLProcessorLock';
 import {
@@ -23,14 +23,14 @@ void describe('tryAcquireProcessorLock', () => {
   let pool: PgPool;
   const defaultPartitionAndVersion1 = { partition: defaultTag, version: 1 };
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     pool = dumbo({ connectionString, driver: pgDumboDriver });
     await createEventStoreSchema(connectionString, pool);
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await pool.close();
       await postgres.stop();

@@ -1,8 +1,8 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import {
   GroupCheckoutWorkflow,
   GuestStayStatus,
-} from '../workflows/workflow.unit.spec';
+} from '../workflows/workflow.testHelpers';
 import { WorkflowSpecification } from './workflowSpecification';
 
 const now = new Date();

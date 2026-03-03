@@ -12,7 +12,7 @@ import {
   type StartedMongoDBContainer,
 } from '@testcontainers/mongodb';
 import { MongoClient, type Collection } from 'mongodb';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid, v4 } from 'uuid';
 import {
   getMongoDBEventStore,
@@ -68,7 +68,7 @@ void describe('MongoDBEventStore subscription', () => {
       price: 3,
     }) as PricedProductItem;
 
-  before(async () => {
+  beforeAll(async () => {
     mongodb = await new MongoDBContainer('mongo:8.0.10').start();
     client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
@@ -89,7 +89,7 @@ void describe('MongoDBEventStore subscription', () => {
     });
   });
 
-  after(async () => {
+  afterAll(async () => {
     if (consumer) {
       await consumer.close();
     }

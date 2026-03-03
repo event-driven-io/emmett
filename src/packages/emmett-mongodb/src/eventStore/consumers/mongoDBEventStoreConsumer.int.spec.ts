@@ -7,7 +7,14 @@ import {
   type MessageProcessor,
 } from '@event-driven-io/emmett';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
-import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  it,
+} from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
   mongoDBEventStoreConsumer,
@@ -32,12 +39,12 @@ void describe('mongoDB event store consumer', () => {
     isActive: false,
   };
 
-  before(async () => {
+  beforeAll(async () => {
     mongoDB = await getMongoDBStartedContainer();
     connectionString = mongoDB.getConnectionString();
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await mongoDB.stop();
     } catch (error) {

@@ -7,7 +7,14 @@ import {
   MessageProcessorType,
 } from '@event-driven-io/emmett';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  it,
+} from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
   getPostgreSQLEventStore,
@@ -37,14 +44,14 @@ void describe('PostgreSQL event store consumer', () => {
     isActive: false,
   };
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString);
     await eventStore.schema.migrate();
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await eventStore.close();
       await postgres.stop();

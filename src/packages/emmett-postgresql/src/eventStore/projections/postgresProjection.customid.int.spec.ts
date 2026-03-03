@@ -1,6 +1,6 @@
 import type { Event } from '@event-driven-io/emmett';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
   expectPongoDocuments,
@@ -22,7 +22,7 @@ void describe('Postgres Projections', () => {
   let shoppingCartId: string;
   let streamName: string;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
 
@@ -37,7 +37,7 @@ void describe('Postgres Projections', () => {
     streamName = `shoppingCart:${shoppingCartId}`;
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await postgres.stop();
     } catch (error) {

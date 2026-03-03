@@ -28,7 +28,7 @@ export const assertFails = (message?: string) => {
 };
 
 export const assertThrowsAsync = async <TError extends Error>(
-  fun: () => Promise<void>,
+  fun: () => Promise<unknown>,
   errorCheck?: (error: Error) => boolean,
 ): Promise<TError> => {
   try {

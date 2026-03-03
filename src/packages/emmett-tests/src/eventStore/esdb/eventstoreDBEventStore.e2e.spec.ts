@@ -5,7 +5,7 @@ import {
   getSharedEventStoreDBTestContainer,
   releaseSharedEventStoreDBTestContainer,
 } from '@event-driven-io/emmett-testcontainers';
-import { describe } from 'node:test';
+import { describe } from 'vitest';
 import {
   testAggregateStream,
   testStreamExists,
@@ -16,7 +16,7 @@ import {
 
 // type MockEvent = Event<'Mocked', { mocked: true }>;
 
-void describe('EventStoreDBEventStore', async () => {
+describe('EventStoreDBEventStore', () => {
   let esdbContainer: StartedEventStoreDBContainer;
 
   const eventStoreFactory: EventStoreFactory = async () => {
@@ -28,12 +28,12 @@ void describe('EventStoreDBEventStore', async () => {
     await releaseSharedEventStoreDBTestContainer();
   };
 
-  await testAggregateStream(eventStoreFactory, {
+  testAggregateStream(eventStoreFactory, {
     teardownHook,
     getInitialIndex: () => 0n,
   });
 
-  await testStreamExists(eventStoreFactory, { teardownHook });
+  testStreamExists(eventStoreFactory, { teardownHook });
 
   // void it.skip('Successful subscription and processing of events', async () => {
   //   const eventStore = await eventStoreFactory();

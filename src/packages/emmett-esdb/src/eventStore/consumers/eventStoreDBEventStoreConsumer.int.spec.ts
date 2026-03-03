@@ -8,7 +8,14 @@ import {
 } from '@event-driven-io/emmett';
 import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
-import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  it,
+} from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
   eventStoreDBEventStoreConsumer,
@@ -29,12 +36,12 @@ void describe('EventStoreDB event store consumer', () => {
     isActive: false,
   };
 
-  before(async () => {
+  beforeAll(async () => {
     eventStoreDB = await new EventStoreDBContainer().start();
     connectionString = eventStoreDB.getConnectionString();
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await eventStoreDB.stop();
     } catch (error) {

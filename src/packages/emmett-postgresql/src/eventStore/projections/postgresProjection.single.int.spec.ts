@@ -1,5 +1,5 @@
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
   documentExists,
@@ -22,7 +22,7 @@ void describe('Postgres Projections', () => {
   let given: PostgreSQLProjectionSpec<ProductItemAdded | DiscountApplied>;
   let shoppingCartId: string;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
 
@@ -34,7 +34,7 @@ void describe('Postgres Projections', () => {
 
   beforeEach(() => (shoppingCartId = `shoppingCart:${uuid()}:${uuid()}`));
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await postgres.stop();
     } catch (error) {

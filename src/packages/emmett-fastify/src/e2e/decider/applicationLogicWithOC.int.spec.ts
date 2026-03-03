@@ -8,7 +8,7 @@ import {
 } from '@event-driven-io/emmett';
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
-import { beforeEach, describe, it } from 'node:test';
+import { beforeEach, describe, it } from 'vitest';
 import { getApplication } from '../..';
 import { RegisterRoutes } from './api';
 import { ShoppingCartErrors } from './businessLogic';

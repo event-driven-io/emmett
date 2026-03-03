@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { IllegalStateError } from '../errors';
 import { getInMemoryEventStore, type EventStore } from '../eventStore';
 import { assertThrowsAsync, assertTrue } from '../testing';

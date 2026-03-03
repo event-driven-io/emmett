@@ -14,8 +14,8 @@ import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testconta
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
+import { afterAll, describe, it } from 'vitest';
 import {
   testAggregateStream,
   testCommandHandling,
@@ -29,7 +29,7 @@ import type {
   ShoppingCartEvent,
 } from '../shoppingCart.domain';
 
-void describe('EventStoreDBEventStore', async () => {
+describe('EventStoreDBEventStore', () => {
   let postgres: StartedPostgreSqlContainer;
   let eventStore: PostgresEventStore;
   let connectionString: string;
@@ -48,7 +48,7 @@ void describe('EventStoreDBEventStore', async () => {
     return eventStore;
   };
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await eventStore.close();
       await pongo.close();
@@ -58,15 +58,15 @@ void describe('EventStoreDBEventStore', async () => {
     }
   });
 
-  await testAggregateStream(eventStoreFactory, {
+  testAggregateStream(eventStoreFactory, {
     getInitialIndex: () => 1n,
   });
 
-  await testCommandHandling(eventStoreFactory, {
+  testCommandHandling(eventStoreFactory, {
     getInitialIndex: () => 1n,
   });
 
-  await testStreamExists(eventStoreFactory);
+  testStreamExists(eventStoreFactory);
 
   void it('should append events correctly using appendEvent function', async () => {
     const productItem: PricedProductItem = {

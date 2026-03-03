@@ -1,7 +1,7 @@
 import { assertEqual, type Event } from '@event-driven-io/emmett';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient } from 'mongodb';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v7 as uuid } from 'uuid';
 import {
   getMongoDBEventStore,
@@ -15,7 +15,7 @@ void describe('MongoDBEventStore onAfterCommit', () => {
   let mongodb: StartedMongoDBContainer;
   let client: MongoClient;
 
-  before(async () => {
+  beforeAll(async () => {
     mongodb = await getMongoDBStartedContainer();
     client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
@@ -24,7 +24,7 @@ void describe('MongoDBEventStore onAfterCommit', () => {
     await client.connect();
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await client.close();
       await mongodb.stop();

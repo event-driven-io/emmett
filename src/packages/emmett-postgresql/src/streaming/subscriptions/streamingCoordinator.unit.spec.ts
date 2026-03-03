@@ -9,7 +9,7 @@ import {
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import { beforeEach, describe, it } from 'node:test';
+import { beforeEach, describe, it } from 'vitest';
 import { collect } from '../../streaming';
 import { stopOn } from '../../streaming/transformations/stopOn';
 import { waitAtMost } from '../../streaming/transformations/waitAtMost';
@@ -110,7 +110,7 @@ void describe('StreamingCoordinator', () => {
     ]);
   });
 
-  void it.only('handles no active readers after streaming', async () => {
+  void it('handles no active readers after streaming', async () => {
     const event = createMockEvent(1n);
 
     const subscription = streamingCoordinator.stream();

@@ -1,7 +1,7 @@
 import type { ReadEvent } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
   documentExists,
@@ -24,7 +24,7 @@ void describe('Postgres Projections', () => {
   let shoppingCartId: string;
   let clientId: string;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
 
@@ -39,7 +39,7 @@ void describe('Postgres Projections', () => {
     shoppingCartId = `shoppingCart:${clientId}:${uuid()}`;
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await postgres.stop();
     } catch (error) {

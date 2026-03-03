@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import {
   ExpectedVersionConflictError,
   getInMemoryEventStore,

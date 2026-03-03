@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { IllegalStateError, ValidationError } from '../errors';
 import { AssertionError, assertThrows } from '../testing/assertions';
 import type { Command, Event } from '../typing';

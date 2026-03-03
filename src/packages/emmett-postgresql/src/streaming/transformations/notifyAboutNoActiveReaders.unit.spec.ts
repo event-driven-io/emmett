@@ -5,7 +5,7 @@ import {
   assertTrue,
 } from '@event-driven-io/emmett';
 import { ReadableStream, TransformStream } from 'node:stream/web';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { collect } from '../collectors/collect';
 import type { NotifyAboutNoActiveReadersStream } from './notifyAboutNoActiveReaders';
 import { notifyAboutNoActiveReadersStream } from './notifyAboutNoActiveReaders';

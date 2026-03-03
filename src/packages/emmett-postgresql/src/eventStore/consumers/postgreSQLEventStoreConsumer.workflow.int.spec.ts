@@ -7,7 +7,7 @@ import {
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
   GroupCheckoutWorkflow,
@@ -52,7 +52,7 @@ void describe('PostgreSQL event store workflow processor', () => {
   let connectionString: string;
   let eventStore: PostgresEventStore;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString);
@@ -66,7 +66,7 @@ void describe('PostgreSQL event store workflow processor', () => {
     });
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await eventStore.close();
       await postgres.stop();

@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { assertEqual, assertOk } from '../../testing';
 import { onShutdown } from './gracefulShutdown';
 

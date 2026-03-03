@@ -1,5 +1,5 @@
 import { assertEqual, assertOk } from '@event-driven-io/emmett';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { v7 as uuid } from 'uuid';
 import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
 

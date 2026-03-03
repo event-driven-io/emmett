@@ -1,6 +1,6 @@
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient } from 'mongodb';
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import type {
   DiscountApplied,
@@ -29,7 +29,7 @@ void describe('MongoDB Projections', () => {
   >;
   let streamName: ShoppingCartId;
 
-  before(async () => {
+  beforeAll(async () => {
     mongodb = await getMongoDBStartedContainer();
     client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
@@ -45,7 +45,7 @@ void describe('MongoDB Projections', () => {
     () => (streamName = toStreamName('shopping_cart', `${uuid()}:${uuid()}`)),
   );
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await client.close();
       await mongodb.stop();

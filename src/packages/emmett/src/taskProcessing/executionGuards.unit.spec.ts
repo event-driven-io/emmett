@@ -1,5 +1,9 @@
-import assert from 'node:assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
+import {
+  assertDeepEqual,
+  assertEqual,
+  assertThrowsAsync,
+} from '../testing/assertions';
 import {
   guardBoundedAccess,
   guardExclusiveAccess,
@@ -15,11 +19,7 @@ void describe('Task Processing Guards', () => {
 
       const operation = async (id: number) => {
         activeOperations++;
-        assert.strictEqual(
-          activeOperations,
-          1,
-          'Only one operation should be active',
-        );
+        assertEqual(activeOperations, 1, 'Only one operation should be active');
         executionOrder.push(id);
         await new Promise((resolve) => setTimeout(resolve, 10));
         activeOperations--;
@@ -31,16 +31,16 @@ void describe('Task Processing Guards', () => {
         guard.execute(() => operation(3)),
       ]);
 
-      assert.strictEqual(executionOrder.length, 3);
-      assert.strictEqual(activeOperations, 0);
+      assertEqual(executionOrder.length, 3);
+      assertEqual(activeOperations, 0);
     });
 
     void it('propagates errors correctly', async () => {
       const guard = guardExclusiveAccess();
 
-      await assert.rejects(
+      await assertThrowsAsync(
         () => guard.execute(() => Promise.reject(new Error('test error'))),
-        /test error/,
+        (e) => /test error/.test(e.message),
       );
     });
 
@@ -49,9 +49,9 @@ void describe('Task Processing Guards', () => {
 
       await guard.stop({ force: true });
 
-      await assert.rejects(
+      await assertThrowsAsync(
         () => guard.execute(() => Promise.resolve(42)),
-        /TaskProcessor has been stopped/,
+        (e) => /TaskProcessor has been stopped/.test(e.message),
       );
     });
 
@@ -69,13 +69,13 @@ void describe('Task Processing Guards', () => {
 
       await guard.stop();
 
-      assert.strictEqual(
+      assertEqual(
         operationCompleted,
         true,
         'Should wait for operation to complete',
       );
       const result = await operationPromise;
-      assert.strictEqual(result, 42);
+      assertEqual(result, 42);
     });
   });
 
@@ -105,8 +105,8 @@ void describe('Task Processing Guards', () => {
         guard.execute(operation),
       ]);
 
-      assert.strictEqual(maxConcurrent, 2, 'Should not exceed max resources');
-      assert.strictEqual(results.length, 4);
+      assertEqual(maxConcurrent, 2, 'Should not exceed max resources');
+      assertEqual(results.length, 4);
     });
 
     void it('reuses resources when enabled', async () => {
@@ -130,7 +130,7 @@ void describe('Task Processing Guards', () => {
         guard.execute((r) => Promise.resolve(r.id)),
       ]);
 
-      assert.strictEqual(
+      assertEqual(
         createdResources.length,
         2,
         'Should only create maxResources when reusing',
@@ -143,17 +143,13 @@ void describe('Task Processing Guards', () => {
         reuseResources: true,
       });
 
-      await assert.rejects(
+      await assertThrowsAsync(
         () => guard.execute(() => Promise.reject(new Error('test error'))),
-        /test error/,
+        (e) => /test error/.test(e.message),
       );
 
       const result = await guard.execute((r) => Promise.resolve(r.id));
-      assert.strictEqual(
-        result,
-        1,
-        'Should be able to use resource after error',
-      );
+      assertEqual(result, 1, 'Should be able to use resource after error');
     });
 
     void it('stops and clears queue on stop with force', async () => {
@@ -164,9 +160,9 @@ void describe('Task Processing Guards', () => {
 
       await guard.stop({ force: true });
 
-      await assert.rejects(
+      await assertThrowsAsync(
         () => guard.execute(() => Promise.resolve(1)),
-        /TaskProcessor has been stopped/,
+        (e) => /TaskProcessor has been stopped/.test(e.message),
       );
     });
 
@@ -188,13 +184,13 @@ void describe('Task Processing Guards', () => {
 
       await guard.stop();
 
-      assert.strictEqual(
+      assertEqual(
         operationCompleted,
         true,
         'Should wait for operation to complete',
       );
       const result = await operationPromise;
-      assert.strictEqual(result, 1);
+      assertEqual(result, 1);
     });
   });
 
@@ -213,8 +209,8 @@ void describe('Task Processing Guards', () => {
         guard.ensureInitialized(),
       ]);
 
-      assert.strictEqual(initCount, 1, 'Should initialize only once');
-      assert.deepStrictEqual(
+      assertEqual(initCount, 1, 'Should initialize only once');
+      assertDeepEqual(
         results,
         ['init-1', 'init-1', 'init-1'],
         'All calls should return the same result',
@@ -235,8 +231,8 @@ void describe('Task Processing Guards', () => {
       );
 
       const result = await guard.ensureInitialized();
-      assert.strictEqual(attempts, 3, 'Should retry until success');
-      assert.strictEqual(
+      assertEqual(attempts, 3, 'Should retry until success');
+      assertEqual(
         result,
         'success-3',
         'Should return result from successful attempt',
@@ -253,8 +249,11 @@ void describe('Task Processing Guards', () => {
         { maxRetries: 2 },
       );
 
-      await assert.rejects(() => guard.ensureInitialized(), /Always fails/);
-      assert.strictEqual(attempts, 3, 'Should attempt maxRetries + 1 times');
+      await assertThrowsAsync(
+        () => guard.ensureInitialized(),
+        (e) => /Always fails/.test(e.message),
+      );
+      assertEqual(attempts, 3, 'Should attempt maxRetries + 1 times');
     });
 
     void it('allows reset to reinitialize', async () => {
@@ -265,17 +264,13 @@ void describe('Task Processing Guards', () => {
       });
 
       const first = await guard.ensureInitialized();
-      assert.strictEqual(initCount, 1);
-      assert.strictEqual(first, 'value-1');
+      assertEqual(initCount, 1);
+      assertEqual(first, 'value-1');
 
       guard.reset();
       const second = await guard.ensureInitialized();
-      assert.strictEqual(initCount, 2, 'Should reinitialize after reset');
-      assert.strictEqual(
-        second,
-        'value-2',
-        'Should return new value after reset',
-      );
+      assertEqual(initCount, 2, 'Should reinitialize after reset');
+      assertEqual(second, 'value-2', 'Should return new value after reset');
     });
 
     void it('stops and prevents new initialization after stop', async () => {
@@ -285,9 +280,9 @@ void describe('Task Processing Guards', () => {
 
       await guard.stop({ force: true });
 
-      await assert.rejects(
+      await assertThrowsAsync(
         () => guard.ensureInitialized(),
-        /TaskProcessor has been stopped/,
+        (e) => /TaskProcessor has been stopped/.test(e.message),
       );
     });
   });

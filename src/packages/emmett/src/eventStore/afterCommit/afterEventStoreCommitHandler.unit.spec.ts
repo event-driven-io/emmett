@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { v7 as uuid } from 'uuid';
 import { bigIntProcessorCheckpoint } from '../../processors';
 import { assertDeepEqual, assertEqual } from '../../testing';

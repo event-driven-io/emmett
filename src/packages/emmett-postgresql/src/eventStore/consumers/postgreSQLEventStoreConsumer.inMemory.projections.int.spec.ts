@@ -9,7 +9,7 @@ import {
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import type {
   ProductItemAdded,
@@ -32,7 +32,7 @@ void describe('PostgreSQL event store started consumer', () => {
   const confirmedAt = new Date();
   const database = getInMemoryDatabase();
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString);
@@ -40,7 +40,7 @@ void describe('PostgreSQL event store started consumer', () => {
     await eventStore.schema.migrate();
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await eventStore.close();
       await postgres.stop();

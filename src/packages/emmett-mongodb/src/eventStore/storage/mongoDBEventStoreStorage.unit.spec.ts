@@ -1,6 +1,6 @@
 import { assertEqual, assertNotEqual } from '@event-driven-io/emmett';
 import type { MongoClient } from 'mongodb';
-import { beforeEach, describe, it } from 'node:test';
+import { beforeEach, describe, it } from 'vitest';
 import { v7 as uuid } from 'uuid';
 import { getDummyClient } from '../../testing';
 import { toStreamCollectionName, type StreamType } from '../mongoDBEventStore';

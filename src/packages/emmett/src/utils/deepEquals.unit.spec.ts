@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { assertFalse, assertTrue } from '../testing';
 import { deepEquals, type Equatable, isEquatable } from './deepEquals';
 

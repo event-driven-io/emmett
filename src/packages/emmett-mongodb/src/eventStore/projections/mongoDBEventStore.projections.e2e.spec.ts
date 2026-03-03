@@ -8,7 +8,7 @@ import {
 } from '@event-driven-io/emmett';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient, type Collection } from 'mongodb';
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
   getMongoDBEventStore,
@@ -41,7 +41,7 @@ void describe('MongoDBEventStore', () => {
     price: 3,
   };
 
-  before(async () => {
+  beforeAll(async () => {
     mongodb = await getMongoDBStartedContainer();
     client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
@@ -65,7 +65,7 @@ void describe('MongoDBEventStore', () => {
     return eventStore;
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await client.close();
       await mongodb.stop();

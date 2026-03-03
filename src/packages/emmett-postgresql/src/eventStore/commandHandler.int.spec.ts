@@ -8,7 +8,7 @@ import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testconta
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
   getPostgreSQLEventStore,
@@ -29,7 +29,7 @@ void describe('Postgres Projections', () => {
   let connectionString: string;
   let pongo: PongoClient;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString, {
@@ -45,7 +45,7 @@ void describe('Postgres Projections', () => {
     return eventStore;
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await eventStore.close();
       await pongo.close();

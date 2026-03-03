@@ -1,7 +1,7 @@
 import { assertDeepEqual } from '@event-driven-io/emmett';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient } from 'mongodb';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   readProcessorCheckpoint,
   storeProcessorCheckpoint,
@@ -38,7 +38,7 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
     },
     2,
   );
-  before(async () => {
+  beforeAll(async () => {
     mongodb = await getMongoDBStartedContainer();
     client = new MongoClient(mongodb.getConnectionString(), {
       directConnection: true,
@@ -47,7 +47,7 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
     await client.connect();
   });
 
-  after(async () => {
+  afterAll(async () => {
     await client.close();
     await mongodb.stop();
   });
