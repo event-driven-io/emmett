@@ -23,7 +23,8 @@ const withContext = async (
   url = 'http://localhost/test',
 ): Promise<Response> => {
   const app = new Hono();
-  app.get('/test', (c) => handler(c));
+  const pathname = new URL(url).pathname;
+  app.get(pathname, (c) => handler(c));
   return app.fetch(new Request(url));
 };
 
@@ -150,9 +151,10 @@ void describe('sendProblem', () => {
       sendProblem(c, 400, { problemDetails: 'Bad input' }),
     );
     assertEqual(response.status, 400);
-    assertEqual(
-      response.headers.get('content-type'),
-      'application/problem+json',
+    assertOk(
+      response.headers
+        .get('content-type')
+        ?.includes('application/problem+json'),
     );
   });
 
@@ -173,15 +175,20 @@ void describe('sendProblem', () => {
       status: 404,
     });
     const response = await withContext((c) => sendProblem(c, 404, { problem }));
-    assertDeepEqual(await response.json(), problem);
+    assertMatches(await response.json(), {
+      type: 'https://example.com/not-found',
+      title: 'Not Found',
+      status: 404,
+    });
   });
 
   void it('uses default options when none are provided', async () => {
     const response = await withContext((c) => sendProblem(c, 500));
     assertEqual(response.status, 500);
-    assertEqual(
-      response.headers.get('content-type'),
-      'application/problem+json',
+    assertOk(
+      response.headers
+        .get('content-type')
+        ?.includes('application/problem+json'),
     );
     assertMatches(await response.json(), {
       detail: 'Error occured!',

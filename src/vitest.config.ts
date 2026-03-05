@@ -5,6 +5,7 @@ export default defineConfig({
     projects: [
       'packages/emmett',
       'packages/emmett-expressjs',
+      'packages/emmett-honojs',
       'packages/emmett-postgresql',
       'packages/emmett-mongodb',
       'packages/emmett-esdb',
