@@ -36,9 +36,9 @@ void describe('ShoppingCart E2E', () => {
       postgreSQLContainer.getConnectionUri(),
     );
 
-    given = ApiE2ESpecification.for(
-      () => eventStore,
-      (eventStore) =>
+    given = ApiE2ESpecification.for({
+      getEventStore: () => eventStore,
+      getApplication: (eventStore) =>
         getApplication({
           apis: [
             shoppingCartApi(
@@ -48,7 +48,7 @@ void describe('ShoppingCart E2E', () => {
             ),
           ],
         }),
-    );
+    });
   });
 
   beforeEach(() => {

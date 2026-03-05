@@ -43,9 +43,9 @@ import {
   getApplication,
 } from '@event-driven-io/emmett-expressjs';
 
-const given = ApiE2ESpecification.for(
-  () => eventStore,
-  (eventStore) =>
+const given = ApiE2ESpecification.for({
+  getEventStore: () => eventStore,
+  getApplication: (eventStore) =>
     getApplication({
       apis: [
         shoppingCartApi(
@@ -55,5 +55,5 @@ const given = ApiE2ESpecification.for(
         ),
       ],
     }),
-);
+});
 // #endregion given

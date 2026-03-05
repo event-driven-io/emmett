@@ -15,9 +15,10 @@ const clientId = randomUUID();
 const now = new Date();
 const unitPrice = Math.random() * 10;
 
-const given = ApiE2ESpecification.for(
-  () => getPostgreSQLEventStore(postgreSQLContainer.getConnectionUri()),
-  (eventStore) =>
+const given = ApiE2ESpecification.for({
+  getEventStore: () =>
+    getPostgreSQLEventStore(postgreSQLContainer.getConnectionUri()),
+  getApplication: (eventStore) =>
     getApplication({
       apis: [
         shoppingCartApi(
@@ -27,7 +28,7 @@ const given = ApiE2ESpecification.for(
         ),
       ],
     }),
-);
+});
 
 const getRandomProduct = (): PricedProductItem => {
   return {
