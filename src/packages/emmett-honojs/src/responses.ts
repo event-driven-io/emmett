@@ -111,8 +111,9 @@ export const sendProblem = (
   if (eTag) setETag(context, eTag);
   if (location) context.header('Location', location);
 
-  context.header('Content-Type', 'application/problem+json');
   context.status(statusCode);
 
-  return context.json(problemDetails);
+  const response = context.json(problemDetails);
+  response.headers.set('Content-Type', 'application/problem+json');
+  return response;
 };
