@@ -1,4 +1,4 @@
-import { beforeEach, describe, it } from 'node:test';
+import { beforeEach, describe, it } from 'vitest';
 import type { PricedProductItem, ShoppingCartEvent } from '../events';
 import { shoppingCartApi } from './simpleApi';
 // #region getting-started-integration-tests

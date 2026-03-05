@@ -861,7 +861,7 @@ import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { after, before, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 
 void describe('Shopping carts summary', () => {

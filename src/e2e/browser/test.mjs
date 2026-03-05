@@ -1,8 +1,8 @@
 import express from 'express';
 import assert from 'node:assert';
-import { after, before, describe, it } from 'node:test';
 import path from 'path';
 import { chromium } from 'playwright';
+import { after, before, describe, it } from 'vitest';
 
 describe('Browser environment tests', () => {
   let server;

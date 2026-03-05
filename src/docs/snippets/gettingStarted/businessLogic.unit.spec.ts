@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { decide } from './businessLogic';
 import { evolve, initialState } from './shoppingCart';
 

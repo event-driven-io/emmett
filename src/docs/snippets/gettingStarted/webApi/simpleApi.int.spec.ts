@@ -8,8 +8,8 @@ import {
 import { getApplication } from '@event-driven-io/emmett-expressjs';
 import type { Application } from 'express';
 import { randomUUID } from 'node:crypto';
-import { beforeEach, describe, it } from 'node:test';
 import request from 'supertest';
+import { beforeEach, describe, it } from 'vitest';
 import type { ShoppingCartEvent } from '../events';
 import { getShoppingCartId, shoppingCartApi } from './simpleApi';
 

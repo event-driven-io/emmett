@@ -1,7 +1,7 @@
 import { assertOk } from '@event-driven-io/emmett';
 import { jsonEvent } from '@eventstore/db-client';
 import { randomUUID } from 'node:crypto';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import {
   EventStoreDBContainer,
   getSharedEventStoreDBTestContainer,

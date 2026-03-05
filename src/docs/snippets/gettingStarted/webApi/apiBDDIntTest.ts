@@ -4,7 +4,7 @@ import {
   getApplication,
 } from '@event-driven-io/emmett-expressjs';
 import { randomUUID } from 'node:crypto';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import type { PricedProductItem, ShoppingCartEvent } from '../events';
 import { shoppingCartApi } from './simpleApi';
 

@@ -8,7 +8,7 @@ import {
 } from '@event-driven-io/emmett';
 import type { Hono } from 'hono';
 import { randomUUID } from 'node:crypto';
-import { beforeEach, describe, it } from 'node:test';
+import { beforeEach, describe, it } from 'vitest';
 import { getApplication } from '../../application';
 import { HeaderNames, toWeakETag } from '../../etag';
 import {
