@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { after, before, describe } from 'node:test';
+import { afterAll, beforeAll, describe } from 'vitest';
 import { shoppingCartApi } from './simpleApi';
 
 const unitPrice = 100;
@@ -18,7 +18,7 @@ void describe('ShoppingCart E2E', () => {
   let eventStore: PostgresEventStore;
 
   // Set up a container and event store before all tests
-  before(async () => {
+  beforeAll(async () => {
     postgreSQLContainer = await new PostgreSqlContainer(
       'postgres:18.1',
     ).start();
@@ -28,7 +28,7 @@ void describe('ShoppingCart E2E', () => {
   });
 
   // Close PostgreSQL connection and stop container once we finished testing
-  after(async () => {
+  afterAll(async () => {
     await eventStore.close();
     return postgreSQLContainer.stop();
   });

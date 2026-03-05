@@ -6,7 +6,7 @@ import {
 import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { randomUUID } from 'node:crypto';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import type { PricedProductItem } from '../events';
 import { shoppingCartApi } from './simpleApi';
 

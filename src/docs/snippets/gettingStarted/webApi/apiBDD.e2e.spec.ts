@@ -1,4 +1,4 @@
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import type { PricedProductItem } from '../events';
 import { ShoppingCartStatus } from './shoppingCart';
 import { shoppingCartApi } from './simpleApi';
@@ -28,7 +28,7 @@ void describe('ShoppingCart E2E', () => {
   let eventStore: PostgresEventStore;
   let given: ApiE2ESpecification;
 
-  before(async () => {
+  beforeAll(async () => {
     postgreSQLContainer = await new PostgreSqlContainer(
       'postgres:18.1',
     ).start();
@@ -56,7 +56,7 @@ void describe('ShoppingCart E2E', () => {
     shoppingCartId = `shopping_cart:${clientId}:current`;
   });
 
-  after(async () => {
+  afterAll(async () => {
     await eventStore.close();
     return postgreSQLContainer.stop();
   });
