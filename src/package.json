@@ -47,6 +47,7 @@
     "test:unit:watch": "vitest \".unit.spec\"",
     "test:int:watch": "vitest \".int.spec\"",
     "test:e2e:watch": "vitest \".e2e.spec\"",
+    "test:file": "vitest run --no-file-parallelism",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
