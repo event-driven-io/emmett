@@ -84,57 +84,94 @@ export type ApiSpecification<EventType extends Event = Event> = (
   };
 };
 
-export const ApiSpecification = {
-  for: <EventType extends Event = Event, Store extends EventStore = EventStore>(
-    getEventStore: () => Store,
-    getApplication: (eventStore: Store) => Application,
-  ): ApiSpecification<EventType> => {
-    {
-      return (...givenStreams: TestEventStream<EventType>[]) => {
-        const eventStore = WrapEventStore(getEventStore());
-        const application = getApplication(eventStore);
+function apiSpecificationFor<
+  EventType extends Event = Event,
+  Store extends EventStore = EventStore,
+>(options: {
+  getEventStore: () => Store;
+  getApplication: (eventStore: Store) => Application;
+}): ApiSpecification<EventType>;
+/** @deprecated Use `ApiSpecification.for({ getEventStore, getApplication })` instead */
+function apiSpecificationFor<
+  EventType extends Event = Event,
+  Store extends EventStore = EventStore,
+>(
+  getEventStore: () => Store,
+  getApplication: (eventStore: Store) => Application,
+): ApiSpecification<EventType>;
+function apiSpecificationFor<
+  EventType extends Event = Event,
+  Store extends EventStore = EventStore,
+>(
+  optionsOrGetEventStore:
+    | {
+        getEventStore: () => Store;
+        getApplication: (eventStore: Store) => Application;
+      }
+    | (() => Store),
+  getApplication?: (eventStore: Store) => Application,
+): ApiSpecification<EventType> {
+  const resolveStoreAndApplication = (): {
+    eventStore: ReturnType<typeof WrapEventStore>;
+    application: Application;
+  } => {
+    if (typeof optionsOrGetEventStore === 'function') {
+      const eventStore = WrapEventStore(optionsOrGetEventStore());
+      return { eventStore, application: getApplication!(eventStore) };
+    }
+    const eventStore = WrapEventStore(optionsOrGetEventStore.getEventStore());
+    return {
+      eventStore,
+      application: optionsOrGetEventStore.getApplication(eventStore),
+    };
+  };
+
+  return (...givenStreams: TestEventStream<EventType>[]) => {
+    const { eventStore, application } = resolveStoreAndApplication();
+
+    return {
+      when: (setupRequest: TestRequest) => {
+        const handle = async () => {
+          for (const [streamName, events] of givenStreams) {
+            await eventStore.setup(streamName, events);
+          }
+
+          return setupRequest(supertest(application));
+        };
 
         return {
-          when: (setupRequest: TestRequest) => {
-            const handle = async () => {
-              for (const [streamName, events] of givenStreams) {
-                await eventStore.setup(streamName, events);
+          then: async (
+            verify: ApiSpecificationAssert<EventType>,
+          ): Promise<void> => {
+            const response = await handle();
+
+            if (typeof verify === 'function') {
+              const succeeded = verify(response);
+
+              if (succeeded === false) assertFails();
+            } else if (Array.isArray(verify)) {
+              const [first, ...rest] = verify;
+
+              if (typeof first === 'function') {
+                const succeeded = first(response);
+
+                if (succeeded === false) assertFails();
               }
 
-              return setupRequest(supertest(application));
-            };
+              const events = typeof first === 'function' ? rest : verify;
 
-            return {
-              then: async (
-                verify: ApiSpecificationAssert<EventType>,
-              ): Promise<void> => {
-                const response = await handle();
-
-                if (typeof verify === 'function') {
-                  const succeeded = verify(response);
-
-                  if (succeeded === false) assertFails();
-                } else if (Array.isArray(verify)) {
-                  const [first, ...rest] = verify;
-
-                  if (typeof first === 'function') {
-                    const succeeded = first(response);
-
-                    if (succeeded === false) assertFails();
-                  }
-
-                  const events = typeof first === 'function' ? rest : verify;
-
-                  assertMatches(
-                    Array.from(eventStore.appendedEvents.values()),
-                    events,
-                  );
-                }
-              },
-            };
+              assertMatches(
+                Array.from(eventStore.appendedEvents.values()),
+                events,
+              );
+            }
           },
         };
-      };
-    }
-  },
+      },
+    };
+  };
+}
+
+export const ApiSpecification = {
+  for: apiSpecificationFor,
 };

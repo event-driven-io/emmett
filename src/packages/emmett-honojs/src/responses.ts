@@ -44,7 +44,10 @@ export const sendCreated = (
       'url' in options
         ? options.url
         : `${context.req.url}/${options.createdId}`,
-    body: 'createdId' in options ? { id: options.createdId } : undefined,
+    body:
+      'createdId' in options
+        ? { id: options.createdId, ...(options.body ?? {}) }
+        : options.body,
     eTag,
   });
 };
