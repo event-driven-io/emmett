@@ -65,6 +65,13 @@ export const sendAccepted = (
 
 export type NoContentHttpResponseOptions = Omit<HttpResponseOptions, 'body'>;
 
+export const sendNoContent = (
+  context: Context,
+  options?: NoContentHttpResponseOptions,
+): Response => {
+  return send(context, 204, options);
+};
+
 export const send = (
   context: Context,
   statusCode: StatusCode,
