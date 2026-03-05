@@ -48,7 +48,10 @@ export const sendCreated = (
       'url' in options
         ? options.url
         : `${response.req.url}/${options.createdId}`,
-    body: 'createdId' in options ? { id: options.createdId } : undefined,
+    body:
+      'createdId' in options
+        ? { id: options.createdId, ...(options.body ?? {}) }
+        : options.body,
     eTag,
   });
 
@@ -62,6 +65,11 @@ export const sendAccepted = (
 ): void => send(response, 202, options);
 
 export type NoContentHttpResponseOptions = Omit<HttpResponseOptions, 'body'>;
+
+export const sendNoContent = (
+  response: Response,
+  options?: NoContentHttpResponseOptions,
+): void => send(response, 204, options);
 
 export const send = (
   response: Response,
