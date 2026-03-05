@@ -1,20 +1,20 @@
-import { describe, it, vi, beforeEach } from 'vitest';
-import { ProblemDocument } from 'http-problem-details';
-import type { Response } from 'express';
 import {
-  assertEqual,
-  assertDeepEqual,
-  assertMatches,
-  assertOk,
+    assertDeepEqual,
+    assertEqual,
+    assertMatches,
+    assertOk,
 } from '@event-driven-io/emmett';
-import {
-  send,
-  sendCreated,
-  sendAccepted,
-  sendNoContent,
-  sendProblem,
-} from './responses';
+import type { Response } from 'express';
+import { ProblemDocument } from 'http-problem-details';
+import { beforeEach, describe, it, vi } from 'vitest';
 import { toWeakETag } from './etag';
+import {
+    send,
+    sendAccepted,
+    sendCreated,
+    sendNoContent,
+    sendProblem,
+} from './responses';
 
 // Minimal mock of Express Response
 const mockResponse = () => {
