@@ -19,42 +19,62 @@ export type ApiE2ESpecification = (...givenRequests: TestRequest[]) => {
   };
 };
 
-export const ApiE2ESpecification = {
-  for: <Store extends EventStore = InMemoryEventStore>(options: {
-    getEventStore?: () => Store;
-    getApplication: (eventStore: Store) => Application;
-  }): ApiE2ESpecification => {
-    {
-      return (...givenRequests: TestRequest[]) => {
-        const eventStore = options.getEventStore?.() ?? getInMemoryEventStore();
-        const application = options.getApplication(eventStore as Store);
+function apiE2ESpecificationFor(
+  getApplication: () => Application,
+): ApiE2ESpecification;
+/** @deprecated Use `ApiE2ESpecification.for(() => getApplication(...))` instead */
+function apiE2ESpecificationFor<
+  Store extends EventStore = InMemoryEventStore,
+>(options: {
+  getEventStore?: () => Store;
+  getApplication: (eventStore: Store) => Application;
+}): ApiE2ESpecification;
+function apiE2ESpecificationFor<Store extends EventStore = InMemoryEventStore>(
+  optionsOrGetApplication:
+    | (() => Application)
+    | {
+        getEventStore?: () => Store;
+        getApplication: (eventStore: Store) => Application;
+      },
+): ApiE2ESpecification {
+  const resolveApplication = (): Application => {
+    if (typeof optionsOrGetApplication === 'function') {
+      return optionsOrGetApplication();
+    }
+    const eventStore =
+      optionsOrGetApplication.getEventStore?.() ?? getInMemoryEventStore();
+    return optionsOrGetApplication.getApplication(eventStore as Store);
+  };
+
+  return (...givenRequests: TestRequest[]) => {
+    const application = resolveApplication();
+
+    return {
+      when: (setupRequest: TestRequest) => {
+        const handle = async () => {
+          for (const requestFn of givenRequests) {
+            await requestFn(supertest(application));
+          }
+
+          return setupRequest(supertest(application));
+        };
 
         return {
-          when: (setupRequest: TestRequest) => {
-            const handle = async () => {
-              for (const requestFn of givenRequests) {
-                await requestFn(supertest(application));
-              }
+          then: async (verify: ApiE2ESpecificationAssert): Promise<void> => {
+            const response = await handle();
 
-              return setupRequest(supertest(application));
-            };
+            verify.forEach((assertion) => {
+              const succeeded = assertion(response);
 
-            return {
-              then: async (
-                verify: ApiE2ESpecificationAssert,
-              ): Promise<void> => {
-                const response = await handle();
-
-                verify.forEach((assertion) => {
-                  const succeeded = assertion(response);
-
-                  if (succeeded === false) assert.fail();
-                });
-              },
-            };
+              if (succeeded === false) assert.fail();
+            });
           },
         };
-      };
-    }
-  },
+      },
+    };
+  };
+}
+
+export const ApiE2ESpecification = {
+  for: apiE2ESpecificationFor,
 };
