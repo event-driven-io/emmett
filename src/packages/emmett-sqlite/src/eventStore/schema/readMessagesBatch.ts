@@ -1,7 +1,7 @@
 import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   bigIntProcessorCheckpoint,
-  JSONParser,
+  JSONSerializer,
   type CombinedMessageMetadata,
   type Message,
   type RecordedMessage,
@@ -86,8 +86,8 @@ export const readMessagesBatch = async <
       (row) => {
         const rawEvent = {
           type: row.message_type,
-          data: JSONParser.parse(row.message_data),
-          metadata: JSONParser.parse(row.message_metadata),
+          data: JSONSerializer.deserialize(row.message_data),
+          metadata: JSONSerializer.deserialize(row.message_metadata),
         } as unknown as MessageType;
 
         const metadata: RecordedMessageMetadataWithGlobalPosition = {

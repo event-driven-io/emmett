@@ -1,6 +1,6 @@
 import retry from 'async-retry';
 import { EmmettError } from '../errors';
-import { JSONParser } from '../serialization';
+import { JSONSerializer } from '../serialization';
 
 export type AsyncRetryOptions<T = unknown> = retry.Options & {
   shouldRetryResult?: (result: T) => boolean;
@@ -22,7 +22,7 @@ export const asyncRetry = async <T>(
 
         if (opts?.shouldRetryResult && opts.shouldRetryResult(result)) {
           throw new EmmettError(
-            `Retrying because of result: ${JSONParser.stringify(result)}`,
+            `Retrying because of result: ${JSONSerializer.serialize(result)}`,
           );
         }
         return result;

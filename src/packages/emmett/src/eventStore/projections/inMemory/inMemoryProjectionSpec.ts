@@ -10,7 +10,7 @@ import {
   type InMemoryDatabase,
 } from '../../../database';
 import { isErrorConstructor } from '../../../errors';
-import { JSONParser } from '../../../serialization';
+import { JSONSerializer } from '../../../serialization';
 import {
   assertFails,
   AssertionError,
@@ -256,7 +256,8 @@ export function documentExists<T extends DocumentWithId>(
       const propKey = key as keyof typeof document;
       if (
         !(key in document) ||
-        JSONParser.stringify(document[propKey]) !== JSONParser.stringify(value)
+        JSONSerializer.serialize(document[propKey]) !==
+          JSONSerializer.serialize(value)
       ) {
         assertFails(`Property ${key} doesn't match the expected value`);
         return Promise.resolve(false);

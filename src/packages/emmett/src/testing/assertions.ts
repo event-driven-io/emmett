@@ -1,4 +1,4 @@
-import { JSONParser } from '../serialization';
+import { JSONSerializer } from '../serialization';
 import type { DefaultRecord } from '../typing';
 import { deepEquals } from '../utils';
 
@@ -45,7 +45,7 @@ export const assertThrowsAsync = async <TError extends Error>(
 
     assertTrue(
       errorCheck(typedError),
-      `Error doesn't match the expected condition: ${JSONParser.stringify(error)}`,
+      `Error doesn't match the expected condition: ${JSONSerializer.serialize(error)}`,
     );
 
     return typedError;
@@ -65,7 +65,7 @@ export const assertThrows = <TError extends Error>(
     if (errorCheck) {
       assertTrue(
         errorCheck(typedError),
-        `Error doesn't match the expected condition: ${JSONParser.stringify(error)}`,
+        `Error doesn't match the expected condition: ${JSONSerializer.serialize(error)}`,
       );
     } else if (typedError instanceof AssertionError) {
       assertFalse(
@@ -92,10 +92,12 @@ export const assertDoesNotThrow = <TError extends Error>(
     if (errorCheck) {
       assertFalse(
         errorCheck(typedError),
-        `Error matching the expected condition was thrown!: ${JSONParser.stringify(error)}`,
+        `Error matching the expected condition was thrown!: ${JSONSerializer.serialize(error)}`,
       );
     } else {
-      assertFails(`Function threw an error: ${JSONParser.stringify(error)}`);
+      assertFails(
+        `Function threw an error: ${JSONSerializer.serialize(error)}`,
+      );
     }
 
     return typedError;
@@ -125,7 +127,7 @@ export const assertMatches = (
   if (!isSubset(actual, expected))
     throw new AssertionError(
       message ??
-        `subObj:\n${JSONParser.stringify(expected)}\nis not subset of\n${JSONParser.stringify(actual)}`,
+        `subObj:\n${JSONSerializer.serialize(expected)}\nis not subset of\n${JSONSerializer.serialize(actual)}`,
     );
 };
 
@@ -137,7 +139,7 @@ export const assertDeepEqual = <T = unknown>(
   if (!deepEquals(actual, expected))
     throw new AssertionError(
       message ??
-        `subObj:\n${JSONParser.stringify(expected)}\nis not equal to\n${JSONParser.stringify(actual)}`,
+        `subObj:\n${JSONSerializer.serialize(expected)}\nis not equal to\n${JSONSerializer.serialize(actual)}`,
     );
 };
 
@@ -149,7 +151,7 @@ export const assertNotDeepEqual = <T = unknown>(
   if (deepEquals(actual, expected))
     throw new AssertionError(
       message ??
-        `subObj:\n${JSONParser.stringify(expected)}\nis equals to\n${JSONParser.stringify(actual)}`,
+        `subObj:\n${JSONSerializer.serialize(expected)}\nis equals to\n${JSONSerializer.serialize(actual)}`,
     );
 };
 
@@ -197,7 +199,7 @@ export function assertEqual<T>(
 ): void {
   if (expected !== actual)
     throw new AssertionError(
-      `${message ?? 'Objects are not equal'}:\nExpected: ${JSONParser.stringify(expected)}\nActual: ${JSONParser.stringify(actual)}`,
+      `${message ?? 'Objects are not equal'}:\nExpected: ${JSONSerializer.serialize(expected)}\nActual: ${JSONSerializer.serialize(actual)}`,
     );
 }
 
@@ -208,7 +210,7 @@ export function assertNotEqual<T>(
 ): void {
   if (obj === other)
     throw new AssertionError(
-      message ?? `Objects are equal: ${JSONParser.stringify(obj)}`,
+      message ?? `Objects are equal: ${JSONSerializer.serialize(obj)}`,
     );
 }
 
@@ -309,7 +311,7 @@ export const assertThatArray = <T>(array: T[]) => {
       assertEqual(
         array.length,
         0,
-        `Array is not empty ${JSONParser.stringify(array)}`,
+        `Array is not empty ${JSONSerializer.serialize(array)}`,
       ),
     isNotEmpty: () => assertNotEqual(array.length, 0, `Array is empty`),
     hasSize: (length: number) => assertEqual(array.length, length),

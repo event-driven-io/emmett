@@ -1,5 +1,5 @@
 import { ConcurrencyInMemoryDatabaseError } from '../errors';
-import { JSONParser } from '../serialization';
+import { JSONSerializer } from '../serialization';
 import type {
   DatabaseHandleOptionErrors,
   ExpectedDocumentVersion,
@@ -44,7 +44,7 @@ export const operationResult = <T extends OperationResult>(
       if (!successful)
         throw new ConcurrencyInMemoryDatabaseError(
           errorMessage ??
-            `${operationName} on ${collectionName} failed. Expected document state does not match current one! Result: ${JSONParser.stringify(result)}!`,
+            `${operationName} on ${collectionName} failed. Expected document state does not match current one! Result: ${JSONSerializer.serialize(result)}!`,
         );
     },
   } as T;

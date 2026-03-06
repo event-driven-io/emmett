@@ -2,7 +2,7 @@ import {
   asyncRetry,
   getCheckpoint,
   isString,
-  JSONParser,
+  JSONSerializer,
   parseBigIntProcessorCheckpoint,
   type AnyMessage,
   type AsyncRetryOptions,
@@ -215,7 +215,7 @@ export const eventStoreDBSubscription = <
             return;
           }
           console.info(
-            `Starting subscription. ${retry++} retries. From: ${JSONParser.stringify(from ?? '$all')}, Start from: ${JSONParser.stringify(
+            `Starting subscription. ${retry++} retries. From: ${JSONSerializer.serialize(from ?? '$all')}, Start from: ${JSONSerializer.serialize(
               options.startFrom,
             )}`,
           );
@@ -271,7 +271,7 @@ export const eventStoreDBSubscription = <
                   return;
                 }
                 console.error(
-                  `Received error: ${JSONParser.stringify(error)}.`,
+                  `Received error: ${JSONSerializer.serialize(error)}.`,
                 );
                 reject(error);
               });
