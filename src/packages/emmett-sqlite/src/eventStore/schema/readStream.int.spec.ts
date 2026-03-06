@@ -43,11 +43,12 @@ export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
 void describe('appendEvent', () => {
   let connection: SQLite3Connection;
+  const serializer = JSONSerializer;
 
   beforeAll(async () => {
     connection = sqlite3Connection({
       fileName: InMemorySQLiteDatabase,
-      serializer: JSONSerializer,
+      serializer,
     });
     await createEventStoreSchema(connection);
   });
@@ -75,7 +76,9 @@ void describe('appendEvent', () => {
     await appendToStream(connection, streamId, 'shopping_cart', events);
 
     // When
-    const result = await readStream(connection.execute, streamId);
+    const result = await readStream(connection.execute, streamId, {
+      serializer,
+    });
 
     // Then
     assertIsNotNull(result);
@@ -98,7 +101,9 @@ void describe('appendEvent', () => {
     const nonExistingStreamId = uuid();
 
     // When
-    const result = await readStream(connection.execute, nonExistingStreamId);
+    const result = await readStream(connection.execute, nonExistingStreamId, {
+      serializer,
+    });
 
     // Then
     assertFalse(result.streamExists);

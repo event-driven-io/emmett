@@ -2,7 +2,7 @@ import express from 'express';
 import assert from 'node:assert';
 import path from 'path';
 import { chromium } from 'playwright';
-import { after, before, describe, it } from 'vitest';
+import { beforeAll, describe, it } from 'vitest';
 
 describe('Browser environment tests', () => {
   let server;
@@ -13,7 +13,7 @@ describe('Browser environment tests', () => {
   const app = express();
   app.use(express.static(path.resolve('.')));
 
-  before(async () => {
+  beforeAll(async () => {
     await new Promise((resolve) => {
       server = app.listen(PORT, resolve);
     });
@@ -21,7 +21,7 @@ describe('Browser environment tests', () => {
     page = await browser.newPage();
   });
 
-  after(async () => {
+  afterAll(async () => {
     await browser.close();
     server.close();
   });

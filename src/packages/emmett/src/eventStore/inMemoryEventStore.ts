@@ -117,7 +117,7 @@ export const getInMemoryEventStore = (
       EventPayloadType extends Event = EventType,
     >(
       streamName: string,
-      options?: ReadStreamOptions<EventType, EventPayloadType>,
+      readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
     > => {
@@ -128,15 +128,15 @@ export const getInMemoryEventStore = (
 
       assertExpectedVersionMatchesCurrent(
         currentStreamVersion,
-        options?.expectedStreamVersion,
+        readOptions?.expectedStreamVersion,
         InMemoryEventStoreDefaultStreamVersion,
       );
 
-      const from = Number(options?.from ?? 0);
+      const from = Number(readOptions?.from ?? 0);
       const to = Number(
-        options?.to ??
-          (options?.maxCount
-            ? (options.from ?? 0n) + options.maxCount
+        readOptions?.to ??
+          (readOptions?.maxCount
+            ? (readOptions.from ?? 0n) + readOptions.maxCount
             : (events?.length ?? 1)),
       );
 
@@ -151,7 +151,7 @@ export const getInMemoryEventStore = (
                 EventPayloadType,
                 ReadEventMetadataWithGlobalPosition
               >[],
-              options?.schema?.versioning,
+              readOptions?.schema?.versioning,
             )
           : [];
 

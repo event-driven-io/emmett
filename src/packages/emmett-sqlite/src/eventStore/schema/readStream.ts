@@ -1,7 +1,7 @@
 import { SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import type { JSONSerializer } from '@event-driven-io/emmett';
 import {
   bigIntProcessorCheckpoint,
-  JSONSerializer,
   upcastRecordedMessage,
   type CombinedReadEventMetadata,
   type Event,
@@ -31,13 +31,15 @@ export const readStream = async <
 >(
   execute: SQLExecutor,
   streamId: string,
-  options?: ReadStreamOptions<EventType, EventPayloadType> & {
+  options: ReadStreamOptions<EventType, EventPayloadType> & {
     partition?: string;
+    serializer: JSONSerializer;
   },
 ): Promise<
   ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
 > => {
-  const fromCondition: SQL = options?.from
+  const { serializer } = options;
+  const fromCondition: SQL = options.from
     ? SQL`AND stream_position >= ${options.from}`
     : SQL.EMPTY;
 
@@ -61,8 +63,8 @@ export const readStream = async <
     results.map((row) => {
       const rawEvent = {
         type: row.message_type,
-        data: JSONSerializer.deserialize(row.message_data),
-        metadata: JSONSerializer.deserialize(row.message_metadata),
+        data: serializer.deserialize(row.message_data),
+        metadata: serializer.deserialize(row.message_metadata),
       } as unknown as EventPayloadType;
 
       const metadata: ReadEventMetadataWithGlobalPosition = {
