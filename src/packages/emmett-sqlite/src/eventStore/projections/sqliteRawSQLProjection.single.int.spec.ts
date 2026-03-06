@@ -3,7 +3,7 @@ import {
   InMemorySQLiteDatabase,
   type AnySQLiteConnection,
 } from '@event-driven-io/dumbo/sqlite3';
-import { assertDeepEqual, JSONParser } from '@event-driven-io/emmett';
+import { assertDeepEqual, JSONSerializer } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { beforeEach, describe, it } from 'vitest';
 import { sqlite3EventStoreDriver } from '../../sqlite3';
@@ -91,7 +91,7 @@ void describe('SQLite Projections', () => {
               id: shoppingCartId,
               productItemsCount: 100,
               totalAmount: 10000,
-              discountsApplied: JSONParser.stringify([]),
+              discountsApplied: JSONSerializer.serialize([]),
             },
           }),
       ));
@@ -133,7 +133,7 @@ void describe('SQLite Projections', () => {
               id: shoppingCartId,
               productItemsCount: 100,
               totalAmount: 9000,
-              discountsApplied: JSONParser.stringify([couponId]),
+              discountsApplied: JSONSerializer.serialize([couponId]),
             },
           }),
       );

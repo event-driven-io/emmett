@@ -1,7 +1,7 @@
 import {
   asyncRetry,
   EmmettError,
-  JSONParser,
+  JSONSerializer,
   type AnyMessage,
   type AsyncRetryOptions,
   type BatchRecordedMessageHandlerWithoutContext,
@@ -407,7 +407,7 @@ export const mongoDBSubscription = <MessageType extends Message = AnyMessage>({
         }
 
         console.info(
-          `Starting subscription. ${retry++} retries. From: ${JSONParser.stringify(from)}, Start from: ${JSONParser.stringify(
+          `Starting subscription. ${retry++} retries. From: ${JSONSerializer.serialize(from)}, Start from: ${JSONSerializer.serialize(
             options.startFrom,
           )}`,
         );
@@ -476,7 +476,9 @@ export const mongoDBSubscription = <MessageType extends Message = AnyMessage>({
                 return;
               }
 
-              console.error(`Received error: ${JSONParser.stringify(error)}.`);
+              console.error(
+                `Received error: ${JSONSerializer.serialize(error)}.`,
+              );
               reject(error);
             });
           },

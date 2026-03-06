@@ -1,6 +1,6 @@
 import { EmmettError } from '../errors';
 import type { EventStoreReadSchemaOptions } from '../eventStore';
-import { JSONParser } from '../serialization';
+import { JSONSerializer } from '../serialization';
 import type {
   AnyEvent,
   AnyReadEventMetadata,
@@ -97,7 +97,7 @@ export const filterProjections = <
   if (duplicateRegistrations.length > 0) {
     throw new EmmettError(`You cannot register multiple projections with the same name (or without the name).
       Ensure that:
-      ${JSONParser.stringify(duplicateRegistrations)}
+      ${JSONSerializer.serialize(duplicateRegistrations)}
       have different names`);
   }
 
