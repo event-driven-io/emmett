@@ -361,14 +361,13 @@ export const getPostgreSQLEventStore = (
       EventPayloadType extends Event = EventType,
     >(
       streamName: string,
-      options?: ReadStreamOptions<EventType, EventPayloadType>,
+      readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<ReadStreamResult<EventType, PostgresReadEventMetadata>> => {
       await ensureSchemaExists();
-      return readStream<EventType, EventPayloadType>(
-        pool.execute,
-        streamName,
-        options,
-      );
+      return readStream<EventType, EventPayloadType>(pool.execute, streamName, {
+        ...readOptions,
+        serialization: options.serialization ?? readOptions?.serialization,
+      });
     },
 
     appendToStream: async <
@@ -377,7 +376,7 @@ export const getPostgreSQLEventStore = (
     >(
       streamName: string,
       events: EventType[],
-      options?: AppendToStreamOptions<EventType, EventPayloadType>,
+      appendOptions?: AppendToStreamOptions<EventType, EventPayloadType>,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
       await ensureSchemaExists();
       // TODO: This has to be smarter when we introduce urn-based resolution
@@ -390,9 +389,9 @@ export const getPostgreSQLEventStore = (
         pool as PgPool,
         streamName,
         streamType,
-        downcastRecordedMessages(events, options?.schema?.versioning),
+        downcastRecordedMessages(events, appendOptions?.schema?.versioning),
         {
-          ...(options as AppendToStreamOptions),
+          ...(appendOptions as AppendToStreamOptions),
           beforeCommitHook,
         },
       );
@@ -400,7 +399,7 @@ export const getPostgreSQLEventStore = (
       if (!appendResult.success)
         throw new ExpectedVersionConflictError(
           -1n, //TODO: Return actual version in case of error
-          options?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
+          appendOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
         );
 
       return {

@@ -3,6 +3,7 @@ import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   assertExpectedVersionMatchesCurrent,
   ExpectedVersionConflictError,
+  JSONSerializer,
   NO_CONCURRENCY_CHECK,
   type AggregateStreamOptions,
   type AggregateStreamResult,
@@ -126,6 +127,8 @@ export const getSQLiteEventStore = <
 ): SQLiteEventStore => {
   let autoGenerateSchema = false;
 
+  const serializer = JSONSerializer.from(options);
+
   const pool =
     options.pool ??
     dumbo({
@@ -213,7 +216,7 @@ export const getSQLiteEventStore = <
       const result = await readStream<EventType, EventPayloadType>(
         pool.execute,
         streamName,
-        read,
+        { ...read, serializer: read?.serialization?.serializer ?? serializer },
       );
 
       const currentStreamVersion = result.currentStreamVersion;
@@ -241,17 +244,16 @@ export const getSQLiteEventStore = <
       EventPayloadType extends Event = EventType,
     >(
       streamName: string,
-      options?: ReadStreamOptions<EventType, EventPayloadType>,
+      readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
     > => {
       await ensureSchemaExists();
 
-      return readStream<EventType, EventPayloadType>(
-        pool.execute,
-        streamName,
-        options,
-      );
+      return readStream<EventType, EventPayloadType>(pool.execute, streamName, {
+        ...readOptions,
+        serializer: options.serialization?.serializer ?? serializer,
+      });
     },
 
     appendToStream: async <

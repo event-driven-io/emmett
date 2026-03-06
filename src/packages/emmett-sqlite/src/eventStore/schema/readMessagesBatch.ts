@@ -1,7 +1,7 @@
 import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import type { JSONSerializer } from '@event-driven-io/emmett';
 import {
   bigIntProcessorCheckpoint,
-  JSONSerializer,
   type CombinedMessageMetadata,
   type Message,
   type RecordedMessage,
@@ -24,7 +24,7 @@ type ReadMessagesBatchSqlResult = {
   created: string;
 };
 
-export type ReadMessagesBatchOptions =
+export type ReadMessagesBatchOptions = (
   | {
       after: bigint;
       batchSize: number;
@@ -34,7 +34,11 @@ export type ReadMessagesBatchOptions =
       batchSize: number;
     }
   | { to: bigint; batchSize: number }
-  | { from: bigint; to: bigint };
+  | { from: bigint; to: bigint }
+) & {
+  partition?: string;
+  serializer: JSONSerializer;
+};
 
 export type ReadMessagesBatchResult<
   MessageType extends Message,
@@ -52,10 +56,11 @@ export const readMessagesBatch = async <
     RecordedMessageMetadataWithGlobalPosition,
 >(
   execute: SQLExecutor,
-  options: ReadMessagesBatchOptions & { partition?: string },
+  options: ReadMessagesBatchOptions,
 ): Promise<
   ReadMessagesBatchResult<MessageType, RecordedMessageMetadataType>
 > => {
+  const { serializer } = options;
   const from = 'from' in options ? options.from : undefined;
   const after = 'after' in options ? options.after : undefined;
   const batchSize =
@@ -86,8 +91,8 @@ export const readMessagesBatch = async <
       (row) => {
         const rawEvent = {
           type: row.message_type,
-          data: JSONSerializer.deserialize(row.message_data),
-          metadata: JSONSerializer.deserialize(row.message_metadata),
+          data: serializer.deserialize(row.message_data),
+          metadata: serializer.deserialize(row.message_metadata),
         } as unknown as MessageType;
 
         const metadata: RecordedMessageMetadataWithGlobalPosition = {
