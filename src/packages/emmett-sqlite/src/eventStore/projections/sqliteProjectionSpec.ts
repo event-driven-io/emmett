@@ -10,6 +10,7 @@ import {
   isErrorConstructor,
   type CombinedReadEventMetadata,
   type Event,
+  type JSONSerializationOptions,
   type ReadEvent,
   type ThenThrows,
 } from '@event-driven-io/emmett';
@@ -61,7 +62,8 @@ export type SQLiteProjectionSpecOptions<
 
   driver: Driver;
   pool?: Dumbo;
-} & InferOptionsFromEventStoreDriver<Driver>;
+} & InferOptionsFromEventStoreDriver<Driver> &
+  JSONSerializationOptions;
 
 export const SQLiteProjectionSpec = {
   for: <
@@ -75,6 +77,11 @@ export const SQLiteProjectionSpec = {
       const pool =
         options.pool ??
         dumbo({
+          serialization: options.serialization,
+          transactionOptions: {
+            allowNestedTransactions: true,
+            mode: 'session_based',
+          },
           ...options.driver.mapToDumboOptions(options),
         });
       const projection = options.projection;

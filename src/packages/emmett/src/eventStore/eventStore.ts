@@ -1,3 +1,4 @@
+import type { JSONSerializationOptions } from '../serialization';
 import type {
   AnyReadEventMetadata,
   CommonReadEventMetadata,
@@ -133,7 +134,7 @@ export type ReadStreamOptions<
   maxCount?: bigint;
   expectedStreamVersion?: ExpectedStreamVersion;
   schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
-};
+} & JSONSerializationOptions;
 
 export type ReadStreamResult<
   EventType extends Event,
@@ -201,7 +202,8 @@ export type AppendToStreamOptions<
   EventPayloadType extends Event = EventType,
 > = {
   expectedStreamVersion?: ExpectedStreamVersion;
-  schema?: EventStoreAppendSchemaOptions<EventType, EventPayloadType>;
+  schema?: EventStoreAppendSchemaOptions<EventType, EventPayloadType> &
+    JSONSerializationOptions;
 };
 
 export type AppendToStreamResult = {

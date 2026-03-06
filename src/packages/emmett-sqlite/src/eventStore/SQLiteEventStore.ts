@@ -13,6 +13,7 @@ import {
   type EventStore,
   type EventStoreSession,
   type EventStoreSessionFactory,
+  type JSONSerializationOptions,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -115,7 +116,8 @@ export type SQLiteEventStoreOptions<
      */
     onAfterSchemaCreated?: () => Promise<void> | void;
   };
-} & { pool?: Dumbo } & InferOptionsFromEventStoreDriver<EventStoreDriver>;
+} & { pool?: Dumbo } & InferOptionsFromEventStoreDriver<EventStoreDriver> &
+  JSONSerializationOptions;
 
 export const getSQLiteEventStore = <
   Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
@@ -127,11 +129,12 @@ export const getSQLiteEventStore = <
   const pool =
     options.pool ??
     dumbo({
-      ...options.driver.mapToDumboOptions(options),
+      serialization: options.serialization,
       transactionOptions: {
         allowNestedTransactions: true,
         mode: 'session_based',
       },
+      ...options.driver.mapToDumboOptions(options),
     });
   let migrateSchema: Promise<void> | undefined = undefined;
 
@@ -326,6 +329,7 @@ export const getSQLiteEventStore = <
           pool: dumbo({
             ...options.driver.mapToDumboOptions(options),
             connection,
+            serialization: options.serialization,
           }),
           transactionOptions: {
             allowNestedTransactions: true,
@@ -335,6 +339,7 @@ export const getSQLiteEventStore = <
             ...options.schema,
             autoMigration: 'None',
           },
+          serialization: options.serialization,
         });
 
         await ensureSchemaExists();

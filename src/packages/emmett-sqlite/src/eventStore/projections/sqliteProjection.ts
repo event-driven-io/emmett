@@ -9,6 +9,7 @@ import {
   type CanHandle,
   type Event,
   type EventStoreReadSchemaOptions,
+  type JSONSerializationOptions,
   type ProjectionDefinition,
   type ProjectionHandler,
   type ProjectionInitOptions,
@@ -102,7 +103,7 @@ export type SQLiteRawBatchSQLProjection<
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
-};
+} & JSONSerializationOptions;
 
 export const sqliteRawBatchSQLProjection = <
   EventType extends Event,
@@ -154,7 +155,7 @@ export type SQLiteRawSQLProjection<
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
-};
+} & JSONSerializationOptions;
 
 export const sqliteRawSQLProjection = <
   EventType extends Event,

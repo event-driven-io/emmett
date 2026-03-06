@@ -2,6 +2,7 @@ import type {
   CanHandle,
   Event,
   EventStoreReadSchemaOptions,
+  JSONSerializationOptions,
   ReadEvent,
   TruncateProjection,
 } from '@event-driven-io/emmett';
@@ -75,7 +76,7 @@ export type PongoProjectionOptions<
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
-};
+} & JSONSerializationOptions;
 
 export const pongoProjection = <
   EventType extends Event,
@@ -170,7 +171,8 @@ export type PongoMultiStreamProjectionOptions<
       >;
       initialState: () => Document;
     }
-);
+) &
+  JSONSerializationOptions;
 
 export const pongoMultiStreamProjection = <
   Document extends PongoDocument,
@@ -297,7 +299,8 @@ export type PongoSingleStreamProjectionOptions<
       >;
       initialState: () => Document;
     }
-);
+) &
+  JSONSerializationOptions;
 
 export const pongoSingleStreamProjection = <
   Document extends PongoDocument,

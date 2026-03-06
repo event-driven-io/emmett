@@ -1,1 +1,1 @@
-export * from './json/jsonSerializer';
+export * from './json';

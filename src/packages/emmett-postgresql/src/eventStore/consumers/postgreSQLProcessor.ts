@@ -15,6 +15,7 @@ import type {
   BatchRecordedMessageHandlerWithContext,
   Checkpointer,
   Event,
+  JSONSerializationOptions,
   Message,
   MessageHandlerResult,
   MessageProcessingScope,
@@ -189,7 +190,7 @@ export const postgreSQLCheckpointer = <
 
 type PostgreSQLConnectionOptions = {
   connectionOptions?: PostgreSQLProcessorConnectionOptions;
-};
+} & JSONSerializationOptions;
 
 type PostgreSQLProcessorOptionsBase = PostgreSQLConnectionOptions & {
   lock?: {
@@ -315,6 +316,7 @@ const getProcessorPool = (options: PostgreSQLConnectionOptions) => {
         ? dumbo({
             connectionString: processorConnectionString,
             ...poolOptions,
+            serialization: options.serialization,
           })
         : null;
 

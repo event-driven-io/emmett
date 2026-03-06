@@ -1,6 +1,9 @@
 import { EmmettError } from '../errors';
 import type { EventStoreReadSchemaOptions } from '../eventStore';
-import { JSONSerializer } from '../serialization';
+import {
+  JSONSerializer,
+  type JSONSerializationOptions,
+} from '../serialization';
 import type {
   AnyEvent,
   AnyReadEventMetadata,
@@ -36,12 +39,12 @@ export type ProjectionInitOptions<
   context: ProjectionHandlerContext;
 };
 
-export interface ProjectionDefinition<
+export type ProjectionDefinition<
   EventType extends Event = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
   EventPayloadType extends Event = EventType,
-> {
+> = {
   name?: string;
   version?: number;
   kind?: string;
@@ -58,7 +61,7 @@ export interface ProjectionDefinition<
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
-}
+} & JSONSerializationOptions;
 
 export type ProjectionRegistration<
   HandlingType extends ProjectionHandlingType,

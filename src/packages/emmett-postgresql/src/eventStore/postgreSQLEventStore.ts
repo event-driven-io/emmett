@@ -26,6 +26,7 @@ import {
   type EventStore,
   type EventStoreSession,
   type EventStoreSessionFactory,
+  type JSONSerializationOptions,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -186,7 +187,7 @@ export type PostgresEventStoreOptions = {
       context: PostgreSQLProjectionHandlerContext,
     ) => Promise<void> | void;
   };
-};
+} & JSONSerializationOptions;
 
 export const defaultPostgreSQLOptions: PostgresEventStoreOptions = {
   projections: [],
@@ -203,7 +204,10 @@ export const getPostgreSQLEventStore = (
     connectionString,
     ...(options.connectionOptions ? options.connectionOptions : {}),
   };
-  const pool = 'dumbo' in poolOptions ? poolOptions.dumbo : dumbo(poolOptions);
+  const pool =
+    'dumbo' in poolOptions
+      ? poolOptions.dumbo
+      : dumbo({ ...poolOptions, serialization: options.serialization });
   let migrateSchema: Promise<RunSQLMigrationsResult> | undefined = undefined;
 
   const autoGenerateSchema =

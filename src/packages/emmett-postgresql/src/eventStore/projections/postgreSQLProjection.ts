@@ -11,6 +11,7 @@ import {
   type CanHandle,
   type Event,
   type EventStoreReadSchemaOptions,
+  type JSONSerializationOptions,
   type ProjectionDefinition,
   type ProjectionHandler,
   type ProjectionInitOptions,
@@ -173,7 +174,7 @@ export type PostgreSQLRawBatchSQLProjection<
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
-};
+} & JSONSerializationOptions;
 
 export const postgreSQLRawBatchSQLProjection = <
   EventType extends Event,
@@ -225,7 +226,7 @@ export type PostgreSQLRawSQLProjection<
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
-};
+} & JSONSerializationOptions;
 
 export const postgreSQLRawSQLProjection = <
   EventType extends Event,

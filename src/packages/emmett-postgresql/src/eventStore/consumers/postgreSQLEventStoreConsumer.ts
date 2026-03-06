@@ -1,6 +1,7 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import type {
   AnyCommand,
+  JSONSerializationOptions,
   MessageProcessor,
   WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
@@ -46,7 +47,7 @@ export type PostgreSQLEventStoreConsumerConfig<
     batchSize?: number;
     pullingFrequencyInMs?: number;
   };
-};
+} & JSONSerializationOptions;
 
 export type PostgreSQLEventStoreConsumerOptions<
   ConsumerMessageType extends Message = Message,
@@ -112,7 +113,10 @@ export const postgreSQLEventStoreConsumer = <
 
   const pool = options.pool
     ? options.pool
-    : dumbo({ connectionString: options.connectionString });
+    : dumbo({
+        connectionString: options.connectionString,
+        serialization: options.serialization,
+      });
 
   const eachBatch: BatchRecordedMessageHandlerWithoutContext<
     ConsumerMessageType,
