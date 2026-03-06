@@ -48,12 +48,25 @@
         "types": "./dist/cli.d.cts",
         "default": "./dist/cli.cjs"
       }
+    },
+    "./nodejs": {
+      "import": {
+        "types": "./dist/nodejs.d.ts",
+        "default": "./dist/nodejs.js"
+      },
+      "require": {
+        "types": "./dist/nodejs.d.cts",
+        "default": "./dist/nodejs.cjs"
+      }
     }
   },
   "typesVersions": {
     "*": {
       "cli": [
         "./dist/cli.d.ts"
+      ],
+      "nodejs": [
+        "./dist/nodejs.d.ts"
       ]
     }
   },
