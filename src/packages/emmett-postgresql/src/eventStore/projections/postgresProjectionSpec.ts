@@ -69,8 +69,12 @@ export const PostgreSQLProjectionSpec = {
     options: PostgreSQLProjectionSpecOptions<EventType>,
   ): PostgreSQLProjectionSpec<EventType> => {
     {
-      const { projection, ...dumoOptions } = options;
-      const { connectionString } = dumoOptions;
+      const { projection, ...restOptions } = options;
+      const dumboOptions = {
+        ...restOptions,
+        serialization: projection.serialization,
+      };
+      const { connectionString } = dumboOptions;
 
       let wasInitialised = false;
 
@@ -158,7 +162,7 @@ export const PostgreSQLProjectionSpec = {
                 assert: PostgreSQLProjectionAssert,
                 message?: string,
               ): Promise<void> => {
-                const pool = dumbo(dumoOptions);
+                const pool = dumbo(dumboOptions);
                 try {
                   await run(pool);
 
@@ -176,7 +180,7 @@ export const PostgreSQLProjectionSpec = {
               thenThrows: async <ErrorType extends Error>(
                 ...args: Parameters<ThenThrows<ErrorType>>
               ): Promise<void> => {
-                const pool = dumbo(dumoOptions);
+                const pool = dumbo(dumboOptions);
                 try {
                   await run(pool);
                   throw new AssertionError('Handler did not fail as expected');

@@ -1,6 +1,7 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import type {
   AnyCommand,
+  JSONSerializationOptions,
   MessageProcessor,
   WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
@@ -59,7 +60,8 @@ export type SQLiteEventStoreConsumerOptions<
 > = SQLiteEventStoreConsumerConfig<ConsumerMessageType> & {
   driver: Driver;
   pool?: Dumbo;
-} & InferOptionsFromEventStoreDriver<Driver>;
+} & InferOptionsFromEventStoreDriver<Driver> &
+  JSONSerializationOptions;
 
 export type SQLiteEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -123,11 +125,12 @@ export const sqliteEventStoreConsumer = <
   const pool =
     options.pool ??
     dumbo({
-      ...options.driver.mapToDumboOptions(options),
+      serialization: options.serialization,
       transactionOptions: {
         allowNestedTransactions: true,
         mode: 'session_based',
       },
+      ...options.driver.mapToDumboOptions(options),
     });
 
   const eachBatch: BatchRecordedMessageHandlerWithoutContext<

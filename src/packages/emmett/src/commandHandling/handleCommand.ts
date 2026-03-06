@@ -11,6 +11,7 @@ import {
   type ExpectedStreamVersion,
   type ReadStreamOptions,
 } from '../eventStore';
+import type { JSONSerializationOptions } from '../serialization';
 import type { Event } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
 
@@ -70,7 +71,7 @@ export type CommandHandlerOptions<
       downcast?: (event: StreamEvent) => StoredEvent;
     };
   };
-};
+} & JSONSerializationOptions;
 
 export type HandleOptions<Store extends EventStore> = Parameters<
   Store['appendToStream']
@@ -129,9 +130,9 @@ export const CommandHandler =
                 StreamEvent,
                 EventPayloadType
               >),
+              serialization: options.serialization,
               // expected stream version is passed to fail fast
               // if stream is in the wrong state
-
               expectedStreamVersion:
                 handleOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
             },

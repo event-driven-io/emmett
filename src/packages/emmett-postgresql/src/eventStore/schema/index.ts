@@ -8,6 +8,7 @@ import {
   type SQLMigration,
 } from '@event-driven-io/dumbo';
 import type { PgPool, PgTransaction } from '@event-driven-io/dumbo/pg';
+import type { JSONSerializationOptions } from '@event-driven-io/emmett';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 import { transactionToPostgreSQLProjectionHandlerContext } from '../projections';
 import { appendToStreamSQL } from './appendToStream';
@@ -84,7 +85,7 @@ export type CreateEventStoreSchemaOptions = {
   dryRun?: boolean | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
   migrationTimeoutMs?: number | undefined;
-};
+} & JSONSerializationOptions;
 
 export type EventStoreSchemaMigrationOptions = {
   migrationOptions?: CreateEventStoreSchemaOptions;
@@ -102,7 +103,11 @@ export const createEventStoreSchema = (
       pool as Dumbo,
       tx,
     );
-    const nestedPool = dumbo({ connectionString, connection: tx.connection });
+    const nestedPool = dumbo({
+      connectionString,
+      connection: tx.connection,
+      serialization: options?.serialization,
+    });
 
     try {
       if (hooks?.onBeforeSchemaCreated) {
