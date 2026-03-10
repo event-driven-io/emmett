@@ -179,49 +179,108 @@ This way each tracer wraps the same execution. Each sees the real duration. The 
 
 Export: `compositeTracer`, `compositeMeter`.
 
-### Step 1.5: ObservabilityOptions type + resolveObservability
+### Step 1.5: ObservabilityOptions type + per-archetype resolvers
 
 **File to create:** `src/packages/emmett/src/observability/options.unit.spec.ts`
 
 Tests to write:
 
-1. `resolveObservability: returns noop tracer and meter when no options provided` -- call `resolveObservability(undefined)`, use each returned thing without error.
-2. `resolveObservability: returns noop tracer and meter when empty options provided` -- call `resolveObservability({})`.
-3. `resolveObservability: uses provided tracer when given` -- pass `{ observability: { tracer: customTracer } }`, expect `resolved.tracer` to be `customTracer`, but `resolved.meter` to be noop.
-4. `resolveObservability: uses provided meter when given` -- same pattern.
-5. `resolveObservability: defaults propagation to links` -- call with no propagation, expect `resolved.propagation` to be `'links'`.
-6. `resolveObservability: uses provided propagation` -- pass `{ observability: { propagation: 'propagate' } }`, expect it.
-7. `resolveObservability: defaults attributePlacement to both` -- call with no attributePlacement, expect `resolved.attributePlacement` to be `'both'`.
-8. `resolveObservability: uses provided attributePlacement` -- pass `{ observability: { attributePlacement: 'wide' } }`, expect it.
-9. `resolveObservability: merges child options with parent options` -- parent has tracer, child has meter, resolved has both.
-10. `resolveObservability: child options override parent options` -- both provide tracer, child's tracer wins.
+**Per-archetype resolver tests (each resolver gets its own describe block):**
+
+`resolveCommandObservability`:
+1. `returns noop tracer, meter, and attributePlacement=both when no options` -- call with undefined.
+2. `uses provided tracer and meter` -- pass custom, expect them back.
+3. `uses provided attributePlacement` -- pass `'wide'`, expect it.
+4. `falls back to parent options` -- parent has tracer, child has none, resolved uses parent's.
+5. `child overrides parent` -- both provide tracer, child wins.
+6. `does not accept propagation or pollTracing` -- type-level check (compile-time, not runtime test).
+
+`resolveProcessorObservability`:
+7. `returns noop tracer, meter, propagation=links, attributePlacement=both when no options`.
+8. `uses provided propagation` -- pass `'propagate'`, expect it.
+9. `uses provided attributePlacement` -- pass `'tree'`, expect it.
+10. `falls back to parent` -- parent has propagation, child has none.
+11. `child overrides parent` -- both provide propagation, child wins.
+
+`resolveConsumerObservability`:
+12. `returns noop tracer, meter, and pollTracing=off when no options`.
+13. `uses provided pollTracing` -- pass `'active'`, expect it.
+14. `uses provided pollTracing=verbose` -- pass `'verbose'`, expect it.
+15. `falls back to parent pollTracing` -- parent has `pollTracing: 'active'`, child has none.
+16. `does not accept attributePlacement or propagation` -- type-level check.
+
+`resolveWorkflowObservability`:
+17. `returns noop tracer, meter, propagation=links, attributePlacement=both when no options`.
+18. `uses provided propagation and attributePlacement`.
+19. `falls back to parent` -- same pattern as processor.
 
 **File to create:** `src/packages/emmett/src/observability/options.ts`
 
 ```typescript
 type TracePropagation = 'links' | 'propagate';
 type AttributePlacement = 'wide' | 'tree' | 'both';
+type PollTracing = 'off' | 'active' | 'verbose';
 
+// Full config — single source of truth for all observability knobs.
+type ObservabilityConfig = {
+  tracer?: EmmettTracer;
+  meter?: EmmettMeter;
+  propagation?: TracePropagation;
+  attributePlacement?: AttributePlacement;
+  pollTracing?: PollTracing;
+};
+
+// Wrapper type for options objects that carry observability config.
 type ObservabilityOptions = {
-  observability?: {
-    tracer?: EmmettTracer;
-    meter?: EmmettMeter;
-    propagation?: TracePropagation;
-    attributePlacement?: AttributePlacement;
-  };
+  observability?: ObservabilityConfig;
 };
 
-type ResolvedObservability = {
-  tracer: EmmettTracer;
-  meter: EmmettMeter;
-  propagation: TracePropagation;
-  attributePlacement: AttributePlacement;
-};
+// Per-archetype config subsets — each archetype only accepts relevant knobs.
+// Derived via Pick from ObservabilityConfig so there's one source of truth.
+type CommandObservabilityConfig = Pick<ObservabilityConfig, 'tracer' | 'meter' | 'attributePlacement'>;
+type ProcessorObservabilityConfig = Pick<ObservabilityConfig, 'tracer' | 'meter' | 'propagation' | 'attributePlacement'>;
+type ConsumerObservabilityConfig = Pick<ObservabilityConfig, 'tracer' | 'meter' | 'pollTracing'>;
+type WorkflowObservabilityConfig = Pick<ObservabilityConfig, 'tracer' | 'meter' | 'propagation' | 'attributePlacement'>;
 
-const resolveObservability = (
-  options: ObservabilityOptions | undefined,
+// Resolved types — all fields required, defaults applied.
+type ResolvedCommandObservability = Required<CommandObservabilityConfig>;
+type ResolvedProcessorObservability = Required<ProcessorObservabilityConfig>;
+type ResolvedConsumerObservability = Required<ConsumerObservabilityConfig>;
+type ResolvedWorkflowObservability = Required<WorkflowObservabilityConfig>;
+
+// Resolve functions — each archetype resolves only what it needs.
+const resolveCommandObservability = (
+  options: { observability?: CommandObservabilityConfig } | undefined,
   parent?: ObservabilityOptions,
-): ResolvedObservability => ({
+): ResolvedCommandObservability => ({
+  tracer: options?.observability?.tracer ?? parent?.observability?.tracer ?? noopTracer(),
+  meter: options?.observability?.meter ?? parent?.observability?.meter ?? noopMeter(),
+  attributePlacement: options?.observability?.attributePlacement ?? parent?.observability?.attributePlacement ?? 'both',
+});
+
+const resolveProcessorObservability = (
+  options: { observability?: ProcessorObservabilityConfig } | undefined,
+  parent?: ObservabilityOptions,
+): ResolvedProcessorObservability => ({
+  tracer: options?.observability?.tracer ?? parent?.observability?.tracer ?? noopTracer(),
+  meter: options?.observability?.meter ?? parent?.observability?.meter ?? noopMeter(),
+  propagation: options?.observability?.propagation ?? parent?.observability?.propagation ?? 'links',
+  attributePlacement: options?.observability?.attributePlacement ?? parent?.observability?.attributePlacement ?? 'both',
+});
+
+const resolveConsumerObservability = (
+  options: { observability?: ConsumerObservabilityConfig } | undefined,
+  parent?: ObservabilityOptions,
+): ResolvedConsumerObservability => ({
+  tracer: options?.observability?.tracer ?? parent?.observability?.tracer ?? noopTracer(),
+  meter: options?.observability?.meter ?? parent?.observability?.meter ?? noopMeter(),
+  pollTracing: options?.observability?.pollTracing ?? parent?.observability?.pollTracing ?? 'off',
+});
+
+const resolveWorkflowObservability = (
+  options: { observability?: WorkflowObservabilityConfig } | undefined,
+  parent?: ObservabilityOptions,
+): ResolvedWorkflowObservability => ({
   tracer: options?.observability?.tracer ?? parent?.observability?.tracer ?? noopTracer(),
   meter: options?.observability?.meter ?? parent?.observability?.meter ?? noopMeter(),
   propagation: options?.observability?.propagation ?? parent?.observability?.propagation ?? 'links',
@@ -235,9 +294,19 @@ const resolveObservability = (
 
 Both modes read `traceId`/`spanId` from message metadata. The difference is what they do with it: set it as `parentSpanId` (propagate) or add it as a `SpanLink` (links).
 
-This follows the `JSONSerializer.from(options)` pattern: resolve from options or return default. The `parent` parameter enables the "configure globally, allow per-operation overrides" flow -- the event store passes its observability as parent, per-operation options override.
+`pollTracing` controls the consumer's polling loop verbosity:
+- `'off'` (default): puller is invisible. Processors create their own root spans with links back to producer traces.
+- `'active'`: lightweight span per poll iteration that found messages (batch size, query duration). Empty polls are silent.
+- `'verbose'`: every poll iteration including empty ones, with backoff timing and `emmett.consumer.poll.empty` attribute.
 
-Export: `ObservabilityOptions`, `ResolvedObservability`, `resolveObservability`, `TracePropagation`, `AttributePlacement`.
+Per-archetype `Pick` subsets ensure that:
+- Command handlers never see `pollTracing` or `propagation` (they produce, not consume).
+- Consumers never see `attributePlacement` or `propagation` (those are processor/workflow concerns — propagation happens in each processor, not at the consumer level).
+- Processors and workflows see `propagation` and `attributePlacement` but not `pollTracing`.
+
+This follows the `JSONSerializer.from(options)` pattern: resolve from options or return default. The `parent` parameter enables the "configure globally, allow per-operation overrides" flow — the event store passes its observability as parent, per-operation options override.
+
+Export: `ObservabilityOptions`, `ObservabilityConfig`, `TracePropagation`, `AttributePlacement`, `PollTracing`, `CommandObservabilityConfig`, `ProcessorObservabilityConfig`, `ConsumerObservabilityConfig`, `WorkflowObservabilityConfig`, `ResolvedCommandObservability`, `ResolvedProcessorObservability`, `ResolvedConsumerObservability`, `ResolvedWorkflowObservability`, `resolveCommandObservability`, `resolveProcessorObservability`, `resolveConsumerObservability`, `resolveWorkflowObservability`.
 
 ### Step 1.6: ObservabilityScope + createScope
 
@@ -277,8 +346,16 @@ type ObservabilityScope = {
   meter: EmmettMeter;
 };
 
+// createScope accepts any resolved observability that has tracer + meter.
+// attributePlacement is optional — defaults to 'both' if absent (e.g., consumer).
+type ScopeObservability = {
+  tracer: EmmettTracer;
+  meter: EmmettMeter;
+  attributePlacement?: AttributePlacement;
+};
+
 const createScope = (
-  observability: ResolvedObservability,
+  observability: ScopeObservability,
 ) => ({
   startScope: <T>(
     name: string,
@@ -289,7 +366,7 @@ const createScope = (
 
       const makeScope = (span: ActiveSpan, root: ActiveSpan): ObservabilityScope => ({
         setAttributes: (attrs) => {
-          const placement = observability.attributePlacement;
+          const placement = observability.attributePlacement ?? 'both';
           if (placement === 'wide' || placement === 'both') {
             root.setAttributes(attrs);
           }
@@ -312,7 +389,7 @@ const createScope = (
 
 On the root scope, `span === root`, so `setAttributes` always hits the root span regardless of placement. On child scopes, `span !== root`, so placement determines the target. The root span reference is captured in the closure and threaded to all descendants.
 
-Export: `ObservabilityScope`, `createScope`.
+Export: `ObservabilityScope`, `ScopeObservability`, `createScope`.
 
 ### Step 1.7: Attribute name constants + semantic conventions
 
@@ -644,7 +721,7 @@ const stampedEvents = eventsToAppend.map(event => ({
 5. `src/packages/emmett/src/projections/index.ts` line 64:
    - `ProjectionDefinition`: add `& ObservabilityOptions`
 
-**Test:** `npx tsc --noEmit` passes. All existing tests pass (observability is optional with `?`, defaults to noop via resolveObservability).
+**Test:** `npx tsc --noEmit` passes. All existing tests pass (observability is optional with `?`, defaults to noop via per-archetype resolvers).
 
 No runtime behavior changes yet. This just makes the types accept observability configuration.
 
@@ -730,7 +807,7 @@ messaging.*                — OTel messaging conventions (standard, no prefix)
 
 ```typescript
 // Inside CommandHandler (handleCommand.ts), after resolving observability:
-const { startScope } = createScope(resolveObservability(handleOptions));
+const { startScope } = createScope(resolveCommandObservability(handleOptions));
 const A = EmmettAttributes;
 const M = MessagingAttributes;
 
@@ -804,7 +881,7 @@ Same pattern. The processor collector creates one `processor.handle` root scope 
 
 ```typescript
 // Inside reactor's handle method (processors.ts):
-const { startScope } = createScope(resolveObservability(options));
+const { startScope } = createScope(resolveProcessorObservability(options));
 const A = EmmettAttributes;
 const M = MessagingAttributes;
 
@@ -985,7 +1062,7 @@ type CommandHandlerCollectorContext = {
 };
 
 const commandHandlerCollector = (
-  observability: ResolvedObservability,
+  observability: ResolvedCommandObservability,
 ) => {
   const { startScope } = createScope(observability);
   const A = EmmettAttributes;
@@ -1073,7 +1150,7 @@ Tests to write (use a "collecting" tracer and meter that capture calls for asser
 8. `recordEvents sets emmett.command.event_count, emmett.command.event_types, messaging.batch.message_count and increments counter per event` -- call recordEvents with 2 events, verify counter called twice, attributes set.
 9. `recordVersions sets emmett.stream.version.before and emmett.stream.version.after` -- verify attributes.
 10. `scope.scope creates child scopes with placement-aware attributes` -- use placement='wide', verify child attributes land on root span.
-11. `works with noop observability (no errors)` -- pass resolveObservability(undefined), everything runs without error.
+11. `works with noop observability (no errors)` -- pass resolveCommandObservability(undefined), everything runs without error.
 
 Helper: create a `collectingTracer` and `collectingMeter` for tests -- put these in `src/packages/emmett/src/observability/testing.ts`:
 
@@ -1119,7 +1196,7 @@ const collectingMeter = () => {
 
 In the `CommandHandler` function (line 92-220):
 
-1. At the start of the async retry callback (line 109), resolve observability: `const o11y = resolveObservability(options);`
+1. At the start of the async retry callback (line 109), resolve observability: `const o11y = resolveCommandObservability(options);`
 2. Create collector: `const collector = commandHandlerCollector(o11y);`
 3. Wrap the entire session callback in `collector.startScope({ streamName }, async (scope) => { ... })`:
    - Use `scope.scope('eventStore.readStream', ...)` for the aggregation call
@@ -1177,7 +1254,7 @@ These metric names map to past sample's:
 (Dropped the `matching.` prefix since past sample used it for their specific domain. Added `emmett.` prefix per OTel custom namespace convention.)
 
 ```typescript
-const eventStoreCollector = (observability: ResolvedObservability) => {
+const eventStoreCollector = (observability: ResolvedCommandObservability) => {
   const A = EmmettAttributes;
   const M = MessagingAttributes;
   const streamReadingDuration = observability.meter.histogram(EmmettMetrics.stream.readingDuration);
@@ -1264,7 +1341,7 @@ Instruments processor message handling using `ObservabilityScope`. Attributes fr
   - `emmett.processor.lag_events` gauge with `{ emmett.processor.id }`
 
 ```typescript
-const processorCollector = (observability: ResolvedObservability) => {
+const processorCollector = (observability: ResolvedProcessorObservability) => {
   const { startScope } = createScope(observability);
   const A = EmmettAttributes;
   const M = MessagingAttributes;
@@ -1353,7 +1430,7 @@ Tests:
 
 In the `reactor` function (line 292), in the `handle` method (line 418-487):
 
-1. Resolve observability from options: `const o11y = resolveObservability(options);`
+1. Resolve observability from options: `const o11y = resolveProcessorObservability(options);`
 2. Create collector: `const collector = processorCollector(o11y);`
 3. Wrap the batch processing in `collector.startScope(...)`.
 
@@ -1429,41 +1506,222 @@ Tests:
 
 In `WorkflowHandler` (line 185), wrap the session callback in the collector's `startScope`. Use `scope.scope('workflow.evolve', ...)` for the `aggregateStream` call and `scope.scope('workflow.decide', ...)` for the business logic. Child scope attributes (e.g., `emmett.workflow.evolve.duration_ms`, `emmett.workflow.state_rebuild.event_count`) respect `attributePlacement` config.
 
-### Step 4.9: ConsumerCollector
+### Step 4.9: ConsumerCollector + Puller Instrumentation
 
 **File to create:** `src/packages/emmett/src/observability/collectors/consumerCollector.ts`
 
-Instruments consumer poll cycles using `ObservabilityScope`. Attributes from the metrics catalog (see feedback.md "Consumer Metrics"):
+#### Design: Polling loop vs batch processing — separate concerns
 
-- Root scope: `consumer.poll` (fresh trace each cycle -- NOT linked to any specific command trace)
-- Semantic attributes: `emmett.scope.type: 'consumer'`, `emmett.scope.main: true`, `emmett.scope.name: consumerSource`
-- Domain attributes:
-  - `emmett.consumer.source`: string -- which event store/stream is being polled
-  - `emmett.consumer.batch_size`: number -- events fetched this cycle
-  - `emmett.consumer.processor_count`: number -- registered processors
-  - `emmett.consumer.earliest_checkpoint`: string -- lowest checkpoint across all processors
-  - `emmett.consumer.lag`: number -- gap: latest position - earliest checkpoint
-- OTel messaging: `messaging.system: 'emmett'`, `messaging.operation.type: 'receive'`
-- Per-delivery child scopes (one per processor):
-  - `emmett.consumer.delivery.processor_id`: string
-  - `emmett.consumer.delivery.status`: string -- success/failure
-  - `messaging.consumer.group.name`: processor ID
-- Metrics:
-  - `emmett.consumer.poll.duration` histogram
-  - `emmett.consumer.delivery.duration` histogram with `{ emmett.processor.id }`
+The consumer has two distinct layers:
+
+1. **Puller** (`messageBatchPuller`) — infrastructure loop: poll DB, sleep, backoff. Lives in `emmett-postgresql`/`emmett-sqlite`.
+2. **Consumer** (`eachBatch`) — fans out batches to processors. Each processor creates its own root span with links.
+
+The puller is NOT a parent of processor work. Processors create independent traces (with links back to producers via message metadata). The puller's spans, when enabled, are sibling infrastructure traces — operational telemetry about the polling mechanics.
+
+#### `pollTracing` controls puller visibility
+
+Resolved from `ConsumerObservabilityConfig` (which only exposes `tracer`, `meter`, `pollTracing`):
+
+- **`'off'`** (default) — puller creates no spans. Processors get their own root spans as usual. Metrics still recorded (poll duration histogram, lag gauge) because metrics are cheap.
+- **`'active'`** — span per poll iteration that found messages. Attributes: batch size, query duration, position after. Empty polls are silent.
+- **`'verbose'`** — every poll iteration. Empty polls get `emmett.consumer.poll.empty: true` with backoff timing (`emmett.consumer.poll.wait_ms`).
+
+Poll spans are always root spans (fresh trace, `emmett.scope.main: true`). They are NOT parents of processor spans.
+
+#### Attributes
+
+Consumer-level (on poll spans when enabled, always on metrics):
+- `emmett.scope.type: 'consumer'`, `emmett.scope.main: true`
+- `emmett.consumer.source`: string -- "postgresql" or "sqlite"
+- `emmett.consumer.batch_size`: number -- messages fetched this cycle (0 for empty polls)
+- `emmett.consumer.processor_count`: number -- active processors
+- `emmett.consumer.earliest_checkpoint`: string -- lowest checkpoint across processors
+- `emmett.consumer.lag`: number -- latest global position - earliest checkpoint
+- `emmett.consumer.poll.empty`: boolean -- true when no messages found (verbose mode only)
+- `emmett.consumer.poll.wait_ms`: number -- backoff wait time before next poll
+- `messaging.system: 'emmett'`, `messaging.operation.type: 'receive'`
+
+Per-processor delivery (child scopes of the poll span, only when poll span exists):
+- `emmett.consumer.delivery.processor_id`: string
+- `emmett.consumer.delivery.status`: "success" | "error"
+- `messaging.consumer.group.name`: processorId
+
+#### Span links: established at processor level, not consumer level
+
+The consumer does NOT add span links. It doesn't know about producer traces — that's the processor's job. Each processor's `processorCollector.startScope` extracts `traceId`/`spanId` from message metadata and adds links (already defined in Step 4.5).
+
+This means the trace topology looks like:
+
+```
+[Poll trace — infrastructure, optional]
+Span: "consumer.poll"
+  emmett.scope.main: true
+  emmett.consumer.batch_size: 25
+  emmett.consumer.poll.empty: false
+  (no links — this is plumbing)
+
+[Processor traces — independent, one per processor per batch]
+Span: "processor.handle" (Trace B — independent root)
+  emmett.scope.main: true
+  emmett.processor.id: "ShoppingCartProjection"
+  links: [{ traceId: A1, spanId: x1 }, { traceId: A2, spanId: x2 }]  ← from message metadata
+  └── Span: "processor.message.OrderPlaced"
+  └── Span: "processor.message.ItemAdded"
+
+Span: "processor.handle" (Trace C — independent root)
+  emmett.scope.main: true
+  emmett.processor.id: "OrderWorkflow"
+  links: [{ traceId: A1, spanId: x1 }]
+  └── Span: "processor.message.OrderPlaced"
+```
+
+The poll span and processor spans are NOT in a parent-child relationship. They happen to be triggered by the same poll cycle, but they're in separate traces. If you need to correlate them, use timestamps or add a shared `emmett.consumer.poll_id` attribute (a UUID per poll iteration).
+
+#### Collector implementation
+
+```typescript
+const consumerCollector = (observability: ResolvedConsumerObservability) => {
+  const { startScope } = createScope(observability);
+  const A = EmmettAttributes;
+  const M = MessagingAttributes;
+  const pollDuration = observability.meter.histogram(EmmettMetrics.consumer.pollDuration);
+  const deliveryDuration = observability.meter.histogram(EmmettMetrics.consumer.deliveryDuration);
+
+  return {
+    // Called per poll iteration by the puller.
+    // Returns whether to create a span based on pollTracing config.
+    shouldTrace: (messageCount: number): boolean => {
+      if (observability.pollTracing === 'off') return false;
+      if (observability.pollTracing === 'active') return messageCount > 0;
+      return true; // 'verbose'
+    },
+
+    // Wraps a poll iteration in a span (only called when shouldTrace returns true).
+    tracePoll: <T>(
+      context: {
+        source: string;
+        processorCount: number;
+        batchSize: number;
+        earliestCheckpoint: string | null;
+        lag: number | null;
+        empty: boolean;
+        waitMs?: number;
+      },
+      fn: (scope: ObservabilityScope) => Promise<T>,
+    ): Promise<T> =>
+      startScope('consumer.poll', async (scope) => {
+        scope.span.setAttributes({
+          [A.scope.type]: ScopeTypes.consumer,
+          [A.scope.name]: context.source,
+          [A.consumer.source]: context.source,
+          [A.consumer.batchSize]: context.batchSize,
+          [A.consumer.processorCount]: context.processorCount,
+          [M.system]: MessagingSystemName,
+          [M.operationType]: 'receive',
+          ...(context.earliestCheckpoint ? { [A.consumer.earliestCheckpoint]: context.earliestCheckpoint } : {}),
+          ...(context.lag != null ? { [A.consumer.lag]: context.lag } : {}),
+          ...(context.empty ? { ['emmett.consumer.poll.empty']: true } : {}),
+          ...(context.waitMs != null ? { ['emmett.consumer.poll.wait_ms']: context.waitMs } : {}),
+        });
+
+        return fn(scope);
+      }),
+
+    // Records metrics (always, regardless of pollTracing).
+    recordPollMetrics: (durationMs: number, attrs: Record<string, unknown>) => {
+      pollDuration.record(durationMs, attrs);
+    },
+
+    // Wraps per-processor delivery in a child scope.
+    traceDelivery: <T>(
+      scope: ObservabilityScope,
+      processorId: string,
+      fn: () => Promise<T>,
+    ): Promise<T> =>
+      scope.scope(`consumer.deliver.${processorId}`, async (child) => {
+        child.span.setAttributes({
+          [A.consumer.delivery.processorId]: processorId,
+          [M.consumerGroupName]: processorId,
+        });
+        try {
+          const result = await fn();
+          child.span.setAttributes({ [A.consumer.delivery.status]: 'success' });
+          return result;
+        } catch (error) {
+          child.span.setAttributes({ [A.consumer.delivery.status]: 'error' });
+          if (error instanceof Error) child.span.recordException(error);
+          throw error;
+        }
+      }),
+  };
+};
+```
+
+#### Wiring into the puller
+
+The puller (`postgreSQLEventStoreMessageBatchPuller` / `sqliteEventStoreMessageBatchPuller`) accepts an optional `observability` parameter typed as `ConsumerObservabilityConfig`. The `pullMessages` loop uses the collector:
+
+```typescript
+// In the pullMessages while loop:
+while (isRunning && !signal?.aborted) {
+  const start = Date.now();
+  const { messages, currentGlobalPosition, areMessagesLeft } =
+    await readMessagesBatch(executor, readMessagesOptions);
+
+  const durationMs = Date.now() - start;
+  collector.recordPollMetrics(durationMs, { [A.consumer.source]: 'postgresql' });
+
+  if (collector.shouldTrace(messages.length)) {
+    await collector.tracePoll(
+      {
+        source: 'postgresql',
+        batchSize: messages.length,
+        processorCount: activeProcessorCount,
+        earliestCheckpoint: null, // consumer tracks this
+        lag: null,
+        empty: messages.length === 0,
+        waitMs: waitTime,
+      },
+      async (scope) => {
+        if (messages.length > 0) {
+          // eachBatch is NOT wrapped in a child span here —
+          // each processor inside eachBatch creates its own root trace.
+          await eachBatch(messages);
+        }
+        return undefined;
+      },
+    );
+  } else if (messages.length > 0) {
+    // pollTracing=off but still process the batch
+    await eachBatch(messages);
+  }
+
+  readMessagesOptions.after = currentGlobalPosition;
+  // ... backoff logic unchanged
+}
+```
 
 **File to create:** `src/packages/emmett/src/observability/collectors/consumerCollector.unit.spec.ts`
 
 Tests:
 
-1. `creates consumer.poll scope with emmett.scope.type=consumer and emmett.scope.main=true`
-2. `sets emmett.consumer.source, emmett.consumer.batch_size, emmett.consumer.processor_count`
-3. `sets messaging.system=emmett and messaging.operation.type=receive`
-4. `creates child scopes per processor delivery with emmett.consumer.delivery.processor_id`
-5. `records emmett.consumer.poll.duration histogram`
-6. `records emmett.consumer.delivery.duration histogram per processor`
-7. `sets emmett.consumer.lag attribute`
-8. `works with noop observability`
+1. `shouldTrace returns false for empty polls when pollTracing=off`
+2. `shouldTrace returns false for non-empty polls when pollTracing=off`
+3. `shouldTrace returns false for empty polls when pollTracing=active`
+4. `shouldTrace returns true for non-empty polls when pollTracing=active`
+5. `shouldTrace returns true for empty polls when pollTracing=verbose`
+6. `shouldTrace returns true for non-empty polls when pollTracing=verbose`
+7. `tracePoll creates consumer.poll span with emmett.scope.type=consumer and emmett.scope.main=true`
+8. `tracePoll sets emmett.consumer.source, emmett.consumer.batch_size, emmett.consumer.processor_count`
+9. `tracePoll sets messaging.system=emmett and messaging.operation.type=receive`
+10. `tracePoll sets emmett.consumer.poll.empty=true for empty polls`
+11. `tracePoll sets emmett.consumer.poll.wait_ms for backoff timing`
+12. `traceDelivery creates child scope per processor with emmett.consumer.delivery.processor_id`
+13. `traceDelivery sets delivery status=success on success`
+14. `traceDelivery sets delivery status=error and records exception on failure`
+15. `recordPollMetrics records emmett.consumer.poll.duration histogram regardless of pollTracing`
+16. `works with noop observability`
 
 ### Step 4.10: Collector index + exports
 
@@ -1716,9 +1974,11 @@ export const on =
     options?: ObservabilityOptions,
   ) =>
   async (request: RequestType, response: Response, _next: NextFunction): Promise<void> => {
-    const o11y = resolveObservability(options);
+    // HTTP handlers only need tracer + meter, no archetype-specific config.
+    const tracer = options?.observability?.tracer ?? noopTracer();
+    const meter = options?.observability?.meter ?? noopMeter();
 
-    await o11y.tracer.startSpan(
+    await tracer.startSpan(
       `${request.method} ${request.path}`,
       async (span) => {
         span.setAttributes({
@@ -1812,8 +2072,8 @@ After each phase:
 - `src/packages/emmett/src/observability/tracer.ts` (replaces existing -- EmmettTracer with startSpan, ActiveSpan with setAttributes/addEvent/recordException)
 - `src/packages/emmett/src/observability/meter.ts` (EmmettMeter with counter/histogram/gauge)
 - `src/packages/emmett/src/observability/composite.ts` (compositeTracer, compositeMeter)
-- `src/packages/emmett/src/observability/options.ts` (ObservabilityOptions, resolveObservability)
-- `src/packages/emmett/src/observability/scope.ts` (ObservabilityScope, createScope -- placement-aware scope with child scope nesting)
+- `src/packages/emmett/src/observability/options.ts` (ObservabilityConfig, ObservabilityOptions, per-archetype configs + resolvers: resolveCommandObservability, resolveProcessorObservability, resolveConsumerObservability, resolveWorkflowObservability)
+- `src/packages/emmett/src/observability/scope.ts` (ObservabilityScope, ScopeObservability, createScope -- placement-aware scope with child scope nesting)
 - `src/packages/emmett/src/observability/attributes.ts` (EmmettAttributes, MessagingAttributes, EmmettMetrics, ScopeTypes, MessagingSystemName -- all attribute/metric name constants)
 - `src/packages/emmett/src/observability/testing.ts` (collectingTracer, collectingMeter for tests)
 
