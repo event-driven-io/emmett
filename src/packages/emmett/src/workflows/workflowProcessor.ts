@@ -75,43 +75,43 @@ export type WorkflowOutputHandler<
   | EmmettError
   | [];
 
-export type WorkflowRouter<
+export type WorkflowOutputHandlerOptions<
   Input extends AnyEvent | AnyCommand,
   Output extends AnyEvent | AnyCommand,
-  RoutedOutput extends Output = Output,
+  HandledOutput extends Output = Output,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
 > = {
-  canHandle: CanHandle<RoutedOutput>;
+  canHandle: CanHandle<HandledOutput>;
   handle: WorkflowOutputHandler<
     Input,
-    RoutedOutput,
+    HandledOutput,
     MessageMetadataType,
     HandlerContext
   >;
 };
 
-export const workflowRouter = <
+export const workflowOutputHandler = <
   Input extends AnyEvent | AnyCommand,
   Output extends AnyEvent | AnyCommand,
-  RoutedOutput extends Output,
+  HandledOutput extends Output = Output,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
 >(
-  router: WorkflowRouter<
+  handler: WorkflowOutputHandlerOptions<
     Input,
     Output,
-    RoutedOutput,
+    HandledOutput,
     MessageMetadataType,
     HandlerContext
   >,
-): WorkflowRouter<
+): WorkflowOutputHandlerOptions<
   Input,
   Output,
-  RoutedOutput,
+  HandledOutput,
   MessageMetadataType,
   HandlerContext
-> => router;
+> => handler;
 
 export type WorkflowProcessorOptions<
   Input extends AnyEvent | AnyCommand,
@@ -120,7 +120,7 @@ export type WorkflowProcessorOptions<
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
-  RoutedOutput extends Output = Output,
+  HandledOutput extends Output = Output,
 > = Omit<
   BaseMessageProcessorOptions<
     Input | Output,
@@ -136,10 +136,10 @@ export type WorkflowProcessorOptions<
     StoredMessage
   > & {
     retry?: WorkflowHandlerRetryOptions;
-    router?: WorkflowRouter<
+    outputHandler?: WorkflowOutputHandlerOptions<
       Input,
       Output,
-      RoutedOutput,
+      HandledOutput,
       MessageMetadataType,
       HandlerContext
     >;
@@ -155,7 +155,7 @@ export const workflowProcessor = <
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
-  RoutedOutput extends Output = Output,
+  HandledOutput extends Output = Output,
 >(
   options: WorkflowProcessorOptions<
     Input,
@@ -164,7 +164,7 @@ export const workflowProcessor = <
     MetaDataType,
     HandlerContext,
     StoredMessage,
-    RoutedOutput
+    HandledOutput
   >,
 ): MessageProcessor<Input, MetaDataType, HandlerContext> => {
   const { workflow, ...rest } = options;
@@ -179,7 +179,8 @@ export const workflowProcessor = <
       ...options.inputs.events.map((t) => `${workflow.name}:${t}`),
     ];
 
-  if (options.router) canHandle = [...canHandle, ...options.router.canHandle];
+  if (options.outputHandler)
+    canHandle = [...canHandle, ...options.outputHandler.canHandle];
 
   const handle = WorkflowHandler(options);
 
@@ -220,24 +221,24 @@ export const workflowProcessor = <
         return;
       }
 
-      if (options.router?.canHandle.includes(messageType) === true) {
-        const routedMessages = await options.router.handle(
-          message as RecordedMessage<RoutedOutput, MetaDataType>,
+      if (options.outputHandler?.canHandle.includes(messageType) === true) {
+        const handledOutputMessages = await options.outputHandler.handle(
+          message as RecordedMessage<HandledOutput, MetaDataType>,
           context,
         );
 
-        if (routedMessages instanceof EmmettError) {
+        if (handledOutputMessages instanceof EmmettError) {
           return {
             type: 'STOP',
             reason: 'Routing error',
-            error: routedMessages,
+            error: handledOutputMessages,
           };
         }
 
-        const messagesToAppend = Array.isArray(routedMessages)
-          ? routedMessages
-          : routedMessages
-            ? [routedMessages]
+        const messagesToAppend = Array.isArray(handledOutputMessages)
+          ? handledOutputMessages
+          : handledOutputMessages
+            ? [handledOutputMessages]
             : [];
 
         if (messagesToAppend.length === 0) {
