@@ -1,3 +1,4 @@
+import { EmmettError } from '../errors';
 import type { EventStore } from '../eventStore';
 import type { MessageProcessor } from '../processors';
 import {
@@ -11,6 +12,7 @@ import type {
   AnyReadEventMetadata,
   AnyRecordedMessageMetadata,
   CanHandle,
+  Event,
   MessageTypeOf,
   RecordedMessage,
 } from '../typing';
@@ -55,6 +57,24 @@ export type WorkflowProcessorContext = {
   };
 };
 
+export type WorkflowOutputRouter<
+  Input extends AnyEvent | AnyCommand,
+  Output extends AnyEvent | AnyCommand,
+  MessageMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
+> = (
+  messages:
+    | RecordedMessage<Output, MessageMetaDataType>
+    | RecordedMessage<Output, MessageMetaDataType>[],
+  context: HandlerContext,
+) =>
+  | Promise<Input | Output | (Input | Output)[] | EmmettError | []>
+  | Input
+  | Output
+  | (Input | Output)[]
+  | EmmettError
+  | [];
+
 export type WorkflowProcessorOptions<
   Input extends AnyEvent | AnyCommand,
   State,
@@ -77,6 +97,15 @@ export type WorkflowProcessorOptions<
     StoredMessage
   > & {
     retry?: WorkflowHandlerRetryOptions;
+    router?: {
+      handle: WorkflowOutputRouter<
+        Input,
+        Output,
+        MessageMetadataType,
+        HandlerContext
+      >;
+      canHandle: CanHandle<Output>;
+    };
   };
 
 export const getWorkflowId = (options: { workflowName: string }): string =>
@@ -100,47 +129,90 @@ export const workflowProcessor = <
   >,
 ): MessageProcessor<Input, MetaDataType, HandlerContext> => {
   const { workflow, ...rest } = options;
-  const canHandle = options.separateInputInboxFromProcessing
-    ? [
-        ...options.inputs.commands,
-        ...options.inputs.events,
-        ...options.inputs.commands.map((t) => `${workflow.name}:${t}`),
-        ...options.inputs.events.map((t) => `${workflow.name}:${t}`),
-      ]
-    : [...options.inputs.commands, ...options.inputs.events];
+
+  const inputs = [...options.inputs.commands, ...options.inputs.events];
+  let canHandle = inputs;
+
+  if (options.separateInputInboxFromProcessing)
+    canHandle = [
+      ...canHandle,
+      ...options.inputs.commands.map((t) => `${workflow.name}:${t}`),
+      ...options.inputs.events.map((t) => `${workflow.name}:${t}`),
+    ];
+
+  if (options.router) canHandle = [...canHandle, ...options.router.canHandle];
 
   const handle = WorkflowHandler(options);
 
-  return reactor<Input, MetaDataType, HandlerContext>({
+  return reactor<Input | Output, MetaDataType, HandlerContext>({
     ...rest,
     processorId:
       options.processorId ?? getWorkflowId({ workflowName: workflow.name }),
     canHandle,
     type: MessageProcessorType.PROJECTOR,
     eachMessage: async (
-      message: RecordedMessage<Input, MetaDataType>,
+      message: RecordedMessage<Input | Output, MetaDataType>,
       context: HandlerContext,
     ) => {
       const messageType = message.type as string;
-      if (!canHandle.includes(messageType)) return;
 
-      const result = await handle(
-        context.connection.messageStore,
-        message,
-        context,
-      );
+      if (inputs.includes(messageType)) {
+        const result = await handle(
+          context.connection.messageStore,
+          message as RecordedMessage<Input, MetaDataType>,
+          context,
+        );
 
-      // Check stopAfter on output messages
-      if (options.stopAfter && result.newMessages.length > 0) {
-        for (const outputMessage of result.newMessages) {
-          if (
-            options.stopAfter(
-              outputMessage as RecordedMessage<Output, MetaDataType>,
-            )
-          ) {
-            return { type: 'STOP', reason: 'Stop condition reached' };
+        // Check stopAfter on output messages
+        if (options.stopAfter && result.newMessages.length > 0) {
+          for (const outputMessage of result.newMessages) {
+            if (
+              options.stopAfter(
+                outputMessage as RecordedMessage<Output, MetaDataType>,
+              )
+            ) {
+              return { type: 'STOP', reason: 'Stop condition reached' };
+            }
           }
         }
+      }
+
+      // TODO: I don't like entirely that, it's a bit hackish
+      // Especially the streamName part, but it works, so let's be it for now.
+      // Question: What if someone put message both as input and output?
+      if (options.router?.canHandle.includes(messageType) === true) {
+        const routedMessages = await options.router.handle(
+          message as RecordedMessage<Output, MetaDataType>,
+          context,
+        );
+
+        if (routedMessages instanceof EmmettError) {
+          return {
+            type: 'STOP',
+            reason: 'Routing error',
+            error: routedMessages,
+          };
+        }
+
+        const messagesToAppend = Array.isArray(routedMessages)
+          ? routedMessages
+          : routedMessages
+            ? [routedMessages]
+            : [];
+
+        if (messagesToAppend.length === 0) {
+          return;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        const streamName = message.metadata.streamName as string;
+
+        await context.connection.messageStore.appendToStream(
+          streamName,
+          messagesToAppend as unknown as Event[],
+        );
+
+        return;
       }
 
       return;
