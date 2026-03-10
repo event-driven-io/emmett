@@ -58,7 +58,7 @@ export type WorkflowProcessorContext = {
   };
 };
 
-export type WorkflowOutputRouter<
+export type WorkflowOutputHandler<
   Input extends AnyEvent | AnyCommand,
   Output extends AnyEvent | AnyCommand,
   MessageMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -75,6 +75,44 @@ export type WorkflowOutputRouter<
   | EmmettError
   | [];
 
+export type WorkflowRouter<
+  Input extends AnyEvent | AnyCommand,
+  Output extends AnyEvent | AnyCommand,
+  RoutedOutput extends Output = Output,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
+> = {
+  canHandle: CanHandle<RoutedOutput>;
+  handle: WorkflowOutputHandler<
+    Input,
+    RoutedOutput,
+    MessageMetadataType,
+    HandlerContext
+  >;
+};
+
+export const workflowRouter = <
+  Input extends AnyEvent | AnyCommand,
+  Output extends AnyEvent | AnyCommand,
+  RoutedOutput extends Output,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
+>(
+  router: WorkflowRouter<
+    Input,
+    Output,
+    RoutedOutput,
+    MessageMetadataType,
+    HandlerContext
+  >,
+): WorkflowRouter<
+  Input,
+  Output,
+  RoutedOutput,
+  MessageMetadataType,
+  HandlerContext
+> => router;
+
 export type WorkflowProcessorOptions<
   Input extends AnyEvent | AnyCommand,
   State,
@@ -82,6 +120,7 @@ export type WorkflowProcessorOptions<
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
+  RoutedOutput extends Output = Output,
 > = Omit<
   BaseMessageProcessorOptions<
     Input | Output,
@@ -97,15 +136,13 @@ export type WorkflowProcessorOptions<
     StoredMessage
   > & {
     retry?: WorkflowHandlerRetryOptions;
-    router?: {
-      handle: WorkflowOutputRouter<
-        Input,
-        Output,
-        MessageMetadataType,
-        HandlerContext
-      >;
-      canHandle: CanHandle<Output>;
-    };
+    router?: WorkflowRouter<
+      Input,
+      Output,
+      RoutedOutput,
+      MessageMetadataType,
+      HandlerContext
+    >;
   };
 
 export const getWorkflowId = (options: { workflowName: string }): string =>
@@ -118,6 +155,7 @@ export const workflowProcessor = <
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
+  RoutedOutput extends Output = Output,
 >(
   options: WorkflowProcessorOptions<
     Input,
@@ -125,7 +163,8 @@ export const workflowProcessor = <
     Output,
     MetaDataType,
     HandlerContext,
-    StoredMessage
+    StoredMessage,
+    RoutedOutput
   >,
 ): MessageProcessor<Input, MetaDataType, HandlerContext> => {
   const { workflow, ...rest } = options;
@@ -183,7 +222,7 @@ export const workflowProcessor = <
 
       if (options.router?.canHandle.includes(messageType) === true) {
         const routedMessages = await options.router.handle(
-          message as RecordedMessage<Output, MetaDataType>,
+          message as RecordedMessage<RoutedOutput, MetaDataType>,
           context,
         );
 

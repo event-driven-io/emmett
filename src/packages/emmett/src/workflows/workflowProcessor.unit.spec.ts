@@ -24,6 +24,7 @@ import {
 import {
   getWorkflowId,
   workflowProcessor,
+  workflowRouter,
   type WorkflowOptions,
 } from './workflowProcessor';
 
@@ -534,17 +535,21 @@ void describe('Workflow Processor', () => {
         workflowId: groupCheckoutId,
       });
 
-      let routerCalledWith: RecordedMessage<GroupCheckoutOutput> | undefined;
+      let routerCalledWith: RecordedMessage<CheckOut> | undefined;
 
       const processor = workflowProcessor({
         ...workflowOptions,
-        router: {
+        router: workflowRouter<
+          GroupCheckoutInput,
+          GroupCheckoutOutput,
+          CheckOut
+        >({
           canHandle: ['CheckOut'],
           handle: (msg) => {
-            routerCalledWith = msg as RecordedMessage<GroupCheckoutOutput>;
+            routerCalledWith = Array.isArray(msg) ? msg[0] : msg;
             return [];
           },
-        },
+        }),
       });
 
       const outputMessage = recordedOutput<CheckOut>(
@@ -564,10 +569,9 @@ void describe('Workflow Processor', () => {
 
       // Then
       assertOk(routerCalledWith);
-      assertEqual(
-        (routerCalledWith as RecordedMessage<CheckOut>).type,
-        'CheckOut',
-      );
+      assertEqual(routerCalledWith.type, 'CheckOut');
+      // data is fully typed as CheckOut's data — no cast needed
+      assertOk(routerCalledWith.data.guestStayAccountId);
     });
 
     void it('should NOT call router for input-flagged messages even if type is in canHandle', async () => {
@@ -664,10 +668,23 @@ void describe('Workflow Processor', () => {
 
       const processor = workflowProcessor({
         ...workflowOptions,
-        router: {
+        router: workflowRouter<
+          GroupCheckoutInput,
+          GroupCheckoutOutput,
+          CheckOut
+        >({
           canHandle: ['CheckOut'],
-          handle: () => responseEvent,
-        },
+          handle: (msg) => {
+            const checkout = Array.isArray(msg) ? msg[0]! : msg;
+            return {
+              ...responseEvent,
+              data: {
+                ...responseEvent.data,
+                guestStayAccountId: checkout.data.guestStayAccountId,
+              },
+            };
+          },
+        }),
       });
 
       const outputMessage = recordedOutput<CheckOut>(
