@@ -9,12 +9,7 @@ import {
   assertOk,
   assertThatArray,
 } from '../testing';
-import type {
-  AnyReadEventMetadata,
-  AnyRecordedMessageMetadata,
-  Event,
-  RecordedMessage,
-} from '../typing';
+import type { AnyReadEventMetadata, Event, RecordedMessage } from '../typing';
 import { isString } from '../validation';
 import { workflowStreamName } from './handleWorkflow';
 import {
@@ -247,16 +242,24 @@ void describe('Workflow Processor', () => {
         connection: { messageStore: eventStore },
       });
 
-      // Then: process the prefixed input
-      const prefixedMessage = recorded({
+      // Then: process the prefixed input — simulates what the consumer delivers
+      // back from the workflow stream. It carries input: true in metadata,
+      // which is what the processor uses to dispatch it to the handler.
+      const prefixedMessage = {
         type: 'GroupCheckoutWorkflow:InitiateGroupCheckout',
-        data: {
-          groupCheckoutId,
-          clerkId: 'clerk-1',
-          guestStayAccountIds,
-          now,
+        data: { groupCheckoutId, clerkId: 'clerk-1', guestStayAccountIds, now },
+        kind: 'Event',
+        metadata: {
+          streamName: workflowStreamName({
+            workflowName: 'GroupCheckoutWorkflow',
+            workflowId: groupCheckoutId,
+          }),
+          streamPosition: 1n,
+          messageId: randomUUID(),
+          input: true,
+          action: 'InitiatedBy',
         },
-      } as unknown as InitiateGroupCheckout);
+      } as unknown as RecordedMessage<InitiateGroupCheckout>;
 
       await processor.handle([prefixedMessage], {
         connection: { messageStore: eventStore },
@@ -509,7 +512,7 @@ void describe('Workflow Processor', () => {
     const recordedOutput = <T extends GroupCheckoutOutput>(
       message: T,
       wfStreamName: string,
-    ): RecordedMessage<GroupCheckoutInput, AnyRecordedMessageMetadata> =>
+    ): RecordedMessage<GroupCheckoutInput> =>
       ({
         ...message,
         kind: 'Event',
@@ -553,7 +556,9 @@ void describe('Workflow Processor', () => {
       );
 
       await processor.start({ connection: { messageStore: eventStore } });
-      await processor.handle([outputMessage as RecordedMessage], {
+      // TODO: Fix this when combined message metadata doesn't return `now` and other metadata
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+      await processor.handle([outputMessage as any], {
         connection: { messageStore: eventStore },
       });
 
@@ -632,7 +637,9 @@ void describe('Workflow Processor', () => {
       } as unknown as RecordedMessage<GroupCheckoutInput>;
 
       await processor.start({ connection: { messageStore: eventStore } });
-      await processor.handle([inputMessage], {
+      // TODO: Fix this when combined message metadata doesn't return `now` and other metadata
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+      await processor.handle([inputMessage as any], {
         connection: { messageStore: eventStore },
       });
 
@@ -669,7 +676,9 @@ void describe('Workflow Processor', () => {
       );
 
       await processor.start({ connection: { messageStore: eventStore } });
-      await processor.handle([outputMessage], {
+      // TODO: Fix this when combined message metadata doesn't return `now` and other metadata
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+      await processor.handle([outputMessage as any], {
         connection: { messageStore: eventStore },
       });
 
@@ -702,7 +711,9 @@ void describe('Workflow Processor', () => {
       );
 
       await processor.start({ connection: { messageStore: eventStore } });
-      await processor.handle([outputMessage], {
+      // TODO: Fix this when combined message metadata doesn't return `now` and other metadata
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+      await processor.handle([outputMessage as any], {
         connection: { messageStore: eventStore },
       });
 
@@ -736,7 +747,9 @@ void describe('Workflow Processor', () => {
       );
 
       await processor.start({ connection: { messageStore: eventStore } });
-      const result = await processor.handle([outputMessage], {
+      // TODO: Fix this when combined message metadata doesn't return `now` and other metadata
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+      const result = await processor.handle([outputMessage as any], {
         connection: { messageStore: eventStore },
       });
 
@@ -773,7 +786,9 @@ void describe('Workflow Processor', () => {
       );
 
       await processor.start({ connection: { messageStore: eventStore } });
-      await processor.handle([outputMessage], {
+      // TODO: Fix this when combined message metadata doesn't return `now` and other metadata
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+      await processor.handle([outputMessage as any], {
         connection: { messageStore: eventStore },
       });
 
