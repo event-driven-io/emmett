@@ -22,24 +22,34 @@ export type ApiE2ESpecification = (...givenRequests: TestRequest[]) => {
 function apiE2ESpecificationFor(
   getApplication: () => Application,
 ): ApiE2ESpecification;
-/** @deprecated Use `ApiE2ESpecification.for(() => getApplication(...))` instead */
 function apiE2ESpecificationFor<
   Store extends EventStore = InMemoryEventStore,
 >(options: {
   getEventStore?: () => Store;
   getApplication: (eventStore: Store) => Application;
 }): ApiE2ESpecification;
+/** @deprecated Use `ApiE2ESpecification.for({ getEventStore, getApplication })` instead */
+function apiE2ESpecificationFor<Store extends EventStore = InMemoryEventStore>(
+  getEventStore: () => Store,
+  getApplication: (eventStore: Store) => Application,
+): ApiE2ESpecification;
 function apiE2ESpecificationFor<Store extends EventStore = InMemoryEventStore>(
   optionsOrGetApplication:
     | (() => Application)
+    | (() => Store)
     | {
         getEventStore?: () => Store;
         getApplication: (eventStore: Store) => Application;
       },
+  getApplication?: (eventStore: Store) => Application,
 ): ApiE2ESpecification {
   const resolveApplication = (): Application => {
     if (typeof optionsOrGetApplication === 'function') {
-      return optionsOrGetApplication();
+      if (getApplication) {
+        const eventStore = optionsOrGetApplication() as Store;
+        return getApplication(eventStore);
+      }
+      return (optionsOrGetApplication as () => Application)();
     }
     const eventStore =
       optionsOrGetApplication.getEventStore?.() ?? getInMemoryEventStore();

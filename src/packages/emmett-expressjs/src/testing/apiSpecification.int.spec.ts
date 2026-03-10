@@ -1,8 +1,4 @@
-import {
-  getInMemoryEventStore,
-  type EventStore,
-  type ReadEventMetadataWithGlobalPosition,
-} from '@event-driven-io/emmett';
+import { getInMemoryEventStore } from '@event-driven-io/emmett';
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it } from 'vitest';
 import { getApplication, HeaderNames, toWeakETag } from '..';
@@ -24,10 +20,7 @@ void describe('ApiSpecification', () => {
   const testCases = [
     {
       name: 'New API',
-      given: ApiSpecification.for<
-        ShoppingCartEvent,
-        EventStore<ReadEventMetadataWithGlobalPosition>
-      >({
+      given: ApiSpecification.for({
         getEventStore: () => getInMemoryEventStore(),
         getApplication: (eventStore) =>
           getApplication({
@@ -37,10 +30,7 @@ void describe('ApiSpecification', () => {
     },
     {
       name: 'Obsolete API',
-      given: ApiSpecification.for<
-        ShoppingCartEvent,
-        EventStore<ReadEventMetadataWithGlobalPosition>
-      >(
+      given: ApiSpecification.for(
         () => getInMemoryEventStore(),
         (eventStore) =>
           getApplication({
