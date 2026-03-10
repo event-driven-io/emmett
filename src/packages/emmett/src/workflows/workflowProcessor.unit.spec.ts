@@ -23,8 +23,8 @@ import {
 } from './workflow.testHelpers';
 import {
   getWorkflowId,
+  workflowOutputHandler,
   workflowProcessor,
-  workflowRouter,
   type WorkflowOptions,
 } from './workflowProcessor';
 
@@ -539,7 +539,7 @@ void describe('Workflow Processor', () => {
 
       const processor = workflowProcessor({
         ...workflowOptions,
-        router: workflowRouter<
+        outputHandler: workflowOutputHandler<
           GroupCheckoutInput,
           GroupCheckoutOutput,
           CheckOut
@@ -588,7 +588,7 @@ void describe('Workflow Processor', () => {
 
       const processor = workflowProcessor({
         ...workflowOptions,
-        router: {
+        outputHandler: {
           // GroupCheckoutFailed is an output type — but we send it as an input
           canHandle: ['GroupCheckoutFailed'],
           handle: () => {
@@ -668,7 +668,7 @@ void describe('Workflow Processor', () => {
 
       const processor = workflowProcessor({
         ...workflowOptions,
-        router: workflowRouter<
+        outputHandler: workflowOutputHandler<
           GroupCheckoutInput,
           GroupCheckoutOutput,
           CheckOut
@@ -716,7 +716,7 @@ void describe('Workflow Processor', () => {
 
       const processor = workflowProcessor({
         ...workflowOptions,
-        router: { canHandle: ['CheckOut'], handle: () => [] },
+        outputHandler: { canHandle: ['CheckOut'], handle: () => [] },
       });
 
       const outputMessage = recordedOutput<CheckOut>(
@@ -749,7 +749,7 @@ void describe('Workflow Processor', () => {
 
       const processor = workflowProcessor({
         ...workflowOptions,
-        router: {
+        outputHandler: {
           canHandle: ['CheckOut'],
           handle: () => new EmmettError('routing failed'),
         },
@@ -793,7 +793,7 @@ void describe('Workflow Processor', () => {
 
       const processor = workflowProcessor({
         ...workflowOptions,
-        router: { canHandle: ['CheckOut'], handle: () => responseEvent },
+        outputHandler: { canHandle: ['CheckOut'], handle: () => responseEvent },
       });
 
       // Output message carries wrongStream as metadata.streamName
