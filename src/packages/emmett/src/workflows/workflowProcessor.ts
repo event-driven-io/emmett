@@ -18,6 +18,7 @@ import type {
 } from '../typing';
 import {
   WorkflowHandler,
+  workflowStreamName,
   type WorkflowHandlerRetryOptions,
 } from './handleWorkflow';
 import type { Workflow, WorkflowCommand, WorkflowEvent } from './workflow';
@@ -68,10 +69,9 @@ export type WorkflowOutputRouter<
     | RecordedMessage<Output, MessageMetaDataType>[],
   context: HandlerContext,
 ) =>
-  | Promise<Input | Output | (Input | Output)[] | EmmettError | []>
+  | Promise<Input | Input[] | EmmettError | []>
   | Input
-  | Output
-  | (Input | Output)[]
+  | Input[]
   | EmmettError
   | [];
 
@@ -155,8 +155,10 @@ export const workflowProcessor = <
       context: HandlerContext,
     ) => {
       const messageType = message.type as string;
+      const metadata = message.metadata as Record<string, unknown> | undefined;
+      const isInput = metadata?.input === true;
 
-      if (inputs.includes(messageType)) {
+      if (isInput || inputs.includes(messageType)) {
         const result = await handle(
           context.connection.messageStore,
           message as RecordedMessage<Input, MetaDataType>,
@@ -175,11 +177,10 @@ export const workflowProcessor = <
             }
           }
         }
+
+        return;
       }
 
-      // TODO: I don't like entirely that, it's a bit hackish
-      // Especially the streamName part, but it works, so let's be it for now.
-      // Question: What if someone put message both as input and output?
       if (options.router?.canHandle.includes(messageType) === true) {
         const routedMessages = await options.router.handle(
           message as RecordedMessage<Output, MetaDataType>,
@@ -204,8 +205,18 @@ export const workflowProcessor = <
           return;
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        const streamName = message.metadata.streamName as string;
+        const workflowId = options.getWorkflowId(
+          message as RecordedMessage<Input, MetaDataType>,
+        );
+
+        if (!workflowId) return;
+
+        const streamName = options.mapWorkflowId
+          ? options.mapWorkflowId(workflowId)
+          : workflowStreamName({
+              workflowName: workflow.name,
+              workflowId,
+            });
 
         await context.connection.messageStore.appendToStream(
           streamName,
