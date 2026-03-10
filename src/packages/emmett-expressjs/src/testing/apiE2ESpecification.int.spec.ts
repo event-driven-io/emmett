@@ -28,6 +28,16 @@ void describe('ApiE2ESpecification', () => {
           }),
       }),
     },
+    {
+      name: 'Obsolete Two-Arg API',
+      given: ApiE2ESpecification.for(
+        () => getInMemoryEventStore(),
+        (eventStore) =>
+          getApplication({
+            apis: [shoppingCartApi(eventStore)],
+          }),
+      ),
+    },
   ];
 
   for (const { name, given } of testCases) {
