@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'vitest';
+import { EmmettError } from '../errors';
 import { getInMemoryEventStore } from '../eventStore';
 import {
   assertEqual,
@@ -8,14 +9,21 @@ import {
   assertOk,
   assertThatArray,
 } from '../testing';
-import type { AnyReadEventMetadata, RecordedMessage } from '../typing';
+import type {
+  AnyReadEventMetadata,
+  AnyRecordedMessageMetadata,
+  Event,
+  RecordedMessage,
+} from '../typing';
 import { isString } from '../validation';
 import { workflowStreamName } from './handleWorkflow';
 import {
   GroupCheckoutWorkflow,
+  type CheckOut,
   type GroupCheckout,
   type GroupCheckoutInput,
   type GroupCheckoutOutput,
+  type GuestCheckedOut,
   type InitiateGroupCheckout,
 } from './workflow.testHelpers';
 import {
@@ -490,6 +498,291 @@ void describe('Workflow Processor', () => {
         events[0]!.type,
         'GroupCheckoutWorkflow:InitiateGroupCheckout',
       );
+    });
+  });
+
+  void describe('router', () => {
+    // Simulate what the consumer delivers back from the workflow stream:
+    // an output message stamped with action metadata but no input flag.
+    // Cast to RecordedMessage<GroupCheckoutInput> to satisfy the processor's
+    // public handle() signature — the runtime value is an output type.
+    const recordedOutput = <T extends GroupCheckoutOutput>(
+      message: T,
+      wfStreamName: string,
+    ): RecordedMessage<GroupCheckoutInput, AnyRecordedMessageMetadata> =>
+      ({
+        ...message,
+        kind: 'Event',
+        metadata: {
+          streamName: wfStreamName,
+          streamPosition: 2n,
+          messageId: randomUUID(),
+          action: 'Published',
+          // intentionally no `input: true` — this is an output
+        },
+      }) as unknown as RecordedMessage<GroupCheckoutInput>;
+
+    void it('should call router for output messages (dispatched by metadata, not type name)', async () => {
+      // Given
+      const eventStore = getInMemoryEventStore();
+      const groupCheckoutId = randomUUID();
+      const streamName = workflowStreamName({
+        workflowName: 'GroupCheckoutWorkflow',
+        workflowId: groupCheckoutId,
+      });
+
+      let routerCalledWith: RecordedMessage<GroupCheckoutOutput> | undefined;
+
+      const processor = workflowProcessor({
+        ...workflowOptions,
+        router: {
+          canHandle: ['CheckOut'],
+          handle: (msg) => {
+            routerCalledWith = msg as RecordedMessage<GroupCheckoutOutput>;
+            return [];
+          },
+        },
+      });
+
+      const outputMessage = recordedOutput<CheckOut>(
+        {
+          type: 'CheckOut',
+          data: { guestStayAccountId: randomUUID(), groupCheckoutId },
+        },
+        streamName,
+      );
+
+      await processor.start({ connection: { messageStore: eventStore } });
+      await processor.handle([outputMessage as RecordedMessage], {
+        connection: { messageStore: eventStore },
+      });
+
+      // Then
+      assertOk(routerCalledWith);
+      assertEqual(
+        (routerCalledWith as RecordedMessage<CheckOut>).type,
+        'CheckOut',
+      );
+    });
+
+    void it('should NOT call router for input-flagged messages even if type is in canHandle', async () => {
+      // Given
+      const eventStore = getInMemoryEventStore();
+      const groupCheckoutId = randomUUID();
+      const guestStayAccountId = randomUUID();
+      const streamName = workflowStreamName({
+        workflowName: 'GroupCheckoutWorkflow',
+        workflowId: groupCheckoutId,
+      });
+
+      let routerCalled = false;
+
+      const processor = workflowProcessor({
+        ...workflowOptions,
+        router: {
+          // GroupCheckoutFailed is an output type — but we send it as an input
+          canHandle: ['GroupCheckoutFailed'],
+          handle: () => {
+            routerCalled = true;
+            return [];
+          },
+        },
+      });
+
+      // Seed the stream so GuestCheckedOut has a workflow state to update
+      await eventStore.appendToStream(streamName, [
+        {
+          type: 'GroupCheckoutWorkflow:InitiateGroupCheckout',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk',
+            guestStayAccountIds: [guestStayAccountId],
+            now: new Date(),
+          },
+          metadata: {
+            input: true,
+            originalMessageId: randomUUID(),
+            action: 'InitiatedBy',
+          },
+        },
+        {
+          type: 'GroupCheckoutInitiated',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk',
+            guestStayAccountIds: [guestStayAccountId],
+            initiatedAt: new Date(),
+          },
+          metadata: { action: 'Published' },
+        },
+      ] as unknown as Event[]);
+
+      // An input-flagged GuestCheckedOut arriving in the workflow stream
+      const inputMessage = {
+        type: 'GuestCheckedOut',
+        data: { guestStayAccountId, checkedOutAt: new Date(), groupCheckoutId },
+        kind: 'Event',
+        metadata: {
+          streamName,
+          streamPosition: 3n,
+          messageId: randomUUID(),
+          input: true, // ← key: this is an input, not an output
+          action: 'Received',
+        },
+      } as unknown as RecordedMessage<GroupCheckoutInput>;
+
+      await processor.start({ connection: { messageStore: eventStore } });
+      await processor.handle([inputMessage], {
+        connection: { messageStore: eventStore },
+      });
+
+      // Router must not have been called — metadata.input===true routes to handler
+      assertFalse(routerCalled);
+    });
+
+    void it('router returning an Input message appends it to the workflow stream', async () => {
+      // Given
+      const eventStore = getInMemoryEventStore();
+      const groupCheckoutId = randomUUID();
+      const guestStayAccountId = randomUUID();
+      const streamName = workflowStreamName({
+        workflowName: 'GroupCheckoutWorkflow',
+        workflowId: groupCheckoutId,
+      });
+
+      const responseEvent: GuestCheckedOut = {
+        type: 'GuestCheckedOut',
+        data: { guestStayAccountId, checkedOutAt: new Date(), groupCheckoutId },
+      };
+
+      const processor = workflowProcessor({
+        ...workflowOptions,
+        router: {
+          canHandle: ['CheckOut'],
+          handle: () => responseEvent,
+        },
+      });
+
+      const outputMessage = recordedOutput<CheckOut>(
+        { type: 'CheckOut', data: { guestStayAccountId, groupCheckoutId } },
+        streamName,
+      );
+
+      await processor.start({ connection: { messageStore: eventStore } });
+      await processor.handle([outputMessage], {
+        connection: { messageStore: eventStore },
+      });
+
+      // Then - the response is appended to the workflow stream
+      const { events } = await eventStore.readStream(streamName);
+      assertThatArray(events).isNotEmpty();
+      assertEqual(events[events.length - 1]!.type, 'GuestCheckedOut');
+    });
+
+    void it('router returning [] is a no-op', async () => {
+      // Given
+      const eventStore = getInMemoryEventStore();
+      const groupCheckoutId = randomUUID();
+      const streamName = workflowStreamName({
+        workflowName: 'GroupCheckoutWorkflow',
+        workflowId: groupCheckoutId,
+      });
+
+      const processor = workflowProcessor({
+        ...workflowOptions,
+        router: { canHandle: ['CheckOut'], handle: () => [] },
+      });
+
+      const outputMessage = recordedOutput<CheckOut>(
+        {
+          type: 'CheckOut',
+          data: { guestStayAccountId: randomUUID(), groupCheckoutId },
+        },
+        streamName,
+      );
+
+      await processor.start({ connection: { messageStore: eventStore } });
+      await processor.handle([outputMessage], {
+        connection: { messageStore: eventStore },
+      });
+
+      // Stream must not have been created
+      assertFalse(await eventStore.streamExists(streamName));
+    });
+
+    void it('router returning EmmettError stops processing', async () => {
+      // Given
+      const eventStore = getInMemoryEventStore();
+      const groupCheckoutId = randomUUID();
+      const streamName = workflowStreamName({
+        workflowName: 'GroupCheckoutWorkflow',
+        workflowId: groupCheckoutId,
+      });
+
+      const processor = workflowProcessor({
+        ...workflowOptions,
+        router: {
+          canHandle: ['CheckOut'],
+          handle: () => new EmmettError('routing failed'),
+        },
+      });
+
+      const outputMessage = recordedOutput<CheckOut>(
+        {
+          type: 'CheckOut',
+          data: { guestStayAccountId: randomUUID(), groupCheckoutId },
+        },
+        streamName,
+      );
+
+      await processor.start({ connection: { messageStore: eventStore } });
+      const result = await processor.handle([outputMessage], {
+        connection: { messageStore: eventStore },
+      });
+
+      assertMatches(result, { type: 'STOP' });
+    });
+
+    void it('router response is appended to the workflow stream, derived from getWorkflowId', async () => {
+      // Given: the output message's metadata.streamName is intentionally a
+      // different value — the processor must derive the target stream from
+      // getWorkflowId, not from message.metadata.streamName
+      const eventStore = getInMemoryEventStore();
+      const groupCheckoutId = randomUUID();
+      const guestStayAccountId = randomUUID();
+      const correctStream = workflowStreamName({
+        workflowName: 'GroupCheckoutWorkflow',
+        workflowId: groupCheckoutId,
+      });
+      const wrongStream = `some-other-stream-${randomUUID()}`;
+
+      const responseEvent: GuestCheckedOut = {
+        type: 'GuestCheckedOut',
+        data: { guestStayAccountId, checkedOutAt: new Date(), groupCheckoutId },
+      };
+
+      const processor = workflowProcessor({
+        ...workflowOptions,
+        router: { canHandle: ['CheckOut'], handle: () => responseEvent },
+      });
+
+      // Output message carries wrongStream as metadata.streamName
+      const outputMessage = recordedOutput<CheckOut>(
+        { type: 'CheckOut', data: { guestStayAccountId, groupCheckoutId } },
+        wrongStream,
+      );
+
+      await processor.start({ connection: { messageStore: eventStore } });
+      await processor.handle([outputMessage], {
+        connection: { messageStore: eventStore },
+      });
+
+      // Response must land on the workflow stream, not the wrong stream
+      const { events } = await eventStore.readStream(correctStream);
+      assertThatArray(events).isNotEmpty();
+      assertEqual(events[events.length - 1]!.type, 'GuestCheckedOut');
+
+      assertFalse(await eventStore.streamExists(wrongStream));
     });
   });
 });
