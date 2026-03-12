@@ -65,15 +65,17 @@ export type WorkflowOutputHandler<
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
 > = (
   messages:
+    | Output
     | RecordedMessage<Output, MessageMetaDataType>
     | RecordedMessage<Output, MessageMetaDataType>[],
   context: HandlerContext,
 ) =>
-  | Promise<Input | Input[] | EmmettError | []>
+  | Promise<Input | Input[] | EmmettError | [] | void>
   | Input
   | Input[]
   | EmmettError
-  | [];
+  | []
+  | void;
 
 export type WorkflowOutputHandlerDefinition<
   Input extends AnyEvent | AnyCommand,

@@ -9,13 +9,12 @@ import {
   assertOk,
   assertThatArray,
 } from '../testing';
-import type { AnyReadEventMetadata, Event, RecordedMessage } from '../typing';
+import type { Event, RecordedMessage } from '../typing';
 import { isString } from '../validation';
 import { workflowStreamName } from './handleWorkflow';
 import {
-  GroupCheckoutWorkflow,
+  workflowOptions,
   type CheckOut,
-  type GroupCheckout,
   type GroupCheckoutInput,
   type GroupCheckoutOutput,
   type GuestCheckedOut,
@@ -25,33 +24,7 @@ import {
   getWorkflowId,
   workflowOutputHandler,
   workflowProcessor,
-  type WorkflowOptions,
 } from './workflowProcessor';
-
-type WorkflowMeta = AnyReadEventMetadata;
-
-const workflowOptions: WorkflowOptions<
-  GroupCheckoutInput,
-  GroupCheckout,
-  GroupCheckoutOutput,
-  WorkflowMeta
-> = {
-  workflow: GroupCheckoutWorkflow,
-  getWorkflowId: (input) =>
-    (input.data as { groupCheckoutId?: string }).groupCheckoutId ?? null,
-  inputs: {
-    commands: ['InitiateGroupCheckout', 'TimeoutGroupCheckout'],
-    events: ['GuestCheckedOut', 'GuestCheckoutFailed'],
-  },
-  outputs: {
-    commands: ['CheckOut'],
-    events: [
-      'GroupCheckoutCompleted',
-      'GroupCheckoutFailed',
-      'GroupCheckoutTimedOut',
-    ],
-  },
-};
 
 const recorded = <T extends GroupCheckoutInput>(
   message: T,
@@ -535,7 +508,7 @@ void describe('Workflow Processor', () => {
         workflowId: groupCheckoutId,
       });
 
-      let routerCalledWith: RecordedMessage<CheckOut> | undefined;
+      let routerCalledWith: RecordedMessage<CheckOut> | CheckOut | undefined;
 
       const processor = workflowProcessor({
         ...workflowOptions,
@@ -546,6 +519,7 @@ void describe('Workflow Processor', () => {
         >({
           canHandle: ['CheckOut'],
           handle: (msg) => {
+            msg ??= [];
             routerCalledWith = Array.isArray(msg) ? msg[0] : msg;
             return [];
           },
