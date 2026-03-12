@@ -518,9 +518,8 @@ void describe('Workflow Processor', () => {
           CheckOut
         >({
           canHandle: ['CheckOut'],
-          handle: (msg) => {
-            msg ??= [];
-            routerCalledWith = Array.isArray(msg) ? msg[0] : msg;
+          eachMessage: (msg) => {
+            routerCalledWith = msg;
             return [];
           },
         }),
@@ -565,7 +564,7 @@ void describe('Workflow Processor', () => {
         outputHandler: {
           // GroupCheckoutFailed is an output type — but we send it as an input
           canHandle: ['GroupCheckoutFailed'],
-          handle: () => {
+          eachMessage: () => {
             routerCalled = true;
             return [];
           },
@@ -648,13 +647,12 @@ void describe('Workflow Processor', () => {
           CheckOut
         >({
           canHandle: ['CheckOut'],
-          handle: (msg) => {
-            const checkout = Array.isArray(msg) ? msg[0]! : msg;
+          eachMessage: (msg) => {
             return {
               ...responseEvent,
               data: {
                 ...responseEvent.data,
-                guestStayAccountId: checkout.data.guestStayAccountId,
+                guestStayAccountId: msg.data.guestStayAccountId,
               },
             };
           },
@@ -690,7 +688,7 @@ void describe('Workflow Processor', () => {
 
       const processor = workflowProcessor({
         ...workflowOptions,
-        outputHandler: { canHandle: ['CheckOut'], handle: () => [] },
+        outputHandler: { canHandle: ['CheckOut'], eachMessage: () => [] },
       });
 
       const outputMessage = recordedOutput<CheckOut>(
@@ -725,7 +723,7 @@ void describe('Workflow Processor', () => {
         ...workflowOptions,
         outputHandler: {
           canHandle: ['CheckOut'],
-          handle: () => new EmmettError('routing failed'),
+          eachMessage: () => new EmmettError('routing failed'),
         },
       });
 
@@ -767,7 +765,10 @@ void describe('Workflow Processor', () => {
 
       const processor = workflowProcessor({
         ...workflowOptions,
-        outputHandler: { canHandle: ['CheckOut'], handle: () => responseEvent },
+        outputHandler: {
+          canHandle: ['CheckOut'],
+          eachMessage: () => responseEvent,
+        },
       });
 
       // Output message carries wrongStream as metadata.streamName

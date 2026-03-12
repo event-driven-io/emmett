@@ -303,7 +303,7 @@ export const groupCheckoutOutputHandler = workflowOutputHandler<
   CheckOut
 >({
   canHandle: ['CheckOut'],
-  handle: async (
+  eachMessage: async (
     checkOut: CheckOut,
   ): Promise<GuestCheckedOut | GuestCheckoutFailed> => {
     const { guestStayAccountId, groupCheckoutId } = checkOut.data;
@@ -316,12 +316,15 @@ export const groupCheckoutOutputHandler = workflowOutputHandler<
         data: { guestStayAccountId, groupCheckoutId, checkedOutAt: new Date() },
       };
     } catch (err) {
+      const error = err instanceof Error ? err : new Error('Unknown error');
       return {
         type: 'GuestCheckoutFailed',
         data: {
           guestStayAccountId,
           groupCheckoutId,
-          reason: 'NotCheckedIn',
+          reason: error.message.includes('Balance not settled')
+            ? 'BalanceNotSettled'
+            : 'NotCheckedIn',
           failedAt: new Date(),
         },
       };
