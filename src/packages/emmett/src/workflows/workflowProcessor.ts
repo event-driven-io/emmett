@@ -58,24 +58,58 @@ export type WorkflowProcessorContext = {
   };
 };
 
-export type WorkflowOutputHandler<
-  Input extends AnyEvent | AnyCommand,
-  Output extends AnyEvent | AnyCommand,
-  MessageMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
-> = (
-  messages:
-    | Output
-    | RecordedMessage<Output, MessageMetaDataType>
-    | RecordedMessage<Output, MessageMetaDataType>[],
-  context: HandlerContext,
-) =>
+export type WorkflowOutputHandlerResult<Input extends AnyEvent | AnyCommand> =
   | Promise<Input | Input[] | EmmettError | [] | void>
   | Input
   | Input[]
   | EmmettError
   | []
   | void;
+
+export type SingleWorkflowOutputHandler<
+  Input extends AnyEvent | AnyCommand,
+  Output extends AnyEvent | AnyCommand,
+  MessageMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
+> = (
+  message: Output | RecordedMessage<Output, MessageMetaDataType>,
+  context: HandlerContext,
+) => WorkflowOutputHandlerResult<Input>;
+
+export type BatchWorkflowOutputHandler<
+  Input extends AnyEvent | AnyCommand,
+  Output extends AnyEvent | AnyCommand,
+  MessageMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
+> = (
+  messages: RecordedMessage<Output, MessageMetaDataType>[],
+  context: HandlerContext,
+) => WorkflowOutputHandlerResult<Input>;
+
+export type WorkflowOutputHandlerOptions<
+  Input extends AnyEvent | AnyCommand,
+  Output extends AnyEvent | AnyCommand,
+  MessageMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
+> =
+  | {
+      eachMessage: SingleWorkflowOutputHandler<
+        Input,
+        Output,
+        MessageMetaDataType,
+        HandlerContext
+      >;
+      eachBatch?: never;
+    }
+  | {
+      eachMessage?: never;
+      eachBatch: BatchWorkflowOutputHandler<
+        Input,
+        Output,
+        MessageMetaDataType,
+        HandlerContext
+      >;
+    };
 
 export type WorkflowOutputHandlerDefinition<
   Input extends AnyEvent | AnyCommand,
@@ -85,13 +119,12 @@ export type WorkflowOutputHandlerDefinition<
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
 > = {
   canHandle: CanHandle<HandledOutput>;
-  handle: WorkflowOutputHandler<
-    Input,
-    HandledOutput,
-    MessageMetadataType,
-    HandlerContext
-  >;
-};
+} & WorkflowOutputHandlerOptions<
+  Input,
+  HandledOutput,
+  MessageMetadataType,
+  HandlerContext
+>;
 
 export const workflowOutputHandler = <
   Input extends AnyEvent | AnyCommand,
@@ -224,10 +257,13 @@ export const workflowProcessor = <
       }
 
       if (options.outputHandler?.canHandle.includes(messageType) === true) {
-        const handledOutputMessages = await options.outputHandler.handle(
-          message as RecordedMessage<HandledOutput, MetaDataType>,
-          context,
-        );
+        const recordedMessage = message as RecordedMessage<
+          HandledOutput,
+          MetaDataType
+        >;
+        const handledOutputMessages = options.outputHandler.eachBatch
+          ? await options.outputHandler.eachBatch([recordedMessage], context)
+          : await options.outputHandler.eachMessage(recordedMessage, context);
 
         if (handledOutputMessages instanceof EmmettError) {
           return {
