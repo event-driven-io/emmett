@@ -1,11 +1,16 @@
 import type { Command } from '../typing/command';
 import type { Event } from '../typing/event';
+import { formatDateToUtcYYYYMMDD } from '../validation';
 import type {
   Workflow,
   WorkflowEvent,
   WorkflowOutput,
 } from '../workflows/workflow';
-import { workflowProcessor } from './workflowProcessor';
+import {
+  workflowOutputHandler,
+  workflowProcessor,
+  type WorkflowOptions,
+} from './workflowProcessor';
 
 export type CheckOut = Command<
   'CheckOut',
@@ -235,11 +240,11 @@ export const GroupCheckoutWorkflow: Workflow<
   initialState,
 };
 
-////////////////////////////////////////////
-////////// Workflow Processor
-////////////////////////////////////////////
-
-export const groupCheckoutWorkflowProcessor = workflowProcessor({
+export const workflowOptions: WorkflowOptions<
+  GroupCheckoutInput,
+  GroupCheckout,
+  GroupCheckoutOutput
+> = {
   workflow: GroupCheckoutWorkflow,
   getWorkflowId: (input) => input.data.groupCheckoutId ?? null,
   inputs: {
@@ -253,6 +258,74 @@ export const groupCheckoutWorkflowProcessor = workflowProcessor({
       'GroupCheckoutFailed',
       'GroupCheckoutTimedOut',
     ],
+  },
+};
+
+////////////////////////////////////////////
+////////// Workflow Processor
+////////////////////////////////////////////
+
+export const groupCheckoutWorkflowProcessor =
+  workflowProcessor(workflowOptions);
+
+interface PmsApi {
+  releaseRoom: (params: {
+    guestId: string;
+    roomId: string;
+    date: Date;
+  }) => Promise<void>;
+}
+
+export const fromGuestStayAccountId = (guestStayAccountId: string) => {
+  const [guestId, roomId, date] = guestStayAccountId.split(':');
+  return {
+    guestId: guestId!.replace('guest_stay_account-', ''),
+    roomId: roomId!,
+    date: new Date(date!),
+  };
+};
+
+const pmsApi: PmsApi = {
+  releaseRoom: async ({ guestId, roomId, date }) => {
+    // Simulate API call to PMS to release the room
+    console.log(
+      `Releasing room ${roomId} for guest ${guestId} on ${formatDateToUtcYYYYMMDD(
+        date,
+      )}`,
+    );
+    return Promise.resolve();
+  },
+};
+
+export const groupCheckoutOutputHandler = workflowOutputHandler<
+  GroupCheckoutInput,
+  GroupCheckoutOutput,
+  CheckOut
+>({
+  canHandle: ['CheckOut'],
+  handle: async (
+    checkOut: CheckOut,
+  ): Promise<GuestCheckedOut | GuestCheckoutFailed> => {
+    const { guestStayAccountId, groupCheckoutId } = checkOut.data;
+
+    try {
+      await pmsApi.releaseRoom(fromGuestStayAccountId(guestStayAccountId));
+
+      return {
+        type: 'GuestCheckedOut',
+        data: { guestStayAccountId, groupCheckoutId, checkedOutAt: new Date() },
+      };
+    } catch (err) {
+      return {
+        type: 'GuestCheckoutFailed',
+        data: {
+          guestStayAccountId,
+          groupCheckoutId,
+          reason: 'NotCheckedIn',
+          failedAt: new Date(),
+        },
+      };
+    }
   },
 });
 
