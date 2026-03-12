@@ -130,6 +130,19 @@ export enum GuestStayStatus {
   Failed = 'Failed',
 }
 
+export const parseGuestStayAccountId = (guestStayAccountId: string) => {
+  const [guestId, roomId, date] = guestStayAccountId
+    .split('-')
+    .pop()!
+    .split(':');
+
+  return {
+    guestId: guestId!,
+    roomId: roomId!,
+    date: new Date(date!),
+  };
+};
+
 ////////////////////////////////////////////
 ////////// Workflow Inputs & Outputs
 ///////////////////////////////////////////
@@ -262,12 +275,10 @@ export const workflowOptions: WorkflowOptions<
 };
 
 ////////////////////////////////////////////
-////////// Workflow Processor
+/////////// PmsApi
 ////////////////////////////////////////////
 
-export const groupCheckoutWorkflowProcessor =
-  workflowProcessor(workflowOptions);
-
+/// Simulated Property Management System API client for releasing rooms during checkout
 interface PmsApi {
   releaseRoom: (params: {
     guestId: string;
@@ -275,15 +286,6 @@ interface PmsApi {
     date: Date;
   }) => Promise<void>;
 }
-
-export const fromGuestStayAccountId = (guestStayAccountId: string) => {
-  const [guestId, roomId, date] = guestStayAccountId.split(':');
-  return {
-    guestId: guestId!.replace('guest_stay_account-', ''),
-    roomId: roomId!,
-    date: new Date(date!),
-  };
-};
 
 const pmsApi: PmsApi = {
   releaseRoom: async ({ guestId, roomId, date }) => {
@@ -297,39 +299,50 @@ const pmsApi: PmsApi = {
   },
 };
 
+const checkoutFromPms = async (
+  checkOut: CheckOut,
+): Promise<GuestCheckedOut | GuestCheckoutFailed> => {
+  const { guestStayAccountId, groupCheckoutId } = checkOut.data;
+
+  try {
+    await pmsApi.releaseRoom(parseGuestStayAccountId(guestStayAccountId));
+
+    return {
+      type: 'GuestCheckedOut',
+      data: { guestStayAccountId, groupCheckoutId, checkedOutAt: new Date() },
+    };
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error('Unknown error');
+    return {
+      type: 'GuestCheckoutFailed',
+      data: {
+        guestStayAccountId,
+        groupCheckoutId,
+        reason: error.message.includes('Balance not settled')
+          ? 'BalanceNotSettled'
+          : 'NotCheckedIn',
+        failedAt: new Date(),
+      },
+    };
+  }
+};
+
+////////////////////////////////////////////
+////////// Workflow Processor
+////////////////////////////////////////////
+
 export const groupCheckoutOutputHandler = workflowOutputHandler<
   GroupCheckoutInput,
   GroupCheckoutOutput,
   CheckOut
 >({
   canHandle: ['CheckOut'],
-  eachMessage: async (
-    checkOut: CheckOut,
-  ): Promise<GuestCheckedOut | GuestCheckoutFailed> => {
-    const { guestStayAccountId, groupCheckoutId } = checkOut.data;
+  eachMessage: checkoutFromPms,
+});
 
-    try {
-      await pmsApi.releaseRoom(fromGuestStayAccountId(guestStayAccountId));
-
-      return {
-        type: 'GuestCheckedOut',
-        data: { guestStayAccountId, groupCheckoutId, checkedOutAt: new Date() },
-      };
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Unknown error');
-      return {
-        type: 'GuestCheckoutFailed',
-        data: {
-          guestStayAccountId,
-          groupCheckoutId,
-          reason: error.message.includes('Balance not settled')
-            ? 'BalanceNotSettled'
-            : 'NotCheckedIn',
-          failedAt: new Date(),
-        },
-      };
-    }
-  },
+export const groupCheckoutWorkflowProcessor = workflowProcessor({
+  ...workflowOptions,
+  outputHandler: groupCheckoutOutputHandler,
 });
 
 ////////////////////////////////////////////
