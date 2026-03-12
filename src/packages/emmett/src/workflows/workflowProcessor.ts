@@ -75,7 +75,7 @@ export type WorkflowOutputHandler<
   | EmmettError
   | [];
 
-export type WorkflowOutputHandlerOptions<
+export type WorkflowOutputHandlerDefinition<
   Input extends AnyEvent | AnyCommand,
   Output extends AnyEvent | AnyCommand,
   HandledOutput extends Output = Output,
@@ -98,14 +98,14 @@ export const workflowOutputHandler = <
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
 >(
-  handler: WorkflowOutputHandlerOptions<
+  handler: WorkflowOutputHandlerDefinition<
     Input,
     Output,
     HandledOutput,
     MessageMetadataType,
     HandlerContext
   >,
-): WorkflowOutputHandlerOptions<
+): WorkflowOutputHandlerDefinition<
   Input,
   Output,
   HandledOutput,
@@ -136,7 +136,7 @@ export type WorkflowProcessorOptions<
     StoredMessage
   > & {
     retry?: WorkflowHandlerRetryOptions;
-    outputHandler?: WorkflowOutputHandlerOptions<
+    outputHandler?: WorkflowOutputHandlerDefinition<
       Input,
       Output,
       HandledOutput,
