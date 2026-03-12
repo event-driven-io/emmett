@@ -1,6 +1,7 @@
 import supertest, { type Response } from 'supertest';
 
 import {
+  EmmettError,
   getInMemoryEventStore,
   type EventStore,
   type InMemoryEventStore,
@@ -19,9 +20,6 @@ export type ApiE2ESpecification = (...givenRequests: TestRequest[]) => {
   };
 };
 
-function apiE2ESpecificationFor(
-  getApplication: () => Application,
-): ApiE2ESpecification;
 function apiE2ESpecificationFor<
   Store extends EventStore = InMemoryEventStore,
 >(options: {
@@ -35,7 +33,6 @@ function apiE2ESpecificationFor<Store extends EventStore = InMemoryEventStore>(
 ): ApiE2ESpecification;
 function apiE2ESpecificationFor<Store extends EventStore = InMemoryEventStore>(
   optionsOrGetApplication:
-    | (() => Application)
     | (() => Store)
     | {
         getEventStore?: () => Store;
@@ -44,13 +41,17 @@ function apiE2ESpecificationFor<Store extends EventStore = InMemoryEventStore>(
   getApplication?: (eventStore: Store) => Application,
 ): ApiE2ESpecification {
   const resolveApplication = (): Application => {
-    if (typeof optionsOrGetApplication === 'function') {
-      if (getApplication) {
-        const eventStore = optionsOrGetApplication() as Store;
-        return getApplication(eventStore);
-      }
-      return (optionsOrGetApplication as () => Application)();
+    if (typeof optionsOrGetApplication === 'function' && getApplication) {
+      const eventStore = optionsOrGetApplication();
+      return getApplication(eventStore);
     }
+
+    if (typeof optionsOrGetApplication !== 'object') {
+      throw new EmmettError(
+        'Invalid arguments provided to apiE2ESpecificationFor. Expected either an options object or a getEventStore function and getApplication function.',
+      );
+    }
+
     const eventStore =
       optionsOrGetApplication.getEventStore?.() ?? getInMemoryEventStore();
     return optionsOrGetApplication.getApplication(eventStore as Store);

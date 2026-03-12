@@ -10,16 +10,7 @@ import { expectError, expectResponse } from './apiSpecification';
 void describe('ApiE2ESpecification', () => {
   const testCases = [
     {
-      name: 'New API',
-      given: ApiE2ESpecification.for(() => {
-        const eventStore = getInMemoryEventStore();
-        return getApplication({
-          apis: [shoppingCartApi(eventStore)],
-        });
-      }),
-    },
-    {
-      name: 'Obsolete API',
+      name: 'Options API',
       given: ApiE2ESpecification.for({
         getEventStore: () => getInMemoryEventStore(),
         getApplication: (eventStore) =>
