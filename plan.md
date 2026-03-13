@@ -911,34 +911,32 @@ No type-level spec tests -- they add no value.
 
 ---
 
-## Phase 3: Wire ObservabilityOptions into existing option types
+## Phase 3: Wire per-archetype observability configs into option types
 
-### Step 3.1: Add `& EmmettObservabilityOptions` to option types
+Only archetypes that own a unit-of-work get observability options. Each archetype uses its specific config type (not the full `EmmettObservabilityOptions`), because different archetypes need different knobs.
 
-**Files to modify (one line change each -- add `& EmmettObservabilityOptions` to the type intersection):**
+**What does NOT get observability options:**
 
-1. `src/packages/emmett/src/commandHandling/handleCommand.ts` line 74:
-   - Current: `} & JSONSerializationOptions;`
-   - Change to: `} & JSONSerializationOptions & EmmettObservabilityOptions;`
-   - Add import: `import type { EmmettObservabilityOptions } from '../observability';`
+- `ReadStreamOptions` / `AppendToStreamOptions` — event store operations are instrumented by the collector that owns the scope (e.g., CommandHandlerCollector wraps the entire handleCommand flow and creates child spans for read/append internally). Per-call read/append options don't need `propagation`, `pollTracing`, or `attributeTarget`.
+- `ProjectionDefinition` — inline projections inherit observability from the event store that runs them; async projections inherit from the processor. The definition itself doesn't own a scope.
 
-2. `src/packages/emmett/src/eventStore/eventStore.ts` line 137:
-   - `ReadStreamOptions`: add `& EmmettObservabilityOptions` to the end
-   - Add import
+**What gets observability options (archetype-specific config):**
 
-3. `src/packages/emmett/src/eventStore/eventStore.ts` line 206:
-   - `AppendToStreamOptions`: the `schema` sub-property currently has `& JSONSerializationOptions`. Add `& EmmettObservabilityOptions` to the top-level type, not inside schema.
-   - Change `AppendToStreamOptions` to: `{ expectedStreamVersion?; schema?; } & EmmettObservabilityOptions`
+### Step 3.1: Add per-archetype observability configs to option types
 
-4. `src/packages/emmett/src/processors/processors.ts` line 161:
-   - `BaseMessageProcessorOptions`: add `& EmmettObservabilityOptions`
+1. `src/packages/emmett/src/commandHandling/handleCommand.ts` — `HandleOptions`:
+   - Add `& { observability?: CommandObservabilityConfig }` to the type intersection
+   - Import `CommandObservabilityConfig` from `'../observability'`
+   - Phase 4's `CommandHandlerCollector` reads this via `resolveCommandObservability(options.observability)`
 
-5. `src/packages/emmett/src/projections/index.ts` line 64:
-   - `ProjectionDefinition`: add `& EmmettObservabilityOptions`
+2. `src/packages/emmett/src/processors/processors.ts` — `BaseMessageProcessorOptions`:
+   - Add `& { observability?: ProcessorObservabilityConfig }` to the type intersection
+   - Import `ProcessorObservabilityConfig` from `'../observability'`
+   - Phase 4's `ProcessorCollector` reads this via `resolveProcessorObservability(options.observability)`
 
-**Test:** `npx tsc --noEmit` passes. All existing tests pass (observability is optional with `?`, defaults to noop via per-archetype resolvers).
+**Status:** Done. Both types now accept their archetype-specific observability config. All fields are optional with `?`, so existing code is unaffected.
 
-No runtime behavior changes yet. This just makes the types accept observability configuration.
+**Test:** `npx tsc --noEmit` passes. All existing tests pass.
 
 ---
 
@@ -1518,7 +1516,11 @@ Tests (similar pattern to CommandHandlerCollector tests):
 
 The EventStoreCollector lives inside the event store implementation (e.g., `inMemoryEventStore.ts`, `postgreSQLEventStore.ts`). It wraps `readStream`/`appendToStream` with `instrumentRead`/`instrumentAppend`, creating child spans for each operation. When called from inside a `command.handle` span, OTel's AsyncLocalStorage auto-nests them as children. For non-OTel strategies, child spans are independent (flat).
 
-The EventStoreCollector receives its observability config from the event store's options (wired in Phase 3 via `& EmmettObservabilityOptions`). The CommandHandlerCollector does NOT wrap event store calls — the event store instruments itself. This means event store operations are instrumented whether called from command handling, standalone scripts, or tests.
+The EventStoreCollector receives its observability config from the **event store factory options** (e.g., `getInMemoryEventStore({ observability: ... })`), not from per-call `ReadStreamOptions`/`AppendToStreamOptions`. Per-call options don't carry observability — `propagation`, `pollTracing`, `attributeTarget` etc. are store-level concerns, not per-read/per-append concerns. This step adds `observability?: EventStoreObservabilityConfig` to the event store factory options type.
+
+The CommandHandlerCollector does NOT wrap event store calls — the event store instruments itself. This means event store operations are instrumented whether called from command handling, standalone scripts, or tests.
+
+Inline projections also inherit from the event store's observability — when `handleProjections()` runs during `appendToStream`, the EventStoreCollector's active scope covers it. No separate observability config on `ProjectionDefinition`.
 
 ### Step 4.5: ProcessorCollector
 
