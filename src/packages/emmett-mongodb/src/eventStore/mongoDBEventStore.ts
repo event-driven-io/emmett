@@ -375,6 +375,12 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
           metadata: {
             ...metadata,
             ...('metadata' in event ? (event.metadata ?? {}) : {}),
+            ...(options?.correlationId
+              ? { correlationId: options.correlationId }
+              : {}),
+            ...(options?.causationId
+              ? { causationId: options.causationId }
+              : {}),
           },
         } as ReadEvent<EventType, MongoDBReadEventMetadata>,
         options?.schema?.versioning,

@@ -186,6 +186,10 @@ export const appendToStream = (
         metadata: {
           messageId: uuid(),
           ...('metadata' in e ? (e.metadata ?? {}) : {}),
+          ...(options?.correlationId
+            ? { correlationId: options.correlationId }
+            : {}),
+          ...(options?.causationId ? { causationId: options.causationId } : {}),
         },
       })) as RecordedMessage[];
 

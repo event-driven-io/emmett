@@ -219,7 +219,20 @@ export const getEventStoreDBEventStore = (
           events,
           options?.schema?.versioning,
         );
-        const serializedEvents = eventsToStore.map(jsonEvent);
+        const serializedEvents = eventsToStore.map((event) =>
+          jsonEvent({
+            ...event,
+            metadata: {
+              ...('metadata' in event ? (event.metadata ?? {}) : {}),
+              ...(options?.correlationId
+                ? { $correlationId: options.correlationId }
+                : {}),
+              ...(options?.causationId
+                ? { $causationId: options.causationId }
+                : {}),
+            },
+          }),
+        );
 
         const expectedRevision = toExpectedRevision(
           options?.expectedStreamVersion,
@@ -299,12 +312,16 @@ export const mapFromESDBEvent = <MessageType extends AnyMessage = AnyMessage>(
   from?: EventStoreDBEventStoreConsumerType,
 ): RecordedMessage<MessageType, EventStoreDBReadEventMetadata> => {
   const event = resolvedEvent.event!;
+  const rawMetadata = (event.metadata ?? {}) as Record<string, unknown>;
+  const { $correlationId, $causationId, ...restMetadata } = rawMetadata as {
+    $correlationId?: string;
+    $causationId?: string;
+  } & EventStoreDBReadEventMetadata;
   return <RecordedMessage<MessageType, EventStoreDBReadEventMetadata>>{
     type: event.type,
     data: event.data,
     metadata: {
-      ...((event.metadata as EventStoreDBReadEventMetadata) ??
-        ({} as EventStoreDBReadEventMetadata)),
+      ...restMetadata,
       eventId: event.id,
       streamName: event.streamId,
       streamPosition: event.revision,
@@ -312,6 +329,8 @@ export const mapFromESDBEvent = <MessageType extends AnyMessage = AnyMessage>(
       checkpoint: bigIntProcessorCheckpoint(
         getESDBCheckpoint(resolvedEvent, from),
       ),
+      ...($correlationId ? { correlationId: $correlationId } : {}),
+      ...($causationId ? { causationId: $causationId } : {}),
     },
   };
 };

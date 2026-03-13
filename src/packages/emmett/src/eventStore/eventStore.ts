@@ -204,6 +204,8 @@ export type AppendToStreamOptions<
   expectedStreamVersion?: ExpectedStreamVersion;
   schema?: EventStoreAppendSchemaOptions<EventType, EventPayloadType> &
     JSONSerializationOptions;
+  correlationId?: string;
+  causationId?: string;
 };
 
 export type AppendToStreamResult = {

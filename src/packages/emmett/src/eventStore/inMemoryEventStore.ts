@@ -198,6 +198,10 @@ export const getInMemoryEventStore = (
           streamPosition: BigInt(currentEvents.length + index + 1),
           globalPosition,
           checkpoint: bigIntProcessorCheckpoint(globalPosition),
+          ...(options?.correlationId
+            ? { correlationId: options.correlationId }
+            : {}),
+          ...(options?.causationId ? { causationId: options.causationId } : {}),
         };
         return {
           ...event,

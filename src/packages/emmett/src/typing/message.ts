@@ -78,6 +78,10 @@ export type CommonRecordedMessageMetadata = Readonly<{
   streamPosition: StreamPosition;
   streamName: string;
   checkpoint?: ProcessorCheckpoint | null;
+  correlationId?: string;
+  causationId?: string;
+  traceId?: string;
+  spanId?: string;
 }>;
 
 export type WithGlobalPosition = Readonly<{

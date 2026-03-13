@@ -1,3 +1,4 @@
+import { v7 as uuid } from 'uuid';
 import {
   canCreateEventStoreSession,
   isExpectedVersionConflictError,
@@ -83,7 +84,10 @@ export type HandleOptions<Store extends EventStore> = Parameters<
     | {
         retry?: CommandHandlerRetryOptions;
       }
-  );
+  ) & {
+    correlationId?: string;
+    causationId?: string;
+  };
 
 type CommandHandlerFunction<State, StreamEvent extends Event> = (
   state: State,
@@ -198,6 +202,10 @@ export const CommandHandler =
                 EventPayloadType
               >),
               expectedStreamVersion,
+              correlationId: handleOptions?.correlationId ?? uuid(),
+              ...(handleOptions?.causationId
+                ? { causationId: handleOptions.causationId }
+                : {}),
             },
           );
 
