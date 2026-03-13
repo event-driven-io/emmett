@@ -16,8 +16,10 @@ import type {
 import {
   assertExpectedVersionMatchesCurrent,
   downcastRecordedMessages,
+  eventStoreCollector,
   ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
+  resolveEventStoreObservability,
   unknownTag,
   type AggregateStreamOptions,
   type AggregateStreamResult,
@@ -25,6 +27,7 @@ import {
   type AppendToStreamResultWithGlobalPosition,
   type Event,
   type EventStore,
+  type EventStoreObservabilityConfig,
   type EventStoreSession,
   type EventStoreSessionFactory,
   type JSONSerializationOptions,
@@ -174,6 +177,7 @@ export type PostgresEventStoreOptions = {
   >[];
   schema?: { autoMigration?: MigrationStyle };
   connectionOptions?: PostgresEventStoreConnectionOptions;
+  observability?: EventStoreObservabilityConfig;
   hooks?: {
     /**
      * This hook will be called **BEFORE** event store schema is created
@@ -284,6 +288,10 @@ export const getPostgreSQLEventStore = (
           })
       : undefined;
 
+  const collector = eventStoreCollector(
+    resolveEventStoreObservability(options),
+  );
+
   return {
     schema: {
       sql: () =>
@@ -374,10 +382,12 @@ export const getPostgreSQLEventStore = (
       readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<ReadStreamResult<EventType, PostgresReadEventMetadata>> => {
       await ensureSchemaExists();
-      return readStream<EventType, EventPayloadType>(pool.execute, streamName, {
-        ...readOptions,
-        serialization: options.serialization ?? readOptions?.serialization,
-      });
+      return collector.instrumentRead(streamName, () =>
+        readStream<EventType, EventPayloadType>(pool.execute, streamName, {
+          ...readOptions,
+          serialization: options.serialization ?? readOptions?.serialization,
+        }),
+      );
     },
 
     appendToStream: async <
@@ -389,40 +399,43 @@ export const getPostgreSQLEventStore = (
       appendOptions?: AppendToStreamOptions<EventType, EventPayloadType>,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
       await ensureSchemaExists();
-      // TODO: This has to be smarter when we introduce urn-based resolution
-      const [firstPart, ...rest] = streamName.split('-');
+      return collector.instrumentAppend(streamName, events, async () => {
+        // TODO: This has to be smarter when we introduce urn-based resolution
+        const [firstPart, ...rest] = streamName.split('-');
 
-      const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
+        const streamType =
+          firstPart && rest.length > 0 ? firstPart : unknownTag;
 
-      const appendResult = await pool.withConnection(async (connection) =>
-        appendToStream(
-          // TODO: Fix this when introducing more drivers
-          connection as PgConnection,
-          streamName,
-          streamType,
-          downcastRecordedMessages(events, appendOptions?.schema?.versioning),
-          {
-            ...(appendOptions as AppendToStreamOptions),
-            beforeCommitHook,
-          },
-        ),
-      );
-
-      if (!appendResult.success)
-        throw new ExpectedVersionConflictError(
-          -1n, //TODO: Return actual version in case of error
-          appendOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
+        const appendResult = await pool.withConnection(async (connection) =>
+          appendToStream(
+            // TODO: Fix this when introducing more drivers
+            connection as PgConnection,
+            streamName,
+            streamType,
+            downcastRecordedMessages(events, appendOptions?.schema?.versioning),
+            {
+              ...(appendOptions as AppendToStreamOptions),
+              beforeCommitHook,
+            },
+          ),
         );
 
-      return {
-        nextExpectedStreamVersion: appendResult.nextStreamPosition,
-        lastEventGlobalPosition:
-          PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
-            appendResult.checkpoints[appendResult.checkpoints.length - 1]!,
-          ),
-        createdNewStream:
-          appendResult.nextStreamPosition >= BigInt(events.length),
-      };
+        if (!appendResult.success)
+          throw new ExpectedVersionConflictError(
+            -1n, //TODO: Return actual version in case of error
+            appendOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
+          );
+
+        return {
+          nextExpectedStreamVersion: appendResult.nextStreamPosition,
+          lastEventGlobalPosition:
+            PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
+              appendResult.checkpoints[appendResult.checkpoints.length - 1]!,
+            ),
+          createdNewStream:
+            appendResult.nextStreamPosition >= BigInt(events.length),
+        };
+      });
     },
 
     streamExists: async (

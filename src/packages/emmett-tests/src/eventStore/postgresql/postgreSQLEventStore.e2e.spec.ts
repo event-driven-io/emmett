@@ -19,6 +19,7 @@ import { afterAll, describe, it } from 'vitest';
 import {
   testAggregateStream,
   testCommandHandling,
+  testEventStoreObservability,
   testStreamExists,
   type EventStoreFactory,
 } from '../features';
@@ -67,6 +68,12 @@ describe('EventStoreDBEventStore', () => {
   });
 
   testStreamExists(eventStoreFactory);
+
+  testEventStoreObservability(async (observability) => {
+    postgres = await getPostgreSQLStartedContainer();
+    connectionString = postgres.getConnectionUri();
+    return getPostgreSQLEventStore(connectionString, { observability });
+  });
 
   void it('should append events correctly using appendEvent function', async () => {
     const productItem: PricedProductItem = {

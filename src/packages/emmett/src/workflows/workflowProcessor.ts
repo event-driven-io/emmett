@@ -1,6 +1,7 @@
 import { EmmettError } from '../errors';
 import type { EventStore } from '../eventStore';
 import type { MessageProcessor } from '../processors';
+import type { WorkflowObservabilityConfig } from '../observability';
 import {
   MessageProcessorType,
   reactor,
@@ -50,6 +51,7 @@ export type WorkflowOptions<
       downcast?: (event: Output) => StoredMessage;
     };
   };
+  observability?: WorkflowObservabilityConfig;
 };
 
 export type WorkflowProcessorContext = {

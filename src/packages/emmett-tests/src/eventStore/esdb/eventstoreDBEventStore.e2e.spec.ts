@@ -8,6 +8,7 @@ import {
 import { describe } from 'vitest';
 import {
   testAggregateStream,
+  testEventStoreObservability,
   testStreamExists,
   type EventStoreFactory,
 } from '../features';
@@ -34,6 +35,17 @@ describe('EventStoreDBEventStore', () => {
   });
 
   testStreamExists(eventStoreFactory, { teardownHook });
+
+  testEventStoreObservability(
+    async (observability) => {
+      esdbContainer = await getSharedEventStoreDBTestContainer();
+      return getEventStoreDBEventStore({
+        client: esdbContainer.getClient(),
+        observability,
+      });
+    },
+    { teardownHook },
+  );
 
   // void it.skip('Successful subscription and processing of events', async () => {
   //   const eventStore = await eventStoreFactory();

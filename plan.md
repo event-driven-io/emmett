@@ -1529,7 +1529,7 @@ Inline projections also inherit from the event store's observability — when `h
 Instruments processor message handling using `ObservabilityScope`. Attributes from the metrics catalog (see feedback.md "Processor Metrics"):
 
 - Root scope: `processor.handle`
-- Semantic attributes: `emmett.scope.type: 'processor'`, `emmett.scope.main: true`
+- Semantic attributes: `emmett.scope.type: 'processor'`, `emmett.scope.main: trueD`
 - Domain attributes:
   - `emmett.processor.id`: string -- from processor config
   - `emmett.processor.type`: "projector" | "reactor" | "workflow" | "custom" -- from processor config
@@ -1581,7 +1581,6 @@ const processorCollector = (observability: ResolvedProcessorObservability) => {
           [A.processor.batchSize]: messages.length,
           [A.processor.eventTypes]: [...new Set(messages.map(m => m.type))],
           [M.system]: MessagingSystemName,
-          [M.consumerGroupName]: context.processorId,
           [M.batchMessageCount]: messages.length,
           ...(context.checkpoint ? { [A.processor.checkpointBefore]: context.checkpoint } : {}),
         });

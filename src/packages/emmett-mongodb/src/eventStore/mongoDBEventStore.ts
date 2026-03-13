@@ -1,8 +1,10 @@
 import {
   assertExpectedVersionMatchesCurrent,
   downcastRecordedMessage,
+  eventStoreCollector,
   ExpectedVersionConflictError,
   filterProjections,
+  resolveEventStoreObservability,
   tryPublishMessagesAfterCommit,
   upcastRecordedMessages,
   type AggregateStreamOptions,
@@ -13,6 +15,7 @@ import {
   type DefaultEventStoreOptions,
   type Event,
   type EventStore,
+  type EventStoreObservabilityConfig,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithoutGlobalPosition,
@@ -182,6 +185,7 @@ export type MongoDBEventStoreOptions = {
     MongoDBProjectionInlineHandlerContext
   >[];
   storage?: MongoDBEventStoreStorageOptions;
+  observability?: EventStoreObservabilityConfig;
 } & MongoDBEventStoreConnectionOptions &
   DefaultEventStoreOptions<MongoDBEventStore>;
 
@@ -195,6 +199,7 @@ export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
 class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
   private readonly client: MongoClient;
   private readonly inlineProjections: MongoDBInlineProjectionDefinition[];
+  private readonly collector: ReturnType<typeof eventStoreCollector>;
   private shouldManageClientLifetime: boolean;
   private isClosed: boolean = false;
   private storage: MongoDBEventStoreStorage;
@@ -203,6 +208,9 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
 
   constructor(options: MongoDBEventStoreOptions) {
     this.options = options;
+    this.collector = eventStoreCollector(
+      resolveEventStoreObservability(options),
+    );
     this.client =
       'client' in options && options.client
         ? options.client
@@ -235,64 +243,66 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
   ): Promise<
     Exclude<ReadStreamResult<EventType, MongoDBReadEventMetadata>, null>
   > {
-    const { streamType } = fromStreamName(streamName);
-    const expectedStreamVersion = options?.expectedStreamVersion;
+    return this.collector.instrumentRead(streamName, async () => {
+      const { streamType } = fromStreamName(streamName);
+      const expectedStreamVersion = options?.expectedStreamVersion;
 
-    const collection = await this.storage.collectionFor(streamType);
+      const collection = await this.storage.collectionFor(streamType);
 
-    const filter = {
-      streamName: { $eq: streamName },
-    };
-
-    const eventsSliceArr: number[] = [];
-
-    if (options && 'from' in options) {
-      eventsSliceArr.push(Number(options.from));
-    } else {
-      eventsSliceArr.push(0);
-    }
-
-    if (options && 'to' in options) {
-      eventsSliceArr.push(Number(options.to));
-    }
-
-    const eventsSlice =
-      eventsSliceArr.length > 1 ? { $slice: eventsSliceArr } : 1;
-
-    const stream = await collection.findOne<
-      WithId<Pick<EventStream<EventPayloadType>, 'metadata' | 'messages'>>
-    >(filter, {
-      useBigInt64: true,
-      projection: {
-        metadata: 1,
-        messages: eventsSlice,
-      },
-    });
-
-    if (!stream) {
-      return {
-        events: [],
-        currentStreamVersion: MongoDBEventStoreDefaultStreamVersion,
-        streamExists: false,
+      const filter = {
+        streamName: { $eq: streamName },
       };
-    }
 
-    assertExpectedVersionMatchesCurrent(
-      stream.metadata.streamPosition,
-      expectedStreamVersion,
-      MongoDBEventStoreDefaultStreamVersion,
-    );
+      const eventsSliceArr: number[] = [];
 
-    const events = upcastRecordedMessages(
-      stream.messages,
-      options?.schema?.versioning,
-    );
+      if (options && 'from' in options) {
+        eventsSliceArr.push(Number(options.from));
+      } else {
+        eventsSliceArr.push(0);
+      }
 
-    return {
-      events,
-      currentStreamVersion: stream.metadata.streamPosition,
-      streamExists: true,
-    };
+      if (options && 'to' in options) {
+        eventsSliceArr.push(Number(options.to));
+      }
+
+      const eventsSlice =
+        eventsSliceArr.length > 1 ? { $slice: eventsSliceArr } : 1;
+
+      const stream = await collection.findOne<
+        WithId<Pick<EventStream<EventPayloadType>, 'metadata' | 'messages'>>
+      >(filter, {
+        useBigInt64: true,
+        projection: {
+          metadata: 1,
+          messages: eventsSlice,
+        },
+      });
+
+      if (!stream) {
+        return {
+          events: [],
+          currentStreamVersion: MongoDBEventStoreDefaultStreamVersion,
+          streamExists: false,
+        };
+      }
+
+      assertExpectedVersionMatchesCurrent(
+        stream.metadata.streamPosition,
+        expectedStreamVersion,
+        MongoDBEventStoreDefaultStreamVersion,
+      );
+
+      const events = upcastRecordedMessages(
+        stream.messages,
+        options?.schema?.versioning,
+      );
+
+      return {
+        events,
+        currentStreamVersion: stream.metadata.streamPosition,
+        streamExists: true,
+      };
+    });
   }
 
   async aggregateStream<
@@ -330,120 +340,124 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
     events: EventType[],
     options?: AppendToStreamOptions<EventType, EventPayloadType>,
   ): Promise<AppendToStreamResult> {
-    const { streamId, streamType } = fromStreamName(streamName);
-    const expectedStreamVersion = options?.expectedStreamVersion;
+    return this.collector.instrumentAppend(streamName, events, async () => {
+      const { streamId, streamType } = fromStreamName(streamName);
+      const expectedStreamVersion = options?.expectedStreamVersion;
 
-    const collection = await this.storage.collectionFor(streamType);
+      const collection = await this.storage.collectionFor(streamType);
 
-    const stream = await collection.findOne<
-      WithId<Pick<EventStream<EventPayloadType>, 'metadata' | 'projections'>>
-    >(
-      { streamName: { $eq: streamName } },
-      {
-        useBigInt64: true,
-        projection: {
-          'metadata.streamPosition': 1,
-          projections: 1,
-        },
-      },
-    );
-
-    const currentStreamVersion =
-      stream?.metadata.streamPosition ?? MongoDBEventStoreDefaultStreamVersion;
-
-    assertExpectedVersionMatchesCurrent(
-      currentStreamVersion,
-      expectedStreamVersion,
-      MongoDBEventStoreDefaultStreamVersion,
-    );
-
-    let streamOffset = currentStreamVersion;
-
-    const eventsToAppend: ReadEvent<
-      EventPayloadType,
-      MongoDBReadEventMetadata
-    >[] = events.map((event) => {
-      const metadata: MongoDBReadEventMetadata = {
-        messageId: uuid(),
-        streamName,
-        streamPosition: ++streamOffset,
-      };
-      return downcastRecordedMessage(
+      const stream = await collection.findOne<
+        WithId<Pick<EventStream<EventPayloadType>, 'metadata' | 'projections'>>
+      >(
+        { streamName: { $eq: streamName } },
         {
-          type: event.type,
-          data: event.data,
-          metadata: {
-            ...metadata,
-            ...('metadata' in event ? (event.metadata ?? {}) : {}),
-            ...(options?.correlationId
-              ? { correlationId: options.correlationId }
-              : {}),
-            ...(options?.causationId
-              ? { causationId: options.causationId }
-              : {}),
+          useBigInt64: true,
+          projection: {
+            'metadata.streamPosition': 1,
+            projections: 1,
           },
-        } as ReadEvent<EventType, MongoDBReadEventMetadata>,
-        options?.schema?.versioning,
+        },
       );
-    });
 
-    const now = new Date();
-    const updates: UpdateFilter<EventStream> = {
-      $push: { messages: { $each: eventsToAppend } },
-      $set: {
-        'metadata.updatedAt': now,
-        'metadata.streamPosition': currentStreamVersion + BigInt(events.length),
-      },
-      $setOnInsert: {
-        streamName,
-        'metadata.streamId': streamId,
-        'metadata.streamType': streamType,
-        'metadata.createdAt': now,
-      },
-    };
+      const currentStreamVersion =
+        stream?.metadata.streamPosition ??
+        MongoDBEventStoreDefaultStreamVersion;
 
-    if (this.inlineProjections) {
-      await handleInlineProjections({
-        readModels: stream?.projections ?? {},
-        streamId,
-        events: eventsToAppend,
-        projections: this.inlineProjections,
-        collection,
-        updates,
-        client: {},
-      });
-    }
-
-    const updatedStream = await collection.updateOne(
-      {
-        streamName: { $eq: streamName },
-        'metadata.streamPosition': currentStreamVersion,
-      },
-      updates,
-      { useBigInt64: true, upsert: true },
-    );
-
-    if (!updatedStream) {
-      throw new ExpectedVersionConflictError(
+      assertExpectedVersionMatchesCurrent(
         currentStreamVersion,
-        options?.expectedStreamVersion ?? 0n,
+        expectedStreamVersion,
+        MongoDBEventStoreDefaultStreamVersion,
       );
-    }
 
-    await tryPublishMessagesAfterCommit<MongoDBEventStore>(
-      eventsToAppend,
-      this.options.hooks,
-      // {
-      // TODO: same context as InlineProjectionHandlerContext for mongodb?
-      // },
-    );
+      let streamOffset = currentStreamVersion;
 
-    return {
-      nextExpectedStreamVersion:
-        currentStreamVersion + BigInt(eventsToAppend.length),
-      createdNewStream:
-        currentStreamVersion === MongoDBEventStoreDefaultStreamVersion,
-    };
+      const eventsToAppend: ReadEvent<
+        EventPayloadType,
+        MongoDBReadEventMetadata
+      >[] = events.map((event) => {
+        const metadata: MongoDBReadEventMetadata = {
+          messageId: uuid(),
+          streamName,
+          streamPosition: ++streamOffset,
+        };
+        return downcastRecordedMessage(
+          {
+            type: event.type,
+            data: event.data,
+            metadata: {
+              ...metadata,
+              ...('metadata' in event ? (event.metadata ?? {}) : {}),
+              ...(options?.correlationId
+                ? { correlationId: options.correlationId }
+                : {}),
+              ...(options?.causationId
+                ? { causationId: options.causationId }
+                : {}),
+            },
+          } as ReadEvent<EventType, MongoDBReadEventMetadata>,
+          options?.schema?.versioning,
+        );
+      });
+
+      const now = new Date();
+      const updates: UpdateFilter<EventStream> = {
+        $push: { messages: { $each: eventsToAppend } },
+        $set: {
+          'metadata.updatedAt': now,
+          'metadata.streamPosition':
+            currentStreamVersion + BigInt(events.length),
+        },
+        $setOnInsert: {
+          streamName,
+          'metadata.streamId': streamId,
+          'metadata.streamType': streamType,
+          'metadata.createdAt': now,
+        },
+      };
+
+      if (this.inlineProjections) {
+        await handleInlineProjections({
+          readModels: stream?.projections ?? {},
+          streamId,
+          events: eventsToAppend,
+          projections: this.inlineProjections,
+          collection,
+          updates,
+          client: {},
+        });
+      }
+
+      const updatedStream = await collection.updateOne(
+        {
+          streamName: { $eq: streamName },
+          'metadata.streamPosition': currentStreamVersion,
+        },
+        updates,
+        { useBigInt64: true, upsert: true },
+      );
+
+      if (!updatedStream) {
+        throw new ExpectedVersionConflictError(
+          currentStreamVersion,
+          options?.expectedStreamVersion ?? 0n,
+        );
+      }
+
+      await tryPublishMessagesAfterCommit<MongoDBEventStore>(
+        eventsToAppend,
+        this.options.hooks,
+        // {
+        // TODO: same context as InlineProjectionHandlerContext for mongodb?
+        // },
+      );
+
+      return {
+        nextExpectedStreamVersion:
+          currentStreamVersion + BigInt(eventsToAppend.length),
+        createdNewStream:
+          currentStreamVersion === MongoDBEventStoreDefaultStreamVersion,
+      };
+    });
   }
 
   async streamExists(streamName: StreamName): Promise<StreamExistsResult> {
