@@ -870,110 +870,44 @@ export * from './testing';
 
 ---
 
-## Phase 2: correlationId / causationId on message metadata
+## Phase 2: correlationId / causationId on message metadata ✅ DONE
 
-### Step 2.1: Add fields to CommonRecordedMessageMetadata
+### Step 2.1: Add fields to CommonRecordedMessageMetadata ✅
 
-**File to modify:** `src/packages/emmett/src/typing/message.ts`
+**File modified:** `src/packages/emmett/src/typing/message.ts`
 
-Add to `CommonRecordedMessageMetadata` (line 76-81):
+Added four optional fields to `CommonRecordedMessageMetadata`:
+- `correlationId` -- business flow identifier, propagated through the entire chain
+- `causationId` -- direct trigger identifier
+- `traceId` -- trace identifier from the active span at append time (used in Phase 4)
+- `spanId` -- span identifier from the active span at append time (used in Phase 4)
 
-```typescript
-export type CommonRecordedMessageMetadata = Readonly<{
-  messageId: string;
-  streamPosition: StreamPosition;
-  streamName: string;
-  checkpoint?: ProcessorCheckpoint | null;
-  correlationId?: string;
-  causationId?: string;
-  traceId?: string;
-  spanId?: string;
-}>;
-```
+No type-level spec tests -- they add no value.
 
-These four fields:
-- `correlationId` -- business flow identifier, propagated through the entire chain (command -> events -> processor -> new commands -> new events). Survives async boundaries. Configurable: can be an independent UUID or mapped to traceId.
-- `causationId` -- direct trigger identifier. For events from handleCommand, defaults to the command's messageId. For processor reactions, defaults to the triggering event's messageId.
-- `traceId` -- trace identifier from the active span at append time. Used for creating SpanLinks in processors.
-- `spanId` -- span identifier from the active span at append time. Used together with traceId for SpanLinks.
+### Step 2.2: correlationId / causationId assigned via AppendToStreamOptions ✅
 
-**Test:** Write a test in `src/packages/emmett/src/typing/message.unit.spec.ts` (create if needed) that verifies RecordedMessage accepts objects with these new fields and that existing code without them still compiles (the fields are optional, so this is a type-level check -- the test just creates objects with and without the fields).
+**Decision:** `correlationId` and `causationId` are passed as part of `AppendToStreamOptions` and assigned by each event store implementation, not stamped on individual events by the caller.
 
-**Run:** `npx tsc --noEmit` to verify no existing code breaks. All fields are optional, so nothing should break.
+**Files modified:**
+- `src/packages/emmett/src/eventStore/eventStore.ts` -- added `correlationId?` and `causationId?` to `AppendToStreamOptions`
+- `src/packages/emmett/src/eventStore/inMemoryEventStore.ts` -- assigns from options into recorded metadata
+- `src/packages/emmett-postgresql/src/eventStore/schema/appendToStream.ts` -- assigns from options in the second-stage metadata merge
+- `src/packages/emmett-sqlite/src/eventStore/schema/appendToStream.ts` -- assigns from options into metadata
+- `src/packages/emmett-mongodb/src/eventStore/mongoDBEventStore.ts` -- assigns from options after user metadata spread
+- `src/packages/emmett-esdb/src/eventStore/eventstoreDBEventStore.ts` -- maps to `$correlationId`/`$causationId` in ESDB event metadata (native ESDB convention)
 
-### Step 2.2: Auto-populate in in-memory event store append
+### Step 2.3: Auto-populate in handleCommand ✅
 
-**File to modify:** `src/packages/emmett/src/eventStore/inMemoryEventStore.ts`
+**File modified:** `src/packages/emmett/src/commandHandling/handleCommand.ts`
 
-In the `appendToStream` method (around line 190-213), the metadata creation currently looks like:
+- Added `correlationId?` and `causationId?` to `HandleOptions` (explicit intersection alongside `expectedStreamVersion` and `retry`)
+- `handleCommand` auto-generates a UUID v7 `correlationId` if not provided by the caller
+- Both are forwarded to `appendToStream` via the options object -- no per-event stamping
 
-```typescript
-const metadata: ReadEventMetadataWithGlobalPosition = {
-  streamName,
-  messageId: uuid(),
-  streamPosition: BigInt(currentEvents.length + index + 1),
-  globalPosition,
-  checkpoint: bigIntProcessorCheckpoint(globalPosition),
-};
-```
-
-After the change, it should also propagate `correlationId`, `causationId`, `traceId`, `spanId` from the event's existing metadata (if the caller set them) into the recorded metadata. The spread already happens at line 205-206:
-
-```typescript
-metadata: {
-  ...('metadata' in event ? (event.metadata ?? {}) : {}),
-  ...metadata,
-},
-```
-
-This means user-provided correlationId/causationId from event.metadata already flow through. The recorded metadata fields (`streamName`, `messageId`, etc.) override, but correlationId/causationId are NOT in the recorded metadata, so they survive the spread. This should work without code changes -- just the type change from Step 2.1.
-
-**Test:** In `src/packages/emmett/src/eventStore/inMemoryEventStore.unit.spec.ts` (or create a new test file), write a test that:
-1. Appends events where the events have `metadata: { correlationId: 'corr-1', causationId: 'cause-1' }`.
-2. Reads the stream back.
-3. Verifies the recorded events have `correlationId: 'corr-1'` and `causationId: 'cause-1'` in their metadata.
-
-### Step 2.3: Auto-populate in handleCommand
-
-This is where causationId and correlationId get automatically set on produced events. The handleCommand function knows the command context and can stamp all produced events.
-
-**File to modify:** `src/packages/emmett/src/commandHandling/handleCommand.ts`
-
-After line 164 (`eventsToAppend = [...eventsToAppend, ...newEvents]`), before the append call (line 192), we need to stamp each event with:
-- `causationId`: the command's messageId (if available from handle options) or a generated UUID
-- `correlationId`: propagated from handle options, or generated
-- `traceId` and `spanId`: from the current span context (will be added in Phase 4 when we wire the collector)
-
-For now (Phase 2), just support passing correlationId/causationId via handle options and stamping them on events. The auto-population from span context comes in Phase 4.
-
-**Add to HandleOptions type** (or to a new type alongside it):
-
-```typescript
-type MessageContextOptions = {
-  correlationId?: string;
-  causationId?: string;
-};
-```
-
-In the handleCommand flow, before appending, stamp events:
-
-```typescript
-const stampedEvents = eventsToAppend.map(event => ({
-  ...event,
-  metadata: {
-    ...('metadata' in event ? event.metadata : {}),
-    ...(handleOptions?.correlationId ? { correlationId: handleOptions.correlationId } : {}),
-    ...(handleOptions?.causationId ? { causationId: handleOptions.causationId } : {}),
-  },
-}));
-```
-
-**Test:** `src/packages/emmett/src/commandHandling/handleCommand.unit.spec.ts`
-
-1. Call handleCommand with `{ correlationId: 'flow-1' }` in handle options. Read the stream. Verify produced events have `correlationId: 'flow-1'` in their recorded metadata.
-2. Call handleCommand without correlationId. Verify events don't have it (or have an auto-generated one -- decision: auto-generate or leave undefined? Per feedback.md: "auto with opt-out". So auto-generate a UUID if not provided).
-
-**Run:** All existing tests pass. New tests pass.
+**Tests:** `src/packages/emmett/src/commandHandling/handleCommand.unit.spec.ts`
+- Verifies `correlationId` from handle options appears in recorded event metadata
+- Verifies `causationId` from handle options appears in recorded event metadata
+- Verifies `correlationId` is auto-generated when not provided
 
 ---
 

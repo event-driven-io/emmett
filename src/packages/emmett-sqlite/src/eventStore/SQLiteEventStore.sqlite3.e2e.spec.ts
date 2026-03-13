@@ -99,6 +99,30 @@ void describe('SQLiteEventStore', () => {
       assertEqual(3, events.length);
     });
 
+    void it('should store correlationId and causationId in event metadata', async () => {
+      const shoppingCartId = `shopping_cart-${uuid()}`;
+      const correlationId = uuid();
+      const causationId = uuid();
+
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [
+          {
+            type: 'ProductItemAdded',
+            data: { productItem: { productId: '123', quantity: 1, price: 10 } },
+          },
+        ],
+        { correlationId, causationId },
+      );
+
+      const { events } = await eventStore.readStream(shoppingCartId);
+
+      assertIsNotNull(events);
+      assertEqual(1, events.length);
+      assertEqual(correlationId, events[0]!.metadata.correlationId);
+      assertEqual(causationId, events[0]!.metadata.causationId);
+    });
+
     void it('should aggregate stream', async () => {
       const productItem: PricedProductItem = {
         productId: '123',

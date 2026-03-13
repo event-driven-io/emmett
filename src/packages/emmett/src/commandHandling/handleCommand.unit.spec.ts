@@ -8,6 +8,7 @@ import {
   assertDeepEqual,
   assertEqual,
   assertFalse,
+  assertNotEqual,
   assertThatArray,
   assertThrowsAsync,
   assertTrue,
@@ -755,6 +756,74 @@ void describe('Command Handler', () => {
       assertDeepEqual(newState.openedAt, new Date(openedAtString));
       assertEqual(newState.loyaltyPoints, BigInt(loyaltyPointsString));
       assertEqual(newState.totalAmount, 20);
+    });
+  });
+
+  void describe('correlationId and causationId propagation', () => {
+    void it('stamps correlationId from handle options onto produced events', async () => {
+      const shoppingCartId = randomUUID();
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 1,
+        price: 10,
+      };
+      const command: AddProductItem = {
+        type: 'AddProductItem',
+        data: { productItem },
+      };
+
+      await handleCommand(
+        eventStore,
+        shoppingCartId,
+        (state) => addProductItem(command, state),
+        { correlationId: 'flow-1' },
+      );
+
+      const { events } = await eventStore.readStream(shoppingCartId);
+      assertEqual(events[0]!.metadata.correlationId, 'flow-1');
+    });
+
+    void it('stamps causationId from handle options onto produced events', async () => {
+      const shoppingCartId = randomUUID();
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 1,
+        price: 10,
+      };
+      const command: AddProductItem = {
+        type: 'AddProductItem',
+        data: { productItem },
+      };
+
+      await handleCommand(
+        eventStore,
+        shoppingCartId,
+        (state) => addProductItem(command, state),
+        { correlationId: 'flow-1', causationId: 'cmd-1' },
+      );
+
+      const { events } = await eventStore.readStream(shoppingCartId);
+      assertEqual(events[0]!.metadata.causationId, 'cmd-1');
+    });
+
+    void it('auto-generates correlationId when not provided', async () => {
+      const shoppingCartId = randomUUID();
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 1,
+        price: 10,
+      };
+      const command: AddProductItem = {
+        type: 'AddProductItem',
+        data: { productItem },
+      };
+
+      await handleCommand(eventStore, shoppingCartId, (state) =>
+        addProductItem(command, state),
+      );
+
+      const { events } = await eventStore.readStream(shoppingCartId);
+      assertNotEqual(events[0]!.metadata.correlationId, undefined);
     });
   });
 
