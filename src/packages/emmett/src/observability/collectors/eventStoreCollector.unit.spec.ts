@@ -7,6 +7,7 @@ import {
   EmmettMetrics,
   MessagingSystemName,
 } from '../attributes';
+import type { AnyRecordedMessageMetadata } from '../../typing';
 
 const A = EmmettAttributes;
 const M = {
@@ -23,7 +24,12 @@ const makeObservability = () => ({
 });
 
 const makeEvents = (types: string[]) =>
-  types.map((type) => ({ type, data: {}, kind: 'Event' as const }));
+  types.map((type) => ({
+    type,
+    data: {},
+    kind: 'Event' as const,
+    metadata: {} as AnyRecordedMessageMetadata,
+  }));
 
 describe('eventStoreCollector', () => {
   it('instrumentRead creates eventStore.readStream span with operation and messaging attributes', async () => {

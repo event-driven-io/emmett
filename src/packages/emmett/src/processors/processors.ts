@@ -3,6 +3,10 @@ import type { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
 import type { ProjectionDefinition } from '../projections';
 import type { ProcessorObservabilityConfig } from '../observability';
+import {
+  processorCollector,
+  resolveProcessorObservability,
+} from '../observability';
 import type { JSONSerializationOptions } from '../serialization';
 import {
   defaultTag,
@@ -319,6 +323,8 @@ export const reactor = <
     stopAfter,
   } = options;
 
+  const collector = processorCollector(resolveProcessorObservability(options));
+
   const eachMessage: SingleMessageHandlerWithContext<
     MessageType,
     MessageMetadataType,
@@ -424,69 +430,77 @@ export const reactor = <
     ): Promise<MessageHandlerResult> => {
       if (!isActive) return Promise.resolve();
 
-      return await processingScope(async (context) => {
-        let result: MessageHandlerResult = undefined;
+      return collector.startScope(
+        { processorId, type, checkpoint: lastCheckpoint },
+        messages,
+        (_scope) =>
+          processingScope(async (context) => {
+            let result: MessageHandlerResult = undefined;
 
-        for (const message of messages) {
-          if (wasMessageHandled(message, lastCheckpoint)) continue;
+            for (const message of messages) {
+              if (wasMessageHandled(message, lastCheckpoint)) continue;
 
-          const upcasted = upcastRecordedMessage(
-            // TODO: Make it smarter
-            message as unknown as RecordedMessage<
-              MessagePayloadType,
-              MessageMetadataType
-            >,
-            options.messageOptions?.schema?.versioning,
-          );
+              const upcasted = upcastRecordedMessage(
+                // TODO: Make it smarter
+                message as unknown as RecordedMessage<
+                  MessagePayloadType,
+                  MessageMetadataType
+                >,
+                options.messageOptions?.schema?.versioning,
+              );
 
-          if (canHandle !== undefined && !canHandle.includes(upcasted.type))
-            continue;
+              if (canHandle !== undefined && !canHandle.includes(upcasted.type))
+                continue;
 
-          const messageProcessingResult = await eachMessage(upcasted, context);
-
-          if (checkpoints) {
-            const storeCheckpointResult: StoreProcessorCheckpointResult =
-              await checkpoints.store(
-                {
-                  processorId,
-                  version,
-                  message: upcasted,
-                  lastCheckpoint,
-                  partition,
-                },
+              const messageProcessingResult = await eachMessage(
+                upcasted,
                 context,
               );
 
-            if (storeCheckpointResult.success) {
-              // TODO: Add correct handling of the storing checkpoint
-              lastCheckpoint = storeCheckpointResult.newCheckpoint;
+              if (checkpoints) {
+                const storeCheckpointResult: StoreProcessorCheckpointResult =
+                  await checkpoints.store(
+                    {
+                      processorId,
+                      version,
+                      message: upcasted,
+                      lastCheckpoint,
+                      partition,
+                    },
+                    context,
+                  );
+
+                if (storeCheckpointResult.success) {
+                  // TODO: Add correct handling of the storing checkpoint
+                  lastCheckpoint = storeCheckpointResult.newCheckpoint;
+                }
+              }
+
+              if (
+                messageProcessingResult &&
+                messageProcessingResult.type === 'STOP'
+              ) {
+                isActive = false;
+                result = messageProcessingResult;
+                break;
+              }
+
+              if (stopAfter && stopAfter(upcasted)) {
+                isActive = false;
+                result = { type: 'STOP', reason: 'Stop condition reached' };
+                break;
+              }
+
+              if (
+                messageProcessingResult &&
+                messageProcessingResult.type === 'SKIP'
+              )
+                continue;
             }
-          }
 
-          if (
-            messageProcessingResult &&
-            messageProcessingResult.type === 'STOP'
-          ) {
-            isActive = false;
-            result = messageProcessingResult;
-            break;
-          }
-
-          if (stopAfter && stopAfter(upcasted)) {
-            isActive = false;
-            result = { type: 'STOP', reason: 'Stop condition reached' };
-            break;
-          }
-
-          if (
-            messageProcessingResult &&
-            messageProcessingResult.type === 'SKIP'
-          )
-            continue;
-        }
-
-        return result;
-      }, partialContext);
+            return result;
+          }, partialContext) as Promise<MessageHandlerResult>,
+      );
     },
   };
 };

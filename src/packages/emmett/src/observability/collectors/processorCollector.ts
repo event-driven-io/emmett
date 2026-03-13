@@ -1,9 +1,10 @@
 import {
-  ObservabilityScope,
   MessagingAttributes,
+  ObservabilityScope,
   type ObservabilityScope as ObservabilityScopeType,
   type SpanLink,
 } from '@event-driven-io/almanac';
+import type { ProcessorCheckpoint } from '../../processors';
 import type {
   AnyReadEventMetadata,
   Message,
@@ -16,7 +17,6 @@ import {
   ScopeTypes,
 } from '../attributes';
 import type { ResolvedProcessorObservability } from '../options';
-import type { ProcessorCheckpoint } from '../../processors';
 
 export type ProcessorCollectorContext = {
   processorId: string;
