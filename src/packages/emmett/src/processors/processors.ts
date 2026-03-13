@@ -2,6 +2,7 @@ import { v7 as uuid } from 'uuid';
 import type { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
 import type { ProjectionDefinition } from '../projections';
+import type { ProcessorObservabilityConfig } from '../observability';
 import type { JSONSerializationOptions } from '../serialization';
 import {
   defaultTag,
@@ -158,7 +159,9 @@ export type BaseMessageProcessorOptions<
   checkpoints?: Checkpointer<MessageType, MessageMetadataType, HandlerContext>;
   canHandle?: CanHandle<MessageType>;
   hooks?: ProcessorHooks<HandlerContext>;
-} & JSONSerializationOptions;
+} & JSONSerializationOptions & {
+    observability?: ProcessorObservabilityConfig;
+  };
 
 export type HandlerOptions<
   MessageType extends AnyMessage = AnyMessage,

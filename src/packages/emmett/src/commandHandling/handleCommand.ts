@@ -12,6 +12,7 @@ import {
   type ExpectedStreamVersion,
   type ReadStreamOptions,
 } from '../eventStore';
+import type { CommandObservabilityConfig } from '../observability';
 import type { JSONSerializationOptions } from '../serialization';
 import type { Event } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
@@ -72,7 +73,9 @@ export type CommandHandlerOptions<
       downcast?: (event: StreamEvent) => StoredEvent;
     };
   };
-} & JSONSerializationOptions;
+} & JSONSerializationOptions & {
+    observability?: CommandObservabilityConfig;
+  };
 
 export type HandleOptions<Store extends EventStore> = Parameters<
   Store['appendToStream']
