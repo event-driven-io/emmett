@@ -4,6 +4,14 @@
   "compilerOptions": {
     "composite": true,
     "outDir": "./dist" /* Redirect output structure to the directory. */,
-    "rootDir": "./src"
-  }
+    "rootDir": "./src",
+    "paths": {
+      "@event-driven-io/almanac": ["../almanac/src"]
+    }
+  },
+  "references": [
+    {
+      "path": "../almanac/"
+    }
+  ]
 }

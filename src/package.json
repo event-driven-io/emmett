@@ -19,10 +19,11 @@
   "private": true,
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
-    "build": "run-s build:ts build:emmett build:esdb build:mongodb build:postgresql build:sqlite build:expressjs build:honojs build:fastify build:testcontainers build:tests",
+    "build": "run-s build:ts build:almanac build:emmett build:esdb build:mongodb build:postgresql build:sqlite build:expressjs build:honojs build:fastify build:testcontainers build:tests",
     "build:ts": "tsc -b",
     "build:ts:clean": "tsc --build --clean",
     "build:ts:watch": "tsc -b --watch",
+    "build:almanac": "npm run build -w packages/almanac",
     "build:emmett": "npm run build -w packages/emmett",
     "build:esdb": "npm run build -w packages/emmett-esdb",
     "build:mongodb": "npm run build -w packages/emmett-mongodb",
@@ -116,6 +117,7 @@
     "supertest": "7.2.2"
   },
   "workspaces": [
+    "packages/almanac",
     "packages/emmett",
     "packages/emmett-postgresql",
     "packages/emmett-mongodb",

@@ -6,6 +6,7 @@
   "compilerOptions": {
     "noEmit": true /* Do not emit outputs. */,
     "paths": {
+      "@event-driven-io/almanac": ["./packages/almanac/src"],
       "@event-driven-io/emmett": ["./packages/emmett/src"],
       "@event-driven-io/emmett-expressjs": ["./packages/emmett-expressjs/src"],
       "@event-driven-io/emmett-postgresql": [
@@ -20,6 +21,9 @@
     }
   },
   "references": [
+    {
+      "path": "./packages/almanac/"
+    },
     {
       "path": "./packages/emmett/"
     },

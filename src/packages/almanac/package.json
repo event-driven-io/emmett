@@ -1,8 +1,8 @@
 {
-  "name": "@event-driven-io/emmett",
+  "name": "@event-driven-io/almanac",
   "type": "module",
-  "version": "0.43.0-beta.12",
-  "description": "Emmett - Event Sourcing development made simple",
+  "version": "0.43.0-beta.11",
+  "description": "Almanac - Opinionated observability for event-driven systems",
   "scripts": {
     "build": "tsup",
     "build:ts": "tsc",
@@ -21,7 +21,9 @@
     "url": "git+https://github.com/event-driven-io/emmett.git"
   },
   "keywords": [
-    "Event Sourcing"
+    "observability",
+    "tracing",
+    "event-driven"
   ],
   "author": "Oskar Dudycz",
   "bugs": {
@@ -38,23 +40,6 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
-    },
-    "./cli": {
-      "import": {
-        "types": "./dist/cli.d.ts",
-        "default": "./dist/cli.js"
-      },
-      "require": {
-        "types": "./dist/cli.d.cts",
-        "default": "./dist/cli.cjs"
-      }
-    }
-  },
-  "typesVersions": {
-    "*": {
-      "cli": [
-        "./dist/cli.d.ts"
-      ]
     }
   },
   "main": "./dist/index.cjs",
@@ -62,17 +47,5 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist"
-  ],
-  "bin": {
-    "emmett": "dist/cli.js"
-  },
-  "dependencies": {
-    "@event-driven-io/almanac": "0.43.0-beta.11"
-  },
-  "peerDependencies": {
-    "@types/async-retry": "^1.4.9",
-    "async-retry": "^1.3.3",
-    "commander": "^14.0.2",
-    "uuid": "^13.0.0"
-  }
+  ]
 }
