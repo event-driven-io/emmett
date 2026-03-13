@@ -1,6 +1,5 @@
 import type { ActiveSpan, SpanContext, SpanLink, Tracer } from './tracer';
 import { noopSpan } from './tracer';
-import type { Meter } from './meter';
 import type { Sampler, TracePropagation, AttributeTarget } from './options';
 import { alwaysSample } from './options';
 import { scopeAttributes } from './attributes';
@@ -30,12 +29,10 @@ export type ObservabilityScope = {
   addLink(link: SpanLink): void;
   recordException(error: Error | string): void;
   spanContext(): SpanContext;
-  meter: Meter;
 };
 
 export type ScopeObservability = {
   tracer: Tracer;
-  meter: Meter;
   sampler?: Sampler;
   attributeTarget?: AttributeTarget;
   attributePrefix?: string;
@@ -84,22 +81,24 @@ const makeScope = (
   addLink: (link) => span.addLink(link),
   recordException: (error) => span.recordException(error),
   spanContext: () => span.spanContext(),
-  meter: observability.meter,
 });
 
-const noopScope = (meter: Meter): ObservabilityScope => ({
+const noopScope: ObservabilityScope = {
   setAttributes: () => {},
-  scope: async (_name, fn) => fn(noopScope(meter)),
+  scope: async (_name, fn) => fn(noopScope),
   addEvent: () => {},
   addLink: () => {},
   recordException: () => {},
   spanContext: () => noopSpan.spanContext(),
-  meter,
-});
+};
 
-export const createScope = (observability: ScopeObservability) => {
+export const ObservabilityScope = (
+  observability: ScopeObservability,
+  factoryOptions?: { defaultAttributes?: Record<string, unknown> },
+) => {
   const attrs = scopeAttributes(observability.attributePrefix ?? 'almanac');
   const sampler = observability.sampler ?? alwaysSample;
+  const defaultAttrs = factoryOptions?.defaultAttributes ?? {};
 
   return {
     startScope: <T>(
@@ -107,21 +106,23 @@ export const createScope = (observability: ScopeObservability) => {
       fn: (scope: ObservabilityScope) => Promise<T>,
       options?: ScopeOptions,
     ): Promise<T> => {
-      if (!sampler.shouldSample(name, options?.attributes)) {
-        return fn(noopScope(observability.meter));
+      const mergedAttrs = { ...defaultAttrs, ...(options?.attributes ?? {}) };
+
+      if (!sampler.shouldSample(name, mergedAttrs)) {
+        return fn(noopScope);
       }
 
       return observability.tracer.startSpan(
         name,
         async (rootSpan) => {
           rootSpan.setAttributes({ [attrs.main]: true });
-          if (options?.attributes) {
-            rootSpan.setAttributes(options.attributes);
+          if (Object.keys(mergedAttrs).length > 0) {
+            rootSpan.setAttributes(mergedAttrs);
           }
           return fn(makeScope(rootSpan, rootSpan, observability));
         },
         {
-          attributes: options?.attributes,
+          attributes: mergedAttrs,
           links: options?.links,
           parent: options?.parent,
           propagation: options?.propagation ?? observability.propagation,

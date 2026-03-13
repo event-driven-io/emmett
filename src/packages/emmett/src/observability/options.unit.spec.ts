@@ -49,6 +49,25 @@ describe('resolveCommandObservability', () => {
     );
     expect(resolved.tracer).toBe(childTracer);
   });
+
+  it('defaults includeMessagePayloads to false', () => {
+    const resolved = resolveCommandObservability(undefined);
+    expect(resolved.includeMessagePayloads).toBe(false);
+  });
+
+  it('uses provided includeMessagePayloads', () => {
+    const resolved = resolveCommandObservability({
+      observability: { includeMessagePayloads: true },
+    });
+    expect(resolved.includeMessagePayloads).toBe(true);
+  });
+
+  it('falls back to parent includeMessagePayloads', () => {
+    const resolved = resolveCommandObservability(undefined, {
+      observability: { includeMessagePayloads: true },
+    });
+    expect(resolved.includeMessagePayloads).toBe(true);
+  });
 });
 
 describe('resolveProcessorObservability', () => {
@@ -88,14 +107,27 @@ describe('resolveProcessorObservability', () => {
     );
     expect(resolved.propagation).toBe('propagate');
   });
+
+  it('defaults includeMessagePayloads to false', () => {
+    const resolved = resolveProcessorObservability(undefined);
+    expect(resolved.includeMessagePayloads).toBe(false);
+  });
+
+  it('uses provided includeMessagePayloads', () => {
+    const resolved = resolveProcessorObservability({
+      observability: { includeMessagePayloads: true },
+    });
+    expect(resolved.includeMessagePayloads).toBe(true);
+  });
 });
 
 describe('resolveConsumerObservability', () => {
-  it('returns noop tracer, meter, and pollTracing=off when no options', () => {
+  it('returns noop tracer, meter, pollTracing=off, attributeTarget=both when no options', () => {
     const resolved = resolveConsumerObservability(undefined);
     expect(resolved.tracer).toBeDefined();
     expect(resolved.meter).toBeDefined();
     expect(resolved.pollTracing).toBe('off');
+    expect(resolved.attributeTarget).toBe('both');
   });
 
   it('uses provided pollTracing', () => {
@@ -117,6 +149,20 @@ describe('resolveConsumerObservability', () => {
       observability: { pollTracing: 'active' },
     });
     expect(resolved.pollTracing).toBe('active');
+  });
+
+  it('uses provided attributeTarget', () => {
+    const resolved = resolveConsumerObservability({
+      observability: { attributeTarget: 'mainSpan' },
+    });
+    expect(resolved.attributeTarget).toBe('mainSpan');
+  });
+
+  it('falls back to parent attributeTarget', () => {
+    const resolved = resolveConsumerObservability(undefined, {
+      observability: { attributeTarget: 'currentSpan' },
+    });
+    expect(resolved.attributeTarget).toBe('currentSpan');
   });
 });
 
@@ -142,5 +188,17 @@ describe('resolveWorkflowObservability', () => {
       observability: { propagation: 'propagate' },
     });
     expect(resolved.propagation).toBe('propagate');
+  });
+
+  it('defaults includeMessagePayloads to false', () => {
+    const resolved = resolveWorkflowObservability(undefined);
+    expect(resolved.includeMessagePayloads).toBe(false);
+  });
+
+  it('uses provided includeMessagePayloads', () => {
+    const resolved = resolveWorkflowObservability({
+      observability: { includeMessagePayloads: true },
+    });
+    expect(resolved.includeMessagePayloads).toBe(true);
   });
 });

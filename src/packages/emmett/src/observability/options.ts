@@ -11,6 +11,7 @@ export type PollTracing = 'off' | 'active' | 'verbose';
 
 export type EmmettObservabilityConfig = ObservabilityConfig<'emmett'> & {
   pollTracing?: PollTracing;
+  includeMessagePayloads?: boolean;
 };
 
 export type EmmettObservabilityOptions = {
@@ -19,28 +20,37 @@ export type EmmettObservabilityOptions = {
 
 export type CommandObservabilityConfig = Pick<
   EmmettObservabilityConfig,
-  'tracer' | 'meter' | 'attributeTarget'
+  'tracer' | 'meter' | 'attributeTarget' | 'includeMessagePayloads'
 >;
 
 export type ProcessorObservabilityConfig = Pick<
   EmmettObservabilityConfig,
-  'tracer' | 'meter' | 'propagation' | 'attributeTarget'
+  | 'tracer'
+  | 'meter'
+  | 'propagation'
+  | 'attributeTarget'
+  | 'includeMessagePayloads'
 >;
 
 export type ConsumerObservabilityConfig = Pick<
   EmmettObservabilityConfig,
-  'tracer' | 'meter' | 'pollTracing'
+  'tracer' | 'meter' | 'pollTracing' | 'attributeTarget'
 >;
 
 export type WorkflowObservabilityConfig = Pick<
   EmmettObservabilityConfig,
-  'tracer' | 'meter' | 'propagation' | 'attributeTarget'
+  | 'tracer'
+  | 'meter'
+  | 'propagation'
+  | 'attributeTarget'
+  | 'includeMessagePayloads'
 >;
 
 export type ResolvedCommandObservability = {
   tracer: Tracer;
   meter: Meter;
   attributeTarget: AttributeTarget;
+  includeMessagePayloads: boolean;
 };
 
 export type ResolvedProcessorObservability = {
@@ -48,12 +58,14 @@ export type ResolvedProcessorObservability = {
   meter: Meter;
   propagation: TracePropagation;
   attributeTarget: AttributeTarget;
+  includeMessagePayloads: boolean;
 };
 
 export type ResolvedConsumerObservability = {
   tracer: Tracer;
   meter: Meter;
   pollTracing: PollTracing;
+  attributeTarget: AttributeTarget;
 };
 
 export type ResolvedWorkflowObservability = {
@@ -61,6 +73,7 @@ export type ResolvedWorkflowObservability = {
   meter: Meter;
   propagation: TracePropagation;
   attributeTarget: AttributeTarget;
+  includeMessagePayloads: boolean;
 };
 
 export const resolveCommandObservability = (
@@ -79,6 +92,10 @@ export const resolveCommandObservability = (
     options?.observability?.attributeTarget ??
     parent?.observability?.attributeTarget ??
     'both',
+  includeMessagePayloads:
+    options?.observability?.includeMessagePayloads ??
+    parent?.observability?.includeMessagePayloads ??
+    false,
 });
 
 export const resolveProcessorObservability = (
@@ -101,6 +118,10 @@ export const resolveProcessorObservability = (
     options?.observability?.attributeTarget ??
     parent?.observability?.attributeTarget ??
     'both',
+  includeMessagePayloads:
+    options?.observability?.includeMessagePayloads ??
+    parent?.observability?.includeMessagePayloads ??
+    false,
 });
 
 export const resolveConsumerObservability = (
@@ -119,6 +140,10 @@ export const resolveConsumerObservability = (
     options?.observability?.pollTracing ??
     parent?.observability?.pollTracing ??
     'off',
+  attributeTarget:
+    options?.observability?.attributeTarget ??
+    parent?.observability?.attributeTarget ??
+    'both',
 });
 
 export const resolveWorkflowObservability = (
@@ -141,4 +166,8 @@ export const resolveWorkflowObservability = (
     options?.observability?.attributeTarget ??
     parent?.observability?.attributeTarget ??
     'both',
+  includeMessagePayloads:
+    options?.observability?.includeMessagePayloads ??
+    parent?.observability?.includeMessagePayloads ??
+    false,
 });

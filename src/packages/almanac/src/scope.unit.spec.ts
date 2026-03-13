@@ -1,23 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { createScope } from './scope';
+import { ObservabilityScope } from './scope';
 import type { ScopeObservability } from './scope';
-import { collectingTracer, collectingMeter } from './testing';
+import { collectingTracer } from './testing';
 import { alwaysSample, neverSample } from './options';
 
 const defaultObservability = (
   overrides?: Partial<ScopeObservability>,
 ): ScopeObservability => ({
   tracer: collectingTracer(),
-  meter: collectingMeter(),
   sampler: alwaysSample,
   attributePrefix: 'almanac',
   ...overrides,
 });
 
-describe('createScope', () => {
+describe('ObservabilityScope', () => {
   it('startScope executes the function and returns its result', async () => {
     const o11y = defaultObservability();
-    const result = await createScope(o11y).startScope('test', () =>
+    const result = await ObservabilityScope(o11y).startScope('test', () =>
       Promise.resolve(42),
     );
     expect(result).toBe(42);
@@ -27,7 +26,7 @@ describe('createScope', () => {
     const tracer = collectingTracer();
     const o11y = defaultObservability({ tracer });
 
-    await createScope(o11y).startScope('root', (scope) => {
+    await ObservabilityScope(o11y).startScope('root', (scope) => {
       scope.setAttributes({ x: 1 });
       return Promise.resolve();
     });
@@ -42,7 +41,7 @@ describe('createScope', () => {
       attributeTarget: 'mainSpan',
     });
 
-    await createScope(o11y).startScope('root', async (scope) => {
+    await ObservabilityScope(o11y).startScope('root', async (scope) => {
       await scope.scope('child', (child) => {
         child.setAttributes({ x: 1 });
         return Promise.resolve();
@@ -60,7 +59,7 @@ describe('createScope', () => {
       attributeTarget: 'currentSpan',
     });
 
-    await createScope(o11y).startScope('root', async (scope) => {
+    await ObservabilityScope(o11y).startScope('root', async (scope) => {
       await scope.scope('child', (child) => {
         child.setAttributes({ x: 1 });
         return Promise.resolve();
@@ -75,7 +74,7 @@ describe('createScope', () => {
     const tracer = collectingTracer();
     const o11y = defaultObservability({ tracer, attributeTarget: 'both' });
 
-    await createScope(o11y).startScope('root', async (scope) => {
+    await ObservabilityScope(o11y).startScope('root', async (scope) => {
       await scope.scope('child', (child) => {
         child.setAttributes({ x: 1 });
         return Promise.resolve();
@@ -90,7 +89,7 @@ describe('createScope', () => {
     const tracer = collectingTracer();
     const o11y = defaultObservability({ tracer });
 
-    await createScope(o11y).startScope('root', (scope) => {
+    await ObservabilityScope(o11y).startScope('root', (scope) => {
       scope.addEvent('test', { key: 'val' });
       return Promise.resolve();
     });
@@ -105,7 +104,7 @@ describe('createScope', () => {
     const o11y = defaultObservability({ tracer });
     const error = new Error('boom');
 
-    await createScope(o11y).startScope('root', (scope) => {
+    await ObservabilityScope(o11y).startScope('root', (scope) => {
       scope.recordException(error);
       return Promise.resolve();
     });
@@ -117,7 +116,7 @@ describe('createScope', () => {
     const tracer = collectingTracer();
     const o11y = defaultObservability({ tracer });
 
-    await createScope(o11y).startScope('root', (scope) => {
+    await ObservabilityScope(o11y).startScope('root', (scope) => {
       const ctx = scope.spanContext();
       expect(ctx.traceId).toBeDefined();
       expect(ctx.spanId).toBeDefined();
@@ -125,25 +124,11 @@ describe('createScope', () => {
     });
   });
 
-  it('scope.meter gives access to the meter', async () => {
-    const meter = collectingMeter();
-    const o11y = defaultObservability({ meter });
-
-    await createScope(o11y).startScope('root', (scope) => {
-      scope.meter.counter('x').add(1);
-      return Promise.resolve();
-    });
-
-    expect(meter.counters).toEqual([
-      { name: 'x', value: 1, attributes: undefined },
-    ]);
-  });
-
   it('child scopes nest correctly', async () => {
     const tracer = collectingTracer();
     const o11y = defaultObservability({ tracer });
 
-    await createScope(o11y).startScope('root', async (scope) => {
+    await ObservabilityScope(o11y).startScope('root', async (scope) => {
       await scope.scope('a', async (a) => {
         await a.scope('b', () => Promise.resolve());
       });
@@ -156,7 +141,7 @@ describe('createScope', () => {
     const tracer = collectingTracer();
     const o11y = defaultObservability({ tracer });
 
-    await createScope(o11y).startScope('root', () => Promise.resolve());
+    await ObservabilityScope(o11y).startScope('root', () => Promise.resolve());
 
     expect(tracer.spans[0]!.attributes).toHaveProperty(
       'almanac.scope.main',
@@ -168,7 +153,7 @@ describe('createScope', () => {
     const tracer = collectingTracer();
     const o11y = defaultObservability({ tracer });
 
-    await createScope(o11y).startScope('root', async (scope) => {
+    await ObservabilityScope(o11y).startScope('root', async (scope) => {
       await scope.scope('child', () => Promise.resolve());
     });
 
@@ -181,7 +166,7 @@ describe('createScope', () => {
     const tracer = collectingTracer();
     const o11y = defaultObservability({ tracer, attributePrefix: 'myapp' });
 
-    await createScope(o11y).startScope('root', () => Promise.resolve());
+    await ObservabilityScope(o11y).startScope('root', () => Promise.resolve());
 
     expect(tracer.spans[0]!.attributes).toHaveProperty(
       'myapp.scope.main',
@@ -196,7 +181,7 @@ describe('createScope', () => {
       attributeTarget: 'mainSpan',
     });
 
-    await createScope(o11y).startScope('root', async (scope) => {
+    await ObservabilityScope(o11y).startScope('root', async (scope) => {
       await scope.scope('child', () => Promise.resolve(), {
         attributes: { op: 'receive' },
       });
@@ -212,7 +197,7 @@ describe('createScope', () => {
       attributeTarget: 'currentSpan',
     });
 
-    await createScope(o11y).startScope('root', async (scope) => {
+    await ObservabilityScope(o11y).startScope('root', async (scope) => {
       await scope.scope('child', (child) => {
         child.setAttributes({ x: 1 }, { target: 'mainSpan' });
         return Promise.resolve();
@@ -227,25 +212,56 @@ describe('createScope', () => {
     const tracer = collectingTracer();
     const o11y = defaultObservability({ tracer });
 
-    await createScope(o11y).startScope('root', () => Promise.resolve(), {
+    await ObservabilityScope(o11y).startScope('root', () => Promise.resolve(), {
       attributes: { op: 'handle' },
     });
 
     expect(tracer.spans[0]!.attributes).toHaveProperty('op', 'handle');
   });
 
+  it('defaultAttributes from factory land on every root span', async () => {
+    const tracer = collectingTracer();
+    const o11y = defaultObservability({ tracer });
+
+    const factory = ObservabilityScope(o11y, {
+      defaultAttributes: { 'stream.name': 'checkout' },
+    });
+
+    await factory.startScope('op1', () => Promise.resolve());
+    await factory.startScope('op2', () => Promise.resolve());
+
+    expect(tracer.spans[0]!.attributes).toHaveProperty(
+      'stream.name',
+      'checkout',
+    );
+    expect(tracer.spans[1]!.attributes).toHaveProperty(
+      'stream.name',
+      'checkout',
+    );
+  });
+
+  it('per-operation attributes override defaultAttributes', async () => {
+    const tracer = collectingTracer();
+    const o11y = defaultObservability({ tracer });
+
+    await ObservabilityScope(o11y, {
+      defaultAttributes: { key: 'default' },
+    }).startScope('root', () => Promise.resolve(), {
+      attributes: { key: 'override' },
+    });
+
+    expect(tracer.spans[0]!.attributes).toHaveProperty('key', 'override');
+  });
+
   it('sampler rejection bypasses tracer but still runs fn', async () => {
     const tracer = collectingTracer();
-    const meter = collectingMeter();
-    const o11y = defaultObservability({ tracer, meter, sampler: neverSample });
+    const o11y = defaultObservability({ tracer, sampler: neverSample });
 
-    const result = await createScope(o11y).startScope('test', (scope) => {
-      scope.meter.counter('x').add(1);
-      return Promise.resolve(42);
-    });
+    const result = await ObservabilityScope(o11y).startScope('test', () =>
+      Promise.resolve(42),
+    );
 
     expect(result).toBe(42);
     expect(tracer.spans).toHaveLength(0);
-    expect(meter.counters).toHaveLength(1);
   });
 });

@@ -2,7 +2,6 @@ export const scopeAttributes = (prefix = 'almanac') =>
   ({
     type: `${prefix}.scope.type`,
     main: `${prefix}.scope.main`,
-    name: `${prefix}.scope.name`,
   }) as const;
 
 export const MessagingAttributes = {
