@@ -37,6 +37,11 @@ export type ConsumerObservabilityConfig = Pick<
   'tracer' | 'meter' | 'pollTracing' | 'attributeTarget'
 >;
 
+export type EventStoreObservabilityConfig = Pick<
+  EmmettObservabilityConfig,
+  'tracer' | 'meter' | 'attributeTarget'
+>;
+
 export type WorkflowObservabilityConfig = Pick<
   EmmettObservabilityConfig,
   | 'tracer'
@@ -65,6 +70,12 @@ export type ResolvedConsumerObservability = {
   tracer: Tracer;
   meter: Meter;
   pollTracing: PollTracing;
+  attributeTarget: AttributeTarget;
+};
+
+export type ResolvedEventStoreObservability = {
+  tracer: Tracer;
+  meter: Meter;
   attributeTarget: AttributeTarget;
 };
 
@@ -140,6 +151,24 @@ export const resolveConsumerObservability = (
     options?.observability?.pollTracing ??
     parent?.observability?.pollTracing ??
     'off',
+  attributeTarget:
+    options?.observability?.attributeTarget ??
+    parent?.observability?.attributeTarget ??
+    'both',
+});
+
+export const resolveEventStoreObservability = (
+  options: { observability?: EventStoreObservabilityConfig } | undefined,
+  parent?: EmmettObservabilityOptions,
+): ResolvedEventStoreObservability => ({
+  tracer:
+    options?.observability?.tracer ??
+    parent?.observability?.tracer ??
+    noopTracer(),
+  meter:
+    options?.observability?.meter ??
+    parent?.observability?.meter ??
+    noopMeter(),
   attributeTarget:
     options?.observability?.attributeTarget ??
     parent?.observability?.attributeTarget ??

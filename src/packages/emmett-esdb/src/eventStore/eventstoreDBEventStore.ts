@@ -1,6 +1,8 @@
 import {
+  eventStoreCollector,
   ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
+  resolveEventStoreObservability,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
   assertExpectedVersionMatchesCurrent,
@@ -14,6 +16,7 @@ import {
   type AppendToStreamResultWithGlobalPosition,
   type Event,
   type EventStore,
+  type EventStoreObservabilityConfig,
   type ExpectedStreamVersion,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -22,7 +25,7 @@ import {
   type RecordedMessage,
   type StreamExistsResult,
 } from '@event-driven-io/emmett';
-import type { EventStoreDBClient } from '@eventstore/db-client';
+import { EventStoreDBClient } from '@eventstore/db-client';
 import {
   ANY,
   STREAM_EXISTS as ESDB_STREAM_EXISTS,
@@ -84,9 +87,44 @@ export interface EventStoreDBEventStore extends EventStore<EventStoreDBReadEvent
   ): EventStoreDBEventStoreConsumer<ConsumerEventType>;
 }
 
-export const getEventStoreDBEventStore = (
-  eventStore: EventStoreDBClient,
-): EventStoreDBEventStore => {
+export type EventStoreDBEventStoreClientOptions = {
+  client: EventStoreDBClient;
+  connectionString?: never;
+  observability?: EventStoreObservabilityConfig;
+};
+
+export type EventStoreDBEventStoreConnectionStringOptions = {
+  client?: never;
+  connectionString: string;
+  observability?: EventStoreObservabilityConfig;
+};
+
+export type EventStoreDBEventStoreOptions =
+  | EventStoreDBEventStoreClientOptions
+  | EventStoreDBEventStoreConnectionStringOptions;
+
+/** @deprecated Pass options object instead: getEventStoreDBEventStore({ client }) */
+export function getEventStoreDBEventStore(
+  client: EventStoreDBClient,
+): EventStoreDBEventStore;
+export function getEventStoreDBEventStore(
+  options: EventStoreDBEventStoreOptions,
+): EventStoreDBEventStore;
+export function getEventStoreDBEventStore(
+  clientOrOptions: EventStoreDBClient | EventStoreDBEventStoreOptions,
+): EventStoreDBEventStore {
+  const options: EventStoreDBEventStoreOptions =
+    clientOrOptions instanceof EventStoreDBClient
+      ? { client: clientOrOptions }
+      : clientOrOptions;
+  const eventStore =
+    'client' in options && options.client
+      ? options.client
+      : EventStoreDBClient.connectionString(options.connectionString);
+  const collector = eventStoreCollector(
+    resolveEventStoreObservability(options),
+  );
+
   return {
     async aggregateStream<
       State,
@@ -167,43 +205,46 @@ export const getEventStoreDBEventStore = (
       streamName: string,
       options?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<ReadStreamResult<EventType, EventStoreDBReadEventMetadata>> => {
-      const events: ReadEvent<EventType, EventStoreDBReadEventMetadata>[] = [];
+      return collector.instrumentRead(streamName, async () => {
+        const events: ReadEvent<EventType, EventStoreDBReadEventMetadata>[] =
+          [];
 
-      let currentStreamVersion: bigint =
-        EventStoreDBEventStoreDefaultStreamVersion;
+        let currentStreamVersion: bigint =
+          EventStoreDBEventStoreDefaultStreamVersion;
 
-      try {
-        for await (const resolvedEvent of eventStore.readStream<EventPayloadType>(
-          streamName,
-          toEventStoreDBReadOptions(options),
-        )) {
-          const { event } = resolvedEvent;
-          if (!event) continue;
-          events.push(
-            upcastRecordedMessage(
-              mapFromESDBEvent<EventPayloadType>(resolvedEvent),
-              options?.schema?.versioning,
-            ),
-          );
+        try {
+          for await (const resolvedEvent of eventStore.readStream<EventPayloadType>(
+            streamName,
+            toEventStoreDBReadOptions(options),
+          )) {
+            const { event } = resolvedEvent;
+            if (!event) continue;
+            events.push(
+              upcastRecordedMessage(
+                mapFromESDBEvent<EventPayloadType>(resolvedEvent),
+                options?.schema?.versioning,
+              ),
+            );
 
-          currentStreamVersion = event.revision;
-        }
-        return {
-          currentStreamVersion,
-          events,
-          streamExists: true,
-        };
-      } catch (error) {
-        if (error instanceof StreamNotFoundError) {
+            currentStreamVersion = event.revision;
+          }
           return {
             currentStreamVersion,
-            events: [],
-            streamExists: false,
+            events,
+            streamExists: true,
           };
-        }
+        } catch (error) {
+          if (error instanceof StreamNotFoundError) {
+            return {
+              currentStreamVersion,
+              events: [],
+              streamExists: false,
+            };
+          }
 
-        throw error;
-      }
+          throw error;
+        }
+      });
     },
 
     appendToStream: async <
@@ -214,55 +255,57 @@ export const getEventStoreDBEventStore = (
       events: EventType[],
       options?: AppendToStreamOptions<EventType, EventPayloadType>,
     ): Promise<AppendToStreamResultWithGlobalPosition> => {
-      try {
-        const eventsToStore = downcastRecordedMessages(
-          events,
-          options?.schema?.versioning,
-        );
-        const serializedEvents = eventsToStore.map((event) =>
-          jsonEvent({
-            ...event,
-            metadata: {
-              ...('metadata' in event ? (event.metadata ?? {}) : {}),
-              ...(options?.correlationId
-                ? { $correlationId: options.correlationId }
-                : {}),
-              ...(options?.causationId
-                ? { $causationId: options.causationId }
-                : {}),
-            },
-          }),
-        );
-
-        const expectedRevision = toExpectedRevision(
-          options?.expectedStreamVersion,
-        );
-
-        const appendResult = await eventStore.appendToStream(
-          streamName,
-          serializedEvents,
-          {
-            expectedRevision,
-          },
-        );
-
-        return {
-          nextExpectedStreamVersion: appendResult.nextExpectedRevision,
-          lastEventGlobalPosition: appendResult.position!.commit,
-          createdNewStream:
-            appendResult.nextExpectedRevision >=
-            BigInt(serializedEvents.length),
-        };
-      } catch (error) {
-        if (error instanceof WrongExpectedVersionError) {
-          throw new ExpectedVersionConflictError(
-            BigInt(error.actualVersion),
-            toExpectedVersion(error.expectedVersion),
+      return collector.instrumentAppend(streamName, events, async () => {
+        try {
+          const eventsToStore = downcastRecordedMessages(
+            events,
+            options?.schema?.versioning,
           );
-        }
+          const serializedEvents = eventsToStore.map((event) =>
+            jsonEvent({
+              ...event,
+              metadata: {
+                ...('metadata' in event ? (event.metadata ?? {}) : {}),
+                ...(options?.correlationId
+                  ? { $correlationId: options.correlationId }
+                  : {}),
+                ...(options?.causationId
+                  ? { $causationId: options.causationId }
+                  : {}),
+              },
+            }),
+          );
 
-        throw error;
-      }
+          const expectedRevision = toExpectedRevision(
+            options?.expectedStreamVersion,
+          );
+
+          const appendResult = await eventStore.appendToStream(
+            streamName,
+            serializedEvents,
+            {
+              expectedRevision,
+            },
+          );
+
+          return {
+            nextExpectedStreamVersion: appendResult.nextExpectedRevision,
+            lastEventGlobalPosition: appendResult.position!.commit,
+            createdNewStream:
+              appendResult.nextExpectedRevision >=
+              BigInt(serializedEvents.length),
+          };
+        } catch (error) {
+          if (error instanceof WrongExpectedVersionError) {
+            throw new ExpectedVersionConflictError(
+              BigInt(error.actualVersion),
+              toExpectedVersion(error.expectedVersion),
+            );
+          }
+
+          throw error;
+        }
+      });
     },
 
     consumer: <ConsumerEventType extends Event = Event>(
@@ -295,7 +338,7 @@ export const getEventStoreDBEventStore = (
 
     //streamEvents: streamEvents(eventStore),
   };
-};
+}
 
 const getESDBCheckpoint = <MessageType extends AnyMessage = AnyMessage>(
   resolvedEvent: ResolvedEvent<MessageType>,
