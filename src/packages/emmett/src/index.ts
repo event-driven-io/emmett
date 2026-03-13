@@ -1,4 +1,5 @@
 export * from './commandHandling';
+export * from './observability';
 export * from './config';
 export * from './consumers';
 export * from './database';
