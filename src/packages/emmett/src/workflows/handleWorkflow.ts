@@ -12,6 +12,10 @@ import {
   type ExpectedStreamVersion,
   type ReadStreamOptions,
 } from '../eventStore';
+import {
+  workflowCollector,
+  resolveWorkflowObservability,
+} from '../observability';
 import type {
   AnyCommand,
   AnyEvent,
@@ -204,13 +208,23 @@ export const WorkflowHandler =
     store: Store,
     message: Input | RecordedMessage<Input, MessageMetadataType>,
     handleOptions?: WorkflowHandleOptions<Store>,
-  ): Promise<WorkflowHandlerResult<Output, Store>> =>
-    asyncRetry(
-      async () => {
-        const result = await withSession<
-          Store,
-          WorkflowHandlerResult<Output, Store>
-        >(store, async ({ eventStore }) => {
+  ): Promise<WorkflowHandlerResult<Output, Store>> => {
+    const collector = workflowCollector(resolveWorkflowObservability(options));
+    const workflowType = options.workflow.name;
+    const inputType = (message as { type: string }).type;
+    const workflowId =
+      options.getWorkflowId(
+        message as RecordedMessage<Input, MessageMetadataType>,
+      ) ?? '';
+    return asyncRetry(
+      () =>
+        collector.startScope(
+          { workflowId, workflowType, inputType },
+          async (scope) => {
+            const result = await withSession<
+              Store,
+              WorkflowHandlerResult<Output, Store>
+            >(store, async ({ eventStore }) => {
           const {
             workflow: { evolve, initialState, decide, name: workflowName },
             getWorkflowId,
@@ -318,6 +332,8 @@ export const WorkflowHandler =
 
           const { currentStreamVersion } = aggregationResult;
 
+          collector.recordStateRebuild(scope, Number(currentStreamVersion));
+
           const { userState: state, processedInputIds } =
             aggregationResult.state;
 
@@ -400,20 +416,23 @@ export const WorkflowHandler =
           );
 
           // 5. Return result with output messages only
+          collector.recordOutputs(scope, outputMessages);
           return {
             ...appendResult,
             newMessages: outputMessages,
           } as unknown as WorkflowHandlerResult<Output, Store>;
-        });
+            });
 
-        return result;
-      },
+            return result;
+          },
+        ),
       fromWorkflowHandlerRetryOptions(
         handleOptions && 'retry' in handleOptions
           ? handleOptions.retry
           : options.retry,
       ),
     );
+  }
 // #endregion stream-handler
 
 const withSession = <EventStoreType extends EventStore, T = unknown>(
