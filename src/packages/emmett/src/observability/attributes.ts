@@ -1,4 +1,7 @@
 export const EmmettAttributes = {
+  scope: {
+    type: 'emmett.scope.type',
+  },
   command: {
     type: 'emmett.command.type',
     status: 'emmett.command.status',
@@ -28,6 +31,7 @@ export const EmmettAttributes = {
   processor: {
     id: 'emmett.processor.id',
     type: 'emmett.processor.type',
+    status: 'emmett.processor.status',
     batchSize: 'emmett.processor.batch_size',
     eventTypes: 'emmett.processor.event_types',
     checkpointBefore: 'emmett.processor.checkpoint.before',
