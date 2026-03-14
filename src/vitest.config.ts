@@ -9,6 +9,7 @@ export default defineConfig({
       'packages/emmett-postgresql',
       'packages/emmett-mongodb',
       'packages/emmett-esdb',
+      'packages/emmett-opossum',
       'packages/emmett-fastify',
       'packages/emmett-tests',
       'packages/emmett-sqlite',

@@ -1,0 +1,37 @@
+@clientId = dummy
+@productId = dummy
+@unitPrice = 100
+
+### Add Product
+
+POST http://localhost:3000/clients/{{clientId}}/shopping-carts/current/product-items HTTP/1.1
+content-type: application/json
+
+{
+  "productId": "{{productId}}",
+  "quantity": 10
+}
+
+### Get State
+
+GET http://localhost:3000/clients/{{clientId}}/shopping-carts/current HTTP/1.1
+content-type: application/json
+
+
+### Remove Product
+
+@quantity = 1
+
+DELETE http://localhost:3000/clients/{{clientId}}/shopping-carts/current/product-items?productId={{productId}}&quantity={{quantity}}&unitPrice={{unitPrice}} HTTP/1.1
+content-type: application/json
+
+### CONFIRM
+
+POST http://localhost:3000/clients/{{clientId}}/shopping-carts/current/confirm HTTP/1.1
+content-type: application/json
+
+
+### Cancel
+
+POST http://localhost:3000/clients/{{clientId}}/shopping-carts/current HTTP/1.1
+content-type: application/json

@@ -1,0 +1,53 @@
+{
+  "name": "@event-driven-io/emmett-opossum",
+  "type": "module",
+  "version": "0.43.0-beta.12",
+  "description": "Emmett - Opossum-js - Event Sourcing development made simple",
+  "scripts": {
+    "build": "tsup",
+    "build:ts": "tsc",
+    "build:ts:watch": "tsc -b --watch",
+    "test": "run-s test:unit test:int test:e2e",
+    "test:unit": "vitest run \".unit.spec\"",
+    "test:int": "vitest run \".int.spec\"",
+    "test:e2e": "vitest run \".e2e.spec\"",
+    "test:watch": "vitest",
+    "test:unit:watch": "vitest \".unit.spec\"",
+    "test:int:watch": "vitest \".int.spec\"",
+    "test:e2e:watch": "vitest \".e2e.spec\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/event-driven-io/emmett.git"
+  },
+  "keywords": [
+    "Event Sourcing"
+  ],
+  "author": "Oskar Dudycz",
+  "bugs": {
+    "url": "https://github.com/event-driven-io/emmett/issues"
+  },
+  "homepage": "https://event-driven-io.github.io/emmett/",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "peerDependencies": {
+    "@event-driven-io/emmett": "0.43.0-beta.12",
+    "opossum-js": "^0.1.0"
+  }
+}

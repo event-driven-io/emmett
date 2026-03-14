@@ -1,0 +1,13 @@
+services:
+  app:
+    build:
+      # use local image
+      dockerfile: Dockerfile
+      context: .
+    container_name: emmett_api
+    profiles: [app]
+    environment:
+      - OPOSSUM_STORE_NAME=emmett_shopping_carts
+      - OPOSSUM_ROOT_PATH=/app/data
+    ports:
+      - '3000:3000'
