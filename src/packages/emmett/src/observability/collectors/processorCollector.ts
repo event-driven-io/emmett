@@ -2,6 +2,7 @@ import {
   MessagingAttributes,
   ObservabilityScope,
   type ObservabilityScope as ObservabilityScopeType,
+  type SpanContext,
   type SpanLink,
 } from '@event-driven-io/almanac';
 import type { ProcessorCheckpoint } from '../../processors';
@@ -103,6 +104,41 @@ export const processorCollector = (
           }
         },
         { links: sourceLinks },
+      );
+    },
+
+    startMessageScope: <
+      MessageType extends Message = Message,
+      MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+      T = void,
+    >(
+      context: ProcessorCollectorContext & { archetypeType: string },
+      message: RecordedMessage<MessageType, MessageMetadataType>,
+      batchCtx: SpanContext,
+      fn: (scope: ObservabilityScopeType) => Promise<T>,
+    ): Promise<T> => {
+      const meta = message.metadata as Record<string, unknown>;
+      const parent =
+        meta?.traceId && meta?.spanId
+          ? { traceId: meta.traceId as string, spanId: meta.spanId as string }
+          : undefined;
+      const links: SpanLink[] = batchCtx.traceId ? [batchCtx] : [];
+
+      return startScope(
+        `processor.message.${message.type}`,
+        async (scope) => {
+          scope.setAttributes({
+            [A.scope.type]: context.archetypeType,
+            [A.processor.id]: context.processorId,
+            [A.processor.type]: context.type,
+            [M.operationType]: 'process',
+            ...(meta?.messageId
+              ? { [M.messageId]: meta.messageId as string }
+              : {}),
+          });
+          return fn(scope);
+        },
+        { parent, links },
       );
     },
 

@@ -208,6 +208,7 @@ export const CommandHandler =
                 : STREAM_DOES_NOT_EXIST);
 
             // 4. Append result to the stream
+            const { traceId, spanId } = scope.spanContext();
             const appendResult = await eventStore.appendToStream(
               streamName,
               eventsToAppend,
@@ -221,6 +222,8 @@ export const CommandHandler =
                 ...(handleOptions?.causationId
                   ? { causationId: handleOptions.causationId }
                   : {}),
+                traceId,
+                spanId,
               },
             );
 

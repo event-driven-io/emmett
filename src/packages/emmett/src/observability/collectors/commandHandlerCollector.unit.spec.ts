@@ -1,12 +1,16 @@
+import {
+  collectingMeter,
+  collectingTracer,
+  ObservabilitySpec,
+} from '@event-driven-io/almanac';
 import { describe, expect, it } from 'vitest';
-import { collectingTracer, collectingMeter } from '@event-driven-io/almanac';
-import { commandHandlerCollector } from './commandHandlerCollector';
-import { resolveCommandObservability } from '../options';
 import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
 } from '../attributes';
+import { resolveCommandObservability } from '../options';
+import { commandHandlerCollector } from './commandHandlerCollector';
 
 const A = EmmettAttributes;
 const M = {
@@ -15,83 +19,145 @@ const M = {
   batchMessageCount: 'messaging.batch.message_count',
 };
 
-const makeObservability = () => {
-  const tracer = collectingTracer();
-  const meter = collectingMeter();
-  return {
-    tracer,
-    meter,
-    attributeTarget: 'both' as const,
-    includeMessagePayloads: false,
-  };
-};
+const given = ObservabilitySpec.for();
 
 describe('commandHandlerCollector', () => {
-  it('creates a span named command.handle', async () => {
-    const obs = makeObservability();
-    const collector = commandHandlerCollector(obs);
-    await collector.startScope({ streamName: 'test-stream' }, () =>
-      Promise.resolve(),
-    );
-    expect(obs.tracer.spans.some((s) => s.name === 'command.handle')).toBe(
-      true,
-    );
-  });
-
-  it('sets emmett.scope.type and emmett.scope.main on root span', async () => {
-    const obs = makeObservability();
-    const collector = commandHandlerCollector(obs);
-    await collector.startScope({ streamName: 'test-stream' }, () =>
-      Promise.resolve(),
-    );
-    const span = obs.tracer.spans.find((s) => s.name === 'command.handle');
-    expect(span).toBeDefined();
-    expect(span!.attributes[A.scope.type]).toBe('command');
-    expect(span!.attributes['emmett.scope.main']).toBe(true);
+  it('creates a span named command.handle with emmett.scope.type=command and emmett.scope.main=true', async () => {
+    await given({})
+      .when((config) =>
+        commandHandlerCollector(config).startScope(
+          { streamName: 'test-stream' },
+          () => Promise.resolve(),
+        ),
+      )
+      .then(({ spans }) =>
+        spans.haveSpanNamed('command.handle').hasAttributes({
+          [A.scope.type]: 'command',
+          'emmett.scope.main': true,
+        }),
+      );
   });
 
   it('sets emmett.stream.name via creation-time attributes', async () => {
-    const obs = makeObservability();
-    const collector = commandHandlerCollector(obs);
-    await collector.startScope({ streamName: 'orders-123' }, () =>
-      Promise.resolve(),
-    );
-    const span = obs.tracer.spans.find((s) => s.name === 'command.handle');
-    expect(span).toBeDefined();
-    expect(span!.attributes[A.stream.name]).toBe('orders-123');
+    await given({})
+      .when((config) =>
+        commandHandlerCollector(config).startScope(
+          { streamName: 'orders-123' },
+          () => Promise.resolve(),
+        ),
+      )
+      .then(({ spans }) =>
+        spans
+          .haveSpanNamed('command.handle')
+          .hasAttribute(A.stream.name, 'orders-123'),
+      );
   });
 
   it('sets messaging.system and messaging.destination.name', async () => {
-    const obs = makeObservability();
-    const collector = commandHandlerCollector(obs);
-    await collector.startScope({ streamName: 'orders-123' }, () =>
-      Promise.resolve(),
-    );
-    const span = obs.tracer.spans.find((s) => s.name === 'command.handle');
-    expect(span).toBeDefined();
-    expect(span!.attributes[M.system]).toBe(MessagingSystemName);
-    expect(span!.attributes[M.destinationName]).toBe('orders-123');
+    await given({})
+      .when((config) =>
+        commandHandlerCollector(config).startScope(
+          { streamName: 'orders-123' },
+          () => Promise.resolve(),
+        ),
+      )
+      .then(({ spans }) =>
+        spans.haveSpanNamed('command.handle').hasAttributes({
+          [M.system]: MessagingSystemName,
+          [M.destinationName]: 'orders-123',
+        }),
+      );
   });
 
   it('sets emmett.command.status to success on success', async () => {
-    const obs = makeObservability();
-    const collector = commandHandlerCollector(obs);
-    await collector.startScope({ streamName: 'test' }, () => Promise.resolve());
-    const span = obs.tracer.spans.find((s) => s.name === 'command.handle');
-    expect(span).toBeDefined();
-    expect(span!.attributes[A.command.status]).toBe('success');
-    expect(span!.attributes['error']).toBe(false);
+    await given({})
+      .when((config) =>
+        commandHandlerCollector(config).startScope({ streamName: 'test' }, () =>
+          Promise.resolve(),
+        ),
+      )
+      .then(({ spans }) =>
+        spans.haveSpanNamed('command.handle').hasAttributes({
+          [A.command.status]: 'success',
+          error: false,
+        }),
+      );
+  });
+
+  it('recordEvents sets event_count, event_types, batch_message_count and increments counter per event', async () => {
+    const events = [
+      { type: 'OrderPlaced', data: {}, kind: 'Event' as const },
+      { type: 'ItemAdded', data: {}, kind: 'Event' as const },
+    ];
+    await given({})
+      .when((config) =>
+        commandHandlerCollector(config).startScope(
+          { streamName: 'test' },
+          (scope) => {
+            commandHandlerCollector(config).recordEvents(
+              scope,
+              events,
+              'success',
+            );
+            return Promise.resolve();
+          },
+        ),
+      )
+      .then(({ spans }) =>
+        spans.haveSpanNamed('command.handle').hasAttributes({
+          [A.command.eventCount]: 2,
+          [A.command.eventTypes]: ['OrderPlaced', 'ItemAdded'],
+          [M.batchMessageCount]: 2,
+        }),
+      );
+  });
+
+  it('recordVersions sets stream version before and after', async () => {
+    await given({})
+      .when((config) =>
+        commandHandlerCollector(config).startScope(
+          { streamName: 'test' },
+          (scope) => {
+            commandHandlerCollector(config).recordVersions(scope, 3n, 5n);
+            return Promise.resolve();
+          },
+        ),
+      )
+      .then(({ spans }) =>
+        spans.haveSpanNamed('command.handle').hasAttributes({
+          [A.stream.versionBefore]: 3,
+          [A.stream.versionAfter]: 5,
+        }),
+      );
+  });
+
+  it('scope.scope creates child scopes', async () => {
+    await given({})
+      .when((config) =>
+        commandHandlerCollector(config).startScope(
+          { streamName: 'test' },
+          async (scope) => {
+            await scope.scope('decide', () => Promise.resolve());
+          },
+        ),
+      )
+      .then(({ spans }) => spans.containSpanNamed('decide'));
   });
 
   it('sets emmett.command.status to failure and error attributes on error', async () => {
-    const obs = makeObservability();
-    const collector = commandHandlerCollector(obs);
+    const tracer = collectingTracer();
+    const obs = {
+      tracer,
+      meter: collectingMeter(),
+      attributeTarget: 'both' as const,
+      includeMessagePayloads: false,
+    };
     await expect(
-      collector.startScope({ streamName: 'test' }, () =>
+      commandHandlerCollector(obs).startScope({ streamName: 'test' }, () =>
         Promise.reject(new Error('boom')),
       ),
     ).rejects.toThrow('boom');
-    const span = obs.tracer.spans.find((s) => s.name === 'command.handle');
+    const span = tracer.spans.find((s) => s.name === 'command.handle');
     expect(span).toBeDefined();
     expect(span!.attributes[A.command.status]).toBe('failure');
     expect(span!.attributes['error']).toBe(true);
@@ -100,61 +166,46 @@ describe('commandHandlerCollector', () => {
   });
 
   it('records emmett.command.handling.duration histogram', async () => {
-    const obs = makeObservability();
-    const collector = commandHandlerCollector(obs);
-    await collector.startScope({ streamName: 'test' }, () => Promise.resolve());
-    const entry = obs.meter.histograms.find(
+    const meter = collectingMeter();
+    const obs = {
+      tracer: collectingTracer(),
+      meter,
+      attributeTarget: 'both' as const,
+      includeMessagePayloads: false,
+    };
+    await commandHandlerCollector(obs).startScope({ streamName: 'test' }, () =>
+      Promise.resolve(),
+    );
+    const entry = meter.histograms.find(
       (h) => h.name === EmmettMetrics.command.handlingDuration,
     );
     expect(entry).toBeDefined();
     expect(entry!.value).toBeGreaterThanOrEqual(0);
   });
 
-  it('recordEvents sets event_count, event_types, batch_message_count and increments counter per event', async () => {
-    const obs = makeObservability();
-    const collector = commandHandlerCollector(obs);
+  it('recordEvents increments counter per event', async () => {
+    const meter = collectingMeter();
+    const obs = {
+      tracer: collectingTracer(),
+      meter,
+      attributeTarget: 'both' as const,
+      includeMessagePayloads: false,
+    };
     const events = [
       { type: 'OrderPlaced', data: {}, kind: 'Event' as const },
       { type: 'ItemAdded', data: {}, kind: 'Event' as const },
     ];
-    await collector.startScope({ streamName: 'test' }, (scope) => {
-      collector.recordEvents(scope, events, 'success');
-      return Promise.resolve();
-    });
-    const span = obs.tracer.spans.find((s) => s.name === 'command.handle');
-    expect(span).toBeDefined();
-    expect(span!.attributes[A.command.eventCount]).toBe(2);
-    expect(span!.attributes[A.command.eventTypes]).toEqual([
-      'OrderPlaced',
-      'ItemAdded',
-    ]);
-    expect(span!.attributes[M.batchMessageCount]).toBe(2);
-    const counters = obs.meter.counters.filter(
+    await commandHandlerCollector(obs).startScope(
+      { streamName: 'test' },
+      (scope) => {
+        commandHandlerCollector(obs).recordEvents(scope, events, 'success');
+        return Promise.resolve();
+      },
+    );
+    const counters = meter.counters.filter(
       (c) => c.name === EmmettMetrics.event.appendingCount,
     );
     expect(counters.length).toBe(2);
-  });
-
-  it('recordVersions sets stream version before and after', async () => {
-    const obs = makeObservability();
-    const collector = commandHandlerCollector(obs);
-    await collector.startScope({ streamName: 'test' }, (scope) => {
-      collector.recordVersions(scope, 3n, 5n);
-      return Promise.resolve();
-    });
-    const span = obs.tracer.spans.find((s) => s.name === 'command.handle');
-    expect(span).toBeDefined();
-    expect(span!.attributes[A.stream.versionBefore]).toBe(3);
-    expect(span!.attributes[A.stream.versionAfter]).toBe(5);
-  });
-
-  it('scope.scope creates child scopes', async () => {
-    const obs = makeObservability();
-    const collector = commandHandlerCollector(obs);
-    await collector.startScope({ streamName: 'test' }, async (scope) => {
-      await scope.scope('decide', () => Promise.resolve());
-    });
-    expect(obs.tracer.spans.some((s) => s.name === 'decide')).toBe(true);
   });
 
   it('works with noop observability', async () => {

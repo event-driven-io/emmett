@@ -161,12 +161,12 @@ export const assertThat = <T>(item: T) => {
   };
 };
 
-export const assertDefined = (
+export function assertDefined(
   value: unknown,
   message?: string | Error,
-): asserts value => {
+): asserts value {
   assertOk(value, message instanceof Error ? message.message : message);
-};
+}
 
 export function assertFalse(
   condition: boolean,

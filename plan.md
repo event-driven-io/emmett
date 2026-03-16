@@ -1084,7 +1084,6 @@ return startScope('processor.handle', async (scope) => {
     [A.processor.id]: processorId,
     [A.processor.type]: processorType,
     [M.system]: MessagingSystemName,
-    [M.consumerGroupName]: processorId,
   });
 
   const batchCtx = scope.spanContext();
@@ -1540,7 +1539,6 @@ Instruments processor message handling using `ObservabilityScope`. Attributes fr
   - `emmett.processor.lag_events`: number -- how far behind latest position (populated when stream tail position is available)
 - OTel messaging conventions:
   - `messaging.system: 'emmett'`
-  - `messaging.consumer.group.name`: processorId
   - `messaging.batch.message_count`: batch size
   - Per-message child scopes: `messaging.operation.type: 'process'`, `messaging.message.id`
   - Per-message `parent` from message metadata (traceId/spanId) — strategy handles propagation vs link
@@ -1608,7 +1606,7 @@ Tests:
 
 1. `creates processor.handle span with emmett.scope.type=processor and emmett.scope.main=true`
 2. `sets emmett.processor.id, emmett.processor.type, emmett.processor.batch_size`
-3. `sets messaging.system, messaging.consumer.group.name, messaging.batch.message_count`
+3. `sets messaging.system, messaging.batch.message_count`
 4. `sets emmett.processor.event_types from message types`
 5. `batch span links to all unique source message trace contexts`
 6. `per-message child scopes receive parent from message metadata and links back to batch span`
@@ -1737,7 +1735,6 @@ Consumer-level (on poll spans when enabled, always on metrics):
 
 Per-processor delivery (child scopes of the poll span, only when poll span exists):
 - `emmett.consumer.delivery.processor_id`: string
-- `messaging.consumer.group.name`: processorId
 
 #### Span links: established at processor level, not consumer level
 
@@ -1831,7 +1828,7 @@ const consumerCollector = (observability: ResolvedConsumerObservability) => {
           if (error instanceof Error) child.recordException(error);
           throw error;
         }
-      }, { attributes: { [A.consumer.delivery.processorId]: processorId, [M.consumerGroupName]: processorId } }),
+      }, { attributes: { [A.consumer.delivery.processorId]: processorId } }),
   };
 };
 ```

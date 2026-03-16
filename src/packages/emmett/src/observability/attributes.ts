@@ -86,6 +86,8 @@ export const EmmettMetrics = {
 export const ScopeTypes = {
   command: 'command',
   processor: 'processor',
+  reactor: 'reactor',
+  projector: 'projector',
   workflow: 'workflow',
   consumer: 'consumer',
 } as const;

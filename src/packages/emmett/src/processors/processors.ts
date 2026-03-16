@@ -4,6 +4,7 @@ import { upcastRecordedMessage } from '../eventStore';
 import type { ProjectionDefinition } from '../projections';
 import type { ProcessorObservabilityConfig } from '../observability';
 import {
+  EmmettAttributes,
   processorCollector,
   resolveProcessorObservability,
 } from '../observability';
@@ -430,12 +431,15 @@ export const reactor = <
     ): Promise<MessageHandlerResult> => {
       if (!isActive) return Promise.resolve();
 
+      const A = EmmettAttributes;
+
       return collector.startScope(
         { processorId, type, checkpoint: lastCheckpoint },
         messages,
-        (_scope) =>
+        async (scope) =>
           processingScope(async (context) => {
             let result: MessageHandlerResult = undefined;
+            const batchCtx = scope.spanContext();
 
             for (const message of messages) {
               if (wasMessageHandled(message, lastCheckpoint)) continue;
@@ -452,9 +456,20 @@ export const reactor = <
               if (canHandle !== undefined && !canHandle.includes(upcasted.type))
                 continue;
 
-              const messageProcessingResult = await eachMessage(
+              const messageProcessingResult = await collector.startMessageScope(
+                {
+                  processorId,
+                  type,
+                  checkpoint: lastCheckpoint,
+                  archetypeType: type,
+                },
                 upcasted,
-                context,
+                batchCtx,
+                async (messageScope) =>
+                  eachMessage(upcasted, {
+                    ...context,
+                    observabilityScope: messageScope,
+                  }),
               );
 
               if (checkpoints) {
@@ -498,6 +513,9 @@ export const reactor = <
                 continue;
             }
 
+            scope.setAttributes({
+              [A.processor.status]: result?.type ?? 'ack',
+            });
             return result;
           }, partialContext) as Promise<MessageHandlerResult>,
       );

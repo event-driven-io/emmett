@@ -211,6 +211,8 @@ export const getInMemoryEventStore = (
             ...(options?.causationId
               ? { causationId: options.causationId }
               : {}),
+            ...(options?.traceId ? { traceId: options.traceId } : {}),
+            ...(options?.spanId ? { spanId: options.spanId } : {}),
           };
           return {
             ...event,

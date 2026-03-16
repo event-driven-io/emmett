@@ -83,7 +83,7 @@ const makeScope = (
   spanContext: () => span.spanContext(),
 });
 
-const noopScope: ObservabilityScope = {
+export const noopScope: ObservabilityScope = {
   setAttributes: () => {},
   scope: async (_name, fn) => fn(noopScope),
   addEvent: () => {},

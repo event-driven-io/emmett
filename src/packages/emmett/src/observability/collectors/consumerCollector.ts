@@ -1,6 +1,7 @@
 import {
   ObservabilityScope,
   MessagingAttributes,
+  noopScope,
   type ObservabilityScope as ObservabilityScopeType,
 } from '@event-driven-io/almanac';
 import {
@@ -28,12 +29,6 @@ export const consumerCollector = (
   );
 
   return {
-    shouldTrace: (messageCount: number): boolean => {
-      if (observability.pollTracing === 'off') return false;
-      if (observability.pollTracing === 'active') return messageCount > 0;
-      return true;
-    },
-
     tracePoll: <T>(
       context: {
         processorCount: number;
@@ -42,8 +37,14 @@ export const consumerCollector = (
         waitMs?: number;
       },
       fn: (scope: ObservabilityScopeType) => Promise<T>,
-    ): Promise<T> =>
-      startScope('consumer.poll', async (scope) => {
+    ): Promise<T> => {
+      const skip =
+        observability.pollTracing === 'off' ||
+        (observability.pollTracing === 'active' && context.batchSize === 0);
+
+      if (skip) return fn(noopScope);
+
+      return startScope('consumer.poll', async (scope) => {
         scope.setAttributes({
           [A.scope.type]: ScopeTypes.consumer,
           [A.consumer.batchSize]: context.batchSize,
@@ -56,7 +57,8 @@ export const consumerCollector = (
             : {}),
         });
         return fn(scope);
-      }),
+      });
+    },
 
     recordPollMetrics: (
       durationMs: number,

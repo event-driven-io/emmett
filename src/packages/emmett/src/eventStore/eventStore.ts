@@ -206,6 +206,8 @@ export type AppendToStreamOptions<
     JSONSerializationOptions;
   correlationId?: string;
   causationId?: string;
+  traceId?: string;
+  spanId?: string;
 };
 
 export type AppendToStreamResult = {
