@@ -1,8 +1,12 @@
 import { v7 as uuid } from 'uuid';
 import type { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
-import type { ProcessorObservabilityConfig } from '../observability';
+import type {
+  ProcessorObservabilityConfig,
+  WithObservabilityScope,
+} from '../observability';
 import {
+  EmmettAttributes,
   processorCollector,
   resolveProcessorObservability,
 } from '../observability';
@@ -272,13 +276,33 @@ export const reactor = <
         messages: RecordedMessage<MessageType, MessageMetadataType>[],
         context: HandlerContext,
       ): Promise<BatchMessageHandlerResult> => {
+        const batchScope = (context as WithObservabilityScope<HandlerContext>)
+          .observabilityScope;
+        const batchCtx = batchScope?.spanContext();
+
         let result: BatchMessageHandlerResult = undefined;
         for (let i = 0; i < messages.length; i++) {
           const message = messages[i]!;
-          const messageProcessingResult = await options.eachMessage(
-            message,
-            context,
-          );
+          const runMessage = (messageScope?: typeof batchScope) =>
+            options.eachMessage(
+              message,
+              messageScope
+                ? { ...context, observabilityScope: messageScope }
+                : context,
+            );
+          const messageProcessingResult = batchCtx
+            ? await collector.startMessageScope(
+                {
+                  processorId,
+                  type,
+                  checkpoint: lastCheckpoint,
+                  archetypeType: type,
+                },
+                message,
+                batchCtx,
+                (messageScope) => Promise.resolve(runMessage(messageScope)),
+              )
+            : await runMessage();
 
           if (
             messageProcessingResult &&
@@ -444,7 +468,7 @@ export const reactor = <
       return collector.startScope(
         { processorId, type, checkpoint: lastCheckpoint },
         messages,
-        async () => {
+        async (scope) => {
           try {
             return await processingScope(async (context) => {
               const messagesAboveCheckpoint = messages.filter(
@@ -476,7 +500,10 @@ export const reactor = <
                   ? upcastedMessages.slice(0, stopMessageIndex + 1)
                   : upcastedMessages;
 
-              const batchResult = await eachBatch(unhandledMessages, context);
+              const batchResult = await eachBatch(unhandledMessages, {
+                ...context,
+                observabilityScope: scope,
+              });
 
               const messageProcessingResult: BatchMessageHandlerResult =
                 batchResult?.type === 'STOP'
@@ -520,6 +547,11 @@ export const reactor = <
                   lastCheckpoint = storeCheckpointResult.newCheckpoint;
                 }
               }
+
+              scope.setAttributes({
+                [EmmettAttributes.processor.status]:
+                  messageProcessingResult?.type ?? 'ack',
+              });
 
               if (isStop) {
                 isActive = false;
