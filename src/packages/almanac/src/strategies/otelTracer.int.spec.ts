@@ -9,6 +9,7 @@ import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-ho
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { otelTracer } from './otelTracer';
 import { ObservabilityScope } from '../scope';
+import { assertThatOtelSpan, assertThatOtelSpans } from '../otelTesting';
 
 describe('otelTracer integration', () => {
   const exporter = new InMemorySpanExporter();
@@ -49,14 +50,16 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    const span = spans[0]!;
-    expect(span.name).toBe('command.handle');
-    expect(span.attributes['almanac.scope.main']).toBe(true);
-    expect(span.attributes['scope.type']).toBe('command');
-    expect(span.attributes['messaging.system']).toBe('emmett');
-    expect(span.attributes['stream.name']).toBe('orders');
-    expect(span.events.some((e) => e.name === 'command.validated')).toBe(true);
-    expect(span.spanContext().traceId).toMatch(/^[0-9a-f]{32}$/);
+    assertThatOtelSpans(spans)
+      .haveSpanNamed('command.handle')
+      .isMainScope()
+      .hasAttributes({
+        'scope.type': 'command',
+        'messaging.system': 'emmett',
+        'stream.name': 'orders',
+      })
+      .hasEvent('command.validated');
+    expect(spans[0]!.spanContext().traceId).toMatch(/^[0-9a-f]{32}$/);
   });
 
   it('nested scopes inherit active context as parent via AsyncLocalStorageContextManager', async () => {
@@ -84,15 +87,14 @@ describe('otelTracer integration', () => {
     const read = spans.find((s) => s.name === 'eventstore.read')!;
     const append = spans.find((s) => s.name === 'eventstore.append')!;
 
-    // root span is the main span
-    expect(root.attributes['almanac.scope.main']).toBe(true);
+    assertThatOtelSpan(root).isMainScope();
     // children are linked to root via active context
-    expect(read.parentSpanContext?.spanId).toBe(root.spanContext().spanId);
-    expect(append.parentSpanContext?.spanId).toBe(root.spanContext().spanId);
-    expect(read.spanContext().traceId).toBe(root.spanContext().traceId);
+    assertThatOtelSpan(read).hasParent(root.spanContext());
+    assertThatOtelSpan(append).hasParent(root.spanContext());
     // default attributeTarget=both copies child attributes up to root
-    expect(root.attributes['eventstore.operation']).toBe('read');
-    expect(root.attributes['eventstore.append.batch_size']).toBe(1);
+    assertThatOtelSpan(root)
+      .hasAttribute('eventstore.operation', 'read')
+      .hasAttribute('eventstore.append.batch_size', 1);
   });
 
   it('3-level nesting forms a correct parent-child chain', async () => {
@@ -122,10 +124,9 @@ describe('otelTracer integration', () => {
     const msg = spans.find((s) => s.name === 'processor.message.OrderPlaced')!;
     const read = spans.find((s) => s.name === 'eventstore.read')!;
 
-    expect(root.attributes['almanac.scope.main']).toBe(true);
-    expect(msg.parentSpanContext?.spanId).toBe(root.spanContext().spanId);
-    expect(read.parentSpanContext?.spanId).toBe(msg.spanContext().spanId);
-    expect(read.spanContext().traceId).toBe(root.spanContext().traceId);
+    assertThatOtelSpan(root).isMainScope();
+    assertThatOtelSpan(msg).hasParent(root.spanContext());
+    assertThatOtelSpan(read).hasParent(msg.spanContext());
   });
 
   it('propagation=propagate creates a child span under the producer trace', async () => {
@@ -153,10 +154,11 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    const span = spans[0]!;
-    expect(span.parentSpanContext?.spanId).toBe(producerSpanId);
-    expect(span.parentSpanContext?.traceId).toBe(producerTraceId);
-    expect(span.spanContext().traceId).toBe(producerTraceId);
+    assertThatOtelSpan(spans[0]).hasParent({
+      traceId: producerTraceId,
+      spanId: producerSpanId,
+    });
+    expect(spans[0]!.spanContext().traceId).toBe(producerTraceId);
   });
 
   it('propagation=links demotes producer span to a SpanLink and starts a fresh trace', async () => {
@@ -184,16 +186,10 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    const span = spans[0]!;
-    expect(span.parentSpanContext).toBeUndefined();
-    expect(span.spanContext().traceId).not.toBe(producerTraceId);
-    expect(
-      span.links.some(
-        (l) =>
-          l.context.spanId === producerSpanId &&
-          l.context.traceId === producerTraceId,
-      ),
-    ).toBe(true);
+    assertThatOtelSpan(spans[0])
+      .hasNoParent()
+      .hasCreationLinks([{ traceId: producerTraceId, spanId: producerSpanId }]);
+    expect(spans[0]!.spanContext().traceId).not.toBe(producerTraceId);
   });
 
   it('explicit links array links the batch span to source message spans', async () => {
@@ -216,14 +212,7 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    const span = spans[0]!;
-    expect(span.links).toHaveLength(2);
-    expect(
-      span.links.some((l) => l.context.spanId === sourceLink1.spanId),
-    ).toBe(true);
-    expect(
-      span.links.some((l) => l.context.spanId === sourceLink2.spanId),
-    ).toBe(true);
+    assertThatOtelSpan(spans[0]).hasCreationLinks([sourceLink1, sourceLink2]);
   });
 
   it('propagation=links with extra links includes both demoted parent and additional links', async () => {
@@ -247,14 +236,12 @@ describe('otelTracer integration', () => {
     );
 
     const spans = exporter.getFinishedSpans();
-    const span = spans[0]!;
-    expect(span.parentSpanContext).toBeUndefined();
-    expect(span.links.some((l) => l.context.spanId === producerSpanId)).toBe(
-      true,
-    );
-    expect(span.links.some((l) => l.context.spanId === extraLink.spanId)).toBe(
-      true,
-    );
+    assertThatOtelSpan(spans[0])
+      .hasNoParent()
+      .hasCreationLinks([
+        { traceId: producerTraceId, spanId: producerSpanId },
+        extraLink,
+      ]);
   });
 
   it('error marks span with ERROR status and records exception event', async () => {
@@ -269,10 +256,9 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    const span = spans[0]!;
-    expect(span.status.code).toBe(SpanStatusCode.ERROR);
-    expect(span.status.message).toBe('stream version conflict');
-    expect(span.events.some((e) => e.name === 'exception')).toBe(true);
+    assertThatOtelSpan(spans[0])
+      .hasStatus(SpanStatusCode.ERROR, 'stream version conflict')
+      .hasEvent('exception');
   });
 
   it('full processor batch scenario: all spans captured with correct parentage and attributes', async () => {
@@ -319,14 +305,13 @@ describe('otelTracer integration', () => {
     const msg = spans.find((s) => s.name === 'processor.message.OrderPlaced')!;
     const read = spans.find((s) => s.name === 'eventstore.read')!;
 
-    expect(root.attributes['almanac.scope.main']).toBe(true);
-    expect(root.attributes['processor.status']).toBe('success');
-    expect(root.attributes['processor.checkpoint.after']).toBe(42);
-    expect(root.links.some((l) => l.context.spanId === sourceSpan.spanId)).toBe(
-      true,
-    );
+    assertThatOtelSpan(root)
+      .isMainScope()
+      .hasAttribute('processor.status', 'success')
+      .hasAttribute('processor.checkpoint.after', 42)
+      .hasCreationLinks([sourceSpan]);
 
-    expect(msg.parentSpanContext?.spanId).toBe(root.spanContext().spanId);
-    expect(read.parentSpanContext?.spanId).toBe(msg.spanContext().spanId);
+    assertThatOtelSpan(msg).hasParent(root.spanContext());
+    assertThatOtelSpan(read).hasParent(msg.spanContext());
   });
 });
