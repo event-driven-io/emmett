@@ -89,6 +89,8 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260115.0",
     "@faker-js/faker": "^10.2.0",
+    "@opentelemetry/sdk-metrics": "^2.6.0",
+    "@opentelemetry/sdk-trace-base": "^2.6.0",
     "@types/node": "^25.0.10",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
