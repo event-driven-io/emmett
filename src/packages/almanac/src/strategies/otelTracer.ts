@@ -1,4 +1,9 @@
-import { context, ROOT_CONTEXT, SpanStatusCode, trace } from '@opentelemetry/api';
+import {
+  context,
+  ROOT_CONTEXT,
+  SpanStatusCode,
+  trace,
+} from '@opentelemetry/api';
 import type { SpanOptions } from '@opentelemetry/api';
 import type { ActiveSpan, StartSpanOptions, Tracer } from '../tracer';
 
@@ -25,7 +30,8 @@ export const otelTracer = (tracerName = 'almanac'): Tracer => ({
     // 'propagate' → real parent (child span under producer's trace)
     // 'links' → demote parent to a SpanLink, start fresh trace from ROOT_CONTEXT
     // default (no parent) → inherit active context so nested scopes chain naturally
-    let ctx = options?.propagation === 'links' ? ROOT_CONTEXT : context.active();
+    let ctx =
+      options?.propagation === 'links' ? ROOT_CONTEXT : context.active();
     if (options?.parent) {
       const parentCtx = {
         traceId: options.parent.traceId,

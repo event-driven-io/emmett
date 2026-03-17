@@ -26,64 +26,133 @@ describe('otelMeter integration', () => {
     exporter.reset();
   });
 
-  async function collectAndLog() {
+  async function flush() {
     await reader.forceFlush();
-    const collected = exporter.getMetrics();
-    const summary = collected
+    return exporter
+      .getMetrics()
       .flatMap((rm) => rm.scopeMetrics)
-      .flatMap((sm) => sm.metrics)
-      .map((m) => ({
-        name: m.descriptor.name,
-        dataPoints: m.dataPoints,
-      }));
-    console.log(
-      '\n--- Collected Metrics ---\n' + JSON.stringify(summary, null, 2),
-    );
-    return collected;
+      .flatMap((sm) => sm.metrics);
   }
 
-  it('configure otelMeter and record counter, histogram, and gauge', async () => {
+  it('records command handling metrics with correct values and attributes', async () => {
     const meter = otelMeter('almanac-integration');
 
-    meter.counter('commands.total').add(1, { 'command.type': 'AddProduct' });
     meter
-      .histogram('command.duration_ms')
-      .record(42, { 'command.type': 'AddProduct' });
-    meter.gauge('queue.depth').record(7, { queue: 'commands' });
+      .histogram('command.handling.duration')
+      .record(34, { 'command.status': 'success' });
+    meter
+      .counter('event.appending.count')
+      .add(2, { 'event.type': 'OrderPlaced' });
+    meter
+      .counter('event.appending.count')
+      .add(1, { 'event.type': 'InventoryReserved' });
 
-    const collected = await collectAndLog();
-    const names = collected
-      .flatMap((rm) => rm.scopeMetrics)
-      .flatMap((sm) => sm.metrics)
-      .map((m) => m.descriptor.name);
+    const collected = await flush();
+    const names = collected.map((m) => m.descriptor.name);
+    expect(names).toContain('command.handling.duration');
+    expect(names).toContain('event.appending.count');
 
-    expect(names).toContain('commands.total');
-    expect(names).toContain('command.duration_ms');
-    expect(names).toContain('queue.depth');
+    type HistogramValue = { count: number; sum: number };
+    const duration = collected.find(
+      (m) => m.descriptor.name === 'command.handling.duration',
+    )!;
+    expect((duration.dataPoints[0]!.value as HistogramValue).count).toBe(1);
+    expect((duration.dataPoints[0]!.value as HistogramValue).sum).toBe(34);
+    expect(duration.dataPoints[0]!.attributes['command.status']).toBe(
+      'success',
+    );
+
+    const appendCount = collected.find(
+      (m) => m.descriptor.name === 'event.appending.count',
+    )!;
+    const total = appendCount.dataPoints.reduce(
+      (acc, dp) => acc + (dp.value as number),
+      0,
+    );
+    expect(total).toBe(3);
   });
 
-  it('realistic multi-metric scenario: process an event stream batch', async () => {
+  it('records processor metrics: processing duration histogram and lag gauge', async () => {
     const meter = otelMeter('almanac-integration');
-    const processed = meter.counter('events.processed');
-    const latency = meter.histogram('event.processing_ms');
-    const backlog = meter.gauge('events.backlog');
 
-    const events = [
-      { id: 'e1', ms: 12 },
-      { id: 'e2', ms: 8 },
-      { id: 'e3', ms: 25 },
-      { id: 'e4', ms: 5 },
-      { id: 'e5', ms: 18 },
-    ];
+    meter.histogram('processor.processing.duration').record(12, {
+      'processor.id': 'orders-processor',
+      'processor.type': 'projector',
+      'processor.status': 'success',
+    });
+    meter.histogram('processor.processing.duration').record(8, {
+      'processor.id': 'orders-processor',
+      'processor.type': 'projector',
+      'processor.status': 'success',
+    });
+    meter
+      .gauge('processor.lag_events')
+      .record(42, { 'processor.id': 'orders-processor' });
 
-    for (const event of events) {
-      processed.add(1, { 'event.type': 'OrderPlaced' });
-      latency.record(event.ms, { 'event.type': 'OrderPlaced' });
-    }
+    const collected = await flush();
 
-    backlog.record(events.length, { 'consumer.group': 'orders-consumer' });
+    type HistogramValue = { count: number; sum: number };
+    const duration = collected.find(
+      (m) => m.descriptor.name === 'processor.processing.duration',
+    )!;
+    expect(duration).toBeDefined();
+    const totalCount = duration.dataPoints.reduce(
+      (acc, dp) => acc + (dp.value as HistogramValue).count,
+      0,
+    );
+    expect(totalCount).toBe(2);
+    const totalSum = duration.dataPoints.reduce(
+      (acc, dp) => acc + (dp.value as HistogramValue).sum,
+      0,
+    );
+    expect(totalSum).toBe(20);
 
-    const collected = await collectAndLog();
-    expect(collected.length).toBeGreaterThan(0);
+    const lag = collected.find(
+      (m) => m.descriptor.name === 'processor.lag_events',
+    )!;
+    expect(lag).toBeDefined();
+    expect(lag.dataPoints[0]!.value).toBe(42);
+    expect(lag.dataPoints[0]!.attributes['processor.id']).toBe(
+      'orders-processor',
+    );
+  });
+
+  it('records stream read and append metrics with size tracking', async () => {
+    const meter = otelMeter('almanac-integration');
+
+    meter.histogram('stream.reading.duration').record(5, {
+      'stream.name': 'orders',
+      'eventstore.read.status': 'success',
+    });
+    meter.counter('event.reading.count').add(10, { 'stream.name': 'orders' });
+    meter.histogram('stream.appending.duration').record(3, {
+      'stream.name': 'orders',
+      'eventstore.append.status': 'success',
+    });
+    meter
+      .counter('event.appending.count')
+      .add(1, { 'event.type': 'OrderPlaced' });
+
+    const collected = await flush();
+    const names = collected.map((m) => m.descriptor.name);
+    expect(names).toContain('stream.reading.duration');
+    expect(names).toContain('event.reading.count');
+    expect(names).toContain('stream.appending.duration');
+    expect(names).toContain('event.appending.count');
+
+    type HistogramValue = { count: number; sum: number };
+    const readDuration = collected.find(
+      (m) => m.descriptor.name === 'stream.reading.duration',
+    )!;
+    expect((readDuration.dataPoints[0]!.value as HistogramValue).sum).toBe(5);
+    expect(
+      readDuration.dataPoints[0]!.attributes['eventstore.read.status'],
+    ).toBe('success');
+
+    const readCount = collected.find(
+      (m) => m.descriptor.name === 'event.reading.count',
+    )!;
+    expect(readCount.dataPoints[0]!.value).toBe(10);
+    expect(readCount.dataPoints[0]!.attributes['stream.name']).toBe('orders');
   });
 });
