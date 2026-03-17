@@ -1,4 +1,10 @@
-import type { ActiveSpan, SpanContext, SpanLink, Tracer } from './tracer';
+import type {
+  ActiveSpan,
+  SpanEventLevel,
+  SpanContext,
+  SpanLink,
+  Tracer,
+} from './tracer';
 import { noopSpan } from './tracer';
 import type { Sampler, TracePropagation, AttributeTarget } from './options';
 import { alwaysSample } from './options';
@@ -25,7 +31,11 @@ export type ObservabilityScope = {
     fn: (child: ObservabilityScope) => Promise<T>,
     options?: ScopeOptions,
   ): Promise<T>;
-  addEvent(name: string, attributes?: Record<string, unknown>): void;
+  addEvent(
+    name: string,
+    attributes?: Record<string, unknown>,
+    level?: SpanEventLevel,
+  ): void;
   addLink(link: SpanLink): void;
   recordException(error: Error | string): void;
   spanContext(): SpanContext;
@@ -77,7 +87,7 @@ const makeScope = (
         propagation: childOpts?.propagation ?? observability.propagation,
       },
     ),
-  addEvent: (name, attributes) => span.addEvent(name, attributes),
+  addEvent: (name, attributes, level) => span.addEvent(name, attributes, level),
   addLink: (link) => span.addLink(link),
   recordException: (error) => span.recordException(error),
   spanContext: () => span.spanContext(),

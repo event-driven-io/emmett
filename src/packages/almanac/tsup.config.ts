@@ -14,7 +14,7 @@ export default defineConfig([
     watch: env === 'development',
     target: 'esnext',
     outDir: 'dist',
-    entry: ['src/index.ts', 'src/otel.ts'],
+    entry: ['src/index.ts', 'src/otel.ts', 'src/pino.ts'],
     sourcemap: true,
     tsconfig: 'tsconfig.build.json',
   },

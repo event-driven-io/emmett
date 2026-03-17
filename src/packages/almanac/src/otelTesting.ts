@@ -12,7 +12,7 @@ type OtelSpanAssertions = {
   hasCreationLinks(
     links: { traceId: string; spanId: string }[],
   ): OtelSpanAssertions;
-  isMainScope(): OtelSpanAssertions;
+  isMainScope(prefix?: string): OtelSpanAssertions;
 };
 
 type OtelSpanCollectionAssertions = {
@@ -110,8 +110,8 @@ export const assertThatOtelSpan = (
       }
       return self;
     },
-    isMainScope() {
-      return self.hasAttribute('almanac.scope.main', true);
+    isMainScope(prefix = 'almanac') {
+      return self.hasAttribute(`${prefix}.scope.main`, true);
     },
   };
   return self;

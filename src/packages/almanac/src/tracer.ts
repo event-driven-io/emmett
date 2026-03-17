@@ -1,5 +1,7 @@
 import type { TracePropagation } from './types';
 
+export type SpanEventLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
+
 export type SpanContext = {
   traceId: string;
   spanId: string;
@@ -13,7 +15,11 @@ export type ActiveSpan = {
   setAttributes(attrs: Record<string, unknown>): void;
   spanContext(): SpanContext;
   addLink(link: SpanLink): void;
-  addEvent(name: string, attributes?: Record<string, unknown>): void;
+  addEvent(
+    name: string,
+    attributes?: Record<string, unknown>,
+    level?: SpanEventLevel,
+  ): void;
   recordException(error: Error | string): void;
 };
 

@@ -31,18 +31,26 @@ describe('otelTracer integration', () => {
     exporter.reset();
   });
 
-  it('records a command.handle span with attributes and marks root span as main', async () => {
+  it('records command.handle span with all success attributes', async () => {
     const tracer = otelTracer('almanac-integration');
-    const scope = ObservabilityScope({ tracer });
+    const scope = ObservabilityScope({ tracer, attributePrefix: 'emmett' });
 
     const result = await scope.startScope('command.handle', (s) => {
       s.setAttributes({
-        'scope.type': 'command',
+        'emmett.scope.type': 'command',
         'messaging.system': 'emmett',
-        'messaging.destination.name': 'orders',
-        'stream.name': 'orders',
+        'messaging.destination.name': 'orders-stream',
+        'emmett.stream.name': 'orders-stream',
       });
-      s.addEvent('command.validated', { 'command.type': 'PlaceOrder' });
+      s.addEvent('command.validated', { 'emmett.command.type': 'PlaceOrder' });
+      s.setAttributes({
+        'emmett.command.status': 'success',
+        'emmett.command.event_count': 1,
+        'emmett.command.event_types': ['OrderPlaced'],
+        'emmett.stream.version.before': 0,
+        'emmett.stream.version.after': 1,
+        error: false,
+      });
       return Promise.resolve('ok');
     });
 
@@ -52,66 +60,138 @@ describe('otelTracer integration', () => {
     expect(spans).toHaveLength(1);
     assertThatOtelSpans(spans)
       .haveSpanNamed('command.handle')
-      .isMainScope()
+      .isMainScope('emmett')
       .hasAttributes({
-        'scope.type': 'command',
+        'emmett.scope.type': 'command',
         'messaging.system': 'emmett',
-        'stream.name': 'orders',
+        'messaging.destination.name': 'orders-stream',
+        'emmett.stream.name': 'orders-stream',
+        'emmett.command.status': 'success',
+        'emmett.command.event_count': 1,
+        'emmett.stream.version.before': 0,
+        'emmett.stream.version.after': 1,
+        error: false,
       })
       .hasEvent('command.validated');
+    expect(spans[0]!.attributes['emmett.command.event_types']).toEqual([
+      'OrderPlaced',
+    ]);
     expect(spans[0]!.spanContext().traceId).toMatch(/^[0-9a-f]{32}$/);
   });
 
-  it('nested scopes inherit active context as parent via AsyncLocalStorageContextManager', async () => {
+  it('records command.handle span with all failure attributes', async () => {
     const tracer = otelTracer('almanac-integration');
-    const scope = ObservabilityScope({ tracer });
+    const scope = ObservabilityScope({ tracer, attributePrefix: 'emmett' });
+    const error = new Error('stream version conflict');
+
+    await expect(
+      scope.startScope('command.handle', (s) => {
+        s.setAttributes({
+          'emmett.scope.type': 'command',
+          'messaging.system': 'emmett',
+          'emmett.stream.name': 'orders-stream',
+        });
+        s.setAttributes({
+          'emmett.command.status': 'failure',
+          error: true,
+          'exception.message': error.message,
+          'exception.type': 'Error',
+        });
+        s.recordException(error);
+        return Promise.reject(error);
+      }),
+    ).rejects.toThrow('stream version conflict');
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    assertThatOtelSpan(spans[0])
+      .isMainScope('emmett')
+      .hasAttributes({
+        'emmett.scope.type': 'command',
+        'messaging.system': 'emmett',
+        'emmett.stream.name': 'orders-stream',
+        'emmett.command.status': 'failure',
+        error: true,
+        'exception.message': 'stream version conflict',
+        'exception.type': 'Error',
+      })
+      .hasStatus(SpanStatusCode.ERROR, 'stream version conflict')
+      .hasEvent('exception');
+  });
+
+  it('nested command.handle with eventStore child scopes inherits active context as parent', async () => {
+    const tracer = otelTracer('almanac-integration');
+    const scope = ObservabilityScope({ tracer, attributePrefix: 'emmett' });
 
     await scope.startScope('command.handle', async (s) => {
-      s.setAttributes({ 'scope.type': 'command', 'stream.name': 'orders' });
+      s.setAttributes({
+        'emmett.scope.type': 'command',
+        'emmett.stream.name': 'orders-stream',
+        'messaging.system': 'emmett',
+      });
 
-      await s.scope('eventstore.read', (child) => {
-        child.setAttributes({ 'eventstore.operation': 'read' });
+      await s.scope('eventStore.readStream', (child) => {
+        child.setAttributes({
+          'emmett.eventstore.operation': 'readStream',
+          'emmett.eventstore.read.event_count': 2,
+        });
         return Promise.resolve();
       });
 
-      await s.scope('eventstore.append', (child) => {
-        child.setAttributes({ 'eventstore.append.batch_size': 1 });
+      await s.scope('eventStore.appendToStream', (child) => {
+        child.setAttributes({
+          'emmett.eventstore.operation': 'appendToStream',
+          'emmett.eventstore.append.batch_size': 1,
+        });
         return Promise.resolve();
       });
+
+      s.setAttributes({ 'emmett.command.status': 'success', error: false });
     });
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(3);
 
     const root = spans.find((s) => s.name === 'command.handle')!;
-    const read = spans.find((s) => s.name === 'eventstore.read')!;
-    const append = spans.find((s) => s.name === 'eventstore.append')!;
+    const read = spans.find((s) => s.name === 'eventStore.readStream')!;
+    const append = spans.find((s) => s.name === 'eventStore.appendToStream')!;
 
-    assertThatOtelSpan(root).isMainScope();
-    // children are linked to root via active context
+    assertThatOtelSpan(root).isMainScope('emmett');
     assertThatOtelSpan(read).hasParent(root.spanContext());
     assertThatOtelSpan(append).hasParent(root.spanContext());
-    // default attributeTarget=both copies child attributes up to root
+    // attributeTarget=both copies child attributes up to root; last write wins for emmett.eventstore.operation
     assertThatOtelSpan(root)
-      .hasAttribute('eventstore.operation', 'read')
-      .hasAttribute('eventstore.append.batch_size', 1);
+      .hasAttribute('emmett.eventstore.operation', 'appendToStream')
+      .hasAttribute('emmett.command.status', 'success');
   });
 
-  it('3-level nesting forms a correct parent-child chain', async () => {
+  it('3-level nesting: processor.handle → processor.message → eventStore.readStream', async () => {
     const tracer = otelTracer('almanac-integration');
-    const scope = ObservabilityScope({ tracer });
+    const scope = ObservabilityScope({ tracer, attributePrefix: 'emmett' });
 
     await scope.startScope('processor.handle', async (batch) => {
       batch.setAttributes({
-        'scope.type': 'processor',
-        'processor.id': 'orders-processor',
+        'emmett.scope.type': 'processor',
+        'emmett.processor.id': 'orders-processor',
+        'emmett.processor.type': 'projector',
+        'emmett.processor.batch_size': 1,
+        'messaging.system': 'emmett',
       });
 
       await batch.scope('processor.message.OrderPlaced', async (msg) => {
-        msg.setAttributes({ 'processor.type': 'projector' });
+        msg.setAttributes({
+          'emmett.scope.type': 'projector',
+          'emmett.processor.id': 'orders-processor',
+          'emmett.processor.type': 'projector',
+          'messaging.operation.type': 'process',
+          'messaging.message.id': 'msg-001',
+        });
 
-        await msg.scope('eventstore.read', (child) => {
-          child.setAttributes({ 'stream.name': 'orders-read-model' });
+        await msg.scope('eventStore.readStream', (child) => {
+          child.setAttributes({
+            'emmett.eventstore.operation': 'readStream',
+            'emmett.stream.name': 'orders-read-model',
+          });
           return Promise.resolve();
         });
       });
@@ -122,16 +202,129 @@ describe('otelTracer integration', () => {
 
     const root = spans.find((s) => s.name === 'processor.handle')!;
     const msg = spans.find((s) => s.name === 'processor.message.OrderPlaced')!;
-    const read = spans.find((s) => s.name === 'eventstore.read')!;
+    const read = spans.find((s) => s.name === 'eventStore.readStream')!;
 
-    assertThatOtelSpan(root).isMainScope();
+    assertThatOtelSpan(root).isMainScope('emmett');
     assertThatOtelSpan(msg).hasParent(root.spanContext());
     assertThatOtelSpan(read).hasParent(msg.spanContext());
   });
 
+  it('records eventStore.readStream span with all attributes', async () => {
+    const tracer = otelTracer('almanac-integration');
+
+    await tracer.startSpan('eventStore.readStream', (span) => {
+      span.setAttributes({
+        'emmett.eventstore.operation': 'readStream',
+        'emmett.stream.name': 'orders-stream',
+        'messaging.operation.type': 'receive',
+        'messaging.destination.name': 'orders-stream',
+        'messaging.system': 'emmett',
+      });
+      span.setAttributes({
+        'emmett.eventstore.read.status': 'success',
+        'emmett.eventstore.read.event_count': 3,
+        'emmett.eventstore.read.event_types': [
+          'OrderPlaced',
+          'ItemAdded',
+          'OrderConfirmed',
+        ],
+      });
+      return Promise.resolve();
+    });
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    assertThatOtelSpan(spans[0]).hasAttributes({
+      'emmett.eventstore.operation': 'readStream',
+      'emmett.stream.name': 'orders-stream',
+      'messaging.operation.type': 'receive',
+      'messaging.destination.name': 'orders-stream',
+      'messaging.system': 'emmett',
+      'emmett.eventstore.read.status': 'success',
+      'emmett.eventstore.read.event_count': 3,
+    });
+    expect(spans[0]!.attributes['emmett.eventstore.read.event_types']).toEqual([
+      'OrderPlaced',
+      'ItemAdded',
+      'OrderConfirmed',
+    ]);
+  });
+
+  it('records eventStore.appendToStream span with all attributes', async () => {
+    const tracer = otelTracer('almanac-integration');
+
+    await tracer.startSpan('eventStore.appendToStream', (span) => {
+      span.setAttributes({
+        'emmett.eventstore.operation': 'appendToStream',
+        'emmett.stream.name': 'orders-stream',
+        'emmett.eventstore.append.batch_size': 1,
+        'messaging.operation.type': 'send',
+        'messaging.batch.message_count': 1,
+        'messaging.destination.name': 'orders-stream',
+        'messaging.system': 'emmett',
+      });
+      span.setAttributes({
+        'emmett.eventstore.append.status': 'success',
+        'emmett.stream.version.after': 5,
+      });
+      return Promise.resolve();
+    });
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    assertThatOtelSpan(spans[0]).hasAttributes({
+      'emmett.eventstore.operation': 'appendToStream',
+      'emmett.stream.name': 'orders-stream',
+      'emmett.eventstore.append.batch_size': 1,
+      'messaging.operation.type': 'send',
+      'messaging.batch.message_count': 1,
+      'messaging.destination.name': 'orders-stream',
+      'messaging.system': 'emmett',
+      'emmett.eventstore.append.status': 'success',
+      'emmett.stream.version.after': 5,
+    });
+  });
+
+  it('records workflow.handle span with all attributes', async () => {
+    const tracer = otelTracer('almanac-integration');
+    const scope = ObservabilityScope({ tracer, attributePrefix: 'emmett' });
+
+    await scope.startScope('workflow.handle', (s) => {
+      s.setAttributes({
+        'emmett.scope.type': 'workflow',
+        'emmett.workflow.id': 'workflow-123',
+        'emmett.workflow.type': 'OrderFulfillment',
+        'emmett.workflow.input.type': 'OrderPlaced',
+        'messaging.system': 'emmett',
+      });
+      s.setAttributes({
+        'emmett.workflow.state_rebuild.event_count': 5,
+        'emmett.workflow.outputs': ['ShipmentRequested', 'InventoryReserved'],
+        'emmett.workflow.outputs.count': 2,
+      });
+      return Promise.resolve();
+    });
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    assertThatOtelSpan(spans[0]).isMainScope('emmett').hasAttributes({
+      'emmett.scope.type': 'workflow',
+      'emmett.workflow.id': 'workflow-123',
+      'emmett.workflow.type': 'OrderFulfillment',
+      'emmett.workflow.input.type': 'OrderPlaced',
+      'messaging.system': 'emmett',
+      'emmett.workflow.state_rebuild.event_count': 5,
+      'emmett.workflow.outputs.count': 2,
+    });
+    expect(spans[0]!.attributes['emmett.workflow.outputs']).toEqual([
+      'ShipmentRequested',
+      'InventoryReserved',
+    ]);
+  });
+
   it('propagation=propagate creates a child span under the producer trace', async () => {
     const tracer = otelTracer('almanac-integration');
-    const scope = ObservabilityScope({ tracer });
+    const scope = ObservabilityScope({ tracer, attributePrefix: 'emmett' });
 
     const producerTraceId = 'a'.repeat(32);
     const producerSpanId = 'b'.repeat(16);
@@ -140,8 +333,9 @@ describe('otelTracer integration', () => {
       'processor.message.OrderPlaced',
       (s) => {
         s.setAttributes({
-          'scope.type': 'processor',
-          'processor.id': 'orders-processor',
+          'emmett.scope.type': 'projector',
+          'emmett.processor.id': 'orders-processor',
+          'emmett.processor.type': 'projector',
           'messaging.operation.type': 'process',
         });
         return Promise.resolve();
@@ -163,7 +357,7 @@ describe('otelTracer integration', () => {
 
   it('propagation=links demotes producer span to a SpanLink and starts a fresh trace', async () => {
     const tracer = otelTracer('almanac-integration');
-    const scope = ObservabilityScope({ tracer });
+    const scope = ObservabilityScope({ tracer, attributePrefix: 'emmett' });
 
     const producerTraceId = 'c'.repeat(32);
     const producerSpanId = 'd'.repeat(16);
@@ -172,9 +366,10 @@ describe('otelTracer integration', () => {
       'processor.handle',
       (s) => {
         s.setAttributes({
-          'scope.type': 'processor',
-          'processor.id': 'orders-processor',
-          'processor.type': 'reactor',
+          'emmett.scope.type': 'processor',
+          'emmett.processor.id': 'orders-processor',
+          'emmett.processor.type': 'reactor',
+          'messaging.system': 'emmett',
         });
         return Promise.resolve();
       },
@@ -202,8 +397,11 @@ describe('otelTracer integration', () => {
       'processor.handle',
       (s) => {
         s.setAttributes({
-          'processor.id': 'inventory-processor',
-          'processor.batch_size': 2,
+          'emmett.scope.type': 'processor',
+          'emmett.processor.id': 'inventory-processor',
+          'emmett.processor.type': 'projector',
+          'emmett.processor.batch_size': 2,
+          'messaging.system': 'emmett',
         });
         return Promise.resolve();
       },
@@ -225,7 +423,11 @@ describe('otelTracer integration', () => {
     await tracer.startSpan(
       'processor.handle',
       (s) => {
-        s.setAttributes({ 'processor.id': 'workflow-processor' });
+        s.setAttributes({
+          'emmett.scope.type': 'processor',
+          'emmett.processor.id': 'workflow-processor',
+          'emmett.processor.type': 'reactor',
+        });
         return Promise.resolve();
       },
       {
@@ -244,26 +446,9 @@ describe('otelTracer integration', () => {
       ]);
   });
 
-  it('error marks span with ERROR status and records exception event', async () => {
-    const tracer = otelTracer('almanac-integration');
-    const scope = ObservabilityScope({ tracer });
-
-    await expect(
-      scope.startScope('command.handle', () =>
-        Promise.reject(new Error('stream version conflict')),
-      ),
-    ).rejects.toThrow('stream version conflict');
-
-    const spans = exporter.getFinishedSpans();
-    expect(spans).toHaveLength(1);
-    assertThatOtelSpan(spans[0])
-      .hasStatus(SpanStatusCode.ERROR, 'stream version conflict')
-      .hasEvent('exception');
-  });
-
   it('full processor batch scenario: all spans captured with correct parentage and attributes', async () => {
     const tracer = otelTracer('almanac-integration');
-    const scope = ObservabilityScope({ tracer });
+    const scope = ObservabilityScope({ tracer, attributePrefix: 'emmett' });
 
     const sourceSpan = { traceId: '7'.repeat(32), spanId: '8'.repeat(16) };
 
@@ -271,28 +456,38 @@ describe('otelTracer integration', () => {
       'processor.handle',
       async (batch) => {
         batch.setAttributes({
-          'scope.type': 'processor',
-          'processor.id': 'orders-processor',
-          'processor.type': 'projector',
+          'emmett.scope.type': 'processor',
+          'emmett.processor.id': 'orders-processor',
+          'emmett.processor.type': 'projector',
+          'emmett.processor.batch_size': 1,
+          'emmett.processor.event_types': ['OrderPlaced'],
           'messaging.system': 'emmett',
           'messaging.batch.message_count': 1,
+          'emmett.processor.checkpoint.before': 10,
         });
 
         await batch.scope('processor.message.OrderPlaced', async (msg) => {
           msg.setAttributes({
+            'emmett.scope.type': 'projector',
+            'emmett.processor.id': 'orders-processor',
+            'emmett.processor.type': 'projector',
             'messaging.operation.type': 'process',
             'messaging.message.id': 'msg-001',
           });
 
-          await msg.scope('eventstore.read', (child) => {
-            child.setAttributes({ 'stream.name': 'orders-read-model' });
+          await msg.scope('eventStore.readStream', (child) => {
+            child.setAttributes({
+              'emmett.eventstore.operation': 'readStream',
+              'emmett.stream.name': 'orders-read-model',
+              'emmett.eventstore.read.event_count': 3,
+            });
             return Promise.resolve();
           });
         });
 
         batch.setAttributes({
-          'processor.checkpoint.after': 42,
-          'processor.status': 'success',
+          'emmett.processor.checkpoint.after': 42,
+          'emmett.processor.status': 'success',
         });
       },
       { links: [sourceSpan] },
@@ -303,15 +498,39 @@ describe('otelTracer integration', () => {
 
     const root = spans.find((s) => s.name === 'processor.handle')!;
     const msg = spans.find((s) => s.name === 'processor.message.OrderPlaced')!;
-    const read = spans.find((s) => s.name === 'eventstore.read')!;
+    const read = spans.find((s) => s.name === 'eventStore.readStream')!;
 
     assertThatOtelSpan(root)
-      .isMainScope()
-      .hasAttribute('processor.status', 'success')
-      .hasAttribute('processor.checkpoint.after', 42)
+      .isMainScope('emmett')
+      .hasAttributes({
+        // emmett.scope.type is overwritten to 'projector' by attributeTarget=both bubbling from the message child scope
+        'emmett.scope.type': 'projector',
+        'emmett.processor.id': 'orders-processor',
+        'emmett.processor.type': 'projector',
+        'emmett.processor.batch_size': 1,
+        'messaging.system': 'emmett',
+        'messaging.batch.message_count': 1,
+        'emmett.processor.checkpoint.before': 10,
+        'emmett.processor.checkpoint.after': 42,
+        'emmett.processor.status': 'success',
+      })
       .hasCreationLinks([sourceSpan]);
+    expect(root.attributes['emmett.processor.event_types']).toEqual([
+      'OrderPlaced',
+    ]);
 
-    assertThatOtelSpan(msg).hasParent(root.spanContext());
-    assertThatOtelSpan(read).hasParent(msg.spanContext());
+    assertThatOtelSpan(msg).hasParent(root.spanContext()).hasAttributes({
+      'emmett.scope.type': 'projector',
+      'emmett.processor.id': 'orders-processor',
+      'emmett.processor.type': 'projector',
+      'messaging.operation.type': 'process',
+      'messaging.message.id': 'msg-001',
+    });
+
+    assertThatOtelSpan(read).hasParent(msg.spanContext()).hasAttributes({
+      'emmett.eventstore.operation': 'readStream',
+      'emmett.stream.name': 'orders-read-model',
+      'emmett.eventstore.read.event_count': 3,
+    });
   });
 });

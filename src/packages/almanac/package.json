@@ -50,6 +50,16 @@
         "types": "./dist/otel.d.cts",
         "default": "./dist/otel.cjs"
       }
+    },
+    "./pino": {
+      "import": {
+        "types": "./dist/pino.d.ts",
+        "default": "./dist/pino.js"
+      },
+      "require": {
+        "types": "./dist/pino.d.cts",
+        "default": "./dist/pino.cjs"
+      }
     }
   },
   "main": "./dist/index.cjs",
@@ -59,10 +69,14 @@
     "dist"
   ],
   "peerDependencies": {
-    "@opentelemetry/api": "^1.9.0"
+    "@opentelemetry/api": "^1.9.0",
+    "pino": ">=8"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/api": {
+      "optional": true
+    },
+    "pino": {
       "optional": true
     }
   },
@@ -70,6 +84,8 @@
     "@opentelemetry/api": "^1.9.0"
   },
   "devDependencies": {
-    "@opentelemetry/context-async-hooks": "^2.6.0"
+    "@opentelemetry/context-async-hooks": "^2.6.0",
+    "pino": "^10.3.1",
+    "pino-test": "^2.0.0"
   }
 }
