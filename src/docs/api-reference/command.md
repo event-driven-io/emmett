@@ -50,9 +50,9 @@ type DefaultCommandMetadata = { now: Date };
 
 <<< @/snippets/api/command.ts#command-type
 
-### Union Types for Aggregates
+### Grouping commands into Union Types
 
-Define all commands for an aggregate as a discriminated union:
+Define all commands for a specific business process as a discriminated union:
 
 ```typescript
 import type { Command } from '@event-driven-io/emmett';
@@ -85,7 +85,7 @@ type ShoppingCartCommand =
 
 ### Creating Commands with Factory
 
-Use the `command` factory function for runtime command creation:
+You can either use a regular typescript setup or use the `command` factory function for runtime command creation:
 
 ```typescript
 import { command } from '@event-driven-io/emmett';

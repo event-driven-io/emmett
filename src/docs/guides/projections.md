@@ -25,43 +25,7 @@ One event stream maps to one document. The document ID equals the stream ID.
 
 **Use when:** Your read model represents a single entity (shopping cart, order, user profile).
 
-```typescript
-import { pongoSingleStreamProjection } from '@event-driven-io/emmett-postgresql';
-
-interface ShoppingCartSummary {
-  _id: string;
-  productItemsCount: number;
-  totalAmount: number;
-}
-
-const cartSummaryProjection = pongoSingleStreamProjection<
-  ShoppingCartSummary,
-  ShoppingCartEvent
->({
-  collectionName: 'shopping_cart_summaries',
-  canHandle: ['ProductItemAdded', 'ProductItemRemoved'],
-  evolve: (document, event) => {
-    const current = document ?? { productItemsCount: 0, totalAmount: 0 };
-
-    switch (event.type) {
-      case 'ProductItemAdded':
-        return {
-          ...current,
-          productItemsCount: current.productItemsCount + event.data.quantity,
-          totalAmount:
-            current.totalAmount + event.data.price * event.data.quantity,
-        };
-      case 'ProductItemRemoved':
-        return {
-          ...current,
-          productItemsCount: current.productItemsCount - event.data.quantity,
-          totalAmount:
-            current.totalAmount - event.data.price * event.data.quantity,
-        };
-    }
-  },
-});
-```
+<<< ./projections/singleStreamProjection.snippet.ts#single-stream-projection
 
 ### Multi-Stream Projections
 
@@ -69,46 +33,7 @@ Events from multiple streams combine into documents with custom IDs.
 
 **Use when:** Your read model aggregates across entities (customer analytics, product statistics, dashboards).
 
-```typescript
-import { pongoMultiStreamProjection } from '@event-driven-io/emmett-postgresql';
-
-interface ClientShoppingSummary {
-  _id: string;
-  clientId: string;
-  totalOrders: number;
-  totalSpent: number;
-  lastOrderDate: Date | null;
-}
-
-const clientSummaryProjection = pongoMultiStreamProjection<
-  ClientShoppingSummary,
-  ShoppingCartEvent
->({
-  collectionName: 'client_summaries',
-  canHandle: ['ShoppingCartConfirmed'],
-  // Extract document ID from event metadata
-  getDocumentId: (event) => event.metadata.clientId,
-  evolve: (document, event) => {
-    const current = document ?? {
-      clientId: event.metadata.clientId,
-      totalOrders: 0,
-      totalSpent: 0,
-      lastOrderDate: null,
-    };
-
-    if (event.type === 'ShoppingCartConfirmed') {
-      return {
-        ...current,
-        totalOrders: current.totalOrders + 1,
-        totalSpent: current.totalSpent + event.data.totalAmount,
-        lastOrderDate: event.data.confirmedAt,
-      };
-    }
-
-    return current;
-  },
-});
-```
+<<< ./projections/multiStreamProjection.snippet.ts#multi-stream-projection
 
 ## Inline vs Async Projections
 
@@ -118,51 +43,36 @@ Execute within the same transaction as the event append.
 
 **Pros:**
 
-- Strong consistency - read model always matches events
-- No eventual consistency delays
-- Simpler mental model
+- Strong consistency - read model is always up to date with events,
+- No eventual consistency delays,
+- Simpler mental model.
 
 **Cons:**
 
-- Slower appends (projection runs synchronously)
-- Transaction scope limitations
-- Can't project to external systems
+- Slower appends (projection runs synchronously adding additonal operations during append),
+- Multi-stream projection can override their data in high contention scenarios,
+- Can't project to external systems.
 
-```typescript
-const eventStore = getPostgreSQLEventStore(connectionString, {
-  projections: projections.inline([
-    cartSummaryProjection,
-    clientSummaryProjection,
-  ]),
-});
-```
+<<< ./projections/projectionSetup.snippet.ts#inline-projection-setup
 
 ### Async Projections
 
-Process events in background consumers with checkpointing.
+Process events in background process. We recommend to run multi-stream projections asynchronously.
 
 **Pros:**
 
-- Faster appends
-- Can project to external systems
-- Better scalability
+- Faster appends (no overhead for updating read models),
+- Can project to external systems,
+- Better scalability,
+- Enable batching of operations,
+- Multi-stream projection won't override their data in high contention scenarios,
 
 **Cons:**
 
-- Eventual consistency
-- Requires checkpoint management
-- More infrastructure
+- Eventual consistency,
+- Require stateful service running async projections,
 
-```typescript
-const consumer = eventStore.consumer();
-
-consumer.projector({
-  processorId: 'cart-summary-projector',
-  projection: cartSummaryProjection,
-});
-
-await consumer.start();
-```
+<<< ./projections/projectionSetup.snippet.ts#async-projection-setup
 
 ## Projection Patterns
 
