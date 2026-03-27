@@ -30,11 +30,11 @@ The `SQLiteEventStore` interface extends Emmett's base `EventStore` with SQLite-
 
 The event store uses three tables (prefixed with `emt_`):
 
-| Table | Purpose |
-|-------|---------|
-| `emt_streams` | Stream metadata (stream ID, position, type) |
-| `emt_messages` | Events with global position ordering |
-| `emt_subscriptions` | Processor checkpoint positions |
+| Table               | Purpose                                     |
+| ------------------- | ------------------------------------------- |
+| `emt_streams`       | Stream metadata (stream ID, position, type) |
+| `emt_messages`      | Events with global position ordering        |
+| `emt_subscriptions` | Processor checkpoint positions              |
 
 ### Consumers and Processors
 
@@ -114,17 +114,14 @@ type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 // Append events to a stream
 const streamId = 'shopping_cart-123';
 
-const result = await eventStore.appendToStream<ShoppingCartEvent>(
-  streamId,
-  [
-    {
-      type: 'ProductItemAdded',
-      data: {
-        productItem: { productId: 'shoes', quantity: 2, price: 100 },
-      },
+const result = await eventStore.appendToStream<ShoppingCartEvent>(streamId, [
+  {
+    type: 'ProductItemAdded',
+    data: {
+      productItem: { productId: 'shoes', quantity: 2, price: 100 },
     },
-  ],
-);
+  },
+]);
 
 // Append with optimistic concurrency
 await eventStore.appendToStream<ShoppingCartEvent>(
@@ -158,7 +155,10 @@ type ShoppingCart = {
   totalAmount: number;
 };
 
-const evolve = (state: ShoppingCart, event: ShoppingCartEvent): ShoppingCart => {
+const evolve = (
+  state: ShoppingCart,
+  event: ShoppingCartEvent,
+): ShoppingCart => {
   switch (event.type) {
     case 'ProductItemAdded': {
       const item = event.data.productItem;
@@ -227,9 +227,7 @@ const shoppingCartSummaryProjection = sqliteRawSQLProjection<ShoppingCartEvent>(
 
 const eventStore = getSQLiteEventStore({
   fileName: './events.db',
-  projections: [
-    { type: 'inline', projection: shoppingCartSummaryProjection },
-  ],
+  projections: [{ type: 'inline', projection: shoppingCartSummaryProjection }],
 });
 ```
 
@@ -238,7 +236,10 @@ const eventStore = getSQLiteEventStore({
 Consumers poll for new events and process them with registered processors.
 
 ```typescript
-import { getSQLiteEventStore, sqliteProcessor } from '@event-driven-io/emmett-sqlite';
+import {
+  getSQLiteEventStore,
+  sqliteProcessor,
+} from '@event-driven-io/emmett-sqlite';
 
 const eventStore = getSQLiteEventStore({
   fileName: './events.db',
@@ -289,7 +290,7 @@ await consumer.start();
 ```typescript
 const consumer = eventStore.consumer<ShoppingCartEvent>({
   pulling: {
-    batchSize: 100,           // Events per batch (default: 100)
+    batchSize: 100, // Events per batch (default: 100)
     pullingFrequencyInMs: 50, // Polling interval (default: 50ms)
   },
 });
@@ -356,26 +357,28 @@ const eventStore = getSQLiteEventStore({
 Creates a new SQLite event store instance.
 
 ```typescript
-function getSQLiteEventStore(options: SQLiteEventStoreOptions): SQLiteEventStore;
+function getSQLiteEventStore(
+  options: SQLiteEventStoreOptions,
+): SQLiteEventStore;
 ```
 
 **Options:**
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `fileName` | `string \| ':memory:' \| 'file::memory:?cache=shared'` | Database file path or in-memory identifier |
-| `schema.autoMigration` | `'None' \| 'CreateOrUpdate'` | Schema creation mode (default: `'CreateOrUpdate'`) |
-| `projections` | `ProjectionRegistration[]` | Inline projections to register |
-| `hooks.onBeforeCommit` | `BeforeEventStoreCommitHandler` | Hook called before event commit |
+| Property               | Type                                                   | Description                                        |
+| ---------------------- | ------------------------------------------------------ | -------------------------------------------------- |
+| `fileName`             | `string \| ':memory:' \| 'file::memory:?cache=shared'` | Database file path or in-memory identifier         |
+| `schema.autoMigration` | `'None' \| 'CreateOrUpdate'`                           | Schema creation mode (default: `'CreateOrUpdate'`) |
+| `projections`          | `ProjectionRegistration[]`                             | Inline projections to register                     |
+| `hooks.onBeforeCommit` | `BeforeEventStoreCommitHandler`                        | Hook called before event commit                    |
 
 ### SQLiteEventStore
 
-| Method | Description |
-|--------|-------------|
+| Method                                         | Description               |
+| ---------------------------------------------- | ------------------------- |
 | `appendToStream(streamName, events, options?)` | Append events to a stream |
-| `readStream(streamName, options?)` | Read events from a stream |
-| `aggregateStream(streamName, options)` | Rebuild state from events |
-| `consumer(options?)` | Create an event consumer |
+| `readStream(streamName, options?)`             | Read events from a stream |
+| `aggregateStream(streamName, options)`         | Rebuild state from events |
+| `consumer(options?)`                           | Create an event consumer  |
 
 ### sqliteConnection
 
@@ -387,29 +390,29 @@ function sqliteConnection(options: { fileName: string }): SQLiteConnection;
 
 **SQLiteConnection interface:**
 
-| Method | Description |
-|--------|-------------|
-| `command(sql, params?)` | Execute a write command |
-| `query<T>(sql, params?)` | Execute a query returning multiple rows |
-| `querySingle<T>(sql, params?)` | Execute a query returning a single row |
-| `withTransaction<T>(fn)` | Execute function within a transaction |
-| `close()` | Close the connection |
+| Method                         | Description                             |
+| ------------------------------ | --------------------------------------- |
+| `command(sql, params?)`        | Execute a write command                 |
+| `query<T>(sql, params?)`       | Execute a query returning multiple rows |
+| `querySingle<T>(sql, params?)` | Execute a query returning a single row  |
+| `withTransaction<T>(fn)`       | Execute function within a transaction   |
+| `close()`                      | Close the connection                    |
 
 ### Projection Helpers
 
-| Function | Description |
-|----------|-------------|
-| `sqliteProjection(definition)` | Create a projection definition |
-| `sqliteRawSQLProjection(handler, ...eventTypes)` | Create projection returning raw SQL per event |
+| Function                                              | Description                                         |
+| ----------------------------------------------------- | --------------------------------------------------- |
+| `sqliteProjection(definition)`                        | Create a projection definition                      |
+| `sqliteRawSQLProjection(handler, ...eventTypes)`      | Create projection returning raw SQL per event       |
 | `sqliteRawBatchSQLProjection(handler, ...eventTypes)` | Create projection returning raw SQL array for batch |
 
 ### Consumer Types
 
-| Type | Description |
-|------|-------------|
-| `SQLiteEventStoreConsumer` | Consumer interface with start/stop lifecycle |
-| `SQLiteProcessor` | Processor interface for handling event batches |
-| `SQLiteProjectionDefinition` | Projection definition type |
+| Type                         | Description                                    |
+| ---------------------------- | ---------------------------------------------- |
+| `SQLiteEventStoreConsumer`   | Consumer interface with start/stop lifecycle   |
+| `SQLiteProcessor`            | Processor interface for handling event batches |
+| `SQLiteProjectionDefinition` | Projection definition type                     |
 
 ## Architecture
 
@@ -470,17 +473,17 @@ function sqliteConnection(options: { fileName: string }): SQLiteConnection;
 
 ### Peer Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
+| Package                   | Version  | Purpose                                 |
+| ------------------------- | -------- | --------------------------------------- |
 | `@event-driven-io/emmett` | `0.38.3` | Core event sourcing types and utilities |
-| `sqlite3` | `^5.1.7` | SQLite database driver |
+| `sqlite3`                 | `^5.1.7` | SQLite database driver                  |
 
 ### Internal Dependencies
 
-| Package | Purpose |
-|---------|---------|
-| `@event-driven-io/dumbo` | SQL utilities |
-| `uuid` | Message ID generation |
+| Package                  | Purpose               |
+| ------------------------ | --------------------- |
+| `@event-driven-io/dumbo` | SQL utilities         |
+| `uuid`                   | Message ID generation |
 
 ## Related Packages
 

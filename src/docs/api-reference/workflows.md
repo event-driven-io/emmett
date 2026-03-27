@@ -10,6 +10,7 @@ Workflows coordinate multi-step business processes across aggregates with durabl
 ## Overview
 
 Workflows extend the Decider pattern to handle:
+
 - Multi-aggregate coordination
 - Long-running processes (hours, days)
 - Failure recovery with automatic replay
@@ -78,15 +79,15 @@ const processor = workflowProcessor({
 
 ### Configuration Options
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `processorId` | `string` | Unique identifier for the processor |
-| `workflow` | `Workflow` | The workflow definition |
-| `getWorkflowId` | `(input) => string` | Extract workflow instance ID from input |
-| `inputs.commands` | `string[]` | Command types this workflow receives |
-| `inputs.events` | `string[]` | Event types this workflow receives |
-| `outputs.commands` | `string[]` | Command types this workflow emits |
-| `outputs.events` | `string[]` | Event types this workflow emits |
+| Option             | Type                | Description                             |
+| ------------------ | ------------------- | --------------------------------------- |
+| `processorId`      | `string`            | Unique identifier for the processor     |
+| `workflow`         | `Workflow`          | The workflow definition                 |
+| `getWorkflowId`    | `(input) => string` | Extract workflow instance ID from input |
+| `inputs.commands`  | `string[]`          | Command types this workflow receives    |
+| `inputs.events`    | `string[]`          | Event types this workflow receives      |
+| `outputs.commands` | `string[]`          | Command types this workflow emits       |
+| `outputs.events`   | `string[]`          | Event types this workflow emits         |
 
 ## Building a Workflow
 
@@ -113,36 +114,54 @@ import type { Command, Event } from '@event-driven-io/emmett';
 
 // Input messages
 type GroupCheckoutInput =
-  | Command<'InitiateGroupCheckout', {
-      groupCheckoutId: string;
-      guestStayAccountIds: string[];
-    }>
-  | Event<'GuestCheckedOut', {
-      guestStayAccountId: string;
-      groupCheckoutId: string;
-    }>
-  | Event<'GuestCheckoutFailed', {
-      guestStayAccountId: string;
-      groupCheckoutId: string;
-      reason: string;
-    }>;
+  | Command<
+      'InitiateGroupCheckout',
+      {
+        groupCheckoutId: string;
+        guestStayAccountIds: string[];
+      }
+    >
+  | Event<
+      'GuestCheckedOut',
+      {
+        guestStayAccountId: string;
+        groupCheckoutId: string;
+      }
+    >
+  | Event<
+      'GuestCheckoutFailed',
+      {
+        guestStayAccountId: string;
+        groupCheckoutId: string;
+        reason: string;
+      }
+    >;
 
 // Output messages
 type GroupCheckoutOutput =
-  | Event<'GroupCheckoutInitiated', {
-      groupCheckoutId: string;
-      guestStayAccountIds: string[];
-    }>
+  | Event<
+      'GroupCheckoutInitiated',
+      {
+        groupCheckoutId: string;
+        guestStayAccountIds: string[];
+      }
+    >
   | Command<'CheckOut', { guestStayAccountId: string }>
-  | Event<'GroupCheckoutCompleted', {
-      groupCheckoutId: string;
-      completedCheckouts: string[];
-    }>
-  | Event<'GroupCheckoutFailed', {
-      groupCheckoutId: string;
-      completedCheckouts: string[];
-      failedCheckouts: string[];
-    }>;
+  | Event<
+      'GroupCheckoutCompleted',
+      {
+        groupCheckoutId: string;
+        completedCheckouts: string[];
+      }
+    >
+  | Event<
+      'GroupCheckoutFailed',
+      {
+        groupCheckoutId: string;
+        completedCheckouts: string[];
+        failedCheckouts: string[];
+      }
+    >;
 ```
 
 ### Step 3: Implement decide
@@ -360,12 +379,14 @@ const decide = (input, state) => {
 ## When to Use Workflows
 
 **Use workflows for:**
+
 - Multi-step processes spanning multiple aggregates
 - Long-running operations (hours, days, weeks)
 - Processes requiring coordination across services
 - Operations needing complete audit trail
 
 **Don't use workflows for:**
+
 - Simple single-aggregate operations → use [Command Handler](/api-reference/commandhandler)
 - Building read models → use [Projections](/api-reference/projections)
 - Simple event reactions → use Reactors
@@ -399,8 +420,10 @@ return [
 ```typescript
 const decide = (input, state) => {
   // Already processed this guest
-  if (state.guestStayAccountIds.get(input.data.guestStayAccountId) !== 'Pending') {
-    return [];  // Idempotent: ignore duplicate
+  if (
+    state.guestStayAccountIds.get(input.data.guestStayAccountId) !== 'Pending'
+  ) {
+    return []; // Idempotent: ignore duplicate
   }
   // Process...
 };

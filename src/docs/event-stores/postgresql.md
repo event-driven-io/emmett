@@ -38,7 +38,7 @@ npm install @event-driven-io/emmett @event-driven-io/pongo
 import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
 
 const eventStore = getPostgreSQLEventStore(
-  'postgresql://user:password@localhost:5432/mydb'
+  'postgresql://user:password@localhost:5432/mydb',
 );
 
 // Schema auto-migrates by default
@@ -61,7 +61,7 @@ const result = await eventStore.appendToStream<ProductItemAdded>(
       type: 'ProductItemAdded',
       data: { productId: 'shoes-1', quantity: 2, price: 99.99 },
     },
-  ]
+  ],
 );
 
 console.log(result.nextExpectedStreamVersion); // 1n
@@ -70,9 +70,8 @@ console.log(result.nextExpectedStreamVersion); // 1n
 ### Reading Events
 
 ```typescript
-const { events, currentStreamVersion } = await eventStore.readStream(
-  'ShoppingCart-123'
-);
+const { events, currentStreamVersion } =
+  await eventStore.readStream('ShoppingCart-123');
 
 for (const event of events) {
   console.log(event.type, event.data);
@@ -113,7 +112,10 @@ interface CartSummary {
   totalAmount: number;
 }
 
-const cartSummaryProjection = pongoSingleStreamProjection<CartSummary, ShoppingCartEvent>({
+const cartSummaryProjection = pongoSingleStreamProjection<
+  CartSummary,
+  ShoppingCartEvent
+>({
   collectionName: 'cart_summaries',
   canHandle: ['ProductItemAdded', 'ProductItemRemoved'],
   evolve: (document, event) => {
@@ -124,13 +126,15 @@ const cartSummaryProjection = pongoSingleStreamProjection<CartSummary, ShoppingC
         return {
           ...current,
           totalItems: current.totalItems + event.data.quantity,
-          totalAmount: current.totalAmount + event.data.price * event.data.quantity,
+          totalAmount:
+            current.totalAmount + event.data.price * event.data.quantity,
         };
       case 'ProductItemRemoved':
         return {
           ...current,
           totalItems: current.totalItems - event.data.quantity,
-          totalAmount: current.totalAmount - event.data.price * event.data.quantity,
+          totalAmount:
+            current.totalAmount - event.data.price * event.data.quantity,
         };
     }
   },
@@ -146,7 +150,10 @@ const eventStore = getPostgreSQLEventStore(connectionString, {
 ```typescript
 import { pongoMultiStreamProjection } from '@event-driven-io/emmett-postgresql';
 
-const clientSummaryProjection = pongoMultiStreamProjection<ClientSummary, ShoppingCartEvent>({
+const clientSummaryProjection = pongoMultiStreamProjection<
+  ClientSummary,
+  ShoppingCartEvent
+>({
   collectionName: 'client_summaries',
   canHandle: ['ShoppingCartConfirmed'],
   getDocumentId: (event) => event.metadata.clientId,
@@ -219,11 +226,11 @@ npx emmett migrate sql --print
 
 The event store creates three partitioned tables:
 
-| Table | Purpose |
-|-------|---------|
-| `emt_streams` | Stream metadata and positions |
-| `emt_messages` | Event/message storage (JSONB) |
-| `emt_subscriptions` | Consumer checkpoint tracking |
+| Table               | Purpose                       |
+| ------------------- | ----------------------------- |
+| `emt_streams`       | Stream metadata and positions |
+| `emt_messages`      | Event/message storage (JSONB) |
+| `emt_subscriptions` | Consumer checkpoint tracking  |
 
 ## Configuration Options
 

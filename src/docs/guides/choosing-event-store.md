@@ -9,26 +9,26 @@ Emmett supports multiple event store backends. This guide helps you select the r
 
 ## Quick Decision Guide
 
-| If you... | Choose |
-|-----------|--------|
-| Are just starting out | **In-Memory** or **SQLite** |
-| Want production-ready with familiar tech | **PostgreSQL** |
-| Already use MongoDB | **MongoDB** |
-| Want native Event Sourcing features | **EventStoreDB** |
-| Need embedded/serverless | **SQLite** |
+| If you...                                | Choose                      |
+| ---------------------------------------- | --------------------------- |
+| Are just starting out                    | **In-Memory** or **SQLite** |
+| Want production-ready with familiar tech | **PostgreSQL**              |
+| Already use MongoDB                      | **MongoDB**                 |
+| Want native Event Sourcing features      | **EventStoreDB**            |
+| Need embedded/serverless                 | **SQLite**                  |
 
 ## Comparison Matrix
 
-| Feature | PostgreSQL | EventStoreDB | MongoDB | SQLite | In-Memory |
-|---------|------------|--------------|---------|--------|-----------|
-| **Production Ready** | Yes | Yes | Yes | Limited | No |
-| **Persistent Storage** | Yes | Yes | Yes | Yes | No |
-| **Built-in Projections** | Inline + Async | Async only | Inline + Async | Inline + Async | Inline |
-| **Multi-tenancy** | Partitions | Streams | Collections | Separate DBs | N/A |
-| **Transactions** | Full ACID | Stream-level | Document-level | Full ACID | N/A |
-| **Horizontal Scaling** | Yes | Yes (cluster) | Yes | No | No |
-| **Learning Curve** | Low (SQL) | Medium | Low | Low | None |
-| **Infrastructure** | PostgreSQL | EventStoreDB | MongoDB | File/Memory | None |
+| Feature                  | PostgreSQL     | EventStoreDB  | MongoDB        | SQLite         | In-Memory |
+| ------------------------ | -------------- | ------------- | -------------- | -------------- | --------- |
+| **Production Ready**     | Yes            | Yes           | Yes            | Limited        | No        |
+| **Persistent Storage**   | Yes            | Yes           | Yes            | Yes            | No        |
+| **Built-in Projections** | Inline + Async | Async only    | Inline + Async | Inline + Async | Inline    |
+| **Multi-tenancy**        | Partitions     | Streams       | Collections    | Separate DBs   | N/A       |
+| **Transactions**         | Full ACID      | Stream-level  | Document-level | Full ACID      | N/A       |
+| **Horizontal Scaling**   | Yes            | Yes (cluster) | Yes            | No             | No        |
+| **Learning Curve**       | Low (SQL)      | Medium        | Low            | Low            | None      |
+| **Infrastructure**       | PostgreSQL     | EventStoreDB  | MongoDB        | File/Memory    | None      |
 
 ## PostgreSQL
 
@@ -63,7 +63,7 @@ npm install @event-driven-io/emmett-postgresql
 import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
 
 const eventStore = getPostgreSQLEventStore(
-  'postgresql://user:password@localhost:5432/mydb'
+  'postgresql://user:password@localhost:5432/mydb',
 );
 ```
 
@@ -104,7 +104,7 @@ import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import { EventStoreDBClient } from '@eventstore/db-client';
 
 const client = EventStoreDBClient.connectionString(
-  'esdb://localhost:2113?tls=false'
+  'esdb://localhost:2113?tls=false',
 );
 const eventStore = getEventStoreDBEventStore(client);
 ```

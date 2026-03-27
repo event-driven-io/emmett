@@ -18,6 +18,7 @@ npm install @event-driven-io/emmett
 ```
 
 **Provides:**
+
 - Event and Command type definitions
 - Decider pattern implementation
 - In-memory event store for testing
@@ -39,6 +40,7 @@ npm install @event-driven-io/emmett-postgresql
 ```
 
 **Features:**
+
 - Inline and async projections
 - Pongo document database integration
 - Full ACID transactions
@@ -55,6 +57,7 @@ npm install @event-driven-io/emmett-esdb
 ```
 
 **Features:**
+
 - Persistent subscriptions
 - Global event ordering
 - Built-in projections
@@ -71,6 +74,7 @@ npm install @event-driven-io/emmett-mongodb
 ```
 
 **Features:**
+
 - Single or multi-collection storage
 - Document-per-stream option
 - MongoDB aggregation pipelines
@@ -87,6 +91,7 @@ npm install @event-driven-io/emmett-sqlite
 ```
 
 **Features:**
+
 - File-based or in-memory
 - Zero configuration
 - Fast test execution
@@ -105,6 +110,7 @@ npm install @event-driven-io/emmett-expressjs
 ```
 
 **Features:**
+
 - Application factory
 - Problem Details (RFC 9457)
 - ETag concurrency handling
@@ -121,6 +127,7 @@ npm install @event-driven-io/emmett-fastify
 ```
 
 **Features:**
+
 - Plugin-based setup
 - Schema validation
 - Graceful shutdown
@@ -139,6 +146,7 @@ npm install -D @event-driven-io/emmett-testcontainers
 ```
 
 **Features:**
+
 - Pre-configured containers for PostgreSQL, MongoDB, EventStoreDB
 - Docker Compose integration
 - Automatic cleanup
@@ -157,6 +165,7 @@ npm install @event-driven-io/emmett-shims
 ```
 
 **Features:**
+
 - AsyncIterator support
 - Environment detection
 - Edge runtime compatibility
@@ -167,17 +176,17 @@ npm install @event-driven-io/emmett-shims
 
 All packages follow semantic versioning. Major versions are released together to ensure compatibility.
 
-| Package | Current Version | Node.js |
-|---------|-----------------|---------|
-| emmett | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett) | ≥18.0 |
-| emmett-postgresql | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-postgresql) | ≥18.0 |
-| emmett-esdb | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-esdb) | ≥18.0 |
-| emmett-mongodb | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-mongodb) | ≥18.0 |
-| emmett-sqlite | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-sqlite) | ≥18.0 |
-| emmett-expressjs | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-expressjs) | ≥18.0 |
-| emmett-fastify | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-fastify) | ≥18.0 |
-| emmett-testcontainers | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-testcontainers) | ≥18.0 |
-| emmett-shims | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-shims) | ≥18.0 |
+| Package               | Current Version                                                             | Node.js |
+| --------------------- | --------------------------------------------------------------------------- | ------- |
+| emmett                | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett)                | ≥18.0   |
+| emmett-postgresql     | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-postgresql)     | ≥18.0   |
+| emmett-esdb           | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-esdb)           | ≥18.0   |
+| emmett-mongodb        | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-mongodb)        | ≥18.0   |
+| emmett-sqlite         | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-sqlite)         | ≥18.0   |
+| emmett-expressjs      | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-expressjs)      | ≥18.0   |
+| emmett-fastify        | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-fastify)        | ≥18.0   |
+| emmett-testcontainers | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-testcontainers) | ≥18.0   |
+| emmett-shims          | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-shims)          | ≥18.0   |
 
 ## Typical Project Setup
 

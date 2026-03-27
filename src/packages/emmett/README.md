@@ -7,6 +7,7 @@ Core event sourcing library for TypeScript providing event stores, command handl
 Emmett provides the foundational abstractions for building event-sourced applications in TypeScript with strong typing and a clean, functional architecture.
 
 **Without Emmett, you would have to:**
+
 - Manually implement event store interfaces and version management
 - Build your own optimistic concurrency control mechanisms
 - Create custom command handling pipelines with retry logic
@@ -58,6 +59,7 @@ type Command<CommandType, CommandData, CommandMetaData> = {
 ### EventStore
 
 The `EventStore` interface provides three core operations:
+
 - `appendToStream` - Append events to a stream with optimistic concurrency
 - `readStream` - Read events from a stream
 - `aggregateStream` - Rebuild state by folding events with an evolve function
@@ -65,6 +67,7 @@ The `EventStore` interface provides three core operations:
 ### Optimistic Concurrency
 
 Emmett uses `ExpectedStreamVersion` for concurrency control:
+
 - Specific version (bigint) - Must match exactly
 - `STREAM_EXISTS` - Stream must have events
 - `STREAM_DOES_NOT_EXIST` - Stream must be new
@@ -92,7 +95,11 @@ npm install -D @types/uuid @types/async-retry
 ### Define Your Domain
 
 ```typescript
-import { type Event, type Command, type Decider } from '@event-driven-io/emmett';
+import {
+  type Event,
+  type Command,
+  type Decider,
+} from '@event-driven-io/emmett';
 
 // Define your events
 type ProductItemAdded = Event<
@@ -204,10 +211,15 @@ const spec = DeciderSpecification.for(shoppingCartDecider);
 
 // Test: given events, when command, then expected events
 spec([
-  { type: 'ProductItemAdded', data: { productId: 'p1', quantity: 1, price: 10 } },
+  {
+    type: 'ProductItemAdded',
+    data: { productId: 'p1', quantity: 1, price: 10 },
+  },
 ])
   .when({ type: 'ConfirmShoppingCart', data: { now: new Date() } })
-  .then([{ type: 'ShoppingCartConfirmed', data: { confirmedAt: expect.any(Date) } }]);
+  .then([
+    { type: 'ShoppingCartConfirmed', data: { confirmedAt: expect.any(Date) } },
+  ]);
 
 // Test that nothing happens
 spec([]).when(someCommand).thenNothingHappened();
@@ -239,7 +251,8 @@ const shoppingCartSummaryProjection: ProjectionDefinition<
   handle: async (events, { database }) => {
     for (const event of events) {
       const cartId = event.metadata.streamName.split('-')[1];
-      const collection = database.collection<ShoppingCartSummary>('cart-summaries');
+      const collection =
+        database.collection<ShoppingCartSummary>('cart-summaries');
 
       if (event.type === 'ProductItemAdded') {
         const existing = await collection.findOne({ id: cartId });
@@ -248,8 +261,10 @@ const shoppingCartSummaryProjection: ProjectionDefinition<
           {
             id: cartId,
             itemCount: (existing?.itemCount ?? 0) + event.data.quantity,
-            totalAmount: (existing?.totalAmount ?? 0) + event.data.price * event.data.quantity,
-          }
+            totalAmount:
+              (existing?.totalAmount ?? 0) +
+              event.data.price * event.data.quantity,
+          },
         );
       }
     }
@@ -277,7 +292,7 @@ const user = await users.findOne({ id: '1' });
 await users.updateOne(
   { id: '1' },
   { id: '1', name: 'Alice Smith' },
-  { expectedVersion: 1n }
+  { expectedVersion: 1n },
 );
 ```
 
@@ -330,36 +345,41 @@ type OrderSagaState = {
   shipped: boolean;
 };
 
-const orderWorkflow = Workflow<OrderSagaInput, OrderSagaState, OrderSagaOutput>({
-  name: 'order-fulfillment',
-  initialState: () => ({
-    orderId: null,
-    paymentReceived: false,
-    shipped: false,
-  }),
-  decide: (event, state) => {
-    switch (event.type) {
-      case 'OrderPlaced':
-        return { type: 'RequestPayment', data: { orderId: event.data.orderId } };
-      case 'PaymentReceived':
-        return { type: 'CreateShipment', data: { orderId: state.orderId } };
-      case 'ShipmentCreated':
-        return { type: 'CompleteOrder', data: { orderId: state.orderId } };
-    }
+const orderWorkflow = Workflow<OrderSagaInput, OrderSagaState, OrderSagaOutput>(
+  {
+    name: 'order-fulfillment',
+    initialState: () => ({
+      orderId: null,
+      paymentReceived: false,
+      shipped: false,
+    }),
+    decide: (event, state) => {
+      switch (event.type) {
+        case 'OrderPlaced':
+          return {
+            type: 'RequestPayment',
+            data: { orderId: event.data.orderId },
+          };
+        case 'PaymentReceived':
+          return { type: 'CreateShipment', data: { orderId: state.orderId } };
+        case 'ShipmentCreated':
+          return { type: 'CompleteOrder', data: { orderId: state.orderId } };
+      }
+    },
+    evolve: (state, event) => {
+      switch (event.type) {
+        case 'OrderPlaced':
+          return { ...state, orderId: event.data.orderId };
+        case 'PaymentReceived':
+          return { ...state, paymentReceived: true };
+        case 'ShipmentCreated':
+          return { ...state, shipped: true };
+        default:
+          return state;
+      }
+    },
   },
-  evolve: (state, event) => {
-    switch (event.type) {
-      case 'OrderPlaced':
-        return { ...state, orderId: event.data.orderId };
-      case 'PaymentReceived':
-        return { ...state, paymentReceived: true };
-      case 'ShipmentCreated':
-        return { ...state, shipped: true };
-      default:
-        return state;
-    }
-  },
-});
+);
 ```
 
 ## API Reference
@@ -465,9 +485,13 @@ type Decider<State, CommandType extends Command, StreamEvent extends Event> = {
 ### Projection Definition
 
 ```typescript
-interface ProjectionDefinition<EventType, EventMetaDataType, ProjectionHandlerContext> {
+interface ProjectionDefinition<
+  EventType,
+  EventMetaDataType,
+  ProjectionHandlerContext,
+> {
   name?: string;
-  canHandle: string[];  // Event types this projection handles
+  canHandle: string[]; // Event types this projection handles
   handle: (
     events: ReadEvent<EventType, EventMetaDataType>[],
     context: ProjectionHandlerContext,
@@ -549,13 +573,13 @@ src/
 
 ## Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `uuid` | ^10.0.0 | UUID generation for event/message IDs |
-| `async-retry` | ^1.3.3 | Retry logic for command handlers |
-| `commander` | ^12.1.0 | CLI framework |
-| `ts-node` | ^10.9.2 | TypeScript execution for CLI |
-| `web-streams-polyfill` | ^4.0.0 | Web Streams API polyfill |
+| Package                | Version | Purpose                               |
+| ---------------------- | ------- | ------------------------------------- |
+| `uuid`                 | ^10.0.0 | UUID generation for event/message IDs |
+| `async-retry`          | ^1.3.3  | Retry logic for command handlers      |
+| `commander`            | ^12.1.0 | CLI framework                         |
+| `ts-node`              | ^10.9.2 | TypeScript execution for CLI          |
+| `web-streams-polyfill` | ^4.0.0  | Web Streams API polyfill              |
 
 ## Related Packages
 

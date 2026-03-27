@@ -10,17 +10,17 @@ Welcome to Emmett's documentation!
 
 ## Main Features
 
-| Feature | Description |
-|---------|-------------|
-| **Event-Centric Modeling** | Structured approach to modeling business processes through events |
-| **Multiple Event Stores** | Built-in support for [PostgreSQL](/event-stores/postgresql), [EventStoreDB](/event-stores/esdb), [MongoDB](/event-stores/mongodb), [SQLite](/event-stores/sqlite), and In-Memory storage |
-| **Command Handling Patterns** | Standardized approach with the [Decider pattern](/api-reference/decider) |
-| **Projections** | Built-in [projections](/guides/projections) to build read models from events |
-| **Workflows** | Coordinate multi-step processes with [durable execution](/guides/workflows) |
-| **Type Safety** | First-class TypeScript support with structural typing |
-| **Web Framework Integration** | Seamless integration with [Express.js](/frameworks/expressjs) and [Fastify](/frameworks/fastify) |
-| **Comprehensive Testing** | [BDD-style testing](/guides/testing) with DeciderSpecification and ApiSpecification |
-| **TestContainers Support** | Docker-based testing with pre-configured containers |
+| Feature                       | Description                                                                                                                                                                              |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Event-Centric Modeling**    | Structured approach to modeling business processes through events                                                                                                                        |
+| **Multiple Event Stores**     | Built-in support for [PostgreSQL](/event-stores/postgresql), [EventStoreDB](/event-stores/esdb), [MongoDB](/event-stores/mongodb), [SQLite](/event-stores/sqlite), and In-Memory storage |
+| **Command Handling Patterns** | Standardized approach with the [Decider pattern](/api-reference/decider)                                                                                                                 |
+| **Projections**               | Built-in [projections](/guides/projections) to build read models from events                                                                                                             |
+| **Workflows**                 | Coordinate multi-step processes with [durable execution](/guides/workflows)                                                                                                              |
+| **Type Safety**               | First-class TypeScript support with structural typing                                                                                                                                    |
+| **Web Framework Integration** | Seamless integration with [Express.js](/frameworks/expressjs) and [Fastify](/frameworks/fastify)                                                                                         |
+| **Comprehensive Testing**     | [BDD-style testing](/guides/testing) with DeciderSpecification and ApiSpecification                                                                                                      |
+| **TestContainers Support**    | Docker-based testing with pre-configured containers                                                                                                                                      |
 
 ## Why Use Emmett?
 
@@ -49,19 +49,25 @@ Event Sourcing keeps all the facts that happened in your system as events. This 
 <div class="grid-cards">
 
 ### Getting Started
+
 New to Emmett? Start here.
+
 - [Quick Intro](/quick-intro) - Core concepts in 5 minutes
 - [Getting Started](/getting-started) - Build your first app
 
 ### Guides
+
 Learn key patterns and techniques.
+
 - [Projections](/guides/projections) - Build read models
 - [Testing](/guides/testing) - Test strategies
 - [Error Handling](/guides/error-handling) - Handle errors gracefully
 - [Workflows](/guides/workflows) - Multi-step processes
 
 ### Event Stores
+
 Choose your persistence layer.
+
 - [Comparison](/guides/choosing-event-store) - Which one to use?
 - [PostgreSQL](/event-stores/postgresql) - Production-ready
 - [EventStoreDB](/event-stores/esdb) - Native Event Sourcing
@@ -69,7 +75,9 @@ Choose your persistence layer.
 - [SQLite](/event-stores/sqlite) - Development & testing
 
 ### Resources
+
 Learn more and get help.
+
 - [Samples](/samples/) - Working examples
 - [Articles](/resources/articles) - Blog posts & tutorials
 - [Packages](/resources/packages) - npm packages
@@ -93,26 +101,26 @@ Watch a full introduction on building applications with Emmett:
 
 The [API reference](/api-reference/) covers Emmett's core abstractions:
 
-| Concept | Description |
-|---------|-------------|
-| [Event](/api-reference/event) | Immutable facts that happened in your system |
-| [Command](/api-reference/command) | Requests to change state |
-| [Event Store](/api-reference/eventstore) | Persistence layer for event streams |
-| [Command Handler](/api-reference/commandhandler) | Processes commands into events |
-| [Decider](/api-reference/decider) | Pattern for business logic (decide + evolve) |
-| [Projections](/api-reference/projections) | Build read models from events |
-| [Workflows](/api-reference/workflows) | Coordinate multi-aggregate processes |
+| Concept                                          | Description                                  |
+| ------------------------------------------------ | -------------------------------------------- |
+| [Event](/api-reference/event)                    | Immutable facts that happened in your system |
+| [Command](/api-reference/command)                | Requests to change state                     |
+| [Event Store](/api-reference/eventstore)         | Persistence layer for event streams          |
+| [Command Handler](/api-reference/commandhandler) | Processes commands into events               |
+| [Decider](/api-reference/decider)                | Pattern for business logic (decide + evolve) |
+| [Projections](/api-reference/projections)        | Build read models from events                |
+| [Workflows](/api-reference/workflows)            | Coordinate multi-aggregate processes         |
 
 ## Documentation Structure
 
 This documentation follows the [Diataxis](https://diataxis.fr) framework:
 
-| Type | Purpose | Examples |
-|------|---------|----------|
-| **Tutorials** | Learning-oriented, step-by-step | [Getting Started](/getting-started) |
-| **How-to Guides** | Task-oriented, problem-solving | [Testing](/guides/testing), [Projections](/guides/projections) |
-| **Reference** | Information-oriented, technical | [API Reference](/api-reference/) |
-| **Explanation** | Understanding-oriented, concepts | [Choosing an Event Store](/guides/choosing-event-store) |
+| Type              | Purpose                          | Examples                                                       |
+| ----------------- | -------------------------------- | -------------------------------------------------------------- |
+| **Tutorials**     | Learning-oriented, step-by-step  | [Getting Started](/getting-started)                            |
+| **How-to Guides** | Task-oriented, problem-solving   | [Testing](/guides/testing), [Projections](/guides/projections) |
+| **Reference**     | Information-oriented, technical  | [API Reference](/api-reference/)                               |
+| **Explanation**   | Understanding-oriented, concepts | [Choosing an Event Store](/guides/choosing-event-store)        |
 
 ## Featured Articles
 

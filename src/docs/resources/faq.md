@@ -16,13 +16,13 @@ Emmett is an opinionated yet flexible framework that implements Event Sourcing f
 
 Emmett supports multiple backends:
 
-| Event Store | Package | Production Ready | Best For |
-|-------------|---------|------------------|----------|
-| PostgreSQL | `@event-driven-io/emmett-postgresql` | ✅ Yes | Production apps needing ACID guarantees |
-| EventStoreDB | `@event-driven-io/emmett-esdb` | ✅ Yes | Native event sourcing with built-in projections |
-| MongoDB | `@event-driven-io/emmett-mongodb` | ⚠️ Beta | Document-oriented workflows |
-| SQLite | `@event-driven-io/emmett-sqlite` | ⚠️ Beta | Development, testing, embedded apps |
-| In-Memory | `@event-driven-io/emmett` | ✅ Yes | Unit testing, prototyping |
+| Event Store  | Package                              | Production Ready | Best For                                        |
+| ------------ | ------------------------------------ | ---------------- | ----------------------------------------------- |
+| PostgreSQL   | `@event-driven-io/emmett-postgresql` | ✅ Yes           | Production apps needing ACID guarantees         |
+| EventStoreDB | `@event-driven-io/emmett-esdb`       | ✅ Yes           | Native event sourcing with built-in projections |
+| MongoDB      | `@event-driven-io/emmett-mongodb`    | ⚠️ Beta          | Document-oriented workflows                     |
+| SQLite       | `@event-driven-io/emmett-sqlite`     | ⚠️ Beta          | Development, testing, embedded apps             |
+| In-Memory    | `@event-driven-io/emmett`            | ✅ Yes           | Unit testing, prototyping                       |
 
 See [Choosing an Event Store](/guides/choosing-event-store) for detailed comparisons.
 
@@ -47,7 +47,7 @@ const { events } = await eventStore.readStream('order-123');
 
 See the [Event Store API Reference](/api-reference/eventstore) for full documentation.
 
-*Related: [GitHub Issue #284](https://github.com/event-driven-io/emmett/issues/284)*
+_Related: [GitHub Issue #284](https://github.com/event-driven-io/emmett/issues/284)_
 
 ---
 
@@ -83,7 +83,7 @@ npm install @event-driven-io/emmett-testcontainers
 npm install @event-driven-io/emmett@latest @event-driven-io/emmett-postgresql@latest
 ```
 
-*Related: [GitHub Issue #240](https://github.com/event-driven-io/emmett/issues/240)*
+_Related: [GitHub Issue #240](https://github.com/event-driven-io/emmett/issues/240)_
 
 ### How do I use Emmett with Express.js v5?
 
@@ -102,10 +102,9 @@ const app = express();
 const eventStore = getPostgreSQLEventStore(connectionString);
 
 app.post('/orders', async (req, res) => {
-  const result = await eventStore.appendToStream(
-    `order-${req.body.orderId}`,
-    [{ type: 'OrderCreated', data: req.body }]
-  );
+  const result = await eventStore.appendToStream(`order-${req.body.orderId}`, [
+    { type: 'OrderCreated', data: req.body },
+  ]);
   res.json({ streamPosition: result.nextExpectedStreamVersion });
 });
 ```
@@ -129,7 +128,7 @@ podman machine start
 export DOCKER_HOST="unix://$HOME/.local/share/containers/podman/machine/podman.sock"
 ```
 
-*Related: [GitHub Issue #198](https://github.com/event-driven-io/emmett/issues/198)*
+_Related: [GitHub Issue #198](https://github.com/event-driven-io/emmett/issues/198)_
 
 ---
 
@@ -147,7 +146,7 @@ npm install @event-driven-io/emmett-postgresql@latest
 
 The fix ensures explicit `ORDER BY stream_position` in SQL queries.
 
-*Related: [GitHub Issue #239](https://github.com/event-driven-io/emmett/issues/239)*
+_Related: [GitHub Issue #239](https://github.com/event-driven-io/emmett/issues/239)_
 
 ### PostgreSQL doesn't respect schema in connection URL
 
@@ -163,7 +162,7 @@ const eventStore = getPostgreSQLEventStore(connectionString, {
 });
 ```
 
-*Related: [GitHub Issue #95](https://github.com/event-driven-io/emmett/issues/95)*
+_Related: [GitHub Issue #95](https://github.com/event-driven-io/emmett/issues/95)_
 
 ### How do I configure event store options?
 
@@ -217,7 +216,7 @@ const myProjection = postgreSQLProjection({
       // Load current state from read model
       const current = await db.query(
         'SELECT * FROM order_summaries WHERE id = $1',
-        [streamId]
+        [streamId],
       );
 
       // Apply event to current state
@@ -227,7 +226,7 @@ const myProjection = postgreSQLProjection({
       await db.query(
         `INSERT INTO order_summaries (id, data) VALUES ($1, $2)
          ON CONFLICT (id) DO UPDATE SET data = $2`,
-        [streamId, updated]
+        [streamId, updated],
       );
     }
   },
@@ -242,10 +241,10 @@ handle: async (events, { eventStore }) => {
   const { events: allEvents } = await eventStore.readStream(streamId);
   const state = allEvents.reduce(evolve, initialState());
   // Save state...
-}
+};
 ```
 
-*Related: [GitHub Issue #263](https://github.com/event-driven-io/emmett/issues/263)*
+_Related: [GitHub Issue #263](https://github.com/event-driven-io/emmett/issues/263)_
 
 ### How do I test projections without Given/When/Then?
 
@@ -266,13 +265,13 @@ await given([
   );
 ```
 
-*Related: [GitHub Issue #253](https://github.com/event-driven-io/emmett/issues/253)*
+_Related: [GitHub Issue #253](https://github.com/event-driven-io/emmett/issues/253)_
 
 ### Can I replay projections from a specific point in time?
 
 This feature is planned but not yet implemented. Currently, projections are rebuilt from the beginning of the stream.
 
-*Related: [GitHub Issue #185](https://github.com/event-driven-io/emmett/issues/185)*
+_Related: [GitHub Issue #185](https://github.com/event-driven-io/emmett/issues/185)_
 
 ---
 
@@ -287,16 +286,16 @@ This feature is planned but not yet implemented. Currently, projections are rebu
 ```typescript
 // Instead of
 const result = await eventStore.projections.inline.find({
-  _id: new ObjectId('...')
+  _id: new ObjectId('...'),
 });
 
 // Use string
 const result = await eventStore.projections.inline.find({
-  _id: '...'  // as string
+  _id: '...', // as string
 });
 ```
 
-*Related: [GitHub Issue #266](https://github.com/event-driven-io/emmett/issues/266)*
+_Related: [GitHub Issue #266](https://github.com/event-driven-io/emmett/issues/266)_
 
 ### MongoDB filter objects are mutated
 
@@ -309,7 +308,7 @@ const filter = { userId: 'u-1' };
 const result = await eventStore.projections.inline.find({ ...filter });
 ```
 
-*Related: [GitHub Issue #168](https://github.com/event-driven-io/emmett/issues/168)*
+_Related: [GitHub Issue #168](https://github.com/event-driven-io/emmett/issues/168)_
 
 ---
 
@@ -327,7 +326,7 @@ npm install @event-driven-io/emmett-esdb@latest
 
 The consumer now automatically restarts subscriptions when they drop.
 
-*Related: [GitHub Issue #233](https://github.com/event-driven-io/emmett/issues/233)*
+_Related: [GitHub Issue #233](https://github.com/event-driven-io/emmett/issues/233)_
 
 ---
 
@@ -344,7 +343,7 @@ The consumer now automatically restarts subscriptions when they drop.
 const itemId = 'item-2'; // Not just '2'
 ```
 
-*Related: [GitHub Issue #255](https://github.com/event-driven-io/emmett/issues/255)*
+_Related: [GitHub Issue #255](https://github.com/event-driven-io/emmett/issues/255)_
 
 ### SQLite tests interfere with each other
 
@@ -363,7 +362,7 @@ const dbPath = join(tempDir, `test-${Date.now()}.db`);
 const eventStore = getSQLiteEventStore({ fileName: dbPath });
 ```
 
-*Related: [GitHub Issue #232](https://github.com/event-driven-io/emmett/issues/232)*
+_Related: [GitHub Issue #232](https://github.com/event-driven-io/emmett/issues/232)_
 
 ---
 
@@ -391,13 +390,13 @@ const handle = CommandHandler({ evolve, initialState });
 
 app.post('/carts/:id/add', async (req, res) => {
   const result = await handle(eventStore, req.params.id, (state) =>
-    addProduct(req.body, state)
+    addProduct(req.body, state),
   );
   res.json(result);
 });
 ```
 
-*Related: [GitHub Issue #267 comments](https://github.com/event-driven-io/emmett/issues/267)*
+_Related: [GitHub Issue #267 comments](https://github.com/event-driven-io/emmett/issues/267)_
 
 ---
 
@@ -422,7 +421,7 @@ import { InMemoryEventStore, Event } from '@event-driven-io/emmett';
 const eventStore = new InMemoryEventStore();
 ```
 
-*Related: [GitHub Issue #64](https://github.com/event-driven-io/emmett/issues/64), [GitHub Issue #74](https://github.com/event-driven-io/emmett/issues/74)*
+_Related: [GitHub Issue #64](https://github.com/event-driven-io/emmett/issues/64), [GitHub Issue #74](https://github.com/event-driven-io/emmett/issues/74)_
 
 ---
 
@@ -437,6 +436,7 @@ const eventStore = new InMemoryEventStore();
 ### How do I report a bug?
 
 Include:
+
 - Emmett package versions
 - Node.js version
 - Minimal reproduction code
@@ -446,6 +446,7 @@ Include:
 ### How can I contribute?
 
 See the [Contributing Guide](/resources/contributing) for setup instructions and guidelines. We welcome:
+
 - Bug fixes
 - Documentation improvements
 - New features (discuss first in GitHub Issues)

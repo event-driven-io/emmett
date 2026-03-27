@@ -11,12 +11,12 @@ Commands represent the intention to perform a business operation. They are reque
 
 Commands differ from events in key ways:
 
-| Aspect | Command | Event |
-|--------|---------|-------|
-| **Tense** | Imperative (do this) | Past (this happened) |
-| **Outcome** | May be rejected | Immutable fact |
-| **Naming** | `AddProductItem` | `ProductItemAdded` |
-| **Multiplicity** | Single handler | Multiple subscribers |
+| Aspect           | Command              | Event                |
+| ---------------- | -------------------- | -------------------- |
+| **Tense**        | Imperative (do this) | Past (this happened) |
+| **Outcome**      | May be rejected      | Immutable fact       |
+| **Naming**       | `AddProductItem`     | `ProductItemAdded`   |
+| **Multiplicity** | Single handler       | Multiple subscribers |
 
 Commands express intent. The handler decides whether to accept or reject the request.
 
@@ -37,12 +37,12 @@ type Command<
 type DefaultCommandMetadata = { now: Date };
 ```
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `type` | `string` | Unique command type name (e.g., `'AddProductItem'`) |
-| `data` | `object` | Request payload (must be a record, not primitive) |
-| `metadata` | `object?` | Infrastructure data (defaults to `{ now: Date }`) |
-| `kind` | `'Command'?` | Discriminator for union types with Events |
+| Property   | Type         | Description                                         |
+| ---------- | ------------ | --------------------------------------------------- |
+| `type`     | `string`     | Unique command type name (e.g., `'AddProductItem'`) |
+| `data`     | `object`     | Request payload (must be a record, not primitive)   |
+| `metadata` | `object?`    | Infrastructure data (defaults to `{ now: Date }`)   |
+| `kind`     | `'Command'?` | Discriminator for union types with Events           |
 
 ## Basic Usage
 
@@ -58,18 +58,27 @@ Define all commands for an aggregate as a discriminated union:
 import type { Command } from '@event-driven-io/emmett';
 
 type ShoppingCartCommand =
-  | Command<'OpenShoppingCart', {
-      cartId: string;
-      clientId: string;
-    }>
-  | Command<'AddProductItem', {
-      productId: string;
-      quantity: number;
-    }>
-  | Command<'RemoveProductItem', {
-      productId: string;
-      quantity: number;
-    }>
+  | Command<
+      'OpenShoppingCart',
+      {
+        cartId: string;
+        clientId: string;
+      }
+    >
+  | Command<
+      'AddProductItem',
+      {
+        productId: string;
+        quantity: number;
+      }
+    >
+  | Command<
+      'RemoveProductItem',
+      {
+        productId: string;
+        quantity: number;
+      }
+    >
   | Command<'ConfirmShoppingCart', {}>
   | Command<'CancelShoppingCart', {}>;
 ```
@@ -81,17 +90,17 @@ Use the `command` factory function for runtime command creation:
 ```typescript
 import { command } from '@event-driven-io/emmett';
 
-const addProduct = command<AddProductItem>(
-  'AddProductItem',
-  { productId: 'shoes-1', quantity: 2 }
-);
+const addProduct = command<AddProductItem>('AddProductItem', {
+  productId: 'shoes-1',
+  quantity: 2,
+});
 // Result: { type: 'AddProductItem', data: {...}, kind: 'Command' }
 
 // With timestamp metadata (default)
 const addProductWithTime = command<AddProductItem>(
   'AddProductItem',
   { productId: 'shoes-1', quantity: 2 },
-  { now: new Date() }
+  { now: new Date() },
 );
 ```
 
@@ -115,7 +124,7 @@ type AuthenticatedAddProductItem = Command<
 const authenticatedCommand = command<AuthenticatedAddProductItem>(
   'AddProductItem',
   { productId: 'shoes-1', quantity: 2 },
-  { userId: 'user-123', correlationId: 'req-456', now: new Date() }
+  { userId: 'user-123', correlationId: 'req-456', now: new Date() },
 );
 ```
 
@@ -125,32 +134,43 @@ Commands and events work together in the Decider pattern:
 
 ```typescript
 // Command: Request to add a product
-type AddProductItem = Command<'AddProductItem', {
-  productId: string;
-  quantity: number;
-}>;
+type AddProductItem = Command<
+  'AddProductItem',
+  {
+    productId: string;
+    quantity: number;
+  }
+>;
 
 // Event: Result of successful command
-type ProductItemAdded = Event<'ProductItemAdded', {
-  productId: string;
-  quantity: number;
-  price: number;  // Enriched during handling
-}>;
+type ProductItemAdded = Event<
+  'ProductItemAdded',
+  {
+    productId: string;
+    quantity: number;
+    price: number; // Enriched during handling
+  }
+>;
 
 // Decider decides command → events
-const decide = (command: AddProductItem, state: ShoppingCart): ProductItemAdded[] => {
+const decide = (
+  command: AddProductItem,
+  state: ShoppingCart,
+): ProductItemAdded[] => {
   if (state.status !== 'Open') {
     throw new IllegalStateError('Cart is not open');
   }
 
-  return [{
-    type: 'ProductItemAdded',
-    data: {
-      productId: command.data.productId,
-      quantity: command.data.quantity,
-      price: lookupPrice(command.data.productId),
+  return [
+    {
+      type: 'ProductItemAdded',
+      data: {
+        productId: command.data.productId,
+        quantity: command.data.quantity,
+        price: lookupPrice(command.data.productId),
+      },
     },
-  }];
+  ];
 };
 ```
 
@@ -159,13 +179,17 @@ const decide = (command: AddProductItem, state: ShoppingCart): ProductItemAdded[
 ### Extracting Command Properties
 
 ```typescript
-import type { CommandTypeOf, CommandDataOf, CommandMetaDataOf } from '@event-driven-io/emmett';
+import type {
+  CommandTypeOf,
+  CommandDataOf,
+  CommandMetaDataOf,
+} from '@event-driven-io/emmett';
 
 type AddProductItem = Command<'AddProductItem', { productId: string }>;
 
-type CmdType = CommandTypeOf<AddProductItem>;      // 'AddProductItem'
-type CmdData = CommandDataOf<AddProductItem>;      // { productId: string }
-type CmdMeta = CommandMetaDataOf<AddProductItem>;  // undefined
+type CmdType = CommandTypeOf<AddProductItem>; // 'AddProductItem'
+type CmdData = CommandDataOf<AddProductItem>; // { productId: string }
+type CmdMeta = CommandMetaDataOf<AddProductItem>; // undefined
 ```
 
 ### Any Command
@@ -208,7 +232,7 @@ await handle(
     type: 'AddProductItem',
     data: { cartId: 'cart-123', productId: 'shoes-1', quantity: 2 },
   },
-  { expectedStreamVersion: 5n }
+  { expectedStreamVersion: 5n },
 );
 ```
 
@@ -233,18 +257,24 @@ Commands must identify their target:
 
 ```typescript
 // ✅ Good: Clear target
-type AddProductItem = Command<'AddProductItem', {
-  cartId: string;      // Target aggregate
-  productId: string;
-  quantity: number;
-}>;
+type AddProductItem = Command<
+  'AddProductItem',
+  {
+    cartId: string; // Target aggregate
+    productId: string;
+    quantity: number;
+  }
+>;
 
 // ❌ Bad: Missing target
-type AddProductItem = Command<'AddProductItem', {
-  productId: string;
-  quantity: number;
-  // Which cart?
-}>;
+type AddProductItem = Command<
+  'AddProductItem',
+  {
+    productId: string;
+    quantity: number;
+    // Which cart?
+  }
+>;
 ```
 
 ### 3. Keep Commands Focused

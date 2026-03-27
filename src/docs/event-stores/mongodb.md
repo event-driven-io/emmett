@@ -74,16 +74,15 @@ const result = await eventStore.appendToStream<ProductItemAdded>(
       type: 'ProductItemAdded',
       data: { productId: 'shoes-1', quantity: 2, price: 99.99 },
     },
-  ]
+  ],
 );
 ```
 
 ### Reading Events
 
 ```typescript
-const { events, currentStreamVersion } = await eventStore.readStream(
-  'ShoppingCart-123'
-);
+const { events, currentStreamVersion } =
+  await eventStore.readStream('ShoppingCart-123');
 
 for (const event of events) {
   console.log(event.type, event.data);
@@ -149,6 +148,7 @@ const eventStore = getMongoDBEventStore({
 ```
 
 **Choose based on:**
+
 - Single collection: Simple, works for most cases
 - Per stream type: Better querying by entity type
 - Document per stream: Optimal for small streams, atomic reads
@@ -166,7 +166,10 @@ interface CartSummary {
   totalAmount: number;
 }
 
-const cartSummaryProjection = mongoDBInlineProjection<CartSummary, ShoppingCartEvent>({
+const cartSummaryProjection = mongoDBInlineProjection<
+  CartSummary,
+  ShoppingCartEvent
+>({
   collectionName: 'cart_summaries',
   canHandle: ['ProductItemAdded', 'ProductItemRemoved'],
   evolve: (document, event) => {
@@ -177,13 +180,15 @@ const cartSummaryProjection = mongoDBInlineProjection<CartSummary, ShoppingCartE
         return {
           ...current,
           totalItems: current.totalItems + event.data.quantity,
-          totalAmount: current.totalAmount + event.data.price * event.data.quantity,
+          totalAmount:
+            current.totalAmount + event.data.price * event.data.quantity,
         };
       case 'ProductItemRemoved':
         return {
           ...current,
           totalItems: current.totalItems - event.data.quantity,
-          totalAmount: current.totalAmount - event.data.price * event.data.quantity,
+          totalAmount:
+            current.totalAmount - event.data.price * event.data.quantity,
         };
     }
   },
@@ -218,7 +223,10 @@ const largeCarts = await cartSummaries
 For advanced queries:
 
 ```typescript
-const eventStore = getMongoDBEventStore({ connectionString, database: 'events' });
+const eventStore = getMongoDBEventStore({
+  connectionString,
+  database: 'events',
+});
 
 // Access the underlying MongoDB client
 const db = eventStore.database;

@@ -38,7 +38,7 @@ import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import { EventStoreDBClient } from '@eventstore/db-client';
 
 const client = EventStoreDBClient.connectionString(
-  'esdb://localhost:2113?tls=false'
+  'esdb://localhost:2113?tls=false',
 );
 
 const eventStore = getEventStoreDBEventStore(client);
@@ -61,16 +61,15 @@ const result = await eventStore.appendToStream<ProductItemAdded>(
       type: 'ProductItemAdded',
       data: { productId: 'shoes-1', quantity: 2, price: 99.99 },
     },
-  ]
+  ],
 );
 ```
 
 ### Reading Events
 
 ```typescript
-const { events, currentStreamVersion } = await eventStore.readStream(
-  'ShoppingCart-123'
-);
+const { events, currentStreamVersion } =
+  await eventStore.readStream('ShoppingCart-123');
 
 for (const event of events) {
   console.log(event.type, event.data);
@@ -206,7 +205,9 @@ Configure retry behavior:
 const reactor = esdbReactor({
   processorId: 'resilient-processor',
   client,
-  eachMessage: async (event) => { /* ... */ },
+  eachMessage: async (event) => {
+    /* ... */
+  },
   retryOptions: {
     retries: 5,
     minTimeout: 100,
@@ -224,18 +225,18 @@ import { EventStoreDBClient } from '@eventstore/db-client';
 
 // Connection string
 const client = EventStoreDBClient.connectionString(
-  'esdb://admin:changeit@localhost:2113?tls=false'
+  'esdb://admin:changeit@localhost:2113?tls=false',
 );
 
 // Cluster connection
 const clusterClient = EventStoreDBClient.connectionString(
-  'esdb://node1:2113,node2:2113,node3:2113?tls=true'
+  'esdb://node1:2113,node2:2113,node3:2113?tls=true',
 );
 
 // With explicit options
 const client = new EventStoreDBClient(
   { endpoint: 'localhost:2113' },
-  { insecure: true }
+  { insecure: true },
 );
 ```
 
@@ -268,11 +269,11 @@ describe('EventStoreDB Tests', () => {
 
 EventStoreDB uses stream name prefixes for categories:
 
-| Pattern | Purpose |
-|---------|---------|
-| `ShoppingCart-{id}` | Individual entity streams |
-| `$ce-ShoppingCart` | Category projection (all carts) |
-| `$et-ProductItemAdded` | Event type projection |
+| Pattern                | Purpose                         |
+| ---------------------- | ------------------------------- |
+| `ShoppingCart-{id}`    | Individual entity streams       |
+| `$ce-ShoppingCart`     | Category projection (all carts) |
+| `$et-ProductItemAdded` | Event type projection           |
 
 ## Full Package Documentation
 
