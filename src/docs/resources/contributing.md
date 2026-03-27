@@ -21,8 +21,8 @@ We welcome contributions! This guide covers everything you need to get started.
 
 ### Prerequisites
 
-- Node.js 18+
-- pnpm 8+
+- Node.js 22+
+- npm 11+
 - Docker (for integration tests)
 
 ### Setup
@@ -33,13 +33,13 @@ git clone https://github.com/event-driven-io/emmett.git
 cd emmett
 
 # Install dependencies
-pnpm install
+npm install
 
 # Build all packages
-pnpm run build
+npm run build
 
 # Run tests
-pnpm run test
+npm run test
 ```
 
 ### Project Structure
@@ -66,42 +66,42 @@ src/
 
 ```bash
 # All tests
-pnpm run test
+npm run test
 
 # Specific package
-pnpm --filter @event-driven-io/emmett run test
+npm -ws @event-driven-io/emmett run test
 
 # Watch mode
-pnpm --filter @event-driven-io/emmett run test:watch
+npm --ws @event-driven-io/emmett run test:watch
 
 # With coverage
-pnpm run test:coverage
+npm run test:coverage
 ```
 
 ### Building
 
 ```bash
 # All packages
-pnpm run build
+npm run build
 
 # Specific package
-pnpm --filter @event-driven-io/emmett run build
+npm --ws @event-driven-io/emmett run build
 
 # Watch mode (development)
-pnpm --filter @event-driven-io/emmett run build:watch
+npm --ws @event-driven-io/emmett run build:watch
 ```
 
 ### Linting and Formatting
 
 ```bash
 # Check linting
-pnpm run lint
+npm run lint
 
 # Fix linting issues
-pnpm run lint:fix
+npm run lint:fix
 
 # Format code
-pnpm run format
+npm run format
 ```
 
 ## Making Changes
@@ -124,29 +124,15 @@ git checkout -b fix/issue-description
 
 ```bash
 # Run tests for affected packages
-pnpm run test
+npm run test
 
 # Run full build
-pnpm run build
+npm run build
 ```
 
 ### 4. Commit Your Changes
 
-We use conventional commits:
-
-```bash
-# Features
-git commit -m "feat(postgresql): add batch event appending"
-
-# Bug fixes
-git commit -m "fix(esdb): handle connection timeouts"
-
-# Documentation
-git commit -m "docs: add workflow examples"
-
-# Breaking changes
-git commit -m "feat(core)!: rename Event to DomainEvent"
-```
+Remember to make your commit message meaningful and group changes into commits logically.
 
 ### 5. Open a Pull Request
 
@@ -198,7 +184,7 @@ it('rejects negative quantity', () =>
 
 1. Create package directory under `src/packages/`
 2. Add `package.json` with proper naming
-3. Add to workspace in root `pnpm-workspace.yaml`
+3. Add to workspace in root `npm-workspace.yaml`
 4. Create README following [package README template](https://github.com/event-driven-io/emmett/tree/main/src/packages/emmett#readme)
 5. Add to documentation
 
@@ -208,8 +194,8 @@ it('rejects negative quantity', () =>
 
 ```bash
 cd src/docs
-pnpm install
-pnpm run dev
+npm install
+npm run dev
 ```
 
 ### Writing Documentation
