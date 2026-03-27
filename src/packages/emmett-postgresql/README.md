@@ -68,7 +68,7 @@ import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
 
 // Create the event store
 const eventStore = getPostgreSQLEventStore(
-  'postgresql://user:password@localhost:5432/mydb'
+  'postgresql://user:password@localhost:5432/mydb',
 );
 
 // Schema is auto-migrated by default
@@ -102,20 +102,19 @@ const result = await eventStore.appendToStream<ShoppingCartEvent>(
       type: 'ProductItemAdded',
       data: { productId: 'product-1', quantity: 2 },
     },
-  ]
+  ],
 );
 
 console.log(result.nextExpectedStreamVersion); // 1n
-console.log(result.lastEventGlobalPosition);   // Global position for ordering
+console.log(result.lastEventGlobalPosition); // Global position for ordering
 ```
 
 ### Reading Events
 
 ```typescript
 // Read all events from a stream
-const { events, currentStreamVersion } = await eventStore.readStream<ShoppingCartEvent>(
-  'ShoppingCart-123'
-);
+const { events, currentStreamVersion } =
+  await eventStore.readStream<ShoppingCartEvent>('ShoppingCart-123');
 
 for (const event of events) {
   console.log(event.type, event.data);
@@ -132,12 +131,15 @@ interface ShoppingCart {
   status: 'Open' | 'Confirmed';
 }
 
-const evolve = (state: ShoppingCart, event: ShoppingCartEvent): ShoppingCart => {
+const evolve = (
+  state: ShoppingCart,
+  event: ShoppingCartEvent,
+): ShoppingCart => {
   switch (event.type) {
     case 'ProductItemAdded':
       state.items.set(
         event.data.productId,
-        (state.items.get(event.data.productId) ?? 0) + event.data.quantity
+        (state.items.get(event.data.productId) ?? 0) + event.data.quantity,
       );
       return state;
     case 'ShoppingCartConfirmed':
@@ -150,7 +152,7 @@ const { state, currentStreamVersion } = await eventStore.aggregateStream(
   {
     evolve,
     initialState: () => ({ items: new Map(), status: 'Open' }),
-  }
+  },
 );
 ```
 
@@ -161,7 +163,7 @@ const { state, currentStreamVersion } = await eventStore.aggregateStream(
 await eventStore.appendToStream(
   'ShoppingCart-123',
   [{ type: 'ShoppingCartConfirmed', data: { confirmedAt: new Date() } }],
-  { expectedStreamVersion: 1n }
+  { expectedStreamVersion: 1n },
 );
 
 // Throws ExpectedVersionConflictError if version doesn't match
@@ -317,6 +319,7 @@ npx emmett migrate sql --print
 Creates a PostgreSQL event store instance.
 
 **Parameters:**
+
 - `connectionString: string` - PostgreSQL connection string
 - `options?: PostgresEventStoreOptions`
   - `projections?: ProjectionRegistration[]` - Inline projections to register
@@ -329,34 +332,34 @@ Creates a PostgreSQL event store instance.
 
 #### Methods
 
-| Method | Description |
-|--------|-------------|
-| `appendToStream(streamName, events, options?)` | Append events to a stream |
-| `readStream(streamName, options?)` | Read events from a stream |
-| `aggregateStream(streamName, options)` | Aggregate events into state |
-| `consumer(options?)` | Create an async message consumer |
-| `withSession(callback)` | Execute operations in a transaction |
-| `schema.migrate()` | Run schema migrations |
-| `schema.sql()` | Get schema SQL |
-| `close()` | Close connections |
+| Method                                         | Description                         |
+| ---------------------------------------------- | ----------------------------------- |
+| `appendToStream(streamName, events, options?)` | Append events to a stream           |
+| `readStream(streamName, options?)`             | Read events from a stream           |
+| `aggregateStream(streamName, options)`         | Aggregate events into state         |
+| `consumer(options?)`                           | Create an async message consumer    |
+| `withSession(callback)`                        | Execute operations in a transaction |
+| `schema.migrate()`                             | Run schema migrations               |
+| `schema.sql()`                                 | Get schema SQL                      |
+| `close()`                                      | Close connections                   |
 
 ### Projection Functions
 
-| Function | Description |
-|----------|-------------|
+| Function                               | Description                                             |
+| -------------------------------------- | ------------------------------------------------------- |
 | `pongoSingleStreamProjection(options)` | Project single stream to document (ID from stream name) |
-| `pongoMultiStreamProjection(options)` | Project multiple streams to documents (custom ID) |
-| `pongoProjection(options)` | Low-level Pongo projection |
-| `postgreSQLProjection(options)` | Raw PostgreSQL projection |
-| `postgreSQLRawSQLProjection(options)` | Execute raw SQL in projection |
+| `pongoMultiStreamProjection(options)`  | Project multiple streams to documents (custom ID)       |
+| `pongoProjection(options)`             | Low-level Pongo projection                              |
+| `postgreSQLProjection(options)`        | Raw PostgreSQL projection                               |
+| `postgreSQLRawSQLProjection(options)`  | Execute raw SQL in projection                           |
 
 ### Consumer Functions
 
-| Function | Description |
-|----------|-------------|
+| Function                                | Description                |
+| --------------------------------------- | -------------------------- |
 | `postgreSQLEventStoreConsumer(options)` | Create standalone consumer |
-| `postgreSQLProjector(options)` | Create projector processor |
-| `postgreSQLReactor(options)` | Create reactor processor |
+| `postgreSQLProjector(options)`          | Create projector processor |
+| `postgreSQLReactor(options)`            | Create reactor processor   |
 
 ## Architecture
 
@@ -408,24 +411,24 @@ The event store supports both pooled and non-pooled connections:
 
 ### Peer Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `@event-driven-io/emmett` | `0.38.3` | Core event sourcing library |
-| `@event-driven-io/pongo` | `0.16.4` | MongoDB-like API for PostgreSQL |
+| Package                   | Version  | Purpose                         |
+| ------------------------- | -------- | ------------------------------- |
+| `@event-driven-io/emmett` | `0.38.3` | Core event sourcing library     |
+| `@event-driven-io/pongo`  | `0.16.4` | MongoDB-like API for PostgreSQL |
 
 ### Internal Dependencies
 
-| Package | Purpose |
-|---------|---------|
+| Package                  | Purpose                                   |
+| ------------------------ | ----------------------------------------- |
 | `@event-driven-io/dumbo` | PostgreSQL database utilities (via pongo) |
 
 ### External Dependencies
 
-| Package | Purpose |
-|---------|---------|
-| `pg` | PostgreSQL client for Node.js |
-| `uuid` | UUID generation (v4 and v7) |
-| `commander` | CLI command parsing |
+| Package     | Purpose                       |
+| ----------- | ----------------------------- |
+| `pg`        | PostgreSQL client for Node.js |
+| `uuid`      | UUID generation (v4 and v7)   |
+| `commander` | CLI command parsing           |
 
 ## Related Packages
 

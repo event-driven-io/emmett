@@ -71,16 +71,15 @@ const result = await eventStore.appendToStream<ProductItemAdded>(
       type: 'ProductItemAdded',
       data: { productId: 'shoes-1', quantity: 2, price: 99.99 },
     },
-  ]
+  ],
 );
 ```
 
 ### Reading Events
 
 ```typescript
-const { events, currentStreamVersion } = await eventStore.readStream(
-  'ShoppingCart-123'
-);
+const { events, currentStreamVersion } =
+  await eventStore.readStream('ShoppingCart-123');
 
 for (const event of events) {
   console.log(event.type, event.data);
@@ -114,7 +113,10 @@ interface CartSummary {
   totalAmount: number;
 }
 
-const cartSummaryProjection = sqliteSingleStreamProjection<CartSummary, ShoppingCartEvent>({
+const cartSummaryProjection = sqliteSingleStreamProjection<
+  CartSummary,
+  ShoppingCartEvent
+>({
   tableName: 'cart_summaries',
   canHandle: ['ProductItemAdded', 'ProductItemRemoved'],
   evolve: (document, event) => {
@@ -125,13 +127,15 @@ const cartSummaryProjection = sqliteSingleStreamProjection<CartSummary, Shopping
         return {
           ...current,
           totalItems: current.totalItems + event.data.quantity,
-          totalAmount: current.totalAmount + event.data.price * event.data.quantity,
+          totalAmount:
+            current.totalAmount + event.data.price * event.data.quantity,
         };
       case 'ProductItemRemoved':
         return {
           ...current,
           totalItems: current.totalItems - event.data.quantity,
-          totalAmount: current.totalAmount - event.data.price * event.data.quantity,
+          totalAmount:
+            current.totalAmount - event.data.price * event.data.quantity,
         };
     }
   },
@@ -229,11 +233,11 @@ await eventStore.schema.migrate();
 
 SQLite event store creates three tables:
 
-| Table | Purpose |
-|-------|---------|
-| `emt_streams` | Stream metadata and versions |
-| `emt_messages` | Event storage (JSON) |
-| `emt_subscriptions` | Consumer checkpoints |
+| Table               | Purpose                      |
+| ------------------- | ---------------------------- |
+| `emt_streams`       | Stream metadata and versions |
+| `emt_messages`      | Event storage (JSON)         |
+| `emt_subscriptions` | Consumer checkpoints         |
 
 ## Configuration Options
 
@@ -248,7 +252,9 @@ const eventStore = getSQLiteEventStore(pathOrDb, {
   },
 
   // Before-commit hook
-  beforeCommit: async (events, context) => { /* ... */ },
+  beforeCommit: async (events, context) => {
+    /* ... */
+  },
 });
 ```
 
@@ -269,7 +275,10 @@ describe('Shopping Cart', () => {
 
   it('adds products', async () => {
     await eventStore.appendToStream('cart-1', [
-      { type: 'ProductItemAdded', data: { productId: 'p1', quantity: 1, price: 10 } },
+      {
+        type: 'ProductItemAdded',
+        data: { productId: 'p1', quantity: 1, price: 10 },
+      },
     ]);
 
     const { events } = await eventStore.readStream('cart-1');
@@ -303,8 +312,10 @@ describe('Cart Summary Projection', () => {
         },
       ])
       .then(
-        expectRow('cart_summaries', 'cart-123')
-          .toEqual({ totalItems: 2, totalAmount: 200 }),
+        expectRow('cart_summaries', 'cart-123').toEqual({
+          totalItems: 2,
+          totalAmount: 200,
+        }),
       ));
 });
 ```
@@ -313,14 +324,15 @@ describe('Cart Summary Projection', () => {
 
 SQLite is excellent for development but has production limitations:
 
-| Aspect | Limitation |
-|--------|------------|
-| **Concurrency** | Single writer at a time |
-| **Scaling** | No horizontal scaling |
-| **Networking** | File-based, no remote access |
-| **Size** | Practical limit ~1TB |
+| Aspect          | Limitation                   |
+| --------------- | ---------------------------- |
+| **Concurrency** | Single writer at a time      |
+| **Scaling**     | No horizontal scaling        |
+| **Networking**  | File-based, no remote access |
+| **Size**        | Practical limit ~1TB         |
 
 **For production, consider:**
+
 - [PostgreSQL](/event-stores/postgresql) - Most applications
 - [EventStoreDB](/event-stores/esdb) - Native Event Sourcing
 - [MongoDB](/event-stores/mongodb) - Document-centric

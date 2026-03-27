@@ -41,9 +41,7 @@ import { getInMemoryEventStore } from '@event-driven-io/emmett';
 const eventStore = getInMemoryEventStore();
 
 const app = getApplication({
-  apis: [
-    shoppingCartApi(eventStore),
-  ],
+  apis: [shoppingCartApi(eventStore)],
 });
 
 startAPI(app, 3000);
@@ -59,45 +57,54 @@ export const shoppingCartApi = (eventStore: EventStore) => (router: Router) => {
   const handle = CommandHandler(eventStore, shoppingCartDecider);
 
   // GET - Read shopping cart
-  router.get('/carts/:cartId', on(async (request) => {
-    const cartId = request.params.cartId;
+  router.get(
+    '/carts/:cartId',
+    on(async (request) => {
+      const cartId = request.params.cartId;
 
-    const { state, currentStreamVersion } = await eventStore.aggregateStream(
-      `shopping_cart-${cartId}`,
-      { evolve, initialState }
-    );
+      const { state, currentStreamVersion } = await eventStore.aggregateStream(
+        `shopping_cart-${cartId}`,
+        { evolve, initialState },
+      );
 
-    if (currentStreamVersion === 0n) {
-      return notFound({ detail: `Cart ${cartId} not found` });
-    }
+      if (currentStreamVersion === 0n) {
+        return notFound({ detail: `Cart ${cartId} not found` });
+      }
 
-    return ok(state, { eTag: currentStreamVersion });
-  }));
+      return ok(state, { eTag: currentStreamVersion });
+    }),
+  );
 
   // POST - Add product item
-  router.post('/carts/:cartId/items', on(async (request) => {
-    const cartId = request.params.cartId;
-    const { productId, quantity } = request.body;
+  router.post(
+    '/carts/:cartId/items',
+    on(async (request) => {
+      const cartId = request.params.cartId;
+      const { productId, quantity } = request.body;
 
-    const result = await handle(cartId, {
-      type: 'AddProductItem',
-      data: { productId, quantity, price: await getPrice(productId) },
-    });
+      const result = await handle(cartId, {
+        type: 'AddProductItem',
+        data: { productId, quantity, price: await getPrice(productId) },
+      });
 
-    return ok({ success: true }, { eTag: result.nextExpectedStreamVersion });
-  }));
+      return ok({ success: true }, { eTag: result.nextExpectedStreamVersion });
+    }),
+  );
 
   // POST - Confirm cart
-  router.post('/carts/:cartId/confirm', on(async (request) => {
-    const cartId = request.params.cartId;
+  router.post(
+    '/carts/:cartId/confirm',
+    on(async (request) => {
+      const cartId = request.params.cartId;
 
-    await handle(cartId, {
-      type: 'ConfirmShoppingCart',
-      data: { confirmedAt: new Date() },
-    });
+      await handle(cartId, {
+        type: 'ConfirmShoppingCart',
+        data: { confirmedAt: new Date() },
+      });
 
-    return ok({ status: 'Confirmed' });
-  }));
+      return ok({ status: 'Confirmed' });
+    }),
+  );
 };
 ```
 
@@ -115,10 +122,7 @@ return ok({ items: cart.items });
 return ok(cart, { eTag: version });
 
 // 201 Created with location header
-return created(
-  { id: cartId },
-  { location: `/carts/${cartId}` }
-);
+return created({ id: cartId }, { location: `/carts/${cartId}` });
 
 // 204 No Content
 return noContent();
@@ -127,7 +131,13 @@ return noContent();
 ### Error Responses
 
 ```typescript
-import { badRequest, notFound, forbidden, conflict, preconditionFailed } from '@event-driven-io/emmett-expressjs';
+import {
+  badRequest,
+  notFound,
+  forbidden,
+  conflict,
+  preconditionFailed,
+} from '@event-driven-io/emmett-expressjs';
 
 // 400 Bad Request
 return badRequest({ detail: 'Quantity must be positive' });
@@ -160,12 +170,12 @@ Errors are automatically formatted as Problem Details:
 
 ### Default Error Mapping
 
-| Emmett Error | HTTP Status |
-|--------------|-------------|
-| `ValidationError` | 400 |
-| `IllegalStateError` | 403 |
-| `NotFoundError` | 404 |
-| `ConcurrencyError` | 412 |
+| Emmett Error        | HTTP Status |
+| ------------------- | ----------- |
+| `ValidationError`   | 400         |
+| `IllegalStateError` | 403         |
+| `NotFoundError`     | 404         |
+| `ConcurrencyError`  | 412         |
 
 ### Custom Error Mapping
 
@@ -192,12 +202,16 @@ const app = getApplication({
 ### Reading Version
 
 ```typescript
-router.get('/carts/:cartId', on(async (request) => {
-  const { state, currentStreamVersion } = await eventStore.aggregateStream(/*...*/);
+router.get(
+  '/carts/:cartId',
+  on(async (request) => {
+    const { state, currentStreamVersion } =
+      await eventStore.aggregateStream(/*...*/);
 
-  // Sets ETag header: ETag: "5"
-  return ok(state, { eTag: currentStreamVersion });
-}));
+    // Sets ETag header: ETag: "5"
+    return ok(state, { eTag: currentStreamVersion });
+  }),
+);
 ```
 
 ### Checking Version on Write
@@ -205,18 +219,19 @@ router.get('/carts/:cartId', on(async (request) => {
 ```typescript
 import { getExpectedVersionFromRequest } from '@event-driven-io/emmett-expressjs';
 
-router.post('/carts/:cartId/items', on(async (request) => {
-  // Reads If-Match header: If-Match: "5"
-  const expectedVersion = getExpectedVersionFromRequest(request);
+router.post(
+  '/carts/:cartId/items',
+  on(async (request) => {
+    // Reads If-Match header: If-Match: "5"
+    const expectedVersion = getExpectedVersionFromRequest(request);
 
-  await eventStore.appendToStream(
-    streamName,
-    events,
-    { expectedStreamVersion: expectedVersion }
-  );
+    await eventStore.appendToStream(streamName, events, {
+      expectedStreamVersion: expectedVersion,
+    });
 
-  return ok({ success: true });
-}));
+    return ok({ success: true });
+  }),
+);
 ```
 
 ## Testing
@@ -224,7 +239,12 @@ router.post('/carts/:cartId/items', on(async (request) => {
 ### Integration Tests (In-Memory)
 
 ```typescript
-import { ApiSpecification, existingStream, expectResponse, expectEvents } from '@event-driven-io/emmett-expressjs';
+import {
+  ApiSpecification,
+  existingStream,
+  expectResponse,
+  expectEvents,
+} from '@event-driven-io/emmett-expressjs';
 import { getInMemoryEventStore } from '@event-driven-io/emmett';
 
 describe('Shopping Cart API', () => {
@@ -236,25 +256,29 @@ describe('Shopping Cart API', () => {
     given = ApiSpecification.for(() =>
       getApplication({
         apis: [shoppingCartApi(eventStore)],
-      })
+      }),
     );
   });
 
   it('adds product to cart', () =>
     given(
       existingStream('shopping_cart-123', [
-        { type: 'ProductItemAdded', data: { productId: 'p1', quantity: 1, price: 10 } },
-      ])
+        {
+          type: 'ProductItemAdded',
+          data: { productId: 'p1', quantity: 1, price: 10 },
+        },
+      ]),
     )
       .when((request) =>
-        request
-          .post('/carts/123/items')
-          .send({ productId: 'p2', quantity: 2 })
+        request.post('/carts/123/items').send({ productId: 'p2', quantity: 2 }),
       )
       .then([
         expectResponse(200),
         expectEvents('shopping_cart-123', [
-          { type: 'ProductItemAdded', data: { productId: 'p2', quantity: 2, price: expect.any(Number) } },
+          {
+            type: 'ProductItemAdded',
+            data: { productId: 'p2', quantity: 2, price: expect.any(Number) },
+          },
         ]),
       ]));
 
@@ -283,7 +307,7 @@ describe('Shopping Cart API (E2E)', () => {
     given = ApiE2ESpecification.for(() =>
       getApplication({
         apis: [shoppingCartApi(eventStore)],
-      })
+      }),
     );
   });
 
@@ -295,7 +319,9 @@ describe('Shopping Cart API (E2E)', () => {
     // Add item
     await given()
       .when((request) =>
-        request.post('/carts/123/items').send({ productId: 'shoes', quantity: 1 })
+        request
+          .post('/carts/123/items')
+          .send({ productId: 'shoes', quantity: 1 }),
       )
       .then([expectResponse(200)]);
 
@@ -377,15 +403,17 @@ The recommended pattern for organizing routes:
 // api/shoppingCartApi.ts
 import { WebApiSetup } from '@event-driven-io/emmett-expressjs';
 
-export const shoppingCartApi = (
-  eventStore: EventStore,
-  getPrice: (productId: string) => Promise<number>,
-): WebApiSetup => (router) => {
-  // All routes defined here
-  router.get('/carts/:id', /* ... */);
-  router.post('/carts/:id/items', /* ... */);
-  router.post('/carts/:id/confirm', /* ... */);
-};
+export const shoppingCartApi =
+  (
+    eventStore: EventStore,
+    getPrice: (productId: string) => Promise<number>,
+  ): WebApiSetup =>
+  (router) => {
+    // All routes defined here
+    router.get('/carts/:id' /* ... */);
+    router.post('/carts/:id/items' /* ... */);
+    router.post('/carts/:id/confirm' /* ... */);
+  };
 
 // main.ts
 import { getApplication, startAPI } from '@event-driven-io/emmett-expressjs';

@@ -10,6 +10,7 @@ The event store is the persistence layer for Event Sourcing. It stores events in
 ## Overview
 
 Event stores are fundamentally key-value databases where:
+
 - **Key** = Stream name (e.g., `shopping_cart-123`)
 - **Value** = Ordered list of events
 
@@ -46,13 +47,12 @@ interface EventStore<ReadEventMetadataType extends AnyReadEventMetadata> {
 Reads events from a stream.
 
 ```typescript
-const result = await eventStore.readStream<ShoppingCartEvent>(
-  'shopping_cart-123'
-);
+const result =
+  await eventStore.readStream<ShoppingCartEvent>('shopping_cart-123');
 
-console.log(result.events);              // Array of events
+console.log(result.events); // Array of events
 console.log(result.currentStreamVersion); // Current stream version (bigint)
-console.log(result.streamExists);         // true if stream exists
+console.log(result.streamExists); // true if stream exists
 ```
 
 #### Reading Options
@@ -60,23 +60,23 @@ console.log(result.streamExists);         // true if stream exists
 ```typescript
 // Read from specific position
 const { events } = await eventStore.readStream('stream-1', {
-  from: 5n,  // Start from position 5
+  from: 5n, // Start from position 5
 });
 
 // Read up to specific position
 const { events } = await eventStore.readStream('stream-1', {
-  to: 10n,  // Read up to position 10
+  to: 10n, // Read up to position 10
 });
 
 // Read with limit
 const { events } = await eventStore.readStream('stream-1', {
   from: 0n,
-  maxCount: 100n,  // Max 100 events
+  maxCount: 100n, // Max 100 events
 });
 
 // With expected version (for optimistic concurrency)
 const { events } = await eventStore.readStream('stream-1', {
-  expectedStreamVersion: 5n,  // Throws if version doesn't match
+  expectedStreamVersion: 5n, // Throws if version doesn't match
 });
 ```
 
@@ -92,11 +92,11 @@ const result = await eventStore.appendToStream<ShoppingCartEvent>(
       type: 'ProductItemAdded',
       data: { productId: 'shoes-1', quantity: 2, price: 99.99 },
     },
-  ]
+  ],
 );
 
 console.log(result.nextExpectedStreamVersion); // Version after append (bigint)
-console.log(result.createdNewStream);          // true if stream was created
+console.log(result.createdNewStream); // true if stream was created
 ```
 
 #### Optimistic Concurrency
@@ -106,7 +106,7 @@ console.log(result.createdNewStream);          // true if stream was created
 const result = await eventStore.appendToStream(
   'shopping_cart-123',
   [newEvent],
-  { expectedStreamVersion: 5n }
+  { expectedStreamVersion: 5n },
 );
 // Throws ConcurrencyError if current version !== 5n
 
@@ -189,11 +189,11 @@ type AggregateStreamResult<State> = {
 
 Control concurrency with expected versions:
 
-| Value | Meaning |
-|-------|---------|
-| `bigint` (e.g., `5n`) | Exact version required |
-| `'no_stream'` | Stream must not exist |
-| `'stream_exists'` | Stream must exist (any version) |
+| Value                 | Meaning                         |
+| --------------------- | ------------------------------- |
+| `bigint` (e.g., `5n`) | Exact version required          |
+| `'no_stream'`         | Stream must not exist           |
+| `'stream_exists'`     | Stream must exist (any version) |
 
 ```typescript
 import { ConcurrencyError } from '@event-driven-io/emmett';
@@ -214,13 +214,13 @@ try {
 
 Emmett provides multiple implementations:
 
-| Implementation | Package | Use Case |
-|----------------|---------|----------|
-| **In-Memory** | `@event-driven-io/emmett` | Testing |
-| **PostgreSQL** | `@event-driven-io/emmett-postgresql` | Production |
-| **EventStoreDB** | `@event-driven-io/emmett-esdb` | Production |
-| **MongoDB** | `@event-driven-io/emmett-mongodb` | Production |
-| **SQLite** | `@event-driven-io/emmett-sqlite` | Development |
+| Implementation   | Package                              | Use Case    |
+| ---------------- | ------------------------------------ | ----------- |
+| **In-Memory**    | `@event-driven-io/emmett`            | Testing     |
+| **PostgreSQL**   | `@event-driven-io/emmett-postgresql` | Production  |
+| **EventStoreDB** | `@event-driven-io/emmett-esdb`       | Production  |
+| **MongoDB**      | `@event-driven-io/emmett-mongodb`    | Production  |
+| **SQLite**       | `@event-driven-io/emmett-sqlite`     | Development |
 
 ### In-Memory (Testing)
 
@@ -253,7 +253,7 @@ For transaction management:
 ```typescript
 interface EventStoreSessionFactory<Store extends EventStore> {
   withSession<T>(
-    callback: (session: EventStoreSession<Store>) => Promise<T>
+    callback: (session: EventStoreSession<Store>) => Promise<T>,
   ): Promise<T>;
 }
 
@@ -283,10 +283,11 @@ const eventStore = getPostgreSQLEventStore(connectionString, {
 
 ::: warning
 `onAfterCommit` is called exactly once if append succeeds, but:
+
 - If the hook fails, the append still succeeds
 - If process crashes after commit but before hook, delivery is not retried
 - Race conditions may cause ordering issues under high concurrency
-:::
+  :::
 
 ## Best Practices
 

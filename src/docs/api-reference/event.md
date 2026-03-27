@@ -10,6 +10,7 @@ Events are immutable records of facts that have happened in your system. They ar
 ## Overview
 
 In Event Sourcing, events serve dual purposes:
+
 1. **Historical record** - What happened in your business process
 2. **State source** - Events are replayed to rebuild current state
 
@@ -30,12 +31,12 @@ type Event<
 }>;
 ```
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `type` | `string` | Unique event type name (e.g., `'ProductItemAdded'`) |
-| `data` | `object` | Business data payload (must be a record, not primitive) |
-| `metadata` | `object?` | Optional infrastructure data (user ID, tenant, timestamps) |
-| `kind` | `'Event'?` | Discriminator for union types with Commands |
+| Property   | Type       | Description                                                |
+| ---------- | ---------- | ---------------------------------------------------------- |
+| `type`     | `string`   | Unique event type name (e.g., `'ProductItemAdded'`)        |
+| `data`     | `object`   | Business data payload (must be a record, not primitive)    |
+| `metadata` | `object?`  | Optional infrastructure data (user ID, tenant, timestamps) |
+| `kind`     | `'Event'?` | Discriminator for union types with Commands                |
 
 ## Basic Usage
 
@@ -51,26 +52,41 @@ Define all events for an aggregate as a discriminated union:
 import type { Event } from '@event-driven-io/emmett';
 
 type ShoppingCartEvent =
-  | Event<'ShoppingCartOpened', {
-      cartId: string;
-      clientId: string;
-      openedAt: Date;
-    }>
-  | Event<'ProductItemAdded', {
-      productId: string;
-      quantity: number;
-      price: number;
-    }>
-  | Event<'ProductItemRemoved', {
-      productId: string;
-      quantity: number;
-    }>
-  | Event<'ShoppingCartConfirmed', {
-      confirmedAt: Date;
-    }>
-  | Event<'ShoppingCartCancelled', {
-      cancelledAt: Date;
-    }>;
+  | Event<
+      'ShoppingCartOpened',
+      {
+        cartId: string;
+        clientId: string;
+        openedAt: Date;
+      }
+    >
+  | Event<
+      'ProductItemAdded',
+      {
+        productId: string;
+        quantity: number;
+        price: number;
+      }
+    >
+  | Event<
+      'ProductItemRemoved',
+      {
+        productId: string;
+        quantity: number;
+      }
+    >
+  | Event<
+      'ShoppingCartConfirmed',
+      {
+        confirmedAt: Date;
+      }
+    >
+  | Event<
+      'ShoppingCartCancelled',
+      {
+        cancelledAt: Date;
+      }
+    >;
 ```
 
 ### Creating Events with Factory
@@ -80,10 +96,11 @@ Use the `event` factory function for runtime event creation:
 ```typescript
 import { event } from '@event-driven-io/emmett';
 
-const added = event<ProductItemAdded>(
-  'ProductItemAdded',
-  { productId: 'shoes-1', quantity: 2, price: 99.99 }
-);
+const added = event<ProductItemAdded>('ProductItemAdded', {
+  productId: 'shoes-1',
+  quantity: 2,
+  price: 99.99,
+});
 // Result: { type: 'ProductItemAdded', data: {...}, kind: 'Event' }
 ```
 
@@ -107,7 +124,7 @@ type AuditedProductItemAdded = Event<
 const auditedEvent = event<AuditedProductItemAdded>(
   'ProductItemAdded',
   { productId: 'shoes-1', quantity: 2, price: 99.99 },
-  { userId: 'user-123', correlationId: 'req-456', timestamp: new Date() }
+  { userId: 'user-123', correlationId: 'req-456', timestamp: new Date() },
 );
 ```
 
@@ -118,7 +135,7 @@ When events are read from the event store, they include additional metadata:
 ```typescript
 type ReadEvent<
   EventType extends Event,
-  MetadataType extends AnyRecordedMessageMetadata
+  MetadataType extends AnyRecordedMessageMetadata,
 > = {
   type: EventType['type'];
   data: EventType['data'];
@@ -132,9 +149,9 @@ Events read from a stream include position information:
 
 ```typescript
 type CommonReadEventMetadata = {
-  streamName: string;      // Stream the event belongs to
-  streamPosition: bigint;  // Position within the stream (0-indexed)
-  createdAt: Date;         // When the event was recorded
+  streamName: string; // Stream the event belongs to
+  streamPosition: bigint; // Position within the stream (0-indexed)
+  createdAt: Date; // When the event was recorded
 };
 ```
 
@@ -144,7 +161,7 @@ Some event stores provide global ordering:
 
 ```typescript
 type ReadEventMetadataWithGlobalPosition = CommonReadEventMetadata & {
-  globalPosition: bigint;  // Position across all streams
+  globalPosition: bigint; // Position across all streams
 };
 ```
 
@@ -153,13 +170,17 @@ type ReadEventMetadataWithGlobalPosition = CommonReadEventMetadata & {
 ### Extracting Event Properties
 
 ```typescript
-import type { EventTypeOf, EventDataOf, EventMetaDataOf } from '@event-driven-io/emmett';
+import type {
+  EventTypeOf,
+  EventDataOf,
+  EventMetaDataOf,
+} from '@event-driven-io/emmett';
 
 type ProductItemAdded = Event<'ProductItemAdded', { productId: string }>;
 
-type EventType = EventTypeOf<ProductItemAdded>;      // 'ProductItemAdded'
-type EventData = EventDataOf<ProductItemAdded>;      // { productId: string }
-type EventMeta = EventMetaDataOf<ProductItemAdded>;  // undefined
+type EventType = EventTypeOf<ProductItemAdded>; // 'ProductItemAdded'
+type EventData = EventDataOf<ProductItemAdded>; // { productId: string }
+type EventMeta = EventMetaDataOf<ProductItemAdded>; // undefined
 ```
 
 ### Any Event
@@ -195,18 +216,24 @@ Events should be self-contained:
 
 ```typescript
 // ✅ Good: Contains all necessary data
-type ProductItemAdded = Event<'ProductItemAdded', {
-  productId: string;
-  productName: string;  // Denormalized for projections
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;   // Computed at event time
-}>;
+type ProductItemAdded = Event<
+  'ProductItemAdded',
+  {
+    productId: string;
+    productName: string; // Denormalized for projections
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number; // Computed at event time
+  }
+>;
 
 // ❌ Bad: Missing context
-type ProductItemAdded = Event<'ProductItemAdded', {
-  productId: string;  // Need to look up product details elsewhere
-}>;
+type ProductItemAdded = Event<
+  'ProductItemAdded',
+  {
+    productId: string; // Need to look up product details elsewhere
+  }
+>;
 ```
 
 ### 3. Avoid Optional Fields
@@ -215,20 +242,29 @@ Events are facts; they should be complete:
 
 ```typescript
 // ✅ Good: Separate event types
-type OrderShippedWithTracking = Event<'OrderShipped', {
-  orderId: string;
-  trackingNumber: string;
-}>;
+type OrderShippedWithTracking = Event<
+  'OrderShipped',
+  {
+    orderId: string;
+    trackingNumber: string;
+  }
+>;
 
-type OrderShippedNoTracking = Event<'OrderShippedNoTracking', {
-  orderId: string;
-}>;
+type OrderShippedNoTracking = Event<
+  'OrderShippedNoTracking',
+  {
+    orderId: string;
+  }
+>;
 
 // ❌ Bad: Optional fields blur meaning
-type OrderShipped = Event<'OrderShipped', {
-  orderId: string;
-  trackingNumber?: string;  // When is it present?
-}>;
+type OrderShipped = Event<
+  'OrderShipped',
+  {
+    orderId: string;
+    trackingNumber?: string; // When is it present?
+  }
+>;
 ```
 
 ### 4. Use Readonly Data
@@ -237,10 +273,13 @@ Events are immutable by design:
 
 ```typescript
 // The Event type enforces Readonly automatically
-type ProductItemAdded = Event<'ProductItemAdded', {
-  productId: string;
-  items: ProductItem[];  // Becomes readonly
-}>;
+type ProductItemAdded = Event<
+  'ProductItemAdded',
+  {
+    productId: string;
+    items: ProductItem[]; // Becomes readonly
+  }
+>;
 ```
 
 ## Type Source

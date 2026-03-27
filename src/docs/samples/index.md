@@ -9,11 +9,11 @@ Emmett includes complete sample applications demonstrating real-world usage patt
 
 ## Available Samples
 
-| Sample | Event Store | Framework | Description |
-|--------|-------------|-----------|-------------|
-| [Express + PostgreSQL](#express-postgresql) | PostgreSQL | Express.js | Recommended starting point |
-| [Express + MongoDB](#express-mongodb) | MongoDB | Express.js | Document-oriented approach |
-| [Express + EventStoreDB](#express-eventstoredb) | EventStoreDB | Express.js | Native ES capabilities |
+| Sample                                          | Event Store  | Framework  | Description                |
+| ----------------------------------------------- | ------------ | ---------- | -------------------------- |
+| [Express + PostgreSQL](#express-postgresql)     | PostgreSQL   | Express.js | Recommended starting point |
+| [Express + MongoDB](#express-mongodb)           | MongoDB      | Express.js | Document-oriented approach |
+| [Express + EventStoreDB](#express-eventstoredb) | EventStoreDB | Express.js | Native ES capabilities     |
 
 All samples implement the same **Shopping Cart** domain, making it easy to compare different storage backends.
 
@@ -48,12 +48,12 @@ npm run start
 
 ### Key Files
 
-| File | Purpose |
-|------|---------|
-| `src/shoppingCarts/api.ts` | API route definitions |
-| `src/shoppingCarts/businessLogic.ts` | Decider implementation |
-| `src/shoppingCarts/shoppingCart.ts` | Events, commands, state |
-| `src/app.ts` | Application setup |
+| File                                 | Purpose                 |
+| ------------------------------------ | ----------------------- |
+| `src/shoppingCarts/api.ts`           | API route definitions   |
+| `src/shoppingCarts/businessLogic.ts` | Decider implementation  |
+| `src/shoppingCarts/shoppingCart.ts`  | Events, commands, state |
+| `src/app.ts`                         | Application setup       |
 
 ### Testing
 
@@ -135,7 +135,7 @@ import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import { EventStoreDBClient } from '@eventstore/db-client';
 
 const client = EventStoreDBClient.connectionString(
-  'esdb://localhost:2113?tls=false'
+  'esdb://localhost:2113?tls=false',
 );
 const eventStore = getEventStoreDBEventStore(client);
 ```
@@ -168,13 +168,13 @@ samples/webApi/expressjs-with-{store}/
 
 All samples expose the same endpoints:
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/clients/:clientId/shopping-carts/:cartId/product-items` | Add product |
-| DELETE | `/clients/:clientId/shopping-carts/:cartId/product-items` | Remove product |
-| POST | `/clients/:clientId/shopping-carts/:cartId/confirm` | Confirm cart |
-| DELETE | `/clients/:clientId/shopping-carts/:cartId` | Cancel cart |
-| GET | `/clients/:clientId/shopping-carts/:cartId` | Get cart details |
+| Method | Endpoint                                                  | Description      |
+| ------ | --------------------------------------------------------- | ---------------- |
+| POST   | `/clients/:clientId/shopping-carts/:cartId/product-items` | Add product      |
+| DELETE | `/clients/:clientId/shopping-carts/:cartId/product-items` | Remove product   |
+| POST   | `/clients/:clientId/shopping-carts/:cartId/confirm`       | Confirm cart     |
+| DELETE | `/clients/:clientId/shopping-carts/:cartId`               | Cancel cart      |
+| GET    | `/clients/:clientId/shopping-carts/:cartId`               | Get cart details |
 
 ### Testing with .http Files
 
@@ -199,13 +199,13 @@ POST http://localhost:3000/clients/client-1/shopping-carts/cart-1/confirm
 
 ## Choosing a Sample
 
-| If you want to... | Use this sample |
-|-------------------|-----------------|
-| Get started quickly | Express + PostgreSQL |
-| Learn with minimal setup | Express + PostgreSQL |
-| Use MongoDB | Express + MongoDB |
-| Explore native ES features | Express + EventStoreDB |
-| Understand the patterns | Any (same domain model) |
+| If you want to...          | Use this sample         |
+| -------------------------- | ----------------------- |
+| Get started quickly        | Express + PostgreSQL    |
+| Learn with minimal setup   | Express + PostgreSQL    |
+| Use MongoDB                | Express + MongoDB       |
+| Explore native ES features | Express + EventStoreDB  |
+| Understand the patterns    | Any (same domain model) |
 
 ## Running Inside Docker
 
