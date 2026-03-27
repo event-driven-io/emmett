@@ -5,6 +5,12 @@ outline: deep
 
 # Command Handler
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 The Command Handler encapsulates the standard Event Sourcing pattern: read state, run business logic, append events.
 
 ## Overview

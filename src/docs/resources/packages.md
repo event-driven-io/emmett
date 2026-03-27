@@ -5,6 +5,12 @@ outline: deep
 
 # Packages
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Emmett is organized as a modular monorepo. Install only what you need.
 
 ## Core Package

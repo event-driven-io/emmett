@@ -5,6 +5,12 @@ outline: deep
 
 # Decider
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 The Decider pattern is the core building block for event-sourced business logic. It separates business decisions from infrastructure concerns.
 
 ## Overview

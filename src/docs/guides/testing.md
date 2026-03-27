@@ -5,6 +5,12 @@ outline: deep
 
 # Testing Patterns
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Emmett provides comprehensive testing utilities for event-sourced applications. This guide covers unit testing, integration testing, and end-to-end testing strategies.
 
 ## Testing Philosophy

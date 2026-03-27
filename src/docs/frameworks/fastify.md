@@ -5,6 +5,12 @@ outline: deep
 
 # Fastify Integration
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Emmett's Fastify integration provides a high-performance alternative to Express.js for building event-sourced web APIs.
 
 ## Overview

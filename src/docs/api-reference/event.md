@@ -5,6 +5,12 @@ outline: deep
 
 # Event
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Events are immutable records of facts that have happened in your system. They are the foundation of Event Sourcing.
 
 ## Overview

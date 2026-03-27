@@ -5,6 +5,12 @@ outline: deep
 
 # Error Handling
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Emmett provides a structured approach to error handling with built-in error types and HTTP Problem Details support.
 
 ## Built-in Error Types

@@ -5,6 +5,12 @@ outline: deep
 
 # Express.js Integration
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Emmett's Express.js integration provides a streamlined way to build event-sourced web APIs with built-in error handling, ETag support, and testing utilities.
 
 ## Overview

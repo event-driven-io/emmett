@@ -5,6 +5,12 @@ outline: deep
 
 # Choosing an Event Store
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Emmett supports multiple event store backends. This guide helps you select the right one for your project.
 
 ## Quick Decision Guide

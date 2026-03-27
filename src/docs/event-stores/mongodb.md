@@ -5,6 +5,12 @@ outline: deep
 
 # MongoDB Event Store
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 MongoDB adapter for Emmett providing document-oriented event storage with flexible schemas and inline projections.
 
 ## Overview
