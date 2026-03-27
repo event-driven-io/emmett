@@ -37,17 +37,17 @@ src/
 
 ```bash
 # All tests
-pnpm run test
+npm run test
 
 # By category
-pnpm run test:unit     # Unit tests
-pnpm run test:int      # Integration tests
-pnpm run test:e2e      # End-to-end tests
+npm run test:unit     # Unit tests
+npm run test:int      # Integration tests
+npm run test:e2e      # End-to-end tests
 
 # Watch mode
-pnpm run test:unit:watch
-pnpm run test:int:watch
-pnpm run test:e2e:watch
+npm run test:unit:watch
+npm run test:int:watch
+npm run test:e2e:watch
 ```
 
 ## Using the Test Suite
