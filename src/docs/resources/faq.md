@@ -4,6 +4,12 @@ outline: deep
 
 # Frequently Asked Questions
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Common questions and solutions based on real issues from the Emmett community.
 
 ## General

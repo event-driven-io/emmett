@@ -16,13 +16,13 @@ type ShoppingCartConfirmed = Event<
 
 import { pongoMultiStreamProjection } from '@event-driven-io/emmett-postgresql';
 
-interface ClientShoppingSummary {
+type ClientShoppingSummary = {
   _id: string;
   clientId: string;
   totalOrders: number;
   totalSpent: number;
   lastOrderDate: Date | null;
-}
+};
 
 const clientSummaryProjection = pongoMultiStreamProjection({
   collectionName: 'client_summaries',
@@ -50,3 +50,30 @@ const clientSummaryProjection = pongoMultiStreamProjection({
   },
 });
 // #endregion multi-stream-projection
+
+// #region projection-with-default
+const projectionWithDefault = pongoMultiStreamProjection({
+  collectionName: 'client_summaries',
+  canHandle: ['ShoppingCartConfirmed'],
+  getDocumentId: (event) => event.metadata.clientId,
+  // Provide initial state for the document, so document is never null in evolve function
+  initialState: () => ({
+    _id: 'unknown',
+    clientId: 'unknown',
+    totalOrders: 0,
+    totalSpent: 0,
+    lastOrderDate: new Date(0),
+  }),
+  // Look Ma, no nulls! Initial state is used when document doesn't exist, so document is never null in evolve function
+  evolve: (document: ClientShoppingSummary, event: ShoppingCartConfirmed) => {
+    return {
+      ...document,
+      _id: event.metadata.clientId,
+      clientId: event.metadata.clientId,
+      totalOrders: document.totalOrders + 1,
+      totalSpent: document.totalSpent + event.data.totalAmount,
+      lastOrderDate: event.data.confirmedAt,
+    };
+  },
+});
+// #endregion projection-with-default

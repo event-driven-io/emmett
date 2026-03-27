@@ -5,6 +5,12 @@ outline: deep
 
 # Event Stores
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Emmett provides multiple event store implementations to fit your infrastructure and requirements.
 
 ## Overview

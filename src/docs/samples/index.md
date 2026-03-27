@@ -5,6 +5,12 @@ outline: deep
 
 # Sample Applications
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Emmett includes complete sample applications demonstrating real-world usage patterns.
 
 ## Available Samples

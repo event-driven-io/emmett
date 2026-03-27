@@ -5,6 +5,12 @@ outline: deep
 
 # PostgreSQL Event Store
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 PostgreSQL adapter for Emmett providing persistent event storage with partitioned tables, inline projections, and async message consumers.
 
 ## Overview

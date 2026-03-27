@@ -5,6 +5,12 @@ outline: deep
 
 # Contributing to Emmett
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 We welcome contributions! This guide covers everything you need to get started.
 
 ## Ways to Contribute

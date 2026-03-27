@@ -5,6 +5,12 @@ outline: deep
 
 # Projections Deep Dive
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Projections transform event streams into read models optimized for queries. This guide covers patterns, implementation, and best practices.
 
 ## Why Projections?
@@ -80,31 +86,9 @@ Process events in background process. We recommend to run multi-stream projectio
 
 Provide a default state instead of handling null:
 
-```typescript
-const projection = pongoSingleStreamProjection({
-  collectionName: 'cart_details',
-  canHandle: ['ProductItemAdded', 'ShoppingCartConfirmed'],
-  initialState: () => ({
-    items: [],
-    status: 'Open',
-    totalAmount: 0,
-  }),
-  evolve: (document, event) => {
-    // document is never null
-    switch (event.type) {
-      case 'ProductItemAdded':
-        return {
-          ...document,
-          items: [...document.items, event.data],
-          totalAmount:
-            document.totalAmount + event.data.price * event.data.quantity,
-        };
-      case 'ShoppingCartConfirmed':
-        return { ...document, status: 'Confirmed' };
-    }
-  },
-});
-```
+<<< ./projections/multiStreamProjection.snippet.ts#multi-stream-projection
+
+This pattern works both for single and multi stream projections.
 
 ### Deletion Pattern
 

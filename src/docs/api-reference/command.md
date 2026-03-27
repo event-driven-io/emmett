@@ -5,6 +5,12 @@ outline: deep
 
 # Command
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Commands represent the intention to perform a business operation. They are requests directed at a specific handler.
 
 ## Overview

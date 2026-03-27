@@ -5,6 +5,12 @@ outline: deep
 
 # Projections
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Projections transform event streams into read-optimized views. They're the "Q" in CQRS (Command Query Responsibility Segregation).
 
 ## Overview

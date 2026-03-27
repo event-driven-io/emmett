@@ -5,6 +5,12 @@ outline: deep
 
 # Workflows & Sagas
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Coordinate multi-step business processes with durable execution and full observability.
 
 ## Overview

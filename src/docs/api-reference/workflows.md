@@ -5,6 +5,12 @@ outline: deep
 
 # Workflows
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 Workflows coordinate multi-step business processes across aggregates with durable execution.
 
 ## Overview

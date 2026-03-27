@@ -5,6 +5,12 @@ outline: deep
 
 # Blog Articles
 
+::: warning
+We created this page with the help of the GenAI tool.
+
+We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+:::
+
 A curated collection of articles about Emmett, Event Sourcing patterns, and related topics from [event-driven.io](https://event-driven.io/en/).
 
 ## Getting Started with Emmett
