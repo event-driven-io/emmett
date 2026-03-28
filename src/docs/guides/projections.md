@@ -3,7 +3,7 @@ documentationType: how-to-guide
 outline: deep
 ---
 
-# Projections Deep Dive
+# Projections
 
 ::: warning
 We created this page with the help of the GenAI tool.
@@ -37,9 +37,9 @@ One event stream maps to one document. The document ID equals the stream ID.
 
 Events from multiple streams combine into documents with custom IDs.
 
-**Use when:** Your read model aggregates across entities (customer analytics, product statistics, dashboards).
+**Use when:** Your read model aggregates across entities (customer analytics, product statistics, dashboards) or multiple streams of the same type.
 
-<<< ./projections/multiStreamProjection.snippet.ts#multi-stream-projection
+<<< ./projections/multiStreamProjection.snippet.ts#multi-stream-projection{11,15}
 
 ## Inline vs Async Projections
 
@@ -86,7 +86,7 @@ Process events in background process. We recommend to run multi-stream projectio
 
 Provide a default state instead of handling null:
 
-<<< ./projections/multiStreamProjection.snippet.ts#multi-stream-projection
+<<< ./projections/multiStreamProjection.snippet.ts#projection-with-default
 
 This pattern works both for single and multi stream projections.
 
