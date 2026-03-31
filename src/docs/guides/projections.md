@@ -3,7 +3,7 @@ documentationType: how-to-guide
 outline: deep
 ---
 
-# Read Models
+# Read Models {#read-models}
 
 In Event Sourcing, rebuilding state from events works well for a single entity (a shopping cart might have 10-50 events). But showing a list of all shopping carts? You'd need to read events from thousands of streams and rebuild each cart in memory on every page load.
 
@@ -11,9 +11,9 @@ Read models solve this. They are queryable representations of your data, stored 
 
 This guide shows you how to build projections and query the read models they produce.
 
-## Project Events into Read Models
+## Project Events into Read Models {#project-events}
 
-### From a Single Stream
+### From a Single Stream {#single-stream}
 
 One event stream maps to one document. The document ID equals the stream ID.
 
@@ -21,7 +21,7 @@ One event stream maps to one document. The document ID equals the stream ID.
 
 <<< ./projections/singleStreamProjection.snippet.ts#single-stream-projection
 
-### From Multiple Streams
+### From Multiple Streams {#multiple-streams}
 
 Events from multiple streams combine into documents with custom IDs.
 
@@ -29,9 +29,9 @@ Events from multiple streams combine into documents with custom IDs.
 
 <<< ./projections/multiStreamProjection.snippet.ts#multi-stream-projection{11,15}
 
-## Choose Between Inline and Async Registration
+## Inline vs. Async Registration {#inline-vs-async}
 
-### Inline Projections
+### Inline Projections {#inline}
 
 Use inline when consistency matters more than write speed. Inline projections run in the same database transaction as the event append. Either both succeed or both fail, so your read model is always consistent with your events. For single-stream projections this is often the right default.
 
@@ -39,77 +39,81 @@ Be careful with inline multi-stream projections under high write load. When mult
 
 <<< ./projections/projectionSetup.snippet.ts#inline-projection-setup
 
-### Async Projections
+### Async Projections {#async}
 
 Use async when you need faster appends, when you're projecting to external systems, or when you have multi-stream projections that would suffer from concurrent write conflicts. Async projections process events in a background process, decoupled from the append. The tradeoff is eventual consistency: your read model may lag behind by a short window.
 
 <<< ./projections/projectionSetup.snippet.ts#async-projection-setup
 
-## Common Patterns
+## Common Patterns {#patterns}
 
-### Provide a Default State
+### Provide a Default State {#default-state}
 
 If you'd rather not deal with `null` in your `evolve` function, provide an `initialState`. Emmett will use it when the document doesn't exist yet:
 
-<<< ./projections/multiStreamProjection.snippet.ts#projection-with-default
+<<< ./projections/multiStreamProjection.snippet.ts#projection-with-default{5-7,14-16}
 
 This works for both single-stream and multi-stream projections.
 
-### Delete a Document from a Projection
+### Delete a Document {#delete-document}
 
 Return `null` from `evolve` to delete the document. This is useful when a process completes and the read model should be cleared. For example, removing a pending cart summary after confirmation, so the next shopping session starts fresh:
 
-<<< ./projections/projectionPatterns.snippet.ts#deletion-pattern{18-20}
+<<< ./projections/projectionPatterns.snippet.ts#deletion-pattern{22-25}
 
-### Filter Which Events Your Projection Handles
+### Filter Events {#filter-events}
 
 Your projection doesn't need to handle every event type in the stream. List the event types you care about in `canHandle`. Everything else is silently ignored. A shopping cart summary only needs product additions and removals; it doesn't need to know about confirmation or cancellation:
 
 <<< ./projections/projectionOptions.snippet.ts#can-handle{3-10}
 
-### Route Events Using Metadata
+### Use Event Metadata {#event-metadata}
 
 When building a multi-stream projection, you need a way to correlate events from different streams into the right document. If your read model groups data by client, but the client ID isn't in every event's data payload, you can pull it from event metadata. Be careful not to turn metadata into a bag for random data. Context like client ID, tenant, or correlation ID is a reasonable fit, especially if it's already available in your request pipeline for authorisation or routing:
 
 <<< ./projections/projectionOptions.snippet.ts#metadata-usage{3-5}
 
-## Query Read Models
+## Query Read Models {#query}
 
-### With Pongo (PostgreSQL)
+### With Pongo (PostgreSQL) {#pongo}
 
 Projected read models are stored in Pongo collections, PostgreSQL tables with a JSONB column for your document data. Query them using the Pongo client with MongoDB-like syntax:
 
 <<< ./projections/queryingReadModels.snippet.ts#querying-read-models
 
-### In API Routes
+### In API Routes {#api-routes}
 
 Wire Pongo queries into your Express route handlers to serve the read models:
 
 <<< ./projections/queryingReadModels.snippet.ts#api-routes
 
-## Test a Projection
+## Test a Projection {#test}
 
 Projection tests should run against a real database. Both querying behaviour and JSON serialisation can surprise you, so in-memory fakes won't give you enough confidence. Use `PostgreSQLProjectionSpec` with a test container for BDD-style given/when/then tests:
 
 <<< ./projections/testingProjections.snippet.ts#testing-projection
 
-## Best Practices
+## Best Practices {#best-practices}
 
-### 1. One Projection Per Query
+### Shape Read Models for Queries {#shape-for-queries}
 
-A shopping cart summary for the menu bar only needs item count and total amount. It doesn't need the full product list or the cart status. If you need cart details for a different view, create a separate projection. The same events can feed multiple projections, each shaped for a different purpose. Multiple focused projections are easier to maintain and rebuild than one that tries to answer every question.
+Start from the query your UI or API needs to serve, then shape your read model to match. If you're showing a "best-selling products" list, your read model should have fields you can sort and filter directly: total quantity sold, revenue, last sold date.
 
-### 2. Shape Read Models for Queries
+We recommend starting with one read model, so one projection per query.
 
-Start from the query your UI or API needs to serve, then shape your read model to match. If you're showing a "best-selling products" list, your read model should have fields you can sort and filter directly: total quantity sold, revenue, last sold date. Don't store raw event data and try to query it later; the whole point of a projection is to pre-shape data for the questions you'll ask.
+A shopping cart summary for the menu bar only needs item count and total amount. If you need cart details for a different view, create a separate projection. Multiple focused projections are easier to maintain and rebuild than one that tries to answer every question:
 
-### 3. Version Your Projections
+<<< ./projections/bestPractices.snippet.ts#one-per-query
 
-When your projection logic changes (new fields, different calculations, a bug fix), existing documents were built with the old logic. You can't just update the code. Version the collection name and rebuild from events:
+The whole point of a projection is to pre-shape data for the questions you'll ask. The `CartSummary` vs `CartDetails` example above shows this: the summary pre-computes count and total for the menu bar, while the details projection keeps the full product list for the cart page.
 
-<<< ./projections/projectionOptions.snippet.ts#versioning{2}
+### Version Your Projections {#version}
 
-### 4. Rebuild From Events
+When your projection logic changes (new fields, different calculations, a bug fix), existing documents were built with the old logic. You can't just update the code. Set the `version` property and rebuild from events. Emmett appends it to the collection name automatically:
+
+<<< ./projections/projectionOptions.snippet.ts#versioning{3-5}
+
+### Rebuild From Events {#rebuild}
 
 Events are your source of truth; read models are derived data you can always rebuild. For production changes without downtime, use a blue-green approach:
 
@@ -120,25 +124,28 @@ Events are your source of truth; read models are derived data you can always reb
 
 If you can afford a brief window of incomplete data, the simpler path is to truncate the old collection and replay all events through the updated projection logic.
 
-## Troubleshooting
+<<< ./projections/rebuildProjection.snippet.ts#rebuild-projection
 
-### Projection Not Updating
+## Troubleshooting {#troubleshooting}
+
+### Projection Not Updating {#not-updating}
 
 If your read model isn't reflecting new events, the most common cause is a missing event type in `canHandle`. The projection silently ignores any event type not listed there. For multi-stream projections, also verify that `getDocumentId` returns the correct ID. If it pulls from metadata, make sure the metadata is actually being set when events are appended.
 
-### Stale Data in Multi-Stream Projections
+### Stale Multi-Stream Data {#stale-data}
 
 If your multi-stream projection shows outdated data under concurrent writes, you're likely hitting write conflicts. When two streams both update the same document inline, the second write can overwrite the first. Switch the projection to async registration, which processes events sequentially and avoids this.
 
-### Data Inconsistent After Redeployment
+### Inconsistent After Redeployment {#inconsistent-data}
 
-If you changed your projection logic but existing documents still reflect the old calculations, you need to rebuild. Existing documents were created with the previous logic and won't update themselves. Version your collection name and replay from the event history. See [Version Your Projections](#_3-version-your-projections) above.
+If you changed your projection logic but existing documents still reflect the old calculations, you need to rebuild. Existing documents were created with the previous logic and won't update themselves. Version your collection name and replay from the event history. See [Version Your Projections](#version) above.
 
-## See Also
+## Further Readings {#readings}
 
 - [Getting Started - Read Models](/getting-started#read-models)
 - [Testing Patterns](/guides/testing) - Testing projections in detail
 - [PostgreSQL Event Store](/event-stores/postgresql) - Pongo projections
 - [API Reference: Projections](/api-reference/projections)
+- [Guide to Projections and Read Models in Event-Driven Architecture](https://event-driven.io/en/projections_and_read_models_in_event_driven_architecture/)
 - [Writing and testing event-driven projections](https://event-driven.io/en/emmett_projections_testing/)
 - [Using event metadata in projections](https://event-driven.io/en/projections_and_event_metadata/)
