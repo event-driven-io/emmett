@@ -5,10 +5,10 @@ import {
   type Checkpointer,
   type Event,
   type Message,
-  type MessageHandlerResult,
   type MessageProcessingScope,
   type ProjectorOptions,
   type ReactorOptions,
+  type SingleMessageHandlerResult,
   projector,
   reactor,
 } from '@event-driven-io/emmett';
@@ -60,7 +60,7 @@ const mongoDBProcessingScope = (options: {
 }): MessageProcessingScope<MongoDBProcessorHandlerContext> => {
   const processingScope: MessageProcessingScope<
     MongoDBProcessorHandlerContext
-  > = async <Result = MessageHandlerResult>(
+  > = async <Result = SingleMessageHandlerResult>(
     handler: (
       context: MongoDBProcessorHandlerContext,
     ) => Result | Promise<Result>,

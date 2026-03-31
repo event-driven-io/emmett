@@ -17,13 +17,13 @@ import type {
   Event,
   JSONSerializationOptions,
   Message,
-  MessageHandlerResult,
   MessageProcessingScope,
   MessageProcessor,
   ProcessorHooks,
   ProjectorOptions,
   ReactorOptions,
   ReadEventMetadataWithGlobalPosition,
+  SingleMessageHandlerResult,
   SingleRecordedMessageHandlerWithContext,
   WorkflowProcessorContext,
   WorkflowProcessorOptions,
@@ -251,7 +251,7 @@ const postgreSQLProcessingScope = (options: {
 
   const processingScope: MessageProcessingScope<
     PostgreSQLProcessorHandlerContext
-  > = async <Result = MessageHandlerResult>(
+  > = async <Result = SingleMessageHandlerResult>(
     handler: (
       context: PostgreSQLProcessorHandlerContext,
     ) => Result | Promise<Result>,
