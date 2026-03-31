@@ -5,126 +5,97 @@ outline: deep
 
 # Projections
 
-::: warning
-We created this page with the help of the GenAI tool.
-
-We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
-:::
-
-Projections transform event streams into read models optimized for queries. This guide covers patterns, implementation, and best practices.
+This guide shows you how to build projections — event handlers that transform events into read models you can query directly.
 
 ## Why Projections?
 
-In Event Sourcing, rebuilding state from events works well for single entities. But queries like "show all shopping carts" would require reading thousands of streams and rebuilding each cart in memory.
+In Event Sourcing, rebuilding state from events works well for a single entity — a shopping cart might have 10-50 events. But showing a list of all shopping carts? You'd need to read events from thousands of streams and rebuild each cart in memory on every page load.
 
-**Projections solve this by:**
+Projections solve this by applying events as they happen and storing the result in a database table you can query directly. Each projection is a different interpretation of the same facts — a shopping cart summary for the menu bar, a client analytics dashboard, a product sales report. Same events, different read models shaped for different questions.
 
-- Pre-computing query results as events occur
-- Storing optimized read models in queryable formats
-- Updating incrementally rather than recomputing
+## Project Events into Read Models
 
-## Types of Projections
-
-### Single-Stream Projections
+### From a Single Stream
 
 One event stream maps to one document. The document ID equals the stream ID.
 
-**Use when:** Your read model represents a single entity (shopping cart, order, user profile).
+**Use when:** your read model represents a single entity — a shopping cart summary, an order status, a user profile.
 
 <<< ./projections/singleStreamProjection.snippet.ts#single-stream-projection
 
-### Multi-Stream Projections
+### From Multiple Streams
 
 Events from multiple streams combine into documents with custom IDs.
 
-**Use when:** Your read model aggregates across entities (customer analytics, product statistics, dashboards) or multiple streams of the same type.
+**Use when:** your read model aggregates across entities — a client's total spending across all their carts, product statistics from all orders, system-wide dashboards.
 
 <<< ./projections/multiStreamProjection.snippet.ts#multi-stream-projection{11,15}
 
-## Inline vs Async Projections
+## Choose Between Inline and Async Registration
 
 ### Inline Projections
 
-Execute within the same transaction as the event append.
+Inline projections run in the same database transaction as the event append. Either both succeed or both fail — your read model is always consistent with your events.
 
-**Pros:**
+Use inline when consistency matters more than write speed. For single-stream projections this is often the right default — the overhead is small and you avoid dealing with eventual consistency.
 
-- Strong consistency - read model is always up to date with events,
-- No eventual consistency delays,
-- Simpler mental model.
-
-**Cons:**
-
-- Slower appends (projection runs synchronously adding additonal operations during append),
-- Multi-stream projection can override their data in high contention scenarios,
-- Can't project to external systems.
+Be careful with inline multi-stream projections under high write load. When multiple streams update the same document concurrently, they can overwrite each other's changes. If that's a concern, switch to async.
 
 <<< ./projections/projectionSetup.snippet.ts#inline-projection-setup
 
 ### Async Projections
 
-Process events in background process. We recommend to run multi-stream projections asynchronously.
+Async projections process events in a background process, decoupled from the append.
 
-**Pros:**
-
-- Faster appends (no overhead for updating read models),
-- Can project to external systems,
-- Better scalability,
-- Enable batching of operations,
-- Multi-stream projection won't override their data in high contention scenarios,
-
-**Cons:**
-
-- Eventual consistency,
-- Require stateful service running async projections,
+Use async when you need faster appends, when you're projecting to external systems, or when you have multi-stream projections that would suffer from concurrent write conflicts. The tradeoff is eventual consistency — your read model may lag behind by a short window.
 
 <<< ./projections/projectionSetup.snippet.ts#async-projection-setup
 
-## Projection Patterns
+## Common Patterns
 
-### Initial State Pattern
+### Provide a Default State
 
-Provide a default state instead of handling null:
+If you'd rather not deal with `null` in your `evolve` function, provide an `initialState`. Emmett will use it when the document doesn't exist yet:
 
 <<< ./projections/multiStreamProjection.snippet.ts#projection-with-default
 
-This pattern works both for single and multi stream projections.
+This works for both single-stream and multi-stream projections.
 
-### Deletion Pattern
+### Delete a Document from a Projection
 
-Return `null` from the `evolve` function to delete the document:
+Return `null` from `evolve` to delete the document. This is useful when a process completes and the read model should be cleared — for example, removing a pending cart summary after confirmation, so the next shopping session starts fresh:
 
 <<< ./projections/projectionPatterns.snippet.ts#deletion-pattern{18-20}
 
-### Selective Handling
+### Filter Which Events Your Projection Handles
 
-Use the `canHandle` option to filter which events reach your `evolve` function. Events not listed in `canHandle` are ignored by the projection:
+Your projection doesn't need to handle every event type in the stream. List the event types you care about in `canHandle` — everything else is silently ignored. A shopping cart summary only needs product additions and removals; it doesn't need to know about confirmation or cancellation:
 
 <<< ./projections/projectionOptions.snippet.ts#can-handle{3-10}
 
-### Metadata Usage
+### Route Events Using Metadata
 
-Access event metadata for cross-stream correlation through the `getDocumentId` and `evolve` functions:
+When building a multi-stream projection, you need a way to correlate events from different streams into the right document. If your read model groups data by client, but the client ID isn't in every event's data payload, you can pull it from event metadata. Be careful not to turn metadata into a bag for random data — but context like client ID, tenant, or correlation ID is a reasonable fit, especially if it's already available in your request pipeline for authorisation or routing:
 
 <<< ./projections/projectionOptions.snippet.ts#metadata-usage{3-5}
 
-## Querying Read Models
+## Query Read Models
 
 ### With Pongo (PostgreSQL)
 
-Projected read models are stored in Pongo collections. Query them using the `PongoDb` instance:
+Projected read models are stored in Pongo collections — PostgreSQL tables with a JSONB column for your document data. Query them using the Pongo client with MongoDB-like syntax:
 
 <<< ./projections/queryingReadModels.snippet.ts#querying-read-models
 
 ### In API Routes
 
-Use read model query functions in your Express route handlers:
+Wire Pongo queries into your Express route handlers to serve the read models:
 
 <<< ./projections/queryingReadModels.snippet.ts#api-routes
 
-## Testing Projections
+## Test a Projection
 
-Use the `PostgreSQLProjectionSpec` for BDD-style tests with the `given`/`when`/`then` pattern:
+Projection tests should run against a real database. Both querying behaviour and JSON serialisation can surprise you, so in-memory fakes won't give you enough confidence. Use `PostgreSQLProjectionSpec` with a test container for BDD-style given/when/then tests:
 
 <<< ./projections/testingProjections.snippet.ts#testing-projection
 
@@ -132,30 +103,13 @@ Use the `PostgreSQLProjectionSpec` for BDD-style tests with the `given`/`when`/`
 
 ### 1. Keep Projections Focused
 
-```typescript
-// ✅ Good: Single responsibility
-const cartSummaryProjection = /* totals only */;
-const cartDetailsProjection = /* full item list */;
-const cartStatusProjection = /* status tracking */;
+Each projection should serve one query need. A shopping cart summary for the menu bar only needs item count and total amount — it doesn't need the full product list or the cart status. If you need cart details for a different view, create a separate projection. The same events can feed multiple projections, each shaped for a different purpose.
 
-// ❌ Bad: Kitchen sink projection
-const cartEverythingProjection = /* all data combined */;
-```
+Multiple focused projections are easier to maintain and rebuild than one that tries to answer every question.
 
 ### 2. Design for Queries
 
-```typescript
-// ✅ Good: Matches query patterns
-interface ProductSalesReport {
-  productId: string;
-  totalQuantitySold: number;
-  totalRevenue: number;
-  lastSoldAt: Date;
-}
-
-// Query: "Show me best-selling products"
-await productSales.find({}).sort({ totalQuantitySold: -1 }).limit(10);
-```
+Start from the query your UI or API needs to serve, then shape your read model to match. If you're showing a "best-selling products" list, your read model should have fields you can sort and filter directly — total quantity sold, revenue, last sold date. Don't store raw event data and try to query it later; the whole point of a projection is to pre-shape data for the questions you'll ask.
 
 ### 3. Handle Missing Documents
 
@@ -163,49 +117,44 @@ Provide a default state with `initialState` so `evolve` never receives `null`:
 
 <<< ./projections/multiStreamProjection.snippet.ts#projection-with-default{5-16}
 
-Or handle the `null` case explicitly in `evolve` as shown in the [single-stream projection](#single-stream-projections) example above.
+Or handle the `null` case explicitly in `evolve` as shown in the [single-stream projection](#from-a-single-stream) example above.
 
 ### 4. Version Your Projections
 
-When projection logic changes, you may need to rebuild:
+When your projection logic changes — new fields, different calculations, a bug fix — existing documents were built with the old logic. You can't just update the code. Version the collection name and rebuild from events:
 
 ```typescript
 const projection = pongoSingleStreamProjection({
-  collectionName: 'cart_summaries_v2', // Version in name
-  // ... new logic
+  collectionName: 'cart_summaries_v2',
+  evolve,
+  canHandle: ['ProductItemAdded', 'ProductItemRemoved', 'DiscountApplied'],
 });
 ```
 
 ### 5. Consider Rebuild Strategy
 
-For production changes:
+Events are your source of truth; read models are secondary data you can always rebuild. For production changes without downtime, use a blue-green approach:
 
-1. Deploy new projection alongside old
-2. Rebuild from event history
-3. Switch reads to new projection
-4. Remove old projection
+1. Deploy the new projection writing to a new collection alongside the old one
+2. Let it catch up by processing the event history
+3. Once it's current, switch your queries to the new collection
+4. Remove the old projection
+
+If you can afford a brief window of incomplete data, the simpler path is to truncate the old collection and replay all events through the updated projection logic.
 
 ## Troubleshooting
 
 ### Projection Not Updating
 
-1. Check `canHandle` includes the event type
-2. Verify event metadata has required fields
-3. Check for errors in `evolve` function
-4. Confirm projection is registered with event store
+If your read model isn't reflecting new events, the most common cause is a missing event type in `canHandle`. The projection silently ignores any event type not listed there. For multi-stream projections, also verify that `getDocumentId` returns the correct ID — if it pulls from metadata, make sure the metadata is actually being set when events are appended.
 
-### Inconsistent State
+### Stale Data in Multi-Stream Projections
 
-1. Inline projections: Check transaction boundaries
-2. Async projections: Check checkpoint progress
-3. Look for duplicate event processing
+If your multi-stream projection shows outdated data under concurrent writes, you're likely hitting write conflicts. When two streams both update the same document inline, the second write can overwrite the first. Switch the projection to async registration, which processes events sequentially and avoids this.
 
-### Performance Issues
+### Data Inconsistent After Redeployment
 
-1. Reduce events handled per projection
-2. Use async projections for complex logic
-3. Add indexes to read model collections
-4. Consider batching in async projectors
+If you changed your projection logic but existing documents still reflect the old calculations, you need to rebuild. Existing documents were created with the previous logic — they won't update themselves. Version your collection name and replay from the event history. See [Version Your Projections](#_4-version-your-projections) above.
 
 ## Further Reading
 
