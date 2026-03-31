@@ -490,5 +490,5 @@ let cartId = 'shared-cart'; // Mutations leak between tests
 ## See Also
 
 - [Getting Started](/getting-started) - Full tutorial including testing
-- [Projections Guide](/guides/projections) - Testing projections in detail
+- [Read Models Guide](/guides/projections) - Testing projections in detail
 - [API Reference: DeciderSpecification](/api-reference/decider)

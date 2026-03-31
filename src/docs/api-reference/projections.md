@@ -449,7 +449,7 @@ const handle = async (events, context) => {
 
 ## See Also
 
-- [Projections Guide](/guides/projections) - Detailed patterns and strategies
+- [Read Models Guide](/guides/projections) - Detailed patterns and strategies
 - [PostgreSQL Event Store](/event-stores/postgresql) - Pongo projections
 - [Testing Patterns](/guides/testing) - Testing projections
 - [Writing and testing event-driven projections](https://event-driven.io/en/emmett_projections_testing/)

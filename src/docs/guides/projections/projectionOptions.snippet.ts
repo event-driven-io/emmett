@@ -97,6 +97,42 @@ const shoppingCartShortInfoProjection = pongoSingleStreamProjection({
 });
 // #endregion can-handle
 
+// #region versioning
+const cartSummariesV2 = pongoSingleStreamProjection({
+  collectionName: 'cart_summaries_v2',
+  evolve: (
+    document: ShoppingCartShortInfo,
+    { type, data: event }: ShoppingCartEvent,
+  ): ShoppingCartShortInfo => {
+    switch (type) {
+      case 'ProductItemAddedToShoppingCart':
+        return {
+          totalAmount:
+            document.totalAmount +
+            event.productItem.unitPrice * event.productItem.quantity,
+          productItemsCount:
+            document.productItemsCount + event.productItem.quantity,
+        };
+      case 'ProductItemRemovedFromShoppingCart':
+        return {
+          totalAmount:
+            document.totalAmount -
+            event.productItem.unitPrice * event.productItem.quantity,
+          productItemsCount:
+            document.productItemsCount - event.productItem.quantity,
+        };
+      default:
+        return document;
+    }
+  },
+  canHandle: [
+    'ProductItemAddedToShoppingCart',
+    'ProductItemRemovedFromShoppingCart',
+  ],
+  initialState: () => ({ productItemsCount: 0, totalAmount: 0 }),
+});
+// #endregion versioning
+
 type ClientShoppingSummary = {
   clientId: string;
   totalOrders: number;

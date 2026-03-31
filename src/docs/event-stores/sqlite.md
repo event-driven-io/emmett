@@ -351,4 +351,4 @@ For complete API reference and advanced usage, see the [package README](https://
 
 - [Choosing an Event Store](/guides/choosing-event-store)
 - [Testing Patterns](/guides/testing)
-- [Projections Guide](/guides/projections)
+- [Read Models Guide](/guides/projections)

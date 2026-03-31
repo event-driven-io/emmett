@@ -286,6 +286,6 @@ For complete API reference and advanced usage, see the [package README](https://
 ## See Also
 
 - [Choosing an Event Store](/guides/choosing-event-store)
-- [Projections Guide](/guides/projections)
+- [Read Models Guide](/guides/projections)
 - [Testing Patterns](/guides/testing)
 - [Getting Started](/getting-started) - Full tutorial with PostgreSQL

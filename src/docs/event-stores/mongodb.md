@@ -333,5 +333,5 @@ For complete API reference and advanced usage, see the [package README](https://
 ## See Also
 
 - [Choosing an Event Store](/guides/choosing-event-store)
-- [Projections Guide](/guides/projections)
+- [Read Models Guide](/guides/projections)
 - [How to build MongoDB Event Store](https://event-driven.io/en/how_to_build_mongodb_event_store/)
