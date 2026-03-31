@@ -98,11 +98,15 @@ Return `null` from the `evolve` function to delete the document:
 
 ### Selective Handling
 
-Use the `canHandle` option to filter which events reach your `evolve` function. Events not listed in `canHandle` are ignored by the projection. See the `canHandle` usage in both [single-stream](#single-stream-projections) and [multi-stream](#multi-stream-projections) projections above.
+Use the `canHandle` option to filter which events reach your `evolve` function. Events not listed in `canHandle` are ignored by the projection:
+
+<<< ./projections/projectionOptions.snippet.ts#can-handle{3-10}
 
 ### Metadata Usage
 
-Access event metadata for cross-stream correlation through the `getDocumentId` and `evolve` functions. The [multi-stream projection](#multi-stream-projections) example above shows how `event.metadata.clientId` determines which document to update.
+Access event metadata for cross-stream correlation through the `getDocumentId` and `evolve` functions:
+
+<<< ./projections/projectionOptions.snippet.ts#metadata-usage{3-5}
 
 ## Querying Read Models
 
@@ -155,7 +159,11 @@ await productSales.find({}).sort({ totalQuantitySold: -1 }).limit(10);
 
 ### 3. Handle Missing Documents
 
-Use the [Initial State Pattern](#initial-state-pattern) to provide a default state, or handle the `null` case explicitly in `evolve` as shown in the [single-stream projection](#single-stream-projections) example above.
+Provide a default state with `initialState` so `evolve` never receives `null`:
+
+<<< ./projections/multiStreamProjection.snippet.ts#projection-with-default{5-16}
+
+Or handle the `null` case explicitly in `evolve` as shown in the [single-stream projection](#single-stream-projections) example above.
 
 ### 4. Version Your Projections
 
