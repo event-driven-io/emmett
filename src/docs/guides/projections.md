@@ -92,187 +92,37 @@ This pattern works both for single and multi stream projections.
 
 ### Deletion Pattern
 
-Return `null` to delete the document:
+Return `null` from the `evolve` function to delete the document:
 
-```typescript
-evolve: (document, event) => {
-  switch (event.type) {
-    case 'ProductItemAdded':
-      return {
-        /* updated document */
-      };
-    case 'ShoppingCartConfirmed':
-      // Delete the pending cart document
-      return null;
-  }
-};
-```
+<<< ./projections/projectionPatterns.snippet.ts#deletion-pattern{18-20}
 
 ### Selective Handling
 
-Only handle events relevant to your read model:
-
-```typescript
-const projection = pongoSingleStreamProjection({
-  collectionName: 'cart_totals',
-  // Only care about price-affecting events
-  canHandle: ['ProductItemAdded', 'ProductItemRemoved', 'DiscountApplied'],
-  evolve: (document, event) => {
-    // ShoppingCartConfirmed won't reach here
-  },
-});
-```
+Use the `canHandle` option to filter which events reach your `evolve` function. Events not listed in `canHandle` are ignored by the projection. See the `canHandle` usage in both [single-stream](#single-stream-projections) and [multi-stream](#multi-stream-projections) projections above.
 
 ### Metadata Usage
 
-Access event metadata for cross-stream correlation:
-
-```typescript
-const projection = pongoMultiStreamProjection({
-  collectionName: 'daily_sales',
-  canHandle: ['ShoppingCartConfirmed'],
-  getDocumentId: (event) => {
-    const date = event.metadata.timestamp.toISOString().split('T')[0];
-    return `sales-${date}`;
-  },
-  evolve: (document, event) => ({
-    date: document?.date ?? event.metadata.timestamp,
-    totalSales: (document?.totalSales ?? 0) + event.data.totalAmount,
-    orderCount: (document?.orderCount ?? 0) + 1,
-  }),
-});
-```
+Access event metadata for cross-stream correlation through the `getDocumentId` and `evolve` functions. The [multi-stream projection](#multi-stream-projections) example above shows how `event.metadata.clientId` determines which document to update.
 
 ## Querying Read Models
 
 ### With Pongo (PostgreSQL)
 
-```typescript
-import { pongoClient } from '@event-driven-io/pongo';
+Projected read models are stored in Pongo collections. Query them using the `PongoDb` instance:
 
-const pongo = pongoClient(connectionString);
-const cartSummaries = pongo
-  .db()
-  .collection<ShoppingCartSummary>('cart_summaries');
-
-// Find by ID
-const cart = await cartSummaries.findOne({ _id: 'cart-123' });
-
-// Query with filters
-const largeCarts = await cartSummaries
-  .find({ totalAmount: { $gte: 1000 } })
-  .toArray();
-
-// With sorting and pagination
-const recentCarts = await cartSummaries
-  .find({})
-  .sort({ lastUpdated: -1 })
-  .limit(10)
-  .toArray();
-```
+<<< ./projections/queryingReadModels.snippet.ts#querying-read-models
 
 ### In API Routes
 
-```typescript
-router.get(
-  '/carts/:cartId/summary',
-  on(async (request) => {
-    const cartId = request.params.cartId;
-    const summary = await cartSummaries.findOne({ _id: cartId });
+Use read model query functions in your Express route handlers:
 
-    if (!summary) {
-      return notFound({ detail: 'Cart not found' });
-    }
-
-    return ok(summary);
-  }),
-);
-
-router.get(
-  '/carts',
-  on(async (request) => {
-    const minAmount = parseFloat(request.query.minAmount ?? '0');
-
-    const carts = await cartSummaries
-      .find({ totalAmount: { $gte: minAmount } })
-      .toArray();
-
-    return ok({ carts });
-  }),
-);
-```
+<<< ./projections/queryingReadModels.snippet.ts#api-routes
 
 ## Testing Projections
 
-Use the `PostgreSQLProjectionSpec` for BDD-style tests:
+Use the `PostgreSQLProjectionSpec` for BDD-style tests with the `given`/`when`/`then` pattern:
 
-```typescript
-import {
-  PostgreSQLProjectionSpec,
-  expectPongoDocuments,
-  eventsInStream,
-  newEventsInStream,
-} from '@event-driven-io/emmett-postgresql';
-
-describe('Cart Summary Projection', () => {
-  let given: PostgreSQLProjectionSpec<ShoppingCartEvent>;
-
-  beforeAll(async () => {
-    const postgres = await new PostgreSqlContainer().start();
-
-    given = PostgreSQLProjectionSpec.for({
-      projection: cartSummaryProjection,
-      connectionString: postgres.getConnectionUri(),
-    });
-  });
-
-  it('creates summary from first event', () =>
-    given([])
-      .when([
-        {
-          type: 'ProductItemAdded',
-          data: { productId: 'shoes', quantity: 2, price: 100 },
-          metadata: { streamName: 'cart-123' },
-        },
-      ])
-      .then(
-        expectPongoDocuments
-          .fromCollection<ShoppingCartSummary>('cart_summaries')
-          .withId('cart-123')
-          .toBeEqual({
-            productItemsCount: 2,
-            totalAmount: 200,
-          }),
-      ));
-
-  it('accumulates across events', () =>
-    given(
-      eventsInStream('cart-123', [
-        {
-          type: 'ProductItemAdded',
-          data: { productId: 'shoes', quantity: 2, price: 100 },
-        },
-      ]),
-    )
-      .when(
-        newEventsInStream('cart-123', [
-          {
-            type: 'ProductItemAdded',
-            data: { productId: 'shirt', quantity: 1, price: 50 },
-          },
-        ]),
-      )
-      .then(
-        expectPongoDocuments
-          .fromCollection<ShoppingCartSummary>('cart_summaries')
-          .withId('cart-123')
-          .toBeEqual({
-            productItemsCount: 3,
-            totalAmount: 250,
-          }),
-      ));
-});
-```
+<<< ./projections/testingProjections.snippet.ts#testing-projection
 
 ## Best Practices
 
@@ -305,15 +155,7 @@ await productSales.find({}).sort({ totalQuantitySold: -1 }).limit(10);
 
 ### 3. Handle Missing Documents
 
-```typescript
-evolve: (document, event) => {
-  // Always handle null case
-  const current = document ?? defaultState();
-
-  // Now safely update
-  return { ...current /* updates */ };
-};
-```
+Use the [Initial State Pattern](#initial-state-pattern) to provide a default state, or handle the `null` case explicitly in `evolve` as shown in the [single-stream projection](#single-stream-projections) example above.
 
 ### 4. Version Your Projections
 
