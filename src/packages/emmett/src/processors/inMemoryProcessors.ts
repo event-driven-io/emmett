@@ -4,8 +4,8 @@ import type {
   AnyEvent,
   AnyMessage,
   BatchRecordedMessageHandlerWithContext,
-  MessageHandlerResult,
   ReadEventMetadataWithGlobalPosition,
+  SingleMessageHandlerResult,
   SingleRecordedMessageHandlerWithContext,
 } from '../typing';
 import type { MessageProcessor, ProcessorCheckpoint } from './processors';
@@ -152,7 +152,7 @@ const inMemoryProcessingScope = (options: {
 
   const processingScope: MessageProcessingScope<
     InMemoryProcessorHandlerContext
-  > = <Result = MessageHandlerResult>(
+  > = <Result = SingleMessageHandlerResult>(
     handler: (
       context: InMemoryProcessorHandlerContext,
     ) => Result | Promise<Result>,

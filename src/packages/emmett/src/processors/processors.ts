@@ -9,15 +9,16 @@ import {
   type AnyMessage,
   type AnyReadEventMetadata,
   type AnyRecordedMessageMetadata,
+  type BatchMessageHandlerResult,
+  type BatchMessageHandlerWithContext,
   type BatchRecordedMessageHandlerWithContext,
   type Brand,
   type CanHandle,
   type DefaultRecord,
   type Event,
   type Message,
-  type MessageHandlerResult,
   type RecordedMessage,
-  type SingleMessageHandlerWithContext,
+  type SingleMessageHandlerResult,
   type SingleRecordedMessageHandlerWithContext,
 } from '../typing';
 import { bigInt } from '../utils';
@@ -98,14 +99,14 @@ export type MessageProcessor<
 
 export const MessageProcessor = {
   result: {
-    skip: (options?: { reason?: string }): MessageHandlerResult => ({
+    skip: (options?: { reason?: string }): SingleMessageHandlerResult => ({
       type: 'SKIP',
       ...(options ?? {}),
     }),
     stop: (options?: {
       reason?: string;
       error?: EmmettError;
-    }): MessageHandlerResult => ({
+    }): SingleMessageHandlerResult => ({
       type: 'STOP',
       ...(options ?? {}),
     }),
@@ -114,7 +115,7 @@ export const MessageProcessor = {
 
 export type MessageProcessingScope<
   HandlerContext extends DefaultRecord | undefined = undefined,
-> = <Result = MessageHandlerResult>(
+> = <Result = SingleMessageHandlerResult>(
   handler: (context: HandlerContext) => Result | Promise<Result>,
   partialContext: Partial<HandlerContext>,
 ) => Result | Promise<Result>;
@@ -232,7 +233,7 @@ export type ProjectorOptions<
 
 export const defaultProcessingMessageProcessingScope = <
   HandlerContext = never,
-  Result = MessageHandlerResult,
+  Result = SingleMessageHandlerResult,
 >(
   handler: (context: HandlerContext) => Result | Promise<Result>,
   partialContext: Partial<HandlerContext>,
@@ -316,14 +317,60 @@ export const reactor = <
     stopAfter,
   } = options;
 
-  const eachMessage: SingleMessageHandlerWithContext<
+  const eachBatch: BatchMessageHandlerWithContext<
     MessageType,
     MessageMetadataType,
     HandlerContext
   > =
-    'eachMessage' in options && options.eachMessage
-      ? options.eachMessage
-      : () => Promise.resolve();
+    'eachBatch' in options && options.eachBatch
+      ? options.eachBatch
+      : async (
+          messages: RecordedMessage<MessageType, MessageMetadataType>[],
+          context: HandlerContext,
+        ): Promise<BatchMessageHandlerResult> => {
+          let result: BatchMessageHandlerResult = undefined;
+          for (let i = 0; i < messages.length; i++) {
+            const message = messages[i]!;
+            const messageProcessingResult = await options.eachMessage(
+              message,
+              context,
+            );
+
+            if (
+              messageProcessingResult &&
+              messageProcessingResult.type === 'STOP'
+            ) {
+              result = {
+                ...messageProcessingResult,
+                lastSuccessfulMessageIndex: messageProcessingResult.error
+                  ? i - 1
+                  : i,
+              };
+              break;
+            }
+
+            if (stopAfter && stopAfter(message)) {
+              result = {
+                type: 'STOP',
+                reason: 'Stop condition reached',
+                lastSuccessfulMessageIndex: i,
+              };
+              break;
+            }
+
+            if (
+              messageProcessingResult &&
+              messageProcessingResult.type === 'SKIP'
+            ) {
+              result = {
+                ...messageProcessingResult,
+                lastSuccessfulMessageIndex: i,
+              };
+              continue;
+            }
+          }
+          return result;
+        };
 
   let isInitiated = false;
   let isActive = false;
@@ -418,68 +465,64 @@ export const reactor = <
     handle: async (
       messages: RecordedMessage<MessageType, MessageMetadataType>[],
       partialContext: Partial<HandlerContext>,
-    ): Promise<MessageHandlerResult> => {
+    ): Promise<BatchMessageHandlerResult> => {
       if (!isActive) return Promise.resolve();
 
       return await processingScope(async (context) => {
-        let result: MessageHandlerResult = undefined;
+        const result: SingleMessageHandlerResult = undefined;
 
-        for (const message of messages) {
-          if (wasMessageHandled(message, lastCheckpoint)) continue;
-
-          const upcasted = upcastRecordedMessage(
-            // TODO: Make it smarter
-            message as unknown as RecordedMessage<
-              MessagePayloadType,
-              MessageMetadataType
-            >,
-            options.messageOptions?.schema?.versioning,
+        const unhandledMessages = messages
+          .filter((message) => !wasMessageHandled(message, lastCheckpoint))
+          .map((message) =>
+            upcastRecordedMessage(
+              // TODO: Make it smarter
+              message as unknown as RecordedMessage<
+                MessagePayloadType,
+                MessageMetadataType
+              >,
+              options.messageOptions?.schema?.versioning,
+            ),
+          )
+          .filter(
+            (upcasted) => !canHandle || canHandle.includes(upcasted.type),
           );
 
-          if (canHandle !== undefined && !canHandle.includes(upcasted.type))
-            continue;
+        const messageProcessingResult = await eachBatch(
+          unhandledMessages,
+          context,
+        );
 
-          const messageProcessingResult = await eachMessage(upcasted, context);
+        const lastSuccessfulMessageIndex =
+          messageProcessingResult &&
+          'lastSuccessfulMessageIndex' in messageProcessingResult
+            ? messageProcessingResult.lastSuccessfulMessageIndex
+            : unhandledMessages.length - 1;
 
-          if (checkpoints) {
-            const storeCheckpointResult: StoreProcessorCheckpointResult =
-              await checkpoints.store(
-                {
-                  processorId,
-                  version,
-                  message: upcasted,
-                  lastCheckpoint,
-                  partition,
-                },
-                context,
-              );
+        if (lastSuccessfulMessageIndex !== -1 && checkpoints) {
+          const storeCheckpointResult: StoreProcessorCheckpointResult =
+            await checkpoints.store(
+              {
+                processorId,
+                version,
+                message: unhandledMessages[lastSuccessfulMessageIndex]!,
+                lastCheckpoint,
+                partition,
+              },
+              context,
+            );
 
-            if (storeCheckpointResult.success) {
-              // TODO: Add correct handling of the storing checkpoint
-              lastCheckpoint = storeCheckpointResult.newCheckpoint;
-            }
+          if (storeCheckpointResult.success) {
+            // TODO: Add correct handling of the storing checkpoint
+            lastCheckpoint = storeCheckpointResult.newCheckpoint;
           }
+        }
 
-          if (
-            messageProcessingResult &&
-            messageProcessingResult.type === 'STOP'
-          ) {
-            isActive = false;
-            result = messageProcessingResult;
-            break;
-          }
-
-          if (stopAfter && stopAfter(upcasted)) {
-            isActive = false;
-            result = { type: 'STOP', reason: 'Stop condition reached' };
-            break;
-          }
-
-          if (
-            messageProcessingResult &&
-            messageProcessingResult.type === 'SKIP'
-          )
-            continue;
+        if (
+          messageProcessingResult &&
+          messageProcessingResult.type === 'STOP'
+        ) {
+          isActive = false;
+          return messageProcessingResult;
         }
 
         return result;
@@ -535,9 +578,9 @@ export const projector = <
           : undefined,
       onClose: options.hooks?.onClose,
     },
-    eachMessage: async (
-      event: RecordedMessage<EventType, EventMetaDataType>,
+    eachBatch: async (
+      events: RecordedMessage<EventType, EventMetaDataType>[],
       context: HandlerContext,
-    ) => projection.handle([event], context),
+    ) => projection.handle(events, context),
   });
 };

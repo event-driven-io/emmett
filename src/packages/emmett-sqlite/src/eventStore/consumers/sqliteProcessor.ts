@@ -11,13 +11,13 @@ import type {
   BatchRecordedMessageHandlerWithContext,
   Checkpointer,
   Message,
-  MessageHandlerResult,
   MessageProcessingScope,
   MessageProcessor,
   ProcessorHooks,
   ProjectorOptions,
   ReactorOptions,
   ReadEventMetadataWithGlobalPosition,
+  SingleMessageHandlerResult,
   SingleRecordedMessageHandlerWithContext,
   WorkflowProcessorContext,
   WorkflowProcessorOptions,
@@ -127,7 +127,7 @@ const sqliteProcessingScope =
   (): MessageProcessingScope<SQLiteProcessorHandlerContext> => {
     const processingScope: MessageProcessingScope<
       SQLiteProcessorHandlerContext
-    > = async <Result = MessageHandlerResult>(
+    > = async <Result = SingleMessageHandlerResult>(
       handler: (
         context: SQLiteProcessorHandlerContext,
       ) => Result | Promise<Result>,
@@ -160,7 +160,7 @@ const sqliteWorkflowProcessingScope = (
 > => {
   const processingScope: MessageProcessingScope<
     SQLiteProcessorHandlerContext & WorkflowProcessorContext
-  > = async <Result = MessageHandlerResult>(
+  > = async <Result = SingleMessageHandlerResult>(
     handler: (
       context: SQLiteProcessorHandlerContext & WorkflowProcessorContext,
     ) => Result | Promise<Result>,
