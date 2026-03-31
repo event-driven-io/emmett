@@ -8,10 +8,10 @@ import {
   type CurrentMessageProcessorPosition,
   type Event,
   type Message,
-  type MessageHandlerResult,
   type ReadEvent,
   type RecordedMessage,
   type RecordedMessageMetadata,
+  type SingleMessageHandlerResult,
 } from '@event-driven-io/emmett';
 import type { ChangeStream } from 'mongodb';
 import {
@@ -427,7 +427,7 @@ export const mongoDBSubscription = <MessageType extends Message = AnyMessage>({
 
         const handler = new (class extends Writable {
           async _write(
-            result: MongoDBCheckpoint | MessageHandlerResult,
+            result: MongoDBCheckpoint | SingleMessageHandlerResult,
             _encoding: string,
             done: () => void,
           ) {

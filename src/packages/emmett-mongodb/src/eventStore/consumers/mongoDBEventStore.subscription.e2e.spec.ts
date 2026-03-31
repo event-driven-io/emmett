@@ -12,8 +12,8 @@ import {
   type StartedMongoDBContainer,
 } from '@testcontainers/mongodb';
 import { MongoClient, type Collection } from 'mongodb';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid, v4 } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   getMongoDBEventStore,
   toStreamCollectionName,
@@ -60,7 +60,6 @@ void describe('MongoDBEventStore subscription', () => {
   const shoppingCartId = uuid();
   const streamType = 'shopping_cart';
   const streamName = toStreamName(streamType, shoppingCartId);
-  const noop = () => {};
   const productItem = (productId: string) =>
     ({
       productId,
@@ -108,11 +107,9 @@ void describe('MongoDBEventStore subscription', () => {
         stopAfter: (event) => {
           if (event.data.productItem.productId === lastProductItemIdTest1) {
             messageProcessingPromise1.resolve();
-            consumer.stop().catch(noop);
           }
           if (event.data.productItem.productId === lastProductItemIdTest2) {
             messageProcessingPromise2.resolve();
-            consumer.stop().catch(noop);
           }
 
           return (
@@ -167,7 +164,12 @@ void describe('MongoDBEventStore subscription', () => {
         { expectedStreamVersion: 2n },
       );
 
-      await consumer.start();
+      const consumerPromise = consumer.start();
+
+      await messageProcessingPromise1;
+      await consumerPromise;
+
+      await consumer.stop();
 
       const stream = await collection.findOne(
         { streamName },
@@ -227,7 +229,10 @@ void describe('MongoDBEventStore subscription', () => {
       { expectedStreamVersion: 3n },
     );
 
+    await messageProcessingPromise2;
     await consumerPromise;
+
+    await consumer.stop();
 
     stream = await collection.findOne({ streamName }, { useBigInt64: true });
     assertIsNotNull(stream);

@@ -2,6 +2,7 @@ import type { DefaultRecord } from '.';
 import type { EmmettError } from '../errors';
 import type {
   AnyMessage,
+  AnyRecordedMessage,
   AnyRecordedMessageMetadata,
   Message,
   RecordedMessage,
@@ -10,7 +11,7 @@ export type SingleRawMessageHandlerWithoutContext<
   MessageType extends Message = AnyMessage,
 > = (
   message: MessageType,
-) => Promise<MessageHandlerResult> | MessageHandlerResult;
+) => Promise<SingleMessageHandlerResult> | SingleMessageHandlerResult;
 
 export type SingleRecordedMessageHandlerWithoutContext<
   MessageType extends Message = AnyMessage,
@@ -18,7 +19,7 @@ export type SingleRecordedMessageHandlerWithoutContext<
     AnyRecordedMessageMetadata,
 > = (
   message: RecordedMessage<MessageType, MessageMetaDataType>,
-) => Promise<MessageHandlerResult> | MessageHandlerResult;
+) => Promise<SingleMessageHandlerResult> | SingleMessageHandlerResult;
 
 export type SingleMessageHandlerWithoutContext<
   MessageType extends AnyMessage = AnyMessage,
@@ -36,7 +37,7 @@ export type SingleRawMessageHandlerWithContext<
 > = (
   message: MessageType,
   context: HandlerContext,
-) => Promise<MessageHandlerResult> | MessageHandlerResult;
+) => Promise<SingleMessageHandlerResult> | SingleMessageHandlerResult;
 
 export type SingleRecordedMessageHandlerWithContext<
   MessageType extends Message = AnyMessage,
@@ -46,7 +47,7 @@ export type SingleRecordedMessageHandlerWithContext<
 > = (
   message: RecordedMessage<MessageType, MessageMetaDataType>,
   context: HandlerContext,
-) => Promise<MessageHandlerResult> | MessageHandlerResult;
+) => Promise<SingleMessageHandlerResult> | SingleMessageHandlerResult;
 
 export type SingleMessageHandlerWithContext<
   MessageType extends AnyMessage = AnyMessage,
@@ -77,7 +78,7 @@ export type BatchRawMessageHandlerWithoutContext<
   MessageType extends Message = AnyMessage,
 > = (
   messages: MessageType[],
-) => Promise<MessageHandlerResult> | MessageHandlerResult;
+) => Promise<BatchMessageHandlerResult> | BatchMessageHandlerResult;
 
 export type BatchRecordedMessageHandlerWithoutContext<
   MessageType extends Message = AnyMessage,
@@ -85,7 +86,7 @@ export type BatchRecordedMessageHandlerWithoutContext<
     AnyRecordedMessageMetadata,
 > = (
   messages: RecordedMessage<MessageType, MessageMetaDataType>[],
-) => Promise<MessageHandlerResult> | MessageHandlerResult;
+) => Promise<BatchMessageHandlerResult> | BatchMessageHandlerResult;
 
 export type BatchMessageHandlerWithoutContext<
   MessageType extends AnyMessage = AnyMessage,
@@ -101,7 +102,7 @@ export type BatchRawMessageHandlerWithContext<
 > = (
   messages: MessageType[],
   context: HandlerContext,
-) => Promise<MessageHandlerResult> | MessageHandlerResult;
+) => Promise<BatchMessageHandlerResult> | BatchMessageHandlerResult;
 
 export type BatchRecordedMessageHandlerWithContext<
   MessageType extends Message = AnyMessage,
@@ -111,7 +112,7 @@ export type BatchRecordedMessageHandlerWithContext<
 > = (
   messages: RecordedMessage<MessageType, MessageMetaDataType>[],
   context: HandlerContext,
-) => Promise<MessageHandlerResult> | MessageHandlerResult;
+) => Promise<BatchMessageHandlerResult> | BatchMessageHandlerResult;
 
 export type BatchMessageHandlerWithContext<
   MessageType extends AnyMessage = AnyMessage,
@@ -152,7 +153,23 @@ export type MessageHandler<
       ? BatchMessageHandler<MessageType, MessageMetaDataType, HandlerContext>
       : BatchMessageHandler<MessageType, MessageMetaDataType>);
 
-export type MessageHandlerResult =
+export type SingleMessageHandlerResult =
   | void
+  | { type: 'ACK' }
   | { type: 'SKIP'; reason?: string }
   | { type: 'STOP'; reason?: string; error?: EmmettError };
+
+export type BatchMessageHandlerResult =
+  | void
+  | { type: 'ACK' }
+  | {
+      type: 'SKIP';
+      reason?: string;
+      lastSuccessfulMessage: AnyRecordedMessage;
+    }
+  | {
+      type: 'STOP';
+      reason?: string;
+      error?: EmmettError;
+      lastSuccessfulMessage?: AnyRecordedMessage;
+    };
