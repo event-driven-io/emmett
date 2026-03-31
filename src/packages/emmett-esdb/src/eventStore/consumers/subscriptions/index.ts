@@ -9,8 +9,8 @@ import {
   type BatchRecordedMessageHandlerWithoutContext,
   type EmmettError,
   type Message,
-  type MessageHandlerResult,
   type ProcessorCheckpoint,
+  type SingleMessageHandlerResult,
 } from '@event-driven-io/emmett';
 import type { EventStoreDBClient } from '@eventstore/db-client';
 import {
@@ -231,7 +231,7 @@ export const eventStoreDBSubscription = <
 
           const handler = new (class extends Writable {
             async _write(
-              result: ProcessorCheckpoint | MessageHandlerResult,
+              result: ProcessorCheckpoint | SingleMessageHandlerResult,
               _encoding: string,
               done: () => void,
             ) {

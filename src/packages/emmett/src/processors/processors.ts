@@ -9,15 +9,15 @@ import {
   type AnyMessage,
   type AnyReadEventMetadata,
   type AnyRecordedMessageMetadata,
+  type BatchMessageHandlerResult,
   type BatchRecordedMessageHandlerWithContext,
   type Brand,
   type CanHandle,
   type DefaultRecord,
   type Event,
   type Message,
-  type MessageHandlerResult,
   type RecordedMessage,
-  type SingleMessageHandlerWithContext,
+  type SingleMessageHandlerResult,
   type SingleRecordedMessageHandlerWithContext,
 } from '../typing';
 import { bigInt } from '../utils';
@@ -98,14 +98,14 @@ export type MessageProcessor<
 
 export const MessageProcessor = {
   result: {
-    skip: (options?: { reason?: string }): MessageHandlerResult => ({
+    skip: (options?: { reason?: string }): SingleMessageHandlerResult => ({
       type: 'SKIP',
       ...(options ?? {}),
     }),
     stop: (options?: {
       reason?: string;
       error?: EmmettError;
-    }): MessageHandlerResult => ({
+    }): SingleMessageHandlerResult => ({
       type: 'STOP',
       ...(options ?? {}),
     }),
@@ -114,7 +114,7 @@ export const MessageProcessor = {
 
 export type MessageProcessingScope<
   HandlerContext extends DefaultRecord | undefined = undefined,
-> = <Result = MessageHandlerResult>(
+> = <Result = SingleMessageHandlerResult>(
   handler: (context: HandlerContext) => Result | Promise<Result>,
   partialContext: Partial<HandlerContext>,
 ) => Result | Promise<Result>;
@@ -232,7 +232,7 @@ export type ProjectorOptions<
 
 export const defaultProcessingMessageProcessingScope = <
   HandlerContext = never,
-  Result = MessageHandlerResult,
+  Result = SingleMessageHandlerResult,
 >(
   handler: (context: HandlerContext) => Result | Promise<Result>,
   partialContext: Partial<HandlerContext>,
@@ -316,14 +316,61 @@ export const reactor = <
     stopAfter,
   } = options;
 
-  const eachMessage: SingleMessageHandlerWithContext<
+  const isCustomBatch = 'eachBatch' in options && !!options.eachBatch;
+
+  const eachBatch: BatchRecordedMessageHandlerWithContext<
     MessageType,
     MessageMetadataType,
     HandlerContext
-  > =
-    'eachMessage' in options && options.eachMessage
-      ? options.eachMessage
-      : () => Promise.resolve();
+  > = isCustomBatch
+    ? options.eachBatch
+    : async (
+        messages: RecordedMessage<MessageType, MessageMetadataType>[],
+        context: HandlerContext,
+      ): Promise<BatchMessageHandlerResult> => {
+        let result: BatchMessageHandlerResult = undefined;
+        for (let i = 0; i < messages.length; i++) {
+          const message = messages[i]!;
+          const messageProcessingResult = await options.eachMessage(
+            message,
+            context,
+          );
+
+          if (
+            messageProcessingResult &&
+            messageProcessingResult.type === 'STOP'
+          ) {
+            result = {
+              ...messageProcessingResult,
+              lastSuccessfulMessage: messageProcessingResult.error
+                ? messages[i - 1]
+                : message,
+            };
+            break;
+          }
+
+          if (stopAfter && stopAfter(message)) {
+            result = {
+              type: 'STOP',
+              reason: 'Stop condition reached',
+              lastSuccessfulMessage: message,
+            };
+            break;
+          }
+
+          if (
+            messageProcessingResult &&
+            messageProcessingResult.type === 'SKIP'
+          ) {
+            result = {
+              ...messageProcessingResult,
+              lastSuccessfulMessage: message,
+            };
+            continue;
+          }
+        }
+        return result;
+      };
 
   let isInitiated = false;
   let isActive = false;
@@ -381,10 +428,11 @@ export const reactor = <
 
       closeSignal = onShutdown(() => close(startOptions));
 
-      if (lastCheckpoint !== null)
+      if (lastCheckpoint !== null) {
         return {
           lastCheckpoint,
         };
+      }
 
       return await processingScope(async (context) => {
         if (hooks.onStart) {
@@ -418,71 +466,88 @@ export const reactor = <
     handle: async (
       messages: RecordedMessage<MessageType, MessageMetadataType>[],
       partialContext: Partial<HandlerContext>,
-    ): Promise<MessageHandlerResult> => {
+    ): Promise<BatchMessageHandlerResult> => {
       if (!isActive) return Promise.resolve();
 
       return await processingScope(async (context) => {
-        let result: MessageHandlerResult = undefined;
+        const messagesAboveCheckpoint = messages.filter(
+          (message) => !wasMessageHandled(message, lastCheckpoint),
+        );
 
-        for (const message of messages) {
-          if (wasMessageHandled(message, lastCheckpoint)) continue;
-
-          const upcasted = upcastRecordedMessage(
-            // TODO: Make it smarter
-            message as unknown as RecordedMessage<
-              MessagePayloadType,
-              MessageMetadataType
-            >,
-            options.messageOptions?.schema?.versioning,
+        const upcastedMessages = messagesAboveCheckpoint
+          .map((message) =>
+            upcastRecordedMessage(
+              // TODO: Make it smarter
+              message as unknown as RecordedMessage<
+                MessagePayloadType,
+                MessageMetadataType
+              >,
+              options.messageOptions?.schema?.versioning,
+            ),
+          )
+          .filter(
+            (upcasted) => !canHandle || canHandle.includes(upcasted.type),
           );
 
-          if (canHandle !== undefined && !canHandle.includes(upcasted.type))
-            continue;
+        const stopMessageIndex =
+          isCustomBatch && stopAfter
+            ? upcastedMessages.findIndex(stopAfter)
+            : -1;
 
-          const messageProcessingResult = await eachMessage(upcasted, context);
+        const unhandledMessages =
+          stopMessageIndex !== -1
+            ? upcastedMessages.slice(0, stopMessageIndex + 1)
+            : upcastedMessages;
 
-          if (checkpoints) {
-            const storeCheckpointResult: StoreProcessorCheckpointResult =
-              await checkpoints.store(
-                {
-                  processorId,
-                  version,
-                  message: upcasted,
-                  lastCheckpoint,
-                  partition,
-                },
-                context,
-              );
+        const batchResult = await eachBatch(unhandledMessages, context);
 
-            if (storeCheckpointResult.success) {
-              // TODO: Add correct handling of the storing checkpoint
-              lastCheckpoint = storeCheckpointResult.newCheckpoint;
-            }
+        const messageProcessingResult: BatchMessageHandlerResult =
+          batchResult?.type === 'STOP'
+            ? batchResult
+            : stopMessageIndex !== -1
+              ? {
+                  type: 'STOP',
+                  reason: 'Stop condition reached',
+                  lastSuccessfulMessage: unhandledMessages[stopMessageIndex],
+                }
+              : batchResult;
+
+        const isStop =
+          messageProcessingResult && messageProcessingResult.type === 'STOP';
+
+        const checkpointMessage =
+          messageProcessingResult?.type === 'STOP'
+            ? messageProcessingResult.lastSuccessfulMessage
+            : messagesAboveCheckpoint[messagesAboveCheckpoint.length - 1];
+
+        if (checkpointMessage && checkpoints) {
+          const storeCheckpointResult: StoreProcessorCheckpointResult =
+            await checkpoints.store(
+              {
+                processorId,
+                version,
+                message: checkpointMessage as RecordedMessage<
+                  MessageType,
+                  MessageMetadataType
+                >,
+                lastCheckpoint,
+                partition,
+              },
+              context,
+            );
+
+          if (storeCheckpointResult.success) {
+            // TODO: Add correct handling of the storing checkpoint
+            lastCheckpoint = storeCheckpointResult.newCheckpoint;
           }
-
-          if (
-            messageProcessingResult &&
-            messageProcessingResult.type === 'STOP'
-          ) {
-            isActive = false;
-            result = messageProcessingResult;
-            break;
-          }
-
-          if (stopAfter && stopAfter(upcasted)) {
-            isActive = false;
-            result = { type: 'STOP', reason: 'Stop condition reached' };
-            break;
-          }
-
-          if (
-            messageProcessingResult &&
-            messageProcessingResult.type === 'SKIP'
-          )
-            continue;
         }
 
-        return result;
+        if (isStop) {
+          isActive = false;
+          return messageProcessingResult;
+        }
+
+        return undefined;
       }, partialContext);
     },
   };
@@ -535,9 +600,9 @@ export const projector = <
           : undefined,
       onClose: options.hooks?.onClose,
     },
-    eachMessage: async (
-      event: RecordedMessage<EventType, EventMetaDataType>,
+    eachBatch: async (
+      events: RecordedMessage<EventType, EventMetaDataType>[],
       context: HandlerContext,
-    ) => projection.handle([event], context),
+    ) => projection.handle(events, context),
   });
 };
