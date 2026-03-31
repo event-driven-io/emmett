@@ -99,7 +99,14 @@ const shoppingCartShortInfoProjection = pongoSingleStreamProjection({
 
 // #region versioning
 const cartSummariesV2 = pongoSingleStreamProjection({
-  collectionName: 'cart_summaries_v2',
+  collectionName: 'cart_summaries',
+  // Emmett appends the version to the collection name automatically,
+  // creating 'cart_summaries_v2' in the database
+  version: 2,
+  canHandle: [
+    'ProductItemAddedToShoppingCart',
+    'ProductItemRemovedFromShoppingCart',
+  ],
   evolve: (
     document: ShoppingCartShortInfo,
     { type, data: event }: ShoppingCartEvent,
@@ -125,10 +132,6 @@ const cartSummariesV2 = pongoSingleStreamProjection({
         return document;
     }
   },
-  canHandle: [
-    'ProductItemAddedToShoppingCart',
-    'ProductItemRemovedFromShoppingCart',
-  ],
   initialState: () => ({ productItemsCount: 0, totalAmount: 0 }),
 });
 // #endregion versioning
