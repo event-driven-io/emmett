@@ -428,7 +428,7 @@ describe('GroupCheckoutWorkflow', () => {
 **Don't use workflows for:**
 
 - Simple request-response operations → use [command handlers](/api-reference/commandhandler)
-- Building read models → use [projections](/guides/projections)
+- Building read models → use [projections](/guides/projections) guide
 - Simple event reactions → use reactors
 - Synchronous single-aggregate operations
 
@@ -450,5 +450,5 @@ Because workflows use event sourcing:
 ## See Also
 
 - [Command Handler](/api-reference/commandhandler) - For simpler command processing
-- [Projections](/guides/projections) - For building read models
+- [Read Models](/guides/projections) - For building read models
 - [Testing Patterns](/guides/testing) - For comprehensive testing strategies

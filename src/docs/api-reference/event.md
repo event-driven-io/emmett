@@ -297,4 +297,4 @@ type ProductItemAdded = Event<
 - [Getting Started - Events](/getting-started#events)
 - [Command](/api-reference/command) - Requests to change state
 - [Decider](/api-reference/decider) - Pattern using events and commands
-- [Projections](/guides/projections) - Building read models from events
+- [Read Models](/guides/projections) - Building read models from events

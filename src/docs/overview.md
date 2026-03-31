@@ -15,7 +15,7 @@ Welcome to Emmett's documentation!
 | **Event-Centric Modeling**    | Structured approach to modeling business processes through events                                                                                                                        |
 | **Multiple Event Stores**     | Built-in support for [PostgreSQL](/event-stores/postgresql), [EventStoreDB](/event-stores/esdb), [MongoDB](/event-stores/mongodb), [SQLite](/event-stores/sqlite), and In-Memory storage |
 | **Command Handling Patterns** | Standardized approach with the [Decider pattern](/api-reference/decider)                                                                                                                 |
-| **Projections**               | Built-in [projections](/guides/projections) to build read models from events                                                                                                             |
+| **Read Models**               | Built-in [projections](/guides/projections) to build read models from events                                                                                                             |
 | **Workflows**                 | Coordinate multi-step processes with [durable execution](/guides/workflows)                                                                                                              |
 | **Type Safety**               | First-class TypeScript support with structural typing                                                                                                                                    |
 | **Web Framework Integration** | Seamless integration with [Express.js](/frameworks/expressjs) and [Fastify](/frameworks/fastify)                                                                                         |
@@ -59,7 +59,7 @@ New to Emmett? Start here.
 
 Learn key patterns and techniques.
 
-- [Projections](/guides/projections) - Build read models
+- [Read Models](/guides/projections) - Build read models
 - [Testing](/guides/testing) - Test strategies
 - [Error Handling](/guides/error-handling) - Handle errors gracefully
 - [Workflows](/guides/workflows) - Multi-step processes
@@ -118,7 +118,7 @@ This documentation follows the [Diataxis](https://diataxis.fr) framework:
 | Type              | Purpose                          | Examples                                                       |
 | ----------------- | -------------------------------- | -------------------------------------------------------------- |
 | **Tutorials**     | Learning-oriented, step-by-step  | [Getting Started](/getting-started)                            |
-| **How-to Guides** | Task-oriented, problem-solving   | [Testing](/guides/testing), [Projections](/guides/projections) |
+| **How-to Guides** | Task-oriented, problem-solving   | [Testing](/guides/testing), [Read Models](/guides/projections) |
 | **Reference**     | Information-oriented, technical  | [API Reference](/api-reference/)                               |
 | **Explanation**   | Understanding-oriented, concepts | [Choosing an Event Store](/guides/choosing-event-store)        |
 

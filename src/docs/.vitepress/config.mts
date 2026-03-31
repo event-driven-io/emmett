@@ -27,7 +27,7 @@ export default defineConfig({
       {
         text: 'Guides',
         items: [
-          { text: 'Projections', link: '/guides/projections' },
+          { text: 'Read Models', link: '/guides/projections' },
           { text: 'Testing', link: '/guides/testing' },
           { text: 'Error Handling', link: '/guides/error-handling' },
           { text: 'Workflows', link: '/guides/workflows' },
@@ -69,7 +69,7 @@ export default defineConfig({
       {
         text: 'Guides',
         items: [
-          { text: 'Projections', link: '/guides/projections' },
+          { text: 'Read Models', link: '/guides/projections' },
           { text: 'Testing', link: '/guides/testing' },
           { text: 'Error Handling', link: '/guides/error-handling' },
           { text: 'Workflows', link: '/guides/workflows' },
