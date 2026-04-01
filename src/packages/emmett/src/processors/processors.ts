@@ -10,7 +10,6 @@ import {
   type AnyReadEventMetadata,
   type AnyRecordedMessageMetadata,
   type BatchMessageHandlerResult,
-  type BatchMessageHandlerWithContext,
   type BatchRecordedMessageHandlerWithContext,
   type Brand,
   type CanHandle,
@@ -317,7 +316,7 @@ export const reactor = <
     stopAfter,
   } = options;
 
-  const eachBatch: BatchMessageHandlerWithContext<
+  const eachBatch: BatchRecordedMessageHandlerWithContext<
     MessageType,
     MessageMetadataType,
     HandlerContext
@@ -342,9 +341,9 @@ export const reactor = <
             ) {
               result = {
                 ...messageProcessingResult,
-                lastSuccessfulMessageIndex: messageProcessingResult.error
-                  ? i - 1
-                  : i,
+                lastSuccessfulMessage: messageProcessingResult.error
+                  ? messages[i - 1]
+                  : message,
               };
               break;
             }
@@ -355,7 +354,7 @@ export const reactor = <
             ) {
               result = {
                 ...messageProcessingResult,
-                lastSuccessfulMessageIndex: i,
+                lastSuccessfulMessage: message,
               };
               continue;
             }
@@ -465,7 +464,7 @@ export const reactor = <
           (message) => !wasMessageHandled(message, lastCheckpoint),
         );
 
-        const unhandledMessages = messagesAboveCheckpoint
+        const upcastedMessages = messagesAboveCheckpoint
           .map((message) =>
             upcastRecordedMessage(
               // TODO: Make it smarter
@@ -480,36 +479,35 @@ export const reactor = <
             (upcasted) => !canHandle || canHandle.includes(upcasted.type),
           );
 
-        let messageProcessingResult = await eachBatch(
-          unhandledMessages,
-          context,
-        );
+        const stopMessageIndex = stopAfter
+          ? upcastedMessages.findIndex(stopAfter)
+          : -1;
 
-        if (stopAfter && !messageProcessingResult) {
-          for (let i = 0; i < unhandledMessages.length; i++) {
-            if (stopAfter(unhandledMessages[i]!)) {
-              messageProcessingResult = {
-                type: 'STOP',
-                reason: 'Stop condition reached',
-                lastSuccessfulMessageIndex: i,
-              };
-              break;
-            }
-          }
-        }
+        const unhandledMessages =
+          stopMessageIndex !== -1
+            ? upcastedMessages.slice(0, stopMessageIndex + 1)
+            : upcastedMessages;
+
+        const batchResult = await eachBatch(unhandledMessages, context);
+
+        const messageProcessingResult: BatchMessageHandlerResult =
+          batchResult?.type === 'STOP'
+            ? batchResult
+            : stopMessageIndex !== -1
+              ? {
+                  type: 'STOP',
+                  reason: 'Stop condition reached',
+                  lastSuccessfulMessage: unhandledMessages[stopMessageIndex],
+                }
+              : batchResult;
 
         const isStop =
           messageProcessingResult && messageProcessingResult.type === 'STOP';
 
-        const lastSuccessfulMessageIndex =
-          messageProcessingResult &&
-          'lastSuccessfulMessageIndex' in messageProcessingResult
-            ? messageProcessingResult.lastSuccessfulMessageIndex
-            : unhandledMessages.length - 1;
-
-        const checkpointMessage = isStop
-          ? unhandledMessages[lastSuccessfulMessageIndex]
-          : messagesAboveCheckpoint[messagesAboveCheckpoint.length - 1];
+        const checkpointMessage =
+          messageProcessingResult?.type === 'STOP'
+            ? messageProcessingResult.lastSuccessfulMessage
+            : messagesAboveCheckpoint[messagesAboveCheckpoint.length - 1];
 
         if (checkpointMessage && checkpoints) {
           const storeCheckpointResult: StoreProcessorCheckpointResult =
@@ -517,7 +515,10 @@ export const reactor = <
               {
                 processorId,
                 version,
-                message: checkpointMessage,
+                message: checkpointMessage as RecordedMessage<
+                  MessageType,
+                  MessageMetadataType
+                >,
                 lastCheckpoint,
                 partition,
               },

@@ -2,6 +2,7 @@ import type { DefaultRecord } from '.';
 import type { EmmettError } from '../errors';
 import type {
   AnyMessage,
+  AnyRecordedMessage,
   AnyRecordedMessageMetadata,
   Message,
   RecordedMessage,
@@ -77,7 +78,7 @@ export type BatchRawMessageHandlerWithoutContext<
   MessageType extends Message = AnyMessage,
 > = (
   messages: MessageType[],
-) => Promise<SingleMessageHandlerResult> | SingleMessageHandlerResult;
+) => Promise<BatchMessageHandlerResult> | BatchMessageHandlerResult;
 
 export type BatchRecordedMessageHandlerWithoutContext<
   MessageType extends Message = AnyMessage,
@@ -85,7 +86,7 @@ export type BatchRecordedMessageHandlerWithoutContext<
     AnyRecordedMessageMetadata,
 > = (
   messages: RecordedMessage<MessageType, MessageMetaDataType>[],
-) => Promise<SingleMessageHandlerResult> | SingleMessageHandlerResult;
+) => Promise<BatchMessageHandlerResult> | BatchMessageHandlerResult;
 
 export type BatchMessageHandlerWithoutContext<
   MessageType extends AnyMessage = AnyMessage,
@@ -161,10 +162,14 @@ export type SingleMessageHandlerResult =
 export type BatchMessageHandlerResult =
   | void
   | { type: 'ACK' }
-  | { type: 'SKIP'; reason?: string; lastSuccessfulMessageIndex: number }
+  | {
+      type: 'SKIP';
+      reason?: string;
+      lastSuccessfulMessage: AnyRecordedMessage;
+    }
   | {
       type: 'STOP';
       reason?: string;
       error?: EmmettError;
-      lastSuccessfulMessageIndex: number;
+      lastSuccessfulMessage?: AnyRecordedMessage;
     };
