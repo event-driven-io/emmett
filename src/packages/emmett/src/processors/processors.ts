@@ -349,15 +349,6 @@ export const reactor = <
               break;
             }
 
-            if (stopAfter && stopAfter(message)) {
-              result = {
-                type: 'STOP',
-                reason: 'Stop condition reached',
-                lastSuccessfulMessageIndex: i,
-              };
-              break;
-            }
-
             if (
               messageProcessingResult &&
               messageProcessingResult.type === 'SKIP'
@@ -428,10 +419,11 @@ export const reactor = <
 
       closeSignal = onShutdown(() => close(startOptions));
 
-      if (lastCheckpoint !== null)
+      if (lastCheckpoint !== null) {
         return {
           lastCheckpoint,
         };
+      }
 
       return await processingScope(async (context) => {
         if (hooks.onStart) {
@@ -469,10 +461,11 @@ export const reactor = <
       if (!isActive) return Promise.resolve();
 
       return await processingScope(async (context) => {
-        const result: SingleMessageHandlerResult = undefined;
+        const messagesAboveCheckpoint = messages.filter(
+          (message) => !wasMessageHandled(message, lastCheckpoint),
+        );
 
-        const unhandledMessages = messages
-          .filter((message) => !wasMessageHandled(message, lastCheckpoint))
+        const unhandledMessages = messagesAboveCheckpoint
           .map((message) =>
             upcastRecordedMessage(
               // TODO: Make it smarter
@@ -487,10 +480,26 @@ export const reactor = <
             (upcasted) => !canHandle || canHandle.includes(upcasted.type),
           );
 
-        const messageProcessingResult = await eachBatch(
+        let messageProcessingResult = await eachBatch(
           unhandledMessages,
           context,
         );
+
+        if (stopAfter && !messageProcessingResult) {
+          for (let i = 0; i < unhandledMessages.length; i++) {
+            if (stopAfter(unhandledMessages[i]!)) {
+              messageProcessingResult = {
+                type: 'STOP',
+                reason: 'Stop condition reached',
+                lastSuccessfulMessageIndex: i,
+              };
+              break;
+            }
+          }
+        }
+
+        const isStop =
+          messageProcessingResult && messageProcessingResult.type === 'STOP';
 
         const lastSuccessfulMessageIndex =
           messageProcessingResult &&
@@ -498,13 +507,17 @@ export const reactor = <
             ? messageProcessingResult.lastSuccessfulMessageIndex
             : unhandledMessages.length - 1;
 
-        if (lastSuccessfulMessageIndex !== -1 && checkpoints) {
+        const checkpointMessage = isStop
+          ? unhandledMessages[lastSuccessfulMessageIndex]
+          : messagesAboveCheckpoint[messagesAboveCheckpoint.length - 1];
+
+        if (checkpointMessage && checkpoints) {
           const storeCheckpointResult: StoreProcessorCheckpointResult =
             await checkpoints.store(
               {
                 processorId,
                 version,
-                message: unhandledMessages[lastSuccessfulMessageIndex]!,
+                message: checkpointMessage,
                 lastCheckpoint,
                 partition,
               },
@@ -517,15 +530,12 @@ export const reactor = <
           }
         }
 
-        if (
-          messageProcessingResult &&
-          messageProcessingResult.type === 'STOP'
-        ) {
+        if (isStop) {
           isActive = false;
           return messageProcessingResult;
         }
 
-        return result;
+        return undefined;
       }, partialContext);
     },
   };
