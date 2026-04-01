@@ -316,51 +316,61 @@ export const reactor = <
     stopAfter,
   } = options;
 
+  const isCustomBatch = 'eachBatch' in options && !!options.eachBatch;
+
   const eachBatch: BatchRecordedMessageHandlerWithContext<
     MessageType,
     MessageMetadataType,
     HandlerContext
-  > =
-    'eachBatch' in options && options.eachBatch
-      ? options.eachBatch
-      : async (
-          messages: RecordedMessage<MessageType, MessageMetadataType>[],
-          context: HandlerContext,
-        ): Promise<BatchMessageHandlerResult> => {
-          let result: BatchMessageHandlerResult = undefined;
-          for (let i = 0; i < messages.length; i++) {
-            const message = messages[i]!;
-            const messageProcessingResult = await options.eachMessage(
-              message,
-              context,
-            );
+  > = isCustomBatch
+    ? options.eachBatch
+    : async (
+        messages: RecordedMessage<MessageType, MessageMetadataType>[],
+        context: HandlerContext,
+      ): Promise<BatchMessageHandlerResult> => {
+        let result: BatchMessageHandlerResult = undefined;
+        for (let i = 0; i < messages.length; i++) {
+          const message = messages[i]!;
+          const messageProcessingResult = await options.eachMessage(
+            message,
+            context,
+          );
 
-            if (
-              messageProcessingResult &&
-              messageProcessingResult.type === 'STOP'
-            ) {
-              result = {
-                ...messageProcessingResult,
-                lastSuccessfulMessage: messageProcessingResult.error
-                  ? messages[i - 1]
-                  : message,
-              };
-              break;
-            }
-
-            if (
-              messageProcessingResult &&
-              messageProcessingResult.type === 'SKIP'
-            ) {
-              result = {
-                ...messageProcessingResult,
-                lastSuccessfulMessage: message,
-              };
-              continue;
-            }
+          if (
+            messageProcessingResult &&
+            messageProcessingResult.type === 'STOP'
+          ) {
+            result = {
+              ...messageProcessingResult,
+              lastSuccessfulMessage: messageProcessingResult.error
+                ? messages[i - 1]
+                : message,
+            };
+            break;
           }
-          return result;
-        };
+
+          if (stopAfter && stopAfter(message)) {
+            result = {
+              type: 'STOP',
+              reason: 'Stop condition reached',
+              lastSuccessfulMessage: message,
+            };
+            break;
+          }
+
+          if (
+            messageProcessingResult &&
+            messageProcessingResult.type === 'SKIP'
+          ) {
+            result = {
+              ...messageProcessingResult,
+              lastSuccessfulMessage: message,
+            };
+            continue;
+          }
+        }
+        return result;
+      };
 
   let isInitiated = false;
   let isActive = false;
@@ -479,9 +489,10 @@ export const reactor = <
             (upcasted) => !canHandle || canHandle.includes(upcasted.type),
           );
 
-        const stopMessageIndex = stopAfter
-          ? upcastedMessages.findIndex(stopAfter)
-          : -1;
+        const stopMessageIndex =
+          isCustomBatch && stopAfter
+            ? upcastedMessages.findIndex(stopAfter)
+            : -1;
 
         const unhandledMessages =
           stopMessageIndex !== -1
