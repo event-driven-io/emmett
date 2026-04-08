@@ -1,10 +1,11 @@
-import type {
-  CanHandle,
-  Event,
-  EventStoreReadSchemaOptions,
-  JSONSerializationOptions,
-  ReadEvent,
-  TruncateProjection,
+import {
+  reduceAsync,
+  type CanHandle,
+  type Event,
+  type EventStoreReadSchemaOptions,
+  type JSONSerializationOptions,
+  type ReadEvent,
+  type TruncateProjection,
 } from '@event-driven-io/emmett';
 import {
   pongoClient,
@@ -206,19 +207,41 @@ export const pongoMultiStreamProjection = <
           options.collectionOptions,
         );
 
-      for (const event of events) {
-        await collection.handle(getDocumentId(event), async (document) => {
+      const eventsByDocumentId = events
+        .map((event) => {
+          const documentId = getDocumentId(event);
+
+          return {
+            documentId,
+            event: event as ReadEvent<EventType, EventMetaDataType>,
+          };
+        })
+        .reduce((acc, { documentId, event }) => {
+          if (!acc.has(documentId)) {
+            acc.set(documentId, []);
+          }
+          acc.get(documentId)!.push(event);
+          return acc;
+        }, new Map<string, ReadEvent<EventType, EventMetaDataType>[]>());
+
+      await collection.handle(
+        [...eventsByDocumentId.keys()],
+        async (document, id) => {
+          const events = eventsByDocumentId.get(id)!;
+
           return 'initialState' in options
-            ? await options.evolve(
+            ? await reduceAsync(
+                events,
+                async (acc, event) => (await options.evolve(acc, event))!,
                 document ?? options.initialState(),
-                event as ReadEvent<EventType, EventMetaDataType>,
               )
-            : await options.evolve(
+            : await reduceAsync(
+                events,
+                async (acc, event) => await options.evolve(acc, event),
                 document,
-                event as ReadEvent<EventType, EventMetaDataType>,
               );
-        });
-      }
+        },
+      );
     },
     canHandle,
     truncate: async (context) => {

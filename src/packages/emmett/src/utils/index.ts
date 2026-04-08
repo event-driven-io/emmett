@@ -1,3 +1,4 @@
+export * from './async';
 export * from './closeable';
 export * from './collections';
 export * from './deepEquals';
