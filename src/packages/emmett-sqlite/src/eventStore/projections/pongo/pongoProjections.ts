@@ -12,6 +12,7 @@ import {
   type PongoClient,
   type PongoDBCollectionOptions,
   type PongoDocument,
+  type WithIdAndVersion,
 } from '@event-driven-io/pongo';
 import {
   sqliteProjection,
@@ -226,20 +227,33 @@ export const pongoMultiStreamProjection = <
 
       await collection.handle(
         [...eventsByDocumentId.keys()],
-        async (document, id) => {
+        (document, id) => {
           const events = eventsByDocumentId.get(id)!;
 
-          return 'initialState' in options
-            ? await reduceAsync(
-                events,
-                async (acc, event) => (await options.evolve(acc, event))!,
-                document ?? options.initialState(),
-              )
-            : await reduceAsync(
-                events,
-                async (acc, event) => await options.evolve(acc, event),
-                document,
-              );
+          const evolve = async (
+            acc: Document | null,
+            event: ReadEvent<EventType, EventMetaDataType>,
+          ) => {
+            const result = (await options.evolve(
+              acc!,
+              event,
+            )) as WithIdAndVersion<Document> | null;
+
+            if (result === null || result === undefined) return null;
+
+            result._id = id;
+            result._version = result._version
+              ? BigInt(result._version) + 1n
+              : 1n;
+            return result as Document;
+          };
+
+          return reduceAsync(
+            events,
+            evolve,
+            document ??
+              ('initialState' in options ? options.initialState() : null),
+          );
         },
       );
     },
