@@ -16,8 +16,8 @@ import {
 } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import type {
   ProductItemAdded,
   ShoppingCartConfirmed,
@@ -105,13 +105,13 @@ void describe('Rebuilding PostgreSQL Projections', () => {
       assertDeepEqual(summary, {
         _id: streamName,
         status: 'confirmed',
-        _version: 2n,
+        _version: 1n, // because it captures the whole batch of events as one operation
         productItemsCount: productItem.quantity,
       });
       assertDeepEqual(otherSummary, {
         _id: otherStreamName,
         status: 'confirmed',
-        _version: 2n,
+        _version: 1n, // because it captures the whole batch of events as one operation
         productItemsCount: productItem.quantity,
       });
 
@@ -130,13 +130,13 @@ void describe('Rebuilding PostgreSQL Projections', () => {
         assertDeepEqual(summary, {
           _id: streamName,
           status: 'confirmed',
-          _version: 2n,
+          _version: 1n, // because it captures the whole batch of events as one operation
           productItemsCount: productItem.quantity * v2QuantityMultiplier,
         });
         assertDeepEqual(otherSummary, {
           _id: otherStreamName,
           status: 'confirmed',
-          _version: 2n,
+          _version: 1n, // because it captures the whole batch of events as one operation
           productItemsCount: productItem.quantity * v2QuantityMultiplier,
         });
       } finally {
@@ -168,13 +168,13 @@ void describe('Rebuilding PostgreSQL Projections', () => {
       assertDeepEqual(p1Summary, {
         _id: streamName,
         status: 'confirmed',
-        _version: 2n,
+        _version: 1n, // because it captures the whole batch of events as one operation
         productItemsCount: productItem.quantity,
       });
       assertDeepEqual(p1OtherSummary, {
         _id: otherStreamName,
         status: 'confirmed',
-        _version: 2n,
+        _version: 1n, // because it captures the whole batch of events as one operation
         productItemsCount: productItem.quantity,
       });
 
@@ -203,13 +203,13 @@ void describe('Rebuilding PostgreSQL Projections', () => {
         assertDeepEqual(p1Summary, {
           _id: streamName,
           status: 'confirmed',
-          _version: 2n,
+          _version: 1n, // because it captures the whole batch of events as one operation
           productItemsCount: productItem.quantity * v2QuantityMultiplier,
         });
         assertDeepEqual(p1OtherSummary, {
           _id: otherStreamName,
           status: 'confirmed',
-          _version: 2n,
+          _version: 1n, // because it captures the whole batch of events as one operation
           productItemsCount: productItem.quantity * v2QuantityMultiplier,
         });
         assertDeepEqual(p1Summary, p2Summary);
@@ -248,13 +248,13 @@ void describe('Rebuilding PostgreSQL Projections', () => {
         assertDeepEqual(p1Summary, {
           _id: streamName,
           status: 'confirmed',
-          _version: 2n,
+          _version: 1n, // because it captures the whole batch of events as one operation
           productItemsCount: productItem.quantity,
         });
         assertDeepEqual(p1OtherSummary, {
           _id: otherStreamName,
           status: 'confirmed',
-          _version: 2n,
+          _version: 1n, // because it captures the whole batch of events as one operation
           productItemsCount: productItem.quantity,
         });
 
@@ -287,13 +287,13 @@ void describe('Rebuilding PostgreSQL Projections', () => {
           assertDeepEqual(p1SummaryV2, {
             _id: streamName,
             status: 'confirmed',
-            _version: 2n,
+            _version: 1n, // because it captures the whole batch of events as one operation
             productItemsCount: productItem.quantity * v2QuantityMultiplier,
           });
           assertDeepEqual(p1OtherSummaryV2, {
             _id: otherStreamName,
             status: 'confirmed',
-            _version: 2n,
+            _version: 1n, // because it captures the whole batch of events as one operation
             productItemsCount: productItem.quantity * v2QuantityMultiplier,
           });
           assertDeepEqual(p1SummaryV2, p2SummaryV2);
