@@ -16,6 +16,7 @@
     "test:int:watch": "vitest \".int.spec\"",
     "test:e2e:watch": "vitest \".e2e.spec\"",
     "bench": "node --import tsx src/benchmarks/index.ts",
+    "bench:projections": "node --import tsx src/benchmarks/projectionRebuild.ts",
     "flamegraph": "0x -D \"0x/{pid}\" -- node --import tsx src/benchmarks/ox.ts"
   },
   "repository": {
