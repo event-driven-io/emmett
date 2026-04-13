@@ -11,8 +11,8 @@ import {
 } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import type {
   ProductItemAdded,
   ShoppingCartConfirmed,
@@ -93,7 +93,7 @@ void describe('PostgreSQL event store started consumer', () => {
           assertDeepEqual(summary, {
             _id: streamName,
             status: 'confirmed',
-            _version: 2n,
+            _version: 1n, // because it captures the whole batch of events as one operation
             productItemsCount: productItem.quantity,
           });
         } finally {
@@ -151,7 +151,7 @@ void describe('PostgreSQL event store started consumer', () => {
           assertDeepEqual(summary, {
             _id: streamName,
             status: 'confirmed',
-            _version: 2n,
+            _version: 1n, // because it captures the whole batch of events as one operation
             productItemsCount: productItem.quantity,
           });
         } finally {
@@ -215,7 +215,7 @@ void describe('PostgreSQL event store started consumer', () => {
           assertDeepEqual(summary, {
             _id: streamName,
             status: 'confirmed',
-            _version: 2n,
+            _version: 1n, // because it captures the whole batch of events as one operation
             productItemsCount: productItem.quantity,
           });
         } finally {
@@ -277,7 +277,7 @@ void describe('PostgreSQL event store started consumer', () => {
           assertDeepEqual(summary, {
             _id: streamName,
             status: 'confirmed',
-            _version: 4n,
+            _version: 1n, // because it captures the whole batch of events as one operation
             productItemsCount: productItem.quantity * 3,
           });
         } finally {
@@ -346,7 +346,7 @@ void describe('PostgreSQL event store started consumer', () => {
           assertDeepEqual(summary, {
             _id: streamName,
             status: 'confirmed',
-            _version: 4n,
+            _version: 2n, // because it captures the whole batch of events as one operation
             productItemsCount: productItem.quantity * 3,
           });
         } finally {
@@ -426,7 +426,7 @@ void describe('PostgreSQL event store started consumer', () => {
           assertDeepEqual(summary, {
             _id: streamName,
             status: 'confirmed',
-            _version: 4n,
+            _version: 2n, // because it captures the whole batch of events as one operation
             productItemsCount: productItem.quantity * 3,
           });
         } finally {

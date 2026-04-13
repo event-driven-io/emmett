@@ -9,8 +9,8 @@ import {
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import type {
   ProductItemAdded,
   ShoppingCartConfirmed,
@@ -447,7 +447,7 @@ void describe('PostgreSQL event store started consumer', () => {
           assertMatches(summary, {
             _id: streamName,
             status: 'confirmed',
-            //_version: 4n,
+            _version: 4n,
             productItemsCount: productItem.quantity * 3,
           });
         } finally {
