@@ -5,6 +5,7 @@ import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { bench, group, run } from 'mitata';
 import { randomUUID } from 'node:crypto';
+import { generateBatches, type BatchConfig } from './loadTestGenerator';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -12,11 +13,7 @@ import {
 } from '..';
 import { rebuildPostgreSQLProjections } from '../eventStore/consumers/rebuildPostgreSQLProjections';
 import { pongoSingleStreamProjection } from '../eventStore/projections';
-import type {
-  ProductItemAdded,
-  ShoppingCartConfirmed,
-  ShoppingCartEvent,
-} from '../testing/shoppingCart.domain';
+import type { ProductItemAdded } from '../testing/shoppingCart.domain';
 
 let postgres: StartedPostgreSqlContainer = undefined!;
 
@@ -49,117 +46,58 @@ const eventStore: PostgresEventStore = getPostgreSQLEventStore(
 
 if (generateSchemaUpfront) await eventStore.schema.migrate();
 
-// DOMAIN TYPES
-
 type ShoppingCartSummary = {
   _id?: string;
   productItemsCount: number;
-  status: string;
 };
-
-type ShoppingCartSummaryEvent = ProductItemAdded | ShoppingCartConfirmed;
 
 const evolve = (
   document: ShoppingCartSummary,
-  { type, data }: ReadEvent<ShoppingCartSummaryEvent>,
-): ShoppingCartSummary => {
-  switch (type) {
-    case 'ProductItemAdded':
-      return {
-        ...document,
-        productItemsCount:
-          document.productItemsCount + data.productItem.quantity,
-      };
-    case 'ShoppingCartConfirmed':
-      return { ...document, status: 'confirmed' };
-    default:
-      return document;
-  }
-};
+  { data }: ReadEvent<ProductItemAdded>,
+): ShoppingCartSummary => ({
+  ...document,
+  productItemsCount: document.productItemsCount + data.productItem.quantity,
+});
 
 const createProjection = (collectionName: string) =>
-  pongoSingleStreamProjection<ShoppingCartSummary, ShoppingCartSummaryEvent>({
+  pongoSingleStreamProjection<ShoppingCartSummary, ProductItemAdded>({
     collectionName,
     evolve,
-    canHandle: ['ProductItemAdded', 'ShoppingCartConfirmed'],
+    canHandle: ['ProductItemAdded'],
     initialState: () => ({ status: 'pending', productItemsCount: 0 }),
   });
 
 // EVENT GENERATION
 
-const PAD = 'x'.repeat(2000);
-
-const generateEvents = (
-  totalEvents: number,
-  maxStreamLength: number,
-): { streamName: string; events: ShoppingCartEvent[] }[] => {
-  const streams: { streamName: string; events: ShoppingCartEvent[] }[] = [];
-  let remaining = totalEvents;
-
-  while (remaining > 0) {
-    const length = Math.min(
-      Math.floor(Math.random() * maxStreamLength) + 1,
-      remaining,
-    );
-    const streamName = `cart-${randomUUID()}`;
-    const events: ShoppingCartEvent[] = [];
-
-    const itemCount = Math.max(length - 1, 1);
-    for (let i = 0; i < itemCount; i++) {
-      events.push({
-        type: 'ProductItemAdded',
-        data: {
-          productItem: {
-            productId: `${randomUUID()}-${PAD}`.slice(0, 2000),
-            quantity: Math.floor(Math.random() * 10) + 1,
-            price: Math.floor(Math.random() * 100) + 1,
-          },
-        },
-      });
-    }
-
-    if (length > 1) {
-      events.push({
-        type: 'ShoppingCartConfirmed',
-        data: { confirmedAt: new Date() },
-      });
-    }
-
-    streams.push({ streamName, events });
-    remaining -= length;
-  }
-
-  for (let i = streams.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [streams[i], streams[j]] = [streams[j]!, streams[i]!];
-  }
-
-  return streams;
-};
+const productItemAdded = (): ProductItemAdded => ({
+  type: 'ProductItemAdded',
+  data: {
+    productItem: {
+      productId: randomUUID().padEnd(2000, 'x'),
+      quantity: Math.floor(Math.random() * 10) + 1,
+      price: Math.floor(Math.random() * 100) + 1,
+    },
+  },
+});
 
 // SEEDING
 
 async function seedEvents(
   store: PostgresEventStore,
   totalEvents: number,
-  maxStreamLength: number,
-): Promise<number> {
-  const streams = generateEvents(totalEvents, maxStreamLength);
-  let seeded = 0;
-
-  for (const { streamName, events } of streams) {
+): Promise<void> {
+  const config: BatchConfig = {
+    totalEvents,
+    maxStreamLength: 100,
+    batchSize: 10,
+  };
+  for (const { streamName, events } of generateBatches(
+    config,
+    () => `shopping_cart-${randomUUID()}`,
+    productItemAdded,
+  )) {
     await store.appendToStream(streamName, events);
-    seeded += events.length;
-
-    if (
-      Math.floor(seeded / 10_000) >
-      Math.floor((seeded - events.length) / 10_000)
-    ) {
-      console.log(`  Seeded ${seeded}/${totalEvents} events...`);
-    }
   }
-
-  return seeded;
 }
 
 const ALL_EVENT_COUNTS = [
@@ -172,10 +110,6 @@ const EVENT_COUNTS = process.env.BENCHMARK_EVENT_COUNTS
     )
   : ALL_EVENT_COUNTS;
 
-const MAX_STREAM_LENGTH = process.env.BENCHMARK_MAX_STREAM_LENGTH
-  ? parseInt(process.env.BENCHMARK_MAX_STREAM_LENGTH, 10)
-  : 100;
-
 const ALL_BATCH_SIZES = [10, 100, 1_000, 2_000];
 
 const BATCH_SIZES = process.env.BENCHMARK_BATCH_SIZES
@@ -187,8 +121,8 @@ const BATCH_SIZES = process.env.BENCHMARK_BATCH_SIZES
 for (const eventCount of EVENT_COUNTS) {
   console.log(`\nSeeding ${eventCount} events...`);
   await eventStore.schema.dangerous.truncate({ truncateProjections: true });
-  const seeded = await seedEvents(eventStore, eventCount, MAX_STREAM_LENGTH);
-  console.log(`  Seeded ${seeded} events.`);
+  await seedEvents(eventStore, eventCount);
+  console.log(`  Seeded ${eventCount} events.`);
 
   // BENCHMARKS — 1 projection
 
