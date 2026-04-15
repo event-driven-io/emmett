@@ -29,6 +29,7 @@ export type PostgreSQLProcessorLockOptions = {
 
 export type PostgreSQLProcessorLockContext = {
   execute: SQLExecutor;
+  completed?: boolean;
 };
 
 export type PostgreSQLProcessorLock = {

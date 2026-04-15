@@ -856,6 +856,453 @@ void describe('tryAcquireProcessorLock', () => {
     });
   });
 
+  void describe('completed status', () => {
+    void describe('release with completed flag', () => {
+      void it('sets processor status to completed within same transaction', async () => {
+        const lockKey = 'test_completed_same_tx';
+        const processorId = 'processor_completed_same_tx';
+        const instanceId = 'instance_completed_same_tx';
+
+        // Given
+        const lock = postgreSQLProcessorLock({
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId,
+        });
+
+        // When
+        await pool.withTransaction(async (tx) => {
+          await lock.tryAcquire({ execute: tx.execute });
+          await lock.release({ execute: tx.execute, completed: true });
+        });
+
+        // Then
+        const status = await getProcessorStatus(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+        });
+        assertDeepEqual(
+          status?.status,
+          'completed',
+          'Expected status to be completed',
+        );
+      });
+
+      void it('sets processor status to completed across separate transactions', async () => {
+        const lockKey = 'test_completed_separate_tx';
+        const processorId = 'processor_completed_separate_tx';
+        const instanceId = 'instance_completed_separate_tx';
+
+        // Given
+        const lock = postgreSQLProcessorLock({
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId,
+        });
+        await acquireLock(pool, lock);
+
+        // When
+        await releaseLock(pool, lock, { completed: true });
+
+        // Then
+        const status = await getProcessorStatus(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+        });
+        assertDeepEqual(
+          status?.status,
+          'completed',
+          'Expected status to be completed',
+        );
+      });
+
+      void it('sets processor status to stopped when completed=false', async () => {
+        const lockKey = 'test_completed_false_stopped';
+        const processorId = 'processor_completed_false_stopped';
+        const instanceId = 'instance_completed_false';
+
+        // Given
+        const lock = postgreSQLProcessorLock({
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId,
+        });
+        await acquireLock(pool, lock);
+
+        // When
+        await releaseLock(pool, lock, { completed: false });
+
+        // Then
+        const status = await getProcessorStatus(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+        });
+        assertDeepEqual(
+          status?.status,
+          'stopped',
+          'Expected status to be stopped',
+        );
+      });
+
+      void it('is a no-op when lock was never acquired', async () => {
+        const lockKey = 'test_completed_noop';
+        const processorId = 'processor_completed_noop';
+        const instanceId1 = 'instance_noop_owner';
+        const instanceId2 = 'instance_noop_nonowner';
+
+        // Given
+        await insertProcessor(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId1,
+          status: 'running',
+        });
+
+        // When
+        const lock2 = postgreSQLProcessorLock({
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId2,
+        });
+        await releaseLock(pool, lock2, { completed: true });
+
+        // Then
+        const status = await getProcessorStatus(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+        });
+        assertDeepEqual(
+          status?.status,
+          'running',
+          'Expected row to be unchanged',
+        );
+        assertDeepEqual(
+          status?.processor_instance_id,
+          instanceId1,
+          'Expected processor_instance_id to remain original',
+        );
+      });
+
+      void it('preserves last_processed_checkpoint', async () => {
+        const lockKey = 'test_completed_checkpoint';
+        const processorId = 'processor_completed_checkpoint';
+        const instanceId = 'instance_completed_3';
+        const expectedCheckpoint = '99999';
+
+        // Given
+        await insertProcessor(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: unknownTag,
+          status: 'stopped',
+          lastProcessedCheckpoint: expectedCheckpoint,
+        });
+        const lock = postgreSQLProcessorLock({
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId,
+        });
+        await acquireLock(pool, lock);
+
+        // When
+        await releaseLock(pool, lock, { completed: true });
+
+        // Then
+        const row = await getProcessorStatus(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+        });
+        assertDeepEqual(
+          row?.status,
+          'completed',
+          'Expected status to be completed',
+        );
+        assertDeepEqual(
+          row?.last_processed_checkpoint,
+          expectedCheckpoint,
+          'Expected checkpoint to be preserved',
+        );
+      });
+
+      void it('resets processor_instance_id to unknown tag', async () => {
+        const lockKey = 'test_completed_unknown_id';
+        const processorId = 'processor_completed_unknown_id';
+        const instanceId = 'instance_completed_4';
+
+        // Given
+        const lock = postgreSQLProcessorLock({
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId,
+        });
+        await acquireLock(pool, lock);
+
+        // When
+        await releaseLock(pool, lock, { completed: true });
+
+        // Then
+        const status = await getProcessorStatus(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+        });
+        assertDeepEqual(
+          status?.status,
+          'completed',
+          'Expected status to be completed',
+        );
+        assertDeepEqual(
+          status?.processor_instance_id,
+          unknownTag,
+          'Expected processor_instance_id to be reset to unknown tag',
+        );
+      });
+
+      void it('still sets projection status to active when completed=true', async () => {
+        const lockKey = 'test_completed_projection';
+        const processorId = 'processor_completed_projection';
+        const projectionName = 'projection_completed_status';
+        const instanceId = 'instance_completed_6';
+
+        // Given
+        const lock = postgreSQLProcessorLock({
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId,
+          projection: {
+            name: projectionName,
+            handlingType: 'async' as const,
+            kind: 'async',
+            version: 1,
+          },
+        });
+        await acquireLock(pool, lock);
+
+        // When
+        await releaseLock(pool, lock, { completed: true });
+
+        // Then
+        const processorStatus = await getProcessorStatus(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+        });
+        assertDeepEqual(
+          processorStatus?.status,
+          'completed',
+          'Expected processor status to be completed',
+        );
+        const projStatus = await getProjectionStatus(pool.execute, {
+          name: projectionName,
+          ...defaultPartitionAndVersion1,
+        });
+        assertDeepEqual(
+          projStatus?.status,
+          'active',
+          'Expected projection to be active',
+        );
+      });
+
+      void it('does not update unrelated projection rows when lock has no projection', async () => {
+        const lockKey = 'test_completed_no_proj';
+        const processorId = 'processor_completed_no_proj';
+        const projectionName = 'projection_should_be_untouched';
+        const instanceId = 'instance_completed_7';
+
+        // Given
+        await insertProjection(pool.execute, {
+          name: projectionName,
+          ...defaultPartitionAndVersion1,
+          status: 'async_processing',
+        });
+        const lock = postgreSQLProcessorLock({
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId,
+        });
+        await acquireLock(pool, lock);
+
+        // When
+        await releaseLock(pool, lock, { completed: true });
+
+        // Then
+        const processorRow = await getProcessorStatus(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+        });
+        assertDeepEqual(
+          processorRow?.status,
+          'completed',
+          'Expected processor status to be completed',
+        );
+        const projStatus = await getProjectionStatus(pool.execute, {
+          name: projectionName,
+          ...defaultPartitionAndVersion1,
+        });
+        assertDeepEqual(
+          projStatus?.status,
+          'async_processing',
+          'Expected projection to remain untouched',
+        );
+      });
+    });
+
+    void describe('acquire from completed processor', () => {
+      void it('allows takeover when prior processor status is completed', async () => {
+        const lockKey = 'test_takeover_from_completed';
+        const processorId = 'processor_takeover_completed';
+        const instanceId1 = 'instance_prior_completed';
+        const instanceId2 = 'instance_new';
+
+        // Given
+        await insertProcessor(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId1,
+          status: 'completed',
+        });
+
+        // When
+        const lock = postgreSQLProcessorLock({
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId2,
+        });
+        const result = await acquireLock(pool, lock);
+
+        // Then
+        assertTrue(
+          result,
+          'Expected to acquire lock when prior status is completed',
+        );
+      });
+
+      void it('preserves last_processed_checkpoint from completed row', async () => {
+        const lockKey = 'test_completed_checkpoint_preserved';
+        const processorId = 'processor_completed_checkpoint_preserved';
+        const instanceId1 = 'instance_prior';
+        const instanceId2 = 'instance_takeover';
+        const priorCheckpoint = '55555';
+
+        // Given
+        await insertProcessor(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId1,
+          status: 'completed',
+          lastProcessedCheckpoint: priorCheckpoint,
+        });
+
+        // When
+        const lock = postgreSQLProcessorLock({
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId2,
+        });
+        const acquired = await acquireLock(pool, lock);
+
+        // Then
+        assertTrue(acquired, 'Expected to acquire lock');
+        const checkpoint = await getProcessorCheckpoint(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+        });
+        assertDeepEqual(
+          checkpoint,
+          priorCheckpoint,
+          'Expected checkpoint to be preserved from completed row',
+        );
+      });
+
+      void it('is always allowed regardless of how recent the last_updated timestamp is', async () => {
+        const lockKey = 'test_completed_within_timeout';
+        const processorId = 'processor_completed_within_timeout';
+        const instanceId1 = 'instance_completed_recent';
+        const instanceId2 = 'instance_takeover_timeout';
+        const lockTimeoutSeconds = 300;
+
+        // Given
+        await insertProcessor(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId1,
+          status: 'completed',
+        });
+
+        // When
+        const lock = postgreSQLProcessorLock({
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: instanceId2,
+          lockTimeoutSeconds,
+        });
+        const result = await acquireLock(pool, lock);
+
+        // Then
+        assertTrue(
+          result,
+          'Expected takeover from completed row to succeed regardless of timeout',
+        );
+      });
+
+      void it('new run can subsequently be taken over on timeout', async () => {
+        const lockKey = 'test_completed_chain_takeover';
+        const processorId = 'processor_completed_chain';
+        const firstInstanceId = 'instance_completed_chain_1';
+        const secondInstanceId = 'instance_completed_chain_2';
+        const lockTimeoutSeconds = 1;
+
+        // Given: first run completed, second run acquires and then goes stale
+        await insertProcessor(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: 'instance_prior_completed',
+          status: 'completed',
+        });
+        const firstLock = postgreSQLProcessorLock({
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: firstInstanceId,
+        });
+        assertTrue(
+          await acquireLock(pool, firstLock),
+          'Expected first instance to acquire from completed row',
+        );
+        await setProcessorLastUpdated(pool.execute, {
+          processorId,
+          ...defaultPartitionAndVersion1,
+          secondsAgo: lockTimeoutSeconds + 1,
+        });
+
+        // When
+        const secondLock = postgreSQLProcessorLock({
+          lockKey,
+          processorId,
+          ...defaultPartitionAndVersion1,
+          processorInstanceId: secondInstanceId,
+          lockTimeoutSeconds,
+        });
+        const acquired = await acquireLock(pool, secondLock);
+
+        // Then
+        assertTrue(
+          acquired,
+          'Expected second instance to take over timed-out running row',
+        );
+      });
+    });
+  });
+
   void describe('lock timeout scenarios', () => {
     void it('blocks takeover when processor was updated within timeout window', async () => {
       const lockKey = 'test_timeout_blocks_takeover';
@@ -1113,3 +1560,17 @@ const setProcessorLastUpdated = async (
        WHERE processor_id = ${processorId} AND partition = ${partition ?? defaultTag} AND version = ${version ?? 1}`,
   );
 };
+
+const acquireLock = (
+  pool: PgPool,
+  lock: ReturnType<typeof postgreSQLProcessorLock>,
+) => pool.withTransaction((tx) => lock.tryAcquire({ execute: tx.execute }));
+
+const releaseLock = (
+  pool: PgPool,
+  lock: ReturnType<typeof postgreSQLProcessorLock>,
+  options?: { completed?: boolean },
+) =>
+  pool.withTransaction((tx) =>
+    lock.release({ execute: tx.execute, ...options }),
+  );

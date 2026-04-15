@@ -51,6 +51,7 @@ BEGIN
         WHERE ${SQL.plain(processorsTable.name)}.processor_instance_id = p_processor_instance_id
            OR ${SQL.plain(processorsTable.name)}.processor_instance_id = '${SQL.plain(unknownTag)}'
            OR ${SQL.plain(processorsTable.name)}.status = 'stopped'
+           OR ${SQL.plain(processorsTable.name)}.status = 'completed'
            OR ${SQL.plain(processorsTable.name)}.last_updated < now() - (p_lock_timeout_seconds || ' seconds')::interval
         RETURNING last_processed_checkpoint
     ),
