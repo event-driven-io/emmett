@@ -227,9 +227,9 @@ void describe('tryAcquireProcessorLock', () => {
       );
     });
 
-    void it('blocks different instance when processor status is rebuilding', async () => {
-      const lockKey = 'test_ownership_rebuilding';
-      const processorId = 'processor_rebuilding';
+    void it('blocks different instance when processor crashed within timeout window', async () => {
+      const lockKey = 'test_ownership_crashed_within_timeout';
+      const processorId = 'processor_crashed_within_timeout';
       const instanceId1 = 'instance_1';
       const instanceId2 = 'instance_2';
 
@@ -237,7 +237,7 @@ void describe('tryAcquireProcessorLock', () => {
         processorId,
         ...defaultPartitionAndVersion1,
         processorInstanceId: instanceId1,
-        status: 'async_processing',
+        status: 'running',
       });
 
       const lock = postgreSQLProcessorLock({
@@ -254,7 +254,7 @@ void describe('tryAcquireProcessorLock', () => {
 
       assertFalse(
         result,
-        'Expected different instance to be blocked when processor is rebuilding',
+        'Expected different instance to be blocked when processor crashed within timeout window',
       );
     });
 

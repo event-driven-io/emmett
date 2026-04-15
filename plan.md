@@ -8,13 +8,15 @@ Fix: add `completed` as a distinct processor status, written only when `stopWhen
 
 Each iteration is TDD: write failing tests first, implement until green, then move on. Nothing in a later iteration is touched until the prior one passes.
 
+Migration tests (scenarios 12-16, 27-28, 66-69) are written upfront as red tests in [migration.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/schema/migrations/migration.int.spec.ts) from the start of Iteration 1 — they stay red until Iteration 6.
+
 ---
 
-## Iteration 1 — SQL: `completed` status writable; takeover of `completed` row allowed
+## Iteration 1 — SQL + TS wrapper: `release({ completed })` and takeover of `completed` row
 
 ### Tests
 
-**File: [postgreSQLProcessorLock.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/projections/locks/postgreSQLProcessorLock.int.spec.ts)** — new cases added under the existing describe:
+**File: [postgreSQLProcessorLock.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/projections/locks/postgreSQLProcessorLock.int.spec.ts)** — new cases added under the existing describe. All go through the TS wrapper, so SQL and TS changes ship together:
 
 1. `release with completed=true sets processor row status to 'completed'`
 2. `release with completed=false sets processor row status to 'stopped'` (explicit default)
@@ -27,93 +29,49 @@ Each iteration is TDD: write failing tests first, implement until green, then mo
 9. `takeover from completed row preserves last_processed_checkpoint` — new instance reads the prior checkpoint intact
 10. `takeover from completed row within timeout window still allowed` — the `status='completed'` WHERE clause is independent of `last_updated` timeout
 11. `takeover from running row with status='completed' stale (never happens in practice) behaves correctly` — invariant guard
+33. `release({ completed: true }) writes status='completed'`
+34. `release() (no options) writes status='stopped'` — explicit default
+35. `release({ completed: false }) writes status='stopped'`
+36. `release({ completed: true }) called after a failed tryAcquire is a no-op` — `acquired` tracking guard at [postgreSQLProcessorLock.ts:73](src/packages/emmett-postgresql/src/eventStore/projections/locks/postgreSQLProcessorLock.ts#L73)
 
-**File: [migration.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/schema/migrations/migration.int.spec.ts)** — new cases:
+**File: [migration.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/schema/migrations/migration.int.spec.ts)** — write these now (they stay red until Iteration 6):
 
 12. `0_43_0 migration creates 7-arg emt_release_processor_lock overload alongside 6-arg` — assert both signatures present in `pg_proc`
 13. `0_43_0 migration replaces emt_try_acquire_processor_lock body to include 'completed' in WHERE` — call old signature against a pre-inserted `status='completed'` row, takeover succeeds
 14. `0_43_0 migration is idempotent` — apply twice, no error, functions unchanged
 15. `0_43_0 migration preserves existing emt_processors rows` — seed rows before migration, verify after
 16. `old 6-arg release signature still writes status='stopped' after 0_43_0 migration` — backward-compat guard
-
-### Implementation
-
-- **New migration file**: `src/packages/emmett-postgresql/src/eventStore/schema/migrations/0_43_0/0_43_0.migration.ts`, following [0_42_0.migration.ts](src/packages/emmett-postgresql/src/eventStore/schema/migrations/0_42_0/0_42_0.migration.ts) shape:
-  - `CREATE OR REPLACE FUNCTION emt_try_acquire_processor_lock(...)` — same 9-arg signature, same `TABLE(acquired BOOLEAN, checkpoint TEXT)` return. ON CONFLICT WHERE clause at [0_42_0.migration.ts:348-351](src/packages/emmett-postgresql/src/eventStore/schema/migrations/0_42_0/0_42_0.migration.ts#L348-L351) gains `OR emt_processors.status = 'completed'`.
-  - `CREATE OR REPLACE FUNCTION emt_release_processor_lock(..., p_completed BOOLEAN DEFAULT false)` — new 7-arg overload. Body: `status = CASE WHEN p_completed THEN 'completed' ELSE 'stopped' END`. Existing 6-arg function kept intact.
-- Re-exported from [migrations/index.ts](src/packages/emmett-postgresql/src/eventStore/schema/migrations/index.ts).
-- Source-of-truth definitions at [processorsLocks.ts](src/packages/emmett-postgresql/src/eventStore/schema/processors/processorsLocks.ts) updated in sync so `schema.migrate()` generates the new functions on fresh deployments.
-
-No TS-layer or consumer changes in this iteration. Old TS callers keep working.
-
----
-
-## Iteration 2 — SQL: acquire returns `prior_status` and `prior_checkpoint`
-
-### Tests
-
-**File: [postgreSQLProcessorLock.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/projections/locks/postgreSQLProcessorLock.int.spec.ts)** — new cases:
-
-17. `new acquire returns acquired=true, prior_status=null, prior_checkpoint=null on first-ever acquire`
-18. `new acquire returns acquired=true, prior_status='completed', prior_checkpoint=<value> taking over completed row`
-19. `new acquire returns acquired=true, prior_status='stopped', prior_checkpoint=<value> taking over stopped row`
-20. `new acquire returns acquired=true, prior_status='running' when same instance_id re-acquires`
-21. `new acquire returns acquired=true, prior_status='running' when taking over a timed-out running row` (prior_status reflects the raw row state, not the reason for takeover)
-22. `new acquire returns acquired=false, when lock held by another instance within timeout` — prior_status/prior_checkpoint MAY be populated but caller must not use them
-23. `new acquire: prior_status reflects pre-UPDATE state, not the post-UPDATE 'running' value` — read-before-upsert ordering guard
-24. `new acquire: prior_checkpoint is the exact value last written, not the new-row default '0000...'`
-25. `new acquire with projection_name updates projection row to 'async_processing' (existing behavior preserved)`
-26. `new acquire without projection_name leaves projections table untouched`
-
-**File: [migration.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/schema/migrations/migration.int.spec.ts)** — extend:
-
 27. `0_43_0 migration creates new acquire-with-prior-state function` — assert function exists in `pg_proc`
 28. `old emt_try_acquire_processor_lock still returns (acquired, checkpoint) after 0_43_0 migration` — backward-compat guard
+66. `fresh schema generated by createEventStoreSchema matches 0_43_0 post-migration state` — source-of-truth sync guard
+67. `migration 0_43_0 applied on top of 0_43_0 succeeds and data is preserved`
+68. `old TS library (pre-Iteration 1 wrapper) works against 0_43_0-migrated schema` — calls old 6-arg release + old 2-column acquire, writes 'stopped', resumes on next run. End-to-end pod-mismatch simulation
+69. `new TS library works against schema migrated to 0_43_0` — happy path
 
 ### Implementation
 
-Extend the 0_43_0 migration SQL with a new parallel function (name TBD per project convention — placeholder `emt_try_acquire_processor_lock_with_prior_state`):
+Source-of-truth SQL at [processorsLocks.ts](src/packages/emmett-postgresql/src/eventStore/schema/processors/processorsLocks.ts):
 
-```sql
-RETURNS TABLE (acquired BOOLEAN, prior_status TEXT, prior_checkpoint TEXT)
-```
+- `emt_try_acquire_processor_lock` — ON CONFLICT WHERE clause gains `OR emt_processors.status = 'completed'`. Signature and return shape unchanged.
+- `emt_release_processor_lock` — new 7-arg overload adding `p_completed BOOLEAN DEFAULT false`. Body: `status = CASE WHEN p_completed THEN 'completed' ELSE 'stopped' END`. Existing 6-arg function kept intact.
 
-plpgsql reads the existing row's `status` and `last_processed_checkpoint` into locals _before_ the INSERT ON CONFLICT. The takeover WHERE matches the updated clause (includes `'completed'`). `acquired` derived from `FOUND`. First-ever acquire → both prior fields `NULL`.
+TS wrapper (ships with the SQL because the tests call through it):
 
-Parallel function rather than replacement because RETURNS TABLE shape change would require DROP + CREATE and break rolling-upgrade compat.
+- [tryAcquireProcessorLock.ts](src/packages/emmett-postgresql/src/eventStore/projections/locks/tryAcquireProcessorLock.ts) — `ReleaseProcessorLockOptions` gains optional `completed?: boolean`, `releaseProcessorLock` passes it to `callReleaseProcessorLock`.
+- [processorsLocks.ts `callReleaseProcessorLock`](src/packages/emmett-postgresql/src/eventStore/schema/processors/processorsLocks.ts#L157) — accepts optional `completed`, calls the 7-arg overload when set, falls back to the 6-arg otherwise.
+- [postgreSQLProcessorLock.ts:72-84](src/packages/emmett-postgresql/src/eventStore/projections/locks/postgreSQLProcessorLock.ts#L72-L84) — `release(context)` reads `context.completed`, forwards to `releaseProcessorLock`.
 
----
-
-## Iteration 3 — TS layer: expose `{ acquired, priorStatus, priorCheckpoint }` and `release({ completed })`
-
-### Tests
-
-**File: [postgreSQLProcessorLock.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/projections/locks/postgreSQLProcessorLock.int.spec.ts)** — new cases covering the TS wrapper:
-
-29. `tryAcquire returns { acquired: true, priorStatus: null, priorCheckpoint: null }` on first-ever call
-30. `tryAcquire returns { acquired: true, priorStatus: 'completed', priorCheckpoint: 'X' }` after prior completion
-31. `tryAcquire returns { acquired: true, priorStatus: 'stopped', priorCheckpoint: 'X' }` after prior external close
-32. `tryAcquire returns { acquired: false }` when blocked — priorStatus/priorCheckpoint fields are not relied upon
-33. `release({ completed: true }) writes status='completed'`
-34. `release() (no options) writes status='stopped'` — explicit default
-35. `release({ completed: false }) writes status='stopped'`
-36. `release({ completed: true }) called after a failed tryAcquire is a no-op` — `acquired` tracking guard at [postgreSQLProcessorLock.ts:73](src/packages/emmett-postgresql/src/eventStore/projections/locks/postgreSQLProcessorLock.ts#L73)
-
-### Implementation
-
-- [postgreSQLProcessorLock.ts:49-70](src/packages/emmett-postgresql/src/eventStore/projections/locks/postgreSQLProcessorLock.ts#L49-L70) — `tryAcquire` calls the new SQL function, returns the full typed tuple.
-- [postgreSQLProcessorLock.ts:72-84](src/packages/emmett-postgresql/src/eventStore/projections/locks/postgreSQLProcessorLock.ts#L72-L84) — `release(context, options?: { completed?: boolean })`, calls the new 7-arg SQL overload.
-- Handler context (defined in [postgreSQLProcessor.ts](src/packages/emmett-postgresql/src/eventStore/consumers/postgreSQLProcessor.ts)) grows `priorStatus: 'running' | 'stopped' | 'completed' | null` and `priorCheckpoint: string | null`.
-
-No consumer-level behavior change yet — new fields plumbed but not consumed.
+No migration file yet.
 
 ---
 
-## Iteration 4 — Completion signal: puller → onClose → release
+## Iteration 2 — Completion signal: puller → onClose → release
+
+**This is the core bug fix.**
 
 ### Tests
 
-**File: [postgreSQLEventStoreConsumer.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/consumers/postgreSQLEventStoreConsumer.int.spec.ts)** — new cases covering end-to-end consumer behavior (since there's no dedicated messageBatchProcessing spec file today):
+**File: [postgreSQLEventStoreConsumer.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/consumers/postgreSQLEventStoreConsumer.int.spec.ts)** — new cases:
 
 37. `consumer with stopWhen: noMessagesLeft drains seeded events → row ends with status='completed'`
 38. `consumer with stopWhen against empty event store fires immediately → status='completed'`
@@ -130,11 +88,60 @@ No consumer-level behavior change yet — new fields plumbed but not consumed.
 
 ---
 
-## Iteration 5 — `truncateOnStart` becomes status-aware
+## Iteration 3 — SQL: acquire returns `prior_status` and `prior_checkpoint`
 
 ### Tests
 
-**File: [processors.unit.spec.ts](src/packages/emmett/src/processors/processors.unit.spec.ts)** — new unit cases at the processor layer (mocking lock + context):
+**File: [postgreSQLProcessorLock.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/projections/locks/postgreSQLProcessorLock.int.spec.ts)** — new cases:
+
+17. `new acquire returns acquired=true, prior_status=null, prior_checkpoint=null on first-ever acquire`
+18. `new acquire returns acquired=true, prior_status='completed', prior_checkpoint=<value> taking over completed row`
+19. `new acquire returns acquired=true, prior_status='stopped', prior_checkpoint=<value> taking over stopped row`
+20. `new acquire returns acquired=true, prior_status='running' when same instance_id re-acquires`
+21. `new acquire returns acquired=true, prior_status='running' when taking over a timed-out running row` (prior_status reflects the raw row state, not the reason for takeover)
+22. `new acquire returns acquired=false, when lock held by another instance within timeout` — prior_status/prior_checkpoint MAY be populated but caller must not use them
+23. `new acquire: prior_status reflects pre-UPDATE state, not the post-UPDATE 'running' value` — read-before-upsert ordering guard
+24. `new acquire: prior_checkpoint is the exact value last written, not the new-row default '0000...'`
+25. `new acquire with projection_name updates projection row to 'async_processing' (existing behavior preserved)`
+26. `new acquire without projection_name leaves projections table untouched`
+
+### Implementation
+
+New parallel SQL function `emt_try_acquire_processor_lock_with_prior_state` (additive, no DROP needed):
+
+```sql
+RETURNS TABLE (acquired BOOLEAN, prior_status TEXT, prior_checkpoint TEXT)
+```
+
+plpgsql reads the existing row's `status` and `last_processed_checkpoint` into locals _before_ the INSERT ON CONFLICT. Takeover WHERE includes `'completed'`. First-ever acquire → both prior fields `NULL`. Add to [processorsLocks.ts](src/packages/emmett-postgresql/src/eventStore/schema/processors/processorsLocks.ts) alongside the existing function.
+
+---
+
+## Iteration 4 — TS layer: expose `{ acquired, priorStatus, priorCheckpoint }`
+
+### Tests
+
+**File: [postgreSQLProcessorLock.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/projections/locks/postgreSQLProcessorLock.int.spec.ts)** — new cases:
+
+29. `tryAcquire returns { acquired: true, priorStatus: null, priorCheckpoint: null }` on first-ever call
+30. `tryAcquire returns { acquired: true, priorStatus: 'completed', priorCheckpoint: 'X' }` after prior completion
+31. `tryAcquire returns { acquired: true, priorStatus: 'stopped', priorCheckpoint: 'X' }` after prior external close
+32. `tryAcquire returns { acquired: false }` when blocked — priorStatus/priorCheckpoint fields are not relied upon
+
+### Implementation
+
+- [postgreSQLProcessorLock.ts:49-70](src/packages/emmett-postgresql/src/eventStore/projections/locks/postgreSQLProcessorLock.ts#L49-L70) — `tryAcquire` calls `emt_try_acquire_processor_lock_with_prior_state`, returns the full typed tuple.
+- Handler context (defined in [postgreSQLProcessor.ts](src/packages/emmett-postgresql/src/eventStore/consumers/postgreSQLProcessor.ts)) grows `priorStatus: 'running' | 'stopped' | 'completed' | null` and `priorCheckpoint: string | null`.
+
+New fields plumbed but not yet consumed by truncateOnStart logic.
+
+---
+
+## Iteration 5 — `truncateOnStart` becomes status-aware + rebuild behavior end-to-end
+
+### Tests
+
+**File: [processors.unit.spec.ts](src/packages/emmett/src/processors/processors.unit.spec.ts)** — new unit cases:
 
 44. `truncateOnStart=true + priorStatus=null → projection.truncate called, startFrom='BEGINNING'`
 45. `truncateOnStart=true + priorStatus='completed' → projection.truncate called, startFrom='BEGINNING'`
@@ -145,17 +152,6 @@ No consumer-level behavior change yet — new fields plumbed but not consumed.
 50. `truncateOnStart=false + priorStatus=null → projection.truncate NOT called, startFrom='BEGINNING'` (first-ever regular async)
 51. `explicit startFrom option takes precedence over status-based decision` — caller-supplied override respected
 52. `projection.truncate throwing propagates → lock is released with completed=false (i.e. 'stopped')` — error-path guard
-
-### Implementation
-
-- [processors.ts:592-600](src/packages/emmett/src/processors/processors.ts#L592-L600) onStart hook reads `priorStatus` from context; gates `projection.truncate(context)` on the rules above.
-- [processors.ts:420-461](src/packages/emmett/src/processors/processors.ts#L420-L461) start-position logic: when `truncateOnStart=true` and priorStatus is not `'stopped'`/`'running'`, return `'BEGINNING'` instead of stored checkpoint.
-
----
-
-## Iteration 6 — Rebuild end-to-end verification
-
-### Tests
 
 **File: [rebuildPostgreSQLProjections.e2e.spec.ts](src/packages/emmett-postgresql/src/eventStore/consumers/rebuildPostgreSQLProjections.e2e.spec.ts)** — new cases:
 
@@ -181,24 +177,28 @@ Verify existing tests still green:
 
 ### Implementation
 
-None — this iteration should pass from Iterations 1-5. Failures here trace back to earlier invariants.
+- [processors.ts:592-600](src/packages/emmett/src/processors/processors.ts#L592-L600) onStart hook reads `priorStatus` from context; gates `projection.truncate(context)` on the rules above.
+- [processors.ts:420-461](src/packages/emmett/src/processors/processors.ts#L420-L461) start-position logic: when `truncateOnStart=true` and priorStatus is not `'stopped'`/`'running'`, return `'BEGINNING'` instead of stored checkpoint.
+
+Rebuild-level tests (53-65) have no extra implementation — they verify the user-visible fix falls out of Iterations 1-4 plus the truncateOnStart change.
 
 ---
 
-## Iteration 7 — Migration + compatibility regression
+## Iteration 6 — Migration + compatibility regression
+
+Migration tests written red in Iteration 1. This iteration makes them green.
 
 ### Tests
 
-**File: [migration.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/schema/migrations/migration.int.spec.ts)** — new cases (beyond the ones already listed in Iterations 1-2 at #12-16, #27-28):
-
-66. `fresh schema generated by createEventStoreSchema matches 0_43_0 post-migration state` — source-of-truth sync guard
-67. `migration 0_43_0 applied on top of 0_43_0 succeeds and data is preserved`
-68. `old TS library (pre-Iteration 3 wrapper) works against 0_43_0-migrated schema` — calls old 6-arg release + old 2-column acquire, writes 'stopped', resumes on next run. End-to-end pod-mismatch simulation
-69. `new TS library works against schema migrated to 0_43_0` — happy path
+**File: [migration.int.spec.ts](src/packages/emmett-postgresql/src/eventStore/schema/migrations/migration.int.spec.ts)** — scenarios 12-16, 27-28, 66-69 (written in Iteration 1, implemented here).
 
 ### Implementation
 
-None — guards over Iterations 1-2.
+- **New migration file**: `src/packages/emmett-postgresql/src/eventStore/schema/migrations/0_43_0/0_43_0.migration.ts`, following [0_42_0.migration.ts](src/packages/emmett-postgresql/src/eventStore/schema/migrations/0_42_0/0_42_0.migration.ts) shape:
+  - `CREATE OR REPLACE FUNCTION emt_try_acquire_processor_lock(...)` — same 9-arg signature, extended WHERE.
+  - `CREATE OR REPLACE FUNCTION emt_release_processor_lock(..., p_completed BOOLEAN DEFAULT false)` — 7-arg overload. Existing 6-arg kept intact.
+  - `CREATE OR REPLACE FUNCTION emt_try_acquire_processor_lock_with_prior_state(...)` — new parallel function with prior-state return.
+- Re-exported from [migrations/index.ts](src/packages/emmett-postgresql/src/eventStore/schema/migrations/index.ts).
 
 ---
 
@@ -207,7 +207,7 @@ None — guards over Iterations 1-2.
 All SQL changes are additive:
 
 - `emt_try_acquire_processor_lock` — body updated in place (WHERE extends to `'completed'`). Signature and return shape unchanged. Old TS callers keep working.
-- `emt_try_acquire_processor_lock_with_prior_state` (name TBD) — new function, additive.
+- `emt_try_acquire_processor_lock_with_prior_state` — new function, additive.
 - `emt_release_processor_lock` 7-arg overload — additive alongside the existing 6-arg.
 
 Mixed old/new deployments against the same DB:
@@ -215,8 +215,6 @@ Mixed old/new deployments against the same DB:
 - Old code releasing a naturally-completed run writes `'stopped'` — loses the completion signal for _that_ run. Pre-existing bug, contained, no corruption.
 - New code acquiring from `'stopped'` row (from either old or new code) → resume. Matches prior semantic.
 - Old code acquiring from `'completed'` row (written by new code) → takeover allowed via extended WHERE. Safe.
-
-Post-upgrade cleanup (drop old 6-arg release, drop old acquire after all deployments are new) — separate migration, out of scope.
 
 ## Out of scope
 

@@ -29,6 +29,7 @@ import {
   type PostgresEventStore,
   type PostgresReadEventMetadata,
 } from '../../postgreSQLEventStore';
+import { postgreSQLProcessorLock } from '../../projections/locks/postgreSQLProcessorLock';
 import { readProcessorCheckpoint } from '../readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from '../storeProcessorCheckpoint';
 import { defaultTag } from '../typing';
@@ -200,7 +201,7 @@ void describe('Schema migrations tests', () => {
     const releaseResult = await pool.execute.query<{ proname: string }>(
       SQL`SELECT proname FROM pg_proc WHERE proname = 'emt_release_processor_lock'`,
     );
-    assertDeepEqual(releaseResult.rows.length, 1);
+    assertDeepEqual(releaseResult.rows.length, 2);
 
     const registerResult = await pool.execute.query<{ proname: string }>(
       SQL`SELECT proname FROM pg_proc WHERE proname = 'emt_register_projection'`,
@@ -461,6 +462,270 @@ void describe('Schema migrations tests', () => {
     );
 
     assertDeepEqual(BigInt(processorData.lastProcessedCheckpoint!), maxBigInt);
+  });
+
+  void describe('0.43.0 migration', () => {
+    void it('creates 7-arg emt_release_processor_lock overload alongside 6-arg', async () => {
+      // Given
+      await pool.execute.command(schema_0_42_0);
+
+      // When
+      await eventStore.schema.migrate();
+
+      // Then
+      const result = await pool.execute.query<{ pronargs: number }>(
+        SQL`SELECT pronargs FROM pg_proc WHERE proname = 'emt_release_processor_lock' ORDER BY pronargs`,
+      );
+      assertDeepEqual(result.rows.length, 2);
+      assertDeepEqual(result.rows[0]!.pronargs, 6);
+      assertDeepEqual(result.rows[1]!.pronargs, 7);
+    });
+
+    void it('replaces emt_try_acquire_processor_lock body to include completed in WHERE', async () => {
+      // Given
+      await pool.execute.command(schema_0_42_0);
+      await eventStore.schema.migrate();
+
+      await pool.execute.command(SQL`
+        INSERT INTO emt_processors (processor_id, partition, version, processor_instance_id, status, last_processed_checkpoint, last_processed_transaction_id)
+        VALUES ('completed-migration-test', ${defaultTag}, 1, 'old-instance', 'completed', '0000000000000000000', '0'::xid8)
+      `);
+
+      // When
+      const result = await pool.execute.query<{
+        acquired: boolean;
+        checkpoint: string;
+      }>(
+        SQL`SELECT * FROM emt_try_acquire_processor_lock(
+          99991::bigint, 'completed-migration-test', 1, ${defaultTag}, 'new-instance'
+        )`,
+      );
+
+      // Then
+      assertTrue(
+        result.rows[0]!.acquired,
+        'Expected acquire from completed row to succeed after 0.43.0 migration',
+      );
+    });
+
+    void it('is idempotent', async () => {
+      // Given
+      await pool.execute.command(schema_0_42_0);
+      await eventStore.schema.migrate();
+
+      // When / Then - second apply must not throw
+      await eventStore.schema.migrate();
+
+      assertTrue(
+        await functionExists(pool.execute, 'emt_release_processor_lock'),
+      );
+      assertTrue(
+        await functionExists(pool.execute, 'emt_try_acquire_processor_lock'),
+      );
+    });
+
+    void it('preserves existing emt_processors rows', async () => {
+      // Given
+      await pool.execute.command(schema_0_42_0);
+
+      await pool.execute.command(SQL`
+        INSERT INTO emt_processors (processor_id, partition, version, processor_instance_id, status, last_processed_checkpoint, last_processed_transaction_id)
+        VALUES ('preserved-processor', ${defaultTag}, 1, 'emt:unknown', 'stopped', '0000000000012345678', '0'::xid8)
+      `);
+
+      // When
+      await eventStore.schema.migrate();
+
+      // Then
+      const result = await pool.execute.query<{
+        last_processed_checkpoint: string;
+      }>(
+        SQL`SELECT last_processed_checkpoint FROM emt_processors WHERE processor_id = 'preserved-processor' AND partition = ${defaultTag}`,
+      );
+      assertDeepEqual(result.rows.length, 1);
+      assertDeepEqual(
+        result.rows[0]!.last_processed_checkpoint,
+        '0000000000012345678',
+      );
+    });
+
+    void it('old 6-arg release signature still writes status stopped', async () => {
+      // Given
+      await pool.execute.command(schema_0_42_0);
+      await eventStore.schema.migrate();
+
+      await pool.execute.command(SQL`
+        INSERT INTO emt_processors (processor_id, partition, version, processor_instance_id, status, last_processed_checkpoint, last_processed_transaction_id)
+        VALUES ('compat-release-processor', ${defaultTag}, 1, 'my-instance', 'running', '0000000000000000000', '0'::xid8)
+      `);
+
+      // When - call old 6-arg signature explicitly
+      await pool.execute.command(
+        SQL`SELECT emt_release_processor_lock(99992::bigint, 'compat-release-processor', ${defaultTag}, 1, 'my-instance', NULL)`,
+      );
+
+      // Then
+      const result = await pool.execute.query<{ status: string }>(
+        SQL`SELECT status FROM emt_processors WHERE processor_id = 'compat-release-processor' AND partition = ${defaultTag}`,
+      );
+      assertDeepEqual(result.rows[0]!.status, 'stopped');
+    });
+
+    void it('creates emt_try_acquire_processor_lock_with_prior_state function', async () => {
+      // Given
+      await pool.execute.command(schema_0_42_0);
+
+      // When
+      await eventStore.schema.migrate();
+
+      // Then
+      assertTrue(
+        await functionExists(
+          pool.execute,
+          'emt_try_acquire_processor_lock_with_prior_state',
+        ),
+        'Expected emt_try_acquire_processor_lock_with_prior_state to exist after 0.43.0 migration',
+      );
+    });
+
+    void it('old emt_try_acquire_processor_lock still returns acquired and checkpoint', async () => {
+      // Given
+      await pool.execute.command(schema_0_42_0);
+
+      // When
+      await eventStore.schema.migrate();
+
+      const result = await pool.execute.query<{
+        acquired: boolean;
+        checkpoint: string;
+      }>(
+        SQL`SELECT * FROM emt_try_acquire_processor_lock(
+          99993::bigint, 'backward-compat-acquire', 1, ${defaultTag}, 'test-instance'
+        )`,
+      );
+
+      // Then
+      assertDeepEqual(result.rows.length, 1);
+      assertTrue(result.rows[0]!.acquired);
+      assertDeepEqual(typeof result.rows[0]!.checkpoint, 'string');
+    });
+  });
+
+  void describe('fresh schema vs 0.43.0 post-migration state', () => {
+    void it('fresh schema generated by createEventStoreSchema matches 0_43_0 post-migration state', async () => {
+      // Given - fresh schema (no prior state applied)
+      await eventStore.schema.migrate();
+
+      // Then - prior-state function exists
+      assertTrue(
+        await functionExists(
+          pool.execute,
+          'emt_try_acquire_processor_lock_with_prior_state',
+        ),
+        'Expected prior-state function in fresh schema',
+      );
+
+      // Then - both 6-arg and 7-arg release exist
+      const releaseResult = await pool.execute.query<{ pronargs: number }>(
+        SQL`SELECT pronargs FROM pg_proc WHERE proname = 'emt_release_processor_lock' ORDER BY pronargs`,
+      );
+      assertDeepEqual(
+        releaseResult.rows.length,
+        2,
+        'Expected both 6-arg and 7-arg release functions in fresh schema',
+      );
+    });
+
+    void it('migration 0_43_0 applied on top of 0_43_0 succeeds and data is preserved', async () => {
+      // Given
+      await pool.execute.command(schema_0_42_0);
+      await eventStore.schema.migrate();
+
+      await pool.execute.command(SQL`
+        INSERT INTO emt_processors (processor_id, partition, version, processor_instance_id, status, last_processed_checkpoint, last_processed_transaction_id)
+        VALUES ('double-migrate-processor', ${defaultTag}, 1, 'emt:unknown', 'stopped', '0000000000099999999', '0'::xid8)
+      `);
+
+      // When - apply again
+      await eventStore.schema.migrate();
+
+      // Then - data preserved
+      const result = await pool.execute.query<{
+        last_processed_checkpoint: string;
+      }>(
+        SQL`SELECT last_processed_checkpoint FROM emt_processors WHERE processor_id = 'double-migrate-processor' AND partition = ${defaultTag}`,
+      );
+      assertDeepEqual(result.rows.length, 1);
+      assertDeepEqual(
+        result.rows[0]!.last_processed_checkpoint,
+        '0000000000099999999',
+      );
+    });
+
+    void it('old TS library pre-Iteration 1 wrapper works against 0_43_0-migrated schema', async () => {
+      // Given
+      await pool.execute.command(schema_0_42_0);
+      await eventStore.schema.migrate();
+
+      // Simulate old acquire (2-col return, old function unchanged)
+      const acquireResult = await pool.execute.query<{
+        acquired: boolean;
+        checkpoint: string;
+      }>(
+        SQL`SELECT * FROM emt_try_acquire_processor_lock(
+          99994::bigint, 'old-lib-processor', 1, ${defaultTag}, 'old-instance'
+        )`,
+      );
+      assertTrue(acquireResult.rows[0]!.acquired);
+
+      // Simulate old 6-arg release (writes stopped, backward compat)
+      await pool.execute.command(
+        SQL`SELECT emt_release_processor_lock(99994::bigint, 'old-lib-processor', ${defaultTag}, 1, 'old-instance', NULL)`,
+      );
+
+      const statusResult = await pool.execute.query<{ status: string }>(
+        SQL`SELECT status FROM emt_processors WHERE processor_id = 'old-lib-processor' AND partition = ${defaultTag}`,
+      );
+      assertDeepEqual(statusResult.rows[0]!.status, 'stopped');
+
+      // Old acquire from stopped row still resumes
+      const reacquireResult = await pool.execute.query<{ acquired: boolean }>(
+        SQL`SELECT acquired FROM emt_try_acquire_processor_lock(
+          99994::bigint, 'old-lib-processor', 1, ${defaultTag}, 'new-instance'
+        )`,
+      );
+      assertTrue(reacquireResult.rows[0]!.acquired);
+    });
+
+    void it('new TS library works against schema migrated to 0_43_0', async () => {
+      // Given
+      await pool.execute.command(schema_0_42_0);
+      await eventStore.schema.migrate();
+
+      const lock = postgreSQLProcessorLock({
+        lockKey: 'test-new-lib-0-43-0',
+        processorId: 'new-lib-processor',
+        partition: defaultTag,
+        version: 1,
+        processorInstanceId: 'new-lib-instance',
+      });
+
+      const acquired = await pool.withTransaction((tx) =>
+        lock.tryAcquire({ execute: tx.execute }),
+      );
+      assertTrue(acquired);
+
+      // When
+      await pool.withTransaction((tx) =>
+        lock.release({ execute: tx.execute, completed: true }),
+      );
+
+      // Then
+      const result = await pool.execute.query<{ status: string }>(
+        SQL`SELECT status FROM emt_processors WHERE processor_id = 'new-lib-processor' AND partition = ${defaultTag}`,
+      );
+      assertDeepEqual(result.rows[0]!.status, 'completed');
+    });
   });
 
   void it('new API works after legacy table cleanup', async () => {

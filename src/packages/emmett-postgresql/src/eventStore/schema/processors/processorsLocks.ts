@@ -88,8 +88,9 @@ CREATE OR REPLACE FUNCTION emt_release_processor_lock(
     p_processor_id          TEXT,
     p_partition             TEXT,
     p_version               INT,
-    p_processor_instance_id TEXT DEFAULT '${SQL.plain(unknownTag)}',
-    p_projection_name       TEXT DEFAULT NULL
+    p_processor_instance_id TEXT,
+    p_projection_name       TEXT,
+    p_completed             BOOLEAN
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -107,7 +108,7 @@ BEGIN
     END IF;
 
     UPDATE ${SQL.plain(processorsTable.name)}
-    SET status = 'stopped',
+    SET status = CASE WHEN p_completed THEN 'completed' ELSE 'stopped' END,
         processor_instance_id = '${SQL.plain(unknownTag)}',
         last_updated = now()
     WHERE processor_id = p_processor_id
@@ -161,16 +162,18 @@ type CallReleaseProcessorLockParams = {
   version: number;
   processorInstanceId: string;
   projectionName: string | null;
+  completed?: boolean;
 };
 
 export const callReleaseProcessorLock = (
   params: CallReleaseProcessorLockParams,
 ) =>
   SQL`SELECT emt_release_processor_lock(
-    ${params.lockKey}, 
-    ${params.processorId}, 
-    ${params.partition}, 
-    ${params.version}, 
-    ${params.processorInstanceId}, 
-    ${params.projectionName}
+    ${params.lockKey},
+    ${params.processorId},
+    ${params.partition},
+    ${params.version},
+    ${params.processorInstanceId},
+    ${params.projectionName},
+    ${params.completed ?? false}
   ) as result;`;

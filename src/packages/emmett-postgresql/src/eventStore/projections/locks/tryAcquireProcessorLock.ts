@@ -107,6 +107,7 @@ export type ReleaseProcessorLockOptions = {
   processorInstanceId: string;
   projectionName?: string;
   lockKey: string | bigint;
+  completed?: boolean;
 };
 
 export const releaseProcessorLock = async (
@@ -126,6 +127,7 @@ export const releaseProcessorLock = async (
         version: options.version,
         processorInstanceId: options.processorInstanceId,
         projectionName: options.projectionName ?? null,
+        completed: options.completed,
       }),
     ),
   );

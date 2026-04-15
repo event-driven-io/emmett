@@ -17,6 +17,7 @@ import {
   migration_0_42_0_2_AddProcessorProjectionFunctions,
   migration_0_42_0_FromSubscriptionsToProcessors,
 } from './migrations/0_42_0';
+import { migration_0_43_0_completedStatus } from './migrations/0_43_0';
 import {
   releaseProcessorLockSQL,
   tryAcquireProcessorLockSQL,
@@ -79,6 +80,7 @@ export const eventStoreSchemaMigrations: SQLMigration[] = [
   migration_0_42_0_FromSubscriptionsToProcessors,
   migration_0_42_0_2_AddProcessorProjectionFunctions,
   schemaMigration,
+  migration_0_43_0_completedStatus,
 ];
 
 export type CreateEventStoreSchemaOptions = {

@@ -79,6 +79,7 @@ export const postgreSQLProcessorLock = (
         ...releaseOptions,
         lockKey,
         projectionName: projection?.name,
+        completed: context.completed,
       });
 
       acquired = false;
