@@ -3,7 +3,6 @@ import 'dotenv/config';
 import type { Event, ReadEvent } from '@event-driven-io/emmett';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
-import { bench, group, run } from 'mitata';
 import { randomUUID } from 'node:crypto';
 import {
   getPostgreSQLEventStore,
@@ -151,78 +150,72 @@ const BATCH_SIZES = process.env.BENCHMARK_BATCH_SIZES
     )
   : ALL_BATCH_SIZES;
 
+type Result = { name: string; seconds: number; eventsPerSec: number };
+const results: Result[] = [];
+
+const measureRebuild = async (
+  name: string,
+  eventCount: number,
+  makeConsumer: () => ReturnType<typeof rebuildPostgreSQLProjections>,
+): Promise<void> => {
+  const consumer = makeConsumer();
+  const startedAt = performance.now();
+  try {
+    await consumer.start();
+  } finally {
+    await consumer.close();
+  }
+  const seconds = (performance.now() - startedAt) / 1000;
+  results.push({
+    name,
+    seconds,
+    eventsPerSec: Math.round(eventCount / seconds),
+  });
+};
+
 for (const eventCount of EVENT_COUNTS) {
   console.log(`\nSeeding ${eventCount} events...`);
   await eventStore.schema.dangerous.truncate({ truncateProjections: true });
   await seedEvents(eventStore, eventCount);
   console.log(`Seeded ${eventCount} events.`);
 
-  // BENCHMARKS — 1 projection
-
-  group(`rebuild 1 projection - ${eventCount} events`, () => {
-    for (const batchSize of BATCH_SIZES) {
-      bench(`${eventCount}ev/1proj/batch ${batchSize}`, async () => {
-        const projection = createProjection('bench_summary');
-        const consumer = rebuildPostgreSQLProjections({
+  for (const batchSize of BATCH_SIZES) {
+    await measureRebuild(
+      `${eventCount}ev/1proj/batch ${batchSize}`,
+      eventCount,
+      () =>
+        rebuildPostgreSQLProjections({
           connectionString,
-          projection,
+          projection: createProjection('bench_summary'),
           pulling: { batchSize },
-        });
+        }),
+    );
+  }
 
-        try {
-          await consumer.start();
-        } finally {
-          await consumer.close();
-        }
-      });
-    }
-  });
-
-  // BENCHMARKS — 2 projections
-
-  group(`rebuild 2 projections - ${eventCount} events`, () => {
-    for (const batchSize of BATCH_SIZES) {
-      bench(`${eventCount}ev/2proj/batch ${batchSize}`, async () => {
-        const projection1 = createProjection('bench_summary_p1');
-        const projection2 = createProjection('bench_summary_p2');
-
-        const consumer = rebuildPostgreSQLProjections({
+  for (const batchSize of BATCH_SIZES) {
+    await measureRebuild(
+      `${eventCount}ev/2proj/batch ${batchSize}`,
+      eventCount,
+      () =>
+        rebuildPostgreSQLProjections({
           connectionString,
-          projections: [projection1, projection2],
+          projections: [
+            createProjection('bench_summary_p1'),
+            createProjection('bench_summary_p2'),
+          ],
           pulling: { batchSize },
-        });
-
-        try {
-          await consumer.start();
-        } finally {
-          await consumer.close();
-        }
-      });
-    }
-  });
+        }),
+    );
+  }
 }
 
 // RESULTS
 
-const results = await run();
-
-const rows = results.benchmarks.flatMap((trial) =>
-  trial.runs.map((r) => {
-    if (r.stats === undefined)
-      return { name: r.name, time: 'error', eventsPerSec: 'error' };
-
-    const match = r.name.match(/^(\d+)ev\//);
-    const ec = match ? parseInt(match[1]!, 10) : 1;
-    const avgSeconds = r.stats.avg / 1e9;
-    const eventsPerSec = Math.round(ec / avgSeconds);
-
-    return {
-      name: r.name,
-      time: `${avgSeconds.toFixed(2)}s`,
-      eventsPerSec: `${eventsPerSec.toLocaleString()} events/sec`,
-    };
-  }),
-);
+const rows = results.map((r) => ({
+  name: r.name,
+  time: `${r.seconds.toFixed(2)}s`,
+  eventsPerSec: `${r.eventsPerSec.toLocaleString()} events/sec`,
+}));
 
 const nameW = Math.max(...rows.map((r) => r.name.length), 'Scenario'.length);
 const timeW = Math.max(...rows.map((r) => r.time.length), 'Total Time'.length);
