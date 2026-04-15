@@ -1,11 +1,10 @@
 import 'dotenv/config';
 
-import type { ReadEvent } from '@event-driven-io/emmett';
+import type { Event, ReadEvent } from '@event-driven-io/emmett';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { bench, group, run } from 'mitata';
 import { randomUUID } from 'node:crypto';
-import { generateBatches, type BatchConfig } from './loadTestGenerator';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -14,6 +13,9 @@ import {
 import { rebuildPostgreSQLProjections } from '../eventStore/consumers/rebuildPostgreSQLProjections';
 import { pongoSingleStreamProjection } from '../eventStore/projections';
 import type { ProductItemAdded } from '../testing/shoppingCart.domain';
+import type { EventGenerator } from './loadTestGenerator';
+import { runLoadTest } from './loadTestGenerator';
+import { postgresEventStoreAppender } from './messageBatchAppender';
 
 let postgres: StartedPostgreSqlContainer = undefined!;
 
@@ -46,39 +48,71 @@ const eventStore: PostgresEventStore = getPostgreSQLEventStore(
 
 if (generateSchemaUpfront) await eventStore.schema.migrate();
 
+const MAX_STREAM_LENGTH = 100;
+const PRODUCT_ITEM_VARIANTS = 1;
+const CONFIRMED_VARIANTS = 1;
+
+const productItemAddedTypes = Array.from(
+  { length: PRODUCT_ITEM_VARIANTS },
+  (_, i) => `ProductItemAdded-${i}`,
+);
+const shoppingCartConfirmedTypes = Array.from(
+  { length: CONFIRMED_VARIANTS },
+  (_, i) => `ShoppingCartConfirmed-${i}`,
+);
+
 type ShoppingCartSummary = {
   _id?: string;
+  status: 'pending' | 'confirmed';
   productItemsCount: number;
 };
 
 const evolve = (
   document: ShoppingCartSummary,
-  { data }: ReadEvent<ProductItemAdded>,
-): ShoppingCartSummary => ({
-  ...document,
-  productItemsCount: document.productItemsCount + data.productItem.quantity,
-});
+  { type, data }: ReadEvent<Event>,
+): ShoppingCartSummary => {
+  if (type.startsWith('ProductItemAdded')) {
+    const { productItem } = data as ProductItemAdded['data'];
+    return {
+      ...document,
+      productItemsCount: document.productItemsCount + productItem.quantity,
+    };
+  }
+  if (type.startsWith('ShoppingCartConfirmed')) {
+    return { ...document, status: 'confirmed' };
+  }
+  return document;
+};
 
 const createProjection = (collectionName: string) =>
-  pongoSingleStreamProjection<ShoppingCartSummary, ProductItemAdded>({
+  pongoSingleStreamProjection<ShoppingCartSummary, Event>({
     collectionName,
     evolve,
-    canHandle: ['ProductItemAdded'],
+    canHandle: [...productItemAddedTypes, ...shoppingCartConfirmedTypes],
     initialState: () => ({ status: 'pending', productItemsCount: 0 }),
   });
 
 // EVENT GENERATION
 
-const productItemAdded = (): ProductItemAdded => ({
-  type: 'ProductItemAdded',
-  data: {
-    productItem: {
-      productId: randomUUID().padEnd(2000, 'x'),
-      quantity: Math.floor(Math.random() * 10) + 1,
-      price: Math.floor(Math.random() * 100) + 1,
+const shoppingCartEvent: EventGenerator = ({ streamPosition }) => {
+  const isLast = streamPosition === MAX_STREAM_LENGTH - 1;
+  if (isLast) {
+    return {
+      type: shoppingCartConfirmedTypes[streamPosition % CONFIRMED_VARIANTS]!,
+      data: { confirmedAt: new Date() },
+    };
+  }
+  return {
+    type: productItemAddedTypes[streamPosition % PRODUCT_ITEM_VARIANTS]!,
+    data: {
+      productItem: {
+        productId: randomUUID().padEnd(2000, 'x'),
+        quantity: Math.floor(Math.random() * 10) + 1,
+        price: Math.floor(Math.random() * 100) + 1,
+      },
     },
-  },
-});
+  };
+};
 
 // SEEDING
 
@@ -86,18 +120,17 @@ async function seedEvents(
   store: PostgresEventStore,
   totalEvents: number,
 ): Promise<void> {
-  const config: BatchConfig = {
-    totalEvents,
-    maxStreamLength: 100,
-    batchSize: 10,
-  };
-  for (const { streamName, events } of generateBatches(
-    config,
-    () => `shopping_cart-${randomUUID()}`,
-    productItemAdded,
-  )) {
-    await store.appendToStream(streamName, events);
-  }
+  await runLoadTest(
+    {
+      totalEvents,
+      streamTypes: 1,
+      maxStreamLength: MAX_STREAM_LENGTH,
+      batchSize: 10,
+      partitions: 1,
+    },
+    shoppingCartEvent,
+    postgresEventStoreAppender(store),
+  );
 }
 
 const ALL_EVENT_COUNTS = [
@@ -122,17 +155,13 @@ for (const eventCount of EVENT_COUNTS) {
   console.log(`\nSeeding ${eventCount} events...`);
   await eventStore.schema.dangerous.truncate({ truncateProjections: true });
   await seedEvents(eventStore, eventCount);
-  console.log(`  Seeded ${eventCount} events.`);
+  console.log(`Seeded ${eventCount} events.`);
 
   // BENCHMARKS — 1 projection
 
   group(`rebuild 1 projection - ${eventCount} events`, () => {
     for (const batchSize of BATCH_SIZES) {
       bench(`${eventCount}ev/1proj/batch ${batchSize}`, async () => {
-        await eventStore.schema.dangerous.truncate({
-          truncateProjections: true,
-        });
-
         const projection = createProjection('bench_summary');
         const consumer = rebuildPostgreSQLProjections({
           connectionString,
@@ -154,10 +183,6 @@ for (const eventCount of EVENT_COUNTS) {
   group(`rebuild 2 projections - ${eventCount} events`, () => {
     for (const batchSize of BATCH_SIZES) {
       bench(`${eventCount}ev/2proj/batch ${batchSize}`, async () => {
-        await eventStore.schema.dangerous.truncate({
-          truncateProjections: true,
-        });
-
         const projection1 = createProjection('bench_summary_p1');
         const projection2 = createProjection('bench_summary_p2');
 
