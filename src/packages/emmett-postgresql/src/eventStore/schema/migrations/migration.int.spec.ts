@@ -37,6 +37,7 @@ import { schema_0_36_0 } from './0_36_0';
 import { schema_0_38_7 } from './0_38_7';
 import { schema_0_42_0 } from './0_42_0';
 import { cleanupLegacySubscriptionTables } from './0_43_0';
+import { dropOldReleaseLockOverload } from './0_44_0';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -608,6 +609,76 @@ void describe('Schema migrations tests', () => {
       assertDeepEqual(result.rows.length, 1);
       assertTrue(result.rows[0]!.acquired);
       assertDeepEqual(typeof result.rows[0]!.checkpoint, 'string');
+    });
+  });
+
+  void describe('0.44.0 migration', () => {
+    void it('drops 6-arg emt_release_processor_lock leaving only 7-arg', async () => {
+      // Given
+      await pool.execute.command(schema_0_42_0);
+      await eventStore.schema.migrate();
+
+      const before = await pool.execute.query<{ pronargs: number }>(
+        SQL`SELECT pronargs FROM pg_proc WHERE proname = 'emt_release_processor_lock' ORDER BY pronargs`,
+      );
+      assertDeepEqual(before.rows.length, 2);
+
+      // When
+      await dropOldReleaseLockOverload(connectionString);
+
+      // Then
+      const after = await pool.execute.query<{ pronargs: number }>(
+        SQL`SELECT pronargs FROM pg_proc WHERE proname = 'emt_release_processor_lock' ORDER BY pronargs`,
+      );
+      assertDeepEqual(after.rows.length, 1);
+      assertDeepEqual(after.rows[0]!.pronargs, 7);
+    });
+
+    void it('is idempotent', async () => {
+      // Given
+      await pool.execute.command(schema_0_42_0);
+      await eventStore.schema.migrate();
+
+      // When / Then - calling twice must not throw
+      await dropOldReleaseLockOverload(connectionString);
+      await dropOldReleaseLockOverload(connectionString);
+
+      const result = await pool.execute.query<{ pronargs: number }>(
+        SQL`SELECT pronargs FROM pg_proc WHERE proname = 'emt_release_processor_lock' ORDER BY pronargs`,
+      );
+      assertDeepEqual(result.rows.length, 1);
+      assertDeepEqual(result.rows[0]!.pronargs, 7);
+    });
+
+    void it('new TS library still works after old overload is dropped', async () => {
+      // Given
+      await pool.execute.command(schema_0_42_0);
+      await eventStore.schema.migrate();
+      await dropOldReleaseLockOverload(connectionString);
+
+      const lock = postgreSQLProcessorLock({
+        lockKey: 'test-0-44-0-cleanup',
+        processorId: '0-44-0-processor',
+        partition: defaultTag,
+        version: 1,
+        processorInstanceId: '0-44-0-instance',
+      });
+
+      // When
+      const acquired = await pool.withTransaction((tx) =>
+        lock.tryAcquire({ execute: tx.execute }),
+      );
+      assertTrue(acquired);
+
+      await pool.withTransaction((tx) =>
+        lock.release({ execute: tx.execute, completed: true }),
+      );
+
+      // Then
+      const result = await pool.execute.query<{ status: string }>(
+        SQL`SELECT status FROM emt_processors WHERE processor_id = '0-44-0-processor' AND partition = ${defaultTag}`,
+      );
+      assertDeepEqual(result.rows[0]!.status, 'completed');
     });
   });
 
