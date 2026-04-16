@@ -6,10 +6,12 @@ import type {
   WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import {
+  asyncAwaiter,
   EmmettError,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
+  type AsyncAwaiter,
   type BatchRecordedMessageHandlerWithoutContext,
   type DefaultRecord,
   type Message,
@@ -122,6 +124,8 @@ export const sqliteEventStoreConsumer = <
 
   let messagePuller: SQLiteEventStoreMessageBatchPuller | undefined;
 
+  const startedAwaiter: AsyncAwaiter<void> = asyncAwaiter<void>();
+
   const pool =
     options.pool ??
     dumbo({
@@ -212,9 +216,7 @@ export const sqliteEventStoreConsumer = <
     get isRunning() {
       return isRunning;
     },
-    get started(): Promise<void> {
-      throw new EmmettError('`started` is not yet implemented');
-    },
+    whenStarted: (): Promise<void> => startedAwaiter.wait,
     processors,
     init,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
@@ -297,10 +299,15 @@ export const sqliteEventStoreConsumer = <
     start: () => {
       if (isRunning) return start;
 
-      if (processors.length === 0)
-        throw new EmmettError(
+      startedAwaiter.reset();
+
+      if (processors.length === 0) {
+        const error = new EmmettError(
           'Cannot start consumer without at least a single processor',
         );
+        startedAwaiter.reject(error);
+        throw error;
+      }
 
       isRunning = true;
       abortController = new AbortController();
@@ -320,26 +327,34 @@ export const sqliteEventStoreConsumer = <
       start = (async () => {
         if (!isRunning) return;
 
-        if (!isInitialized) {
-          await init();
-        }
+        try {
+          if (!isInitialized) {
+            await init();
+          }
 
-        const startFrom = await pool.withConnection(async (connection) =>
-          zipSQLiteEventStoreMessageBatchPullerStartFrom(
-            await Promise.all(
-              processors.map(async (o) => {
-                const result = await o.start({
-                  execute: connection.execute,
-                  connection,
-                });
+          const startFrom = await pool.withConnection(async (connection) =>
+            zipSQLiteEventStoreMessageBatchPullerStartFrom(
+              await Promise.all(
+                processors.map(async (o) => {
+                  const result = await o.start({
+                    execute: connection.execute,
+                    connection,
+                  });
 
-                return result;
-              }),
+                  return result;
+                }),
+              ),
             ),
-          ),
-        );
+          );
 
-        await messagePuller.start({ startFrom });
+          await messagePuller.start({
+            startFrom,
+            started: startedAwaiter,
+          });
+        } catch (error) {
+          startedAwaiter.reject(error);
+          throw error;
+        }
 
         await stopProcessors();
 

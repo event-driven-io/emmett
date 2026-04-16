@@ -511,6 +511,7 @@ void describe('SQLite event store started consumer', () => {
 
         try {
           const consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
           const appendResult = await eventStore.appendToStream(
             streamName,
@@ -562,6 +563,7 @@ void describe('SQLite event store started consumer', () => {
 
         try {
           const consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
           const appendResult = await eventStore.appendToStream(
             streamName,
@@ -618,6 +620,8 @@ void describe('SQLite event store started consumer', () => {
 
         // Run 1: process first batch appended after END start
         const firstConsumerPromise = consumer.start();
+        await consumer.whenStarted();
+
         const firstAppend = await eventStore.appendToStream(
           streamName,
           firstBatch,

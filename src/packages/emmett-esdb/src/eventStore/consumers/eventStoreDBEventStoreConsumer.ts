@@ -161,8 +161,8 @@ export const eventStoreDBEventStoreConsumer = <
     get isRunning() {
       return isRunning;
     },
-    get started(): Promise<void> {
-      throw new EmmettError('`started` is not yet implemented');
+    whenStarted: (): Promise<void> => {
+      throw new EmmettError('`whenStarted` is not yet implemented');
     },
     processors,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
