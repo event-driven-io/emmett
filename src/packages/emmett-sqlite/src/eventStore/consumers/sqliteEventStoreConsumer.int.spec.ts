@@ -1,14 +1,20 @@
-import { InMemorySQLiteDatabase } from '@event-driven-io/dumbo/sqlite3';
+import {
+  InMemorySQLiteDatabase,
+  sqlite3Connection,
+  type SQLite3Connection,
+} from '@event-driven-io/dumbo/sqlite3';
 import type { EmmettError } from '@event-driven-io/emmett';
 import {
   assertFalse,
   assertThrowsAsync,
   assertTrue,
+  JSONSerializer,
   MessageProcessorType,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import { sqlite3EventStoreDriver } from '../../sqlite3';
+import { createEventStoreSchema } from '../schema';
 import {
   sqliteEventStoreConsumer,
   type SQLiteEventStoreConsumer,
@@ -26,6 +32,18 @@ void describe('SQLite event store consumer', () => {
     handle: () => Promise.resolve(),
     isActive: false,
   };
+
+  let connection: SQLite3Connection;
+
+  beforeEach(async () => {
+    connection = sqlite3Connection({
+      fileName: InMemorySQLiteDatabase,
+      serializer: JSONSerializer,
+    });
+    await createEventStoreSchema(connection);
+  });
+
+  afterEach(() => connection.close());
 
   void it('creates not-started consumer for the specified connection string', () => {
     const consumer = sqliteEventStoreConsumer({
@@ -45,8 +63,10 @@ void describe('SQLite event store consumer', () => {
         driver: sqlite3EventStoreDriver,
         fileName: InMemorySQLiteDatabase,
         processors: [dummyProcessor],
+        connectionOptions: { connection },
       });
     });
+
     afterEach(() => consumer.stop());
 
     void it('fails to start if there are no processors', async () => {
@@ -54,6 +74,7 @@ void describe('SQLite event store consumer', () => {
         driver: sqlite3EventStoreDriver,
         fileName: InMemorySQLiteDatabase,
         processors: [],
+        connectionOptions: { connection },
       });
       await assertThrowsAsync<EmmettError>(
         () => consumerToNotExistingServer.start(),
@@ -66,26 +87,28 @@ void describe('SQLite event store consumer', () => {
       );
     });
 
-    void it('started resolves after successful start', async () => {
+    void it('whenStarted resolves after successful start', async () => {
       const startedConsumer = sqliteEventStoreConsumer({
         driver: sqlite3EventStoreDriver,
         fileName: InMemorySQLiteDatabase,
         processors: [dummyProcessor],
+        connectionOptions: { connection },
       });
       try {
         void startedConsumer.start();
-        await startedConsumer.started;
+        await startedConsumer.whenStarted();
         assertTrue(startedConsumer.isRunning);
       } finally {
         await startedConsumer.stop();
       }
     });
 
-    void it('started rejects if there are no processors', async () => {
+    void it('whenStarted rejects if there are no processors', async () => {
       const consumerWithoutProcessors = sqliteEventStoreConsumer({
         driver: sqlite3EventStoreDriver,
         fileName: InMemorySQLiteDatabase,
         processors: [],
+        connectionOptions: { connection },
       });
       try {
         try {
@@ -94,7 +117,7 @@ void describe('SQLite event store consumer', () => {
           // start() may throw synchronously on validation failure
         }
         await assertThrowsAsync<EmmettError>(
-          () => consumerWithoutProcessors.started,
+          () => consumerWithoutProcessors.whenStarted(),
           (error) =>
             error.message ===
             'Cannot start consumer without at least a single processor',
@@ -121,12 +144,15 @@ void describe('SQLite event store consumer', () => {
   void describe('started consumer', () => {
     let consumer: SQLiteEventStoreConsumer;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       consumer = sqliteEventStoreConsumer({
         driver: sqlite3EventStoreDriver,
         fileName: InMemorySQLiteDatabase,
         processors: [dummyProcessor],
+        connectionOptions: { connection },
       });
+      void consumer.start();
+      await consumer.whenStarted();
     });
     afterEach(() => consumer.stop());
 

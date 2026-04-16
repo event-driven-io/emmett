@@ -16,7 +16,7 @@ export type MessageConsumer<
 > = Readonly<{
   consumerId: string;
   isRunning: boolean;
-  started: Promise<void>;
+  whenStarted: () => Promise<void>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   processors: ReadonlyArray<MessageProcessor<ConsumerMessageType, any, any>>;
   start: () => Promise<void>;

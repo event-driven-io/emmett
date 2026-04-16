@@ -114,10 +114,6 @@ export const postgreSQLEventStoreConsumer = <
   let messagePuller: PostgreSQLEventStoreMessageBatchPuller | undefined;
 
   const startedAwaiter: AsyncAwaiter<void> = asyncAwaiter<void>();
-  const silenceUnhandled = () => {
-    void startedAwaiter.wait.catch(() => {});
-  };
-  silenceUnhandled();
 
   const pool = options.pool
     ? options.pool
@@ -207,9 +203,7 @@ export const postgreSQLEventStoreConsumer = <
     get isRunning() {
       return isRunning;
     },
-    get started(): Promise<void> {
-      return startedAwaiter.wait;
-    },
+    whenStarted: (): Promise<void> => startedAwaiter.wait,
     processors,
     init,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
@@ -281,7 +275,6 @@ export const postgreSQLEventStoreConsumer = <
       if (isRunning) return start;
 
       startedAwaiter.reset();
-      silenceUnhandled();
 
       if (processors.length === 0) {
         const error = new EmmettError(

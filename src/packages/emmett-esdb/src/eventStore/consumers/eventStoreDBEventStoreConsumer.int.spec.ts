@@ -126,7 +126,7 @@ void describe('EventStoreDB event store consumer', () => {
       });
       try {
         void startedConsumer.start();
-        await startedConsumer.started;
+        await startedConsumer.whenStarted();
         assertTrue(startedConsumer.isRunning);
       } finally {
         await startedConsumer.stop();
@@ -145,7 +145,7 @@ void describe('EventStoreDB event store consumer', () => {
           // start() may throw synchronously on validation failure
         }
         await assertThrowsAsync<EmmettError>(
-          () => consumerWithoutProcessors.started,
+          () => consumerWithoutProcessors.whenStarted(),
           (error) =>
             error.message ===
             'Cannot start consumer without at least a single processor',

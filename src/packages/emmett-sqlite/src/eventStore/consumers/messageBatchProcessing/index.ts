@@ -2,6 +2,7 @@ import type { SQLExecutor } from '@event-driven-io/dumbo';
 import {
   JSONSerializer,
   parseBigIntProcessorCheckpoint,
+  type AsyncAwaiter,
   type BatchRecordedMessageHandlerWithoutContext,
   type EmmettError,
   type Event,
@@ -54,6 +55,7 @@ export type SQLiteEventStoreMessageBatchPullerStartFrom =
 export type SQLiteEventStoreMessageBatchPullerStartOptions = {
   startFrom: SQLiteEventStoreMessageBatchPullerStartFrom;
   signal?: AbortSignal;
+  started?: AsyncAwaiter<void>;
 };
 
 export type SQLiteEventStoreMessageBatchPuller = {
@@ -81,13 +83,21 @@ export const sqliteEventStoreMessageBatchPuller = <
   const pullMessages = async (
     options: SQLiteEventStoreMessageBatchPullerStartOptions,
   ) => {
-    const after =
-      options.startFrom === 'BEGINNING'
-        ? 0n
-        : options.startFrom === 'END'
-          ? ((await readLastMessageGlobalPosition(executor))
-              .currentGlobalPosition ?? 0n)
-          : parseBigIntProcessorCheckpoint(options.startFrom.lastCheckpoint);
+    let after: bigint;
+    try {
+      after =
+        options.startFrom === 'BEGINNING'
+          ? 0n
+          : options.startFrom === 'END'
+            ? ((await readLastMessageGlobalPosition(executor))
+                .currentGlobalPosition ?? 0n)
+            : parseBigIntProcessorCheckpoint(options.startFrom.lastCheckpoint);
+    } catch (error) {
+      options.started?.reject(error);
+      throw error;
+    }
+
+    options.started?.resolve();
 
     const readMessagesOptions: ReadMessagesBatchOptions = {
       after,
