@@ -1,6 +1,7 @@
 import type { SQLExecutor } from '@event-driven-io/dumbo';
 import {
   parseBigIntProcessorCheckpoint,
+  type AsyncAwaiter,
   type BatchRecordedMessageHandlerWithoutContext,
   type EmmettError,
   type Message,
@@ -46,6 +47,7 @@ export type PostgreSQLEventStoreMessageBatchPullerStartFrom =
 export type PostgreSQLEventStoreMessageBatchPullerStartOptions = {
   startFrom: PostgreSQLEventStoreMessageBatchPullerStartFrom;
   signal?: AbortSignal;
+  started?: AsyncAwaiter<void>;
 };
 
 export type PostgreSQLEventStoreMessageBatchPuller = {
@@ -73,13 +75,21 @@ export const postgreSQLEventStoreMessageBatchPuller = <
   const pullMessages = async (
     options: PostgreSQLEventStoreMessageBatchPullerStartOptions,
   ) => {
-    const after =
-      options.startFrom === 'BEGINNING'
-        ? 0n
-        : options.startFrom === 'END'
-          ? ((await readLastMessageGlobalPosition(executor))
-              .currentGlobalPosition ?? 0n)
-          : parseBigIntProcessorCheckpoint(options.startFrom.lastCheckpoint);
+    let after: bigint;
+    try {
+      after =
+        options.startFrom === 'BEGINNING'
+          ? 0n
+          : options.startFrom === 'END'
+            ? ((await readLastMessageGlobalPosition(executor))
+                .currentGlobalPosition ?? 0n)
+            : parseBigIntProcessorCheckpoint(options.startFrom.lastCheckpoint);
+    } catch (error) {
+      options.started?.reject(error);
+      throw error;
+    }
+
+    options.started?.resolve();
 
     const readMessagesOptions: ReadMessagesBatchOptions = {
       after,

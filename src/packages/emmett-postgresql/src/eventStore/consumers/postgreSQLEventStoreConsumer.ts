@@ -6,10 +6,12 @@ import type {
   WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import {
+  asyncAwaiter,
   EmmettError,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
+  type AsyncAwaiter,
   type BatchRecordedMessageHandlerWithoutContext,
   type DefaultRecord,
   type Message,
@@ -111,6 +113,12 @@ export const postgreSQLEventStoreConsumer = <
 
   let messagePuller: PostgreSQLEventStoreMessageBatchPuller | undefined;
 
+  const startedAwaiter: AsyncAwaiter<void> = asyncAwaiter<void>();
+  const silenceUnhandled = () => {
+    void startedAwaiter.wait.catch(() => {});
+  };
+  silenceUnhandled();
+
   const pool = options.pool
     ? options.pool
     : dumbo({
@@ -200,7 +208,7 @@ export const postgreSQLEventStoreConsumer = <
       return isRunning;
     },
     get started(): Promise<void> {
-      throw new EmmettError('`started` is not yet implemented');
+      return startedAwaiter.wait;
     },
     processors,
     init,
@@ -272,10 +280,16 @@ export const postgreSQLEventStoreConsumer = <
     start: () => {
       if (isRunning) return start;
 
-      if (processors.length === 0)
-        throw new EmmettError(
+      startedAwaiter.reset();
+      silenceUnhandled();
+
+      if (processors.length === 0) {
+        const error = new EmmettError(
           'Cannot start consumer without at least a single processor',
         );
+        startedAwaiter.reject(error);
+        throw error;
+      }
 
       isRunning = true;
       abortController = new AbortController();
@@ -295,27 +309,35 @@ export const postgreSQLEventStoreConsumer = <
       start = (async () => {
         if (!isRunning) return;
 
-        if (!isInitialized) {
-          await init();
+        try {
+          if (!isInitialized) {
+            await init();
+          }
+
+          const startFrom = zipPostgreSQLEventStoreMessageBatchPullerStartFrom(
+            await Promise.all(
+              processors.map(async (o) => {
+                const result = await o.start({
+                  execute: pool.execute,
+                  connection: {
+                    connectionString: options.connectionString,
+                    pool,
+                  },
+                });
+
+                return result;
+              }),
+            ),
+          );
+
+          await messagePuller.start({
+            startFrom,
+            started: startedAwaiter,
+          });
+        } catch (error) {
+          startedAwaiter.reject(error);
+          throw error;
         }
-
-        const startFrom = zipPostgreSQLEventStoreMessageBatchPullerStartFrom(
-          await Promise.all(
-            processors.map(async (o) => {
-              const result = await o.start({
-                execute: pool.execute,
-                connection: {
-                  connectionString: options.connectionString,
-                  pool,
-                },
-              });
-
-              return result;
-            }),
-          ),
-        );
-
-        await messagePuller.start({ startFrom });
 
         await stopProcessors();
 
