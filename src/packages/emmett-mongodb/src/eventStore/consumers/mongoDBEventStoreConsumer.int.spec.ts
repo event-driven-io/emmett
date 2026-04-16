@@ -143,6 +143,52 @@ void describe('mongoDB event store consumer', () => {
     );
 
     void it(
+      'started resolves after successful start',
+      withDeadline,
+      async () => {
+        const startedConsumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [dummyProcessor],
+        });
+        try {
+          void startedConsumer.start();
+          await startedConsumer.started;
+          assertTrue(startedConsumer.isRunning);
+        } finally {
+          await startedConsumer.close();
+        }
+      },
+    );
+
+    void it(
+      'started rejects if there are no processors',
+      withDeadline,
+      async () => {
+        const consumerWithoutProcessors = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [],
+        });
+        try {
+          try {
+            consumerWithoutProcessors.start().catch(() => {});
+          } catch {
+            // start() may throw synchronously on validation failure
+          }
+          await assertThrowsAsync<EmmettError>(
+            () => consumerWithoutProcessors.started,
+            (error) =>
+              error.message ===
+              'Cannot start consumer without at least a single processor',
+          );
+        } finally {
+          await consumerWithoutProcessors.close();
+        }
+      },
+    );
+
+    void it(
       `stopping not started consumer doesn't fail`,
       withDeadline,
       async () => {
