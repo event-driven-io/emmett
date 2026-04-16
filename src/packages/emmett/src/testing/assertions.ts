@@ -214,16 +214,16 @@ export function assertNotEqual<T>(
     );
 }
 
-export function assertIsNotNull<T extends object | bigint>(
-  result: T | null,
-): asserts result is T {
+export function assertIsNotNull<
+  T extends object | string | bigint | boolean | number,
+>(result: T | null): asserts result is T {
   assertNotEqual(result, null);
   assertOk(result);
 }
 
-export function assertIsNull<T extends object>(
-  result: T | null,
-): asserts result is null {
+export function assertIsNull<
+  T extends object | string | bigint | boolean | number,
+>(result: T | null): asserts result is null {
   assertEqual(result, null);
 }
 
