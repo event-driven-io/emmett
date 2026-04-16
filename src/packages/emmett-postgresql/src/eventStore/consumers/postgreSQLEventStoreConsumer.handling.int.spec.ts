@@ -7,8 +7,8 @@ import {
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -392,6 +392,183 @@ void describe('PostgreSQL event store started consumer', () => {
           assertThatArray(result).containsOnlyElementsMatching(events);
         } finally {
           await newConsumer.close();
+        }
+      },
+    );
+
+    void it(
+      'handles only new events when startFrom END is specified',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const result: GuestStayEvent[] = [];
+        let stopAfterPosition: bigint | undefined = undefined;
+
+        // When
+        const consumer = postgreSQLEventStoreConsumer({
+          connectionString,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'END',
+          stopAfter: (event) =>
+            event.metadata.globalPosition === stopAfterPosition,
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        try {
+          const consumerPromise = consumer.start();
+
+          const appendResult = await eventStore.appendToStream(
+            streamName,
+            events,
+          );
+          stopAfterPosition = appendResult.lastEventGlobalPosition;
+
+          await consumerPromise;
+
+          assertThatArray(result).containsOnlyElementsMatching(events);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
+    void it(
+      'handles events on empty store when startFrom END is specified',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+
+        const result: GuestStayEvent[] = [];
+        let stopAfterPosition: bigint | undefined = undefined;
+
+        // When
+        const consumer = postgreSQLEventStoreConsumer({
+          connectionString,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'END',
+          stopAfter: (event) =>
+            event.metadata.globalPosition === stopAfterPosition,
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        try {
+          const consumerPromise = consumer.start();
+
+          const appendResult = await eventStore.appendToStream(
+            streamName,
+            events,
+          );
+          stopAfterPosition = appendResult.lastEventGlobalPosition;
+
+          await consumerPromise;
+
+          assertThatArray(result).containsElementsMatching(events);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
+    void it(
+      'restarted END consumer resumes from last checkpoint',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const thirdGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const firstBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        let result: GuestStayEvent[] = [];
+        let stopAfterPosition: bigint | undefined = undefined;
+
+        const consumer = postgreSQLEventStoreConsumer({
+          connectionString,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'END',
+          stopAfter: (event) =>
+            event.metadata.globalPosition === stopAfterPosition,
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        // Run 1: process first batch appended after END start
+        const firstConsumerPromise = consumer.start();
+        const firstAppend = await eventStore.appendToStream(
+          streamName,
+          firstBatch,
+        );
+        stopAfterPosition = firstAppend.lastEventGlobalPosition;
+        await firstConsumerPromise;
+        await consumer.stop();
+
+        // Run 2: restart and process second batch only
+        result = [];
+        stopAfterPosition = undefined;
+
+        const secondBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+        ];
+
+        try {
+          const secondConsumerPromise = consumer.start();
+
+          const secondAppend = await eventStore.appendToStream(
+            streamName,
+            secondBatch,
+          );
+          stopAfterPosition = secondAppend.lastEventGlobalPosition;
+
+          await secondConsumerPromise;
+
+          assertThatArray(result).containsOnlyElementsMatching(secondBatch);
+        } finally {
+          await consumer.close();
         }
       },
     );

@@ -199,6 +199,9 @@ export const postgreSQLEventStoreConsumer = <
     get isRunning() {
       return isRunning;
     },
+    get started(): Promise<void> {
+      throw new EmmettError('`started` is not yet implemented');
+    },
     processors,
     init,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(

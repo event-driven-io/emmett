@@ -119,6 +119,42 @@ void describe('EventStoreDB event store consumer', () => {
       );
     });
 
+    void it('started resolves after successful start', async () => {
+      const startedConsumer = eventStoreDBEventStoreConsumer({
+        connectionString,
+        processors: [dummyProcessor],
+      });
+      try {
+        void startedConsumer.start();
+        await startedConsumer.started;
+        assertTrue(startedConsumer.isRunning);
+      } finally {
+        await startedConsumer.stop();
+      }
+    });
+
+    void it('started rejects if there are no processors', async () => {
+      const consumerWithoutProcessors = eventStoreDBEventStoreConsumer({
+        connectionString,
+        processors: [],
+      });
+      try {
+        try {
+          consumerWithoutProcessors.start().catch(() => {});
+        } catch {
+          // start() may throw synchronously on validation failure
+        }
+        await assertThrowsAsync<EmmettError>(
+          () => consumerWithoutProcessors.started,
+          (error) =>
+            error.message ===
+            'Cannot start consumer without at least a single processor',
+        );
+      } finally {
+        await consumerWithoutProcessors.stop();
+      }
+    });
+
     void it(`stopping not started consumer doesn't fail`, async () => {
       await consumer.stop();
 
