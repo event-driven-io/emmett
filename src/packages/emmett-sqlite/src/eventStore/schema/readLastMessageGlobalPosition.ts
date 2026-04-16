@@ -20,7 +20,7 @@ export const readLastMessageGlobalPosition = async (
          SELECT global_position
          FROM ${identifier(messagesTable.name)}
          WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE
-         ORDER BY global_position
+         ORDER BY global_position DESC
          LIMIT 1`,
     ),
   );
