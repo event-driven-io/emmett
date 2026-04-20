@@ -3,6 +3,7 @@ import {
   EmmettError,
   JSONSerializer,
   type AnyMessage,
+  type AsyncAwaiter,
   type AsyncRetryOptions,
   type BatchRecordedMessageHandlerWithoutContext,
   type CurrentMessageProcessorPosition,
@@ -79,6 +80,7 @@ export type MongoDBSubscriptionStartFrom = CurrentMessageProcessorPosition;
 export type MongoDBSubscriptionStartOptions = {
   startFrom: MongoDBSubscriptionStartFrom;
   dbName?: string;
+  started?: AsyncAwaiter<void>;
 };
 
 export type MongoDBSubscription = {
@@ -417,6 +419,10 @@ export const mongoDBSubscription = <MessageType extends Message = AnyMessage>({
           client.db(options.dbName),
         )<MessageType>(options.startFrom);
 
+        subscription.once('resumeTokenChanged', () =>
+          options.started?.resolve(),
+        );
+
         processor = new SubscriptionSequentialHandler<MessageType>({
           client,
           from,
@@ -479,6 +485,7 @@ export const mongoDBSubscription = <MessageType extends Message = AnyMessage>({
               console.error(
                 `Received error: ${JSONSerializer.serialize(error)}.`,
               );
+              options.started?.reject(error);
               reject(error);
             });
           },

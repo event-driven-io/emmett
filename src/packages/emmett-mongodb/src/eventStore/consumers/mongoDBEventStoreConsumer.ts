@@ -3,10 +3,12 @@ import type {
   RecordedMessageMetadataWithoutGlobalPosition,
 } from '@event-driven-io/emmett';
 import {
+  asyncAwaiter,
   EmmettError,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
+  type AsyncAwaiter,
   type AsyncRetryOptions,
   type BatchRecordedMessageHandlerWithoutContext,
   type DefaultRecord,
@@ -103,6 +105,10 @@ export const mongoDBEventStoreConsumer = <
   let start: Promise<void>;
   let stream: MongoDBSubscription | undefined;
   let isRunning = false;
+  let isInitialized = false;
+
+  const startedAwaiter: AsyncAwaiter<void> = asyncAwaiter<void>();
+
   const client =
     'client' in options && options.client
       ? options.client
@@ -142,12 +148,22 @@ export const mongoDBEventStoreConsumer = <
         };
   };
 
+  const init = async (): Promise<void> => {
+    if (isInitialized) return;
+    for (const processor of processors) {
+      await processor.init({ client });
+    }
+    isInitialized = true;
+  };
+
   const stop = async () => {
     if (!isRunning) return;
 
+    isRunning = false;
+
     if (stream?.isRunning === true) await stream.stop();
 
-    isRunning = false;
+    await start;
   };
 
   return {
@@ -155,9 +171,7 @@ export const mongoDBEventStoreConsumer = <
     get isRunning() {
       return isRunning;
     },
-    whenStarted: (): Promise<void> => {
-      throw new EmmettError('`whenStarted` is not yet implemented');
-    },
+    whenStarted: (): Promise<void> => startedAwaiter.wait,
     processors,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       options: MongoDBProcessorOptions<MessageType>,
@@ -194,30 +208,45 @@ export const mongoDBEventStoreConsumer = <
     start: () => {
       if (isRunning) return start;
 
-      start = (async () => {
-        if (processors.length === 0)
-          return Promise.reject(
-            new EmmettError(
-              'Cannot start consumer without at least a single processor',
-            ),
-          );
+      startedAwaiter.reset();
 
-        isRunning = true;
-
-        const positions = await Promise.all(
-          processors.map((o) => o.start({ client })),
+      if (processors.length === 0) {
+        const error = new EmmettError(
+          'Cannot start consumer without at least a single processor',
         );
-        const startFrom = zipMongoDBMessageBatchPullerStartFrom(positions);
+        startedAwaiter.reject(error);
+        return Promise.reject(error);
+      }
 
-        stream = mongoDBSubscription<ConsumerMessageType>({
-          client,
-          from: startFrom,
-          eachBatch,
-        });
+      isRunning = true;
 
-        await stream.start({
-          startFrom,
-        });
+      start = (async () => {
+        try {
+          if (!isInitialized) {
+            await init();
+          }
+
+          const positions = await Promise.all(
+            processors.map((o) => o.start({ client })),
+          );
+          const startFrom = zipMongoDBMessageBatchPullerStartFrom(positions);
+
+          stream = mongoDBSubscription<ConsumerMessageType>({
+            client,
+            from: startFrom,
+            eachBatch,
+          });
+
+          await stream.start({
+            startFrom,
+            started: startedAwaiter,
+          });
+        } catch (error) {
+          startedAwaiter.reject(error);
+          throw error;
+        }
+
+        isRunning = false;
       })();
 
       return start;
