@@ -5,6 +5,7 @@ import {
   JSONSerializer,
   parseBigIntProcessorCheckpoint,
   type AnyMessage,
+  type AsyncAwaiter,
   type AsyncRetryOptions,
   type BatchRecordedMessageHandlerWithoutContext,
   type EmmettError,
@@ -61,6 +62,7 @@ export type EventStoreDBSubscriptionStartFrom =
 
 export type EventStoreDBSubscriptionStartOptions = {
   startFrom: EventStoreDBSubscriptionStartFrom;
+  started?: AsyncAwaiter<void>;
 };
 
 export type EventStoreDBSubscription = {
@@ -220,6 +222,7 @@ export const eventStoreDBSubscription = <
             )}`,
           );
           subscription = subscribe(client, from, options);
+          subscription.once('confirmation', () => options.started?.resolve());
 
           processor = new SubscriptionSequentialHandler({
             client,
@@ -273,6 +276,7 @@ export const eventStoreDBSubscription = <
                 console.error(
                   `Received error: ${JSONSerializer.serialize(error)}.`,
                 );
+                options.started?.reject(error);
                 reject(error);
               });
             },

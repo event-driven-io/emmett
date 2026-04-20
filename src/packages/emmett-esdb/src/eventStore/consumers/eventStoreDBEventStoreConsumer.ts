@@ -1,5 +1,6 @@
-import type { MessageProcessor } from '@event-driven-io/emmett';
+import type { AsyncAwaiter, MessageProcessor } from '@event-driven-io/emmett';
 import {
+  asyncAwaiter,
   EmmettError,
   inMemoryProjector,
   inMemoryReactor,
@@ -92,12 +93,16 @@ export const eventStoreDBEventStoreConsumer = <
   options: EventStoreDBEventStoreConsumerOptions<ConsumerMessageType>,
 ): EventStoreDBEventStoreConsumer<ConsumerMessageType> => {
   let isRunning = false;
+  let isInitialized = false;
   const { pulling } = options;
   const processors = options.processors ?? [];
+  let abortController: AbortController | null = null;
 
   let start: Promise<void>;
 
   let currentSubscription: EventStoreDBSubscription | undefined;
+
+  const startedAwaiter: AsyncAwaiter<void> = asyncAwaiter<void>();
 
   const client =
     'client' in options && options.client
@@ -146,14 +151,27 @@ export const eventStoreDBEventStoreConsumer = <
     resilience: options.resilience,
   }));
 
+  const stopProcessors = () => Promise.all(processors.map((p) => p.close({})));
+
+  const init = async (): Promise<void> => {
+    if (isInitialized) return;
+    for (const processor of processors) {
+      await processor.init({});
+    }
+    isInitialized = true;
+  };
+
   const stop = async () => {
     if (!isRunning) return;
     isRunning = false;
+    abortController?.abort();
     if (currentSubscription) {
       await currentSubscription.stop();
       currentSubscription = undefined;
     }
     await start;
+    abortController = null;
+    await stopProcessors();
   };
 
   return {
@@ -161,9 +179,7 @@ export const eventStoreDBEventStoreConsumer = <
     get isRunning() {
       return isRunning;
     },
-    whenStarted: (): Promise<void> => {
-      throw new EmmettError('`whenStarted` is not yet implemented');
-    },
+    whenStarted: (): Promise<void> => startedAwaiter.wait,
     processors,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       options: InMemoryReactorOptions<MessageType>,
@@ -200,21 +216,38 @@ export const eventStoreDBEventStoreConsumer = <
     start: () => {
       if (isRunning) return start;
 
-      start = (async () => {
-        if (processors.length === 0)
-          return Promise.reject(
-            new EmmettError(
-              'Cannot start consumer without at least a single processor',
-            ),
-          );
+      startedAwaiter.reset();
 
-        isRunning = true;
-
-        const startFrom = zipEventStoreDBEventStoreMessageBatchPullerStartFrom(
-          await Promise.all(processors.map((o) => o.start(client))),
+      if (processors.length === 0) {
+        const error = new EmmettError(
+          'Cannot start consumer without at least a single processor',
         );
+        startedAwaiter.reject(error);
+        throw error;
+      }
+      isRunning = true;
+      abortController = new AbortController();
 
-        return subscription.start({ startFrom });
+      start = (async () => {
+        if (!isRunning) return;
+
+        try {
+          if (!isInitialized) {
+            await init();
+          }
+
+          const startFrom =
+            zipEventStoreDBEventStoreMessageBatchPullerStartFrom(
+              await Promise.all(processors.map((o) => o.start(client))),
+            );
+
+          await subscription.start({ startFrom, started: startedAwaiter });
+        } catch (error) {
+          startedAwaiter.reject(error);
+          throw error;
+        }
+
+        isRunning = false;
       })();
 
       return start;
