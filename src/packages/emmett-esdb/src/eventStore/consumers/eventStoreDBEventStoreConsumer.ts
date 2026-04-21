@@ -151,8 +151,6 @@ export const eventStoreDBEventStoreConsumer = <
     resilience: options.resilience,
   }));
 
-  const stopProcessors = () => Promise.all(processors.map((p) => p.close({})));
-
   const init = async (): Promise<void> => {
     if (isInitialized) return;
     for (const processor of processors) {
@@ -160,6 +158,8 @@ export const eventStoreDBEventStoreConsumer = <
     }
     isInitialized = true;
   };
+
+  const stopProcessors = () => Promise.all(processors.map((p) => p.close({})));
 
   const stop = async () => {
     if (!isRunning) return;

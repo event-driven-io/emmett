@@ -208,7 +208,7 @@ void describe('restreamer', () => {
               controller.close();
               break;
             }
-            controller.enqueue(objects[i]);
+            controller.enqueue(objects[i]!);
           }
         } catch (error) {
           controller.error(error);
@@ -283,7 +283,7 @@ void describe('restreamer', () => {
         let index = 0;
         function push() {
           if (index < objects.length) {
-            controller.enqueue(objects[index++]);
+            controller.enqueue(objects[index++]!);
             setTimeout(push, 25); // Short minTimeout between enqueues for testing
           } else {
             controller.close();
@@ -853,7 +853,7 @@ void describe('restreamer', () => {
           let index = 0;
           function push() {
             if (index < objects.length) {
-              controller.enqueue(objects[index++]);
+              controller.enqueue(objects[index++]!);
               setTimeout(push, 1000); // minTimeout between enqueues
             } else {
               controller.close();
