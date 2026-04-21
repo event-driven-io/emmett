@@ -242,11 +242,10 @@ export const mongoDBEventStoreConsumer = <
             started: startedAwaiter,
           });
         } catch (error) {
+          isRunning = false;
           startedAwaiter.reject(error);
           throw error;
         }
-
-        isRunning = false;
       })();
 
       return start;

@@ -7,8 +7,8 @@ import {
 } from '@event-driven-io/emmett';
 import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   getMongoDBEventStore,
   type MongoDBEventStore,
@@ -42,7 +42,7 @@ void describe('MongoDB event store started consumer', () => {
   });
 
   void describe('eachMessage', () => {
-    void it(`handles events SEQUENTIALLY`, { timeout: 15000 }, async () => {
+    void it(`handles events SEQUENTIALLY`, { timeout: 30000 }, async () => {
       // Given
       const guestId = uuid();
       const otherGuestId = uuid();

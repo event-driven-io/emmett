@@ -19,10 +19,11 @@ export const asyncAwaiter = <T = void>(): AsyncAwaiter<T> => {
       result.resolve = res;
       result.reject = rej;
     });
-    // Prevent Node.js unhandled rejection warnings for deferred promises
-    // that may be rejected before a consumer attaches a handler.
-    // See: https://nodejs.org/api/process.html#event-unhandledrejection
-    void result.wait.catch(() => {});
+    void result.wait.catch(() => {
+      // Prevent Node.js unhandled rejection warnings for deferred promises
+      // that may be rejected before a consumer attaches a handler.
+      // See: https://nodejs.org/api/process.html#event-unhandledrejection
+    });
   })();
 
   return result;
