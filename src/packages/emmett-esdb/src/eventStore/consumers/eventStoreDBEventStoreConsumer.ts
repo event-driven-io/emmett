@@ -246,6 +246,8 @@ export const eventStoreDBEventStoreConsumer = <
           isRunning = false;
           startedAwaiter.reject(error);
           throw error;
+        } finally {
+          await stopProcessors();
         }
       })();
 
