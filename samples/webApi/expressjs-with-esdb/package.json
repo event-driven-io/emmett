@@ -5,7 +5,7 @@
   "description": "Samples WebApi using Event Sourcing using Emmett, Express.js and EventStoreDB ",
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
-    "build": "tsup",
+    "build": "tsdown",
     "build:ts": "tsc",
     "build:ts:watch": "tsc -b --watch",
     "start": "tsx ./src/index.ts",
@@ -38,10 +38,10 @@
   },
   "homepage": "https://github.com/event-driven-io/emmett#readme",
   "dependencies": {
-    "@event-driven-io/emmett": "0.42.0-beta.1",
-    "@event-driven-io/emmett-esdb": "0.42.0-beta.1",
-    "@event-driven-io/emmett-expressjs": "0.42.0-beta.1",
-    "@event-driven-io/emmett-testcontainers": "0.42.0-beta.1"
+    "@event-driven-io/emmett": "0.43.0-beta.13",
+    "@event-driven-io/emmett-esdb": "0.43.0-beta.13",
+    "@event-driven-io/emmett-expressjs": "0.43.0-beta.13",
+    "@event-driven-io/emmett-testcontainers": "0.43.0-beta.13"
   },
   "devDependencies": {
     "@types/node": "20.11.30",
@@ -55,8 +55,8 @@
     "prettier": "3.2.5",
     "tsconfig-paths": "4.2.0",
     "tsx": "4.7.1",
-    "typescript": "5.3.3",
-    "tsup": "8.0.2"
+    "typescript": "^6.0.3",
+    "tsdown": "^0.21.9"
   },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

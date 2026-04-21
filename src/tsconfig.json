@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.shared.json",
-  "include": ["docs/**/*.ts", "./tsup.config.ts"],
+  "include": ["docs/**/*.ts"],
   "exclude": ["node_modules", "tmp"],
   "files": [],
   "compilerOptions": {

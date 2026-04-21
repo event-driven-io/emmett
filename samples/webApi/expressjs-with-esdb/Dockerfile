@@ -12,7 +12,7 @@ WORKDIR /app
 COPY ./package.json ./
 COPY ./package-lock.json ./
 COPY ./tsconfig.json ./
-COPY ./tsup.config.ts ./
+COPY ./tsdown.config.ts ./
 
 # install node modules
 # use `npm ci` instead of `npm install`
