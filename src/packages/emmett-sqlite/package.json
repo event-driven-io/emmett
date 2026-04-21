@@ -93,11 +93,11 @@
   ],
   "dependencies": {
     "@event-driven-io/emmett": "0.43.0-beta.13",
-    "@event-driven-io/pongo": "0.17.0-beta.35"
+    "@event-driven-io/pongo": "0.17.0-beta.36"
   },
   "peerDependencies": {
-    "@cloudflare/workers-types": "^4.20260115.0",
-    "sqlite3": "^5.1.7"
+    "@cloudflare/workers-types": "^4.20260421.1",
+    "sqlite3": "^6.0.1"
   },
   "peerDependenciesMeta": {
     "sqlite3": {
@@ -108,9 +108,9 @@
     }
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260115.0",
-    "miniflare": "^4.20260124.0",
-    "@types/node": "^24.5.2",
-    "sqlite3": "^5.1.7"
+    "@cloudflare/workers-types": "^4.20260421.1",
+    "miniflare": "^4.20260420.0",
+    "@types/node": "^25.6.0",
+    "sqlite3": "^6.0.1"
   }
 }

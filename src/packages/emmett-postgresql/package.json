@@ -68,18 +68,18 @@
   ],
   "devDependencies": {
     "@event-driven-io/emmett-testcontainers": "0.43.0-beta.13",
-    "@testcontainers/postgresql": "^11.11.0",
-    "@types/node": "^25.0.10",
-    "@types/pg": "^8.16.0",
-    "pg": "^8.17.2"
+    "@testcontainers/postgresql": "^11.14.0",
+    "@types/node": "^25.6.0",
+    "@types/pg": "^8.20.0",
+    "pg": "^8.20.0"
   },
   "dependencies": {
     "@event-driven-io/emmett": "0.43.0-beta.13",
-    "@event-driven-io/pongo": "0.17.0-beta.35"
+    "@event-driven-io/pongo": "0.17.0-beta.36"
   },
   "peerDependencies": {
-    "@types/pg": "^8.16.0",
-    "pg": "^8.17.2"
+    "@types/pg": "^8.20.0",
+    "pg": "^8.20.0"
   },
   "peerDependenciesMeta": {
     "@types/pg": {
