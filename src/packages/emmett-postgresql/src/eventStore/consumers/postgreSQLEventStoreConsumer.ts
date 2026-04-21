@@ -281,28 +281,29 @@ export const postgreSQLEventStoreConsumer = <
           'Cannot start consumer without at least a single processor',
         );
         startedAwaiter.reject(error);
-        throw error;
+        return Promise.reject(error);
       }
 
       isRunning = true;
       abortController = new AbortController();
 
-      messagePuller = postgreSQLEventStoreMessageBatchPuller({
-        stopWhen: options.stopWhen,
-        executor: pool.execute,
-        eachBatch,
-        batchSize:
-          pulling?.batchSize ?? DefaultPostgreSQLEventStoreProcessorBatchSize,
-        pullingFrequencyInMs:
-          pulling?.pullingFrequencyInMs ??
-          DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
-        signal: abortController.signal,
-      });
-
       start = (async () => {
         if (!isRunning) return;
 
         try {
+          messagePuller = postgreSQLEventStoreMessageBatchPuller({
+            stopWhen: options.stopWhen,
+            executor: pool.execute,
+            eachBatch,
+            batchSize:
+              pulling?.batchSize ??
+              DefaultPostgreSQLEventStoreProcessorBatchSize,
+            pullingFrequencyInMs:
+              pulling?.pullingFrequencyInMs ??
+              DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
+            signal: abortController.signal,
+          });
+
           if (!isInitialized) {
             await init();
           }
@@ -328,13 +329,11 @@ export const postgreSQLEventStoreConsumer = <
             started: startedAwaiter,
           });
         } catch (error) {
+          isRunning = false;
+          await stopProcessors();
           startedAwaiter.reject(error);
           throw error;
         }
-
-        await stopProcessors();
-
-        isRunning = false;
       })();
 
       return start;

@@ -223,7 +223,7 @@ export const eventStoreDBEventStoreConsumer = <
           'Cannot start consumer without at least a single processor',
         );
         startedAwaiter.reject(error);
-        throw error;
+        return Promise.reject(error);
       }
       isRunning = true;
       abortController = new AbortController();
@@ -243,11 +243,10 @@ export const eventStoreDBEventStoreConsumer = <
 
           await subscription.start({ startFrom, started: startedAwaiter });
         } catch (error) {
+          isRunning = false;
           startedAwaiter.reject(error);
           throw error;
         }
-
-        isRunning = false;
       })();
 
       return start;
