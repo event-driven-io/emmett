@@ -156,6 +156,9 @@ export const mongoDBEventStoreConsumer = <
     isInitialized = true;
   };
 
+  const stopProcessors = () =>
+    Promise.all(processors.map((p) => p.close({ client })));
+
   const stop = async () => {
     if (!isRunning) return;
 
@@ -164,6 +167,7 @@ export const mongoDBEventStoreConsumer = <
     if (stream?.isRunning === true) await stream.stop();
 
     await start;
+    await stopProcessors();
   };
 
   return {
@@ -245,6 +249,8 @@ export const mongoDBEventStoreConsumer = <
           isRunning = false;
           startedAwaiter.reject(error);
           throw error;
+        } finally {
+          await stopProcessors();
         }
       })();
 

@@ -76,7 +76,8 @@ void describe('SQLite event store workflow processor', () => {
     );
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await eventStore.close();
     if (!fs.existsSync(fileName)) {
       return;
     }

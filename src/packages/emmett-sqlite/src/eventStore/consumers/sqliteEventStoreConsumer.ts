@@ -353,9 +353,10 @@ export const sqliteEventStoreConsumer = <
           });
         } catch (error) {
           isRunning = false;
-          await stopProcessors();
           startedAwaiter.reject(error);
           throw error;
+        } finally {
+          await stopProcessors();
         }
       })();
 
