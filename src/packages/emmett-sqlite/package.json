@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Emmett - SQLite - Event Sourcing development made simple",
   "scripts": {
-    "build": "tsup",
+    "build": "tsdown",
     "build:ts": "tsc",
     "build:ts:watch": "tsc -b --watch",
     "test": "run-s test:unit test:int test:e2e",
