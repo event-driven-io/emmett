@@ -8,8 +8,8 @@ import {
 } from '@event-driven-io/emmett';
 import type { Application } from 'express';
 import { randomUUID } from 'node:crypto';
-import { beforeEach, describe, it } from 'vitest';
 import request from 'supertest';
+import { beforeEach, describe, it } from 'vitest';
 import { getApplication } from '../..';
 import { HeaderNames, toWeakETag } from '../../etag';
 import {
@@ -120,7 +120,7 @@ void describe('Application logic with optimistic concurrency', () => {
     // 6. Try Cancel Cart
     ///////////////////////////////////////////////////
 
-    response = await request(app)
+    await request(app)
       .delete(`/clients/${clientId}/shopping-carts/${shoppingCartId}`)
       .set(HeaderNames.IF_MATCH, toWeakETag(currentRevision))
       .expect((response) => {

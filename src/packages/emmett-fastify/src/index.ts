@@ -1,6 +1,6 @@
-import Compress, { type FastifyCompressOptions } from '@fastify/compress';
-import Etag, { type FastifyEtagOptions } from '@fastify/etag';
-import Form, { type FastifyFormbodyOptions } from '@fastify/formbody';
+import Compress from '@fastify/compress';
+import Etag from '@fastify/etag';
+import Form from '@fastify/formbody';
 import closeWithGrace from 'close-with-grace';
 import Fastify, {
   type FastifyInstance,

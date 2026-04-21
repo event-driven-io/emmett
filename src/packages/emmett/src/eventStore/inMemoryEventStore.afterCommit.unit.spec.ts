@@ -1,5 +1,5 @@
-import { describe, it } from 'vitest';
 import { v7 as uuid } from 'uuid';
+import { describe, it } from 'vitest';
 import { assertEqual } from '../testing';
 import type { Event } from '../typing';
 import {
@@ -21,16 +21,16 @@ void describe('InMemoryEventStore onAfterCommit', () => {
       },
     });
     const streamName = `test:${uuid()}`;
-    let counter = 0;
+
     const events: TestEvent[] = [
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 1 },
         metadata: { some: true },
       },
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 2 },
         metadata: { some: false },
       },
     ];
@@ -53,28 +53,28 @@ void describe('InMemoryEventStore onAfterCommit', () => {
       },
     });
     const streamName = `test:${uuid()}`;
-    let counter = 0;
+
     const events: TestEvent[] = [
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 1 },
         metadata: { some: true },
       },
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 2 },
         metadata: { some: false },
       },
     ];
     const nextEvents: TestEvent[] = [
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 3 },
         metadata: { some: true },
       },
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 4 },
         metadata: { some: false },
       },
     ];
@@ -100,16 +100,16 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     });
 
     const streamName = `test:${uuid()}`;
-    let counter = 0;
+
     const events: TestEvent[] = [
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 1 },
         metadata: { some: true },
       },
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 2 },
         metadata: { some: false },
       },
     ];

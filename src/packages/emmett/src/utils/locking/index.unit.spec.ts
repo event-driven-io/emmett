@@ -10,7 +10,7 @@ void describe('InProcessLock', () => {
   });
 
   void it('should acquire and release a lock', async () => {
-    let locked = false;
+    let locked: boolean;
 
     await lock.acquire({ lockId: '1' });
     try {
@@ -93,8 +93,8 @@ void describe('InProcessLock', () => {
   });
 
   void it('should release the lock even if an exception is thrown', async () => {
-    let exceptionThrown = false;
-    let lockReleased = false;
+    let exceptionThrown: boolean;
+    let lockReleased: boolean;
 
     try {
       await lock.acquire({ lockId: '1' });

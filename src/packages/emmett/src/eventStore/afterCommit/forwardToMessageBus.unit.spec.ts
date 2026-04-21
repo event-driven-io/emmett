@@ -1,5 +1,5 @@
-import { describe, it } from 'vitest';
 import { v7 as uuid } from 'uuid';
+import { describe, it } from 'vitest';
 import { getInMemoryMessageBus } from '../../messageBus';
 import { bigIntProcessorCheckpoint } from '../../processors';
 import { assertDeepEqual, assertEqual } from '../../testing';
@@ -31,12 +31,12 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     >[] = [];
 
     const streamName = `test:${uuid()}`;
-    let counter = 0;
+
     const events: TestReadEvent[] = [
       {
         kind: 'Event',
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 1 },
         metadata: {
           some: true,
           messageId: uuid(),
@@ -49,7 +49,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
       {
         kind: 'Event',
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 2 },
         metadata: {
           some: false,
           messageId: uuid(),
@@ -81,12 +81,12 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     const appendedEvents: InMemoryReadEvent[] = [];
 
     const streamName = `test:${uuid()}`;
-    let counter = 0;
+
     const events: TestReadEvent[] = [
       {
         kind: 'Event',
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 1 },
         metadata: {
           some: true,
           messageId: uuid(),
@@ -99,7 +99,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
       {
         kind: 'Event',
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 2 },
         metadata: {
           some: false,
           messageId: uuid(),
@@ -114,7 +114,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
       {
         kind: 'Event',
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 3 },
         metadata: {
           some: true,
           messageId: uuid(),
@@ -127,7 +127,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
       {
         kind: 'Event',
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 4 },
         metadata: {
           some: false,
           messageId: uuid(),
@@ -161,12 +161,12 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     const appendedEvents: InMemoryReadEvent[] = [];
 
     const streamName = `test:${uuid()}`;
-    let counter = 0;
+
     const events: TestReadEvent[] = [
       {
         kind: 'Event',
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 1 },
         metadata: {
           some: true,
           messageId: uuid(),
@@ -179,7 +179,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
       {
         kind: 'Event',
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 2 },
         metadata: {
           some: false,
           messageId: uuid(),
