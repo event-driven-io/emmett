@@ -1,13 +1,13 @@
 import { assertEqual, type Event } from '@event-driven-io/emmett';
+import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient } from 'mongodb';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v7 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   getMongoDBEventStore,
   type MongoDBReadEvent,
 } from './mongoDBEventStore';
-import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 type TestEvent = Event<'test', { counter: number }, { some: boolean }>;
 
@@ -45,16 +45,16 @@ void describe('MongoDBEventStore onAfterCommit', () => {
       },
     });
     const streamName = `test:${uuid()}`;
-    let counter = 0;
+
     const events: TestEvent[] = [
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 1 },
         metadata: { some: true },
       },
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 2 },
         metadata: { some: false },
       },
     ];
@@ -78,28 +78,28 @@ void describe('MongoDBEventStore onAfterCommit', () => {
       },
     });
     const streamName = `test:${uuid()}`;
-    let counter = 0;
+
     const events: TestEvent[] = [
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 1 },
         metadata: { some: true },
       },
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 2 },
         metadata: { some: false },
       },
     ];
     const nextEvents: TestEvent[] = [
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 3 },
         metadata: { some: true },
       },
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 4 },
         metadata: { some: false },
       },
     ];
@@ -126,16 +126,16 @@ void describe('MongoDBEventStore onAfterCommit', () => {
     });
 
     const streamName = `test:${uuid()}`;
-    let counter = 0;
+
     const events: TestEvent[] = [
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 1 },
         metadata: { some: true },
       },
       {
         type: 'test',
-        data: { counter: ++counter },
+        data: { counter: 2 },
         metadata: { some: false },
       },
     ];

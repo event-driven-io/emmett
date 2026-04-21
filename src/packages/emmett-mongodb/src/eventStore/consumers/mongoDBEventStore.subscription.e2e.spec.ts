@@ -21,11 +21,7 @@ import {
   type EventStream,
   type MongoDBEventStore,
 } from '..';
-import type {
-  PricedProductItem,
-  ProductItemAdded,
-  ShoppingCartEvent,
-} from '../../testing';
+import type { ProductItemAdded, ShoppingCartEvent } from '../../testing';
 import { CancellationPromise } from './CancellablePromise';
 import {
   mongoDBEventStoreConsumer,

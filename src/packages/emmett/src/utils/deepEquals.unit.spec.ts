@@ -123,9 +123,9 @@ void describe('deepEquals', () => {
 
     void it('returns false when comparing different types', () => {
       assertFalse(deepEquals([], '' as unknown as unknown[]));
-      assertFalse(deepEquals({}, ''));
+      assertFalse(deepEquals({} as unknown as string, ''));
       assertFalse(deepEquals([], 0 as unknown as unknown[]));
-      assertFalse(deepEquals({}, 0));
+      assertFalse(deepEquals({} as unknown as number, 0));
       assertFalse(deepEquals([1], '1' as unknown as number[]));
       assertFalse(deepEquals({ value: 1 }, '{"value":1}' as unknown as object));
     });
@@ -898,7 +898,7 @@ void describe('deepEquals', () => {
       assertFalse(deepEquals(null, false));
       assertFalse(deepEquals(undefined, ''));
       assertFalse(deepEquals(undefined, 0));
-      assertFalse(deepEquals('', 0));
+      assertFalse(deepEquals('' as unknown as number, 0));
       assertFalse(deepEquals('', false as unknown as string));
       assertFalse(deepEquals(0, false as unknown as number));
     });

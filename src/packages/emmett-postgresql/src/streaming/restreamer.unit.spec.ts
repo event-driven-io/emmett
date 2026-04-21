@@ -11,8 +11,6 @@ import { DefaultDecoder } from './decoders/composite';
 import { JsonDecoder } from './decoders/json';
 import { restream } from './restream';
 
-type TransformedObject = DefaultRecord & { transformed: true };
-
 // Helper function to create a mock source stream for JSON data with chunk splitting
 const MAX_CHUNK_SIZE = 1024; // Define a maximum chunk size for splitting
 
@@ -466,7 +464,7 @@ void describe('restreamer', () => {
 
       const restreamer = restream(
         () => sourceStream,
-        (input: DefaultRecord) => ({ ...input, transformed: true }),
+        (input: typeof largeData) => ({ ...input, transformed: true }),
         {
           retries: 3,
           minTimeout: 25,
