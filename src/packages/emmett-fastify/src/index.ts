@@ -16,9 +16,9 @@ type Plugin = {
 };
 
 const defaultPlugins: Plugin[] = [
-  { plugin: Etag, options: {} as FastifyEtagOptions },
-  { plugin: Compress, options: { global: false } as FastifyCompressOptions },
-  { plugin: Form, options: {} as FastifyFormbodyOptions },
+  { plugin: Etag, options: {} },
+  { plugin: Compress, options: { global: false } },
+  { plugin: Form, options: {} },
 ];
 
 export interface ApplicationOptions {

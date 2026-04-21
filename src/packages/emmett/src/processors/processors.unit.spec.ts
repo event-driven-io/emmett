@@ -209,7 +209,7 @@ void describe('Processors', () => {
         eachMessage: () => Promise.resolve(),
         hooks: {
           onClose: (context) => {
-            receivedContext = context as Record<string, unknown>;
+            receivedContext = context;
             return Promise.resolve();
           },
         },

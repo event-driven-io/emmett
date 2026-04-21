@@ -123,9 +123,9 @@ void describe('deepEquals', () => {
 
     void it('returns false when comparing different types', () => {
       assertFalse(deepEquals([], '' as unknown as unknown[]));
-      assertFalse(deepEquals({}, '' as unknown as object));
+      assertFalse(deepEquals({}, ''));
       assertFalse(deepEquals([], 0 as unknown as unknown[]));
-      assertFalse(deepEquals({}, 0 as unknown as object));
+      assertFalse(deepEquals({}, 0));
       assertFalse(deepEquals([1], '1' as unknown as number[]));
       assertFalse(deepEquals({ value: 1 }, '{"value":1}' as unknown as object));
     });
@@ -898,7 +898,7 @@ void describe('deepEquals', () => {
       assertFalse(deepEquals(null, false));
       assertFalse(deepEquals(undefined, ''));
       assertFalse(deepEquals(undefined, 0));
-      assertFalse(deepEquals('', 0 as unknown));
+      assertFalse(deepEquals('', 0));
       assertFalse(deepEquals('', false as unknown as string));
       assertFalse(deepEquals(0, false as unknown as number));
     });
@@ -1175,8 +1175,8 @@ void describe('property-based testing', () => {
     const values = [0, false, '', [], {}, new Date()];
 
     values.forEach((value) => {
-      assertFalse(deepEquals(value, null as unknown));
-      assertFalse(deepEquals(null as unknown, value));
+      assertFalse(deepEquals(value, null));
+      assertFalse(deepEquals(null, value));
       assertFalse(deepEquals(value, undefined as unknown));
       assertFalse(deepEquals(undefined as unknown, value));
     });

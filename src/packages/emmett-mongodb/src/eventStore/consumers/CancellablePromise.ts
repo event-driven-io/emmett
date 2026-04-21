@@ -51,7 +51,7 @@ export class CancellationPromise<T = unknown> extends Promise<T> {
 
   static resolved<R = unknown>(value?: R) {
     const promise = new CancellationPromise<R>();
-    promise.resolve(value as R);
+    promise.resolve(value);
     return promise;
   }
 

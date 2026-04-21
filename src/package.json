@@ -87,6 +87,7 @@
   ],
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260421.1",
+    "@eslint/js": "^10.0.1",
     "@faker-js/faker": "^10.4.0",
     "@types/node": "^25.6.0",
     "@typescript-eslint/eslint-plugin": "^8.59.0",
@@ -95,6 +96,7 @@
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
+    "globals": "^17.5.0",
     "miniflare": "^4.20260420.0",
     "npm-run-all2": "^8.0.4",
     "playwright": "^1.59.1",

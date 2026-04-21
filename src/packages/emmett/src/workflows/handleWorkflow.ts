@@ -112,7 +112,7 @@ const tagOutputMessage = <Output extends AnyEvent | AnyCommand>(
       ...existingMetadata,
       action,
     },
-  } as Output;
+  };
 };
 
 const createWrappedInitialState = <State>(initialState: () => State) => {
