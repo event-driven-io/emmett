@@ -60,12 +60,11 @@ void describe('MongoDBEventStore subscription', () => {
   const shoppingCartId = uuid();
   const streamType = 'shopping_cart';
   const streamName = toStreamName(streamType, shoppingCartId);
-  const productItem = (productId: string) =>
-    ({
-      productId,
-      quantity: 10,
-      price: 3,
-    }) as PricedProductItem;
+  const productItem = (productId: string) => ({
+    productId,
+    quantity: 10,
+    price: 3,
+  });
 
   beforeAll(async () => {
     mongodb = await new MongoDBContainer('mongo:8.0.10').start();

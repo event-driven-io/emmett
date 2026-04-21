@@ -23,11 +23,11 @@ export const enum ETagErrors {
 }
 
 export const isWeakETag = (etag: ETag): etag is WeakETag => {
-  return WeakETagRegex.test(etag as string);
+  return WeakETagRegex.test(etag);
 };
 
 export const getWeakETagValue = (etag: ETag): string => {
-  const result = WeakETagRegex.exec(etag as string);
+  const result = WeakETagRegex.exec(etag);
   if (result === null || result.length === 0) {
     throw new EmmettError({
       errorCode: EmmettError.Codes.ConcurrencyError,
@@ -68,13 +68,11 @@ export const getETagFromIfNotMatch = (request: Request): ETag => {
 };
 
 export const setETag = (response: Response, etag: ETag): void => {
-  response.setHeader(HeaderNames.ETag, etag as string);
+  response.setHeader(HeaderNames.ETag, etag);
 };
 
 export const getETagValueFromIfMatch = (request: Request): string => {
   const eTagValue: ETag = getETagFromIfMatch(request);
 
-  return isWeakETag(eTagValue)
-    ? getWeakETagValue(eTagValue)
-    : (eTagValue as string);
+  return isWeakETag(eTagValue) ? getWeakETagValue(eTagValue) : eTagValue;
 };

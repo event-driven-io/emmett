@@ -93,5 +93,5 @@ export const WrapEventStore = <Store extends EventStore>(
     // },
   };
 
-  return wrapped as EventStoreWrapper<Store>;
+  return wrapped;
 };

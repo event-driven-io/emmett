@@ -535,8 +535,8 @@ void describe('Workflow Processor', () => {
 
       await processor.start({ connection: { messageStore: eventStore } });
       // TODO: Fix this when combined message metadata doesn't return `now` and other metadata
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
-      await processor.handle([outputMessage as any], {
+
+      await processor.handle([outputMessage], {
         connection: { messageStore: eventStore },
       });
 
@@ -666,8 +666,8 @@ void describe('Workflow Processor', () => {
 
       await processor.start({ connection: { messageStore: eventStore } });
       // TODO: Fix this when combined message metadata doesn't return `now` and other metadata
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
-      await processor.handle([outputMessage as any], {
+
+      await processor.handle([outputMessage], {
         connection: { messageStore: eventStore },
       });
 

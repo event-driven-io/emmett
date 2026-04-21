@@ -89,8 +89,7 @@ void describe('restreamer', () => {
 
     const restreamer = restream(
       () => createChunkedJsonSourceStream(objects),
-      (input: DefaultRecord) =>
-        ({ ...input, transformed: true }) as TransformedObject,
+      (input: DefaultRecord) => ({ ...input, transformed: true }),
       { retries: 3, minTimeout: 25 },
     );
 
@@ -109,8 +108,7 @@ void describe('restreamer', () => {
 
     const restreamer = restream(
       () => createChunkedBinarySourceStream(objects),
-      (input: DefaultRecord) =>
-        ({ ...input, transformed: true }) as TransformedObject,
+      (input: DefaultRecord) => ({ ...input, transformed: true }),
       { retries: 3, minTimeout: 25 },
     );
 
@@ -129,8 +127,7 @@ void describe('restreamer', () => {
 
     const restreamer = restream(
       () => createObjectModeSourceStream(objects),
-      (input: DefaultRecord) =>
-        ({ ...input, transformed: true }) as TransformedObject,
+      (input: DefaultRecord) => ({ ...input, transformed: true }),
       { retries: 3, minTimeout: 25 }, // Reduced minTimeout for faster testing
     );
     const results = await collect(restreamer);
@@ -145,8 +142,7 @@ void describe('restreamer', () => {
 
     const restreamer = restream(
       () => createChunkedJsonSourceStream(objects),
-      (input: DefaultRecord) =>
-        ({ ...input, transformed: true }) as TransformedObject,
+      (input: DefaultRecord) => ({ ...input, transformed: true }),
       { retries: 3, minTimeout: 25 },
     );
     const results = await collect(restreamer);
@@ -179,8 +175,7 @@ void describe('restreamer', () => {
 
     const restreamer = restream(
       sourceStreamFactory, // Factory function to create a new stream for each attempt
-      (input: DefaultRecord) =>
-        ({ ...input, transformed: true }) as TransformedObject,
+      (input: DefaultRecord) => ({ ...input, transformed: true }),
       { retries: 1, minTimeout: 25 }, // Retry options: minimal minTimeout for testing
     );
 
@@ -218,8 +213,7 @@ void describe('restreamer', () => {
 
     const restreamer = restream(
       () => sourceStream,
-      (input: DefaultRecord) =>
-        ({ ...input, transformed: true }) as TransformedObject,
+      (input: DefaultRecord) => ({ ...input, transformed: true }),
       { retries: 3, minTimeout: 25 }, // Retry options
     );
     const results = await collect(restreamer);
@@ -260,8 +254,7 @@ void describe('restreamer', () => {
 
     const restreamer = restream(
       sourceStreamFactory,
-      (input: DefaultRecord) =>
-        ({ ...input, transformed: true }) as TransformedObject,
+      (input: DefaultRecord) => ({ ...input, transformed: true }),
       { retries: 5, minTimeout: 25 }, // Retry options to handle transient errors
     );
     const results = await collect(restreamer);
@@ -295,8 +288,7 @@ void describe('restreamer', () => {
 
     const restreamer = restream(
       () => sourceStream,
-      (input: DefaultRecord) =>
-        ({ ...input, transformed: true }) as TransformedObject,
+      (input: DefaultRecord) => ({ ...input, transformed: true }),
       { retries: 3, minTimeout: 25 }, // Retry options
     );
     const results = await collect(restreamer);
@@ -328,8 +320,7 @@ void describe('restreamer', () => {
 
     const restreamer = restream(
       () => sourceStream,
-      (input: DefaultRecord) =>
-        ({ ...input, transformed: true }) as TransformedObject,
+      (input: DefaultRecord) => ({ ...input, transformed: true }),
       { retries: 3, minTimeout: 25 }, // Retry options
     );
     const results = await collect(restreamer);
@@ -361,8 +352,7 @@ void describe('restreamer', () => {
 
     const restreamer = restream(
       () => sourceStream,
-      (input: DefaultRecord) =>
-        ({ ...input, transformed: true }) as TransformedObject,
+      (input: DefaultRecord) => ({ ...input, transformed: true }),
       { retries: 3, minTimeout: 25 }, // Retry options
     );
     const results = await collect(restreamer);
@@ -394,8 +384,7 @@ void describe('restreamer', () => {
 
     const restreamer = restream(
       () => sourceStream,
-      (input: DefaultRecord) =>
-        ({ ...input, transformed: true }) as TransformedObject,
+      (input: DefaultRecord) => ({ ...input, transformed: true }),
       { retries: 3, minTimeout: 25 }, // Retry options
     );
     const results = await collect(restreamer);
@@ -427,8 +416,7 @@ void describe('restreamer', () => {
 
     const restreamer = restream(
       () => sourceStream,
-      (input: DefaultRecord) =>
-        ({ ...input, transformed: true }) as TransformedObject,
+      (input: DefaultRecord) => ({ ...input, transformed: true }),
       { retries: 3, minTimeout: 25 }, // Retry options
     );
     const results = await collect(restreamer);
@@ -460,8 +448,7 @@ void describe('restreamer', () => {
 
     const restreamer = restream(
       () => sourceStream,
-      (input: DefaultRecord) =>
-        ({ ...input, transformed: true }) as TransformedObject,
+      (input: DefaultRecord) => ({ ...input, transformed: true }),
       { retries: 3, minTimeout: 25 }, // Retry options
     );
     const results = await collect(restreamer);
@@ -479,8 +466,7 @@ void describe('restreamer', () => {
 
       const restreamer = restream(
         () => sourceStream,
-        (input: DefaultRecord) =>
-          ({ ...input, transformed: true }) as TransformedObject,
+        (input: DefaultRecord) => ({ ...input, transformed: true }),
         {
           retries: 3,
           minTimeout: 25,
@@ -509,8 +495,7 @@ void describe('restreamer', () => {
 
       const restreamer = restream(
         () => sourceStream,
-        (input: DefaultRecord) =>
-          ({ ...input, transformed: true }) as TransformedObject,
+        (input: DefaultRecord) => ({ ...input, transformed: true }),
         {
           retries: 3,
           minTimeout: 25,
@@ -607,8 +592,7 @@ void describe('restreamer', () => {
 
       const restreamer = restream(
         sourceStreamFactory,
-        (input: DefaultRecord) =>
-          ({ ...input, transformed: true }) as TransformedObject,
+        (input: DefaultRecord) => ({ ...input, transformed: true }),
         { retries: 5, minTimeout: 25 }, // More retries to handle frequent errors
       );
       const results = await collect(restreamer);
@@ -641,8 +625,7 @@ void describe('restreamer', () => {
 
       const restreamer = restream(
         () => sourceStream,
-        (input: DefaultRecord) =>
-          ({ ...input, transformed: true }) as TransformedObject,
+        (input: DefaultRecord) => ({ ...input, transformed: true }),
         {
           retries: 3,
           minTimeout: 25,
@@ -668,8 +651,7 @@ void describe('restreamer', () => {
 
       const restreamer = restream(
         () => sourceStream,
-        (input: DefaultRecord) =>
-          ({ ...input, transformed: true }) as TransformedObject,
+        (input: DefaultRecord) => ({ ...input, transformed: true }),
         {
           retries: 1,
           minTimeout: 25,
@@ -707,8 +689,7 @@ void describe('restreamer', () => {
 
       const restreamer = restream(
         () => sourceStream,
-        (input: DefaultRecord) =>
-          ({ ...input, transformed: true }) as TransformedObject,
+        (input: DefaultRecord) => ({ ...input, transformed: true }),
         { retries: 3, minTimeout: 25 },
       );
       const results = await collect(restreamer);
@@ -729,8 +710,7 @@ void describe('restreamer', () => {
 
       const restreamer = restream(
         () => createChunkedJsonSourceStream(objects),
-        (input: DefaultRecord) =>
-          ({ ...input, transformed: true }) as TransformedObject,
+        (input: DefaultRecord) => ({ ...input, transformed: true }),
         { retries: 3, minTimeout: 25 },
       );
       const results = await collect(restreamer);
@@ -748,8 +728,7 @@ void describe('restreamer', () => {
 
       const restreamer = restream(
         () => createChunkedJsonSourceStream(objects),
-        (input: DefaultRecord) =>
-          ({ ...input, transformed: true }) as TransformedObject,
+        (input: DefaultRecord) => ({ ...input, transformed: true }),
         { retries: 3, minTimeout: 25 },
       );
       const results = await collect(restreamer);
@@ -768,8 +747,7 @@ void describe('restreamer', () => {
 
       const restreamer = restream(
         () => createChunkedJsonSourceStream([largeObject]),
-        (input: DefaultRecord) =>
-          ({ ...input, transformed: true }) as TransformedObject,
+        (input: DefaultRecord) => ({ ...input, transformed: true }),
         { retries: 3, minTimeout: 25 },
       );
       const results = await collect(restreamer);
@@ -800,8 +778,7 @@ void describe('restreamer', () => {
 
       const restreamer = restream(
         () => sparseSourceStream,
-        (input: DefaultRecord) =>
-          ({ ...input, transformed: true }) as TransformedObject,
+        (input: DefaultRecord) => ({ ...input, transformed: true }),
         { retries: 3, minTimeout: 25 },
       );
       const results = await collect(restreamer);
@@ -831,8 +808,7 @@ void describe('restreamer', () => {
 
       const restreamer = restream(
         () => sourceStream,
-        (input: DefaultRecord) =>
-          ({ ...input, transformed: true }) as TransformedObject,
+        (input: DefaultRecord) => ({ ...input, transformed: true }),
         { retries: 3, minTimeout: 25 },
       );
       const results = await collect(restreamer);
@@ -865,8 +841,7 @@ void describe('restreamer', () => {
 
       const restreamer = restream(
         () => sourceStream,
-        (input: DefaultRecord) =>
-          ({ ...input, transformed: true }) as TransformedObject,
+        (input: DefaultRecord) => ({ ...input, transformed: true }),
         { retries: 3, minTimeout: 25 },
       );
       const results = await collect(restreamer);

@@ -22,6 +22,6 @@ export class ObjectDecoder<Decoded> implements Decoder<Decoded, Decoded> {
 
     const data = this.buffer;
     this.clearBuffer();
-    return data as Decoded;
+    return data;
   }
 }
