@@ -1,17 +1,17 @@
+import { sqlite3Pool } from '@event-driven-io/dumbo/sqlite3';
 import { getInMemoryMessageBus, projections } from '@event-driven-io/emmett';
 import { getApplication, startAPI } from '@event-driven-io/emmett-expressjs';
-import {
-  getSQLiteEventStore,
-  SQLiteConnectionPool,
-} from '@event-driven-io/emmett-sqlite';
+import { getSQLiteEventStore } from '@event-driven-io/emmett-sqlite';
+import { sqlite3EventStoreDriver } from '@event-driven-io/emmett-sqlite/sqlite3';
 import type { Application } from 'express';
 import shoppingCarts, { type ShoppingCartConfirmed } from './shoppingCarts';
 
 const fileName = process.env.SQLITE_FILENAME ?? 'file:./emmett_event_store.db';
 
-const pool = SQLiteConnectionPool({ fileName });
+const pool = sqlite3Pool({ fileName });
 
 const eventStore = getSQLiteEventStore({
+  driver: sqlite3EventStoreDriver,
   fileName,
   projections: projections.inline(shoppingCarts.readModel.projections),
   pool,

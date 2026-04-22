@@ -1,5 +1,6 @@
 import { assertDeepEqual } from '@event-driven-io/emmett';
 import { SQLiteProjectionSpec } from '@event-driven-io/emmett-sqlite';
+import { sqlite3EventStoreDriver } from '@event-driven-io/emmett-sqlite/sqlite3';
 import { beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import { getShortInfoById, shoppingCartShortInfoProjection } from '.';
@@ -17,6 +18,8 @@ void describe('Shopping Cart Short Info Projection', () => {
     shoppingCartId = getShoppingCartId(clientId);
 
     given = SQLiteProjectionSpec.for({
+      driver: sqlite3EventStoreDriver,
+      fileName: ':memory:',
       projection: shoppingCartShortInfoProjection,
     });
   });
@@ -39,7 +42,10 @@ void describe('Shopping Cart Short Info Projection', () => {
         },
       ])
       .then(async ({ connection }) => {
-        const result = await getShortInfoById(connection, shoppingCartId);
+        const result = await getShortInfoById(
+          connection.execute,
+          shoppingCartId,
+        );
         assertDeepEqual(result, {
           id: shoppingCartId,
           productItemsCount: 100,

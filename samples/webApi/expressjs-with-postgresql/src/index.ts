@@ -2,6 +2,7 @@ import { getInMemoryMessageBus, projections } from '@event-driven-io/emmett';
 import { getApplication, startAPI } from '@event-driven-io/emmett-expressjs';
 import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
 import { pongoClient } from '@event-driven-io/pongo';
+import { pgDriver } from '@event-driven-io/pongo/pg';
 import type { Application } from 'express';
 import shoppingCarts, { type ShoppingCartConfirmed } from './shoppingCarts';
 
@@ -16,7 +17,7 @@ const eventStore = getPostgreSQLEventStore(connectionString, {
 
 await eventStore.schema.migrate();
 
-const readStore = pongoClient(connectionString);
+const readStore = pongoClient({ connectionString, driver: pgDriver });
 
 const inMemoryMessageBus = getInMemoryMessageBus();
 

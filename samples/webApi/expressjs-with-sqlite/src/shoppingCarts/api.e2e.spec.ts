@@ -1,3 +1,4 @@
+import { sqlite3Pool, type Sqlite3Pool } from '@event-driven-io/dumbo/sqlite3';
 import {
   getInMemoryMessageBus,
   projections,
@@ -11,9 +12,9 @@ import {
 } from '@event-driven-io/emmett-expressjs';
 import {
   getSQLiteEventStore,
-  SQLiteConnectionPool,
   type SQLiteEventStore,
 } from '@event-driven-io/emmett-sqlite';
+import { sqlite3EventStoreDriver } from '@event-driven-io/emmett-sqlite/sqlite3';
 import fs from 'fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
@@ -37,15 +38,16 @@ void describe('ShoppingCart E2E', () => {
     path.dirname(fileURLToPath(import.meta.url)),
   );
   const fileName = path.resolve(testDatabasePath, 'test.db');
-  let pool: SQLiteConnectionPool;
+  let pool: Sqlite3Pool;
 
   beforeEach(async () => {
     clientId = uuid();
     shoppingCartId = getShoppingCartId(clientId);
 
-    pool = SQLiteConnectionPool({ fileName });
+    pool = sqlite3Pool({ fileName });
 
     eventStore = getSQLiteEventStore({
+      driver: sqlite3EventStoreDriver,
       fileName,
       projections: projections.inline(shoppingCarts.readModel.projections),
       schema: { autoMigration: 'None' },

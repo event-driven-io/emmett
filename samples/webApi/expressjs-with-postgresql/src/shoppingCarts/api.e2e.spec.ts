@@ -14,6 +14,7 @@ import {
   type PostgresEventStore,
 } from '@event-driven-io/emmett-postgresql';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
+import { pgDriver } from '@event-driven-io/pongo/pg';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -42,7 +43,7 @@ void describe('ShoppingCart E2E', () => {
     eventStore = getPostgreSQLEventStore(connectionString, {
       projections: projections.inline(shoppingCarts.projections),
     });
-    readStore = pongoClient(connectionString);
+    readStore = pongoClient({ connectionString, driver: pgDriver });
 
     const inMemoryMessageBus = getInMemoryMessageBus();
 

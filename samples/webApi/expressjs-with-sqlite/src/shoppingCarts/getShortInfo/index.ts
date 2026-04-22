@@ -1,7 +1,5 @@
-import {
-  sqliteRawSQLProjection,
-  type SQLiteConnection,
-} from '@event-driven-io/emmett-sqlite';
+import { singleOrNull, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import { sqliteRawSQLProjection } from '@event-driven-io/emmett-sqlite';
 import type { ShoppingCartEvent } from '../shoppingCart';
 
 export type ShoppingCartShortInfo = {
@@ -12,8 +10,8 @@ export type ShoppingCartShortInfo = {
 
 export const shoppingCartShortInfoTableName = 'shoppingCartShortInfo';
 
-export const initSQL = `
-  CREATE TABLE IF NOT EXISTS ${shoppingCartShortInfoTableName}
+export const initSQL = SQL`
+  CREATE TABLE IF NOT EXISTS ${SQL.identifier(shoppingCartShortInfoTableName)}
   (
     id TEXT PRIMARY KEY,
     productItemsCount INTEGER,
@@ -22,15 +20,16 @@ export const initSQL = `
 `;
 
 export const getShortInfoById = (
-  db: SQLiteConnection,
+  db: SQLExecutor,
   shoppingCartId: string,
 ): Promise<ShoppingCartShortInfo | null> =>
-  db.querySingle(
-    `SELECT * FROM ${shoppingCartShortInfoTableName} WHERE id = ?;`,
-    [shoppingCartId],
+  singleOrNull(
+    db.query(
+      SQL`SELECT * FROM ${SQL.identifier(shoppingCartShortInfoTableName)} WHERE id = ${shoppingCartId};`,
+    ),
   );
 
-const evolve = ({ type, data: event }: ShoppingCartEvent): string => {
+const evolve = ({ type, data: event }: ShoppingCartEvent): SQL => {
   switch (type) {
     case 'ProductItemAddedToShoppingCart':
     case 'ProductItemRemovedFromShoppingCart': {
@@ -39,16 +38,16 @@ const evolve = ({ type, data: event }: ShoppingCartEvent): string => {
       const totalAmount =
         event.productItem.unitPrice * event.productItem.quantity;
 
-      const sql = `INSERT INTO 
-          ${shoppingCartShortInfoTableName} 
+      const sql = SQL`INSERT INTO 
+          ${SQL.identifier(shoppingCartShortInfoTableName)} 
           (
             id, 
             productItemsCount, 
             totalAmount
           ) VALUES (
-            "${event.shoppingCartId}", 
-            "${productItemsCount}", 
-            "${totalAmount}"
+            ${event.shoppingCartId}, 
+            ${productItemsCount}, 
+            ${totalAmount}
           )
           ON CONFLICT (id) DO UPDATE SET
             productItemsCount = productItemsCount + ${productItemsCount},
@@ -58,7 +57,7 @@ const evolve = ({ type, data: event }: ShoppingCartEvent): string => {
     }
     case 'ShoppingCartConfirmed':
     case 'ShoppingCartCancelled': {
-      const sql = `DELETE FROM ${shoppingCartShortInfoTableName} WHERE id = "${event.shoppingCartId}";`;
+      const sql = SQL`DELETE FROM ${SQL.identifier(shoppingCartShortInfoTableName)} WHERE id = ${event.shoppingCartId};`;
 
       return sql;
     }
@@ -66,6 +65,7 @@ const evolve = ({ type, data: event }: ShoppingCartEvent): string => {
 };
 
 export const shoppingCartShortInfoProjection = sqliteRawSQLProjection({
+  name: 'shoppingCartShortInfo',
   evolve,
   canHandle: [
     'ProductItemAddedToShoppingCart',
@@ -73,5 +73,5 @@ export const shoppingCartShortInfoProjection = sqliteRawSQLProjection({
     'ShoppingCartConfirmed',
     'ShoppingCartCancelled',
   ],
-  initSQL,
+  init: () => initSQL,
 });
