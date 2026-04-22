@@ -51,7 +51,7 @@ export const getDetailsById = async (
 ): Promise<ShoppingCartDetails | null> => {
   const details = await singleOrNull(
     execute.query<ShoppingCartDetails>(
-      SQL`SELECT * FROM ${shoppingCartDetailsTableName} WHERE id = ${shoppingCartId}`,
+      SQL`SELECT * FROM ${SQL.identifier(shoppingCartDetailsTableName)} WHERE id = ${shoppingCartId}`,
     ),
   );
   if (!details) {
@@ -59,7 +59,7 @@ export const getDetailsById = async (
   }
 
   const result = await execute.query<PricedProductItem>(
-    SQL`SELECT productId, quantity, unitPrice FROM ${shoppingCartDetailsProductItemsTableName} WHERE shoppingCartId = ${shoppingCartId}`,
+    SQL`SELECT productId, quantity, unitPrice FROM ${SQL.identifier(shoppingCartDetailsProductItemsTableName)} WHERE shoppingCartId = ${shoppingCartId}`,
   );
   details.openedAt = new Date(details.openedAt);
   details.confirmedAt = details.confirmedAt
@@ -87,6 +87,27 @@ const evolve = ({
         event.productItem.unitPrice * event.productItem.quantity;
 
       const sql = [
+        SQL`
+          INSERT INTO 
+          ${SQL.identifier(shoppingCartDetailsTableName)} 
+          (
+            id, 
+            clientId,
+            productItemsCount, 
+            totalAmount,
+            status,
+            openedAt
+          ) VALUES (
+            ${event.shoppingCartId}, 
+            ${clientId},
+            ${productItemsCount}, 
+            ${totalAmount},
+            'Opened',
+            ${type === 'ProductItemAddedToShoppingCart' ? event.addedAt : new Date()}
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            productItemsCount = productItemsCount + ${productItemsCount},
+            totalAmount = totalAmount + ${totalAmount};`,
         SQL`INSERT INTO 
           ${SQL.identifier(shoppingCartDetailsProductItemsTableName)} 
           (
@@ -108,27 +129,6 @@ const evolve = ({
           DELETE FROM ${SQL.identifier(shoppingCartDetailsProductItemsTableName)} WHERE 
             quantity <= 0 AND shoppingCartId = ${event.shoppingCartId} AND productId = ${event.productItem.productId};
             `,
-        SQL`
-          INSERT INTO 
-          ${SQL.identifier(shoppingCartDetailsTableName)} 
-          (
-            id, 
-            clientId,
-            productItemsCount, 
-            totalAmount,
-            status,
-            openedAt
-          ) VALUES (
-            ${event.shoppingCartId}, 
-            ${clientId},
-            ${productItemsCount}, 
-            ${totalAmount},
-            "Opened",
-            ${type === 'ProductItemAddedToShoppingCart' ? event.addedAt : new Date()}
-          )
-          ON CONFLICT (id) DO UPDATE SET
-            productItemsCount = productItemsCount + ${productItemsCount},
-            totalAmount = totalAmount + ${totalAmount};`,
       ];
 
       return sql;
