@@ -4,6 +4,7 @@ import {
   assertIsNotNull,
 } from '@event-driven-io/emmett';
 import { SQLiteProjectionSpec } from '@event-driven-io/emmett-sqlite';
+import { sqlite3EventStoreDriver } from '@event-driven-io/emmett-sqlite/sqlite3';
 import { before, beforeEach, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
 import { getDetailsById, shoppingCartDetailsProjection } from '.';
@@ -18,6 +19,8 @@ void describe('Shopping Cart Short Details Projection', () => {
 
   before(() => {
     given = SQLiteProjectionSpec.for({
+      fileName: ':memory:',
+      driver: sqlite3EventStoreDriver,
       projection: shoppingCartDetailsProjection,
     });
   });
@@ -45,7 +48,7 @@ void describe('Shopping Cart Short Details Projection', () => {
         },
       ])
       .then(async ({ connection }) => {
-        const result = await getDetailsById(connection, shoppingCartId);
+        const result = await getDetailsById(connection.execute, shoppingCartId);
         assertIsNotNull(result);
 
         const { openedAt, ...rest } = result;

@@ -1,3 +1,4 @@
+import type { Dumbo } from '@event-driven-io/dumbo';
 import {
   CommandHandler,
   assertNotEmptyString,
@@ -12,7 +13,6 @@ import {
   on,
   type WebApiSetup,
 } from '@event-driven-io/emmett-expressjs';
-import type { SQLiteConnectionPool } from '@event-driven-io/emmett-sqlite';
 import { type Request, type Router } from 'express';
 import {
   addProductItem,
@@ -35,7 +35,7 @@ export const getShoppingCartId = (clientId: string) =>
 export const shoppingCartApi =
   (
     eventStore: EventStore,
-    pool: SQLiteConnectionPool,
+    pool: Dumbo,
     eventPublisher: EventsPublisher,
     getUnitPrice: (_productId: string) => Promise<number>,
     getCurrentTime: () => Date,
@@ -161,9 +161,7 @@ export const shoppingCartApi =
           assertNotEmptyString(request.params.clientId),
         );
 
-        const result = await pool.withConnection((readStore) =>
-          getDetailsById(readStore, shoppingCartId),
-        );
+        const result = await getDetailsById(pool.execute, shoppingCartId);
 
         if (result === null) return NotFound();
 
