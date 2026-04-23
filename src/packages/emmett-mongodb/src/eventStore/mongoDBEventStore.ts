@@ -200,6 +200,9 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
   private readonly client: MongoClient;
   private readonly inlineProjections: MongoDBInlineProjectionDefinition[];
   private readonly collector: ReturnType<typeof eventStoreCollector>;
+  private readonly observability: ReturnType<
+    typeof resolveEventStoreObservability
+  >;
   private shouldManageClientLifetime: boolean;
   private isClosed: boolean = false;
   private storage: MongoDBEventStoreStorage;
@@ -208,9 +211,8 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
 
   constructor(options: MongoDBEventStoreOptions) {
     this.options = options;
-    this.collector = eventStoreCollector(
-      resolveEventStoreObservability(options),
-    );
+    this.observability = resolveEventStoreObservability(options);
+    this.collector = eventStoreCollector(this.observability);
     this.client =
       'client' in options && options.client
         ? options.client
@@ -424,6 +426,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
           collection,
           updates,
           client: {},
+          observability: this.observability,
         });
       }
 

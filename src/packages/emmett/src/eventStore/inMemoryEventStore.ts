@@ -84,9 +84,8 @@ export const getInMemoryEventStore = (
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
 
-  const collector = eventStoreCollector(
-    resolveEventStoreObservability(eventStoreOptions),
-  );
+  const observability = resolveEventStoreObservability(eventStoreOptions);
+  const collector = eventStoreCollector(observability);
 
   // Create the event store object
   const eventStore: InMemoryEventStore = {
@@ -243,6 +242,7 @@ export const getInMemoryEventStore = (
             events: newEvents,
             database: eventStore.database,
             eventStore,
+            observability,
           });
         }
 

@@ -1,9 +1,11 @@
+import { ObservabilityScope } from '@event-driven-io/almanac';
 import type {
   CanHandle,
   Event,
   ProjectionDefinition,
   ProjectionHandler,
   ReadEvent,
+  ResolvedEventStoreObservability,
 } from '@event-driven-io/emmett';
 import type { Collection, Document, UpdateFilter } from 'mongodb';
 import type {
@@ -60,6 +62,7 @@ export type InlineProjectionHandlerOptions<
   client: {
     //todo: add client here
   };
+  observability: ResolvedEventStoreObservability;
 };
 
 export const handleInlineProjections = async <
@@ -75,6 +78,7 @@ export const handleInlineProjections = async <
     streamId,
     collection,
     readModels,
+    observability,
   } = options;
 
   const eventTypes = events.map((e) => e.type);
@@ -83,13 +87,18 @@ export const handleInlineProjections = async <
     p.canHandle.some((type) => eventTypes.includes(type)),
   );
 
+  const { startScope } = ObservabilityScope(observability);
+
   for (const projection of projections) {
-    await projection.handle(events, {
-      document: readModels[projection.name] ?? null,
-      streamId,
-      collection,
-      updates: update,
-    });
+    await startScope('eventStore.inlineProjection', async (observabilityScope) =>
+      projection.handle(events, {
+        document: readModels[projection.name] ?? null,
+        streamId,
+        collection,
+        updates: update,
+        observabilityScope,
+      }),
+    );
   }
 };
 

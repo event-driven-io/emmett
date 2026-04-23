@@ -1,3 +1,4 @@
+import { ObservabilityScope } from '@event-driven-io/almanac';
 import type {
   AnyConnection,
   DatabaseTransaction,
@@ -16,6 +17,7 @@ import {
   type ProjectionHandler,
   type ProjectionInitOptions,
   type ReadEvent,
+  type ResolvedEventStoreObservability,
 } from '@event-driven-io/emmett';
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 import type { EventStoreSchemaMigrationOptions } from '../schema';
@@ -76,6 +78,7 @@ export type PostgreSQLProjectionHandlerOptions<
   events: ReadEvent<EventType, PostgresReadEventMetadata>[];
   projections: PostgreSQLProjectionDefinition<EventType>[];
   partition?: string;
+  observability: ResolvedEventStoreObservability;
 } & PostgreSQLProjectionHandlerContext;
 
 export const handleProjections = async <EventType extends Event = Event>(

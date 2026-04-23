@@ -157,7 +157,7 @@ export type HandlerOptions<
       eachMessage: SingleRecordedMessageHandlerWithContext<
         MessageType,
         MessageMetadataType,
-        HandlerContext
+        WithObservabilityScope<HandlerContext>
       >;
       eachBatch?: never;
     }
@@ -166,7 +166,7 @@ export type HandlerOptions<
       eachBatch: BatchRecordedMessageHandlerWithContext<
         MessageType,
         MessageMetadataType,
-        HandlerContext
+        WithObservabilityScope<HandlerContext>
       >;
     };
 
@@ -269,40 +269,35 @@ export const reactor = <
   const eachBatch: BatchRecordedMessageHandlerWithContext<
     MessageType,
     MessageMetadataType,
-    HandlerContext
+    WithObservabilityScope<HandlerContext>
   > = isCustomBatch
     ? options.eachBatch
     : async (
         messages: RecordedMessage<MessageType, MessageMetadataType>[],
-        context: HandlerContext,
+        context: WithObservabilityScope<HandlerContext>,
       ): Promise<BatchMessageHandlerResult> => {
-        const batchScope = (context as WithObservabilityScope<HandlerContext>)
-          .observabilityScope;
-        const batchCtx = batchScope?.spanContext();
+        const batchCtx = context.observabilityScope.spanContext();
 
         let result: BatchMessageHandlerResult = undefined;
         for (let i = 0; i < messages.length; i++) {
           const message = messages[i]!;
-          const runMessage = (messageScope?: typeof batchScope) =>
-            options.eachMessage(
-              message,
-              messageScope
-                ? { ...context, observabilityScope: messageScope }
-                : context,
-            );
-          const messageProcessingResult = batchCtx
-            ? await collector.startMessageScope(
-                {
-                  processorId,
-                  type,
-                  checkpoint: lastCheckpoint,
-                  archetypeType: type,
-                },
-                message,
-                batchCtx,
-                (messageScope) => Promise.resolve(runMessage(messageScope)),
-              )
-            : await runMessage();
+          const messageProcessingResult = await collector.startMessageScope(
+            {
+              processorId,
+              type,
+              checkpoint: lastCheckpoint,
+              archetypeType: type,
+            },
+            message,
+            batchCtx,
+            (messageScope) =>
+              Promise.resolve(
+                options.eachMessage(message, {
+                  ...context,
+                  observabilityScope: messageScope,
+                }),
+              ),
+          );
 
           if (
             messageProcessingResult &&
