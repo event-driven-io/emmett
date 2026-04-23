@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     projects: [
+      'packages/almanac',
       'packages/emmett',
       'packages/emmett-expressjs',
       'packages/emmett-honojs',

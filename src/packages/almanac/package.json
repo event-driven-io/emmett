@@ -1,11 +1,10 @@
 {
-  "name": "@event-driven-io/emmett-tests",
+  "name": "@event-driven-io/almanac",
   "type": "module",
-  "private": true,
-  "version": "0.43.0-beta.14",
-  "description": "Emmett - Internal E2E Tests",
+  "version": "0.1.0-beta.14",
+  "description": "Almanac - Opinionated observability for event-driven systems",
   "scripts": {
-    "build": "tsdown",
+    "build": "tsup",
     "build:ts": "tsc",
     "build:ts:watch": "tsc -b --watch",
     "test": "run-s test:unit test:int test:e2e",
@@ -22,7 +21,9 @@
     "url": "git+https://github.com/event-driven-io/emmett.git"
   },
   "keywords": [
-    "Event Sourcing"
+    "observability",
+    "tracing",
+    "event-driven"
   ],
   "author": "Oskar Dudycz",
   "bugs": {
@@ -39,6 +40,26 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./otel": {
+      "import": {
+        "types": "./dist/otel.d.ts",
+        "default": "./dist/otel.js"
+      },
+      "require": {
+        "types": "./dist/otel.d.cts",
+        "default": "./dist/otel.cjs"
+      }
+    },
+    "./pino": {
+      "import": {
+        "types": "./dist/pino.d.ts",
+        "default": "./dist/pino.js"
+      },
+      "require": {
+        "types": "./dist/pino.d.cts",
+        "default": "./dist/pino.cjs"
+      }
     }
   },
   "main": "./dist/index.cjs",
@@ -47,13 +68,24 @@
   "files": [
     "dist"
   ],
+  "peerDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "pino": ">=10.3.1"
+  },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    },
+    "pino": {
+      "optional": true
+    }
+  },
+  "optionalDependencies": {
+    "@opentelemetry/api": "^1.9.1"
+  },
   "devDependencies": {
-    "@event-driven-io/almanac": "0.1.0-beta.14",
-    "@event-driven-io/emmett": "0.43.0-beta.14",
-    "@event-driven-io/emmett-esdb": "0.43.0-beta.14",
-    "@event-driven-io/emmett-sqlite": "0.43.0-beta.14",
-    "@event-driven-io/emmett-postgresql": "0.43.0-beta.14",
-    "@event-driven-io/emmett-testcontainers": "0.43.0-beta.14",
-    "@testcontainers/postgresql": "^11.14.0"
+    "@opentelemetry/context-async-hooks": "^2.7.0",
+    "pino": "^10.3.1",
+    "pino-test": "^2.0.0"
   }
 }
