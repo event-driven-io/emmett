@@ -1,1 +1,1 @@
-export { pinoTracer } from './strategies/pinoTracer';
+export * from './providers/pino';

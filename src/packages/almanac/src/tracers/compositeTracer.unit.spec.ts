@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { compositeTracer, compositeMeter } from './composite';
-import { collectingTracer, collectingMeter } from './testing';
+import { collectingTracer } from '../testing';
+import { compositeTracer } from './compositeTracer';
 
 describe('compositeTracer', () => {
   it('calls startSpan on all inner tracers and returns the function result', async () => {
@@ -32,21 +32,5 @@ describe('compositeTracer', () => {
       Promise.resolve(42),
     );
     expect(result).toBe(42);
-  });
-});
-
-describe('compositeMeter', () => {
-  it('counter.add calls add on all inner meters', () => {
-    const m1 = collectingMeter();
-    const m2 = collectingMeter();
-
-    compositeMeter(m1, m2).counter('x').add(1);
-
-    expect(m1.counters).toEqual([
-      { name: 'x', value: 1, attributes: undefined },
-    ]);
-    expect(m2.counters).toEqual([
-      { name: 'x', value: 1, attributes: undefined },
-    ]);
   });
 });

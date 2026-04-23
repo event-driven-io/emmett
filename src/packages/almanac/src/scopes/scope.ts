@@ -1,14 +1,14 @@
+import { scopeAttributes, type AttributeTarget } from '../attributes';
+import { alwaysSample, type Sampler } from '../configuration';
 import type {
   ActiveSpan,
-  SpanEventLevel,
   SpanContext,
+  SpanEventLevel,
   SpanLink,
+  TracePropagation,
   Tracer,
-} from './tracer';
-import { noopSpan } from './tracer';
-import type { Sampler, TracePropagation, AttributeTarget } from './options';
-import { alwaysSample } from './options';
-import { scopeAttributes } from './attributes';
+} from '../tracers';
+import { noopSpan } from '../tracers';
 
 export type SetAttributesOptions = {
   target?: AttributeTarget;

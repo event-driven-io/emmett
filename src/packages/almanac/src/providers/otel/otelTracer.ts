@@ -1,11 +1,11 @@
+import type { SpanOptions } from '@opentelemetry/api';
 import {
   context,
   ROOT_CONTEXT,
   SpanStatusCode,
   trace,
 } from '@opentelemetry/api';
-import type { SpanOptions } from '@opentelemetry/api';
-import type { ActiveSpan, StartSpanOptions, Tracer } from '../tracer';
+import type { ActiveSpan, StartSpanOptions, Tracer } from '../../tracers';
 
 export const otelTracer = (tracerName = 'almanac'): Tracer => ({
   startSpan: async <T>(

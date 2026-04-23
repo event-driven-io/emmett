@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
 import pino from 'pino';
 import pinoTest from 'pino-test';
+import { describe, expect, it } from 'vitest';
+import { ObservabilityScope } from '../../scopes/scope';
 import { pinoTracer } from './pinoTracer';
-import { ObservabilityScope } from '../scope';
 
 describe('pinoTracer', () => {
   it('logs command.handle scope with all attributes on success', async () => {

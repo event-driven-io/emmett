@@ -1,8 +1,7 @@
-export * from './types';
-export * from './tracer';
-export * from './meter';
-export * from './composite';
 export * from './attributes';
-export * from './scope';
-export * from './options';
-export * from './testing';
+export * from './configuration';
+export * from './meters';
+export * from './scopes/scope';
+export * from './testing/testing';
+export * from './tracers';
+

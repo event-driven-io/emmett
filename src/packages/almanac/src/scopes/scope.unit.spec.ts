@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ObservabilityScope } from './scope';
+import { alwaysSample, neverSample } from '../configuration/options';
+import { collectingTracer } from '../testing';
 import type { ScopeObservability } from './scope';
-import { collectingTracer } from './testing';
-import { alwaysSample, neverSample } from './options';
+import { ObservabilityScope } from './scope';
 
 const defaultObservability = (
   overrides?: Partial<ScopeObservability>,

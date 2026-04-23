@@ -1,6 +1,6 @@
-import { metrics } from '@opentelemetry/api';
 import type { Attributes } from '@opentelemetry/api';
-import type { Meter } from '../meter';
+import { metrics } from '@opentelemetry/api';
+import type { Meter } from '../../meters/meter';
 
 export const otelMeter = (meterName = 'almanac'): Meter => {
   const meter = metrics.getMeter(meterName);

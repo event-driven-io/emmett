@@ -1,10 +1,8 @@
-import type { Tracer } from './tracer';
-import { noopTracer } from './tracer';
-import type { Meter } from './meter';
-import { noopMeter } from './meter';
-import type { TracePropagation, AttributeTarget } from './types';
-
-export type { TracePropagation, AttributeTarget };
+import type { AttributeTarget } from '../attributes';
+import type { Meter } from '../meters';
+import { noopMeter } from '../meters';
+import type { TracePropagation, Tracer } from '../tracers';
+import { noopTracer } from '../tracers';
 
 const defaultPrefix = 'almanac' as const;
 

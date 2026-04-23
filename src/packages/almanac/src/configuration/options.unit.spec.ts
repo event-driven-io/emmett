@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { resolveObservability, alwaysSample, rateSample } from './options';
-import { collectingTracer, collectingMeter } from './testing';
+import { collectingMeter, collectingTracer } from '../testing';
+import { alwaysSample, rateSample, resolveObservability } from './options';
 
 describe('resolveObservability', () => {
   it('returns noop tracer, meter, propagation=links, attributeTarget=both, prefix=almanac, sampler=alwaysSample when no options', () => {
