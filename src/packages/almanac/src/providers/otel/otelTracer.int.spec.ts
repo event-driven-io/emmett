@@ -1,15 +1,15 @@
+import { SpanStatusCode, context, trace } from '@opentelemetry/api';
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import {
   BasicTracerProvider,
   ConsoleSpanExporter,
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
-import { SpanStatusCode, context, trace } from '@opentelemetry/api';
-import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { ObservabilityScope } from '../../scopes/scope';
+import { assertThatOtelSpan, assertThatOtelSpans } from './otelTesting';
 import { otelTracer } from './otelTracer';
-import { ObservabilityScope } from '../scope';
-import { assertThatOtelSpan, assertThatOtelSpans } from '../otelTesting';
 
 describe('otelTracer integration', () => {
   const exporter = new InMemorySpanExporter();

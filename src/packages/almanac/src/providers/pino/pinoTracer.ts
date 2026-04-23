@@ -1,5 +1,5 @@
 import type { Logger as PinoLogger } from 'pino';
-import type { ActiveSpan, SpanEventLevel, Tracer } from '../tracer';
+import type { ActiveSpan, SpanEventLevel, Tracer } from '../../tracers';
 
 export const pinoTracer = (pino: PinoLogger): Tracer => ({
   startSpan: async <T>(

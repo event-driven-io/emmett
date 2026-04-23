@@ -1,4 +1,4 @@
-import type { TracePropagation } from './types';
+import type { TracePropagation } from './tracer';
 
 export type SpanEventLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 
@@ -31,14 +31,6 @@ export type StartSpanOptions = {
   sampleRate?: number;
 };
 
-export type Tracer = {
-  startSpan<T>(
-    name: string,
-    fn: (span: ActiveSpan) => Promise<T>,
-    options?: StartSpanOptions,
-  ): Promise<T>;
-};
-
 export const noopSpan: ActiveSpan = {
   setAttributes: () => {},
   spanContext: () => ({ traceId: '', spanId: '' }),
@@ -46,7 +38,3 @@ export const noopSpan: ActiveSpan = {
   addEvent: () => {},
   recordException: () => {},
 };
-
-export const noopTracer = (): Tracer => ({
-  startSpan: async (_name, fn, _options?) => fn(noopSpan),
-});

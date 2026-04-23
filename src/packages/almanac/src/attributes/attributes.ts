@@ -13,3 +13,5 @@ export const MessagingAttributes = {
   destinationName: 'messaging.destination.name',
   messageBodySize: 'messaging.message.body.size',
 } as const;
+
+export type AttributeTarget = 'mainSpan' | 'currentSpan' | 'both';
