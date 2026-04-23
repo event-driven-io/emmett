@@ -1,12 +1,12 @@
 import type {
-  Tracer,
-  Meter,
-  TracePropagation,
   AttributeTarget,
+  Meter,
   ObservabilityConfig,
   ObservabilityScope,
+  TracePropagation,
+  Tracer,
 } from '@event-driven-io/almanac';
-import { noopTracer, noopMeter } from '@event-driven-io/almanac';
+import { noopMeter, noopTracer } from '@event-driven-io/almanac';
 
 export type WithObservabilityScope<Context> = Context & {
   observabilityScope: ObservabilityScope;
