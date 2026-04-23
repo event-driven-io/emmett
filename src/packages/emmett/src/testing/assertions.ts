@@ -161,12 +161,15 @@ export const assertThat = <T>(item: T) => {
   };
 };
 
-export const assertDefined = (
-  value: unknown,
+export function assertDefined<T>(
+  value: T,
   message?: string | Error,
-): asserts value => {
-  assertOk(value, message instanceof Error ? message.message : message);
-};
+): asserts value is NonNullable<T> {
+  if (value === undefined || value === null) {
+    const msg = message instanceof Error ? message.message : message;
+    throw new AssertionError(msg ?? 'Value is not defined');
+  }
+}
 
 export function assertFalse(
   condition: boolean,
