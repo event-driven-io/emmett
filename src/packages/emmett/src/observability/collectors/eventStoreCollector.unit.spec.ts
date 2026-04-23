@@ -32,9 +32,9 @@ const given = ObservabilitySpec.for();
 
 describe('eventStoreCollector', () => {
   it('instrumentRead creates eventStore.readStream span with operation and messaging attributes', async () => {
-    await given({})
-      .when((config) =>
-        eventStoreCollector(config).instrumentRead('orders-123', () =>
+    await given((config) => eventStoreCollector(config))
+      .when((collector) =>
+        collector.instrumentRead('orders-123', () =>
           Promise.resolve({
             events: makeEvents(['OrderPlaced']),
             currentStreamVersion: 1n,
@@ -54,9 +54,9 @@ describe('eventStoreCollector', () => {
 
   it('instrumentAppend creates eventStore.appendToStream span with attributes', async () => {
     const events = makeEvents(['OrderPlaced']);
-    await given({})
-      .when((config) =>
-        eventStoreCollector(config).instrumentAppend('orders-123', events, () =>
+    await given((config) => eventStoreCollector(config))
+      .when((collector) =>
+        collector.instrumentAppend('orders-123', events, () =>
           Promise.resolve({
             nextExpectedStreamVersion: 1n,
             createdNewStream: true,
@@ -75,9 +75,9 @@ describe('eventStoreCollector', () => {
 
   it('instrumentAppend records stream.version.after', async () => {
     const events = makeEvents(['OrderPlaced']);
-    await given({})
-      .when((config) =>
-        eventStoreCollector(config).instrumentAppend('test', events, () =>
+    await given((config) => eventStoreCollector(config))
+      .when((collector) =>
+        collector.instrumentAppend('test', events, () =>
           Promise.resolve({
             nextExpectedStreamVersion: 6n,
             createdNewStream: false,

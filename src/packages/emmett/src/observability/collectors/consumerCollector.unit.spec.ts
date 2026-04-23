@@ -29,9 +29,11 @@ const given = ObservabilitySpec.for();
 
 describe('consumerCollector', () => {
   it('tracePoll does not create a span when pollTracing=off', async () => {
-    await given({})
-      .when((config) =>
-        consumerCollector({ ...config, pollTracing: 'off' as const }).tracePoll(
+    await given((config) =>
+      consumerCollector({ ...config, pollTracing: 'off' as const }),
+    )
+      .when((collector) =>
+        collector.tracePoll(
           { batchSize: 5, processorCount: 1, empty: false },
           () => Promise.resolve(),
         ),
@@ -52,39 +54,58 @@ describe('consumerCollector', () => {
   });
 
   it('tracePoll does not create a span for empty polls when pollTracing=active', async () => {
-    await given({})
-      .when((config) =>
-        consumerCollector({
-          ...config,
-          pollTracing: 'active' as const,
-        }).tracePoll({ batchSize: 0, processorCount: 1, empty: true }, () =>
-          Promise.resolve(),
+    await given((config) =>
+      consumerCollector({ ...config, pollTracing: 'active' as const }),
+    )
+      .when((collector) =>
+        collector.tracePoll(
+          { batchSize: 0, processorCount: 1, empty: true },
+          () => Promise.resolve(),
         ),
       )
       .then(({ spans }) => spans.haveNoSpans());
   });
 
   it('tracePoll creates a span for non-empty polls when pollTracing=active', async () => {
-    await given({})
-      .when((config) =>
-        consumerCollector({
-          ...config,
-          pollTracing: 'active' as const,
-        }).tracePoll({ batchSize: 3, processorCount: 1, empty: false }, () =>
-          Promise.resolve(),
+    await given((config) =>
+      consumerCollector({ ...config, pollTracing: 'active' as const }),
+    )
+      .when((collector) =>
+        collector.tracePoll(
+          { batchSize: 3, processorCount: 1, empty: false },
+          () => Promise.resolve(),
         ),
       )
       .then(({ spans }) => spans.haveSpanNamed('consumer.poll'));
   });
 
   it('tracePoll creates consumer.poll span with emmett.scope.type=consumer and emmett.scope.main=true', async () => {
-    await given({})
-      .when((config) =>
-        consumerCollector({
-          ...config,
-          pollTracing: 'verbose' as const,
-        }).tracePoll({ batchSize: 5, processorCount: 2, empty: false }, () =>
-          Promise.resolve(),
+    await given((config) =>
+      consumerCollector({
+        ...config,
+        pollTracing: 'active' as const,
+      }),
+    )
+      .when((collector) =>
+        collector.tracePoll(
+          { batchSize: 3, processorCount: 1, empty: false },
+          () => Promise.resolve(),
+        ),
+      )
+      .then(({ spans }) => spans.haveSpanNamed('consumer.poll'));
+  });
+
+  it('tracePoll creates consumer.poll span with emmett.scope.type=consumer and emmett.scope.main=true', async () => {
+    await given((config) =>
+      consumerCollector({
+        ...config,
+        pollTracing: 'verbose' as const,
+      }),
+    )
+      .when((collector) =>
+        collector.tracePoll(
+          { batchSize: 5, processorCount: 2, empty: false },
+          () => Promise.resolve(),
         ),
       )
       .then(({ spans }) =>
@@ -96,13 +117,16 @@ describe('consumerCollector', () => {
   });
 
   it('tracePoll sets emmett.consumer.batch_size, emmett.consumer.processor_count', async () => {
-    await given({})
-      .when((config) =>
-        consumerCollector({
-          ...config,
-          pollTracing: 'verbose' as const,
-        }).tracePoll({ batchSize: 25, processorCount: 4, empty: false }, () =>
-          Promise.resolve(),
+    await given((config) =>
+      consumerCollector({
+        ...config,
+        pollTracing: 'verbose' as const,
+      }),
+    )
+      .when((collector) =>
+        collector.tracePoll(
+          { batchSize: 25, processorCount: 4, empty: false },
+          () => Promise.resolve(),
         ),
       )
       .then(({ spans }) =>
@@ -114,13 +138,16 @@ describe('consumerCollector', () => {
   });
 
   it('tracePoll sets messaging.system=emmett and messaging.operation.type=receive', async () => {
-    await given({})
-      .when((config) =>
-        consumerCollector({
-          ...config,
-          pollTracing: 'verbose' as const,
-        }).tracePoll({ batchSize: 1, processorCount: 1, empty: false }, () =>
-          Promise.resolve(),
+    await given((config) =>
+      consumerCollector({
+        ...config,
+        pollTracing: 'verbose' as const,
+      }),
+    )
+      .when((collector) =>
+        collector.tracePoll(
+          { batchSize: 1, processorCount: 1, empty: false },
+          () => Promise.resolve(),
         ),
       )
       .then(({ spans }) =>
@@ -132,13 +159,16 @@ describe('consumerCollector', () => {
   });
 
   it('tracePoll sets emmett.consumer.poll.empty=true for empty polls', async () => {
-    await given({})
-      .when((config) =>
-        consumerCollector({
-          ...config,
-          pollTracing: 'verbose' as const,
-        }).tracePoll({ batchSize: 0, processorCount: 1, empty: true }, () =>
-          Promise.resolve(),
+    await given((config) =>
+      consumerCollector({
+        ...config,
+        pollTracing: 'verbose' as const,
+      }),
+    )
+      .when((collector) =>
+        collector.tracePoll(
+          { batchSize: 0, processorCount: 1, empty: true },
+          () => Promise.resolve(),
         ),
       )
       .then(({ spans }) =>
@@ -149,12 +179,14 @@ describe('consumerCollector', () => {
   });
 
   it('tracePoll sets emmett.consumer.poll.wait_ms for backoff timing', async () => {
-    await given({})
-      .when((config) =>
-        consumerCollector({
-          ...config,
-          pollTracing: 'verbose' as const,
-        }).tracePoll(
+    await given((config) =>
+      consumerCollector({
+        ...config,
+        pollTracing: 'verbose' as const,
+      }),
+    )
+      .when((collector) =>
+        collector.tracePoll(
           { batchSize: 0, processorCount: 1, empty: true, waitMs: 500 },
           () => Promise.resolve(),
         ),
@@ -167,20 +199,21 @@ describe('consumerCollector', () => {
   });
 
   it('traceDelivery creates child scope per processor with emmett.consumer.delivery.processor_id', async () => {
-    await given({})
-      .when((config) => {
-        const collector = consumerCollector({
-          ...config,
-          pollTracing: 'verbose' as const,
-        });
-        return collector.tracePoll(
+    await given((config) =>
+      consumerCollector({
+        ...config,
+        pollTracing: 'verbose' as const,
+      }),
+    )
+      .when((collector) =>
+        collector.tracePoll(
           { batchSize: 3, processorCount: 1, empty: false },
           (scope) =>
             collector.traceDelivery(scope, 'ShoppingCartProjection', () =>
               Promise.resolve(),
             ),
-        );
-      })
+        ),
+      )
       .then(({ spans }) =>
         spans
           .haveSpanNamed('consumer.deliver.ShoppingCartProjection')
