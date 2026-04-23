@@ -90,7 +90,6 @@ export const processorCollector = (
           let status = 'success';
           try {
             const result = await fn(scope);
-            status = 'success';
             return result;
           } catch (err) {
             status = 'failure';
@@ -132,9 +131,7 @@ export const processorCollector = (
             [A.processor.id]: context.processorId,
             [A.processor.type]: context.type,
             [M.operationType]: 'process',
-            ...(meta?.messageId
-              ? { [M.messageId]: meta.messageId as string }
-              : {}),
+            ...(meta?.messageId ? { [M.messageId]: meta.messageId } : {}),
           });
           return fn(scope);
         },

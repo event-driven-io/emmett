@@ -1,6 +1,6 @@
 import { MessagingAttributes } from '@event-driven-io/almanac';
-import type { AnyReadEventMetadata, Event, ReadEvent } from '../../typing';
 import type { AppendToStreamResult, ReadStreamResult } from '../../eventStore';
+import type { AnyReadEventMetadata, Event, ReadEvent } from '../../typing';
 import {
   EmmettAttributes,
   EmmettMetrics,
@@ -57,7 +57,6 @@ export const eventStoreCollector = (
             const result = await fn();
             const events: ReadEvent<EventType, ReadEventMetadataType>[] =
               result.events;
-            status = 'success';
             span.setAttributes({
               [A.eventStore.read.status]: status,
               [A.eventStore.read.eventCount]: events.length,
@@ -110,7 +109,6 @@ export const eventStoreCollector = (
           let status = 'success';
           try {
             const result = await fn();
-            status = 'success';
             span.setAttributes({
               [A.eventStore.append.status]: status,
               [A.stream.versionAfter]: Number(result.nextExpectedStreamVersion),

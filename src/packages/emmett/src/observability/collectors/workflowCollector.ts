@@ -1,6 +1,6 @@
 import {
-  ObservabilityScope,
   MessagingAttributes,
+  ObservabilityScope,
   type ObservabilityScope as ObservabilityScopeType,
 } from '@event-driven-io/almanac';
 import {
@@ -50,7 +50,6 @@ export const workflowCollector = (
           let status = 'success';
           try {
             const result = await fn(scope);
-            status = 'success';
             return result;
           } catch (err) {
             status = 'failure';
