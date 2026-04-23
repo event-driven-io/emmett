@@ -23,11 +23,10 @@ const given = ObservabilitySpec.for();
 
 describe('commandHandlerCollector', () => {
   it('creates a span named command.handle with emmett.scope.type=command and emmett.scope.main=true', async () => {
-    await given({})
-      .when((config) =>
-        commandHandlerCollector(config).startScope(
-          { streamName: 'test-stream' },
-          () => Promise.resolve(),
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope({ streamName: 'test-stream' }, () =>
+          Promise.resolve(),
         ),
       )
       .then(({ spans }) =>
@@ -39,11 +38,10 @@ describe('commandHandlerCollector', () => {
   });
 
   it('sets emmett.stream.name via creation-time attributes', async () => {
-    await given({})
-      .when((config) =>
-        commandHandlerCollector(config).startScope(
-          { streamName: 'orders-123' },
-          () => Promise.resolve(),
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope({ streamName: 'orders-123' }, () =>
+          Promise.resolve(),
         ),
       )
       .then(({ spans }) =>
@@ -54,11 +52,10 @@ describe('commandHandlerCollector', () => {
   });
 
   it('sets messaging.system and messaging.destination.name', async () => {
-    await given({})
-      .when((config) =>
-        commandHandlerCollector(config).startScope(
-          { streamName: 'orders-123' },
-          () => Promise.resolve(),
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope({ streamName: 'orders-123' }, () =>
+          Promise.resolve(),
         ),
       )
       .then(({ spans }) =>
@@ -70,11 +67,9 @@ describe('commandHandlerCollector', () => {
   });
 
   it('sets emmett.command.status to success on success', async () => {
-    await given({})
-      .when((config) =>
-        commandHandlerCollector(config).startScope({ streamName: 'test' }, () =>
-          Promise.resolve(),
-        ),
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope({ streamName: 'test' }, () => Promise.resolve()),
       )
       .then(({ spans }) =>
         spans.haveSpanNamed('command.handle').hasAttributes({
@@ -89,19 +84,12 @@ describe('commandHandlerCollector', () => {
       { type: 'OrderPlaced', data: {}, kind: 'Event' as const },
       { type: 'ItemAdded', data: {}, kind: 'Event' as const },
     ];
-    await given({})
-      .when((config) =>
-        commandHandlerCollector(config).startScope(
-          { streamName: 'test' },
-          (scope) => {
-            commandHandlerCollector(config).recordEvents(
-              scope,
-              events,
-              'success',
-            );
-            return Promise.resolve();
-          },
-        ),
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope({ streamName: 'test' }, (scope) => {
+          collector.recordEvents(scope, events, 'success');
+          return Promise.resolve();
+        }),
       )
       .then(({ spans }) =>
         spans.haveSpanNamed('command.handle').hasAttributes({
@@ -113,15 +101,12 @@ describe('commandHandlerCollector', () => {
   });
 
   it('recordVersions sets stream version before and after', async () => {
-    await given({})
-      .when((config) =>
-        commandHandlerCollector(config).startScope(
-          { streamName: 'test' },
-          (scope) => {
-            commandHandlerCollector(config).recordVersions(scope, 3n, 5n);
-            return Promise.resolve();
-          },
-        ),
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope({ streamName: 'test' }, (scope) => {
+          collector.recordVersions(scope, 3n, 5n);
+          return Promise.resolve();
+        }),
       )
       .then(({ spans }) =>
         spans.haveSpanNamed('command.handle').hasAttributes({
@@ -132,14 +117,11 @@ describe('commandHandlerCollector', () => {
   });
 
   it('scope.scope creates child scopes', async () => {
-    await given({})
-      .when((config) =>
-        commandHandlerCollector(config).startScope(
-          { streamName: 'test' },
-          async (scope) => {
-            await scope.scope('decide', () => Promise.resolve());
-          },
-        ),
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope({ streamName: 'test' }, async (scope) => {
+          await scope.scope('decide', () => Promise.resolve());
+        }),
       )
       .then(({ spans }) => spans.containSpanNamed('decide'));
   });

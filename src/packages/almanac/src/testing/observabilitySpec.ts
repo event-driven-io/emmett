@@ -15,46 +15,61 @@ export type ObservabilityTestConfig = {
   includeMessagePayloads: boolean;
 };
 
-export type TracingSpecification = (given: {
-  propagation?: TracePropagation;
-  attributeTarget?: AttributeTarget;
-}) => {
-  when: (fn: (config: ObservabilityTestConfig) => unknown) => {
+export type TracingSpecification = <T = undefined>(
+  given: (config: ObservabilityTestConfig) => T,
+  config?: Partial<ObservabilityTestConfig>,
+) => {
+  when: (fn: (sut: T, config: ObservabilityTestConfig) => unknown) => {
     then: (
-      assertFn: (result: { spans: SpanCollectionAssertions }) => void,
+      assertFn: (result: { sut: T; spans: SpanCollectionAssertions }) => void,
     ) => Promise<void>;
   };
 };
 
 export const ObservabilitySpec = {
-  for: (): TracingSpecification => {
-    return (given) => ({
-      when: (fn) => {
+  for: (config?: Partial<ObservabilityTestConfig>): TracingSpecification => {
+    return <T>(
+      given: (config: ObservabilityTestConfig) => T,
+      testConfig?: Partial<ObservabilityTestConfig>,
+    ) => ({
+      when: (fn: (sut: T, config: ObservabilityTestConfig) => unknown) => {
         const execute = (() => {
           let cached:
-            | { tracer: CollectingTracer; meter: CollectingMeter }
+            | { tracer: CollectingTracer; meter: CollectingMeter; sut: T }
             | undefined;
           return async () => {
             if (!cached) {
               const tracer = collectingTracer();
               const meter = collectingMeter();
-              await fn({
+
+              const observability: ObservabilityTestConfig = {
                 tracer,
                 meter,
-                propagation: given.propagation ?? 'links',
-                attributeTarget: given.attributeTarget ?? 'both',
+                propagation: 'links',
+                attributeTarget: 'both',
                 includeMessagePayloads: false,
-              });
-              cached = { tracer, meter };
+                ...config,
+                ...testConfig,
+              };
+
+              const sut = given(observability);
+
+              await fn(sut, observability);
+              cached = { tracer, meter, sut };
             }
             return cached;
           };
         })();
 
         return {
-          then: async (assertFn) => {
-            const { tracer } = await execute();
-            assertFn({ spans: assertThatSpans(tracer.spans) });
+          then: async (
+            assertFn: (result: {
+              sut: T;
+              spans: SpanCollectionAssertions;
+            }) => void,
+          ) => {
+            const { tracer, sut } = await execute();
+            assertFn({ sut, spans: assertThatSpans(tracer.spans) });
           },
         };
       },

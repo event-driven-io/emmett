@@ -25,11 +25,9 @@ const given = ObservabilitySpec.for();
 
 describe('workflowCollector', () => {
   it('creates workflow.handle scope with emmett.scope.type=workflow and emmett.scope.main=true', async () => {
-    await given({})
-      .when((config) =>
-        workflowCollector(config).startScope(defaultContext, () =>
-          Promise.resolve(),
-        ),
+    await given((config) => workflowCollector(config))
+      .when((collector) =>
+        collector.startScope(defaultContext, () => Promise.resolve()),
       )
       .then(({ spans }) =>
         spans.haveSpanNamed('workflow.handle').hasAttributes({
@@ -40,9 +38,9 @@ describe('workflowCollector', () => {
   });
 
   it('sets emmett.workflow.id, emmett.workflow.type, emmett.workflow.input.type', async () => {
-    await given({})
-      .when((config) =>
-        workflowCollector(config).startScope(
+    await given((config) => workflowCollector(config))
+      .when((collector) =>
+        collector.startScope(
           {
             workflowId: 'wf-42',
             workflowType: 'ShippingWorkflow',
@@ -62,10 +60,10 @@ describe('workflowCollector', () => {
 
   it('sets emmett.workflow.outputs and emmett.workflow.outputs.count via recordOutputs', async () => {
     const outputs = [{ type: 'OrderShipped' }, { type: 'NotificationSent' }];
-    await given({})
-      .when((config) =>
-        workflowCollector(config).startScope(defaultContext, (scope) => {
-          workflowCollector(config).recordOutputs(scope, outputs);
+    await given((config) => workflowCollector(config))
+      .when((collector) =>
+        collector.startScope(defaultContext, (scope) => {
+          collector.recordOutputs(scope, outputs);
           return Promise.resolve();
         }),
       )
@@ -78,9 +76,9 @@ describe('workflowCollector', () => {
   });
 
   it('creates child scopes for evolve and decide', async () => {
-    await given({})
-      .when((config) =>
-        workflowCollector(config).startScope(defaultContext, async (scope) => {
+    await given((config) => workflowCollector(config))
+      .when((collector) =>
+        collector.startScope(defaultContext, async (scope) => {
           await scope.scope('workflow.evolve', () => Promise.resolve());
           await scope.scope('workflow.decide', () => Promise.resolve());
         }),
@@ -93,11 +91,9 @@ describe('workflowCollector', () => {
   });
 
   it('sets messaging.system', async () => {
-    await given({})
-      .when((config) =>
-        workflowCollector(config).startScope(defaultContext, () =>
-          Promise.resolve(),
-        ),
+    await given((config) => workflowCollector(config))
+      .when((collector) =>
+        collector.startScope(defaultContext, () => Promise.resolve()),
       )
       .then(({ spans }) =>
         spans
@@ -107,10 +103,10 @@ describe('workflowCollector', () => {
   });
 
   it('sets emmett.workflow.state_rebuild.event_count via recordStateRebuild', async () => {
-    await given({})
-      .when((config) =>
-        workflowCollector(config).startScope(defaultContext, (scope) => {
-          workflowCollector(config).recordStateRebuild(scope, 7);
+    await given((config) => workflowCollector(config))
+      .when((collector) =>
+        collector.startScope(defaultContext, (scope) => {
+          collector.recordStateRebuild(scope, 7);
           return Promise.resolve();
         }),
       )

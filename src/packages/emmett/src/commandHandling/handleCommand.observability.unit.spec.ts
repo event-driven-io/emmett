@@ -1,19 +1,25 @@
-import { collectingMeter, collectingTracer } from '@event-driven-io/almanac';
+import {
+  collectingMeter,
+  collectingTracer,
+  ObservabilitySpec,
+} from '@event-driven-io/almanac';
 import { v4 as uuid } from 'uuid';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getInMemoryEventStore } from '../eventStore';
-import { assertEqual, assertNotEqual } from '../testing';
-import type { Event } from '../typing';
+import { assertEqual, assertNotEqual, WrapEventStore } from '../testing';
+import { type Event } from '../typing';
 import { CommandHandler } from './handleCommand';
 
 type ItemAdded = Event<'ItemAdded', { productId: string }>;
 type Cart = { count: number };
 
 describe('handler observability', () => {
+  const given = ObservabilitySpec.for();
+
   it('events appended by command handler carry traceId and spanId from the command.handle span', async () => {
     const tracer = collectingTracer();
     const meter = collectingMeter();
-    const eventStore = getInMemoryEventStore();
+    const eventStore = WrapEventStore(getInMemoryEventStore());
     const streamId = uuid();
 
     const handler = CommandHandler<Cart, ItemAdded>({
@@ -40,27 +46,38 @@ describe('handler observability', () => {
   });
 
   void describe('correlationId and causationId propagation', () => {
-    void it('stamps correlationId from handle options onto produced events', async () => {
-      const tracer = collectingTracer();
-      const meter = collectingMeter();
+    void it('stamps correlationId from handle options onto produced events', () => {
       const eventStore = getInMemoryEventStore();
+      const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
       const streamId = uuid();
 
-      const handler = CommandHandler<Cart, ItemAdded>({
-        evolve: (state) => state,
-        initialState: () => ({ count: 0 }),
-        observability: { tracer, meter },
-      });
+      const event: ItemAdded = {
+        type: 'ItemAdded',
+        data: { productId: 'p1' },
+      };
 
-      await handler(
-        eventStore,
-        streamId,
-        () => [{ type: 'ItemAdded', data: { productId: 'p1' } }],
-        { correlationId: 'flow-1' },
-      );
-
-      const { events } = await eventStore.readStream(streamId);
-      assertEqual(events[0]!.metadata.correlationId, 'flow-1');
+      return given((observability) =>
+        CommandHandler<Cart, ItemAdded>({
+          evolve: (state) => state,
+          initialState: () => ({ count: 0 }),
+          observability,
+        }),
+      )
+        .when(async (handler) =>
+          handler(eventStore, streamId, () => [event], {
+            correlationId: 'flow-1',
+          }),
+        )
+        .then(({ spans }) => {
+          expect(appendToStreamSpy).toHaveBeenCalledWith(
+            streamId,
+            [event],
+            expect.objectContaining({ correlationId: 'flow-1' }),
+          );
+          spans
+            .haveSpanNamed('command.handle')
+            .hasAttribute('correlationId', 'flow-1');
+        });
     });
 
     void it('stamps causationId from handle options onto produced events', async () => {

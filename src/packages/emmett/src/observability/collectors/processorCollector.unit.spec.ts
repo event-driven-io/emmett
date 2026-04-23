@@ -32,9 +32,9 @@ const given = ObservabilitySpec.for();
 
 describe('processorCollector', () => {
   it('creates processor.handle span with emmett.scope.type=processor and emmett.scope.main=true', async () => {
-    await given({})
-      .when((config) =>
-        processorCollector(config).startScope(
+    await given((config) => processorCollector(config))
+      .when((collector) =>
+        collector.startScope(
           { processorId: 'p1', type: 'reactor', checkpoint: null },
           [],
           () => Promise.resolve(),
@@ -50,9 +50,9 @@ describe('processorCollector', () => {
 
   it('sets emmett.processor.id, emmett.processor.type, emmett.processor.batch_size', async () => {
     const messages = [makeMessage('OrderPlaced'), makeMessage('ItemAdded')];
-    await given({})
-      .when((config) =>
-        processorCollector(config).startScope(
+    await given((config) => processorCollector(config))
+      .when((collector) =>
+        collector.startScope(
           { processorId: 'my-processor', type: 'projector', checkpoint: null },
           messages,
           () => Promise.resolve(),
@@ -69,9 +69,9 @@ describe('processorCollector', () => {
 
   it('sets messaging.system and messaging.batch.message_count', async () => {
     const messages = [makeMessage('OrderPlaced')];
-    await given({})
-      .when((config) =>
-        processorCollector(config).startScope(
+    await given((config) => processorCollector(config))
+      .when((collector) =>
+        collector.startScope(
           { processorId: 'p1', type: 'reactor', checkpoint: null },
           messages,
           () => Promise.resolve(),
@@ -91,9 +91,9 @@ describe('processorCollector', () => {
       makeMessage('OrderPlaced'),
       makeMessage('ItemAdded'),
     ];
-    await given({})
-      .when((config) =>
-        processorCollector(config).startScope(
+    await given((config) => processorCollector(config))
+      .when((collector) =>
+        collector.startScope(
           { processorId: 'p1', type: 'reactor', checkpoint: null },
           messages,
           () => Promise.resolve(),
@@ -111,9 +111,11 @@ describe('processorCollector', () => {
       makeMessage('OrderPlaced', { traceId: 'trace-A', spanId: 'span-x' }),
       makeMessage('ItemAdded', { traceId: 'trace-B', spanId: 'span-y' }),
     ];
-    await given({ propagation: 'links' })
-      .when((config) =>
-        processorCollector(config).startScope(
+    await given((config) => processorCollector(config), {
+      propagation: 'links',
+    })
+      .when((collector) =>
+        collector.startScope(
           { processorId: 'p1', type: 'reactor', checkpoint: null },
           messages,
           () => Promise.resolve(),
@@ -133,9 +135,11 @@ describe('processorCollector', () => {
       makeMessage('ItemAdded', { traceId: 'trace-1', spanId: 'span-1' }),
       makeMessage('OrderShipped', { traceId: 'trace-2', spanId: 'span-2' }),
     ];
-    await given({ propagation: 'links' })
-      .when((config) =>
-        processorCollector(config).startScope(
+    await given((config) => processorCollector(config), {
+      propagation: 'links',
+    })
+      .when((collector) =>
+        collector.startScope(
           { processorId: 'p1', type: 'reactor', checkpoint: null },
           messages,
           () => Promise.resolve(),
@@ -151,9 +155,9 @@ describe('processorCollector', () => {
 
   it('creates child scopes per message with messaging.operation.type=process', async () => {
     const messages = [makeMessage('OrderPlaced'), makeMessage('ItemAdded')];
-    await given({})
-      .when((config) =>
-        processorCollector(config).startScope(
+    await given((config) => processorCollector(config))
+      .when((collector) =>
+        collector.startScope(
           { processorId: 'p1', type: 'reactor', checkpoint: null },
           messages,
           async (scope) => {
@@ -176,9 +180,9 @@ describe('processorCollector', () => {
 
   it('per-message child scopes carry messaging.operation.type and messaging.message.id', async () => {
     const messages = [makeMessage('OrderPlaced', { messageId: 'msg-42' })];
-    await given({})
-      .when((config) =>
-        processorCollector(config).startScope(
+    await given((config) => processorCollector(config))
+      .when((collector) =>
+        collector.startScope(
           { processorId: 'p1', type: 'reactor', checkpoint: null },
           messages,
           async (scope) => {
