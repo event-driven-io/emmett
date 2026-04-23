@@ -19,6 +19,7 @@ const M = {
   batchMessageCount: 'messaging.batch.message_count',
   messageConversationId: 'messaging.message.conversation_id',
   messageCausationId: 'messaging.message.causation_id',
+  messageCorrelationId: 'messaging.message.correlation_id',
   traceId: 'trace.id',
   spanId: 'span.id',
 };
@@ -200,7 +201,7 @@ describe('commandHandlerCollector', () => {
     await collector.startScope({ streamName: 'test' }, () => Promise.resolve());
   });
 
-  it('sets messaging.message.conversation_id when correlationId is provided', async () => {
+  it('sets messaging.message.correlation_id when correlationId is provided', async () => {
     await given((config) => commandHandlerCollector(config))
       .when((collector) =>
         collector.startScope(
@@ -211,11 +212,11 @@ describe('commandHandlerCollector', () => {
       .then(({ spans }) =>
         spans
           .haveSpanNamed('command.handle')
-          .hasAttribute(M.messageConversationId, 'corr-123'),
+          .hasAttribute(M.messageCorrelationId, 'corr-123'),
       );
   });
 
-  it('does not set messaging.message.conversation_id when correlationId is absent', async () => {
+  it('does not set messaging.message.correlation_id when correlationId is absent', async () => {
     const tracer = collectingTracer();
     const obs = {
       tracer,
@@ -228,7 +229,7 @@ describe('commandHandlerCollector', () => {
     );
     const span = tracer.spans.find((s) => s.name === 'command.handle');
     expect(span).toBeDefined();
-    expect(span!.attributes[M.messageConversationId]).toBeUndefined();
+    expect(span!.attributes[M.messageCorrelationId]).toBeUndefined();
   });
 
   it('sets messaging.message.causation_id when causationId is provided', async () => {
@@ -243,6 +244,18 @@ describe('commandHandlerCollector', () => {
         spans
           .haveSpanNamed('command.handle')
           .hasAttribute(M.messageCausationId, 'caus-456'),
+      );
+  });
+
+  it('does not set messaging.message.causation_id when causationId is absent', async () => {
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope({ streamName: 'test' }, () => Promise.resolve()),
+      )
+      .then(({ spans }) =>
+        spans
+          .haveSpanNamed('command.handle')
+          .hasAttribute(M.messageCausationId, undefined),
       );
   });
 

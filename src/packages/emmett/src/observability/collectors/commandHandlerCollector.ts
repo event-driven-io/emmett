@@ -51,7 +51,7 @@ export const commandHandlerCollector = (
             [M.traceId]: traceId,
             [M.spanId]: spanId,
             ...(context.correlationId
-              ? { [M.messageConversationId]: context.correlationId }
+              ? { [M.messageCorrelationId]: context.correlationId }
               : {}),
             ...(context.causationId
               ? { [M.messageCausationId]: context.causationId }

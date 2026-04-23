@@ -7,8 +7,9 @@ export const scopeAttributes = (prefix = 'almanac') =>
 export const MessagingAttributes = {
   system: 'messaging.system',
   messageId: 'messaging.message.id',
-  messageConversationId: 'messaging.message.conversation_id',
+  messageCorrelationId: 'messaging.message.correlation_id',
   messageCausationId: 'messaging.message.causation_id',
+  messageConversationId: 'messaging.message.conversation_id',
   batchMessageCount: 'messaging.batch.message_count',
   operationType: 'messaging.operation.type',
   destinationName: 'messaging.destination.name',
