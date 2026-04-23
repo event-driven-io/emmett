@@ -37,7 +37,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: ./src/.nvmrc
-      
+
       - name: Ensure specific npm version
         run: npm install -g npm@11.9.0
 
@@ -60,13 +60,21 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Pack Almanac locally to tar file
+        shell: bash
+        run: echo "ALMANAC_PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/almanac | jq -r '.[] | .filename')" >> $GITHUB_ENV
+
       - name: Pack Emmett locally to tar file
         shell: bash
-        run: echo "PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq -r '.[] | .filename')" >> $GITHUB_ENV
+        run: echo "EMMETT_PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq -r '.[] | .filename')" >> $GITHUB_ENV
+
+      - name: Use Almanac in the compatibility test project
+        working-directory: ./src/e2e/esmCompatibility
+        run: npm install ${{ env.ALMANAC_PACKAGE_FILENAME }}
 
       - name: Use Emmett in the compatibility test project
         working-directory: ./src/e2e/esmCompatibility
-        run: npm install ${{ env.PACKAGE_FILENAME }}
+        run: npm install ${{ env.EMMETT_PACKAGE_FILENAME }}
 
       - name: Install packages in the compatibility test project
         working-directory: ./src/e2e/esmCompatibility
@@ -82,9 +90,13 @@ jobs:
             echo "No errors found, proceeding..."
           fi
 
+      - name: Use Almanac in the browser compatibility test project
+        working-directory: ./src/e2e/browser
+        run: npm install ../esmCompatibility/${{ env.ALMANAC_PACKAGE_FILENAME }}
+
       - name: Use Emmett in the browser compatibility test project
         working-directory: ./src/e2e/browser
-        run: npm install ../esmCompatibility/${{ env.PACKAGE_FILENAME }}
+        run: npm install ../esmCompatibility/${{ env.EMMETT_PACKAGE_FILENAME }}
 
       - name: Install packages in the browser compatibility test project
         working-directory: ./src/e2e/browser
