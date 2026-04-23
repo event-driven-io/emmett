@@ -1,6 +1,5 @@
 export * from './collectedSpan';
 export * from './collectingMeter';
 export * from './collectingTracer';
+export * from './observabilitySpec';
 export * from './spanAssertions';
-export * from './testing';
-
