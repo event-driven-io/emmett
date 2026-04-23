@@ -7,7 +7,7 @@ import { v4 as uuid } from 'uuid';
 import { describe, expect, it, vi } from 'vitest';
 import { getInMemoryEventStore } from '../eventStore';
 import { assertEqual, assertNotEqual, WrapEventStore } from '../testing';
-import { type Event } from '../typing';
+import type { Event } from '../typing';
 import { CommandHandler } from './handleCommand';
 
 type ItemAdded = Event<'ItemAdded', { productId: string }>;

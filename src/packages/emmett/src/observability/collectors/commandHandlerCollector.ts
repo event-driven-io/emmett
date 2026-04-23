@@ -14,6 +14,8 @@ import type { ResolvedCommandObservability } from '../options';
 
 export type CommandHandlerCollectorContext = {
   streamName: string;
+  correlationId?: string;
+  causationId?: string;
 };
 
 export const commandHandlerCollector = (
@@ -41,10 +43,19 @@ export const commandHandlerCollector = (
       return startScope(
         'command.handle',
         async (scope) => {
+          const { traceId, spanId } = scope.spanContext();
           scope.setAttributes({
             [A.scope.type]: ScopeTypes.command,
             [M.system]: MessagingSystemName,
             [M.destinationName]: context.streamName,
+            [M.traceId]: traceId,
+            [M.spanId]: spanId,
+            ...(context.correlationId
+              ? { [M.messageConversationId]: context.correlationId }
+              : {}),
+            ...(context.causationId
+              ? { [M.messageCausationId]: context.causationId }
+              : {}),
           });
 
           // eslint-disable-next-line no-useless-assignment

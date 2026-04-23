@@ -17,6 +17,10 @@ const M = {
   system: 'messaging.system',
   destinationName: 'messaging.destination.name',
   batchMessageCount: 'messaging.batch.message_count',
+  messageConversationId: 'messaging.message.conversation_id',
+  messageCausationId: 'messaging.message.causation_id',
+  traceId: 'trace.id',
+  spanId: 'span.id',
 };
 
 const given = ObservabilitySpec.for();
@@ -194,5 +198,70 @@ describe('commandHandlerCollector', () => {
     const o11y = resolveCommandObservability(undefined);
     const collector = commandHandlerCollector(o11y);
     await collector.startScope({ streamName: 'test' }, () => Promise.resolve());
+  });
+
+  it('sets messaging.message.conversation_id when correlationId is provided', async () => {
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope(
+          { streamName: 'test', correlationId: 'corr-123' },
+          () => Promise.resolve(),
+        ),
+      )
+      .then(({ spans }) =>
+        spans
+          .haveSpanNamed('command.handle')
+          .hasAttribute(M.messageConversationId, 'corr-123'),
+      );
+  });
+
+  it('does not set messaging.message.conversation_id when correlationId is absent', async () => {
+    const tracer = collectingTracer();
+    const obs = {
+      tracer,
+      meter: collectingMeter(),
+      attributeTarget: 'both' as const,
+      includeMessagePayloads: false,
+    };
+    await commandHandlerCollector(obs).startScope({ streamName: 'test' }, () =>
+      Promise.resolve(),
+    );
+    const span = tracer.spans.find((s) => s.name === 'command.handle');
+    expect(span).toBeDefined();
+    expect(span!.attributes[M.messageConversationId]).toBeUndefined();
+  });
+
+  it('sets messaging.message.causation_id when causationId is provided', async () => {
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope(
+          { streamName: 'test', causationId: 'caus-456' },
+          () => Promise.resolve(),
+        ),
+      )
+      .then(({ spans }) =>
+        spans
+          .haveSpanNamed('command.handle')
+          .hasAttribute(M.messageCausationId, 'caus-456'),
+      );
+  });
+
+  it('sets trace.id and span.id on the span', async () => {
+    const tracer = collectingTracer();
+    const obs = {
+      tracer,
+      meter: collectingMeter(),
+      attributeTarget: 'both' as const,
+      includeMessagePayloads: false,
+    };
+    await commandHandlerCollector(obs).startScope({ streamName: 'test' }, () =>
+      Promise.resolve(),
+    );
+    const span = tracer.spans.find((s) => s.name === 'command.handle');
+    expect(span).toBeDefined();
+    expect(typeof span!.attributes[M.traceId]).toBe('string');
+    expect((span!.attributes[M.traceId] as string).length).toBeGreaterThan(0);
+    expect(typeof span!.attributes[M.spanId]).toBe('string');
+    expect((span!.attributes[M.spanId] as string).length).toBeGreaterThan(0);
   });
 });
