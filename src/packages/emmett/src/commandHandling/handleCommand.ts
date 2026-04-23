@@ -1,3 +1,4 @@
+import { v7 as uuid } from 'uuid';
 import {
   canCreateEventStoreSession,
   isExpectedVersionConflictError,
@@ -11,6 +12,11 @@ import {
   type ExpectedStreamVersion,
   type ReadStreamOptions,
 } from '../eventStore';
+import type { CommandObservabilityConfig } from '../observability';
+import {
+  commandHandlerCollector,
+  resolveCommandObservability,
+} from '../observability';
 import type { JSONSerializationOptions } from '../serialization';
 import type { Event } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
@@ -71,7 +77,9 @@ export type CommandHandlerOptions<
       downcast?: (event: StreamEvent) => StoredEvent;
     };
   };
-} & JSONSerializationOptions;
+} & JSONSerializationOptions & {
+    observability?: CommandObservabilityConfig;
+  };
 
 export type HandleOptions<Store extends EventStore> = Parameters<
   Store['appendToStream']
@@ -83,7 +91,10 @@ export type HandleOptions<Store extends EventStore> = Parameters<
     | {
         retry?: CommandHandlerRetryOptions;
       }
-  );
+  ) & {
+    correlationId?: string;
+    causationId?: string;
+  };
 
 type CommandHandlerFunction<State, StreamEvent extends Event> = (
   state: State,
@@ -104,119 +115,142 @@ export const CommandHandler =
       | CommandHandlerFunction<State, StreamEvent>
       | CommandHandlerFunction<State, StreamEvent>[],
     handleOptions?: HandleOptions<Store>,
-  ): Promise<CommandHandlerResult<State, StreamEvent, Store>> =>
-    asyncRetry(
-      async () => {
-        const result = await withSession<
-          Store,
-          CommandHandlerResult<State, StreamEvent, Store>
-        >(store, async ({ eventStore }) => {
-          const { evolve, initialState } = options;
-          const mapToStreamId = options.mapToStreamId ?? ((id) => id);
+  ): Promise<CommandHandlerResult<State, StreamEvent, Store>> => {
+    const collector = commandHandlerCollector(
+      resolveCommandObservability(options),
+    );
+    const streamName = (options.mapToStreamId ?? ((id: string) => id))(id);
 
-          const streamName = mapToStreamId(id);
+    return asyncRetry(
+      () =>
+        collector.startScope({ streamName }, async (scope) => {
+          const result = await withSession<
+            Store,
+            CommandHandlerResult<State, StreamEvent, Store>
+          >(store, async ({ eventStore }) => {
+            const { evolve, initialState } = options;
 
-          // 1. Aggregate the stream
-          const aggregationResult = await eventStore.aggregateStream<
-            State,
-            StreamEvent,
-            EventPayloadType
-          >(streamName, {
-            evolve,
-            initialState,
-            read: {
-              schema: options.schema,
-              ...(handleOptions as ReadStreamOptions<
-                StreamEvent,
-                EventPayloadType
-              >),
-              serialization: options.serialization,
-              // expected stream version is passed to fail fast
-              // if stream is in the wrong state
-              expectedStreamVersion:
-                handleOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
-            },
-          });
+            // 1. Aggregate the stream
+            const aggregationResult = await eventStore.aggregateStream<
+              State,
+              StreamEvent,
+              EventPayloadType
+            >(streamName, {
+              evolve,
+              initialState,
+              read: {
+                schema: options.schema,
+                ...(handleOptions as ReadStreamOptions<
+                  StreamEvent,
+                  EventPayloadType
+                >),
+                serialization: options.serialization,
+                // expected stream version is passed to fail fast
+                // if stream is in the wrong state
+                expectedStreamVersion:
+                  handleOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
+              },
+            });
 
-          // 2. Use the aggregate state
+            // 2. Use the aggregate state
 
-          const {
-            currentStreamVersion,
-            streamExists: _streamExists,
-            ...restOfAggregationResult
-          } = aggregationResult;
+            const {
+              currentStreamVersion,
+              streamExists: _streamExists,
+              ...restOfAggregationResult
+            } = aggregationResult;
 
-          let state = aggregationResult.state;
+            let state = aggregationResult.state;
 
-          const handlers = Array.isArray(handle) ? handle : [handle];
-          let eventsToAppend: StreamEvent[] = [];
+            const handlers = Array.isArray(handle) ? handle : [handle];
+            let eventsToAppend: StreamEvent[] = [];
 
-          // 3. Run business logic
-          for (const handler of handlers) {
-            const result = await handler(state);
+            // 3. Run business logic
+            for (const handler of handlers) {
+              const result = await handler(state);
 
-            const newEvents = Array.isArray(result) ? result : [result];
+              const newEvents = Array.isArray(result) ? result : [result];
 
-            if (newEvents.length > 0) {
-              state = newEvents.reduce(evolve, state);
+              if (newEvents.length > 0) {
+                state = newEvents.reduce(evolve, state);
+              }
+
+              eventsToAppend = [...eventsToAppend, ...newEvents];
             }
 
-            eventsToAppend = [...eventsToAppend, ...newEvents];
-          }
+            //const newEvents = Array.isArray(result) ? result : [result];
 
-          //const newEvents = Array.isArray(result) ? result : [result];
+            if (eventsToAppend.length === 0) {
+              collector.recordVersions(
+                scope,
+                currentStreamVersion,
+                currentStreamVersion,
+              );
+              return {
+                ...restOfAggregationResult,
+                newEvents: [],
+                newState: state,
 
-          if (eventsToAppend.length === 0) {
+                nextExpectedStreamVersion: currentStreamVersion,
+                createdNewStream: false,
+              } as unknown as CommandHandlerResult<State, StreamEvent, Store>;
+            }
+
+            // Either use:
+            // - provided expected stream version,
+            // - current stream version got from stream aggregation,
+            // - or expect stream not to exists otherwise.
+
+            const expectedStreamVersion: ExpectedStreamVersion =
+              handleOptions?.expectedStreamVersion ??
+              (aggregationResult.streamExists
+                ? currentStreamVersion
+                : STREAM_DOES_NOT_EXIST);
+
+            // 4. Append result to the stream
+            const { traceId, spanId } = scope.spanContext();
+            const appendResult = await eventStore.appendToStream(
+              streamName,
+              eventsToAppend,
+              {
+                ...(handleOptions as AppendToStreamOptions<
+                  StreamEvent,
+                  EventPayloadType
+                >),
+                expectedStreamVersion,
+                correlationId: handleOptions?.correlationId ?? uuid(),
+                ...(handleOptions?.causationId
+                  ? { causationId: handleOptions.causationId }
+                  : {}),
+                traceId,
+                spanId,
+              },
+            );
+
+            collector.recordEvents(scope, eventsToAppend, 'success');
+            collector.recordVersions(
+              scope,
+              currentStreamVersion,
+              appendResult.nextExpectedStreamVersion,
+            );
+
+            // 5. Return result with updated state
             return {
-              ...restOfAggregationResult,
-              newEvents: [],
+              ...appendResult,
+              newEvents: eventsToAppend,
               newState: state,
-
-              nextExpectedStreamVersion: currentStreamVersion,
-              createdNewStream: false,
             } as unknown as CommandHandlerResult<State, StreamEvent, Store>;
-          }
+          });
 
-          // Either use:
-          // - provided expected stream version,
-          // - current stream version got from stream aggregation,
-          // - or expect stream not to exists otherwise.
-
-          const expectedStreamVersion: ExpectedStreamVersion =
-            handleOptions?.expectedStreamVersion ??
-            (aggregationResult.streamExists
-              ? currentStreamVersion
-              : STREAM_DOES_NOT_EXIST);
-
-          // 4. Append result to the stream
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            eventsToAppend,
-            {
-              ...(handleOptions as AppendToStreamOptions<
-                StreamEvent,
-                EventPayloadType
-              >),
-              expectedStreamVersion,
-            },
-          );
-
-          // 5. Return result with updated state
-          return {
-            ...appendResult,
-            newEvents: eventsToAppend,
-            newState: state,
-          } as unknown as CommandHandlerResult<State, StreamEvent, Store>;
-        });
-
-        return result;
-      },
+          return result;
+        }),
       fromCommandHandlerRetryOptions(
         handleOptions && 'retry' in handleOptions
           ? handleOptions.retry
           : options.retry,
       ),
     );
+  };
 // #endregion command-handler
 
 const withSession = <EventStoreType extends EventStore, T = unknown>(
