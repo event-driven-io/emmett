@@ -1,5 +1,7 @@
-import { setupTracing } from './tracer';
-setupTracing('webApi-expressjs-with-postgresql');
+import { setupObservability, setupOtel } from './telemetry';
+const { observability: _observability } = setupObservability({
+  providers: { otel: setupOtel() },
+});
 
 import { getInMemoryMessageBus, projections } from '@event-driven-io/emmett';
 import { getApplication, startAPI } from '@event-driven-io/emmett-expressjs';

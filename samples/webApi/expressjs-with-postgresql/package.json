@@ -8,7 +8,7 @@
     "build": "tsdown",
     "build:ts": "tsc",
     "build:ts:watch": "tsc -b --watch",
-    "start": "tsx ./src/index.ts",
+    "start": "tsx --import ./src/telemetry.ts ./src/index.ts",
     "lint": "npm run lint:eslint && npm run lint:prettier",
     "lint:prettier": "prettier --check \"**/**/!(*.d).{ts,json,md}\"",
     "lint:eslint": "eslint '**/*.ts'",
@@ -47,6 +47,7 @@
     "@opentelemetry/instrumentation-express": "^0.215.0",
     "@opentelemetry/instrumentation-http": "^0.215.0",
     "@opentelemetry/resources": "^2.7.0",
+    "@opentelemetry/sdk-node": "^0.215.0",
     "@opentelemetry/sdk-trace-base": "^2.7.0",
     "@opentelemetry/sdk-trace-node": "^2.7.0",
     "@opentelemetry/semantic-conventions": "^1.40.0"
