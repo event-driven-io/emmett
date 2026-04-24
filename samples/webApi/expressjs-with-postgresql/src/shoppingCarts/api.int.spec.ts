@@ -139,6 +139,7 @@ void describe('ShoppingCart', () => {
             getInMemoryMessageBus(),
             getUnitPrice,
             () => now,
+            {},
           ),
         ],
       }),
