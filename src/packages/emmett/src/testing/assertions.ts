@@ -171,6 +171,16 @@ export function assertDefined<T>(
   }
 }
 
+export function assertUndefined<T>(
+  value: T | undefined,
+  message?: string | Error,
+): asserts value is undefined {
+  if (value !== undefined && value !== null) {
+    const msg = message instanceof Error ? message.message : message;
+    throw new AssertionError(msg ?? 'Value is defined');
+  }
+}
+
 export function assertFalse(
   condition: boolean,
   message?: string,

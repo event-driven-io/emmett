@@ -47,8 +47,8 @@ export const eventStoreCollector = (
           span.setAttributes({
             [A.eventStore.operation]: 'readStream',
             [A.stream.name]: streamName,
-            [M.operationType]: 'receive',
-            [M.destinationName]: streamName,
+            [M.operation.type]: 'receive',
+            [M.destination.name]: streamName,
             [M.system]: MessagingSystemName,
           });
 
@@ -100,9 +100,9 @@ export const eventStoreCollector = (
             [A.eventStore.operation]: 'appendToStream',
             [A.stream.name]: streamName,
             [A.eventStore.append.batchSize]: events.length,
-            [M.operationType]: 'send',
-            [M.batchMessageCount]: events.length,
-            [M.destinationName]: streamName,
+            [M.operation.type]: 'send',
+            [M.batch.messageCount]: events.length,
+            [M.destination.name]: streamName,
             [M.system]: MessagingSystemName,
           });
 

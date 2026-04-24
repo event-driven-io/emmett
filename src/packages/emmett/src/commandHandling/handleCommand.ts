@@ -33,25 +33,6 @@ export type CommandHandlerRetryOptions =
   | AsyncRetryOptions
   | { onVersionConflict: true | number | AsyncRetryOptions };
 
-const fromCommandHandlerRetryOptions = (
-  retryOptions: CommandHandlerRetryOptions | undefined,
-): AsyncRetryOptions => {
-  if (retryOptions === undefined) return NoRetries;
-
-  if ('onVersionConflict' in retryOptions) {
-    if (typeof retryOptions.onVersionConflict === 'boolean')
-      return CommandHandlerStreamVersionConflictRetryOptions;
-    else if (typeof retryOptions.onVersionConflict === 'number')
-      return {
-        ...CommandHandlerStreamVersionConflictRetryOptions,
-        retries: retryOptions.onVersionConflict,
-      };
-    else return retryOptions.onVersionConflict;
-  }
-
-  return retryOptions;
-};
-
 // #region command-handler
 export type CommandHandlerResult<
   State,
@@ -77,6 +58,8 @@ export type CommandHandlerOptions<
       downcast?: (event: StreamEvent) => StoredEvent;
     };
   };
+  name?: string;
+  commandType?: string | string[];
 } & JSONSerializationOptions & {
     observability?: CommandObservabilityConfig;
   };
@@ -92,8 +75,12 @@ export type HandleOptions<Store extends EventStore> = Parameters<
         retry?: CommandHandlerRetryOptions;
       }
   ) & {
-    correlationId?: string;
-    causationId?: string;
+    observability?: {
+      traceId?: string;
+      spanId?: string;
+      correlationId?: string;
+      causationId?: string;
+    };
   };
 
 type CommandHandlerFunction<State, StreamEvent extends Event> = (
@@ -121,15 +108,26 @@ export const CommandHandler =
     );
     const streamName = (options.mapToStreamId ?? ((id: string) => id))(id);
 
-    const correlationId = handleOptions?.correlationId ?? uuid();
+    // TODO: for array-of-handlers we record all types as an
+    // `emmett.command.type` array attribute on the parent span and drop the
+    // type label from the handling-duration histogram (OTel metric labels
+    // must be scalar). An alternative is a child scope per handler with its
+    // own type — revisit when per-command metrics become important.
+    const commandType: string | string[] | undefined =
+      options.commandType ?? options.name ?? handlerNames(handle);
+    const correlationId = handleOptions?.observability?.correlationId ?? uuid();
+    const causationId = handleOptions?.observability?.causationId;
 
     return asyncRetry(
       () =>
         collector.startScope(
           {
             streamName,
+            commandType,
             correlationId,
-            causationId: handleOptions?.causationId,
+            causationId,
+            traceId: handleOptions?.observability?.traceId,
+            spanId: handleOptions?.observability?.spanId,
           },
           async (scope) => {
             const result = await withSession<
@@ -218,19 +216,21 @@ export const CommandHandler =
 
               // 4. Append result to the stream
               const { traceId, spanId } = scope.spanContext();
+              const {
+                observability: _appendObservability,
+                ...handleOptionsForAppend
+              } = handleOptions ?? {};
               const appendResult = await eventStore.appendToStream(
                 streamName,
                 eventsToAppend,
                 {
-                  ...(handleOptions as AppendToStreamOptions<
+                  ...(handleOptionsForAppend as AppendToStreamOptions<
                     StreamEvent,
                     EventPayloadType
                   >),
                   expectedStreamVersion,
                   correlationId,
-                  ...(handleOptions?.causationId
-                    ? { causationId: handleOptions.causationId }
-                    : {}),
+                  ...(causationId ? { causationId } : {}),
                   traceId,
                   spanId,
                 },
@@ -272,4 +272,35 @@ const withSession = <EventStoreType extends EventStore, T = unknown>(
     : nulloSessionFactory<EventStoreType>(eventStore);
 
   return sessionFactory.withSession(callback);
+};
+
+const fromCommandHandlerRetryOptions = (
+  retryOptions: CommandHandlerRetryOptions | undefined,
+): AsyncRetryOptions => {
+  if (retryOptions === undefined) return NoRetries;
+
+  if ('onVersionConflict' in retryOptions) {
+    if (typeof retryOptions.onVersionConflict === 'boolean')
+      return CommandHandlerStreamVersionConflictRetryOptions;
+    else if (typeof retryOptions.onVersionConflict === 'number')
+      return {
+        ...CommandHandlerStreamVersionConflictRetryOptions,
+        retries: retryOptions.onVersionConflict,
+      };
+    else return retryOptions.onVersionConflict;
+  }
+
+  return retryOptions;
+};
+
+const handlerNames = <State, StreamEvent extends Event>(
+  handle:
+    | CommandHandlerFunction<State, StreamEvent>
+    | CommandHandlerFunction<State, StreamEvent>[],
+): string | string[] | undefined => {
+  if (Array.isArray(handle)) {
+    const names = handle.map((h) => h.name).filter((n): n is string => !!n);
+    return names.length > 0 ? names : undefined;
+  }
+  return handle.name || undefined;
 };
