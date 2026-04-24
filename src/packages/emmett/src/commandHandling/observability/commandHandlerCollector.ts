@@ -3,14 +3,14 @@ import {
   ObservabilityScope,
   type ObservabilityScope as ObservabilityScopeType,
 } from '@event-driven-io/almanac';
-import type { Event } from '../../typing';
 import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
   ScopeTypes,
-} from '../attributes';
-import type { ResolvedCommandObservability } from '../options';
+} from '../../observability/attributes';
+import type { ResolvedCommandObservability } from '../../observability/options';
+import type { Event } from '../../typing';
 
 export type CommandHandlerCollectorContext = {
   streamName: string;

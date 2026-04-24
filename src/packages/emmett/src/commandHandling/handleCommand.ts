@@ -75,6 +75,7 @@ export type HandleOptions<Store extends EventStore> = Parameters<
         retry?: CommandHandlerRetryOptions;
       }
   ) & {
+    commandType?: string | string[];
     observability?: {
       traceId?: string;
       spanId?: string;
@@ -114,7 +115,10 @@ export const CommandHandler =
     // must be scalar). An alternative is a child scope per handler with its
     // own type — revisit when per-command metrics become important.
     const commandType: string | string[] | undefined =
-      options.commandType ?? options.name ?? handlerNames(handle);
+      handleOptions?.commandType ??
+      options.commandType ??
+      options.name ??
+      handlerNames(handle);
     const correlationId = handleOptions?.observability?.correlationId ?? uuid();
     const causationId = handleOptions?.observability?.causationId;
 

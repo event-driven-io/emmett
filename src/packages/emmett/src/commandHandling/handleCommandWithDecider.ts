@@ -40,11 +40,8 @@ export const DeciderCommandHandler =
     // decide on per-command child scopes vs. a single parent with an array
     // attribute.
     return CommandHandler<State, StreamEvent>(rest)(eventStore, id, deciders, {
+      commandType: commandTypesOf(commands),
       ...handleOptions,
-      observability: {
-        ...handleOptions?.observability,
-        commandType: commandTypesOf(commands),
-      },
     });
   };
 // #endregion command-handler
