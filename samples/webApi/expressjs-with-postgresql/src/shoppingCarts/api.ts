@@ -1,4 +1,4 @@
-import { otelTracer } from '@event-driven-io/almanac/otel';
+import type { ObservabilityConfig } from '@event-driven-io/almanac';
 import {
   CommandHandler,
   assertNotEmptyString,
@@ -29,12 +29,6 @@ import { getClientShoppingSummary } from './getClientShoppingSummary';
 import { getDetailsById } from './getDetails';
 import { evolve, initialState } from './shoppingCart';
 
-export const handle = CommandHandler({
-  evolve,
-  initialState,
-  observability: { tracer: otelTracer() },
-});
-
 export const getShoppingCartId = (clientId: string) =>
   `shopping_cart:${assertNotEmptyString(clientId)}:current`;
 
@@ -45,8 +39,10 @@ export const shoppingCartApi =
     eventPublisher: EventsPublisher,
     getUnitPrice: (_productId: string) => Promise<number>,
     getCurrentTime: () => Date,
+    observability: ObservabilityConfig,
   ): WebApiSetup =>
   (router: Router) => {
+    const handle = CommandHandler({ evolve, initialState, observability });
     // Add Product Item
     router.post(
       '/clients/:clientId/shopping-carts/current/product-items',

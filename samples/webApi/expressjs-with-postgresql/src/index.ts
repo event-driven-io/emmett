@@ -4,11 +4,15 @@ import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
 import { pongoClient } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
 import type { Application } from 'express';
+import pino from 'pino';
+import { observability } from './register';
 import shoppingCarts, { type ShoppingCartConfirmed } from './shoppingCarts';
 
 const connectionString =
   process.env.POSTGRESQL_CONNECTION_STRING ??
   'postgresql://postgres:postgres@localhost:5432/postgres';
+
+const logger = pino();
 
 const eventStore = getPostgreSQLEventStore(connectionString, {
   projections: projections.inline(shoppingCarts.projections),
@@ -23,7 +27,7 @@ const inMemoryMessageBus = getInMemoryMessageBus();
 
 // dummy example to show subscription
 inMemoryMessageBus.subscribe((event: ShoppingCartConfirmed) => {
-  console.log('Shopping Cart confirmed: ' + JSON.stringify(event));
+  logger.info({ event }, 'Shopping Cart confirmed');
 }, 'ShoppingCartConfirmed');
 
 const getUnitPrice = (_productId: string) => {
@@ -38,8 +42,10 @@ const application: Application = getApplication({
       inMemoryMessageBus,
       getUnitPrice,
       () => new Date(),
+      observability,
     ),
   ],
+  observability,
 });
 
 startAPI(application);

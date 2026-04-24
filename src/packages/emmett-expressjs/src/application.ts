@@ -1,6 +1,8 @@
+import type { ObservabilityConfig } from '@event-driven-io/almanac';
 import express, { Router, type Application } from 'express';
 import 'express-async-errors';
 import http from 'http';
+import { context, trace } from '@opentelemetry/api';
 import { problemDetailsMiddleware } from './middlewares/problemDetailsMiddleware';
 import type { ErrorToProblemDetailsMapping } from './responses';
 
@@ -15,6 +17,7 @@ export type ApplicationOptions = {
   disableJsonMiddleware?: boolean;
   disableUrlEncodingMiddleware?: boolean;
   disableProblemDetailsMiddleware?: boolean;
+  observability?: ObservabilityConfig;
 };
 
 export const getApplication = (options: ApplicationOptions) => {
@@ -27,6 +30,7 @@ export const getApplication = (options: ApplicationOptions) => {
     disableJsonMiddleware,
     disableUrlEncodingMiddleware,
     disableProblemDetailsMiddleware,
+    observability,
   } = options;
 
   const router = Router();
@@ -45,6 +49,17 @@ export const getApplication = (options: ApplicationOptions) => {
         extended: true,
       }),
     );
+
+  if (observability) {
+    app.use((_req, res, next) => {
+      const traceId = trace
+        .getSpan(context.active())
+        ?.spanContext()
+        ?.traceId;
+      if (traceId) res.setHeader('x-trace-id', traceId);
+      next();
+    });
+  }
 
   for (const api of apis) {
     api(router);

@@ -46,7 +46,9 @@
   "files": [
     "dist"
   ],
-  "dependencies": {},
+  "dependencies": {
+    "@event-driven-io/almanac": "0.1.0-beta.14"
+  },
   "devDependencies": {},
   "peerDependencies": {
     "@event-driven-io/emmett": "0.43.0-beta.20",
