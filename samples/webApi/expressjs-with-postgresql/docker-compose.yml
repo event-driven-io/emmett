@@ -48,6 +48,44 @@ services:
     networks:
       - postgresql_network
 
+  #######################################################
+  #  Observability
+  #######################################################
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.150.1
+    command: ['--config=/etc/otelcol/otel-collector.yml']
+    volumes:
+      - ./docker/observability/otel-collector.yml:/etc/otelcol/otel-collector.yml
+    ports:
+      - '4317:4317'
+      - '4318:4318'
+    profiles: [observability]
+    networks:
+      - postgresql_network
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ['-config.file=/etc/tempo/tempo.yml']
+    volumes:
+      - ./docker/observability/tempo.yml:/etc/tempo/tempo.yml
+    profiles: [observability]
+    networks:
+      - postgresql_network
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    volumes:
+      - ./docker/observability/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    ports:
+      - '3001:3000'
+    profiles: [observability]
+    networks:
+      - postgresql_network
+
 networks:
   postgresql_network:
     driver: bridge
