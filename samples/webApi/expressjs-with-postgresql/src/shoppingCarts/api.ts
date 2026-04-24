@@ -1,11 +1,10 @@
-import type { ObservabilityConfig } from '@event-driven-io/almanac';
 import {
-  CommandHandler,
   assertNotEmptyString,
   assertPositiveNumber,
   type EventStore,
   type EventsPublisher,
 } from '@event-driven-io/emmett';
+import { CommandHandler } from '../telemetry';
 import {
   NoContent,
   NotFound,
@@ -39,10 +38,9 @@ export const shoppingCartApi =
     eventPublisher: EventsPublisher,
     getUnitPrice: (_productId: string) => Promise<number>,
     getCurrentTime: () => Date,
-    observability: ObservabilityConfig,
   ): WebApiSetup =>
   (router: Router) => {
-    const handle = CommandHandler({ evolve, initialState, observability });
+    const handle = CommandHandler({ evolve, initialState });
     // Add Product Item
     router.post(
       '/clients/:clientId/shopping-carts/current/product-items',

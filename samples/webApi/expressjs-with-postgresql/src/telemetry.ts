@@ -13,6 +13,11 @@ import {
   noopTracer,
 } from '@event-driven-io/almanac';
 import { otelMeter, otelTracer } from '@event-driven-io/almanac/otel';
+import {
+  CommandHandler as BaseCommandHandler,
+  type CommandHandlerOptions,
+  type Event,
+} from '@event-driven-io/emmett';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-proto';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-proto';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
@@ -26,6 +31,16 @@ import { BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { readFileSync } from 'node:fs';
+
+let _globalObservability: ObservabilityConfig<string> | undefined;
+
+export const CommandHandler = <State, StreamEvent extends Event>(
+  options: CommandHandlerOptions<State, StreamEvent>,
+) =>
+  BaseCommandHandler<State, StreamEvent>({
+    ...options,
+    observability: options.observability ?? _globalObservability,
+  });
 
 export type ObservabilityProvider<T = unknown> = {
   tracer: Tracer;
@@ -159,6 +174,8 @@ export const setupObservability = <
     ...(attributeTarget !== undefined ? { attributeTarget } : {}),
     ...(attributePrefix !== undefined ? { attributePrefix } : {}),
   };
+
+  _globalObservability = observability;
 
   let isShuttingDown = false;
   const shutdown = async () => {

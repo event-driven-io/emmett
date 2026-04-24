@@ -17,7 +17,7 @@ export type ApplicationOptions = {
   disableJsonMiddleware?: boolean;
   disableUrlEncodingMiddleware?: boolean;
   disableProblemDetailsMiddleware?: boolean;
-  observability?: ObservabilityConfig;
+  observability?: ObservabilityConfig<string>;
 };
 
 export const getApplication = (options: ApplicationOptions) => {

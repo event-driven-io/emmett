@@ -1,4 +1,3 @@
-import type { ObservabilityConfig } from '@event-driven-io/almanac';
 import { getInMemoryMessageBus, projections } from '@event-driven-io/emmett';
 import { getApplication, startAPI } from '@event-driven-io/emmett-expressjs';
 import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
@@ -6,10 +5,8 @@ import { pongoClient } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
 import type { Application } from 'express';
 import pino from 'pino';
-import { observability as otelObservability } from './register';
+import { observability } from './register';
 import shoppingCarts, { type ShoppingCartConfirmed } from './shoppingCarts';
-
-const observability = otelObservability as ObservabilityConfig;
 
 const connectionString =
   process.env.POSTGRESQL_CONNECTION_STRING ??
@@ -45,10 +42,9 @@ const application: Application = getApplication({
       inMemoryMessageBus,
       getUnitPrice,
       () => new Date(),
-      observability,
     ),
   ],
-  observability,
+  observability: observability as import('@event-driven-io/almanac').ObservabilityConfig,
 });
 
 startAPI(application);
