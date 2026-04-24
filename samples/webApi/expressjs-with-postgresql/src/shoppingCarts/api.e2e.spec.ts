@@ -58,6 +58,7 @@ void describe('ShoppingCart E2E', () => {
               inMemoryMessageBus,
               getUnitPrice,
               () => now,
+              {},
             ),
           ],
         }),

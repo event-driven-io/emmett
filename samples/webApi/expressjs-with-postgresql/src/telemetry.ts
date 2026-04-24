@@ -71,7 +71,9 @@ export const setupOtel = (
     serviceName,
     spanProcessors: [new BatchSpanProcessor(traceExporter)],
     logRecordProcessors: [new BatchLogRecordProcessor(logExporter)],
-    metricReader: new PeriodicExportingMetricReader({ exporter: metricExporter }),
+    metricReader: new PeriodicExportingMetricReader({
+      exporter: metricExporter,
+    }),
     instrumentations: options?.instrumentations ?? defaultInstrumentations(),
   });
 

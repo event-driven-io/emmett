@@ -28,6 +28,72 @@ Just run
 npm run start
 ```
 
+## Observability
+
+The sample ships with a full observability stack — traces (Tempo), logs (Loki), and metrics (Prometheus) — all routed through an OpenTelemetry Collector and visualised in Grafana.
+
+### Quickstart
+
+```bash
+# 1. Start Postgres + the observability stack
+docker compose --profile observability up -d
+
+# 2. Start the app
+npm start
+
+# 3. Send a request
+curl -X POST http://localhost:3000/clients/test/shopping-carts/current/product-items \
+  -H 'Content-Type: application/json' \
+  -d '{"productId":"p1","quantity":2}'
+
+# 4. Open Grafana at http://localhost:3001
+#    Explore → Tempo → search by service name "expressjs-with-postgresql"
+```
+
+The response includes an `x-trace-id` header with the 32-hex W3C trace ID. Copy it into Tempo's trace search to jump straight to the request.
+
+### What you'll see in Grafana
+
+- **Tempo**: nested spans — HTTP → Express route → pg queries → Emmett command handler
+- **Loki**: pino log lines correlated with the trace; click "Logs for this trace" from a Tempo span
+- **Prometheus**: `http.server.request.duration` histogram and `otelcol_receiver_accepted_spans_total` counter
+
+### setupObservability usage modes
+
+**Zero-config — one OTel provider:**
+
+```ts
+const { observability } = setupObservability({
+  providers: { otel: setupOtel() },
+});
+```
+
+**Multi-provider — typed access to each provider's native handle:**
+
+```ts
+const { observability, providers } = setupObservability({
+  providers: {
+    otel: setupOtel({ serviceName: 'shop' }),
+  },
+  sampler: rateSample(0.1),
+});
+
+providers.otel.sdk.forceFlush(); // native NodeSDK handle, fully typed
+```
+
+**Fully manual — skip the helper, pass an `ObservabilityConfig` directly:**
+
+```ts
+import { compositeTracer, otelTracer } from '@event-driven-io/almanac/otel';
+
+const observability: ObservabilityConfig = {
+  tracer: otelTracer(),
+  meter: otelMeter(),
+};
+```
+
+> The helpers (`setupOtel`, `setupObservability`) are the target shapes for the follow-up extraction into `@event-driven-io/almanac` and `@event-driven-io/emmett-expressjs`. A reader of this sample sees exactly the API they will import from those packages in a future release.
+
 ## Running inside Docker
 
 To build application:
