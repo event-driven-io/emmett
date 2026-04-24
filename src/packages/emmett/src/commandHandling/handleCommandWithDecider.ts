@@ -7,6 +7,9 @@ import {
   type HandleOptions,
 } from './handleCommand';
 
+const commandTypesOf = (commands: Command | Command[]): string | string[] =>
+  Array.isArray(commands) ? commands.map((c) => c.type) : commands.type;
+
 // #region command-handler
 
 export type DeciderCommandHandlerOptions<
@@ -32,11 +35,16 @@ export const DeciderCommandHandler =
       (command) => (state: State) => decide(command, state),
     );
 
-    return CommandHandler<State, StreamEvent>(rest)(
-      eventStore,
-      id,
-      deciders,
-      handleOptions,
-    );
+    // TODO: forwarding an array of command types to a single span attribute
+    // mirrors the array-of-handlers case in CommandHandler — revisit once we
+    // decide on per-command child scopes vs. a single parent with an array
+    // attribute.
+    return CommandHandler<State, StreamEvent>(rest)(eventStore, id, deciders, {
+      ...handleOptions,
+      observability: {
+        ...handleOptions?.observability,
+        commandType: commandTypesOf(commands),
+      },
+    });
   };
 // #endregion command-handler

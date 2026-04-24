@@ -81,7 +81,7 @@ export const processorCollector = (
             [A.processor.batchSize]: messages.length,
             [A.processor.eventTypes]: [...new Set(messages.map((m) => m.type))],
             [M.system]: MessagingSystemName,
-            [M.batchMessageCount]: messages.length,
+            [M.batch.messageCount]: messages.length,
             ...(context.checkpoint
               ? { [A.processor.checkpointBefore]: context.checkpoint }
               : {}),
@@ -130,8 +130,8 @@ export const processorCollector = (
             [A.scope.type]: context.archetypeType,
             [A.processor.id]: context.processorId,
             [A.processor.type]: context.type,
-            [M.operationType]: 'process',
-            ...(meta?.messageId ? { [M.messageId]: meta.messageId } : {}),
+            [M.operation.type]: 'process',
+            ...(meta?.messageId ? { [M.message.id]: meta.messageId } : {}),
           });
           return fn(scope);
         },

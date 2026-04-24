@@ -14,8 +14,11 @@ import type { ResolvedCommandObservability } from '../options';
 
 export type CommandHandlerCollectorContext = {
   streamName: string;
+  commandType?: string | string[];
   correlationId?: string;
   causationId?: string;
+  traceId?: string;
+  spanId?: string;
 };
 
 export const commandHandlerCollector = (
@@ -40,21 +43,25 @@ export const commandHandlerCollector = (
       fn: (scope: ObservabilityScopeType) => Promise<T>,
     ): Promise<T> => {
       const start = Date.now();
+      const parent =
+        context.traceId && context.spanId
+          ? { traceId: context.traceId, spanId: context.spanId }
+          : undefined;
       return startScope(
         'command.handle',
         async (scope) => {
-          const { traceId, spanId } = scope.spanContext();
           scope.setAttributes({
             [A.scope.type]: ScopeTypes.command,
             [M.system]: MessagingSystemName,
-            [M.destinationName]: context.streamName,
-            [M.traceId]: traceId,
-            [M.spanId]: spanId,
+            [M.destination.name]: context.streamName,
+            ...(context.commandType
+              ? { [A.command.type]: context.commandType }
+              : {}),
             ...(context.correlationId
-              ? { [M.messageCorrelationId]: context.correlationId }
+              ? { [M.message.correlationId]: context.correlationId }
               : {}),
             ...(context.causationId
-              ? { [M.messageCausationId]: context.causationId }
+              ? { [M.message.causationId]: context.causationId }
               : {}),
           });
 
@@ -85,13 +92,26 @@ export const commandHandlerCollector = (
           } finally {
             commandHandlingDuration.record(Date.now() - start, {
               [A.command.status]: status,
+              ...(typeof context.commandType === 'string'
+                ? { [A.command.type]: context.commandType }
+                : {}),
             });
           }
         },
         {
+          parent,
           attributes: {
             [A.scope.type]: ScopeTypes.command,
             [A.stream.name]: context.streamName,
+            ...(context.commandType
+              ? { [A.command.type]: context.commandType }
+              : {}),
+            ...(context.correlationId
+              ? { [M.message.correlationId]: context.correlationId }
+              : {}),
+            ...(context.causationId
+              ? { [M.message.causationId]: context.causationId }
+              : {}),
           },
         },
       );
@@ -105,7 +125,7 @@ export const commandHandlerCollector = (
       scope.setAttributes({
         [A.command.eventCount]: events.length,
         [A.command.eventTypes]: events.map((e) => e.type),
-        [M.batchMessageCount]: events.length,
+        [M.batch.messageCount]: events.length,
         [A.command.status]: status,
       });
       for (const event of events) {

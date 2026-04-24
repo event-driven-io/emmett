@@ -1,7 +1,7 @@
 import {
-  ObservabilityScope,
   MessagingAttributes,
   noopScope,
+  ObservabilityScope,
   type ObservabilityScope as ObservabilityScopeType,
 } from '@event-driven-io/almanac';
 import {
@@ -50,7 +50,7 @@ export const consumerCollector = (
           [A.consumer.batchSize]: context.batchSize,
           [A.consumer.processorCount]: context.processorCount,
           [M.system]: MessagingSystemName,
-          [M.operationType]: 'receive',
+          [M.operation.type]: 'receive',
           ...(context.empty ? { 'emmett.consumer.poll.empty': true } : {}),
           ...(context.waitMs != null
             ? { 'emmett.consumer.poll.wait_ms': context.waitMs }
