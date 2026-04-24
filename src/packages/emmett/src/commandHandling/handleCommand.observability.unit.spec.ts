@@ -4,7 +4,10 @@ import {
 } from '@event-driven-io/almanac';
 import { v4 as uuid } from 'uuid';
 import { describe, expect, it, vi } from 'vitest';
-import { getInMemoryEventStore } from '../eventStore';
+import {
+  ExpectedVersionConflictError,
+  getInMemoryEventStore,
+} from '../eventStore';
 import { EmmettAttributes, EmmettMetrics } from '../observability/attributes';
 import { assertEqual, assertNotEqual, assertUndefined } from '../testing';
 import type { Event } from '../typing';
@@ -385,6 +388,117 @@ describe('handler observability', () => {
           }
         })
         .then(({ metrics }) => {
+          metrics
+            .haveHistogramNamed(EmmettMetrics.command.handlingDuration)
+            .hasAttribute(EmmettAttributes.command.status, 'failure');
+        });
+    });
+  });
+
+  void describe('error handling', () => {
+    void it('records failure span attributes when handler throws', () => {
+      return given((observability) =>
+        CommandHandler<Cart, ItemAdded>({
+          evolve: (state) => state,
+          initialState: () => ({ count: 0 }),
+          observability,
+        }),
+      )
+        .when(async (handler) =>
+          handler(getInMemoryEventStore(), uuid(), () => {
+            throw new Error('business rule violated');
+          }),
+        )
+        .thenThrows(({ spans, error }) => {
+          spans.haveSpanNamed('command.handle').hasAttributes({
+            [EmmettAttributes.command.status]: 'failure',
+            error: true,
+            'exception.message': 'business rule violated',
+            'exception.type': 'Error',
+          });
+          expect((error as Error).message).toBe('business rule violated');
+        });
+    });
+
+    void it('records failure span attributes when infrastructure throws a concurrency error', () => {
+      const eventStore = getInMemoryEventStore();
+      const streamId = uuid();
+
+      return given((observability) =>
+        CommandHandler<Cart, ItemAdded>({
+          evolve: (state) => state,
+          initialState: () => ({ count: 0 }),
+          observability,
+        }),
+      )
+        .when(async (handler) => {
+          const seedEvent: ItemAdded = {
+            type: 'ItemAdded',
+            data: { productId: 'seed' },
+          };
+          await eventStore.appendToStream(streamId, [seedEvent]);
+          await handler(
+            eventStore,
+            streamId,
+            () => [{ type: 'ItemAdded', data: { productId: 'p1' } }],
+            { expectedStreamVersion: 0n },
+          );
+        })
+        .thenThrows(({ spans, error }) => {
+          spans.haveSpanNamed('command.handle').hasAttributes({
+            [EmmettAttributes.command.status]: 'failure',
+            error: true,
+            'exception.type': 'ExpectedVersionConflictError',
+          });
+          expect(error).toBeInstanceOf(ExpectedVersionConflictError);
+        });
+    });
+
+    void it('records failure histogram when handler throws', () => {
+      return given((observability) =>
+        CommandHandler<Cart, ItemAdded>({
+          evolve: (state) => state,
+          initialState: () => ({ count: 0 }),
+          observability,
+        }),
+      )
+        .when(async (handler) =>
+          handler(getInMemoryEventStore(), uuid(), () => {
+            throw new Error('business rule violated');
+          }),
+        )
+        .thenThrows(({ metrics }) => {
+          metrics
+            .haveHistogramNamed(EmmettMetrics.command.handlingDuration)
+            .hasAttribute(EmmettAttributes.command.status, 'failure');
+        });
+    });
+
+    void it('records failure histogram when infrastructure throws a concurrency error', () => {
+      const eventStore = getInMemoryEventStore();
+      const streamId = uuid();
+
+      return given((observability) =>
+        CommandHandler<Cart, ItemAdded>({
+          evolve: (state) => state,
+          initialState: () => ({ count: 0 }),
+          observability,
+        }),
+      )
+        .when(async (handler) => {
+          const seedEvent: ItemAdded = {
+            type: 'ItemAdded',
+            data: { productId: 'seed' },
+          };
+          await eventStore.appendToStream(streamId, [seedEvent]);
+          await handler(
+            eventStore,
+            streamId,
+            () => [{ type: 'ItemAdded', data: { productId: 'p1' } }],
+            { expectedStreamVersion: 0n },
+          );
+        })
+        .thenThrows(({ metrics }) => {
           metrics
             .haveHistogramNamed(EmmettMetrics.command.handlingDuration)
             .hasAttribute(EmmettAttributes.command.status, 'failure');
