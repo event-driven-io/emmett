@@ -1,10 +1,8 @@
 import {
-  collectingMeter,
-  collectingTracer,
   MessagingAttributes,
   ObservabilitySpec,
 } from '@event-driven-io/almanac';
-import { describe, expect, it } from 'vitest';
+import { describe, it } from 'vitest';
 import {
   EmmettAttributes,
   EmmettMetrics,
@@ -124,67 +122,51 @@ describe('commandHandlerCollector', () => {
   });
 
   it('sets emmett.command.status to failure and error attributes on error', async () => {
-    const tracer = collectingTracer();
-    const obs = {
-      tracer,
-      meter: collectingMeter(),
-      attributeTarget: 'both' as const,
-      includeMessagePayloads: false,
-    };
-    await expect(
-      commandHandlerCollector(obs).startScope({ streamName: 'test' }, () =>
-        Promise.reject(new Error('boom')),
-      ),
-    ).rejects.toThrow('boom');
-    const span = tracer.spans.find((s) => s.name === 'command.handle');
-    expect(span).toBeDefined();
-    expect(span!.attributes[A.command.status]).toBe('failure');
-    expect(span!.attributes['error']).toBe(true);
-    expect(span!.attributes['exception.message']).toBe('boom');
-    expect(span!.attributes['exception.type']).toBe('Error');
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope({ streamName: 'test' }, () =>
+          Promise.reject(new Error('boom')),
+        ),
+      )
+      .thenThrows(({ spans }) =>
+        spans.haveSpanNamed('command.handle').hasAttributes({
+          [A.command.status]: 'failure',
+          error: true,
+          'exception.message': 'boom',
+          'exception.type': 'Error',
+        }),
+      );
   });
 
   it('records emmett.command.handling.duration histogram', async () => {
-    const meter = collectingMeter();
-    const obs = {
-      tracer: collectingTracer(),
-      meter,
-      attributeTarget: 'both' as const,
-      includeMessagePayloads: false,
-    };
-    await commandHandlerCollector(obs).startScope({ streamName: 'test' }, () =>
-      Promise.resolve(),
-    );
-    const entry = meter.histograms.find(
-      (h) => h.name === EmmettMetrics.command.handlingDuration,
-    );
-    expect(entry).toBeDefined();
-    expect(entry!.value).toBeGreaterThanOrEqual(0);
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope({ streamName: 'test' }, () => Promise.resolve()),
+      )
+      .then(({ metrics }) =>
+        metrics
+          .haveHistogramNamed(EmmettMetrics.command.handlingDuration)
+          .hasValueAtLeast(0),
+      );
   });
 
   it('recordEvents increments counter per event', async () => {
-    const meter = collectingMeter();
-    const obs = {
-      tracer: collectingTracer(),
-      meter,
-      attributeTarget: 'both' as const,
-      includeMessagePayloads: false,
-    };
     const events = [
       { type: 'OrderPlaced', data: {}, kind: 'Event' as const },
       { type: 'ItemAdded', data: {}, kind: 'Event' as const },
     ];
-    await commandHandlerCollector(obs).startScope(
-      { streamName: 'test' },
-      (scope) => {
-        commandHandlerCollector(obs).recordEvents(scope, events, 'success');
-        return Promise.resolve();
-      },
-    );
-    const counters = meter.counters.filter(
-      (c) => c.name === EmmettMetrics.event.appendingCount,
-    );
-    expect(counters.length).toBe(2);
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope({ streamName: 'test' }, (scope) => {
+          collector.recordEvents(scope, events, 'success');
+          return Promise.resolve();
+        }),
+      )
+      .then(({ metrics }) =>
+        metrics
+          .haveCounterNamed(EmmettMetrics.event.appendingCount)
+          .recordedTimes(2),
+      );
   });
 
   it('works with noop observability', async () => {
@@ -209,19 +191,15 @@ describe('commandHandlerCollector', () => {
   });
 
   it('does not set messaging.message.correlation_id when correlationId is absent', async () => {
-    const tracer = collectingTracer();
-    const obs = {
-      tracer,
-      meter: collectingMeter(),
-      attributeTarget: 'both' as const,
-      includeMessagePayloads: false,
-    };
-    await commandHandlerCollector(obs).startScope({ streamName: 'test' }, () =>
-      Promise.resolve(),
-    );
-    const span = tracer.spans.find((s) => s.name === 'command.handle');
-    expect(span).toBeDefined();
-    expect(span!.attributes[M.message.correlationId]).toBeUndefined();
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope({ streamName: 'test' }, () => Promise.resolve()),
+      )
+      .then(({ spans }) =>
+        spans
+          .haveSpanNamed('command.handle')
+          .hasAttribute(M.message.correlationId, undefined),
+      );
   });
 
   it('sets messaging.message.causation_id when causationId is provided', async () => {
@@ -294,80 +272,59 @@ describe('commandHandlerCollector', () => {
   });
 
   it('uses inherited trace context when traceId/spanId are provided', async () => {
-    const tracer = collectingTracer();
-    const obs = {
-      tracer,
-      meter: collectingMeter(),
-      attributeTarget: 'both' as const,
-      includeMessagePayloads: false,
-    };
-    await commandHandlerCollector(obs).startScope(
-      {
-        streamName: 'test',
-        traceId: 'parent-trace',
-        spanId: 'parent-span',
-      },
-      () => Promise.resolve(),
-    );
-    const span = tracer.spans.find((s) => s.name === 'command.handle');
-    expect(span).toBeDefined();
-    expect(span!.startOptions.parent).toEqual({
-      traceId: 'parent-trace',
-      spanId: 'parent-span',
-    });
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope(
+          {
+            streamName: 'test',
+            traceId: 'parent-trace',
+            spanId: 'parent-span',
+          },
+          () => Promise.resolve(),
+        ),
+      )
+      .then(({ spans }) =>
+        spans
+          .haveSpanNamed('command.handle')
+          .hasParent({ traceId: 'parent-trace', spanId: 'parent-span' }),
+      );
   });
 
   it('does not set parent when traceId/spanId are absent', async () => {
-    const tracer = collectingTracer();
-    const obs = {
-      tracer,
-      meter: collectingMeter(),
-      attributeTarget: 'both' as const,
-      includeMessagePayloads: false,
-    };
-    await commandHandlerCollector(obs).startScope({ streamName: 'test' }, () =>
-      Promise.resolve(),
-    );
-    const span = tracer.spans.find((s) => s.name === 'command.handle');
-    expect(span).toBeDefined();
-    expect(span!.startOptions.parent).toBeUndefined();
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope({ streamName: 'test' }, () => Promise.resolve()),
+      )
+      .then(({ spans }) => spans.haveSpanNamed('command.handle').hasNoParent());
   });
 
   it('records emmett.command.type on the handling duration histogram for a single type', async () => {
-    const meter = collectingMeter();
-    const obs = {
-      tracer: collectingTracer(),
-      meter,
-      attributeTarget: 'both' as const,
-      includeMessagePayloads: false,
-    };
-    await commandHandlerCollector(obs).startScope(
-      { streamName: 'test', commandType: 'AddProductItem' },
-      () => Promise.resolve(),
-    );
-    const entry = meter.histograms.find(
-      (h) => h.name === EmmettMetrics.command.handlingDuration,
-    );
-    expect(entry).toBeDefined();
-    expect(entry!.attributes?.[A.command.type]).toBe('AddProductItem');
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope(
+          { streamName: 'test', commandType: 'AddProductItem' },
+          () => Promise.resolve(),
+        ),
+      )
+      .then(({ metrics }) =>
+        metrics
+          .haveHistogramNamed(EmmettMetrics.command.handlingDuration)
+          .hasAttribute(A.command.type, 'AddProductItem'),
+      );
   });
 
   it('omits emmett.command.type from the handling duration histogram when commandType is an array', async () => {
-    const meter = collectingMeter();
-    const obs = {
-      tracer: collectingTracer(),
-      meter,
-      attributeTarget: 'both' as const,
-      includeMessagePayloads: false,
-    };
-    await commandHandlerCollector(obs).startScope(
-      { streamName: 'test', commandType: ['AddProductItem', 'Confirm'] },
-      () => Promise.resolve(),
-    );
-    const entry = meter.histograms.find(
-      (h) => h.name === EmmettMetrics.command.handlingDuration,
-    );
-    expect(entry).toBeDefined();
-    expect(entry!.attributes?.[A.command.type]).toBeUndefined();
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope(
+          { streamName: 'test', commandType: ['AddProductItem', 'Confirm'] },
+          () => Promise.resolve(),
+        ),
+      )
+      .then(({ metrics }) =>
+        metrics
+          .haveHistogramNamed(EmmettMetrics.command.handlingDuration)
+          .hasAttribute(A.command.type, undefined),
+      );
   });
 });

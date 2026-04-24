@@ -31,6 +31,14 @@ export type TracingSpecification = <T = undefined>(
         metrics: MeterCollectionAssertions;
       }) => void,
     ) => Promise<void>;
+    thenThrows: (
+      assertFn: (result: {
+        sut: T;
+        spans: SpanCollectionAssertions;
+        metrics: MeterCollectionAssertions;
+        error: unknown;
+      }) => void,
+    ) => Promise<void>;
   };
 };
 
@@ -43,7 +51,12 @@ export const ObservabilitySpec = {
       when: (fn: (sut: T, config: ObservabilityTestConfig) => unknown) => {
         const execute = (() => {
           let cached:
-            | { tracer: CollectingTracer; meter: CollectingMeter; sut: T }
+            | {
+                tracer: CollectingTracer;
+                meter: CollectingMeter;
+                sut: T;
+                error?: unknown;
+              }
             | undefined;
           return async () => {
             if (!cached) {
@@ -62,8 +75,13 @@ export const ObservabilitySpec = {
 
               const sut = given(observability);
 
-              await fn(sut, observability);
-              cached = { tracer, meter, sut };
+              let error: unknown;
+              try {
+                await fn(sut, observability);
+              } catch (e) {
+                error = e;
+              }
+              cached = { tracer, meter, sut, error };
             }
             return cached;
           };
@@ -77,11 +95,30 @@ export const ObservabilitySpec = {
               metrics: MeterCollectionAssertions;
             }) => void,
           ) => {
-            const { tracer, meter, sut } = await execute();
+            const { tracer, meter, sut, error } = await execute();
+            if (error !== undefined) throw error as Error;
             assertFn({
               sut,
               spans: assertThatSpans(tracer.spans),
               metrics: assertThatMetrics(meter),
+            });
+          },
+          thenThrows: async (
+            assertFn: (result: {
+              sut: T;
+              spans: SpanCollectionAssertions;
+              metrics: MeterCollectionAssertions;
+              error: unknown;
+            }) => void,
+          ) => {
+            const { tracer, meter, sut, error } = await execute();
+            if (error === undefined)
+              throw new Error('Expected operation to throw but it succeeded');
+            assertFn({
+              sut,
+              spans: assertThatSpans(tracer.spans),
+              metrics: assertThatMetrics(meter),
+              error,
             });
           },
         };
