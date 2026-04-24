@@ -13,12 +13,17 @@ import {
   noopTracer,
 } from '@event-driven-io/almanac';
 import { otelMeter, otelTracer } from '@event-driven-io/almanac/otel';
+import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-proto';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-proto';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
 import type { Instrumentation } from '@opentelemetry/instrumentation';
 import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
+import { PinoInstrumentation } from '@opentelemetry/instrumentation-pino';
 import { NodeSDK } from '@opentelemetry/sdk-node';
+import { BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { readFileSync } from 'node:fs';
 
@@ -54,9 +59,19 @@ export const setupOtel = (
     url: `${otlpEndpoint}/v1/traces`,
   });
 
+  const logExporter = new OTLPLogExporter({
+    url: `${otlpEndpoint}/v1/logs`,
+  });
+
+  const metricExporter = new OTLPMetricExporter({
+    url: `${otlpEndpoint}/v1/metrics`,
+  });
+
   const sdk = new NodeSDK({
     serviceName,
     spanProcessors: [new BatchSpanProcessor(traceExporter)],
+    logRecordProcessors: [new BatchLogRecordProcessor(logExporter)],
+    metricReader: new PeriodicExportingMetricReader({ exporter: metricExporter }),
     instrumentations: options?.instrumentations ?? defaultInstrumentations(),
   });
 
@@ -76,6 +91,7 @@ const defaultInstrumentations = (): Instrumentation[] => [
   }),
   new ExpressInstrumentation(),
   new PgInstrumentation(),
+  new PinoInstrumentation(),
 ];
 
 const readPkgName = (): string | undefined => {

@@ -72,6 +72,28 @@ services:
     networks:
       - postgresql_network
 
+  loki:
+    image: grafana/loki:3.1.1
+    command: -config.file=/etc/loki/local-config.yml
+    volumes:
+      - ./docker/observability/loki.yml:/etc/loki/local-config.yml
+    profiles: [observability]
+    networks:
+      - postgresql_network
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-lifecycle
+    volumes:
+      - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - '9090:9090'
+    profiles: [observability]
+    networks:
+      - postgresql_network
+
   grafana:
     image: grafana/grafana:11.3.1
     environment:
