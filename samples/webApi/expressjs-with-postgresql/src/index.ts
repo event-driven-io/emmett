@@ -1,3 +1,6 @@
+import { setupTracing } from './tracer';
+setupTracing('webApi-expressjs-with-postgresql');
+
 import { getInMemoryMessageBus, projections } from '@event-driven-io/emmett';
 import { getApplication, startAPI } from '@event-driven-io/emmett-expressjs';
 import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
