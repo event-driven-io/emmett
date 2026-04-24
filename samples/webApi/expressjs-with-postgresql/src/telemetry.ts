@@ -17,6 +17,7 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
 import type { Instrumentation } from '@opentelemetry/instrumentation';
 import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
+import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { readFileSync } from 'node:fs';
@@ -74,6 +75,7 @@ const defaultInstrumentations = (): Instrumentation[] => [
     ignoreIncomingRequestHook: (req) => req.url === '/health',
   }),
   new ExpressInstrumentation(),
+  new PgInstrumentation(),
 ];
 
 const readPkgName = (): string | undefined => {
