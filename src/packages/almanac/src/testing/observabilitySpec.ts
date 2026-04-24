@@ -3,6 +3,10 @@ import type { TracePropagation } from '../tracers';
 import { collectingMeter, type CollectingMeter } from './collectingMeter';
 import { collectingTracer, type CollectingTracer } from './collectingTracer';
 import {
+  assertThatMetrics,
+  type MeterCollectionAssertions,
+} from './meterAssertions';
+import {
   assertThatSpans,
   type SpanCollectionAssertions,
 } from './spanAssertions';
@@ -21,7 +25,11 @@ export type TracingSpecification = <T = undefined>(
 ) => {
   when: (fn: (sut: T, config: ObservabilityTestConfig) => unknown) => {
     then: (
-      assertFn: (result: { sut: T; spans: SpanCollectionAssertions }) => void,
+      assertFn: (result: {
+        sut: T;
+        spans: SpanCollectionAssertions;
+        metrics: MeterCollectionAssertions;
+      }) => void,
     ) => Promise<void>;
   };
 };
@@ -66,10 +74,15 @@ export const ObservabilitySpec = {
             assertFn: (result: {
               sut: T;
               spans: SpanCollectionAssertions;
+              metrics: MeterCollectionAssertions;
             }) => void,
           ) => {
-            const { tracer, sut } = await execute();
-            assertFn({ sut, spans: assertThatSpans(tracer.spans) });
+            const { tracer, meter, sut } = await execute();
+            assertFn({
+              sut,
+              spans: assertThatSpans(tracer.spans),
+              metrics: assertThatMetrics(meter),
+            });
           },
         };
       },
