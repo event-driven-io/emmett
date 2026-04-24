@@ -39,7 +39,7 @@ export const assertThatSpan = (
           : actual === value;
       if (!isEqual)
         throw new Error(
-          `Expected span "${span.name}" attribute "${key}" to be ${JSON.stringify(value)}, got ${JSON.stringify(actual)}`,
+          `Expected span "${span.name}" attribute "${key}" to be ${JSON.stringify(value)}, got ${JSON.stringify(actual)}.\nExisting attributes: ${JSON.stringify(span.attributes, null, 2)}`,
         );
       return self;
     },

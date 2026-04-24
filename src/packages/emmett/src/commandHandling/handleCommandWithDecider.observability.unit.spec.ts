@@ -1,6 +1,6 @@
-import { collectingMeter, collectingTracer } from '@event-driven-io/almanac';
+import { ObservabilitySpec } from '@event-driven-io/almanac';
 import { randomUUID } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, it } from 'vitest';
 import { getInMemoryEventStore } from '../eventStore';
 import { EmmettAttributes } from '../observability/attributes';
 import type { Event } from '../typing';
@@ -37,48 +37,53 @@ const evolve = (state: Cart, event: CartEvent): Cart => {
 const initialState = (): Cart => ({ items: [], confirmed: false });
 
 describe('DeciderCommandHandler observability', () => {
-  void it('forwards command.type to the span attribute for a single command', async () => {
-    const tracer = collectingTracer();
-    const meter = collectingMeter();
+  const given = ObservabilitySpec.for();
 
-    const handler = DeciderCommandHandler<Cart, CartCommand, CartEvent>({
-      evolve,
-      initialState,
-      decide,
-      observability: { tracer, meter },
-    });
+  void it('forwards command.type to the span attribute for a single command', () => {
+    const streamId = randomUUID();
 
-    await handler(getInMemoryEventStore(), randomUUID(), {
-      type: 'AddItem',
-      data: { productId: 'p1' },
-    });
-
-    const span = tracer.spans.find((s) => s.name === 'command.handle');
-    expect(span).toBeDefined();
-    expect(span!.attributes[EmmettAttributes.command.type]).toBe('AddItem');
+    return given((observability) =>
+      DeciderCommandHandler<Cart, CartCommand, CartEvent>({
+        evolve,
+        initialState,
+        decide,
+        observability,
+      }),
+    )
+      .when(async (handler) =>
+        handler(getInMemoryEventStore(), streamId, {
+          type: 'AddItem',
+          data: { productId: 'p1' },
+        }),
+      )
+      .then(({ spans }) => {
+        spans
+          .haveSpanNamed('command.handle')
+          .hasAttribute(EmmettAttributes.command.type, 'AddItem');
+      });
   });
 
-  void it('forwards command.type as an array for multiple commands', async () => {
-    const tracer = collectingTracer();
-    const meter = collectingMeter();
+  void it('forwards command.type as an array for multiple commands', () => {
+    const streamId = randomUUID();
 
-    const handler = DeciderCommandHandler<Cart, CartCommand, CartEvent>({
-      evolve,
-      initialState,
-      decide,
-      observability: { tracer, meter },
-    });
-
-    await handler(getInMemoryEventStore(), randomUUID(), [
-      { type: 'AddItem', data: { productId: 'p1' } },
-      { type: 'Confirm', data: {} },
-    ]);
-
-    const span = tracer.spans.find((s) => s.name === 'command.handle');
-    expect(span).toBeDefined();
-    expect(span!.attributes[EmmettAttributes.command.type]).toEqual([
-      'AddItem',
-      'Confirm',
-    ]);
+    return given((observability) =>
+      DeciderCommandHandler<Cart, CartCommand, CartEvent>({
+        evolve,
+        initialState,
+        decide,
+        observability,
+      }),
+    )
+      .when(async (handler) =>
+        handler(getInMemoryEventStore(), streamId, [
+          { type: 'AddItem', data: { productId: 'p1' } },
+          { type: 'Confirm', data: {} },
+        ]),
+      )
+      .then(({ spans }) => {
+        spans
+          .haveSpanNamed('command.handle')
+          .hasAttribute(EmmettAttributes.command.type, ['AddItem', 'Confirm']);
+      });
   });
 });

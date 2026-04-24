@@ -1,5 +1,5 @@
-export * from './commandHandlerCollector';
+export * from '../../commandHandling/observability/commandHandlerCollector';
+export * from './consumerCollector';
 export * from './eventStoreCollector';
 export * from './processorCollector';
 export * from './workflowCollector';
-export * from './consumerCollector';
