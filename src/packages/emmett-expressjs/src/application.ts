@@ -52,10 +52,7 @@ export const getApplication = (options: ApplicationOptions) => {
 
   if (observability) {
     app.use((_req, res, next) => {
-      const traceId = trace
-        .getSpan(context.active())
-        ?.spanContext()
-        ?.traceId;
+      const traceId = trace.getSpan(context.active())?.spanContext()?.traceId;
       if (traceId) res.setHeader('x-trace-id', traceId);
       next();
     });
