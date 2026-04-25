@@ -5,7 +5,6 @@ import { pongoClient } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
 import type { Application } from 'express';
 import pino from 'pino';
-import { observability } from './register';
 import shoppingCarts, { type ShoppingCartConfirmed } from './shoppingCarts';
 
 const connectionString =
@@ -44,7 +43,6 @@ const application: Application = getApplication({
       () => new Date(),
     ),
   ],
-  observability: observability as import('@event-driven-io/almanac').ObservabilityConfig,
 });
 
 startAPI(application);
