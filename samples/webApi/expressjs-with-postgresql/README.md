@@ -30,7 +30,9 @@ npm run start
 
 ## Observability
 
-The sample ships with a full observability stack — traces (Tempo), logs (Loki), and metrics (Prometheus) — all routed through an OpenTelemetry Collector and visualised in Grafana.
+Emmett auto-instruments your application with zero configuration: every command execution, event store read/write, processor, consumer, and workflow emits spans, metrics, and structured logs via OpenTelemetry.
+
+This sample bundles a turnkey observability stack — OTel Collector → Tempo (traces) / Loki (logs) / Prometheus (metrics) → Grafana — so you can explore all three signals out of the box.
 
 ### Quickstart
 
@@ -42,57 +44,109 @@ docker compose --profile observability up -d
 npm start
 
 # 3. Send a request
-curl -X POST http://localhost:3000/clients/test/shopping-carts/current/product-items \
+curl -i -X POST http://localhost:3000/clients/dummy/shopping-carts/current/product-items \
   -H 'Content-Type: application/json' \
-  -d '{"productId":"p1","quantity":2}'
+  -d '{"productId":"dummy","quantity":10}'
 
 # 4. Open Grafana at http://localhost:3001
-#    Explore → Tempo → search by service name "expressjs-with-postgresql"
 ```
 
-The response includes an `x-trace-id` header with the 32-hex W3C trace ID. Copy it into Tempo's trace search to jump straight to the request.
+### Endpoints
 
-### What you'll see in Grafana
+| Service    | URL                         | What it shows                                   |
+|------------|-----------------------------|-------------------------------------------------|
+| App        | http://localhost:3000       | REST API                                        |
+| Grafana    | http://localhost:3001       | Dashboards, trace explorer, log explorer        |
+| Prometheus | http://localhost:9090       | Raw metrics, PromQL                             |
+| Tempo      | http://localhost:3200       | Trace storage (query via Grafana)               |
+| Loki       | http://localhost:3100       | Log storage (query via Grafana)                 |
+| pgAdmin    | http://localhost:5050       | PostgreSQL browser                              |
 
-- **Tempo**: nested spans — HTTP → Express route → pg queries → Emmett command handler
-- **Loki**: pino log lines correlated with the trace; click "Logs for this trace" from a Tempo span
-- **Prometheus**: `http.server.request.duration` histogram and `otelcol_receiver_accepted_spans_total` counter
+### Traces — Tempo
 
-### setupObservability usage modes
+Every HTTP response includes an `x-trace-id` header with the 32-hex W3C trace ID.
 
-**Zero-config — one OTel provider:**
-
-```ts
-const { observability } = setupObservability({
-  providers: { otel: setupOtel() },
-});
+```bash
+curl -si -X POST http://localhost:3000/clients/dummy/shopping-carts/current/product-items \
+  -H 'Content-Type: application/json' \
+  -d '{"productId":"dummy","quantity":10}' | grep x-trace-id
+# x-trace-id: 2bcdc8bd2f7854bbac8a1f50d460d6af
 ```
 
-**Multi-provider — typed access to each provider's native handle:**
+Paste that ID into Grafana → Explore → Tempo to jump straight to the request. Expected span tree:
 
-```ts
-const { observability, providers } = setupObservability({
-  providers: {
-    otel: setupOtel({ serviceName: 'shop' }),
-  },
-  sampler: rateSample(0.1),
-});
-
-providers.otel.sdk.forceFlush(); // native NodeSDK handle, fully typed
+```
+HTTP POST /clients/dummy/shopping-carts/current/product-items
+└── command.handle                            ← Emmett command handler
+    ├── eventStore.readStream                 ← (when wired — see event store note)
+    ├── eventStore.appendToStream             ← (when wired)
+    └── pg.query SELECT / INSERT              ← auto-instrumented PostgreSQL
 ```
 
-**Fully manual — skip the helper, pass an `ObservabilityConfig` directly:**
+Key attributes on the `command.handle` span:
 
-```ts
-import { compositeTracer, otelTracer } from '@event-driven-io/almanac/otel';
+| Attribute                         | Example value                        |
+|-----------------------------------|--------------------------------------|
+| `emmett.scope.type`               | `command`                            |
+| `emmett.stream.name`              | `shopping_cart-dummy`                |
+| `emmett.command.status`           | `success` / `failure`                |
+| `emmett.command.event_count`      | `1`                                  |
+| `emmett.command.event_types`      | `["ProductItemAddedToShoppingCart"]` |
+| `emmett.stream.version.before`    | `0`                                  |
+| `emmett.stream.version.after`     | `1`                                  |
+| `messaging.system`                | `emmett`                             |
+| `messaging.message.correlation_id`| (propagated if present)              |
 
-const observability: ObservabilityConfig = {
-  tracer: otelTracer(),
-  meter: otelMeter(),
-};
+### Logs — Loki
+
+Pino log lines are forwarded to Loki via the OTel SDK and include `trace_id` and `span_id`. In Grafana, the Loki datasource has a "View Trace" derived field so you can jump from any log line to the corresponding trace in Tempo.
+
+To search logs for a specific trace:
+
+```
+{service_name="expressjs-with-postgresql"} |= "<trace-id>"
 ```
 
-> The helpers (`setupOtel`, `setupObservability`) are the target shapes for the follow-up extraction into `@event-driven-io/almanac` and `@event-driven-io/emmett-expressjs`. A reader of this sample sees exactly the API they will import from those packages in a future release.
+### Metrics — Prometheus and Grafana
+
+#### Pre-built dashboard
+
+Open Grafana → Dashboards → **Emmett** folder → **Emmett** dashboard. It has three active sections and three collapsed sections for when you enable more Emmett features:
+
+**Overview** — command throughput (req/s), success rate (%), p95 latency (ms), events emitted/s
+
+**Command Handling** — command rate split by success/failure, latency p50/p95/p99 over time, events emitted per type
+
+**HTTP** — HTTP request rate and response latency percentiles from the auto-instrumented Express layer
+
+**Event Store, Processors, Consumers, Workflows** — collapsed by default with a note explaining which Emmett component to wire up to populate each section
+
+#### Metric reference
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `emmett_command_handling_duration` | histogram (ms) | `emmett_command_status`, `emmett_command_type` | Command handler execution time |
+| `emmett_event_appending_count_total` | counter | `emmett_event_type` | Events written per type |
+| `emmett_stream_reading_duration` | histogram (ms) | `emmett_stream_name` | Stream read time (requires `eventStoreCollector`) |
+| `emmett_stream_appending_duration` | histogram (ms) | `emmett_stream_name` | Stream append time (requires `eventStoreCollector`) |
+| `emmett_processor_processing_duration` | histogram (ms) | `emmett_processor_id` | Processor batch time (requires consumer framework) |
+| `emmett_processor_lag_events` | gauge | `emmett_processor_id` | Events behind tail (requires consumer framework) |
+
+### What's instrumented in this sample
+
+Only `commandHandlerCollector` is wired here. The others exist in Emmett but need to be enabled:
+
+| Collector | Status | Metrics prefix | Span names |
+|-----------|--------|----------------|-----------|
+| `commandHandlerCollector` | **active** | `emmett.command.*`, `emmett.event.appending.*` | `command.handle` |
+| `eventStoreCollector` | not wired in this sample | `emmett.stream.*`, `emmett.event.reading.*` | `eventStore.readStream`, `eventStore.appendToStream` |
+| `processorCollector` | not wired (uses in-memory MessageBus) | `emmett.processor.*` | `processor.handle` |
+| `consumerCollector` | not wired | `emmett.consumer.*` | `consumer.poll` |
+| `workflowCollector` | not wired | `emmett.workflow.*` | `workflow.handle` |
+
+### Customising
+
+The observability setup lives in [src/telemetry.ts](src/telemetry.ts). Change `OTEL_EXPORTER_OTLP_ENDPOINT` to point at a different collector, or pass additional instrumentations to `setupOtel()`.
 
 ## Running inside Docker
 

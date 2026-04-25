@@ -1,5 +1,8 @@
 auth_enabled: false
 
+common:
+  path_prefix: /loki
+
 server:
   http_listen_port: 3100
 
