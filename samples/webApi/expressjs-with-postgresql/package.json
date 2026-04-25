@@ -59,11 +59,11 @@
     "@opentelemetry/sdk-trace-base": "^2.7.0",
     "@opentelemetry/sdk-trace-node": "^2.7.0",
     "@opentelemetry/semantic-conventions": "^1.40.0",
-    "pino": "^10.3.1"
+    "pino": "^10.3.1",
+    "pino-opentelemetry-transport": "^3.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "execa": "^9.5.2",
     "@testcontainers/postgresql": "^10.10.3",
     "@types/node": "^25.6.0",
     "@types/pg": "^8.20.0",
@@ -72,6 +72,7 @@
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
+    "execa": "^9.5.2",
     "glob": "10.3.10",
     "globals": "^17.5.0",
     "npm-run-all2": "6.1.2",

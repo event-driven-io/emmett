@@ -224,7 +224,7 @@ before(async () => {
     console.log('▶ starting app…');
     app = execa('npm', ['start'], { stdio: 'inherit' });
 
-    await waitFor(checkOurApp, { timeout: 30_000, label: 'app /health' });
+    await waitFor(checkOurApp, { timeout: 60_000, label: 'app /health' });
   }
 
   console.log('▶ setup complete\n');

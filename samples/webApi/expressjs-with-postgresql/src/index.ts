@@ -7,12 +7,24 @@ import { context, trace } from '@opentelemetry/api';
 import express, { type Application } from 'express';
 import pino from 'pino';
 import shoppingCarts, { type ShoppingCartConfirmed } from './shoppingCarts';
+import { readFileSync } from 'node:fs';
 
 const connectionString =
   process.env.POSTGRESQL_CONNECTION_STRING ??
   'postgresql://postgres:postgres@localhost:5432/postgres';
 
-const logger = pino();
+const pkg = JSON.parse(
+  readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
+) as { name: string };
+
+const logger = pino(
+  pino.transport({
+    target: 'pino-opentelemetry-transport',
+    options: {
+      resourceAttributes: { 'service.name': pkg.name },
+    },
+  }),
+);
 
 const eventStore = getPostgreSQLEventStore(connectionString, {
   projections: projections.inline(shoppingCarts.projections),
