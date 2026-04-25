@@ -59,6 +59,7 @@ services:
     ports:
       - '4317:4317'
       - '4318:4318'
+      - '8889:8889'
     profiles: [observability]
     networks:
       - postgresql_network
@@ -68,6 +69,8 @@ services:
     command: ['-config.file=/etc/tempo/tempo.yml']
     volumes:
       - ./docker/observability/tempo.yml:/etc/tempo/tempo.yml
+    ports:
+      - '3200:3200'
     profiles: [observability]
     networks:
       - postgresql_network
@@ -77,6 +80,8 @@ services:
     command: -config.file=/etc/loki/local-config.yml
     volumes:
       - ./docker/observability/loki.yml:/etc/loki/local-config.yml
+    ports:
+      - '3100:3100'
     profiles: [observability]
     networks:
       - postgresql_network
@@ -102,6 +107,8 @@ services:
       - GF_AUTH_DISABLE_LOGIN_FORM=true
     volumes:
       - ./docker/observability/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./docker/observability/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./docker/observability/grafana/dashboards:/var/lib/grafana/dashboards
     ports:
       - '3001:3000'
     profiles: [observability]

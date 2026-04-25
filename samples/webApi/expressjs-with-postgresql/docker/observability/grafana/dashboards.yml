@@ -1,0 +1,9 @@
+apiVersion: 1
+providers:
+  - name: Emmett
+    folder: Emmett
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

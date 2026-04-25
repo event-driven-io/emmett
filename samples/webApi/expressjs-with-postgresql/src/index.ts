@@ -3,7 +3,8 @@ import { getApplication, startAPI } from '@event-driven-io/emmett-expressjs';
 import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
 import { pongoClient } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
-import type { Application } from 'express';
+import { context, trace } from '@opentelemetry/api';
+import express, { type Application } from 'express';
 import pino from 'pino';
 import shoppingCarts, { type ShoppingCartConfirmed } from './shoppingCarts';
 
@@ -45,4 +46,17 @@ const application: Application = getApplication({
   ],
 });
 
-startAPI(application);
+const server = express();
+
+server.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok', service: 'expressjs-with-postgresql' });
+});
+
+server.use((_req, res, next) => {
+  const traceId = trace.getSpan(context.active())?.spanContext()?.traceId;
+  if (traceId) res.setHeader('x-trace-id', traceId);
+  next();
+});
+server.use(application);
+
+startAPI(server);

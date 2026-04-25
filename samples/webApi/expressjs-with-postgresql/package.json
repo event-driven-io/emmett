@@ -22,7 +22,9 @@
     "test:watch": "run-p test:unit:watch test:int:watch test:e2e:watch",
     "test:unit:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.unit.spec.ts",
     "test:int:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.int.spec.ts",
-    "test:e2e:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts"
+    "test:e2e:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts",
+    "verify:observability": "node --import tsx --test src/observability.spec.ts",
+    "verify:observability:cleanup": "CLEANUP=1 node --import tsx --test src/observability.spec.ts"
   },
   "repository": {
     "type": "git",
@@ -61,6 +63,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "execa": "^9.5.2",
     "@testcontainers/postgresql": "^10.10.3",
     "@types/node": "^25.6.0",
     "@types/pg": "^8.20.0",

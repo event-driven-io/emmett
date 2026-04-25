@@ -22,16 +22,21 @@ exporters:
     tls:
       insecure: true
 
-  otlphttp/prometheus:
-    endpoint: http://prometheus:9090/api/v1/otlp
-    tls:
-      insecure: true
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
 
 service:
   telemetry:
     metrics:
       level: detailed
-      address: 0.0.0.0:8888
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
 
   pipelines:
     traces:
@@ -47,4 +52,4 @@ service:
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlphttp/prometheus]
+      exporters: [prometheus]
