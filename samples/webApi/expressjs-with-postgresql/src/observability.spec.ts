@@ -30,8 +30,10 @@
  *    published types yet. Fix: wrapper Express app in src/index.ts injects
  *    the header directly via @opentelemetry/api.
  *
- * 6. PinoInstrumentation does not forward to OTel by default.
- *    Fix: `logSending: true` in PinoInstrumentation (src/telemetry.ts).
+ * 6. PinoInstrumentation ESM hook doesn't intercept pino in tsx + Node 24.
+ *    Neither log forwarding nor trace_id injection works via the SDK hook.
+ *    Fix: use pino-opentelemetry-transport as a pino transport in src/index.ts.
+ *    It runs in a worker thread and sends logs directly to the OTel collector.
  *
  * 7. Tempo and Loki ports (3200, 3100) not exposed in docker-compose.yml.
  *    Fix: added explicit `ports` entries to both services.
@@ -53,11 +55,14 @@ import { checkUrl, waitFor } from './testing/index';
 // ─── flags ───────────────────────────────────────────────────────────────────
 // Use env vars — node --test doesn't reliably pass args after -- to process.argv.
 //
-//   npm run verify:observability            # auto-detect running stack
-//   npm run verify:observability:cleanup    # down -v first, then fresh start
-//   NO_START=1 npm run verify:observability # skip docker/app startup entirely
+//   npm run verify:observability              # auto-detect running stack
+//   npm run verify:observability:cleanup      # down -v first, then fresh start
+//   npm run verify:observability:cleanup:after # down -v after tests
+//   npm run verify:observability:full          # down -v before AND after (CI)
+//   NO_START=1 npm run verify:observability   # skip docker/app startup entirely
 
 const CLEANUP = process.env['CLEANUP'] === '1' || process.env['CLEANUP'] === 'true';
+const CLEANUP_AFTER = process.env['CLEANUP_AFTER'] === '1' || process.env['CLEANUP_AFTER'] === 'true';
 const NO_START = process.env['NO_START'] === '1' || process.env['NO_START'] === 'true';
 
 // ─── configuration ───────────────────────────────────────────────────────────
@@ -235,10 +240,18 @@ after(async () => {
     console.log('\n▶ stopping app…');
     app.kill('SIGTERM');
     await app.catch(() => {});
-    console.log('▶ app stopped — stack is still running');
-    console.log(
-      '▶ to clean up: npm run verify:observability -- --cleanup',
-    );
+    console.log('▶ app stopped');
+  }
+
+  if (CLEANUP_AFTER) {
+    console.log('▶ tearing down stack (down -v)…');
+    await execa('docker', [...COMPOSE, 'down', '-v', '--remove-orphans'], {
+      stdio: 'inherit',
+    });
+    console.log('▶ stack torn down');
+  } else {
+    console.log('▶ stack is still running');
+    console.log('▶ to clean up: npm run verify:observability:cleanup');
   }
 });
 
@@ -373,41 +386,13 @@ test('Tempo received the trace with command.handle span', async () => {
 });
 
 test('Loki received logs correlated to the service', async () => {
-  // Prerequisite: confirm the cart to fire the only pino log in this sample
-  // ("Shopping Cart confirmed" from the in-memory MessageBus subscription).
+  // Trigger the only explicit pino log in this sample — the MessageBus handler
+  // logs "Shopping Cart confirmed" via pino-opentelemetry-transport → OTel collector → Loki.
   const confirmRes = await fetchWithDiag('POST confirm cart', CONFIRM_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
   });
   console.log(`  confirm status: ${confirmRes.status}`);
-
-  // Known issue (troubleshooting note #10):
-  // PinoInstrumentation does not intercept the ESM pino module in this
-  // tsx + Node 24 setup. Neither trace-context injection (trace_id in stdout)
-  // nor OTel log-record forwarding (to the collector) works.
-  // Confirmed via: otelcol_receiver_accepted_log_records_total is absent from
-  // Prometheus (the collector never receives any log records from the SDK).
-  // Resolution: either switch pino to CJS require(), use pino-opentelemetry-transport,
-  // or wait for ESM support to stabilise in instrumentation-pino.
-  const otelColHasLogs = await fetch(
-    `${URLS.prometheus}/api/v1/query?query=otelcol_receiver_accepted_log_records_total`,
-  )
-    .then((r) => r.json() as Promise<{ data: { result: unknown[] } }>)
-    .then((j) => (j.data?.result?.length ?? 0) > 0)
-    .catch(() => false);
-
-  if (!otelColHasLogs) {
-    console.log(
-      '\n  ⚠ OTel collector has never received log records from the SDK.\n' +
-        '  PinoInstrumentation is not forwarding logs in this ESM/Node 24 setup.\n' +
-        '  The pino log IS written to stdout but its trace_id field is also missing,\n' +
-        '  confirming the instrumentation hook is not intercepting pino at all.\n' +
-        '  Loki integration cannot be verified until log forwarding is fixed.\n',
-    );
-    // Skip rather than fail — the infrastructure (Loki, OTel collector log pipeline)
-    // is correctly wired; the gap is in the SDK instrumentation layer.
-    return;
-  }
 
   try {
     await waitFor(
