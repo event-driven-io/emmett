@@ -47,13 +47,19 @@ export async function checkUrl(
     return false;
   }
 
-  const ok = validate ? await validate(res).catch(() => false) : res.ok;
+  try {
+    const ok = validate ? await validate(res) : res.ok;
 
-  if (!ok) {
-    const body = await res.text().catch(() => '');
-    const snippet = body.slice(0, 200).replace(/\n/g, ' ');
-    console.log(`    ${label}: HTTP ${res.status} — ${snippet || '(empty body)'}`);
+    if (!ok) {
+      const body = await res.text().catch(() => '');
+      const snippet = body.slice(0, 200).replace(/\n/g, ' ');
+      console.log(
+        `    ${label}: HTTP ${res.status} — ${snippet || '(empty body)'}`,
+      );
+    }
+
+    return ok;
+  } catch (err) {
+    return false;
   }
-
-  return ok;
 }
