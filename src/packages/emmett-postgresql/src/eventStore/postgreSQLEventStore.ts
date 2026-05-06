@@ -393,16 +393,18 @@ export const getPostgreSQLEventStore = (
 
       const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
 
-      const appendResult = await appendToStream(
-        // TODO: Fix this when introducing more drivers
-        pool as PgPool,
-        streamName,
-        streamType,
-        downcastRecordedMessages(events, appendOptions?.schema?.versioning),
-        {
-          ...(appendOptions as AppendToStreamOptions),
-          beforeCommitHook,
-        },
+      const appendResult = await pool.withConnection(async (connection) =>
+        appendToStream(
+          // TODO: Fix this when introducing more drivers
+          connection as PgConnection,
+          streamName,
+          streamType,
+          downcastRecordedMessages(events, appendOptions?.schema?.versioning),
+          {
+            ...(appendOptions as AppendToStreamOptions),
+            beforeCommitHook,
+          },
+        ),
       );
 
       if (!appendResult.success)

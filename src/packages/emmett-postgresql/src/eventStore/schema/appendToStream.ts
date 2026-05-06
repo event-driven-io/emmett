@@ -5,7 +5,7 @@ import {
   UniqueConstraintError,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
-import type { PgPool, PgTransaction } from '@event-driven-io/dumbo/pg';
+import type { PgConnection, PgTransaction } from '@event-driven-io/dumbo/pg';
 import {
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
@@ -160,7 +160,7 @@ export type AppendToStreamBeforeCommitHook = (
 ) => Promise<void>;
 
 export const appendToStream = (
-  pool: PgPool,
+  connection: PgConnection,
   streamName: string,
   streamType: string,
   messages: Message[],
@@ -169,7 +169,7 @@ export const appendToStream = (
     beforeCommitHook?: AppendToStreamBeforeCommitHook;
   },
 ): Promise<AppendToStreamResult> =>
-  pool.withTransaction<AppendToStreamResult>(async (transaction) => {
+  connection.withTransaction<AppendToStreamResult>(async (transaction) => {
     const { execute } = transaction;
 
     if (messages.length === 0)
@@ -194,7 +194,7 @@ export const appendToStream = (
         next_stream_position,
         global_positions,
         transaction_id,
-      } = await appendEventsRaw(
+      } = await appentToStreamRaw(
         execute,
         streamName,
         streamType,
@@ -285,7 +285,7 @@ type AppendToStreamSqlResult = {
   transaction_id: string | null | undefined;
 };
 
-const appendEventsRaw = (
+export const appentToStreamRaw = (
   execute: SQLExecutor,
   streamId: string,
   streamType: string,

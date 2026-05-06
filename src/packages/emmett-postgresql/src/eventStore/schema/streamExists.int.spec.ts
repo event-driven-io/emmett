@@ -74,7 +74,9 @@ void describe('streamExists', () => {
 
   void it('returns true for existing stream', async () => {
     const streamId = uuid();
-    await appendToStream(pool, streamId, 'shopping_cart', events);
+    await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events),
+    );
 
     const result = await streamExists(pool.execute, streamId);
 
@@ -91,7 +93,9 @@ void describe('streamExists', () => {
 
   void it('returns true for stream with single event', async () => {
     const streamId = uuid();
-    await appendToStream(pool, streamId, 'shopping_cart', [events[0]!]);
+    await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', [events[0]!]),
+    );
 
     const result = await streamExists(pool.execute, streamId);
 
@@ -101,7 +105,9 @@ void describe('streamExists', () => {
   void it('returns false for different non-existing stream IDs', async () => {
     const streamId = uuid();
     const differentStreamId = uuid();
-    await appendToStream(pool, streamId, 'shopping_cart', events);
+    await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events),
+    );
 
     const result = await streamExists(pool.execute, differentStreamId);
 
@@ -110,7 +116,9 @@ void describe('streamExists', () => {
 
   void it('returns false for archived stream', async () => {
     const streamId = uuid();
-    await appendToStream(pool, streamId, 'shopping_cart', events);
+    await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events),
+    );
 
     await pool.execute.command(
       SQL`UPDATE ${identifier(streamsTable.name)} 
@@ -125,7 +133,9 @@ void describe('streamExists', () => {
 
   void it('returns true for not-archived stream', async () => {
     const streamId = uuid();
-    await appendToStream(pool, streamId, 'shopping_cart', events);
+    await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events),
+    );
 
     // Make sure the stream is not archived
     await pool.execute.command(SQL`
@@ -142,8 +152,12 @@ void describe('streamExists', () => {
     const archivedStreamId = uuid();
     const activeStreamId = uuid();
 
-    await appendToStream(pool, archivedStreamId, 'shopping_cart', events);
-    await appendToStream(pool, activeStreamId, 'shopping_cart', events);
+    await pool.withConnection(async (connection) =>
+      appendToStream(connection, archivedStreamId, 'shopping_cart', events),
+    );
+    await pool.withConnection(async (connection) =>
+      appendToStream(connection, activeStreamId, 'shopping_cart', events),
+    );
 
     // Archive only one stream
     await pool.execute.command(SQL`
