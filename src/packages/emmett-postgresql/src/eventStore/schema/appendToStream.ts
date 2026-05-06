@@ -18,6 +18,7 @@ import {
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
+import type { PostgreSQLEventStoreCheckpoint } from './readMessagesBatch';
 import { defaultTag, messagesTable, streamsTable } from './typing';
 
 export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
@@ -147,8 +148,7 @@ type AppendToStreamResult =
   | {
       success: true;
       nextStreamPosition: bigint;
-      globalPositions: bigint[];
-      transactionId: string;
+      checkpoints: PostgreSQLEventStoreCheckpoint[];
     }
   | { success: false };
 
@@ -243,8 +243,10 @@ export const appendToStream = (
         result: {
           success: true,
           nextStreamPosition,
-          globalPositions,
-          transactionId: transaction_id,
+          checkpoints: globalPositions.map((globalPosition) => ({
+            transactionId: transaction_id,
+            globalPosition,
+          })),
         },
       };
     } catch (error) {

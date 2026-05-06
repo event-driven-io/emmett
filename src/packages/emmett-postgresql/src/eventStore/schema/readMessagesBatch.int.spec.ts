@@ -1,6 +1,7 @@
 import { dumbo, SQL } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
+  assertDeepEqual,
   assertEqual,
   type AnyRecordedMessageMetadata,
   type Event,
@@ -12,7 +13,10 @@ import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { createEventStoreSchema } from '.';
 import { appentToStreamRaw } from './appendToStream';
-import { readMessagesBatch } from './readMessagesBatch';
+import {
+  defaultPostgreSQLEventStoreCheckpoint,
+  readMessagesBatch,
+} from './readMessagesBatch';
 
 export type TestEvent = Event<'TestEvent', { meta: string }>;
 
@@ -74,18 +78,19 @@ void describe('reading messages in batches', () => {
       await tx2.begin();
       await tx2.execute.query(SQL`SELECT pg_current_xact_id()`);
 
-      await appentToStreamRaw(tx1.execute, streamId1, 'shopping_cart', [
-        createTestEvent(streamId1, 'evt1', 1n),
-      ]);
-      await tx1.commit();
-
+      // Let's shuffle append order, so 2nd transaction (tx2) writes before the 1st one (tx1), even though tx1 began first. The read batcher must return them in the order of transaction start, not write order.
       await appentToStreamRaw(tx2.execute, streamId2, 'shopping_cart', [
         createTestEvent(streamId2, 'evt2', 1n),
       ]);
       await tx2.commit();
 
+      await appentToStreamRaw(tx1.execute, streamId1, 'shopping_cart', [
+        createTestEvent(streamId1, 'evt1', 1n),
+      ]);
+      await tx1.commit();
+
       const poll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: 0n,
+        after: defaultPostgreSQLEventStoreCheckpoint,
         batchSize: 10,
       });
 
@@ -126,7 +131,7 @@ void describe('reading messages in batches', () => {
       // tx1 (low xid) is still open — its xid is the pg_snapshot_xmin,
       // so tx2's committed event must not be visible yet
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: 0n,
+        after: defaultPostgreSQLEventStoreCheckpoint,
         batchSize: 10,
       });
 
@@ -143,7 +148,7 @@ void describe('reading messages in batches', () => {
       await tx1.commit();
 
       const secondPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: 0n,
+        after: defaultPostgreSQLEventStoreCheckpoint,
         batchSize: 10,
       });
 
@@ -196,15 +201,18 @@ void describe('reading messages in batches', () => {
       ]);
 
       // tx1 writes second → gets global_position 2, but has the lower xid
-      await appentToStreamRaw(tx1.execute, streamId2, 'shopping_cart', [
-        createTestEvent(streamId2, 'evt2', 1n),
-      ]);
+      const { global_positions, transaction_id } = await appentToStreamRaw(
+        tx1.execute,
+        streamId2,
+        'shopping_cart',
+        [createTestEvent(streamId2, 'evt2', 1n)],
+      );
 
       // tx1 commits — its event at position 2 is now visible (xid < xmin), position 1 is not
       await tx1.commit();
 
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: 0n,
+        after: defaultPostgreSQLEventStoreCheckpoint,
         batchSize: 10,
       });
 
@@ -215,27 +223,28 @@ void describe('reading messages in batches', () => {
       );
       assertEqual('evt2', firstPoll.messages[0]!.data.meta, 'Should see evt2');
       // Safe checkpoint must not advance past the gap left by the in-flight tx2
-      assertEqual(0n, firstPoll.currentGlobalPosition);
+      assertDeepEqual(
+        {
+          transactionId: transaction_id,
+          globalPosition: BigInt(global_positions![0]!),
+        },
+        firstPoll.currentCheckpoint,
+      );
 
       // tx2 commits — evt1 at position 1 is now visible in the DB
       await tx2.commit();
 
       // Poller reads from the safe checkpoint — evt1 must not be missed
       const secondPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: firstPoll.currentGlobalPosition,
+        after: firstPoll.currentCheckpoint,
         batchSize: 10,
       });
 
-      assertEqual(2, secondPoll.messages.length, 'Should see both events');
+      assertEqual(1, secondPoll.messages.length, 'Should see both events');
       assertEqual(
         'evt1',
         secondPoll.messages[0]!.data.meta,
         'evt1 comes first by global_position',
-      );
-      assertEqual(
-        'evt2',
-        secondPoll.messages[1]!.data.meta,
-        'evt2 comes second',
       );
     } finally {
       await connection1.close();
@@ -268,14 +277,17 @@ void describe('reading messages in batches', () => {
       ]);
 
       // tx1 writes one event → position 3, but has the lower xid
-      await appentToStreamRaw(tx1.execute, streamId1, 'shopping_cart', [
-        createTestEvent(streamId1, 'evt3', 1n),
-      ]);
+      const { global_positions, transaction_id } = await appentToStreamRaw(
+        tx1.execute,
+        streamId1,
+        'shopping_cart',
+        [createTestEvent(streamId1, 'evt3', 1n)],
+      );
 
       await tx1.commit();
 
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: 0n,
+        after: defaultPostgreSQLEventStoreCheckpoint,
         batchSize: 10,
       });
 
@@ -285,27 +297,29 @@ void describe('reading messages in batches', () => {
         'Only the committed event at position 3 is visible',
       );
       assertEqual('evt3', firstPoll.messages[0]!.data.meta);
-      assertEqual(
-        0n,
-        firstPoll.currentGlobalPosition,
+      assertDeepEqual(
+        {
+          transactionId: transaction_id!,
+          globalPosition: BigInt(global_positions![0]!),
+        },
+        firstPoll.currentCheckpoint,
         'Checkpoint must not advance past the gap',
       );
 
       await tx2.commit();
 
       const secondPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: firstPoll.currentGlobalPosition,
+        after: firstPoll.currentCheckpoint,
         batchSize: 10,
       });
 
       assertEqual(
-        3,
+        2,
         secondPoll.messages.length,
         'All three events must be visible',
       );
       assertEqual('evt1', secondPoll.messages[0]!.data.meta);
       assertEqual('evt2', secondPoll.messages[1]!.data.meta);
-      assertEqual('evt3', secondPoll.messages[2]!.data.meta);
     } finally {
       await connection1.close();
       await connection2.close();
@@ -348,21 +362,27 @@ void describe('reading messages in batches', () => {
       ]);
 
       // lowest xid writes last → position 3, commits first
-      await appentToStreamRaw(tx1.execute, streamId1, 'shopping_cart', [
-        createTestEvent(streamId1, 'evt3', 1n),
-      ]);
+      const { global_positions, transaction_id } = await appentToStreamRaw(
+        tx1.execute,
+        streamId1,
+        'shopping_cart',
+        [createTestEvent(streamId1, 'evt3', 1n)],
+      );
       await tx1.commit();
 
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: 0n,
+        after: defaultPostgreSQLEventStoreCheckpoint,
         batchSize: 10,
       });
 
       assertEqual(1, firstPoll.messages.length, 'Only tx1 event visible');
       assertEqual('evt3', firstPoll.messages[0]!.data.meta);
-      assertEqual(
-        0n,
-        firstPoll.currentGlobalPosition,
+      assertDeepEqual(
+        {
+          transactionId: transaction_id!,
+          globalPosition: BigInt(global_positions![0]!),
+        },
+        firstPoll.currentCheckpoint,
         'Checkpoint must not advance past either in-flight gap',
       );
 
@@ -370,18 +390,17 @@ void describe('reading messages in batches', () => {
       await tx3.commit();
 
       const secondPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: firstPoll.currentGlobalPosition,
+        after: firstPoll.currentCheckpoint,
         batchSize: 10,
       });
 
       assertEqual(
-        3,
+        2,
         secondPoll.messages.length,
         'All events from all three transactions must be visible',
       );
-      assertEqual('evt1', secondPoll.messages[0]!.data.meta);
-      assertEqual('evt2', secondPoll.messages[1]!.data.meta);
-      assertEqual('evt3', secondPoll.messages[2]!.data.meta);
+      assertEqual('evt2', secondPoll.messages[0]!.data.meta);
+      assertEqual('evt1', secondPoll.messages[1]!.data.meta);
     } finally {
       await connection1.close();
       await connection2.close();
@@ -418,7 +437,7 @@ void describe('reading messages in batches', () => {
       await tx2.commit();
 
       const poll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: 0n,
+        after: defaultPostgreSQLEventStoreCheckpoint,
         batchSize: 10,
       });
 
@@ -453,7 +472,7 @@ void describe('reading messages in batches', () => {
       await tx.commit();
 
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: 0n,
+        after: defaultPostgreSQLEventStoreCheckpoint,
         batchSize: 10,
       });
 
@@ -466,7 +485,7 @@ void describe('reading messages in batches', () => {
       assertEqual('evt2', firstPoll.messages[1]!.data.meta);
 
       const secondPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: firstPoll.currentGlobalPosition,
+        after: firstPoll.currentCheckpoint,
         batchSize: 10,
       });
 
@@ -506,7 +525,7 @@ void describe('reading messages in batches', () => {
       await tx2.commit();
 
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: 0n,
+        after: defaultPostgreSQLEventStoreCheckpoint,
         batchSize: 10,
       });
 
@@ -523,7 +542,7 @@ void describe('reading messages in batches', () => {
       await tx1.commit();
 
       const secondPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: 0n,
+        after: defaultPostgreSQLEventStoreCheckpoint,
         batchSize: 10,
       });
 

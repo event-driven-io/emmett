@@ -91,11 +91,13 @@ void describe('appendEvent', () => {
 
     assertTrue(result.success);
     assertEqual(result.nextStreamPosition, 2n);
-    assertIsNotNull(result.globalPositions);
-    assertThatArray(result.globalPositions).isNotEmpty();
-    assertThatArray(result.globalPositions).hasSize(events.length);
-    assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
-    assertOk(result.transactionId);
+    assertIsNotNull(result.checkpoints);
+    assertThatArray(result.checkpoints).isNotEmpty();
+    assertThatArray(result.checkpoints).hasSize(events.length);
+    assertTrue(
+      result.checkpoints[result.checkpoints.length - 1]!.globalPosition > 0n,
+    );
+    assertOk(result.checkpoints[result.checkpoints.length - 1]!.transactionId);
   });
 
   void it('should append events correctly without expected stream position', async () => {
@@ -105,11 +107,13 @@ void describe('appendEvent', () => {
 
     assertTrue(result.success);
     assertEqual(result.nextStreamPosition, 2n);
-    assertIsNotNull(result.globalPositions);
-    assertThatArray(result.globalPositions).isNotEmpty();
-    assertThatArray(result.globalPositions).hasSize(events.length);
-    assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
-    assertOk(result.transactionId);
+    assertIsNotNull(result.checkpoints);
+    assertThatArray(result.checkpoints).isNotEmpty();
+    assertThatArray(result.checkpoints).hasSize(events.length);
+    assertTrue(
+      result.checkpoints[result.checkpoints.length - 1]!.globalPosition > 0n,
+    );
+    assertOk(result.checkpoints[result.checkpoints.length - 1]!.transactionId);
   });
 
   void it('should increment stream position in events correctly without expected stream position', async () => {
@@ -128,11 +132,13 @@ void describe('appendEvent', () => {
 
     assertTrue(result.success);
     assertEqual(4n, result.nextStreamPosition);
-    assertIsNotNull(result.globalPositions);
-    assertThatArray(result.globalPositions).isNotEmpty();
-    assertThatArray(result.globalPositions).hasSize(events.length);
-    assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
-    assertOk(result.transactionId);
+    assertIsNotNull(result.checkpoints);
+    assertThatArray(result.checkpoints).isNotEmpty();
+    assertThatArray(result.checkpoints).hasSize(events.length);
+    assertTrue(
+      result.checkpoints[result.checkpoints.length - 1]!.globalPosition > 0n,
+    );
+    assertOk(result.checkpoints[result.checkpoints.length - 1]!.transactionId);
   });
 
   void it('should increment stream position in events correctly with expected stream position', async () => {
@@ -155,11 +161,13 @@ void describe('appendEvent', () => {
 
     assertTrue(result.success);
     assertEqual(4n, result.nextStreamPosition);
-    assertIsNotNull(result.globalPositions);
-    assertThatArray(result.globalPositions).isNotEmpty();
-    assertThatArray(result.globalPositions).hasSize(events.length);
-    assertTrue(result.globalPositions[result.globalPositions.length - 1]! > 0n);
-    assertOk(result.transactionId);
+    assertIsNotNull(result.checkpoints);
+    assertThatArray(result.checkpoints).isNotEmpty();
+    assertThatArray(result.checkpoints).hasSize(events.length);
+    assertTrue(
+      result.checkpoints[result.checkpoints.length - 1]!.globalPosition > 0n,
+    );
+    assertOk(result.checkpoints[result.checkpoints.length - 1]!.transactionId);
   });
 
   void it('should increment stream position in events from beforeCommitHook correctly without expected stream position', async () => {

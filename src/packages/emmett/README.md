@@ -439,7 +439,7 @@ export { assertTrue, assertEqual, assertDeepEqual, assertThrows };
 
 // Utilities
 export { asyncRetry, NoRetries };
-export { JSONParser };
+export { JSONSerializer };
 export { ValidationErrors };
 
 // Errors
