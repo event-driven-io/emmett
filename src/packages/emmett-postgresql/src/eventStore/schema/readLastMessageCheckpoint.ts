@@ -2,21 +2,21 @@ import { singleOrNull, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import type { PostgreSQLEventStoreCheckpoint } from './readMessagesBatch';
 import { defaultTag, messagesTable } from './typing';
 
-type ReadLastMessageGlobalPositionSqlResult = {
+type ReadLastMessageCheckpointSqlResult = {
   transaction_id: string;
   global_position: string;
 };
 
-export type ReadLastMessageGlobalPositionResult = {
-  currentGlobalPosition: PostgreSQLEventStoreCheckpoint | null;
+export type ReadLastMessageCheckpointResult = {
+  currentCheckpoint: PostgreSQLEventStoreCheckpoint | null;
 };
 
-export const readLastMessageGlobalPosition = async (
+export const readLastMessageCheckpoint = async (
   execute: SQLExecutor,
   options?: { partition?: string },
-): Promise<ReadLastMessageGlobalPositionResult> => {
+): Promise<ReadLastMessageCheckpointResult> => {
   const result = await singleOrNull(
-    execute.query<ReadLastMessageGlobalPositionSqlResult>(
+    execute.query<ReadLastMessageCheckpointSqlResult>(
       SQL`SELECT transaction_id, global_position
            FROM ${SQL.identifier(messagesTable.name)}
            WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE AND transaction_id < pg_snapshot_xmin(pg_current_snapshot())
@@ -26,7 +26,7 @@ export const readLastMessageGlobalPosition = async (
   );
 
   return {
-    currentGlobalPosition:
+    currentCheckpoint:
       result !== null
         ? {
             transactionId: result.transaction_id,

@@ -1,6 +1,5 @@
 import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
-  bigIntProcessorCheckpoint,
   upcastRecordedMessage,
   type CombinedReadEventMetadata,
   type Event,
@@ -13,6 +12,7 @@ import {
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
 import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
+import { PostgreSQLEventStoreCheckpoint } from './readMessagesBatch';
 import { defaultTag, messagesTable } from './typing';
 
 type ReadStreamSqlResult<EventType extends Event> = {
@@ -53,7 +53,7 @@ export const readStream = async <
   const events: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
     await mapRows(
       execute.query<ReadStreamSqlResult<EventPayloadType>>(
-        SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
+        SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id, transaction_id
            FROM ${SQL.identifier(messagesTable.name)}
            WHERE stream_id = ${streamId} AND partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE ${SQL.plain(fromCondition)} ${SQL.plain(toCondition)}
            ORDER BY stream_position ASC`,
@@ -71,7 +71,10 @@ export const readStream = async <
           streamName: streamId,
           streamPosition: BigInt(row.stream_position),
           globalPosition: BigInt(row.global_position),
-          checkpoint: bigIntProcessorCheckpoint(BigInt(row.global_position)),
+          checkpoint: PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+            transactionId: row.transaction_id,
+            globalPosition: BigInt(row.global_position),
+          }),
         };
 
         const event = {

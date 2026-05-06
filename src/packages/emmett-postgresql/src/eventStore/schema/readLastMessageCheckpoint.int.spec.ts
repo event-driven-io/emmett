@@ -1,7 +1,7 @@
 import { dumbo, SQL } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
-  assertEqual,
+  assertDeepEqual,
   assertIsNotNull,
   assertIsNull,
   assertTrue,
@@ -11,7 +11,7 @@ import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testconta
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
-import { createEventStoreSchema, readLastMessageGlobalPosition } from '.';
+import { createEventStoreSchema, readLastMessageCheckpoint } from '.';
 import { appendToStream } from './appendToStream';
 import { messagesTable } from './typing';
 
@@ -71,17 +71,14 @@ void describe('readLastMessageGlobalPosition', () => {
       }),
     );
     assertTrue(result.success);
-    const lastGlobalPosition =
-      result.checkpoints[result.checkpoints.length - 1]!;
+    const lastCheckpoint = result.checkpoints[result.checkpoints.length - 1]!;
 
     // When
-    const { currentGlobalPosition } = await readLastMessageGlobalPosition(
-      pool.execute,
-    );
+    const { currentCheckpoint } = await readLastMessageCheckpoint(pool.execute);
 
     // Then
-    assertIsNotNull(currentGlobalPosition);
-    assertEqual(currentGlobalPosition, lastGlobalPosition);
+    assertIsNotNull(currentCheckpoint);
+    assertDeepEqual(currentCheckpoint, lastCheckpoint);
   });
 
   void it('returns global position of last existing event of single existing stream', async () => {
@@ -92,17 +89,14 @@ void describe('readLastMessageGlobalPosition', () => {
       }),
     );
     assertTrue(result.success);
-    const lastGlobalPosition =
-      result.checkpoints[result.checkpoints.length - 1]!;
+    const lastCheckpoint = result.checkpoints[result.checkpoints.length - 1]!;
 
     // When
-    const { currentGlobalPosition } = await readLastMessageGlobalPosition(
-      pool.execute,
-    );
+    const { currentCheckpoint } = await readLastMessageCheckpoint(pool.execute);
 
     // Then
-    assertIsNotNull(currentGlobalPosition);
-    assertEqual(currentGlobalPosition, lastGlobalPosition);
+    assertIsNotNull(currentCheckpoint);
+    assertDeepEqual(currentCheckpoint, lastCheckpoint);
   });
 
   void it('returns global position of last existing event of multiple existing streams', async () => {
@@ -116,27 +110,22 @@ void describe('readLastMessageGlobalPosition', () => {
       appendToStream(connection, uuid(), 'shopping_cart', events),
     );
     assertTrue(result.success);
-    const lastGlobalPosition =
-      result.checkpoints[result.checkpoints.length - 1]!;
+    const lastCheckpoint = result.checkpoints[result.checkpoints.length - 1]!;
 
     // When
-    const { currentGlobalPosition } = await readLastMessageGlobalPosition(
-      pool.execute,
-    );
+    const { currentCheckpoint } = await readLastMessageCheckpoint(pool.execute);
 
     // Then
-    assertIsNotNull(currentGlobalPosition);
-    assertEqual(currentGlobalPosition, lastGlobalPosition);
+    assertIsNotNull(currentCheckpoint);
+    assertDeepEqual(currentCheckpoint, lastCheckpoint);
   });
 
   void it('returns null value for current position for empty event store', async () => {
     // Given
     // When
-    const { currentGlobalPosition } = await readLastMessageGlobalPosition(
-      pool.execute,
-    );
+    const { currentCheckpoint } = await readLastMessageCheckpoint(pool.execute);
 
     // Then
-    assertIsNull(currentGlobalPosition);
+    assertIsNull(currentCheckpoint);
   });
 });

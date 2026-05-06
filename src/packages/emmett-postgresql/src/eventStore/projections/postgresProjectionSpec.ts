@@ -10,7 +10,6 @@ import {
   AssertionError,
   assertThatArray,
   assertTrue,
-  bigIntProcessorCheckpoint,
   isErrorConstructor,
   type CombinedReadEventMetadata,
   type Event,
@@ -27,6 +26,7 @@ import {
   getPostgreSQLEventStore,
   type PostgresReadEventMetadata,
 } from '../postgreSQLEventStore';
+import { PostgreSQLEventStoreCheckpoint } from '../schema';
 
 export type PostgreSQLProjectionSpecEvent<
   EventType extends Event,
@@ -122,7 +122,11 @@ export const PostgreSQLProjectionSpec = {
                 ...Array.from({ length: numberOfTimes }).flatMap(() => events),
               ]) {
                 const metadata: PostgresReadEventMetadata = {
-                  checkpoint: bigIntProcessorCheckpoint(++globalPosition),
+                  checkpoint:
+                    PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+                      transactionId: `${++globalPosition}`,
+                      globalPosition,
+                    }),
                   globalPosition: globalPosition,
                   streamPosition: globalPosition,
                   streamName: `test-${uuid()}`,

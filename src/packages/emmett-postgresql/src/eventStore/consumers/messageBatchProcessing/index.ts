@@ -8,7 +8,7 @@ import {
   type ProcessorCheckpoint,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import { readLastMessageGlobalPosition } from '../../schema/readLastMessageGlobalPosition';
+import { readLastMessageCheckpoint } from '../../schema';
 import {
   defaultPostgreSQLEventStoreCheckpoint,
   PostgreSQLEventStoreCheckpoint,
@@ -84,9 +84,8 @@ export const postgreSQLEventStoreMessageBatchPuller = <
           options.startFrom === 'BEGINNING'
             ? defaultPostgreSQLEventStoreCheckpoint
             : options.startFrom === 'END'
-              ? ((await readLastMessageGlobalPosition(executor))
-                  .currentGlobalPosition ??
-                defaultPostgreSQLEventStoreCheckpoint)
+              ? ((await readLastMessageCheckpoint(executor))
+                  .currentCheckpoint ?? defaultPostgreSQLEventStoreCheckpoint)
               : PostgreSQLEventStoreCheckpoint.parse(
                   options.startFrom.lastCheckpoint,
                 );
