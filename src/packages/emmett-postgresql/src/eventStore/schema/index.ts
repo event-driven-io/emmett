@@ -36,7 +36,7 @@ export * from './appendToStream';
 export * from './migrations';
 export * from './processors';
 export * from './projections';
-export * from './readLastMessageGlobalPosition';
+export * from './readLastMessageCheckpoint';
 export * from './readMessagesBatch';
 export * from './readProcessorCheckpoint';
 export * from './readStream';
