@@ -416,9 +416,8 @@ export const getPostgreSQLEventStore = (
       return {
         nextExpectedStreamVersion: appendResult.nextStreamPosition,
         lastEventGlobalPosition:
-          appendResult.globalPositions[
-            appendResult.globalPositions.length - 1
-          ]!,
+          appendResult.checkpoints[appendResult.checkpoints.length - 1]!
+            .globalPosition,
         createdNewStream:
           appendResult.nextStreamPosition >= BigInt(events.length),
       };

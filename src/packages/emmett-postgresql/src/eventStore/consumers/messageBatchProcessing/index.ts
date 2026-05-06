@@ -1,6 +1,6 @@
 import type { SQLExecutor } from '@event-driven-io/dumbo';
 import {
-  parseBigIntProcessorCheckpoint,
+  JSONSerializer,
   type AsyncAwaiter,
   type BatchRecordedMessageHandlerWithoutContext,
   type EmmettError,
@@ -10,6 +10,8 @@ import {
 } from '@event-driven-io/emmett';
 import { readLastMessageGlobalPosition } from '../../schema/readLastMessageGlobalPosition';
 import {
+  defaultPostgreSQLEventStoreCheckpoint,
+  PostgreSQLEventStoreCheckpoint,
   readMessagesBatch,
   type ReadMessagesBatchOptions,
 } from '../../schema/readMessagesBatch';
@@ -76,15 +78,16 @@ export const postgreSQLEventStoreMessageBatchPuller = <
     options: PostgreSQLEventStoreMessageBatchPullerStartOptions,
   ) => {
     try {
-      let after: bigint;
+      let after: PostgreSQLEventStoreCheckpoint;
       try {
         after =
           options.startFrom === 'BEGINNING'
-            ? 0n
+            ? defaultPostgreSQLEventStoreCheckpoint
             : options.startFrom === 'END'
               ? ((await readLastMessageGlobalPosition(executor))
-                  .currentGlobalPosition ?? 0n)
-              : parseBigIntProcessorCheckpoint(
+                  .currentGlobalPosition ??
+                defaultPostgreSQLEventStoreCheckpoint)
+              : PostgreSQLEventStoreCheckpoint.parse(
                   options.startFrom.lastCheckpoint,
                 );
       } catch (error) {
@@ -106,7 +109,7 @@ export const postgreSQLEventStoreMessageBatchPuller = <
       let waitTime = 100;
 
       while (isRunning && !signal?.aborted) {
-        const { messages, currentGlobalPosition, areMessagesLeft } =
+        const { messages, currentCheckpoint, areMessagesLeft } =
           await readMessagesBatch<MessageType>(executor, readMessagesOptions);
 
         if (messages.length > 0) {
@@ -118,13 +121,13 @@ export const postgreSQLEventStoreMessageBatchPuller = <
           }
         }
 
-        readMessagesOptions.after = currentGlobalPosition;
+        readMessagesOptions.after = currentCheckpoint;
 
         await new Promise((resolve) => setTimeout(resolve, waitTime));
 
         if (stopWhen?.noMessagesLeft === true && !areMessagesLeft) {
           console.log(
-            `No messages left to process after reaching global position ${currentGlobalPosition}. Stopping the puller.`,
+            `No messages left to process after reaching checkpoint ${JSONSerializer.serialize(readMessagesOptions.after)}. Stopping the puller.`,
           );
           isRunning = false;
           break;

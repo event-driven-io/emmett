@@ -1,14 +1,14 @@
 import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
-import {
-  bigIntProcessorCheckpoint,
-  type CombinedMessageMetadata,
-  type Message,
-  type MessageDataOf,
-  type MessageMetaDataOf,
-  type MessageTypeOf,
-  type RecordedMessage,
-  type RecordedMessageMetadata,
-  type RecordedMessageMetadataWithGlobalPosition,
+import type {
+  CombinedMessageMetadata,
+  Message,
+  MessageDataOf,
+  MessageMetaDataOf,
+  MessageTypeOf,
+  ProcessorCheckpoint,
+  RecordedMessage,
+  RecordedMessageMetadata,
+  RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { defaultTag, messagesTable } from './typing';
 
@@ -25,23 +25,64 @@ type ReadMessagesBatchSqlResult<MessageType extends Message> = {
   created: string;
 };
 
+// TODO: Move it to checkpoint related
+export const defaultPostgreSQLEventStoreCheckpoint: PostgreSQLEventStoreCheckpoint =
+  {
+    transactionId: 0n.toString(),
+    globalPosition: 0n,
+  };
+
+export const PostgreSQLEventStoreCheckpoint = {
+  default: defaultPostgreSQLEventStoreCheckpoint,
+  parse: (
+    checkPoint: ProcessorCheckpoint | undefined | null,
+  ): PostgreSQLEventStoreCheckpoint => {
+    if (checkPoint === undefined || checkPoint === null)
+      return defaultPostgreSQLEventStoreCheckpoint;
+
+    const [transactionId, globalPosition] = checkPoint.includes(':')
+      ? checkPoint.split(':')
+      : [undefined, checkPoint];
+    return {
+      transactionId: transactionId ?? 0n.toString(),
+      globalPosition: BigInt(globalPosition),
+    };
+  },
+  toProcessorCheckpoint: (
+    checkPoint: PostgreSQLEventStoreCheckpoint,
+  ): ProcessorCheckpoint =>
+    `${checkPoint.transactionId}:${checkPoint.globalPosition}` as ProcessorCheckpoint,
+};
+
+export const parseBigIntProcessorCheckpoint = (
+  value: ProcessorCheckpoint,
+): bigint => BigInt(value);
+
+export type PostgreSQLEventStoreCheckpoint = {
+  transactionId: string;
+  globalPosition: bigint;
+};
+
 export type ReadMessagesBatchOptions =
   | {
-      after: bigint;
+      after: PostgreSQLEventStoreCheckpoint;
       batchSize: number;
     }
   | {
-      from: bigint;
+      from: PostgreSQLEventStoreCheckpoint;
       batchSize: number;
     }
-  | { to: bigint; batchSize: number }
-  | { from: bigint; to: bigint };
+  | { to: PostgreSQLEventStoreCheckpoint; batchSize: number }
+  | {
+      from: PostgreSQLEventStoreCheckpoint;
+      to: PostgreSQLEventStoreCheckpoint;
+    };
 
 export type ReadMessagesBatchResult<
   MessageType extends Message,
   MessageMetadataType extends RecordedMessageMetadata = RecordedMessageMetadata,
 > = {
-  currentGlobalPosition: bigint;
+  currentCheckpoint: PostgreSQLEventStoreCheckpoint;
   messages: RecordedMessage<MessageType, MessageMetadataType>[];
   areMessagesLeft: boolean;
 };
@@ -60,31 +101,38 @@ export const readMessagesBatch = async <
   const from = 'from' in options ? options.from : undefined;
   const after = 'after' in options ? options.after : undefined;
   const batchSize =
-    'batchSize' in options ? options.batchSize : options.to - options.from;
+    'batchSize' in options
+      ? options.batchSize
+      : options.to.globalPosition - options.from.globalPosition;
 
   const fromCondition: SQL =
     from !== undefined
-      ? SQL`AND global_position >= ${from}`
+      ? SQL`AND (transaction_id, global_position) >= (${from.transactionId}, ${from.globalPosition})`
       : after !== undefined
-        ? SQL`AND global_position > ${after}`
+        ? SQL`AND (transaction_id, global_position) > (${after.transactionId}, ${after.globalPosition})`
         : SQL.EMPTY;
 
   const toCondition: SQL =
-    'to' in options ? SQL`AND global_position <= ${options.to}` : SQL.EMPTY;
+    'to' in options
+      ? SQL`AND (transaction_id, global_position) <= (${options.to.transactionId}, ${options.to.globalPosition})`
+      : SQL.EMPTY;
 
   const limitCondition: SQL =
     'batchSize' in options ? SQL`LIMIT ${options.batchSize}` : SQL.EMPTY;
 
+  const query = SQL`
+    SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id, transaction_id
+    FROM ${SQL.identifier(messagesTable.name)}
+    WHERE partition = ${options?.partition ?? defaultTag} 
+      AND is_archived = FALSE 
+      AND transaction_id < pg_snapshot_xmin(pg_current_snapshot())
+      ${fromCondition} ${toCondition}
+    ORDER BY transaction_id, global_position
+    ${limitCondition}`;
+
   const messages: RecordedMessage<MessageType, RecordedMessageMetadataType>[] =
     await mapRows(
-      execute.query<ReadMessagesBatchSqlResult<MessageType>>(
-        SQL`
-          SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
-           FROM ${SQL.identifier(messagesTable.name)}
-           WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE AND transaction_id < pg_snapshot_xmin(pg_current_snapshot()) ${fromCondition} ${toCondition}
-           ORDER BY transaction_id, global_position
-           ${limitCondition}`,
-      ),
+      execute.query<ReadMessagesBatchSqlResult<MessageType>>(query),
       (row) => {
         const rawEvent = {
           type: row.message_type,
@@ -98,7 +146,10 @@ export const readMessagesBatch = async <
           streamName: row.stream_id,
           streamPosition: BigInt(row.stream_position),
           globalPosition: BigInt(row.global_position),
-          checkpoint: bigIntProcessorCheckpoint(BigInt(row.global_position)),
+          checkpoint: PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+            transactionId: row.transaction_id,
+            globalPosition: BigInt(row.global_position),
+          }),
         };
 
         return {
@@ -114,18 +165,19 @@ export const readMessagesBatch = async <
 
   return messages.length > 0
     ? {
-        currentGlobalPosition:
-          messages[messages.length - 1]!.metadata.globalPosition,
+        currentCheckpoint: PostgreSQLEventStoreCheckpoint.parse(
+          messages[messages.length - 1]!.metadata.checkpoint,
+        ),
         messages: messages,
         areMessagesLeft: messages.length === batchSize,
       }
     : {
-        currentGlobalPosition:
+        currentCheckpoint:
           'from' in options
             ? options.from
             : 'after' in options
               ? options.after
-              : 0n,
+              : defaultPostgreSQLEventStoreCheckpoint,
         messages: [],
         areMessagesLeft: false,
       };

@@ -72,7 +72,7 @@ void describe('readLastMessageGlobalPosition', () => {
     );
     assertTrue(result.success);
     const lastGlobalPosition =
-      result.globalPositions[result.globalPositions.length - 1]!;
+      result.checkpoints[result.checkpoints.length - 1]!;
 
     // When
     const { currentGlobalPosition } = await readLastMessageGlobalPosition(
@@ -93,7 +93,7 @@ void describe('readLastMessageGlobalPosition', () => {
     );
     assertTrue(result.success);
     const lastGlobalPosition =
-      result.globalPositions[result.globalPositions.length - 1]!;
+      result.checkpoints[result.checkpoints.length - 1]!;
 
     // When
     const { currentGlobalPosition } = await readLastMessageGlobalPosition(
@@ -117,7 +117,7 @@ void describe('readLastMessageGlobalPosition', () => {
     );
     assertTrue(result.success);
     const lastGlobalPosition =
-      result.globalPositions[result.globalPositions.length - 1]!;
+      result.checkpoints[result.checkpoints.length - 1]!;
 
     // When
     const { currentGlobalPosition } = await readLastMessageGlobalPosition(

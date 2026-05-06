@@ -1,12 +1,14 @@
 import { singleOrNull, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import type { PostgreSQLEventStoreCheckpoint } from './readMessagesBatch';
 import { defaultTag, messagesTable } from './typing';
 
 type ReadLastMessageGlobalPositionSqlResult = {
+  transaction_id: string;
   global_position: string;
 };
 
 export type ReadLastMessageGlobalPositionResult = {
-  currentGlobalPosition: bigint | null;
+  currentGlobalPosition: PostgreSQLEventStoreCheckpoint | null;
 };
 
 export const readLastMessageGlobalPosition = async (
@@ -15,7 +17,7 @@ export const readLastMessageGlobalPosition = async (
 ): Promise<ReadLastMessageGlobalPositionResult> => {
   const result = await singleOrNull(
     execute.query<ReadLastMessageGlobalPositionSqlResult>(
-      SQL`SELECT global_position
+      SQL`SELECT transaction_id, global_position
            FROM ${SQL.identifier(messagesTable.name)}
            WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE AND transaction_id < pg_snapshot_xmin(pg_current_snapshot())
            ORDER BY transaction_id DESC, global_position DESC
@@ -25,6 +27,11 @@ export const readLastMessageGlobalPosition = async (
 
   return {
     currentGlobalPosition:
-      result !== null ? BigInt(result.global_position) : null,
+      result !== null
+        ? {
+            transactionId: result.transaction_id,
+            globalPosition: BigInt(result.global_position),
+          }
+        : null,
   };
 };
