@@ -12,8 +12,8 @@ import {
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { createEventStoreSchema } from '.';
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 import {
@@ -83,9 +83,11 @@ void describe('appendEvent', () => {
   ];
 
   void it('should append events correctly using appendEvent function', async () => {
-    const result = await appendToStream(pool, uuid(), 'shopping_cart', events, {
-      expectedStreamVersion: 0n,
-    });
+    const result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, uuid(), 'shopping_cart', events, {
+        expectedStreamVersion: 0n,
+      }),
+    );
 
     assertTrue(result.success);
     assertEqual(result.nextStreamPosition, 2n);
@@ -97,12 +99,8 @@ void describe('appendEvent', () => {
   });
 
   void it('should append events correctly without expected stream position', async () => {
-    const result = await appendToStream(
-      pool,
-      uuid(),
-      'shopping_cart',
-      events,
-      {},
+    const result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, uuid(), 'shopping_cart', events, {}),
     );
 
     assertTrue(result.success);
@@ -117,18 +115,16 @@ void describe('appendEvent', () => {
   void it('should increment stream position in events correctly without expected stream position', async () => {
     const streamId = uuid();
 
-    let result = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {},
+    let result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {}),
     );
 
     assertTrue(result.success);
     assertEqual(result.nextStreamPosition, 2n);
 
-    result = await appendToStream(pool, streamId, 'shopping_cart', events, {});
+    result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {}),
+    );
 
     assertTrue(result.success);
     assertEqual(4n, result.nextStreamPosition);
@@ -142,20 +138,20 @@ void describe('appendEvent', () => {
   void it('should increment stream position in events correctly with expected stream position', async () => {
     const streamId = uuid();
 
-    let result = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {},
+    let result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {}),
     );
 
     assertTrue(result.success);
     assertEqual(result.nextStreamPosition, 2n);
 
-    result = await appendToStream(pool, streamId, 'shopping_cart', events, {
-      expectedStreamVersion: result.nextStreamPosition,
-    });
+    const nextExpectedStreamVersion = result.nextStreamPosition;
+
+    result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {
+        expectedStreamVersion: nextExpectedStreamVersion,
+      }),
+    );
 
     assertTrue(result.success);
     assertEqual(4n, result.nextStreamPosition);
@@ -185,16 +181,20 @@ void describe('appendEvent', () => {
 
     const streamId = uuid();
 
-    let result = await appendToStream(pool, streamId, 'shopping_cart', events, {
-      beforeCommitHook,
-    });
+    let result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {
+        beforeCommitHook,
+      }),
+    );
 
     assertTrue(result.success);
     assertEqual(result.nextStreamPosition, 2n);
 
-    result = await appendToStream(pool, streamId, 'shopping_cart', events, {
-      beforeCommitHook,
-    });
+    result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {
+        beforeCommitHook,
+      }),
+    );
 
     assertTrue(result.success);
     assertEqual(4n, result.nextStreamPosition);
@@ -222,17 +222,23 @@ void describe('appendEvent', () => {
 
     const streamId = uuid();
 
-    let result = await appendToStream(pool, streamId, 'shopping_cart', events, {
-      beforeCommitHook,
-    });
+    let result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {
+        beforeCommitHook,
+      }),
+    );
 
     assertTrue(result.success);
     assertEqual(result.nextStreamPosition, 2n);
 
-    result = await appendToStream(pool, streamId, 'shopping_cart', events, {
-      beforeCommitHook,
-      expectedStreamVersion: result.nextStreamPosition,
-    });
+    const nextExpectedStreamVersion = result.nextStreamPosition;
+
+    result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {
+        beforeCommitHook,
+        expectedStreamVersion: nextExpectedStreamVersion,
+      }),
+    );
 
     assertTrue(result.success);
     assertEqual(4n, result.nextStreamPosition);
@@ -245,26 +251,18 @@ void describe('appendEvent', () => {
     // Given
     const streamId = uuid();
 
-    const firstResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {
+    const firstResult = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {
         expectedStreamVersion: 0n,
-      },
+      }),
     );
     assertTrue(firstResult.success);
 
     // When
-    const secondResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {
+    const secondResult = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {
         expectedStreamVersion: 0n,
-      },
+      }),
     );
 
     // Then
@@ -281,35 +279,24 @@ void describe('appendEvent', () => {
     // Given
     const streamId = uuid();
 
-    const creationResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
+    const creationResult = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events),
     );
     assertTrue(creationResult.success);
     const expectedStreamVersion = creationResult.nextStreamPosition;
 
-    const firstResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {
+    const firstResult = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {
         expectedStreamVersion,
-      },
+      }),
     );
     assertTrue(firstResult.success);
 
     // When
-    const secondResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {
+    const secondResult = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {
         expectedStreamVersion,
-      },
+      }),
     );
 
     // Then
@@ -327,26 +314,18 @@ void describe('appendEvent', () => {
     const streamId = uuid();
     const expectedStreamVersion = 0n;
 
-    const firstResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {
+    const firstResult = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {
         expectedStreamVersion,
-      },
+      }),
     );
     assertTrue(firstResult.success);
 
     // When
-    const secondResult = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
-      {
+    const secondResult = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {
         expectedStreamVersion: firstResult.nextStreamPosition,
-      },
+      }),
     );
 
     // Then
@@ -360,7 +339,9 @@ void describe('appendEvent', () => {
   });
 
   void it('should handle appending an empty events array gracefully', async () => {
-    const result = await appendToStream(pool, uuid(), 'shopping_cart', []);
+    const result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, uuid(), 'shopping_cart', []),
+    );
 
     assertFalse(result.success);
   });

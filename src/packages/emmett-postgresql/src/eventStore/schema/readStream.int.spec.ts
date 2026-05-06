@@ -84,7 +84,9 @@ void describe('readStream', () => {
   void it('reads events from non-empty stream', async () => {
     // Given
     const streamId = uuid();
-    await appendToStream(pool, streamId, 'shopping_cart', events);
+    await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events),
+    );
 
     // When
     const result = await readStream(pool.execute, streamId);

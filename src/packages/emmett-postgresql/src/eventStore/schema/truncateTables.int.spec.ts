@@ -8,8 +8,8 @@ import {
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { createEventStoreSchema } from '.';
 import { appendToStream } from './appendToStream';
 import { truncateTables } from './truncateTables';
@@ -85,11 +85,8 @@ void describe('truncateTables', () => {
     streamId: string,
     events: ShoppingCartEvent[],
   ) => {
-    const result = await appendToStream(
-      pool,
-      streamId,
-      'shopping_cart',
-      events,
+    const result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events),
     );
     assertOk(result.success);
     return result;

@@ -65,14 +65,10 @@ void describe('readLastMessageGlobalPosition', () => {
 
   void it('returns global position of last existing event of single event', async () => {
     // Given
-    const result = await appendToStream(
-      pool,
-      uuid(),
-      'shopping_cart',
-      events.slice(0, 1),
-      {
+    const result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, uuid(), 'shopping_cart', events.slice(0, 1), {
         expectedStreamVersion: 0n,
-      },
+      }),
     );
     assertTrue(result.success);
     const lastGlobalPosition =
@@ -90,9 +86,11 @@ void describe('readLastMessageGlobalPosition', () => {
 
   void it('returns global position of last existing event of single existing stream', async () => {
     // Given
-    const result = await appendToStream(pool, uuid(), 'shopping_cart', events, {
-      expectedStreamVersion: 0n,
-    });
+    const result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, uuid(), 'shopping_cart', events, {
+        expectedStreamVersion: 0n,
+      }),
+    );
     assertTrue(result.success);
     const lastGlobalPosition =
       result.globalPositions[result.globalPositions.length - 1]!;
@@ -109,10 +107,14 @@ void describe('readLastMessageGlobalPosition', () => {
 
   void it('returns global position of last existing event of multiple existing streams', async () => {
     // Given
-    await appendToStream(pool, uuid(), 'shopping_cart', events, {
-      expectedStreamVersion: 0n,
-    });
-    const result = await appendToStream(pool, uuid(), 'shopping_cart', events);
+    await pool.withConnection(async (connection) =>
+      appendToStream(connection, uuid(), 'shopping_cart', events, {
+        expectedStreamVersion: 0n,
+      }),
+    );
+    const result = await pool.withConnection(async (connection) =>
+      appendToStream(connection, uuid(), 'shopping_cart', events),
+    );
     assertTrue(result.success);
     const lastGlobalPosition =
       result.globalPositions[result.globalPositions.length - 1]!;
