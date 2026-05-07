@@ -83,8 +83,7 @@ void describe('PostgreSQL event store started consumer', () => {
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           stopAfter: (event) =>
-            event.metadata.globalPosition ===
-            appendResult.lastEventGlobalPosition,
+            event.metadata.checkpoint === appendResult.lastCheckpoint,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -107,7 +106,7 @@ void describe('PostgreSQL event store started consumer', () => {
         // Given
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: bigint | undefined = undefined;
+        let stopAfterCheckpoint: string | undefined = undefined;
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
@@ -116,7 +115,7 @@ void describe('PostgreSQL event store started consumer', () => {
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
+            event.metadata.checkpoint === stopAfterCheckpoint,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -136,7 +135,7 @@ void describe('PostgreSQL event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          stopAfterCheckpoint = appendResult.lastCheckpoint;
 
           await consumerPromise;
 
@@ -160,7 +159,7 @@ void describe('PostgreSQL event store started consumer', () => {
           { type: 'GuestCheckedIn', data: { guestId } },
           { type: 'GuestCheckedOut', data: { guestId } },
         ];
-        const { lastEventGlobalPosition: startPosition } =
+        const { lastCheckpoint: startCheckpoint } =
           await eventStore.appendToStream(streamName, initialEvents);
 
         const events: GuestStayEvent[] = [
@@ -169,7 +168,7 @@ void describe('PostgreSQL event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: bigint | undefined = undefined;
+        let stopAfterCheckpoint: string | undefined = undefined;
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
@@ -178,10 +177,10 @@ void describe('PostgreSQL event store started consumer', () => {
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           startFrom: {
-            lastCheckpoint: bigIntProcessorCheckpoint(startPosition),
+            lastCheckpoint: startCheckpoint,
           },
           stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
+            event.metadata.checkpoint === stopAfterCheckpoint,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -194,7 +193,7 @@ void describe('PostgreSQL event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          stopAfterCheckpoint = appendResult.lastCheckpoint;
 
           await consumerPromise;
 
@@ -227,7 +226,7 @@ void describe('PostgreSQL event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: bigint | undefined = undefined;
+        let stopAfterCheckpoint: string | undefined = undefined;
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
@@ -237,7 +236,7 @@ void describe('PostgreSQL event store started consumer', () => {
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
+            event.metadata.checkpoint === stopAfterCheckpoint,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -250,7 +249,7 @@ void describe('PostgreSQL event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          stopAfterCheckpoint = appendResult.lastCheckpoint;
 
           await consumerPromise;
 
@@ -277,10 +276,8 @@ void describe('PostgreSQL event store started consumer', () => {
           { type: 'GuestCheckedIn', data: { guestId } },
           { type: 'GuestCheckedOut', data: { guestId } },
         ];
-        const { lastEventGlobalPosition } = await eventStore.appendToStream(
-          streamName,
-          initialEvents,
-        );
+        const { lastCheckpoint: startCheckpoint } =
+          await eventStore.appendToStream(streamName, initialEvents);
 
         const events: GuestStayEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
@@ -288,7 +285,7 @@ void describe('PostgreSQL event store started consumer', () => {
         ];
 
         let result: GuestStayEvent[] = [];
-        let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
+        let stopAfterCheckpoint: string | undefined = startCheckpoint;
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
@@ -298,7 +295,7 @@ void describe('PostgreSQL event store started consumer', () => {
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
+            event.metadata.checkpoint === stopAfterCheckpoint,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -309,7 +306,7 @@ void describe('PostgreSQL event store started consumer', () => {
 
         result = [];
 
-        stopAfterPosition = undefined;
+        stopAfterCheckpoint = undefined;
 
         try {
           const consumerPromise = consumer.start();
@@ -318,7 +315,7 @@ void describe('PostgreSQL event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          stopAfterCheckpoint = appendResult.lastCheckpoint;
 
           await consumerPromise;
 
@@ -342,10 +339,8 @@ void describe('PostgreSQL event store started consumer', () => {
           { type: 'GuestCheckedIn', data: { guestId } },
           { type: 'GuestCheckedOut', data: { guestId } },
         ];
-        const { lastEventGlobalPosition } = await eventStore.appendToStream(
-          streamName,
-          initialEvents,
-        );
+        const { lastCheckpoint: startCheckpoint } =
+          await eventStore.appendToStream(streamName, initialEvents);
 
         const events: GuestStayEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
@@ -353,13 +348,13 @@ void describe('PostgreSQL event store started consumer', () => {
         ];
 
         let result: GuestStayEvent[] = [];
-        let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
+        let stopAfterCheckpoint: string | undefined = startCheckpoint;
 
         const processorOptions: PostgreSQLReactorOptions<GuestStayEvent> = {
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
+            event.metadata.checkpoint === stopAfterCheckpoint,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -379,7 +374,7 @@ void describe('PostgreSQL event store started consumer', () => {
 
         result = [];
 
-        stopAfterPosition = undefined;
+        stopAfterCheckpoint = undefined;
 
         const newConsumer = postgreSQLEventStoreConsumer({
           connectionString,
@@ -393,7 +388,7 @@ void describe('PostgreSQL event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          stopAfterCheckpoint = appendResult.lastCheckpoint;
 
           await consumerPromise;
 
@@ -425,7 +420,7 @@ void describe('PostgreSQL event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: bigint | undefined = undefined;
+        let stopAfterCheckpoint: string | undefined = undefined;
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
@@ -435,7 +430,7 @@ void describe('PostgreSQL event store started consumer', () => {
           processorId: uuid(),
           startFrom: 'END',
           stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
+            event.metadata.checkpoint === stopAfterCheckpoint,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -449,7 +444,7 @@ void describe('PostgreSQL event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          stopAfterCheckpoint = appendResult.lastCheckpoint;
 
           await consumerPromise;
 
@@ -474,7 +469,7 @@ void describe('PostgreSQL event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: bigint | undefined = undefined;
+        let stopAfterCheckpoint: string | undefined = undefined;
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
@@ -484,7 +479,7 @@ void describe('PostgreSQL event store started consumer', () => {
           processorId: uuid(),
           startFrom: 'END',
           stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
+            event.metadata.checkpoint === stopAfterCheckpoint,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -498,7 +493,7 @@ void describe('PostgreSQL event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          stopAfterCheckpoint = appendResult.lastCheckpoint;
 
           await consumerPromise;
 
@@ -531,7 +526,7 @@ void describe('PostgreSQL event store started consumer', () => {
         ];
 
         let result: GuestStayEvent[] = [];
-        let stopAfterPosition: bigint | undefined = undefined;
+        let stopAfterCheckpoint: string | undefined = undefined;
 
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
@@ -540,7 +535,7 @@ void describe('PostgreSQL event store started consumer', () => {
           processorId: uuid(),
           startFrom: 'END',
           stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
+            event.metadata.checkpoint === stopAfterCheckpoint,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -554,13 +549,13 @@ void describe('PostgreSQL event store started consumer', () => {
           streamName,
           firstBatch,
         );
-        stopAfterPosition = firstAppend.lastEventGlobalPosition;
+        stopAfterCheckpoint = firstAppend.lastCheckpoint;
         await firstConsumerPromise;
         await consumer.stop();
 
         // Run 2: restart and process second batch only
         result = [];
-        stopAfterPosition = undefined;
+        stopAfterCheckpoint = undefined;
 
         const secondBatch: GuestStayEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
@@ -575,7 +570,7 @@ void describe('PostgreSQL event store started consumer', () => {
             streamName,
             secondBatch,
           );
-          stopAfterPosition = secondAppend.lastEventGlobalPosition;
+          stopAfterCheckpoint = secondAppend.lastCheckpoint;
 
           await secondConsumerPromise;
 

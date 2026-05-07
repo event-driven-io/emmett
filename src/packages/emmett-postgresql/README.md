@@ -106,7 +106,7 @@ const result = await eventStore.appendToStream<ShoppingCartEvent>(
 );
 
 console.log(result.nextExpectedStreamVersion); // 1n
-console.log(result.lastEventGlobalPosition); // Global position for ordering
+console.log(result.); // Global position for ordering
 ```
 
 ### Reading Events
