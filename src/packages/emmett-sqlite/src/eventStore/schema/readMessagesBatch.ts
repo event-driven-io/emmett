@@ -95,13 +95,17 @@ export const readMessagesBatch = async <
           metadata: serializer.deserialize(row.message_metadata),
         } as unknown as MessageType;
 
+        const globalPosition = bigIntProcessorCheckpoint(
+          BigInt(row.global_position),
+        );
+
         const metadata: RecordedMessageMetadataWithGlobalPosition = {
           ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
           messageId: row.message_id,
           streamName: row.stream_id,
           streamPosition: BigInt(row.stream_position),
-          globalPosition: BigInt(row.global_position),
-          checkpoint: bigIntProcessorCheckpoint(BigInt(row.global_position)),
+          globalPosition,
+          checkpoint: globalPosition,
         };
 
         return {
@@ -117,18 +121,22 @@ export const readMessagesBatch = async <
 
   return messages.length > 0
     ? {
-        currentGlobalPosition:
+        // TODO: Fix this back and forth parsing
+        currentGlobalPosition: BigInt(
           messages[messages.length - 1]!.metadata.globalPosition,
+        ),
         messages: messages,
         areMessagesLeft: messages.length === batchSize,
       }
     : {
-        currentGlobalPosition:
+        // TODO: Fix this back and forth parsing
+        currentGlobalPosition: BigInt(
           'from' in options
             ? options.from
             : 'after' in options
               ? options.after
               : 0n,
+        ),
         messages: [],
         areMessagesLeft: false,
       };

@@ -8,10 +8,10 @@ import {
   downcastRecordedMessages,
   upcastRecordedMessage,
   type AggregateStreamOptions,
-  type AggregateStreamResultWithCheckpointAndGlobalPosition,
+  type AggregateStreamResultWithGlobalPosition,
   type AnyMessage,
   type AppendToStreamOptions,
-  type AppendToStreamReasultWithGlobalPositionAndCheckpoint,
+  type AppendToStreamResultWithGlobalPosition,
   type Event,
   type EventStore,
   type ExpectedStreamVersion,
@@ -78,7 +78,7 @@ export interface EventStoreDBEventStore extends EventStore<EventStoreDBReadEvent
     streamName: string,
     events: EventType[],
     options?: AppendToStreamOptions<EventType, EventPayloadType>,
-  ): Promise<AppendToStreamReasultWithGlobalPositionAndCheckpoint>;
+  ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerEventType extends Event = Event>(
     options?: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
   ): EventStoreDBEventStoreConsumer<ConsumerEventType>;
@@ -100,7 +100,7 @@ export const getEventStoreDBEventStore = (
         EventStoreDBReadEventMetadata,
         EventPayloadType
       >,
-    ): Promise<AggregateStreamResultWithCheckpointAndGlobalPosition<State>> {
+    ): Promise<AggregateStreamResultWithGlobalPosition<State>> {
       const { evolve, initialState, read } = options;
 
       const expectedStreamVersion = read?.expectedStreamVersion;
@@ -138,8 +138,8 @@ export const getEventStoreDBEventStore = (
         return lastCheckpoint
           ? {
               currentStreamVersion,
-              lastEventGlobalPosition: lastCheckpoint,
-              lastCheckpoint: bigIntProcessorCheckpoint(lastCheckpoint),
+              lastEventGlobalPosition:
+                bigIntProcessorCheckpoint(lastCheckpoint),
               state,
               streamExists: true,
             }
@@ -214,7 +214,7 @@ export const getEventStoreDBEventStore = (
       streamName: string,
       events: EventType[],
       options?: AppendToStreamOptions<EventType, EventPayloadType>,
-    ): Promise<AppendToStreamReasultWithGlobalPositionAndCheckpoint> => {
+    ): Promise<AppendToStreamResultWithGlobalPosition> => {
       try {
         const eventsToStore = downcastRecordedMessages(
           events,
@@ -236,8 +236,7 @@ export const getEventStoreDBEventStore = (
 
         return {
           nextExpectedStreamVersion: appendResult.nextExpectedRevision,
-          lastEventGlobalPosition: appendResult.position!.commit,
-          lastCheckpoint: bigIntProcessorCheckpoint(
+          lastEventGlobalPosition: bigIntProcessorCheckpoint(
             appendResult.position!.commit,
           ),
           createdNewStream:
@@ -312,7 +311,7 @@ export const mapFromESDBEvent = <MessageType extends AnyMessage = AnyMessage>(
       eventId: event.id,
       streamName: event.streamId,
       streamPosition: event.revision,
-      globalPosition: event.position!.commit,
+      globalPosition: bigIntProcessorCheckpoint(event.position!.commit),
       checkpoint: bigIntProcessorCheckpoint(
         getESDBCheckpoint(resolvedEvent, from),
       ),

@@ -65,16 +65,19 @@ export const readStream = async <
           metadata: row.message_metadata,
         } as unknown as EventPayloadType;
 
+        const globalPosition =
+          PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+            transactionId: row.transaction_id,
+            globalPosition: BigInt(row.global_position),
+          });
+
         const metadata: ReadEventMetadataWithGlobalPosition = {
           ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
           messageId: row.message_id,
           streamName: streamId,
           streamPosition: BigInt(row.stream_position),
-          globalPosition: BigInt(row.global_position),
-          checkpoint: PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
-            transactionId: row.transaction_id,
-            globalPosition: BigInt(row.global_position),
-          }),
+          globalPosition,
+          checkpoint: globalPosition,
         };
 
         const event = {

@@ -70,7 +70,7 @@ void describe('PostgreSQL event store started consumer', () => {
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
           stopAfter: (event) =>
-            event.metadata.checkpoint === appendResult.lastCheckpoint,
+            event.metadata.checkpoint === appendResult.lastEventGlobalPosition,
         });
 
         // When
@@ -143,7 +143,7 @@ void describe('PostgreSQL event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterCheckpoint = appendResult.lastCheckpoint;
+          stopAfterCheckpoint = appendResult.lastEventGlobalPosition;
 
           await consumerPromise;
 
@@ -173,7 +173,7 @@ void describe('PostgreSQL event store started consumer', () => {
           { type: 'ProductItemAdded', data: { productItem } },
           { type: 'ProductItemAdded', data: { productItem } },
         ];
-        const { lastCheckpoint: startCheckpoint } =
+        const { lastEventGlobalPosition: startCheckpoint } =
           await eventStore.appendToStream(streamName, initialEvents);
 
         const events: ShoppingCartSummaryEvent[] = [
@@ -212,7 +212,7 @@ void describe('PostgreSQL event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterCheckpoint = appendResult.lastCheckpoint;
+          stopAfterCheckpoint = appendResult.lastEventGlobalPosition;
 
           await consumerPromise;
 
@@ -280,7 +280,7 @@ void describe('PostgreSQL event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterCheckpoint = appendResult.lastCheckpoint;
+          stopAfterCheckpoint = appendResult.lastEventGlobalPosition;
 
           await consumerPromise;
 
@@ -310,7 +310,7 @@ void describe('PostgreSQL event store started consumer', () => {
           { type: 'ProductItemAdded', data: { productItem } },
           { type: 'ProductItemAdded', data: { productItem } },
         ];
-        const { lastCheckpoint: startCheckpoint } =
+        const { lastEventGlobalPosition: startCheckpoint } =
           await eventStore.appendToStream(streamName, initialEvents);
 
         const events: ShoppingCartSummaryEvent[] = [
@@ -352,7 +352,7 @@ void describe('PostgreSQL event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterCheckpoint = appendResult.lastCheckpoint;
+          stopAfterCheckpoint = appendResult.lastEventGlobalPosition;
 
           await consumerPromise;
 
@@ -382,7 +382,7 @@ void describe('PostgreSQL event store started consumer', () => {
           { type: 'ProductItemAdded', data: { productItem } },
           { type: 'ProductItemAdded', data: { productItem } },
         ];
-        const { lastCheckpoint: startCheckpoint } =
+        const { lastEventGlobalPosition: startCheckpoint } =
           await eventStore.appendToStream(streamName, initialEvents);
 
         const events: ShoppingCartSummaryEvent[] = [
@@ -432,7 +432,7 @@ void describe('PostgreSQL event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterCheckpoint = appendResult.lastCheckpoint;
+          stopAfterCheckpoint = appendResult.lastEventGlobalPosition;
 
           await consumerPromise;
 

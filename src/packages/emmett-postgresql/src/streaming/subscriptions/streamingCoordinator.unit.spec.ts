@@ -63,7 +63,9 @@ void describe('StreamingCoordinator', () => {
     const result = await collectedEvents;
 
     assertDeepEqual(result, [
-      globalStreamCaughtUp({ globalPosition: 0n }) as ReadEvent<
+      globalStreamCaughtUp({
+        globalPosition: bigIntProcessorCheckpoint(0n),
+      }) as ReadEvent<
         GlobalStreamCaughtUp,
         ReadEventMetadataWithGlobalPosition
       >,
@@ -93,7 +95,9 @@ void describe('StreamingCoordinator', () => {
     const result2 = await collectedEvents2;
 
     assertDeepEqual(result1, [
-      globalStreamCaughtUp({ globalPosition: 0n }) as ReadEvent<
+      globalStreamCaughtUp({
+        globalPosition: bigIntProcessorCheckpoint(0n),
+      }) as ReadEvent<
         GlobalStreamCaughtUp,
         ReadEventMetadataWithGlobalPosition
       >,
@@ -101,7 +105,9 @@ void describe('StreamingCoordinator', () => {
       event2,
     ]);
     assertDeepEqual(result2, [
-      globalStreamCaughtUp({ globalPosition: 0n }) as ReadEvent<
+      globalStreamCaughtUp({
+        globalPosition: bigIntProcessorCheckpoint(0n),
+      }) as ReadEvent<
         GlobalStreamCaughtUp,
         ReadEventMetadataWithGlobalPosition
       >,
@@ -149,7 +155,9 @@ void describe('StreamingCoordinator', () => {
 
     const result = await collectedEvents;
 
-    assertDeepEqual(result, [globalStreamCaughtUp({ globalPosition: 0n })]);
+    assertDeepEqual(result, [
+      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(0n) }),
+    ]);
   });
 });
 
@@ -165,7 +173,7 @@ const createMockEvent = (
     streamName: 'testStream',
     messageId: `message-${position}`,
     streamPosition: position,
-    globalPosition: position,
+    globalPosition: bigIntProcessorCheckpoint(position),
     checkpoint: bigIntProcessorCheckpoint(position),
   },
 });

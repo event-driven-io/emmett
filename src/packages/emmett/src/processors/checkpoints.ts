@@ -13,6 +13,8 @@ import { bigInt } from '../utils';
 //////////////////////////////////////
 
 export type ProcessorCheckpoint = Brand<string, 'ProcessorCheckpoint'>;
+export const ProcessorCheckpoint = (checkpoint: string): ProcessorCheckpoint =>
+  checkpoint as ProcessorCheckpoint;
 
 export const bigIntProcessorCheckpoint = (value: bigint): ProcessorCheckpoint =>
   bigInt.toNormalizedString(value) as ProcessorCheckpoint;

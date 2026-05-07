@@ -2,6 +2,7 @@ import {
   event,
   type Event,
   type EventDataOf,
+  type GlobalPosition,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '../../typing';
@@ -10,8 +11,8 @@ export const GlobalStreamCaughtUpType = '__emt:GlobalStreamCaughtUp';
 
 export type GlobalStreamCaughtUp = Event<
   '__emt:GlobalStreamCaughtUp',
-  { globalPosition: bigint },
-  { globalPosition: bigint }
+  { globalPosition: GlobalPosition },
+  { globalPosition: GlobalPosition }
 >;
 
 export const isGlobalStreamCaughtUp = (
@@ -19,7 +20,7 @@ export const isGlobalStreamCaughtUp = (
 ): event is GlobalStreamCaughtUp => event.type === GlobalStreamCaughtUpType;
 
 export const caughtUpEventFrom =
-  (position: bigint) =>
+  (position: string) =>
   (
     event: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>,
   ): event is ReadEvent<

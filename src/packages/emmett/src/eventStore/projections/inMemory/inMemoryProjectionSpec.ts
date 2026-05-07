@@ -87,7 +87,7 @@ export const InMemoryProjectionSpec = {
             ]) {
               const metadata: InMemoryReadEventMetadata = {
                 checkpoint: bigIntProcessorCheckpoint(++globalPosition),
-                globalPosition,
+                globalPosition: bigIntProcessorCheckpoint(globalPosition),
                 streamPosition: globalPosition,
                 streamName: event.metadata?.streamName ?? `test-${uuid()}`,
                 messageId: uuid(),

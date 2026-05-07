@@ -167,7 +167,7 @@ Some event stores provide global ordering:
 
 ```typescript
 type ReadEventMetadataWithGlobalPosition = CommonReadEventMetadata & {
-  globalPosition: bigint; // Position across all streams
+  globalPosition: ProcessorCheckpoint; // Position across all streams
 };
 ```
 

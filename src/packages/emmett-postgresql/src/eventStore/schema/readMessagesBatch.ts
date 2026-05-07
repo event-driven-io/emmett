@@ -137,16 +137,19 @@ export const readMessagesBatch = async <
           metadata: row.message_metadata,
         } as unknown as MessageType;
 
+        const globalPosition =
+          PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+            transactionId: row.transaction_id,
+            globalPosition: BigInt(row.global_position),
+          });
+
         const metadata: RecordedMessageMetadataWithGlobalPosition = {
           ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
           messageId: row.message_id,
           streamName: row.stream_id,
           streamPosition: BigInt(row.stream_position),
-          globalPosition: BigInt(row.global_position),
-          checkpoint: PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
-            transactionId: row.transaction_id,
-            globalPosition: BigInt(row.global_position),
-          }),
+          globalPosition,
+          checkpoint: globalPosition,
         };
 
         return {

@@ -5,7 +5,6 @@ import type {
   CommonReadEventMetadata,
   DefaultRecord,
   Event,
-  GlobalPosition,
   ReadEvent,
   ReadEventMetadata,
   StreamPosition,
@@ -179,33 +178,14 @@ export type AggregateStreamResult<State> = {
   streamExists: boolean;
 };
 
-/**
- * @deprecated Use `AggregateStreamResultWithCheckpoint` instead for consistent global position handling. This will be removed in future versions.
- */
 export type AggregateStreamResultWithGlobalPosition<State> =
   | (AggregateStreamResult<State> & {
       streamExists: true;
-      /**
-       * @deprecated This property is deprecated. Use `lastCheckpoint` instead for consistent global position handling. This will be removed in future versions.
-       */
-      lastEventGlobalPosition: GlobalPosition;
+      lastEventGlobalPosition: ProcessorCheckpoint;
     })
   | (AggregateStreamResult<State> & {
       streamExists: false;
     });
-
-export type AggregateStreamResultWithCheckpoint<State> =
-  | (AggregateStreamResult<State> & {
-      streamExists: true;
-      lastCheckpoint: ProcessorCheckpoint;
-    })
-  | (AggregateStreamResult<State> & {
-      streamExists: false;
-    });
-
-export type AggregateStreamResultWithCheckpointAndGlobalPosition<State> =
-  AggregateStreamResultWithCheckpoint<State> &
-    AggregateStreamResultWithGlobalPosition<State>;
 
 export type AggregateStreamResultOfEventStore<Store extends EventStore> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -235,22 +215,9 @@ export type AppendToStreamResult = {
   createdNewStream: boolean;
 };
 
-/**
- * @deprecated Use `AppendToStreamResultWithCheckpoint` instead for consistent global position handling. This will be removed in future versions.
- */
 export type AppendToStreamResultWithGlobalPosition = AppendToStreamResult & {
-  /**
-   * @deprecated This property is deprecated. Use `lastCheckpoint` instead for consistent global position handling. This will be removed in future versions.
-   */
-  lastEventGlobalPosition: GlobalPosition;
+  lastEventGlobalPosition: ProcessorCheckpoint;
 };
-
-export type AppendToStreamResultWithCheckpoint = AppendToStreamResult & {
-  lastCheckpoint: ProcessorCheckpoint;
-};
-
-export type AppendToStreamReasultWithGlobalPositionAndCheckpoint =
-  AppendToStreamResultWithGlobalPosition & AppendToStreamResultWithCheckpoint;
 
 export type AppendStreamResultOfEventStore<Store extends EventStore> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

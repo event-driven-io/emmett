@@ -199,7 +199,7 @@ const subscription = eventStore.subscribeToAll({
     // Checkpoint is automatically saved
   },
   // Resume from last checkpoint
-  fromPosition: 'lastCheckpoint',
+  fromPosition: 'CURRENT',
 });
 ```
 
