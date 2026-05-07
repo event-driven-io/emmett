@@ -63,7 +63,7 @@ const result = await eventStore.appendToStream<GuestStayEvent>(streamName, [
 ]);
 
 console.log('Stream version:', result.nextExpectedStreamVersion);
-console.log('Global position:', result.lastCheckpoint);
+console.log('Global position:', result.lastEventGlobalPosition);
 ```
 
 ### Reading Events

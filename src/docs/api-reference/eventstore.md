@@ -176,7 +176,7 @@ type AppendToStreamResult = {
 };
 
 // Some stores include checkpoing (global position in the log)
-type AppendToStreamResultWithCheckpoint = AppendToStreamResult & {
+type AppendToStreamResultWithGlobalPosition = AppendToStreamResult & {
   lastEventGlobalPosition: ProcessorCheckpoint;
 };
 ```
