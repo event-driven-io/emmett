@@ -26,37 +26,35 @@ type ReadMessagesBatchSqlResult<MessageType extends Message> = {
   created: string;
 };
 
-// TODO: Move it to checkpoint related
-export const defaultPostgreSQLEventStoreCheckpoint: PostgreSQLEventStoreCheckpoint =
-  {
-    transactionId: 0n.toString(),
-    globalPosition: 0n,
-  };
-
 export const PostgreSQLEventStoreCheckpoint = {
-  default: defaultPostgreSQLEventStoreCheckpoint,
+  default: {
+    transactionId: 0n,
+    globalPosition: 0n,
+  },
   parse: (
     checkPoint: ProcessorCheckpoint | undefined | null,
   ): PostgreSQLEventStoreCheckpoint => {
     if (checkPoint === undefined || checkPoint === null)
-      return defaultPostgreSQLEventStoreCheckpoint;
+      return PostgreSQLEventStoreCheckpoint.default;
 
     const [transactionId, globalPosition] = checkPoint.includes(':')
       ? checkPoint.split(':')
       : [undefined, checkPoint];
     return {
-      transactionId: transactionId ?? 0n.toString(),
+      transactionId: transactionId ? BigInt(transactionId) : undefined,
       globalPosition: BigInt(globalPosition),
     };
   },
   toProcessorCheckpoint: (
     checkPoint: PostgreSQLEventStoreCheckpoint,
   ): ProcessorCheckpoint =>
-    `${checkPoint.transactionId}:${bigIntProcessorCheckpoint(checkPoint.globalPosition)}` as ProcessorCheckpoint,
+    checkPoint.transactionId
+      ? (`${checkPoint.transactionId.toString().padStart(20, '0')}:${bigIntProcessorCheckpoint(checkPoint.globalPosition)}` as ProcessorCheckpoint)
+      : bigIntProcessorCheckpoint(checkPoint.globalPosition),
 };
 
 export type PostgreSQLEventStoreCheckpoint = {
-  transactionId: string;
+  transactionId?: bigint;
   globalPosition: bigint;
 };
 
@@ -104,14 +102,20 @@ export const readMessagesBatch = async <
 
   const fromCondition: SQL =
     from !== undefined
-      ? SQL`AND (transaction_id, global_position) >= (${from.transactionId}, ${from.globalPosition})`
+      ? from.transactionId
+        ? SQL`AND (transaction_id, global_position) >= (${from.transactionId}, ${from.globalPosition})`
+        : SQL`AND (global_position) >= (${from.globalPosition})`
       : after !== undefined
-        ? SQL`AND (transaction_id, global_position) > (${after.transactionId}, ${after.globalPosition})`
+        ? after.transactionId
+          ? SQL`AND (transaction_id, global_position) > (${after.transactionId}, ${after.globalPosition})`
+          : SQL`AND (global_position) > (${after.globalPosition})`
         : SQL.EMPTY;
 
   const toCondition: SQL =
     'to' in options
-      ? SQL`AND (transaction_id, global_position) <= (${options.to.transactionId}, ${options.to.globalPosition})`
+      ? options.to.transactionId
+        ? SQL`AND (transaction_id, global_position) <= (${options.to.transactionId}, ${options.to.globalPosition})`
+        : SQL`AND (global_position) <= (${options.to.globalPosition})`
       : SQL.EMPTY;
 
   const limitCondition: SQL =
@@ -139,7 +143,7 @@ export const readMessagesBatch = async <
 
         const globalPosition =
           PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
-            transactionId: row.transaction_id,
+            transactionId: BigInt(row.transaction_id),
             globalPosition: BigInt(row.global_position),
           });
 
@@ -177,7 +181,7 @@ export const readMessagesBatch = async <
             ? options.from
             : 'after' in options
               ? options.after
-              : defaultPostgreSQLEventStoreCheckpoint,
+              : PostgreSQLEventStoreCheckpoint.default,
         messages: [],
         areMessagesLeft: false,
       };

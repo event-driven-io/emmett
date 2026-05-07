@@ -67,7 +67,7 @@ export const readStream = async <
 
         const globalPosition =
           PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
-            transactionId: row.transaction_id,
+            transactionId: BigInt(row.transaction_id),
             globalPosition: BigInt(row.global_position),
           });
 

@@ -121,17 +121,15 @@ export const PostgreSQLProjectionSpec = {
                 ...givenEvents,
                 ...Array.from({ length: numberOfTimes }).flatMap(() => events),
               ]) {
+                const checkpoint =
+                  PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+                    transactionId: ++globalPosition,
+                    globalPosition,
+                  });
+
                 const metadata: PostgresReadEventMetadata = {
-                  checkpoint:
-                    PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
-                      transactionId: `${++globalPosition}`,
-                      globalPosition,
-                    }),
-                  globalPosition:
-                    PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
-                      transactionId: `${++globalPosition}`,
-                      globalPosition,
-                    }),
+                  checkpoint,
+                  globalPosition: checkpoint,
                   streamPosition: globalPosition,
                   streamName: `test-${uuid()}`,
                   messageId: uuid(),

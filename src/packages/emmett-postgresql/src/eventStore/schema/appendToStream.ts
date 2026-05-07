@@ -221,6 +221,7 @@ export const appendToStream = (
       const nextStreamPosition = BigInt(next_stream_position);
 
       const globalPositions = global_positions.map(BigInt);
+      const transactionId = BigInt(transaction_id);
 
       globalPositions.forEach((globalPosition, index) => {
         messagesToAppend[index]!.metadata = {
@@ -231,7 +232,7 @@ export const appendToStream = (
             BigInt(messagesToAppend.length) +
             BigInt(index + 1),
           globalPosition: PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
-            transactionId: transaction_id,
+            transactionId,
             globalPosition,
           }),
         };
@@ -247,7 +248,7 @@ export const appendToStream = (
           success: true,
           nextStreamPosition,
           checkpoints: globalPositions.map((globalPosition) => ({
-            transactionId: transaction_id,
+            transactionId,
             globalPosition,
           })),
         },

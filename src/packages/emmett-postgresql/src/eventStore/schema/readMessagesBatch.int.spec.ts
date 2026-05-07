@@ -14,7 +14,7 @@ import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { createEventStoreSchema } from '.';
 import { appentToStreamRaw } from './appendToStream';
 import {
-  defaultPostgreSQLEventStoreCheckpoint,
+  PostgreSQLEventStoreCheckpoint,
   readMessagesBatch,
 } from './readMessagesBatch';
 
@@ -90,7 +90,7 @@ void describe('reading messages in batches', () => {
       await tx1.commit();
 
       const poll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: defaultPostgreSQLEventStoreCheckpoint,
+        after: PostgreSQLEventStoreCheckpoint.default,
         batchSize: 10,
       });
 
@@ -131,7 +131,7 @@ void describe('reading messages in batches', () => {
       // tx1 (low xid) is still open — its xid is the pg_snapshot_xmin,
       // so tx2's committed event must not be visible yet
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: defaultPostgreSQLEventStoreCheckpoint,
+        after: PostgreSQLEventStoreCheckpoint.default,
         batchSize: 10,
       });
 
@@ -148,7 +148,7 @@ void describe('reading messages in batches', () => {
       await tx1.commit();
 
       const secondPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: defaultPostgreSQLEventStoreCheckpoint,
+        after: PostgreSQLEventStoreCheckpoint.default,
         batchSize: 10,
       });
 
@@ -212,7 +212,7 @@ void describe('reading messages in batches', () => {
       await tx1.commit();
 
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: defaultPostgreSQLEventStoreCheckpoint,
+        after: PostgreSQLEventStoreCheckpoint.default,
         batchSize: 10,
       });
 
@@ -225,7 +225,7 @@ void describe('reading messages in batches', () => {
       // Safe checkpoint must not advance past the gap left by the in-flight tx2
       assertDeepEqual(
         {
-          transactionId: transaction_id,
+          transactionId: BigInt(transaction_id!),
           globalPosition: BigInt(global_positions![0]!),
         },
         firstPoll.currentCheckpoint,
@@ -287,7 +287,7 @@ void describe('reading messages in batches', () => {
       await tx1.commit();
 
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: defaultPostgreSQLEventStoreCheckpoint,
+        after: PostgreSQLEventStoreCheckpoint.default,
         batchSize: 10,
       });
 
@@ -299,7 +299,7 @@ void describe('reading messages in batches', () => {
       assertEqual('evt3', firstPoll.messages[0]!.data.meta);
       assertDeepEqual(
         {
-          transactionId: transaction_id!,
+          transactionId: BigInt(transaction_id!),
           globalPosition: BigInt(global_positions![0]!),
         },
         firstPoll.currentCheckpoint,
@@ -371,7 +371,7 @@ void describe('reading messages in batches', () => {
       await tx1.commit();
 
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: defaultPostgreSQLEventStoreCheckpoint,
+        after: PostgreSQLEventStoreCheckpoint.default,
         batchSize: 10,
       });
 
@@ -379,7 +379,7 @@ void describe('reading messages in batches', () => {
       assertEqual('evt3', firstPoll.messages[0]!.data.meta);
       assertDeepEqual(
         {
-          transactionId: transaction_id!,
+          transactionId: BigInt(transaction_id!),
           globalPosition: BigInt(global_positions![0]!),
         },
         firstPoll.currentCheckpoint,
@@ -437,7 +437,7 @@ void describe('reading messages in batches', () => {
       await tx2.commit();
 
       const poll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: defaultPostgreSQLEventStoreCheckpoint,
+        after: PostgreSQLEventStoreCheckpoint.default,
         batchSize: 10,
       });
 
@@ -472,7 +472,7 @@ void describe('reading messages in batches', () => {
       await tx.commit();
 
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: defaultPostgreSQLEventStoreCheckpoint,
+        after: PostgreSQLEventStoreCheckpoint.default,
         batchSize: 10,
       });
 
@@ -525,7 +525,7 @@ void describe('reading messages in batches', () => {
       await tx2.commit();
 
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: defaultPostgreSQLEventStoreCheckpoint,
+        after: PostgreSQLEventStoreCheckpoint.default,
         batchSize: 10,
       });
 
@@ -542,7 +542,7 @@ void describe('reading messages in batches', () => {
       await tx1.commit();
 
       const secondPoll = await readMessagesBatch<TestEvent>(pool.execute, {
-        after: defaultPostgreSQLEventStoreCheckpoint,
+        after: PostgreSQLEventStoreCheckpoint.default,
         batchSize: 10,
       });
 
