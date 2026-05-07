@@ -22,7 +22,7 @@ import {
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
-  type AppendToStreamResultWithGlobalPosition,
+  type AppendToStreamReasultWithGlobalPositionAndCheckpoint,
   type Event,
   type EventStore,
   type EventStoreSession,
@@ -49,6 +49,7 @@ import {
 import {
   appendToStream,
   createEventStoreSchema,
+  PostgreSQLEventStoreCheckpoint,
   readStream,
   schemaSQL,
   streamExists,
@@ -69,7 +70,7 @@ export interface PostgresEventStore
     streamName: string,
     events: EventType[],
     options?: AppendToStreamOptions<EventType, EventPayloadType>,
-  ): Promise<AppendToStreamResultWithGlobalPosition>;
+  ): Promise<AppendToStreamReasultWithGlobalPositionAndCheckpoint>;
   consumer<ConsumerEventType extends Event = Event>(
     options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
   ): PostgreSQLEventStoreConsumer<ConsumerEventType>;
@@ -386,7 +387,7 @@ export const getPostgreSQLEventStore = (
       streamName: string,
       events: EventType[],
       appendOptions?: AppendToStreamOptions<EventType, EventPayloadType>,
-    ): Promise<AppendToStreamResultWithGlobalPosition> => {
+    ): Promise<AppendToStreamReasultWithGlobalPositionAndCheckpoint> => {
       await ensureSchemaExists();
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
@@ -418,6 +419,9 @@ export const getPostgreSQLEventStore = (
         lastEventGlobalPosition:
           appendResult.checkpoints[appendResult.checkpoints.length - 1]!
             .globalPosition,
+        lastCheckpoint: PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
+          appendResult.checkpoints[appendResult.checkpoints.length - 1]!,
+        ),
         createdNewStream:
           appendResult.nextStreamPosition >= BigInt(events.length),
       };

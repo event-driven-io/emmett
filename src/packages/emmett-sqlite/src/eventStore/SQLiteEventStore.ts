@@ -2,13 +2,14 @@ import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   assertExpectedVersionMatchesCurrent,
+  bigIntProcessorCheckpoint,
   ExpectedVersionConflictError,
   JSONSerializer,
   NO_CONCURRENCY_CHECK,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
-  type AppendToStreamResultWithGlobalPosition,
+  type AppendToStreamReasultWithGlobalPositionAndCheckpoint,
   type BeforeEventStoreCommitHandler,
   type Event,
   type EventStore,
@@ -62,7 +63,7 @@ export interface SQLiteEventStore
     streamName: string,
     events: EventType[],
     options?: AppendToStreamOptions<EventType, EventPayloadType>,
-  ): Promise<AppendToStreamResultWithGlobalPosition>;
+  ): Promise<AppendToStreamReasultWithGlobalPositionAndCheckpoint>;
   consumer<ConsumerEventType extends Event = Event>(
     options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
   ): SQLiteEventStoreConsumer<ConsumerEventType>;
@@ -263,7 +264,7 @@ export const getSQLiteEventStore = <
       streamName: string,
       events: EventType[],
       appendOptions?: AppendToStreamOptions<EventType, EventPayloadType>,
-    ): Promise<AppendToStreamResultWithGlobalPosition> => {
+    ): Promise<AppendToStreamReasultWithGlobalPositionAndCheckpoint> => {
       await ensureSchemaExists();
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
@@ -300,6 +301,9 @@ export const getSQLiteEventStore = <
       return {
         nextExpectedStreamVersion: appendResult.nextStreamPosition,
         lastEventGlobalPosition: appendResult.lastGlobalPosition,
+        lastCheckpoint: bigIntProcessorCheckpoint(
+          appendResult.lastGlobalPosition,
+        ),
         createdNewStream:
           appendResult.nextStreamPosition >= BigInt(events.length),
       };

@@ -10,8 +10,8 @@ import {
 } from '@event-driven-io/emmett';
 import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   getEventStoreDBEventStore,
   type EventStoreDBEventStore,
@@ -87,8 +87,7 @@ void describe('EventStoreDB event store started consumer', () => {
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           stopAfter: (event) =>
-            event.metadata.globalPosition ===
-            appendResult.lastEventGlobalPosition,
+            event.metadata.checkpoint === appendResult.lastCheckpoint,
           eachMessage: (event) => {
             if (
               event.metadata.streamName === streamName ||
@@ -143,8 +142,7 @@ void describe('EventStoreDB event store started consumer', () => {
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           stopAfter: (event) =>
-            event.metadata.globalPosition ===
-            appendResult.lastEventGlobalPosition,
+            event.metadata.checkpoint === appendResult.lastCheckpoint,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -186,8 +184,7 @@ void describe('EventStoreDB event store started consumer', () => {
       consumer.reactor<NumberRecorded>({
         processorId: uuid(),
         stopAfter: (event) =>
-          event.metadata.globalPosition ===
-          appendResult.lastEventGlobalPosition,
+          event.metadata.checkpoint === appendResult.lastCheckpoint,
         eachMessage: async (event) => {
           await delay(Math.floor(Math.random() * 200));
 
@@ -245,8 +242,7 @@ void describe('EventStoreDB event store started consumer', () => {
         consumer.reactor<NumberRecorded>({
           processorId: uuid(),
           stopAfter: (event) =>
-            event.metadata.globalPosition ===
-            appendResult.lastEventGlobalPosition,
+            event.metadata.checkpoint === appendResult.lastCheckpoint,
           eachMessage: (event) => {
             if (shouldThrowRandomError) {
               return Promise.reject(new Error('Random error'));
@@ -299,8 +295,7 @@ void describe('EventStoreDB event store started consumer', () => {
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           stopAfter: (event) =>
-            event.metadata.globalPosition ===
-            appendResult.lastEventGlobalPosition,
+            event.metadata.checkpoint === appendResult.lastCheckpoint,
           eachMessage: (event) => {
             if (
               event.metadata.streamName === streamName ||
@@ -347,7 +342,7 @@ void describe('EventStoreDB event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: bigint | undefined = undefined;
+        let stopAfterStreamPosition: bigint | undefined = undefined;
 
         // When
         const consumer = eventStoreDBEventStoreConsumer({
@@ -360,7 +355,7 @@ void describe('EventStoreDB event store started consumer', () => {
             lastCheckpoint: bigIntProcessorCheckpoint(startPosition),
           },
           stopAfter: (event) =>
-            event.metadata.streamPosition === stopAfterPosition,
+            event.metadata.streamPosition === stopAfterStreamPosition,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -373,7 +368,7 @@ void describe('EventStoreDB event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterPosition = appendResult.nextExpectedStreamVersion;
+          stopAfterStreamPosition = appendResult.nextExpectedStreamVersion;
 
           await consumerPromise;
 
@@ -397,7 +392,7 @@ void describe('EventStoreDB event store started consumer', () => {
           { type: 'GuestCheckedIn', data: { guestId } },
           { type: 'GuestCheckedOut', data: { guestId } },
         ];
-        const { lastEventGlobalPosition: startPosition } =
+        const { lastCheckpoint: startCheckpoint } =
           await eventStore.appendToStream(streamName, initialEvents);
 
         const events: GuestStayEvent[] = [
@@ -406,7 +401,7 @@ void describe('EventStoreDB event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: bigint | undefined = undefined;
+        let stopAfterCheckpoint: string | undefined = undefined;
 
         // When
         const consumer = eventStoreDBEventStoreConsumer({
@@ -416,10 +411,10 @@ void describe('EventStoreDB event store started consumer', () => {
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           startFrom: {
-            lastCheckpoint: bigIntProcessorCheckpoint(startPosition),
+            lastCheckpoint: startCheckpoint,
           },
           stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
+            event.metadata.checkpoint === stopAfterCheckpoint,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -432,7 +427,7 @@ void describe('EventStoreDB event store started consumer', () => {
             streamName,
             events,
           );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          stopAfterCheckpoint = appendResult.lastCheckpoint;
 
           await consumerPromise;
 
@@ -470,8 +465,7 @@ void describe('EventStoreDB event store started consumer', () => {
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             stopAfter: (event) =>
-              event.metadata.globalPosition ===
-              appendResult.lastEventGlobalPosition,
+              event.metadata.checkpoint === appendResult.lastCheckpoint,
             eachMessage: (event) => {
               result.push(event);
             },
@@ -494,7 +488,7 @@ void describe('EventStoreDB event store started consumer', () => {
           // Given
 
           const result: GuestStayEvent[] = [];
-          let stopAfterPosition: bigint | undefined = undefined;
+          let stopAfterCheckpoint: string | undefined = undefined;
 
           const guestId = uuid();
           const streamName = `guestStay-${guestId}`;
@@ -508,7 +502,7 @@ void describe('EventStoreDB event store started consumer', () => {
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
+              event.metadata.checkpoint === stopAfterCheckpoint,
             eachMessage: async (event) => {
               await waitForStart.wait;
               result.push(event);
@@ -527,7 +521,7 @@ void describe('EventStoreDB event store started consumer', () => {
               streamName,
               events,
             );
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
+            stopAfterCheckpoint = appendResult.lastCheckpoint;
             waitForStart.resolve();
 
             await consumerPromise;
@@ -561,7 +555,7 @@ void describe('EventStoreDB event store started consumer', () => {
           ];
 
           const result: GuestStayEvent[] = [];
-          let stopAfterPosition: bigint | undefined = undefined;
+          let stopAfterCheckpoint: string | undefined = undefined;
           const waitForStart = asyncAwaiter();
 
           // When
@@ -573,7 +567,7 @@ void describe('EventStoreDB event store started consumer', () => {
             processorId: uuid(),
             startFrom: 'CURRENT',
             stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
+              event.metadata.checkpoint === stopAfterCheckpoint,
             eachMessage: async (event) => {
               await waitForStart.wait;
               result.push(event);
@@ -587,7 +581,7 @@ void describe('EventStoreDB event store started consumer', () => {
               streamName,
               events,
             );
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
+            stopAfterCheckpoint = appendResult.lastCheckpoint;
             waitForStart.resolve();
 
             await consumerPromise;
@@ -615,10 +609,8 @@ void describe('EventStoreDB event store started consumer', () => {
             { type: 'GuestCheckedIn', data: { guestId } },
             { type: 'GuestCheckedOut', data: { guestId } },
           ];
-          const { lastEventGlobalPosition } = await eventStore.appendToStream(
-            streamName,
-            initialEvents,
-          );
+          const { lastCheckpoint: startCheckpoint } =
+            await eventStore.appendToStream(streamName, initialEvents);
 
           const events: GuestStayEvent[] = [
             { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
@@ -626,7 +618,7 @@ void describe('EventStoreDB event store started consumer', () => {
           ];
 
           let result: GuestStayEvent[] = [];
-          let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
+          let stopAfterCheckpoint: string | undefined = startCheckpoint;
 
           const waitForStart = asyncAwaiter();
 
@@ -639,7 +631,7 @@ void describe('EventStoreDB event store started consumer', () => {
             processorId: uuid(),
             startFrom: 'CURRENT',
             stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
+              event.metadata.checkpoint === stopAfterCheckpoint,
             eachMessage: async (event) => {
               await waitForStart.wait;
               result.push(event);
@@ -655,7 +647,7 @@ void describe('EventStoreDB event store started consumer', () => {
 
           result = [];
 
-          stopAfterPosition = undefined;
+          stopAfterCheckpoint = undefined;
 
           try {
             consumerPromise = consumer.start();
@@ -664,7 +656,7 @@ void describe('EventStoreDB event store started consumer', () => {
               streamName,
               events,
             );
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
+            stopAfterCheckpoint = appendResult.lastCheckpoint;
             waitForStart.resolve();
 
             await consumerPromise;
@@ -689,10 +681,8 @@ void describe('EventStoreDB event store started consumer', () => {
             { type: 'GuestCheckedIn', data: { guestId } },
             { type: 'GuestCheckedOut', data: { guestId } },
           ];
-          const { lastEventGlobalPosition } = await eventStore.appendToStream(
-            streamName,
-            initialEvents,
-          );
+          const { lastCheckpoint: startCheckpoint } =
+            await eventStore.appendToStream(streamName, initialEvents);
 
           const events: GuestStayEvent[] = [
             { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
@@ -700,14 +690,14 @@ void describe('EventStoreDB event store started consumer', () => {
           ];
 
           let result: GuestStayEvent[] = [];
-          let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
+          let stopAfterCheckpoint: string | undefined = startCheckpoint;
 
           const waitForStart = asyncAwaiter();
           const processorOptions: InMemoryReactorOptions<GuestStayEvent> = {
             processorId: uuid(),
             startFrom: 'CURRENT',
             stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
+              event.metadata.checkpoint === stopAfterCheckpoint,
             eachMessage: async (event) => {
               await waitForStart.wait;
               result.push(event);
@@ -732,7 +722,7 @@ void describe('EventStoreDB event store started consumer', () => {
           result = [];
 
           waitForStart.reset();
-          stopAfterPosition = undefined;
+          stopAfterCheckpoint = undefined;
 
           const newConsumer = eventStoreDBEventStoreConsumer({
             connectionString,
@@ -748,7 +738,7 @@ void describe('EventStoreDB event store started consumer', () => {
               events,
             );
             waitForStart.resolve();
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
+            stopAfterCheckpoint = appendResult.lastCheckpoint;
 
             await consumerPromise;
 
