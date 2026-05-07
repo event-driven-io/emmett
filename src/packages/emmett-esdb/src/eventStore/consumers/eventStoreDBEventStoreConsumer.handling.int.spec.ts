@@ -419,7 +419,7 @@ void describe('EventStoreDB event store started consumer', () => {
             lastCheckpoint: startCheckpoint,
           },
           stopAfter: (event) =>
-            event.metadata.checkpoint === stopAfterCheckpoint,
+            event.metadata.globalPosition === stopAfterCheckpoint,
           eachMessage: (event) => {
             result.push(event);
           },
@@ -470,7 +470,7 @@ void describe('EventStoreDB event store started consumer', () => {
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             stopAfter: (event) =>
-              event.metadata.checkpoint ===
+              event.metadata.globalPosition ===
               appendResult.lastEventGlobalPosition,
             eachMessage: (event) => {
               result.push(event);
@@ -508,7 +508,7 @@ void describe('EventStoreDB event store started consumer', () => {
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             stopAfter: (event) =>
-              event.metadata.checkpoint === stopAfterCheckpoint,
+              event.metadata.globalPosition === stopAfterCheckpoint,
             eachMessage: async (event) => {
               await waitForStart.wait;
               result.push(event);
@@ -573,7 +573,7 @@ void describe('EventStoreDB event store started consumer', () => {
             processorId: uuid(),
             startFrom: 'CURRENT',
             stopAfter: (event) =>
-              event.metadata.checkpoint === stopAfterCheckpoint,
+              event.metadata.globalPosition === stopAfterCheckpoint,
             eachMessage: async (event) => {
               await waitForStart.wait;
               result.push(event);
@@ -637,7 +637,7 @@ void describe('EventStoreDB event store started consumer', () => {
             processorId: uuid(),
             startFrom: 'CURRENT',
             stopAfter: (event) =>
-              event.metadata.checkpoint === stopAfterCheckpoint,
+              event.metadata.globalPosition === stopAfterCheckpoint,
             eachMessage: async (event) => {
               await waitForStart.wait;
               result.push(event);
@@ -703,7 +703,7 @@ void describe('EventStoreDB event store started consumer', () => {
             processorId: uuid(),
             startFrom: 'CURRENT',
             stopAfter: (event) =>
-              event.metadata.checkpoint === stopAfterCheckpoint,
+              event.metadata.globalPosition === stopAfterCheckpoint,
             eachMessage: async (event) => {
               await waitForStart.wait;
               result.push(event);

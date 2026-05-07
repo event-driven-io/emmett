@@ -10,7 +10,6 @@ import {
 } from '@event-driven-io/emmett';
 import { readLastMessageCheckpoint } from '../../schema';
 import {
-  defaultPostgreSQLEventStoreCheckpoint,
   PostgreSQLEventStoreCheckpoint,
   readMessagesBatch,
   type ReadMessagesBatchOptions,
@@ -82,10 +81,10 @@ export const postgreSQLEventStoreMessageBatchPuller = <
       try {
         after =
           options.startFrom === 'BEGINNING'
-            ? defaultPostgreSQLEventStoreCheckpoint
+            ? PostgreSQLEventStoreCheckpoint.default
             : options.startFrom === 'END'
               ? ((await readLastMessageCheckpoint(executor))
-                  .currentCheckpoint ?? defaultPostgreSQLEventStoreCheckpoint)
+                  .currentCheckpoint ?? PostgreSQLEventStoreCheckpoint.default)
               : PostgreSQLEventStoreCheckpoint.parse(
                   options.startFrom.lastCheckpoint,
                 );

@@ -29,7 +29,7 @@ export const readLastMessageCheckpoint = async (
     currentCheckpoint:
       result !== null
         ? {
-            transactionId: result.transaction_id,
+            transactionId: BigInt(result.transaction_id),
             globalPosition: BigInt(result.global_position),
           }
         : null,
