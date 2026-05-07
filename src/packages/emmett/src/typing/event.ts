@@ -10,7 +10,7 @@ import type {
 } from './message';
 
 export type StreamPosition = bigint;
-export type GlobalPosition = bigint;
+export type GlobalPosition = string;
 
 export type Event<
   EventType extends string = string,

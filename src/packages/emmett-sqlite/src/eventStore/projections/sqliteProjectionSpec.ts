@@ -106,7 +106,7 @@ export const SQLiteProjectionSpec = {
               ]) {
                 const metadata: SQLiteReadEventMetadata = {
                   checkpoint: bigIntProcessorCheckpoint(++globalPosition),
-                  globalPosition,
+                  globalPosition: bigIntProcessorCheckpoint(globalPosition),
                   streamPosition: globalPosition,
                   streamName: `test-${uuid()}`,
                   messageId: uuid(),

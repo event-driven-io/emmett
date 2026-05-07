@@ -28,7 +28,7 @@ void describe('CaughtUpTransformStream', () => {
     data: { cartId: 'cartId' },
     metadata: {
       messageId: uuid(),
-      globalPosition,
+      globalPosition: bigIntProcessorCheckpoint(globalPosition),
       streamPosition: globalPosition,
       checkpoint: bigIntProcessorCheckpoint(globalPosition),
       streamName: 'test',
@@ -46,7 +46,7 @@ void describe('CaughtUpTransformStream', () => {
 
     assertDeepEqual(results, [
       ...initialEvents,
-      globalStreamCaughtUp({ globalPosition: 3n }),
+      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(3n) }),
     ]);
   });
 
@@ -63,9 +63,9 @@ void describe('CaughtUpTransformStream', () => {
 
     assertDeepEqual(results, [
       ...initialEvents,
-      globalStreamCaughtUp({ globalPosition: 2n }),
+      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(2n) }),
       newEvent,
-      globalStreamCaughtUp({ globalPosition: 3n }),
+      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(3n) }),
     ]);
   });
 
@@ -75,13 +75,15 @@ void describe('CaughtUpTransformStream', () => {
 
     const results = await collect(stream.readable);
 
-    assertDeepEqual(results, [globalStreamCaughtUp({ globalPosition: 0n })]);
+    assertDeepEqual(results, [
+      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(0n) }),
+    ]);
   });
 
   void it('should not emit caught up event if current position is lower than highest position', async () => {
     const initialEvents = [readEvent(5n)];
     const stream = streamTrackingGlobalPosition(initialEvents);
-    stream.logPosition = 10n;
+    stream.logPosition = bigIntProcessorCheckpoint(10n);
     const newEvent = readEvent(6n);
 
     const [_, results] = await Promise.all([
@@ -91,7 +93,7 @@ void describe('CaughtUpTransformStream', () => {
 
     assertDeepEqual(results, [
       ...initialEvents,
-      globalStreamCaughtUp({ globalPosition: 5n }),
+      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(5n) }),
       newEvent,
     ]);
   });
@@ -99,7 +101,7 @@ void describe('CaughtUpTransformStream', () => {
   void it('should handle an event with the same global position as the highest position', async () => {
     const initialEvents = [readEvent(5n)];
     const stream = streamTrackingGlobalPosition(initialEvents);
-    stream.logPosition = 10n;
+    stream.logPosition = bigIntProcessorCheckpoint(10n);
     const newEvent = readEvent(10n);
 
     const [_, results] = await Promise.all([
@@ -109,9 +111,9 @@ void describe('CaughtUpTransformStream', () => {
 
     assertDeepEqual(results, [
       ...initialEvents,
-      globalStreamCaughtUp({ globalPosition: 5n }),
+      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(5n) }),
       newEvent,
-      globalStreamCaughtUp({ globalPosition: 10n }),
+      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(10n) }),
     ]);
   });
 });

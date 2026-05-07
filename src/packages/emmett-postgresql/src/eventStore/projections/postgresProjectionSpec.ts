@@ -127,7 +127,11 @@ export const PostgreSQLProjectionSpec = {
                       transactionId: `${++globalPosition}`,
                       globalPosition,
                     }),
-                  globalPosition: globalPosition,
+                  globalPosition:
+                    PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+                      transactionId: `${++globalPosition}`,
+                      globalPosition,
+                    }),
                   streamPosition: globalPosition,
                   streamName: `test-${uuid()}`,
                   messageId: uuid(),

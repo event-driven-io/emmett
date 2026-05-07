@@ -16,8 +16,8 @@ import {
   assertThatArray,
   assertTrue,
   bigIntProcessorCheckpoint,
+  ProcessorCheckpoint,
   type Event,
-  type ProcessorCheckpoint,
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
@@ -497,7 +497,7 @@ void describe('Schema migrations tests', () => {
       processorId: shoppingCartProcessorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: bigIntProcessorCheckpoint(
+      newCheckpoint: ProcessorCheckpoint(
         shoppingCart.lastEvent.metadata.globalPosition,
       ),
       lastProcessedCheckpoint: bigIntProcessorCheckpoint(1n),
@@ -507,7 +507,7 @@ void describe('Schema migrations tests', () => {
     assertTrue(storeResult.success);
     assertDeepEqual(
       storeResult.newCheckpoint,
-      bigIntProcessorCheckpoint(shoppingCart.lastEvent.metadata.globalPosition),
+      ProcessorCheckpoint(shoppingCart.lastEvent.metadata.globalPosition),
     );
 
     const shoppingCartCheckpoint = await readProcessorCheckpoint(pool.execute, {
@@ -517,7 +517,7 @@ void describe('Schema migrations tests', () => {
 
     assertDeepEqual(
       shoppingCartCheckpoint.lastProcessedCheckpoint,
-      bigIntProcessorCheckpoint(shoppingCart.lastEvent.metadata.globalPosition),
+      ProcessorCheckpoint(shoppingCart.lastEvent.metadata.globalPosition),
     );
 
     const orderProcessorId = `processor-order-${order.streamId}`;
@@ -533,7 +533,7 @@ void describe('Schema migrations tests', () => {
       processorId: orderProcessorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: bigIntProcessorCheckpoint(
+      newCheckpoint: ProcessorCheckpoint(
         order.lastEvent.metadata.globalPosition,
       ),
       lastProcessedCheckpoint: null,
@@ -543,7 +543,7 @@ void describe('Schema migrations tests', () => {
     assertTrue(storeResult.success);
     assertDeepEqual(
       storeResult.newCheckpoint,
-      bigIntProcessorCheckpoint(order.lastEvent.metadata.globalPosition),
+      ProcessorCheckpoint(order.lastEvent.metadata.globalPosition),
     );
 
     orderCheckpoint = await readProcessorCheckpoint(pool.execute, {
@@ -553,7 +553,7 @@ void describe('Schema migrations tests', () => {
 
     assertDeepEqual(
       orderCheckpoint.lastProcessedCheckpoint,
-      bigIntProcessorCheckpoint(order.lastEvent.metadata.globalPosition),
+      ProcessorCheckpoint(order.lastEvent.metadata.globalPosition),
     );
   };
 

@@ -72,7 +72,7 @@ export const readStream = async <
         messageId: row.message_id,
         streamName: streamId,
         streamPosition: BigInt(row.stream_position),
-        globalPosition: BigInt(row.global_position),
+        globalPosition: bigIntProcessorCheckpoint(BigInt(row.global_position)),
         checkpoint: bigIntProcessorCheckpoint(BigInt(row.global_position)),
       };
 

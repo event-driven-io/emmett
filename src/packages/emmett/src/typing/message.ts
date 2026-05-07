@@ -85,9 +85,6 @@ export type CommonRecordedMessageMetadata = Readonly<{
 }>;
 
 export type WithGlobalPosition = Readonly<{
-  /**
-   * @deprecated Global position is no longer supported and will be removed in a future version. Use checkpoint instead.
-   */
   globalPosition: GlobalPosition;
 }>;
 

@@ -196,7 +196,7 @@ export const getInMemoryEventStore = (
           streamName,
           messageId: uuid(),
           streamPosition: BigInt(currentEvents.length + index + 1),
-          globalPosition,
+          globalPosition: bigIntProcessorCheckpoint(globalPosition),
           checkpoint: bigIntProcessorCheckpoint(globalPosition),
         };
         return {

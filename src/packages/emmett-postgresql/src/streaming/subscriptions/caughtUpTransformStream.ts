@@ -1,9 +1,11 @@
 import type {
   Event,
+  GlobalPosition,
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import {
+  bigIntProcessorCheckpoint,
   globalStreamCaughtUp,
   type GlobalSubscriptionEvent,
 } from '@event-driven-io/emmett';
@@ -18,13 +20,13 @@ export class CaughtUpTransformStream extends TransformStream<
   | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
   | GlobalSubscriptionEvent
 > {
-  private _currentPosition: bigint;
-  private _logPosition: bigint;
+  private _currentPosition: GlobalPosition;
+  private _logPosition: GlobalPosition;
 
   constructor(events: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[]) {
     super({
       start: (controller) => {
-        let globalPosition = 0n;
+        let globalPosition: GlobalPosition = bigIntProcessorCheckpoint(0n);
         for (const event of events) {
           controller.enqueue(event);
           globalPosition = event.metadata.globalPosition;
@@ -46,10 +48,10 @@ export class CaughtUpTransformStream extends TransformStream<
     this._currentPosition = this._logPosition =
       events.length > 0
         ? events[events.length - 1]!.metadata.globalPosition
-        : 0n;
+        : bigIntProcessorCheckpoint(0n);
   }
 
-  public set logPosition(value: bigint) {
+  public set logPosition(value: GlobalPosition) {
     this._logPosition = value;
   }
 }

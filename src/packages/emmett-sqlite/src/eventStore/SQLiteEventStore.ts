@@ -9,7 +9,7 @@ import {
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
-  type AppendToStreamReasultWithGlobalPositionAndCheckpoint,
+  type AppendToStreamResultWithGlobalPosition,
   type BeforeEventStoreCommitHandler,
   type Event,
   type EventStore,
@@ -63,7 +63,7 @@ export interface SQLiteEventStore
     streamName: string,
     events: EventType[],
     options?: AppendToStreamOptions<EventType, EventPayloadType>,
-  ): Promise<AppendToStreamReasultWithGlobalPositionAndCheckpoint>;
+  ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerEventType extends Event = Event>(
     options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
   ): SQLiteEventStoreConsumer<ConsumerEventType>;
@@ -264,7 +264,7 @@ export const getSQLiteEventStore = <
       streamName: string,
       events: EventType[],
       appendOptions?: AppendToStreamOptions<EventType, EventPayloadType>,
-    ): Promise<AppendToStreamReasultWithGlobalPositionAndCheckpoint> => {
+    ): Promise<AppendToStreamResultWithGlobalPosition> => {
       await ensureSchemaExists();
       // TODO: This has to be smarter when we introduce urn-based resolution
       const [firstPart, ...rest] = streamName.split('-');
@@ -300,8 +300,7 @@ export const getSQLiteEventStore = <
 
       return {
         nextExpectedStreamVersion: appendResult.nextStreamPosition,
-        lastEventGlobalPosition: appendResult.lastGlobalPosition,
-        lastCheckpoint: bigIntProcessorCheckpoint(
+        lastEventGlobalPosition: bigIntProcessorCheckpoint(
           appendResult.lastGlobalPosition,
         ),
         createdNewStream:
