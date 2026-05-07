@@ -283,7 +283,7 @@ void describe('MongoDB event store started consumer', () => {
     //       { type: 'GuestCheckedIn', data: { guestId } },
     //       { type: 'GuestCheckedOut', data: { guestId } },
     //     ];
-    //     const { : startPosition } =
+    //     const { lastEventGlobalPosition: startPosition } =
     //       await eventStore.appendToStream(streamName, initialEvents);
 
     //     const events: GuestStayEvent[] = [
@@ -316,7 +316,7 @@ void describe('MongoDB event store started consumer', () => {
     //         streamName,
     //         events,
     //       );
-    //       stopAfterPosition = appendResult.;
+    //       stopAfterPosition = appendResult.lastEventGlobalPosition;
 
     //       await consumerPromise;
 
@@ -355,7 +355,7 @@ void describe('MongoDB event store started consumer', () => {
     //         processorId: uuid(),
     //         stopAfter: (event) =>
     //           event.metadata.globalPosition ===
-    //           appendResult.,
+    //           appendResult.lastEventGlobalPosition,
     //         eachMessage: (event) => {
     //           result.push(event);
     //         },
@@ -411,7 +411,7 @@ void describe('MongoDB event store started consumer', () => {
     //           streamName,
     //           events,
     //         );
-    //         stopAfterPosition = appendResult.;
+    //         stopAfterPosition = appendResult.lastEventGlobalPosition;
     //         waitForStart.resolve();
 
     //         await consumerPromise;
@@ -471,7 +471,7 @@ void describe('MongoDB event store started consumer', () => {
     //           streamName,
     //           events,
     //         );
-    //         stopAfterPosition = appendResult.;
+    //         stopAfterPosition = appendResult.lastEventGlobalPosition;
     //         waitForStart.resolve();
 
     //         await consumerPromise;
@@ -499,7 +499,7 @@ void describe('MongoDB event store started consumer', () => {
     //         { type: 'GuestCheckedIn', data: { guestId } },
     //         { type: 'GuestCheckedOut', data: { guestId } },
     //       ];
-    //       const {  } = await eventStore.appendToStream(
+    //       const { lastEventGlobalPosition } = await eventStore.appendToStream(
     //         streamName,
     //         initialEvents,
     //       );
@@ -510,7 +510,7 @@ void describe('MongoDB event store started consumer', () => {
     //       ];
 
     //       let result: GuestStayEvent[] = [];
-    //       let stopAfterPosition: bigint | undefined = ;
+    //       let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
 
     //       const waitForStart = asyncAwaiter();
 
@@ -548,7 +548,7 @@ void describe('MongoDB event store started consumer', () => {
     //           streamName,
     //           events,
     //         );
-    //         stopAfterPosition = appendResult.;
+    //         stopAfterPosition = appendResult.lastEventGlobalPosition;
     //         waitForStart.resolve();
 
     //         await consumerPromise;
@@ -573,7 +573,7 @@ void describe('MongoDB event store started consumer', () => {
     //         { type: 'GuestCheckedIn', data: { guestId } },
     //         { type: 'GuestCheckedOut', data: { guestId } },
     //       ];
-    //       const {  } = await eventStore.appendToStream(
+    //       const { lastEventGlobalPosition } = await eventStore.appendToStream(
     //         streamName,
     //         initialEvents,
     //       );
@@ -584,7 +584,7 @@ void describe('MongoDB event store started consumer', () => {
     //       ];
 
     //       let result: GuestStayEvent[] = [];
-    //       let stopAfterPosition: bigint | undefined = ;
+    //       let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
 
     //       const waitForStart = asyncAwaiter();
     //       const processorOptions: InMemoryReactorOptions<GuestStayEvent> = {
@@ -632,7 +632,7 @@ void describe('MongoDB event store started consumer', () => {
     //           events,
     //         );
     //         waitForStart.resolve();
-    //         stopAfterPosition = appendResult.;
+    //         stopAfterPosition = appendResult.lastEventGlobalPosition;
 
     //         await consumerPromise;
 
