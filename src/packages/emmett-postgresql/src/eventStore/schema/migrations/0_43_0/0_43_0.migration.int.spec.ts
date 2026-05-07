@@ -279,9 +279,7 @@ void describe('Schema migrations tests', () => {
       processorId: shoppingCartProcessorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: bigIntProcessorCheckpoint(
-        shoppingCart.lastEvent.metadata.globalPosition,
-      ),
+      newCheckpoint: shoppingCart.lastEvent.metadata.checkpoint!,
       lastProcessedCheckpoint: bigIntProcessorCheckpoint(1n),
       processorInstanceId: shoppingCartProcessorId,
     });
@@ -289,7 +287,7 @@ void describe('Schema migrations tests', () => {
     assertTrue(storeResult.success);
     assertDeepEqual(
       storeResult.newCheckpoint,
-      bigIntProcessorCheckpoint(shoppingCart.lastEvent.metadata.globalPosition),
+      shoppingCart.lastEvent.metadata.checkpoint!,
     );
 
     const shoppingCartCheckpoint = await readProcessorCheckpoint(pool.execute, {
@@ -299,7 +297,7 @@ void describe('Schema migrations tests', () => {
 
     assertDeepEqual(
       shoppingCartCheckpoint.lastProcessedCheckpoint,
-      bigIntProcessorCheckpoint(shoppingCart.lastEvent.metadata.globalPosition),
+      shoppingCart.lastEvent.metadata.checkpoint!,
     );
 
     const orderProcessorId = `processor-order-${order.streamId}`;
@@ -315,9 +313,7 @@ void describe('Schema migrations tests', () => {
       processorId: orderProcessorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: bigIntProcessorCheckpoint(
-        order.lastEvent.metadata.globalPosition,
-      ),
+      newCheckpoint: order.lastEvent.metadata.checkpoint!,
       lastProcessedCheckpoint: null,
       processorInstanceId: orderProcessorId,
     });
@@ -325,7 +321,7 @@ void describe('Schema migrations tests', () => {
     assertTrue(storeResult.success);
     assertDeepEqual(
       storeResult.newCheckpoint,
-      bigIntProcessorCheckpoint(order.lastEvent.metadata.globalPosition),
+      order.lastEvent.metadata.checkpoint!,
     );
 
     orderCheckpoint = await readProcessorCheckpoint(pool.execute, {
@@ -335,7 +331,7 @@ void describe('Schema migrations tests', () => {
 
     assertDeepEqual(
       orderCheckpoint.lastProcessedCheckpoint,
-      bigIntProcessorCheckpoint(order.lastEvent.metadata.globalPosition),
+      order.lastEvent.metadata.checkpoint!,
     );
   };
 
