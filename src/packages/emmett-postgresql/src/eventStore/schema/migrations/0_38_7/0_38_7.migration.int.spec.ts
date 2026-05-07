@@ -29,6 +29,7 @@ import {
   type PostgresEventStore,
   type PostgresReadEventMetadata,
 } from '../../../postgreSQLEventStore';
+import { PostgreSQLEventStoreCheckpoint } from '../../readMessagesBatch';
 import { migrations_0_36_0 } from '../0_36_0';
 
 export type ProductItemAdded = Event<
@@ -110,7 +111,7 @@ void describe('Schema migrations tests', () => {
     assertDeepEqual(applied, migrations_0_38_7);
     assertThatArray(skipped).isEmpty();
 
-    const result = await assertCanAppendAndRead(eventStore);
+    const result = await assertCanAppendAndRead();
     await assertCanStoreAndReadCheckpoints(pool, result);
   });
 
@@ -129,7 +130,7 @@ void describe('Schema migrations tests', () => {
     assertDeepEqual(skipped, migrations_0_38_7);
   });
 
-  const assertCanAppendAndRead = async (eventStore: PostgresEventStore) => {
+  const assertCanAppendAndRead = async () => {
     const shoppingCartId = 'cart-123';
     const itemAdded: ProductItemAdded = {
       type: 'ProductItemAdded',
@@ -145,13 +146,17 @@ void describe('Schema migrations tests', () => {
       },
     };
 
-    await eventStore.appendToStream(shoppingCartId, [
-      itemAdded,
-      shoppingCartConfirmed,
-    ]);
+    const shoppingCartAppendResult = await appendToStream(
+      pool,
+      shoppingCartId,
+      'cart',
+      [itemAdded, shoppingCartConfirmed],
+    );
 
-    const readShoppingCartResult =
-      await eventStore.readStream<ShoppingCartEvent>(shoppingCartId);
+    const readShoppingCartResult = await readEvents<ShoppingCartEvent>(
+      pool,
+      shoppingCartId,
+    );
 
     assertTrue(readShoppingCartResult.streamExists);
     assertDeepEqual(readShoppingCartResult.currentStreamVersion, 2n);
@@ -168,10 +173,11 @@ void describe('Schema migrations tests', () => {
         orderId,
       },
     };
-    await eventStore.appendToStream(orderId, [orderInitiated]);
+    const orderAppendResult = await appendToStream(pool, orderId, 'order', [
+      orderInitiated,
+    ]);
 
-    const readOrderResult =
-      await eventStore.readStream<OrderInitiated>(orderId);
+    const readOrderResult = await readEvents<OrderInitiated>(pool, orderId);
 
     assertTrue(readOrderResult.streamExists);
     assertDeepEqual(readOrderResult.currentStreamVersion, 1n);
@@ -181,11 +187,14 @@ void describe('Schema migrations tests', () => {
     return {
       shoppingCart: {
         streamId: shoppingCartId,
-        lastEvent: readShoppingCartResult.events[1]!,
+        lastGlobalPosition:
+          shoppingCartAppendResult.globalPositions[
+            shoppingCartAppendResult.globalPositions.length - 1
+          ]!,
       },
       order: {
         streamId: orderId,
-        lastEvent: readOrderResult.events[0]!,
+        lastGlobalPosition: orderAppendResult.globalPositions[0]!,
       },
     };
   };
@@ -196,14 +205,8 @@ void describe('Schema migrations tests', () => {
       shoppingCart,
       order,
     }: {
-      shoppingCart: {
-        streamId: string;
-        lastEvent: ReadEvent<ShoppingCartEvent, PostgresReadEventMetadata>;
-      };
-      order: {
-        streamId: string;
-        lastEvent: ReadEvent<OrderInitiated, PostgresReadEventMetadata>;
-      };
+      shoppingCart: { streamId: string; lastGlobalPosition: bigint };
+      order: { streamId: string; lastGlobalPosition: bigint };
     },
   ) => {
     const shoppingCartProcessorId = `processor-shopping-cart-${shoppingCart.streamId}`;
@@ -220,7 +223,7 @@ void describe('Schema migrations tests', () => {
     storeResult = await storeSubscriptionCheckpoint(
       pool,
       shoppingCartProcessorId,
-      shoppingCart.lastEvent.metadata.globalPosition,
+      shoppingCart.lastGlobalPosition,
       1n,
     );
 
@@ -233,7 +236,7 @@ void describe('Schema migrations tests', () => {
 
     assertDeepEqual(
       shoppingCartCheckpoint.position,
-      shoppingCart.lastEvent.metadata.globalPosition,
+      shoppingCart.lastGlobalPosition,
     );
 
     const orderProcessorId = `processor-order-${order.streamId}`;
@@ -248,17 +251,14 @@ void describe('Schema migrations tests', () => {
     storeResult = await storeSubscriptionCheckpoint(
       pool,
       orderProcessorId,
-      order.lastEvent.metadata.globalPosition,
+      order.lastGlobalPosition,
       null,
     );
 
     assertTrue(storeResult);
 
     orderCheckpoint = await readSubscriptionCheckpoint(pool, orderProcessorId);
-    assertDeepEqual(
-      orderCheckpoint.position,
-      order.lastEvent.metadata.globalPosition,
-    );
+    assertDeepEqual(orderCheckpoint.position, order.lastGlobalPosition);
   };
 });
 
@@ -295,4 +295,103 @@ const storeSubscriptionCheckpoint = async (
   );
 
   return result.rows[0]!.result === 1;
+};
+
+const appendToStream = async <E extends Event>(
+  pool: Dumbo,
+  streamId: string,
+  streamType: string,
+  events: E[],
+  options?: { expectedStreamPosition?: bigint | null },
+): Promise<{
+  success: boolean;
+  nextStreamPosition: bigint;
+  globalPositions: bigint[];
+  transactionId: bigint;
+}> => {
+  const messageIds = events.map(() => crypto.randomUUID());
+
+  const result = await pool.execute.command<{
+    success: boolean;
+    next_stream_position: string;
+    global_positions: string[];
+    transaction_id: string;
+  }>(
+    SQL`SELECT * FROM emt_append_to_stream(
+      ${messageIds},
+      ${events.map((e) => e.data)},
+      ${events.map(() => ({}))},
+      ${events.map(() => '1')},
+      ${events.map((e) => e.type)},
+      ${events.map(() => 'E')},
+      ${streamId}::text,
+      ${streamType}::text,
+      ${options?.expectedStreamPosition ?? null},
+      ${'emt:default'}::text
+    )`,
+  );
+
+  const row = result.rows[0]!;
+  return {
+    success: row.success,
+    nextStreamPosition: BigInt(row.next_stream_position),
+    globalPositions: row.global_positions.map(BigInt),
+    transactionId: BigInt(row.transaction_id),
+  };
+};
+
+const readEvents = async <E extends Event>(
+  pool: Dumbo,
+  streamId: string,
+): Promise<{
+  events: ReadEvent<E, PostgresReadEventMetadata>[];
+  currentStreamVersion: bigint;
+  streamExists: boolean;
+}> => {
+  const result = await pool.execute.query<{
+    message_type: string;
+    message_data: Record<string, unknown>;
+    message_metadata: Record<string, unknown>;
+    stream_position: string;
+    global_position: string;
+    transaction_id: string;
+    message_id: string;
+  }>(
+    SQL`SELECT message_type, message_data, message_metadata, stream_position, global_position, transaction_id, message_id
+         FROM emt_messages
+         WHERE stream_id = ${streamId} AND partition = ${'emt:default'} AND is_archived = FALSE
+         ORDER BY stream_position ASC`,
+  );
+
+  if (result.rows.length === 0) {
+    return { events: [], currentStreamVersion: 0n, streamExists: false };
+  }
+
+  const events = result.rows.map((row) => {
+    const checkpoint = PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+      transactionId: BigInt(row.transaction_id),
+      globalPosition: BigInt(row.global_position),
+    });
+    return {
+      type: row.message_type,
+      data: row.message_data,
+      kind: 'Event' as const,
+      metadata: {
+        ...row.message_metadata,
+        messageId: row.message_id,
+        streamName: streamId,
+        streamPosition: BigInt(row.stream_position),
+        globalPosition: checkpoint,
+        checkpoint,
+      },
+    } as ReadEvent<E, PostgresReadEventMetadata>;
+  });
+
+  return {
+    events,
+    currentStreamVersion: BigInt(
+      result.rows[result.rows.length - 1]!.stream_position,
+    ),
+    streamExists: true,
+  };
 };

@@ -19,7 +19,7 @@ import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from '../../../postgreSQLEventStore';
-import { migrations_0_36_0 } from '../0_36_0';
+import { migrations_0_36_0 } from '.';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',

@@ -15,7 +15,7 @@ import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testconta
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
-import { createEventStoreSchema } from '.';
+import { createEventStoreSchema, PostgreSQLEventStoreCheckpoint } from '.';
 import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
 import { appendToStream } from './appendToStream';
 import { readStream } from './readStream';
@@ -84,9 +84,11 @@ void describe('readStream', () => {
   void it('reads events from non-empty stream', async () => {
     // Given
     const streamId = uuid();
-    await pool.withConnection(async (connection) =>
+    const appendResult = await pool.withConnection(async (connection) =>
       appendToStream(connection, streamId, 'shopping_cart', events),
     );
+
+    assertTrue(appendResult.success);
 
     // When
     const result = await readStream(pool.execute, streamId);
@@ -101,7 +103,12 @@ void describe('readStream', () => {
         ...e.metadata,
         streamName: streamId,
         streamPosition: BigInt(index + 1),
-        globalPosition: BigInt(index + 1),
+        globalPosition: PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
+          appendResult.checkpoints[index]!,
+        ),
+        checkpoint: PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
+          appendResult.checkpoints[index]!,
+        ),
       },
     }));
     assertMatches(result.events, expected);
