@@ -175,9 +175,9 @@ type AppendToStreamResult = {
   createdNewStream: boolean;
 };
 
-// Some stores include global position
-type AppendToStreamResultWithGlobalPosition = AppendToStreamResult & {
-  lastEventGlobalPosition: bigint;
+// Some stores include checkpoing (global position in the log)
+type AppendToStreamResultWithCheckpoint = AppendToStreamResult & {
+  lastCheckpoint: ProcessorCheckpoint;
 };
 ```
 

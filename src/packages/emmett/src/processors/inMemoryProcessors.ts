@@ -8,12 +8,12 @@ import type {
   SingleMessageHandlerResult,
   SingleRecordedMessageHandlerWithContext,
 } from '../typing';
-import type { MessageProcessor, ProcessorCheckpoint } from './processors';
+import type { ProcessorCheckpoint } from './checkpoints';
+import { getCheckpoint, type Checkpointer } from './checkpoints';
+import type { MessageProcessor } from './processors';
 import {
-  getCheckpoint,
   projector,
   reactor,
-  type Checkpointer,
   type MessageProcessingScope,
   type ProjectorOptions,
   type ReactorOptions,

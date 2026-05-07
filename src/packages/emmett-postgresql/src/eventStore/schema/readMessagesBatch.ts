@@ -1,14 +1,15 @@
 import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
-import type {
-  CombinedMessageMetadata,
-  Message,
-  MessageDataOf,
-  MessageMetaDataOf,
-  MessageTypeOf,
-  ProcessorCheckpoint,
-  RecordedMessage,
-  RecordedMessageMetadata,
-  RecordedMessageMetadataWithGlobalPosition,
+import {
+  bigIntProcessorCheckpoint,
+  type CombinedMessageMetadata,
+  type Message,
+  type MessageDataOf,
+  type MessageMetaDataOf,
+  type MessageTypeOf,
+  type ProcessorCheckpoint,
+  type RecordedMessage,
+  type RecordedMessageMetadata,
+  type RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { defaultTag, messagesTable } from './typing';
 
@@ -51,12 +52,8 @@ export const PostgreSQLEventStoreCheckpoint = {
   toProcessorCheckpoint: (
     checkPoint: PostgreSQLEventStoreCheckpoint,
   ): ProcessorCheckpoint =>
-    `${checkPoint.transactionId}:${checkPoint.globalPosition}` as ProcessorCheckpoint,
+    `${checkPoint.transactionId}:${bigIntProcessorCheckpoint(checkPoint.globalPosition)}` as ProcessorCheckpoint,
 };
-
-export const parseBigIntProcessorCheckpoint = (
-  value: ProcessorCheckpoint,
-): bigint => BigInt(value);
 
 export type PostgreSQLEventStoreCheckpoint = {
   transactionId: string;

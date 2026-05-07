@@ -1,5 +1,5 @@
-import { describe, it } from 'vitest';
 import { v7 as uuid } from 'uuid';
+import { describe, it } from 'vitest';
 import {
   assertDeepEqual,
   assertEqual,
@@ -10,11 +10,10 @@ import type { Event, ReadEventMetadata, RecordedMessage } from '../typing';
 import { isString } from '../validation';
 import {
   bigIntProcessorCheckpoint,
-  projector,
-  reactor,
   type Checkpointer,
   type ProcessorCheckpoint,
-} from './processors';
+} from './checkpoints';
+import { projector, reactor } from './processors';
 
 type TestEvent = Event<'test', { counter: number }>;
 
