@@ -1,39 +1,14 @@
 import {
   dumbo,
   runSQLMigrations,
-  sqlMigration,
   type Dumbo,
   type RunSQLMigrationsResult,
-  type SQL,
-  type SQLMigration,
 } from '@event-driven-io/dumbo';
 import type { PgPool, PgTransaction } from '@event-driven-io/dumbo/pg';
 import type { JSONSerializationOptions } from '@event-driven-io/emmett';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 import { transactionToPostgreSQLProjectionHandlerContext } from '../projections';
-import { appendToStreamSQL } from './appendToStream';
-import {
-  releaseProcessorLockSQL,
-  tryAcquireProcessorLockSQL,
-} from './processors';
-import {
-  activateProjectionSQL,
-  deactivateProjectionSQL,
-  registerProjectionSQL,
-} from './projections';
-import { storeSubscriptionCheckpointSQL } from './storeProcessorCheckpoint';
-import {
-  addDefaultPartitionSQL,
-  addPartitionSQL,
-  addTablePartitions,
-  messagesTableSQL,
-  processorsTableSQL,
-  projectionsTableSQL,
-  sanitizeNameSQL,
-  streamsTableSQL,
-} from './tables';
-import { pastEventStoreSchemaMigrations } from './migrations';
-export * from './typing';
+import { eventStoreSchemaMigrations } from './migrations';
 
 export * from './appendToStream';
 export * from './migrations';
@@ -46,34 +21,7 @@ export * from './readStream';
 export * from './storeProcessorCheckpoint';
 export * from './streamExists';
 export * from './tables';
-
-export const schemaSQL: SQL[] = [
-  streamsTableSQL,
-  messagesTableSQL,
-  projectionsTableSQL,
-  processorsTableSQL,
-  sanitizeNameSQL,
-  addTablePartitions,
-  addPartitionSQL,
-  appendToStreamSQL,
-  addDefaultPartitionSQL,
-  storeSubscriptionCheckpointSQL,
-  tryAcquireProcessorLockSQL,
-  releaseProcessorLockSQL,
-  registerProjectionSQL,
-  activateProjectionSQL,
-  deactivateProjectionSQL,
-];
-
-export const schemaMigration = sqlMigration(
-  'emt:postgresql:eventstore:initial',
-  schemaSQL,
-);
-
-export const eventStoreSchemaMigrations: SQLMigration[] = [
-  ...pastEventStoreSchemaMigrations,
-  schemaMigration,
-];
+export * from './typing';
 
 export type CreateEventStoreSchemaOptions = {
   dryRun?: boolean | undefined;
