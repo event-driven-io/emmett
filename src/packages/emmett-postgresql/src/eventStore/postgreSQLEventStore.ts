@@ -248,8 +248,17 @@ export const getPostgreSQLEventStore = (
         },
         migrationOptions,
       );
+
+      return migrateSchema;
     }
-    return migrateSchema;
+    const result = await migrateSchema;
+
+    if (migrationOptions?.dryRun) {
+      // In case of dry run we want to reset the state so that actual migration can be run later
+      migrateSchema = undefined;
+    }
+
+    return { applied: [], skipped: result.applied.concat(result.skipped) };
   };
 
   const ensureSchemaExists = () => {

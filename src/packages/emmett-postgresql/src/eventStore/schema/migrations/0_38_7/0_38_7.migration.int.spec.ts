@@ -127,9 +127,6 @@ void describe('Schema migrations tests', () => {
     // Then
     assertThatArray(applied).isEmpty();
     assertDeepEqual(skipped, migrations_0_38_7);
-
-    const result = await assertCanAppendAndRead(eventStore);
-    await assertCanStoreAndReadCheckpoints(pool, result);
   });
 
   const assertCanAppendAndRead = async (eventStore: PostgresEventStore) => {

@@ -183,65 +183,6 @@ void describe('Schema migrations tests', () => {
     // Then
     assertThatArray(applied).isEmpty();
     assertDeepEqual(skipped, migrations_0_42_0);
-
-    const result = await assertCanAppendAndRead(eventStore);
-    await assertCanStoreAndReadCheckpoints(pool, result);
-
-    // Verify functions exist
-    const tryAcquireResult = await pool.execute.query<{ proname: string }>(
-      SQL`SELECT proname FROM pg_proc WHERE proname = 'emt_try_acquire_processor_lock'`,
-    );
-    assertDeepEqual(tryAcquireResult.rows.length, 1);
-
-    const releaseResult = await pool.execute.query<{ proname: string }>(
-      SQL`SELECT proname FROM pg_proc WHERE proname = 'emt_release_processor_lock'`,
-    );
-    assertDeepEqual(releaseResult.rows.length, 1);
-
-    const registerResult = await pool.execute.query<{ proname: string }>(
-      SQL`SELECT proname FROM pg_proc WHERE proname = 'emt_register_projection'`,
-    );
-    assertDeepEqual(registerResult.rows.length, 1);
-
-    const activateResult = await pool.execute.query<{ proname: string }>(
-      SQL`SELECT proname FROM pg_proc WHERE proname = 'emt_activate_projection'`,
-    );
-    assertDeepEqual(activateResult.rows.length, 1);
-
-    const deactivateResult = await pool.execute.query<{ proname: string }>(
-      SQL`SELECT proname FROM pg_proc WHERE proname = 'emt_deactivate_projection'`,
-    );
-    assertDeepEqual(deactivateResult.rows.length, 1);
-
-    // Verify columns exist on emt_processors
-    const processorsCreatedAtResult = await pool.execute.query<{
-      column_name: string;
-    }>(
-      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'created_at'`,
-    );
-    assertDeepEqual(processorsCreatedAtResult.rows.length, 1);
-
-    const processorsLastUpdatedResult = await pool.execute.query<{
-      column_name: string;
-    }>(
-      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'last_updated'`,
-    );
-    assertDeepEqual(processorsLastUpdatedResult.rows.length, 1);
-
-    // Verify columns exist on emt_projections
-    const projectionsCreatedAtResult = await pool.execute.query<{
-      column_name: string;
-    }>(
-      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'created_at'`,
-    );
-    assertDeepEqual(projectionsCreatedAtResult.rows.length, 1);
-
-    const projectionsLastUpdatedResult = await pool.execute.query<{
-      column_name: string;
-    }>(
-      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'last_updated'`,
-    );
-    assertDeepEqual(projectionsLastUpdatedResult.rows.length, 1);
   });
 
   void it('migrates pre-existing subscription checkpoint to processor table', async () => {

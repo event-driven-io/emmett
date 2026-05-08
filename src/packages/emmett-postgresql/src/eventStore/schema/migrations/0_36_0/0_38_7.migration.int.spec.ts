@@ -86,7 +86,7 @@ void describe('Schema migrations tests', () => {
     }
   });
 
-  void it('migrates from no previous schema', async () => {
+  void it('migrates from fresh schema', async () => {
     // Given
 
     // When
