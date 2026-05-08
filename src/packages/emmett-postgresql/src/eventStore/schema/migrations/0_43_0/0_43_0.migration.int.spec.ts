@@ -41,6 +41,7 @@ import { defaultTag } from '../../typing';
 import { migrations_0_36_0 } from '../0_36_0';
 import { migrations_0_38_7 } from '../0_38_7';
 import { migrations_0_42_0 } from '../0_42_0';
+import { migrations_0_43_0 } from './';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -107,20 +108,25 @@ void describe('Schema migrations tests', () => {
     }
   });
 
-  void it('migrates from 0.38.7 schema', async () => {
+  void it('migrates from 0.42.0 schema', async () => {
     // Given
-    await runSQLMigrations(pool, [...migrations_0_36_0, ...migrations_0_38_7]);
+    await runSQLMigrations(pool, [
+      ...migrations_0_36_0,
+      ...migrations_0_38_7,
+      ...migrations_0_42_0,
+    ]);
 
     // When
     const { applied, skipped } = await runSQLMigrations(
       pool,
-      migrations_0_42_0,
+      migrations_0_43_0,
     );
 
     // Then
-    assertDeepEqual(applied, migrations_0_42_0);
+    assertDeepEqual(applied, migrations_0_43_0);
     assertThatArray(skipped).isEmpty();
 
+    // Then
     const result = await assertCanAppendAndRead(eventStore);
     await assertCanStoreAndReadCheckpoints(pool, result);
 
@@ -166,23 +172,24 @@ void describe('Schema migrations tests', () => {
     assertDeepEqual(projectionsLastUpdatedResult.rows.length, 1);
   });
 
-  void it('migrates from 0.42.0 schema', async () => {
+  void it('migrates from 0.43.0 schema', async () => {
     // Given
     await runSQLMigrations(pool, [
       ...migrations_0_36_0,
       ...migrations_0_38_7,
       ...migrations_0_42_0,
+      ...migrations_0_43_0,
     ]);
 
     // When
     const { applied, skipped } = await runSQLMigrations(
       pool,
-      migrations_0_42_0,
+      migrations_0_43_0,
     );
 
     // Then
     assertThatArray(applied).isEmpty();
-    assertDeepEqual(skipped, migrations_0_42_0);
+    assertDeepEqual(skipped, migrations_0_43_0);
 
     const result = await assertCanAppendAndRead(eventStore);
     await assertCanStoreAndReadCheckpoints(pool, result);
@@ -244,13 +251,26 @@ void describe('Schema migrations tests', () => {
     assertDeepEqual(projectionsLastUpdatedResult.rows.length, 1);
   });
 
+  void it('migrates from latest schema', async () => {
+    // Given
+    const latestSchemaSQL = eventStore.schema.sql();
+    await pool.execute.command(SQL`${SQL.plain(latestSchemaSQL)}`);
+
+    // When
+    await eventStore.schema.migrate();
+
+    // Then
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result);
+  });
+
   void it('migrates pre-existing subscription checkpoint to processor table', async () => {
     // Given
-    await runSQLMigrations(pool, [...migrations_0_36_0, ...migrations_0_38_7]);
+    await runSQLMigrations(pool, migrations_0_38_7);
     await insertIntoSubscriptionCheckpoint(pool, 'legacy-processor-1', 42n);
 
     // When
-    await runSQLMigrations(pool, migrations_0_42_0);
+    await eventStore.schema.migrate();
 
     // Then
     await assertDualWriteConsistency(
@@ -262,11 +282,8 @@ void describe('Schema migrations tests', () => {
 
   void it('old API insert propagates to new table', async () => {
     // Given
-    await runSQLMigrations(pool, [
-      ...migrations_0_36_0,
-      ...migrations_0_38_7,
-      ...migrations_0_42_0,
-    ]);
+    await runSQLMigrations(pool, migrations_0_38_7);
+    await eventStore.schema.migrate();
 
     // When
     await storeSubscriptionCheckpoint(pool, 'dual-write-test-1', 50n, null);
@@ -291,11 +308,8 @@ void describe('Schema migrations tests', () => {
 
   void it('interleaved operations: old insert -> new read -> new update', async () => {
     // Given
-    await runSQLMigrations(pool, [
-      ...migrations_0_36_0,
-      ...migrations_0_38_7,
-      ...migrations_0_42_0,
-    ]);
+    await runSQLMigrations(pool, migrations_0_38_7);
+    await eventStore.schema.migrate();
 
     const processorId = 'interleaved-old-new-test';
 
@@ -341,11 +355,8 @@ void describe('Schema migrations tests', () => {
 
   void it('interleaved operations: new insert -> old query -> old update', async () => {
     // Given
-    await runSQLMigrations(pool, [
-      ...migrations_0_36_0,
-      ...migrations_0_38_7,
-      ...migrations_0_42_0,
-    ]);
+    await runSQLMigrations(pool, migrations_0_38_7);
+    await eventStore.schema.migrate();
 
     const processorId = 'interleaved-new-old-test';
 
@@ -379,11 +390,8 @@ void describe('Schema migrations tests', () => {
 
   void it('concurrent inserts via different APIs handled safely', async () => {
     // Given
-    await runSQLMigrations(pool, [
-      ...migrations_0_36_0,
-      ...migrations_0_38_7,
-      ...migrations_0_42_0,
-    ]);
+    await runSQLMigrations(pool, migrations_0_38_7);
+    await eventStore.schema.migrate();
 
     const processorId = 'concurrent-insert-test';
 
@@ -416,11 +424,8 @@ void describe('Schema migrations tests', () => {
 
   void it('handles maximum safe bigint value', async () => {
     // Given
-    await runSQLMigrations(pool, [
-      ...migrations_0_36_0,
-      ...migrations_0_38_7,
-      ...migrations_0_42_0,
-    ]);
+    await runSQLMigrations(pool, migrations_0_38_7);
+    await eventStore.schema.migrate();
 
     const processorId = 'max-bigint-test';
     const maxBigInt = 9223372036854775807n;
@@ -461,6 +466,67 @@ void describe('Schema migrations tests', () => {
     assertDeepEqual(BigInt(processorData.lastProcessedCheckpoint!), maxBigInt);
   });
 
+  void it('new API works after legacy table cleanup', async () => {
+    // Given
+    await runSQLMigrations(pool, migrations_0_38_7);
+    await eventStore.schema.migrate();
+
+    const processorId = 'cleanup-test-processor';
+
+    const initialStore = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: bigIntProcessorCheckpoint(50n),
+      lastProcessedCheckpoint: null,
+      processorInstanceId: processorId,
+    });
+
+    assertTrue(initialStore.success);
+    assertDeepEqual(initialStore.newCheckpoint, bigIntProcessorCheckpoint(50n));
+
+    // When
+    const tablesResult = await pool.execute.query<{ tablename: string }>(
+      SQL`SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = 'emt_subscriptions'`,
+    );
+    assertDeepEqual(tablesResult.rows.length, 0);
+
+    const functionsResult = await pool.execute.query<{ proname: string }>(
+      SQL`SELECT proname FROM pg_proc WHERE proname = 'store_subscription_checkpoint'`,
+    );
+    assertDeepEqual(functionsResult.rows.length, 0);
+
+    // Then
+    const readResult = await readProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+    });
+    assertDeepEqual(
+      readResult.lastProcessedCheckpoint,
+      bigIntProcessorCheckpoint(50n),
+    );
+
+    const updateResult = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: bigIntProcessorCheckpoint(60n),
+      lastProcessedCheckpoint: bigIntProcessorCheckpoint(50n),
+      processorInstanceId: processorId,
+    });
+
+    assertTrue(updateResult.success);
+    assertDeepEqual(updateResult.newCheckpoint, bigIntProcessorCheckpoint(60n));
+
+    const finalRead = await readProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+    });
+    assertDeepEqual(
+      finalRead.lastProcessedCheckpoint,
+      bigIntProcessorCheckpoint(60n),
+    );
+  });
   const assertCanAppendAndRead = async (eventStore: PostgresEventStore) => {
     const shoppingCartId = 'cart-123';
     const itemAdded: ProductItemAdded = {

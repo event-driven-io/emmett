@@ -1,6 +1,6 @@
-import { SQL } from '@event-driven-io/dumbo';
+import { SQL, sqlMigration, type SQLMigration } from '@event-driven-io/dumbo';
 
-export const schema_0_36_0 = SQL`
+const schema_0_36_0 = SQL`
 DO $$ 
 DECLARE
     partition_record RECORD;
@@ -454,3 +454,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 `;
+
+export const snapshot_0_36_0: SQLMigration = sqlMigration(
+  'emt:postgresql:eventstore:0.36.0:initial_snapshot',
+  [schema_0_36_0],
+);

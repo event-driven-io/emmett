@@ -37,9 +37,9 @@ import {
 import { readProcessorCheckpoint } from '../../readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from '../../storeProcessorCheckpoint';
 import { defaultTag } from '../../typing';
-import { schema_0_36_0 } from '../0_36_0';
 import { migrations_0_38_7 } from '../0_38_7';
 import { schema_0_42_0 } from '../0_42_0/0_42_0.snapshot';
+import { migrations_0_36_0 } from '../0_36_0';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -108,7 +108,7 @@ void describe('Schema migrations tests', () => {
 
   void it('migrates from 0.36.0 schema', async () => {
     // Given
-    await pool.execute.command(schema_0_36_0);
+    await runSQLMigrations(pool, migrations_0_36_0);
 
     // When
     await eventStore.schema.migrate();
