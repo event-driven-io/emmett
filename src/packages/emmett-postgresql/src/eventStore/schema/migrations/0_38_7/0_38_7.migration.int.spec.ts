@@ -29,7 +29,7 @@ import {
   type PostgresEventStore,
   type PostgresReadEventMetadata,
 } from '../../../postgreSQLEventStore';
-import { schema_0_36_0 } from '../0_36_0';
+import { migrations_0_36_0 } from '../0_36_0';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -98,7 +98,7 @@ void describe('Schema migrations tests', () => {
 
   void it('migrates from 0.36.0 schema', async () => {
     // Given
-    await pool.execute.command(schema_0_36_0);
+    await runSQLMigrations(pool, migrations_0_36_0);
 
     // When
     const { applied, skipped } = await runSQLMigrations(
@@ -116,8 +116,7 @@ void describe('Schema migrations tests', () => {
 
   void it('migrates from 0.38.7 schema', async () => {
     // Given
-    await pool.execute.command(schema_0_36_0);
-    await runSQLMigrations(pool, migrations_0_38_7);
+    await runSQLMigrations(pool, [...migrations_0_36_0, ...migrations_0_38_7]);
 
     // When
     const { applied, skipped } = await runSQLMigrations(

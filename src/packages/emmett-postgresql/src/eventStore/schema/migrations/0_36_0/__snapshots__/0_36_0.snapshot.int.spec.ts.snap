@@ -1,10 +1,14 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`0.36.0 schema is unchanged 1`] = `
-{
-  "__brand": "tokenized-sql",
-  "sqlChunks": [
-    "
+[
+  {
+    "name": "emt:postgresql:eventstore:0.36.0:initial_snapshot",
+    "sqls": [
+      {
+        "__brand": "tokenized-sql",
+        "sqlChunks": [
+          "
 DO $$ 
 DECLARE
     partition_record RECORD;
@@ -458,7 +462,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ",
-  ],
-  "sqlTokens": [],
-}
+        ],
+        "sqlTokens": [],
+      },
+    ],
+  },
+]
 `;

@@ -103,11 +103,7 @@ END IF;
 END $$;
 `;
 
-const migration_0_43_0_cleanupLegacySubscription: SQLMigration = sqlMigration(
-  'emt:postgresql:eventstore:0.43.0:cleanup-legacy-subscription',
-  [migration_0_43_0_cleanupLegacySubscriptionSQL],
-);
-
-export const migrations_0_43_0: SQLMigration[] = [
-  migration_0_43_0_cleanupLegacySubscription,
-];
+export const migration_0_43_0_cleanupLegacySubscription: SQLMigration =
+  sqlMigration('emt:postgresql:eventstore:0.43.0:cleanup-legacy-subscription', [
+    migration_0_43_0_cleanupLegacySubscriptionSQL,
+  ]);
