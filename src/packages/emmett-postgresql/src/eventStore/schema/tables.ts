@@ -10,8 +10,6 @@ import {
 } from './typing';
 
 import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
-import { cleanupLegacySubscriptionTables } from './migrations/0_43_0';
-export { cleanupLegacySubscriptionTables };
 
 export const streamsTableSQL = SQL`
   CREATE TABLE IF NOT EXISTS ${SQL.identifier(streamsTable.name)}(

@@ -12,11 +12,6 @@ import type { JSONSerializationOptions } from '@event-driven-io/emmett';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 import { transactionToPostgreSQLProjectionHandlerContext } from '../projections';
 import { appendToStreamSQL } from './appendToStream';
-import { migration_0_38_7_and_older } from './migrations/0_38_7';
-import {
-  migration_0_42_0_2_AddProcessorProjectionFunctions,
-  migration_0_42_0_FromSubscriptionsToProcessors,
-} from './migrations/0_42_0';
 import {
   releaseProcessorLockSQL,
   tryAcquireProcessorLockSQL,
@@ -37,6 +32,7 @@ import {
   sanitizeNameSQL,
   streamsTableSQL,
 } from './tables';
+import { pastEventStoreSchemaMigrations } from './migrations';
 export * from './typing';
 
 export * from './appendToStream';
@@ -75,9 +71,7 @@ export const schemaMigration = sqlMigration(
 );
 
 export const eventStoreSchemaMigrations: SQLMigration[] = [
-  migration_0_38_7_and_older,
-  migration_0_42_0_FromSubscriptionsToProcessors,
-  migration_0_42_0_2_AddProcessorProjectionFunctions,
+  ...pastEventStoreSchemaMigrations,
   schemaMigration,
 ];
 

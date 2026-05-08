@@ -1,7 +1,7 @@
 import { SQL, sqlMigration, type SQLMigration } from '@event-driven-io/dumbo';
 import { defaultTag } from '../../typing';
 
-export const migration_0_42_0_FromSubscriptionsToProcessorsSQL = SQL`
+const migration_0_42_0_FromSubscriptionsToProcessorsSQL = SQL`
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'emt_subscriptions') THEN
@@ -264,7 +264,7 @@ export const migration_0_42_0_FromSubscriptionsToProcessors: SQLMigration =
     [migration_0_42_0_FromSubscriptionsToProcessorsSQL],
   );
 
-export const migration_0_42_0_2_AddProcessorProjectionFunctionsSQL = SQL`
+const migration_0_42_0_2_AddProcessorProjectionFunctionsSQL = SQL`
 DO $$
 BEGIN
     IF EXISTS (
