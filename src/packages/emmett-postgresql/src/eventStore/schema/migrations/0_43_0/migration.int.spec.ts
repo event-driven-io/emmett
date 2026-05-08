@@ -1,4 +1,9 @@
-import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  runSQLMigrations,
+  SQL,
+  type Dumbo,
+} from '@event-driven-io/dumbo';
 import {
   functionExists,
   pgDumboDriver,
@@ -28,14 +33,13 @@ import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
   type PostgresReadEventMetadata,
-} from '../../postgreSQLEventStore';
-import { readProcessorCheckpoint } from '../readProcessorCheckpoint';
-import { storeProcessorCheckpoint } from '../storeProcessorCheckpoint';
-import { defaultTag } from '../typing';
-import { schema_0_36_0 } from './0_36_0';
-import { schema_0_38_7 } from './0_38_7';
-import { schema_0_42_0 } from './0_42_0';
-import { cleanupLegacySubscriptionTables } from './0_43_0';
+} from '../../../postgreSQLEventStore';
+import { readProcessorCheckpoint } from '../../readProcessorCheckpoint';
+import { storeProcessorCheckpoint } from '../../storeProcessorCheckpoint';
+import { defaultTag } from '../../typing';
+import { schema_0_36_0 } from '../0_36_0';
+import { migrations_0_38_7 } from '../0_38_7';
+import { schema_0_42_0 } from '../0_42_0/0_42_0.snapshot';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -116,7 +120,7 @@ void describe('Schema migrations tests', () => {
 
   void it('migrates from 0.38.7 schema', async () => {
     // Given
-    await pool.execute.command(schema_0_38_7);
+    await runSQLMigrations(pool, migrations_0_38_7);
 
     // When
     await eventStore.schema.migrate();
@@ -165,19 +169,6 @@ void describe('Schema migrations tests', () => {
       SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'last_updated'`,
     );
     assertDeepEqual(projectionsLastUpdatedResult.rows.length, 1);
-  });
-
-  void it('migrates from 0.38.7 schema with subscription cleanup', async () => {
-    // Given
-    await pool.execute.command(schema_0_38_7);
-    await eventStore.schema.migrate();
-
-    // When
-    await cleanupLegacySubscriptionTables(connectionString);
-
-    // Then
-    const result = await assertCanAppendAndRead(eventStore);
-    await assertCanStoreAndReadCheckpoints(pool, result);
   });
 
   void it('migrates from 0.42.0 schema', async () => {
@@ -263,7 +254,7 @@ void describe('Schema migrations tests', () => {
 
   void it('migrates pre-existing subscription checkpoint to processor table', async () => {
     // Given
-    await pool.execute.command(schema_0_38_7);
+    await runSQLMigrations(pool, migrations_0_38_7);
     await insertIntoSubscriptionCheckpoint(pool, 'legacy-processor-1', 42n);
 
     // When
@@ -279,7 +270,7 @@ void describe('Schema migrations tests', () => {
 
   void it('old API insert propagates to new table', async () => {
     // Given
-    await pool.execute.command(schema_0_38_7);
+    await runSQLMigrations(pool, migrations_0_38_7);
     await eventStore.schema.migrate();
 
     // When
@@ -305,7 +296,7 @@ void describe('Schema migrations tests', () => {
 
   void it('interleaved operations: old insert -> new read -> new update', async () => {
     // Given
-    await pool.execute.command(schema_0_38_7);
+    await runSQLMigrations(pool, migrations_0_38_7);
     await eventStore.schema.migrate();
 
     const processorId = 'interleaved-old-new-test';
@@ -352,7 +343,7 @@ void describe('Schema migrations tests', () => {
 
   void it('interleaved operations: new insert -> old query -> old update', async () => {
     // Given
-    await pool.execute.command(schema_0_38_7);
+    await runSQLMigrations(pool, migrations_0_38_7);
     await eventStore.schema.migrate();
 
     const processorId = 'interleaved-new-old-test';
@@ -387,7 +378,7 @@ void describe('Schema migrations tests', () => {
 
   void it('concurrent inserts via different APIs handled safely', async () => {
     // Given
-    await pool.execute.command(schema_0_38_7);
+    await runSQLMigrations(pool, migrations_0_38_7);
     await eventStore.schema.migrate();
 
     const processorId = 'concurrent-insert-test';
@@ -421,7 +412,7 @@ void describe('Schema migrations tests', () => {
 
   void it('handles maximum safe bigint value', async () => {
     // Given
-    await pool.execute.command(schema_0_38_7);
+    await runSQLMigrations(pool, migrations_0_38_7);
     await eventStore.schema.migrate();
 
     const processorId = 'max-bigint-test';
@@ -465,7 +456,7 @@ void describe('Schema migrations tests', () => {
 
   void it('new API works after legacy table cleanup', async () => {
     // Given
-    await pool.execute.command(schema_0_38_7);
+    await runSQLMigrations(pool, migrations_0_38_7);
     await eventStore.schema.migrate();
 
     const processorId = 'cleanup-test-processor';
@@ -483,8 +474,6 @@ void describe('Schema migrations tests', () => {
     assertDeepEqual(initialStore.newCheckpoint, bigIntProcessorCheckpoint(50n));
 
     // When
-    await cleanupLegacySubscriptionTables(connectionString);
-
     const tablesResult = await pool.execute.query<{ tablename: string }>(
       SQL`SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = 'emt_subscriptions'`,
     );
