@@ -37,24 +37,20 @@ export const PostgreSQLEventStoreCheckpoint = {
     if (checkPoint === undefined || checkPoint === null)
       return PostgreSQLEventStoreCheckpoint.default;
 
-    const [transactionId, globalPosition] = checkPoint.includes(':')
-      ? checkPoint.split(':')
-      : [undefined, checkPoint];
+    const [transactionId, globalPosition] = checkPoint.split(':');
     return {
-      transactionId: transactionId ? BigInt(transactionId) : undefined,
-      globalPosition: BigInt(globalPosition),
+      transactionId: BigInt(transactionId!),
+      globalPosition: BigInt(globalPosition!),
     };
   },
   toProcessorCheckpoint: (
     checkPoint: PostgreSQLEventStoreCheckpoint,
   ): ProcessorCheckpoint =>
-    checkPoint.transactionId
-      ? (`${checkPoint.transactionId.toString().padStart(20, '0')}:${bigIntProcessorCheckpoint(checkPoint.globalPosition)}` as ProcessorCheckpoint)
-      : bigIntProcessorCheckpoint(checkPoint.globalPosition),
+    `${checkPoint.transactionId.toString().padStart(20, '0')}:${bigIntProcessorCheckpoint(checkPoint.globalPosition)}` as ProcessorCheckpoint,
 };
 
 export type PostgreSQLEventStoreCheckpoint = {
-  transactionId?: bigint;
+  transactionId: bigint;
   globalPosition: bigint;
 };
 
@@ -102,20 +98,14 @@ export const readMessagesBatch = async <
 
   const fromCondition: SQL =
     from !== undefined
-      ? from.transactionId
-        ? SQL`AND (transaction_id, global_position) >= (${from.transactionId}, ${from.globalPosition})`
-        : SQL`AND (global_position) >= (${from.globalPosition})`
+      ? SQL`AND (transaction_id, global_position) >= (${from.transactionId}, ${from.globalPosition})`
       : after !== undefined
-        ? after.transactionId
-          ? SQL`AND (transaction_id, global_position) > (${after.transactionId}, ${after.globalPosition})`
-          : SQL`AND (global_position) > (${after.globalPosition})`
+        ? SQL`AND (transaction_id, global_position) > (${after.transactionId}, ${after.globalPosition})`
         : SQL.EMPTY;
 
   const toCondition: SQL =
     'to' in options
-      ? options.to.transactionId
-        ? SQL`AND (transaction_id, global_position) <= (${options.to.transactionId}, ${options.to.globalPosition})`
-        : SQL`AND (global_position) <= (${options.to.globalPosition})`
+      ? SQL`AND (transaction_id, global_position) <= (${options.to.transactionId}, ${options.to.globalPosition})`
       : SQL.EMPTY;
 
   const limitCondition: SQL =

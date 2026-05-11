@@ -107,3 +107,26 @@ export const migration_0_43_0_cleanupLegacySubscription: SQLMigration =
   sqlMigration('emt:postgresql:eventstore:0.43.0:cleanup-legacy-subscription', [
     migration_0_43_0_cleanupLegacySubscriptionSQL,
   ]);
+
+// Upgrades last_processed_checkpoint from plain globalPosition (e.g. "00000000000000000042")
+// to the composite transactionId:globalPosition format (e.g. "00000000000000000001:00000000000000000042").
+// Rows already in the new format (containing ':') are skipped.
+// Wrapped in an existence check so it is safe to run before the initial schema migration on fresh databases.
+const migration_0_43_0_upgradeCheckpointFormatSQL = SQL`
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = '${SQL.plain(processorsTable.name)}') THEN
+    UPDATE "${SQL.plain(processorsTable.name)}" p
+    SET last_processed_checkpoint =
+      lpad(m.transaction_id::text, 20, '0') || ':' || p.last_processed_checkpoint
+    FROM "${SQL.plain(messagesTable.name)}" m
+    WHERE m.global_position = p.last_processed_checkpoint::bigint
+      AND p.last_processed_checkpoint NOT LIKE '%:%';
+  END IF;
+END $$;
+`;
+
+export const migration_0_43_0_upgradeCheckpointFormat: SQLMigration =
+  sqlMigration('emt:postgresql:eventstore:0.43.0:upgrade-checkpoint-format', [
+    migration_0_43_0_upgradeCheckpointFormatSQL,
+  ]);
