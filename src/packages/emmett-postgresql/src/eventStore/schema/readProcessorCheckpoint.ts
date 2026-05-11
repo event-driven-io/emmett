@@ -1,13 +1,46 @@
-import { singleOrNull, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import {
+  single,
+  singleOrNull,
+  SQL,
+  type SQLExecutor,
+} from '@event-driven-io/dumbo';
 import type { ProcessorCheckpoint } from '@event-driven-io/emmett';
-import { defaultTag, processorsTable } from './typing';
+import { PostgreSQLEventStoreCheckpoint } from './readMessagesBatch';
+import { defaultTag, messagesTable, processorsTable } from './typing';
 
 type ReadProcessorCheckpointSqlResult = {
   last_processed_checkpoint: string;
 };
 
+type ReadTransactionIdSqlResult = {
+  transaction_id: string;
+};
+
 export type ReadProcessorCheckpointResult = {
   lastProcessedCheckpoint: ProcessorCheckpoint | null;
+};
+
+const resolveTransactionId = async (
+  execute: SQLExecutor,
+  rawCheckpoint: string,
+): Promise<ProcessorCheckpoint> => {
+  if (rawCheckpoint.includes(':')) return rawCheckpoint as ProcessorCheckpoint;
+
+  const globalPosition = BigInt(rawCheckpoint);
+
+  const row = await single(
+    execute.query<ReadTransactionIdSqlResult>(
+      SQL`SELECT transaction_id
+           FROM ${SQL.identifier(messagesTable.name)}
+           WHERE global_position = ${globalPosition}
+           LIMIT 1`,
+    ),
+  );
+
+  return PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+    transactionId: BigInt(row.transaction_id),
+    globalPosition,
+  });
 };
 
 export const readProcessorCheckpoint = async (
@@ -23,10 +56,12 @@ export const readProcessorCheckpoint = async (
     ),
   );
 
+  if (result === null) return { lastProcessedCheckpoint: null };
+
   return {
-    lastProcessedCheckpoint:
-      result !== null
-        ? (result.last_processed_checkpoint as ProcessorCheckpoint)
-        : null,
+    lastProcessedCheckpoint: await resolveTransactionId(
+      execute,
+      result.last_processed_checkpoint,
+    ),
   };
 };
