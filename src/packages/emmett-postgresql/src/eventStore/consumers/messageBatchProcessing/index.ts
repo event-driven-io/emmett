@@ -71,48 +71,56 @@ export const postgreSQLEventStoreMessageBatchPuller = <
   const pullMessages = async (
     options: PostgreSQLEventStoreMessageBatchPullerStartOptions,
   ) => {
-    const after =
-      options.startFrom === 'BEGINNING'
-        ? 0n
-        : options.startFrom === 'END'
-          ? ((await readLastMessageGlobalPosition(executor))
-              .currentGlobalPosition ?? 0n)
-          : options.startFrom.lastCheckpoint;
+    try {
+      const after =
+        options.startFrom === 'BEGINNING'
+          ? 0n
+          : options.startFrom === 'END'
+            ? ((await readLastMessageGlobalPosition(executor))
+                .currentGlobalPosition ?? 0n)
+            : options.startFrom.lastCheckpoint;
 
-    const readMessagesOptions: ReadMessagesBatchOptions = {
-      after,
-      batchSize,
-    };
+      const readMessagesOptions: ReadMessagesBatchOptions = {
+        after,
+        batchSize,
+      };
 
-    let waitTime = 100;
+      let waitTime = 100;
 
-    while (isRunning && !signal?.aborted) {
-      const { messages, currentGlobalPosition, areMessagesLeft } =
-        await readMessagesBatch<MessageType>(executor, readMessagesOptions);
+      while (isRunning && !signal?.aborted) {
+        const { messages, currentGlobalPosition, areMessagesLeft } =
+          await readMessagesBatch<MessageType>(executor, readMessagesOptions);
 
-      if (messages.length > 0) {
-        const result = await eachBatch(messages);
+        if (messages.length > 0) {
+          const result = await eachBatch(messages);
 
-        if (result && result.type === 'STOP') {
+          if (result && result.type === 'STOP') {
+            isRunning = false;
+            break;
+          }
+        }
+
+        readMessagesOptions.after = currentGlobalPosition;
+
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+
+        if (stopWhen?.noMessagesLeft === true && !areMessagesLeft) {
+          console.log(
+            `No messages left to process after reaching global position ${currentGlobalPosition}. Stopping the puller.`,
+          );
           isRunning = false;
           break;
         }
+
+        if (!areMessagesLeft) {
+          waitTime = Math.min(waitTime * 2, 1000);
+        } else {
+          waitTime = pullingFrequencyInMs;
+        }
       }
-
-      readMessagesOptions.after = currentGlobalPosition;
-
-      await new Promise((resolve) => setTimeout(resolve, waitTime));
-
-      if (stopWhen?.noMessagesLeft === true && !areMessagesLeft) {
-        isRunning = false;
-        break;
-      }
-
-      if (!areMessagesLeft) {
-        waitTime = Math.min(waitTime * 2, 1000);
-      } else {
-        waitTime = pullingFrequencyInMs;
-      }
+    } catch (error) {
+      console.log('Error occurred during message pulling:', error);
+      throw error;
     }
   };
 
