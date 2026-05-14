@@ -51,6 +51,9 @@ export const postgreSQLProcessorLock = (
       context: PostgreSQLProcessorLockContext,
     ): Promise<boolean> => {
       if (acquired) {
+        console.log(
+          `Lock for processor '${options.processorId}' is already acquired by this instance. Reusing the lock.`,
+        );
         return true;
       }
 
@@ -61,6 +64,9 @@ export const postgreSQLProcessorLock = (
 
       // TODO: This should be moved o prcessor
       if (!result.acquired && options.lockAcquisitionPolicy?.type !== 'skip') {
+        console.log(
+          `Failed to acquire lock for processor '${options.processorId}' with policy '${options.lockAcquisitionPolicy?.type}'.`,
+        );
         throw new EmmettError(
           `Failed to acquire lock for processor '${options.processorId}'`,
         );
@@ -70,7 +76,12 @@ export const postgreSQLProcessorLock = (
     },
 
     release: async (context: PostgreSQLProcessorLockContext): Promise<void> => {
-      if (!acquired) return;
+      if (!acquired) {
+        console.log(
+          `Lock for processor '${options.processorId}' is not acquired by this instance. Skipping release.`,
+        );
+        return;
+      }
 
       const { projection, ...releaseOptions } = options;
 
