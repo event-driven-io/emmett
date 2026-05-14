@@ -39,6 +39,7 @@ import {
 } from '../../../postgreSQLEventStore';
 import { readProcessorCheckpoint } from '../../readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from '../../storeProcessorCheckpoint';
+import { defaultTag } from '../../typing';
 import { migrations_0_36_0 } from '../0_36_0';
 import { migrations_0_38_7 } from '../0_38_7';
 import { migrations_0_42_0 } from '../0_42_0';
@@ -333,6 +334,161 @@ void describe('Schema migrations tests', () => {
       orderCheckpoint.lastProcessedCheckpoint,
       order.lastEvent.metadata.checkpoint!,
     );
+  };
+
+  void it('new code reads old-format checkpoint and resolves transaction id', async () => {
+    // Given
+    await runSQLMigrations(pool, [
+      ...migrations_0_36_0,
+      ...migrations_0_38_7,
+      ...migrations_0_42_0,
+    ]);
+    const result = await assertCanAppendAndRead(eventStore);
+
+    // Simulate old-format checkpoint still stored (plain globalpos, no ':')
+    const processorId = `processor-compat-${result.shoppingCart.streamId}`;
+    const globalPosition =
+      result.shoppingCart.lastEvent.metadata.globalPosition;
+    const paddedPosition = globalPosition.toString().padStart(20, '0');
+
+    await insertProcessorCheckpointDirectly(pool, {
+      processorId,
+      lastProcessedCheckpoint: paddedPosition,
+    });
+
+    // When
+    await runSQLMigrations(pool, migrations_0_43_0);
+
+    const { lastProcessedCheckpoint } = await readProcessorCheckpoint(
+      pool.execute,
+      { processorId, partition: undefined },
+    );
+
+    // Then: resolved to new format (txid:globalpos)
+    assertTrue(
+      lastProcessedCheckpoint !== null && lastProcessedCheckpoint.includes(':'),
+      `Expected new-format checkpoint (txid:globalpos), got: ${lastProcessedCheckpoint}`,
+    );
+  });
+
+  void it('new code stores checkpoint when old-format is in DB (blue-green: new→old)', async () => {
+    // Given
+    await runSQLMigrations(pool, [
+      ...migrations_0_36_0,
+      ...migrations_0_38_7,
+      ...migrations_0_42_0,
+    ]);
+    const result = await assertCanAppendAndRead(eventStore);
+
+    const processorId = `processor-compat-bg-${result.shoppingCart.streamId}`;
+    const globalPosition =
+      result.shoppingCart.lastEvent.metadata.globalPosition;
+    const paddedPosition = globalPosition.toString().padStart(20, '0');
+
+    // Old-format checkpoint in DB, no migration yet
+    await insertProcessorCheckpointDirectly(pool, {
+      processorId,
+      lastProcessedCheckpoint: paddedPosition,
+    });
+
+    // When: new code runs store with new-format p_check_position (txid:globalpos)
+    await runSQLMigrations(pool, migrations_0_43_0);
+
+    const { lastProcessedCheckpoint } = await readProcessorCheckpoint(
+      pool.execute,
+      { processorId, partition: undefined },
+    );
+
+    assertTrue(
+      lastProcessedCheckpoint !== null && lastProcessedCheckpoint.includes(':'),
+    );
+
+    const nextEvent = result.order.lastEvent;
+    const storeResult = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: nextEvent.metadata.checkpoint!,
+      lastProcessedCheckpoint,
+      processorInstanceId: processorId,
+    });
+
+    // Then: store succeeds via mixed-format fallback
+    assertTrue(storeResult.success);
+  });
+
+  void it('old code stores checkpoint when new-format is in DB (blue-green: old→new)', async () => {
+    // Given
+    await runSQLMigrations(pool, [
+      ...migrations_0_36_0,
+      ...migrations_0_38_7,
+      ...migrations_0_42_0,
+      ...migrations_0_43_0,
+    ]);
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result);
+
+    const processorId = `processor-compat-old-${result.shoppingCart.streamId}`;
+    const checkpoint = result.shoppingCart.lastEvent.metadata.checkpoint!;
+
+    // Store new-format checkpoint via new code
+    await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: checkpoint,
+      lastProcessedCheckpoint: null,
+      processorInstanceId: processorId,
+    });
+
+    // Verify it's stored in new format
+    const rawCheckpoint = await queryRawProcessorCheckpoint(pool, processorId);
+    assertTrue(
+      rawCheckpoint !== null && rawCheckpoint.includes(':'),
+      `Expected new-format checkpoint in DB, got: ${rawCheckpoint}`,
+    );
+
+    // When: old code sends plain globalpos as p_check_position
+    const globalPosition =
+      result.shoppingCart.lastEvent.metadata.globalPosition;
+    const paddedPosition = globalPosition.toString().padStart(20, '0');
+
+    const storeResult = await pool.execute.command(
+      SQL`SELECT store_processor_checkpoint(
+        ${processorId}, 1,
+        ${result.order.lastEvent.metadata.checkpoint},
+        ${paddedPosition},
+        pg_current_xact_id(),
+        ${defaultTag}
+      )`,
+    );
+
+    // Then: succeeds via mixed-format fallback (returns 1)
+    assertDeepEqual(storeResult.rowCount, 1);
+  });
+
+  const insertProcessorCheckpointDirectly = (
+    pool: Dumbo,
+    {
+      processorId,
+      lastProcessedCheckpoint,
+    }: { processorId: string; lastProcessedCheckpoint: string },
+  ) =>
+    pool.execute.command(
+      SQL`INSERT INTO emt_processors (processor_id, version, last_processed_checkpoint, partition, created_at, last_updated)
+          VALUES (${processorId}, 1, ${lastProcessedCheckpoint}, ${defaultTag}, now(), now())`,
+    );
+
+  const queryRawProcessorCheckpoint = async (
+    pool: Dumbo,
+    processorId: string,
+  ): Promise<string | null> => {
+    const result = await pool.execute.query<{
+      last_processed_checkpoint: string;
+    }>(
+      SQL`SELECT last_processed_checkpoint FROM emt_processors WHERE processor_id = ${processorId} LIMIT 1`,
+    );
+    return result.rows[0]?.last_processed_checkpoint ?? null;
   };
 
   const storeSubscriptionCheckpoint = (
