@@ -1,4 +1,9 @@
-import { dumbo, type Dumbo, type SQLExecutor } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  JSONSerializer,
+  type Dumbo,
+  type SQLExecutor,
+} from '@event-driven-io/dumbo';
 import {
   EmmettError,
   MessageProcessor,
@@ -111,13 +116,21 @@ export const postgreSQLEventStoreConsumer = <
 
     const result = await Promise.allSettled(
       activeProcessors.map(async (s) => {
-        // TODO: Add here filtering to only pass messages that can be handled by processor
-        return await s.handle(messagesBatch, {
-          connection: {
-            connectionString: options.connectionString,
-            pool,
-          },
-        });
+        try {
+          // TODO: Add here filtering to only pass messages that can be handled by processor
+          return await s.handle(messagesBatch, {
+            connection: {
+              connectionString: options.connectionString,
+              pool,
+            },
+          });
+        } catch (error) {
+          console.log(
+            `Error during message batch processing for processor: ${s.id}`,
+            error,
+          );
+          throw error;
+        }
       }),
     );
 
@@ -164,7 +177,24 @@ export const postgreSQLEventStoreConsumer = <
 
     for (const processor of postgresProcessors) {
       if (processor.init) {
-        await processor.init(processorContext);
+        try {
+          await processor.init(processorContext);
+        } catch (error) {
+          console.log(
+            `Error during processor initialization for processor: ${processor.id}. Stopping it.`,
+            error,
+          );
+          await processor.close(processorContext).catch((closeError) => {
+            console.log(
+              `Error during processor cleanup after failed initialization for processor: ${processor.id}`,
+              closeError,
+            );
+          });
+          console.log(
+            `Processor ${processor.id} stopped successfully after failed initialization.`,
+          );
+          throw error;
+        }
       }
     }
 
@@ -211,12 +241,21 @@ export const postgreSQLEventStoreConsumer = <
       return processor;
     },
     start: () => {
-      if (isRunning) return start;
+      if (isRunning) {
+        console.log(
+          'Consumer is already running. Returning the existing start promise.',
+        );
+        return start;
+      }
 
-      if (processors.length === 0)
+      if (processors.length === 0) {
+        console.log(
+          'Cannot start consumer without at least a single processor',
+        );
         throw new EmmettError(
           'Cannot start consumer without at least a single processor',
         );
+      }
 
       isRunning = true;
       abortController = new AbortController();
@@ -237,25 +276,38 @@ export const postgreSQLEventStoreConsumer = <
         if (!isRunning) return;
 
         if (!isInitialized) {
+          console.log('Initializing consumer before starting message pulling.');
           await init();
         }
 
         const startFrom = zipPostgreSQLEventStoreMessageBatchPullerStartFrom(
           await Promise.all(
             processors.map(async (o) => {
-              const result = await o.start({
-                execute: pool.execute,
-                connection: {
-                  connectionString: options.connectionString,
-                  pool,
-                },
-              });
-
-              return result;
+              try {
+                const result = await o.start({
+                  execute: pool.execute,
+                  connection: {
+                    connectionString: options.connectionString,
+                    pool,
+                  },
+                });
+                return result;
+              } catch (error) {
+                console.log(
+                  `Error during processor start position retrieval for processor: ${o.id}. Stopping it.`,
+                  error,
+                );
+                throw error;
+              }
             }),
           ),
         );
 
+        console.log(
+          `Starting message pulling with start position: ${JSONSerializer.serialize(
+            startFrom,
+          )}. Waiting for messages...`,
+        );
         await messagePuller.start({ startFrom });
 
         await stopProcessors();

@@ -2,6 +2,7 @@ import { v7 as uuid } from 'uuid';
 import type { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
 import type { ProjectionDefinition } from '../projections';
+import { JSONParser } from '../serialization';
 import {
   defaultTag,
   type AnyEvent,
@@ -426,7 +427,16 @@ export const reactor = <
     start: async (
       startOptions: Partial<HandlerContext>,
     ): Promise<CurrentMessageProcessorPosition<CheckpointType> | undefined> => {
-      if (isActive) return;
+      if (isActive) {
+        console.log(
+          `Processor ${processorId} with instance id ${instanceId} is already active. Start request ignored.`,
+        );
+        return;
+      }
+
+      console.log(
+        `Starting processor ${processorId} with instance id ${instanceId}`,
+      );
 
       await init(startOptions);
 
@@ -434,17 +444,29 @@ export const reactor = <
 
       closeSignal = onShutdown(() => close({}));
 
-      if (lastCheckpoint !== null)
+      if (lastCheckpoint !== null) {
+        console.log(
+          `Processor ${processorId} started with instance id ${instanceId}, checkpoint: ${JSONParser.stringify(lastCheckpoint)}`,
+        );
         return {
           lastCheckpoint,
         };
+      }
 
       return await processingScope(async (context) => {
         if (hooks.onStart) {
+          console.log(
+            `Executing onStart hook for processor ${processorId} with instance id ${instanceId}`,
+          );
           await hooks.onStart(context);
         }
 
-        if (startFrom && startFrom !== 'CURRENT') return startFrom;
+        if (startFrom && startFrom !== 'CURRENT') {
+          console.log(
+            `Processor ${processorId} with instance id ${instanceId} starting from: ${JSONParser.stringify(startFrom)}`,
+          );
+          return startFrom;
+        }
 
         if (checkpoints) {
           const readResult = await checkpoints?.read(
@@ -457,7 +479,15 @@ export const reactor = <
           lastCheckpoint = readResult.lastCheckpoint;
         }
 
-        if (lastCheckpoint === null) return 'BEGINNING';
+        if (lastCheckpoint === null) {
+          console.log(
+            `Processor ${processorId} with instance id ${instanceId} starting from: BEGINNING`,
+          );
+          return 'BEGINNING';
+        }
+        console.log(
+          `Checkpoint read for processor ${processorId} with instance id ${instanceId}: ${JSONParser.stringify(lastCheckpoint)}`,
+        );
 
         return {
           lastCheckpoint,
@@ -474,69 +504,85 @@ export const reactor = <
     ): Promise<MessageHandlerResult> => {
       if (!isActive) return Promise.resolve();
 
-      return await processingScope(async (context) => {
-        let result: MessageHandlerResult = undefined;
+      try {
+        return await processingScope(async (context) => {
+          let result: MessageHandlerResult = undefined;
 
-        for (const message of messages) {
-          if (wasMessageHandled(message, lastCheckpoint)) continue;
+          for (const message of messages) {
+            if (wasMessageHandled(message, lastCheckpoint)) continue;
 
-          const upcasted = upcastRecordedMessage(
-            // TODO: Make it smarter
-            message as unknown as RecordedMessage<
-              MessagePayloadType,
-              MessageMetadataType
-            >,
-            options.messageOptions?.schema?.versioning,
-          );
+            const upcasted = upcastRecordedMessage(
+              // TODO: Make it smarter
+              message as unknown as RecordedMessage<
+                MessagePayloadType,
+                MessageMetadataType
+              >,
+              options.messageOptions?.schema?.versioning,
+            );
 
-          if (canHandle !== undefined && !canHandle.includes(upcasted.type))
-            continue;
+            if (canHandle !== undefined && !canHandle.includes(upcasted.type))
+              continue;
 
-          const messageProcessingResult = await eachMessage(upcasted, context);
+            const messageProcessingResult = await eachMessage(
+              upcasted,
+              context,
+            );
 
-          if (checkpoints) {
-            const storeCheckpointResult: StoreProcessorCheckpointResult<CheckpointType | null> =
-              await checkpoints.store(
-                {
-                  processorId,
-                  version,
-                  message: upcasted,
-                  lastCheckpoint,
-                  partition,
-                },
-                context,
-              );
+            if (checkpoints) {
+              const storeCheckpointResult: StoreProcessorCheckpointResult<CheckpointType | null> =
+                await checkpoints.store(
+                  {
+                    processorId,
+                    version,
+                    message: upcasted,
+                    lastCheckpoint,
+                    partition,
+                  },
+                  context,
+                );
 
-            if (storeCheckpointResult.success) {
-              // TODO: Add correct handling of the storing checkpoint
-              lastCheckpoint = storeCheckpointResult.newCheckpoint;
+              if (storeCheckpointResult.success) {
+                // TODO: Add correct handling of the storing checkpoint
+                lastCheckpoint = storeCheckpointResult.newCheckpoint;
+              }
             }
+
+            if (
+              messageProcessingResult &&
+              messageProcessingResult.type === 'STOP'
+            ) {
+              isActive = false;
+              result = messageProcessingResult;
+              break;
+            }
+
+            if (stopAfter && stopAfter(upcasted)) {
+              isActive = false;
+              result = { type: 'STOP', reason: 'Stop condition reached' };
+              break;
+            }
+
+            if (
+              messageProcessingResult &&
+              messageProcessingResult.type === 'SKIP'
+            )
+              continue;
           }
 
-          if (
-            messageProcessingResult &&
-            messageProcessingResult.type === 'STOP'
-          ) {
-            isActive = false;
-            result = messageProcessingResult;
-            break;
-          }
-
-          if (stopAfter && stopAfter(upcasted)) {
-            isActive = false;
-            result = { type: 'STOP', reason: 'Stop condition reached' };
-            break;
-          }
-
-          if (
-            messageProcessingResult &&
-            messageProcessingResult.type === 'SKIP'
-          )
-            continue;
-        }
-
-        return result;
-      }, partialContext);
+          return result;
+        }, partialContext);
+      } catch (error) {
+        console.log(
+          `Error during message processing for processor ${processorId} with instance id ${instanceId}. Stopping the processor.`,
+          error,
+        );
+        isActive = false;
+        return {
+          type: 'STOP',
+          error: error as EmmettError,
+          reason: 'Error during message processing',
+        };
+      }
     },
   };
 };
