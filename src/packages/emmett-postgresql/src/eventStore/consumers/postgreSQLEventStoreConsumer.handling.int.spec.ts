@@ -4,7 +4,6 @@ import {
   assertEqual,
   assertThatArray,
   assertThrowsAsync,
-  bigIntProcessorCheckpoint,
   defaultTag,
   type Event,
 } from '@event-driven-io/emmett';
@@ -17,7 +16,10 @@ import {
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
 import { postgreSQLProcessorLock } from '../projections';
-import { storeProcessorCheckpoint } from '../schema';
+import {
+  PostgreSQLEventStoreCheckpoint,
+  storeProcessorCheckpoint,
+} from '../schema';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 import {
   postgreSQLReactor,
@@ -730,8 +732,12 @@ void describe('PostgreSQL event store started consumer', () => {
         await storeProcessorCheckpoint(pool.execute, {
           processorId,
           version: 1,
-          newCheckpoint: bigIntProcessorCheckpoint(firstPosition),
-          lastProcessedCheckpoint: bigIntProcessorCheckpoint(0n),
+          newCheckpoint: firstPosition,
+          lastProcessedCheckpoint:
+            PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+              transactionId: 0n,
+              globalPosition: 0n,
+            }),
           partition: defaultTag,
           processorInstanceId: 'crashed-instance',
         });
@@ -982,8 +988,12 @@ void describe('PostgreSQL event store started consumer', () => {
         await storeProcessorCheckpoint(pool.execute, {
           processorId,
           version: 1,
-          newCheckpoint: bigIntProcessorCheckpoint(firstPosition),
-          lastProcessedCheckpoint: bigIntProcessorCheckpoint(0n),
+          newCheckpoint: firstPosition,
+          lastProcessedCheckpoint:
+            PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+              transactionId: 0n,
+              globalPosition: 0n,
+            }),
           partition: defaultTag,
           processorInstanceId: 'crashed-instance',
         });
