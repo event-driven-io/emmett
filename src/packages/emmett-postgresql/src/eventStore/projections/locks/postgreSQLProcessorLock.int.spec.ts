@@ -675,6 +675,50 @@ void describe('tryAcquireProcessorLock', () => {
         'Expected processor_instance_id to remain set',
       );
     });
+
+    void it('same instance re-acquires after crash without explicit release', async () => {
+      const lockKey = 'test_crash_same_instance_reacquire';
+      const processorId = 'processor_crash_same_instance';
+      const instanceId = 'instance_crash_1';
+
+      const lock1 = postgreSQLProcessorLock({
+        ...defaultPartitionAndVersion1,
+        lockKey,
+        processorId,
+        processorInstanceId: instanceId,
+      });
+
+      await pool.withConnection(async (connection) => {
+        const result = await lock1.tryAcquire({ execute: connection.execute });
+        assertTrue(result, 'Expected first acquire to succeed');
+      });
+
+      const statusAfterCrash = await getProcessorStatus(pool.execute, {
+        processorId,
+        ...defaultPartitionAndVersion1,
+      });
+      assertDeepEqual(
+        statusAfterCrash?.status,
+        'running',
+        'Expected status to remain running after crash',
+      );
+
+      const lock2 = postgreSQLProcessorLock({
+        ...defaultPartitionAndVersion1,
+        lockKey,
+        processorId,
+        processorInstanceId: instanceId,
+      });
+
+      const reacquired = await pool.withConnection((connection) =>
+        lock2.tryAcquire({ execute: connection.execute }),
+      );
+
+      assertTrue(
+        reacquired,
+        'Expected same instance to re-acquire after crash without explicit release',
+      );
+    });
   });
 
   void describe('checkpoint handling', () => {
@@ -991,6 +1035,140 @@ void describe('tryAcquireProcessorLock', () => {
       assertTrue(
         allowedResult,
         'Expected takeover to succeed after custom timeout expires',
+      );
+    });
+
+    void it('different instance with default timeout cannot restart after crash within timeout window', async () => {
+      const lockKey = 'test_default_timeout_restart_blocked';
+      const processorId = 'processor_default_timeout_restart';
+      const instanceId1 = 'instance_1';
+      const instanceId2 = 'instance_2'; // simulates v4() generating a new UUID on restart
+
+      const lock1 = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId1,
+      });
+
+      await pool.withConnection(async (connection) => {
+        const result = await lock1.tryAcquire({ execute: connection.execute });
+        assertTrue(result, 'Expected first instance to acquire');
+        // connection closes without explicit release - simulates process crash
+      });
+
+      // status is now 'running' with instanceId1, last_updated is very recent
+      // restart with a new UUID (v4() pattern) and no lockTimeoutSeconds (default 300s)
+      const lock2 = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId2,
+        lockAcquisitionPolicy: { type: 'skip' },
+      });
+
+      const result = await pool.withConnection((connection) =>
+        lock2.tryAcquire({ execute: connection.execute }),
+      );
+
+      assertFalse(
+        result,
+        'Expected restart with new instance ID to fail within default timeout window',
+      );
+    });
+
+    void it('timeoutSeconds 0 allows immediate takeover after crash', async () => {
+      const lockKey = 'test_zero_timeout_crash_takeover';
+      const processorId = 'processor_zero_timeout_crash';
+      const instanceId1 = 'instance_1';
+      const instanceId2 = 'instance_2';
+
+      const lock1 = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId1,
+      });
+
+      await pool.withConnection(async (connection) => {
+        const result = await lock1.tryAcquire({ execute: connection.execute });
+        assertTrue(result, 'Expected first instance to acquire');
+      });
+
+      const statusAfterCrash = await getProcessorStatus(pool.execute, {
+        processorId,
+        ...defaultPartitionAndVersion1,
+      });
+      assertDeepEqual(
+        statusAfterCrash?.status,
+        'running',
+        'Expected status to remain running after crash',
+      );
+
+      const lock2 = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId2,
+        lockTimeoutSeconds: 0,
+      });
+
+      const result = await pool.withConnection((connection) =>
+        lock2.tryAcquire({ execute: connection.execute }),
+      );
+
+      assertTrue(
+        result,
+        'Expected timeoutSeconds=0 to allow immediate takeover after crash',
+      );
+    });
+
+    void it('timeoutSeconds 0 cannot steal advisory lock held in active transaction', async () => {
+      const lockKey = 'test_zero_timeout_active_lock';
+      const processorId = 'processor_zero_timeout_active';
+      const instanceId1 = 'instance_1';
+      const instanceId2 = 'instance_2';
+
+      const firstLockHeld = asyncAwaiter();
+      const secondLockAttempted = asyncAwaiter();
+
+      const lock1 = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId1,
+      });
+
+      const lock2 = postgreSQLProcessorLock({
+        lockKey,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: instanceId2,
+        lockTimeoutSeconds: 0,
+        lockAcquisitionPolicy: { type: 'skip' },
+      });
+
+      const [firstResult, secondResult] = await Promise.all([
+        pool.withTransaction(async (tx) => {
+          const result = await lock1.tryAcquire({ execute: tx.execute });
+          firstLockHeld.resolve();
+          await secondLockAttempted.wait;
+          return result;
+        }),
+        (async () => {
+          await firstLockHeld.wait;
+          const result = await pool.withTransaction(async (tx) =>
+            lock2.tryAcquire({ execute: tx.execute }),
+          );
+          secondLockAttempted.resolve();
+          return result;
+        })(),
+      ]);
+
+      assertTrue(firstResult, 'Expected first instance to acquire lock');
+      assertFalse(
+        secondResult,
+        'Expected timeoutSeconds=0 to be blocked by actively held advisory lock',
       );
     });
   });
