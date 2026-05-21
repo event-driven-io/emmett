@@ -20,7 +20,7 @@ import {
   assertTrue,
   bigIntProcessorCheckpoint,
   type Event,
-  type ReadEvent,
+  type ProcessorCheckpoint,
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
@@ -35,14 +35,20 @@ import {
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
-  type PostgresReadEventMetadata,
 } from '../../../postgreSQLEventStore';
+import { PostgreSQLEventStoreCheckpoint } from '../../readMessagesBatch';
 import { readProcessorCheckpoint } from '../../readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from '../../storeProcessorCheckpoint';
 import { defaultTag } from '../../typing';
 import { migrations_0_36_0 } from '../0_36_0';
 import { migrations_0_38_7 } from '../0_38_7';
+import { storeSubscriptionCheckpoint } from '../0_38_7/legacyApi';
 import { migrations_0_42_0 } from '../0_42_0';
+import {
+  appendToStream,
+  readEvents,
+  storeProcessorCheckpoint as storeProcessorCheckpointV042,
+} from '../0_42_0/legacyApi';
 import { migrations_0_43_0 } from './';
 
 export type ProductItemAdded = Event<
@@ -129,7 +135,7 @@ void describe('Schema migrations tests', () => {
     assertThatArray(skipped).isEmpty();
 
     // Then
-    const result = await assertCanAppendAndRead(eventStore);
+    const result = await assertCanAppendAndRead();
     await assertCanStoreAndReadCheckpoints(pool, result);
 
     assertFalse(
@@ -172,11 +178,15 @@ void describe('Schema migrations tests', () => {
     await assertThrowsAsync<InvalidOperationError>(
       () =>
         // When
-        storeSubscriptionCheckpoint(pool, 'test-processor', 10n, null),
+        storeSubscriptionCheckpoint(pool.execute, {
+          subscriptionId: 'test-processor',
+          position: 10n,
+          checkPosition: null,
+        }),
       (error: InvalidOperationError) => {
         return (
-          error.message ===
-            'function store_subscription_checkpoint(unknown, integer, unknown, unknown, xid8, unknown) does not exist' &&
+          error.message.startsWith('function store_subscription_checkpoint') &&
+          error.message.endsWith('does not exist') &&
           error.innerError instanceof Error &&
           'code' in error.innerError &&
           error.innerError.code === '42883'
@@ -185,7 +195,16 @@ void describe('Schema migrations tests', () => {
     );
   });
 
-  const assertCanAppendAndRead = async (eventStore: PostgresEventStore) => {
+  type AppendedStream = {
+    streamId: string;
+    lastGlobalPosition: bigint;
+    lastCheckpoint: ProcessorCheckpoint;
+  };
+
+  const assertCanAppendAndRead = async (): Promise<{
+    shoppingCart: AppendedStream;
+    order: AppendedStream;
+  }> => {
     const shoppingCartId = 'cart-123';
     const itemAdded: ProductItemAdded = {
       type: 'ProductItemAdded',
@@ -201,13 +220,16 @@ void describe('Schema migrations tests', () => {
       },
     };
 
-    await eventStore.appendToStream(shoppingCartId, [
-      itemAdded,
-      shoppingCartConfirmed,
-    ]);
+    const shoppingCartAppend = await appendToStream(pool.execute, {
+      streamId: shoppingCartId,
+      streamType: 'cart',
+      events: [itemAdded, shoppingCartConfirmed],
+    });
 
-    const readShoppingCartResult =
-      await eventStore.readStream<ShoppingCartEvent>(shoppingCartId);
+    const readShoppingCartResult = await readEvents<ShoppingCartEvent>(
+      pool.execute,
+      { streamId: shoppingCartId },
+    );
 
     assertTrue(readShoppingCartResult.streamExists);
     assertDeepEqual(readShoppingCartResult.currentStreamVersion, 2n);
@@ -224,24 +246,43 @@ void describe('Schema migrations tests', () => {
         orderId,
       },
     };
-    await eventStore.appendToStream(orderId, [orderInitiated]);
+    const orderAppend = await appendToStream(pool.execute, {
+      streamId: orderId,
+      streamType: 'order',
+      events: [orderInitiated],
+    });
 
-    const readOrderResult =
-      await eventStore.readStream<OrderInitiated>(orderId);
+    const readOrderResult = await readEvents<OrderInitiated>(pool.execute, {
+      streamId: orderId,
+    });
 
     assertTrue(readOrderResult.streamExists);
     assertDeepEqual(readOrderResult.currentStreamVersion, 1n);
     assertDeepEqual(readOrderResult.events.length, 1);
     assertMatches(readOrderResult.events[0], orderInitiated);
 
+    const shoppingCartLastGlobalPosition =
+      shoppingCartAppend.globalPositions[
+        shoppingCartAppend.globalPositions.length - 1
+      ]!;
+    const orderLastGlobalPosition = orderAppend.globalPositions[0]!;
+
     return {
       shoppingCart: {
         streamId: shoppingCartId,
-        lastEvent: readShoppingCartResult.events[1]!,
+        lastGlobalPosition: shoppingCartLastGlobalPosition,
+        lastCheckpoint: PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+          transactionId: shoppingCartAppend.transactionId,
+          globalPosition: shoppingCartLastGlobalPosition,
+        }),
       },
       order: {
         streamId: orderId,
-        lastEvent: readOrderResult.events[0]!,
+        lastGlobalPosition: orderLastGlobalPosition,
+        lastCheckpoint: PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+          transactionId: orderAppend.transactionId,
+          globalPosition: orderLastGlobalPosition,
+        }),
       },
     };
   };
@@ -252,14 +293,8 @@ void describe('Schema migrations tests', () => {
       shoppingCart,
       order,
     }: {
-      shoppingCart: {
-        streamId: string;
-        lastEvent: ReadEvent<ShoppingCartEvent, PostgresReadEventMetadata>;
-      };
-      order: {
-        streamId: string;
-        lastEvent: ReadEvent<OrderInitiated, PostgresReadEventMetadata>;
-      };
+      shoppingCart: AppendedStream;
+      order: AppendedStream;
     },
   ) => {
     const shoppingCartProcessorId = `processor-shopping-cart-${shoppingCart.streamId}`;
@@ -280,16 +315,13 @@ void describe('Schema migrations tests', () => {
       processorId: shoppingCartProcessorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: shoppingCart.lastEvent.metadata.checkpoint!,
+      newCheckpoint: shoppingCart.lastCheckpoint,
       lastProcessedCheckpoint: bigIntProcessorCheckpoint(1n),
       processorInstanceId: shoppingCartProcessorId,
     });
 
     assertTrue(storeResult.success);
-    assertDeepEqual(
-      storeResult.newCheckpoint,
-      shoppingCart.lastEvent.metadata.checkpoint!,
-    );
+    assertDeepEqual(storeResult.newCheckpoint, shoppingCart.lastCheckpoint);
 
     const shoppingCartCheckpoint = await readProcessorCheckpoint(pool.execute, {
       processorId: shoppingCartProcessorId,
@@ -298,7 +330,7 @@ void describe('Schema migrations tests', () => {
 
     assertDeepEqual(
       shoppingCartCheckpoint.lastProcessedCheckpoint,
-      shoppingCart.lastEvent.metadata.checkpoint!,
+      shoppingCart.lastCheckpoint,
     );
 
     const orderProcessorId = `processor-order-${order.streamId}`;
@@ -314,16 +346,13 @@ void describe('Schema migrations tests', () => {
       processorId: orderProcessorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: order.lastEvent.metadata.checkpoint!,
+      newCheckpoint: order.lastCheckpoint,
       lastProcessedCheckpoint: null,
       processorInstanceId: orderProcessorId,
     });
 
     assertTrue(storeResult.success);
-    assertDeepEqual(
-      storeResult.newCheckpoint,
-      order.lastEvent.metadata.checkpoint!,
-    );
+    assertDeepEqual(storeResult.newCheckpoint, order.lastCheckpoint);
 
     orderCheckpoint = await readProcessorCheckpoint(pool.execute, {
       processorId: orderProcessorId,
@@ -332,7 +361,7 @@ void describe('Schema migrations tests', () => {
 
     assertDeepEqual(
       orderCheckpoint.lastProcessedCheckpoint,
-      order.lastEvent.metadata.checkpoint!,
+      order.lastCheckpoint,
     );
   };
 
@@ -343,17 +372,15 @@ void describe('Schema migrations tests', () => {
       ...migrations_0_38_7,
       ...migrations_0_42_0,
     ]);
-    const result = await assertCanAppendAndRead(eventStore);
+    const result = await assertCanAppendAndRead();
 
-    // Simulate old-format checkpoint still stored (plain globalpos, no ':')
     const processorId = `processor-compat-${result.shoppingCart.streamId}`;
-    const globalPosition =
-      result.shoppingCart.lastEvent.metadata.globalPosition;
-    const paddedPosition = globalPosition.toString().padStart(20, '0');
-
-    await insertProcessorCheckpointDirectly(pool, {
+    await storeProcessorCheckpointV042(pool.execute, {
       processorId,
-      lastProcessedCheckpoint: paddedPosition,
+      newCheckpoint: bigIntProcessorCheckpoint(
+        result.shoppingCart.lastGlobalPosition,
+      ),
+      lastProcessedCheckpoint: null,
     });
 
     // When
@@ -364,10 +391,10 @@ void describe('Schema migrations tests', () => {
       { processorId, partition: undefined },
     );
 
-    // Then: resolved to new format (txid:globalpos)
-    assertTrue(
-      lastProcessedCheckpoint !== null && lastProcessedCheckpoint.includes(':'),
-      `Expected new-format checkpoint (txid:globalpos), got: ${lastProcessedCheckpoint}`,
+    // Then
+    assertDeepEqual(
+      lastProcessedCheckpoint,
+      result.shoppingCart.lastCheckpoint,
     );
   });
 
@@ -377,44 +404,31 @@ void describe('Schema migrations tests', () => {
       ...migrations_0_36_0,
       ...migrations_0_38_7,
       ...migrations_0_42_0,
+      ...migrations_0_43_0,
     ]);
-    const result = await assertCanAppendAndRead(eventStore);
+    const result = await assertCanAppendAndRead();
 
     const processorId = `processor-compat-bg-${result.shoppingCart.streamId}`;
-    const globalPosition =
-      result.shoppingCart.lastEvent.metadata.globalPosition;
-    const paddedPosition = globalPosition.toString().padStart(20, '0');
-
-    // Old-format checkpoint in DB, no migration yet
     await insertProcessorCheckpointDirectly(pool, {
       processorId,
-      lastProcessedCheckpoint: paddedPosition,
+      lastProcessedCheckpoint: bigIntProcessorCheckpoint(
+        result.shoppingCart.lastGlobalPosition,
+      ),
     });
 
-    // When: new code runs store with new-format p_check_position (txid:globalpos)
-    await runSQLMigrations(pool, migrations_0_43_0);
-
-    const { lastProcessedCheckpoint } = await readProcessorCheckpoint(
-      pool.execute,
-      { processorId, partition: undefined },
-    );
-
-    assertTrue(
-      lastProcessedCheckpoint !== null && lastProcessedCheckpoint.includes(':'),
-    );
-
-    const nextEvent = result.order.lastEvent;
+    // When
     const storeResult = await storeProcessorCheckpoint(pool.execute, {
       processorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: nextEvent.metadata.checkpoint!,
-      lastProcessedCheckpoint,
+      newCheckpoint: result.order.lastCheckpoint,
+      lastProcessedCheckpoint: result.shoppingCart.lastCheckpoint,
       processorInstanceId: processorId,
     });
 
-    // Then: store succeeds via mixed-format fallback
+    // Then
     assertTrue(storeResult.success);
+    assertDeepEqual(storeResult.newCheckpoint, result.order.lastCheckpoint);
   });
 
   void it('old code stores checkpoint when new-format is in DB (blue-green: old→new)', async () => {
@@ -425,46 +439,37 @@ void describe('Schema migrations tests', () => {
       ...migrations_0_42_0,
       ...migrations_0_43_0,
     ]);
-    const result = await assertCanAppendAndRead(eventStore);
+    const result = await assertCanAppendAndRead();
     await assertCanStoreAndReadCheckpoints(pool, result);
 
     const processorId = `processor-compat-old-${result.shoppingCart.streamId}`;
-    const checkpoint = result.shoppingCart.lastEvent.metadata.checkpoint!;
 
-    // Store new-format checkpoint via new code
     await storeProcessorCheckpoint(pool.execute, {
       processorId,
       partition: undefined,
       version: 1,
-      newCheckpoint: checkpoint,
+      newCheckpoint: result.shoppingCart.lastCheckpoint,
       lastProcessedCheckpoint: null,
       processorInstanceId: processorId,
     });
 
-    // Verify it's stored in new format
     const rawCheckpoint = await queryRawProcessorCheckpoint(pool, processorId);
     assertTrue(
       rawCheckpoint !== null && rawCheckpoint.includes(':'),
       `Expected new-format checkpoint in DB, got: ${rawCheckpoint}`,
     );
 
-    // When: old code sends plain globalpos as p_check_position
-    const globalPosition =
-      result.shoppingCart.lastEvent.metadata.globalPosition;
-    const paddedPosition = globalPosition.toString().padStart(20, '0');
+    // When
+    const storeResult = await storeProcessorCheckpointV042(pool.execute, {
+      processorId,
+      newCheckpoint: bigIntProcessorCheckpoint(result.order.lastGlobalPosition),
+      lastProcessedCheckpoint: bigIntProcessorCheckpoint(
+        result.shoppingCart.lastGlobalPosition,
+      ),
+    });
 
-    const storeResult = await pool.execute.command(
-      SQL`SELECT store_processor_checkpoint(
-        ${processorId}, 1,
-        ${result.order.lastEvent.metadata.checkpoint},
-        ${paddedPosition},
-        pg_current_xact_id(),
-        ${defaultTag}
-      )`,
-    );
-
-    // Then: succeeds via mixed-format fallback (returns 1)
-    assertDeepEqual(storeResult.rowCount, 1);
+    // Then
+    assertTrue(storeResult.success);
   });
 
   const insertProcessorCheckpointDirectly = (
@@ -475,8 +480,8 @@ void describe('Schema migrations tests', () => {
     }: { processorId: string; lastProcessedCheckpoint: string },
   ) =>
     pool.execute.command(
-      SQL`INSERT INTO emt_processors (processor_id, version, last_processed_checkpoint, partition, created_at, last_updated)
-          VALUES (${processorId}, 1, ${lastProcessedCheckpoint}, ${defaultTag}, now(), now())`,
+      SQL`INSERT INTO emt_processors (processor_id, version, last_processed_checkpoint, last_processed_transaction_id, partition, created_at, last_updated)
+          VALUES (${processorId}, 1, ${lastProcessedCheckpoint}, pg_current_xact_id(), ${defaultTag}, now(), now())`,
     );
 
   const queryRawProcessorCheckpoint = async (
@@ -490,14 +495,4 @@ void describe('Schema migrations tests', () => {
     );
     return result.rows[0]?.last_processed_checkpoint ?? null;
   };
-
-  const storeSubscriptionCheckpoint = (
-    pool: Dumbo,
-    processorId: string,
-    position: bigint | null,
-    checkPosition: bigint | null,
-  ) =>
-    pool.execute.command(
-      SQL`SELECT store_subscription_checkpoint(${processorId}, 1, ${position}, ${checkPosition}, pg_current_xact_id(), 'emt:default')`,
-    );
 });

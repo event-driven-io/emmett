@@ -28,6 +28,11 @@ const resolveTransactionId = async (
 
   const globalPosition = BigInt(rawCheckpoint);
 
+  if (globalPosition === 0n)
+    return PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
+      PostgreSQLEventStoreCheckpoint.default,
+    );
+
   const row = await single(
     execute.query<ReadTransactionIdSqlResult>(
       SQL`SELECT transaction_id
