@@ -21,9 +21,6 @@ jobs:
         with:
           registry-url: "https://registry.npmjs.org"
           node-version-file: ./src/.nvmrc
-      
-      - name: Ensure specific npm version
-        run: npm install -g npm@11.9.0
 
       - name: Ensure specific npm version
         run: npm install -g npm@11.9.0

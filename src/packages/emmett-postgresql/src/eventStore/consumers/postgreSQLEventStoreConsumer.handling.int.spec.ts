@@ -1,11 +1,11 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
+import type { EmmettError } from '@event-driven-io/emmett';
 import {
   assertEqual,
   assertThatArray,
   assertThrowsAsync,
   bigIntProcessorCheckpoint,
   defaultTag,
-  EmmettError,
   type Event,
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
@@ -19,7 +19,10 @@ import {
 import { postgreSQLProcessorLock } from '../projections';
 import { storeProcessorCheckpoint } from '../schema';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
-import type { PostgreSQLReactorOptions } from './postgreSQLProcessor';
+import {
+  postgreSQLReactor,
+  type PostgreSQLReactorOptions,
+} from './postgreSQLProcessor';
 
 const withDeadline = { timeout: 30000 };
 
@@ -731,8 +734,8 @@ void describe('PostgreSQL event store started consumer', () => {
         await storeProcessorCheckpoint(pool.execute, {
           processorId,
           version: 1,
-          newCheckpoint: firstPosition,
-          lastProcessedCheckpoint: 0n,
+          newCheckpoint: bigIntProcessorCheckpoint(firstPosition),
+          lastProcessedCheckpoint: bigIntProcessorCheckpoint(0n),
           partition: defaultTag,
           processorInstanceId: 'crashed-instance',
         });
@@ -983,8 +986,8 @@ void describe('PostgreSQL event store started consumer', () => {
         await storeProcessorCheckpoint(pool.execute, {
           processorId,
           version: 1,
-          newCheckpoint: firstPosition,
-          lastProcessedCheckpoint: 0n,
+          newCheckpoint: bigIntProcessorCheckpoint(firstPosition),
+          lastProcessedCheckpoint: bigIntProcessorCheckpoint(0n),
           partition: defaultTag,
           processorInstanceId: 'crashed-instance',
         });

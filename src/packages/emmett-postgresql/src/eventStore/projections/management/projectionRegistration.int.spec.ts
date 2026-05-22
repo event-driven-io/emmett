@@ -8,6 +8,7 @@ import {
   assertMatches,
   assertTrue,
   asyncAwaiter,
+  defaultTag,
   type ProjectionRegistration,
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
@@ -15,7 +16,7 @@ import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import type { PostgreSQLProjectionHandlerContext } from '..';
 import type { PostgresReadEventMetadata } from '../../postgreSQLEventStore';
-import { createEventStoreSchema, defaultTag } from '../../schema';
+import { createEventStoreSchema } from '../../schema';
 import {
   activateProjection,
   deactivateProjection,
