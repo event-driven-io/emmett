@@ -547,3 +547,80 @@ export const migration_0_42_0_2_AddProcessorProjectionFunctions: SQLMigration =
     'emt:postgresql:eventstore:0.42.0-2:add-processor-projection-functions',
     [migration_0_42_0_2_AddProcessorProjectionFunctionsSQL],
   );
+
+export const migration_0_42_0_3_FixProcessorLockTimeoutSQL = rawSql(`
+CREATE OR REPLACE FUNCTION emt_try_acquire_processor_lock(
+    p_lock_key               BIGINT,
+    p_processor_id           TEXT,
+    p_version                INT,
+    p_partition              TEXT       DEFAULT '${defaultTag}',
+    p_processor_instance_id  TEXT       DEFAULT 'emt:unknown',
+    p_projection_name        TEXT       DEFAULT NULL,
+    p_projection_type        VARCHAR(1) DEFAULT NULL,
+    p_projection_kind        TEXT       DEFAULT NULL,
+    p_lock_timeout_seconds   INT        DEFAULT 300
+)
+RETURNS TABLE (acquired BOOLEAN, checkpoint TEXT)
+LANGUAGE plpgsql
+AS $emt_try_acquire_processor_lock$
+DECLARE
+  current_position TEXT;
+  v_current_time TIMESTAMPTZ := clock_timestamp();
+BEGIN
+    RETURN QUERY
+    WITH lock_check AS (
+        SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
+    ),
+    ownership_check AS (
+        INSERT INTO emt_processors (
+            processor_id,
+            partition,
+            version,
+            processor_instance_id,
+            status,
+            last_processed_checkpoint,
+            last_processed_transaction_id,
+            created_at,
+            last_updated
+        )
+        SELECT p_processor_id, p_partition, p_version, p_processor_instance_id, 'running', '0000000000000000000', '0'::xid8, v_current_time, v_current_time
+        WHERE (SELECT lock_acquired FROM lock_check) = true
+        ON CONFLICT (processor_id, partition, version) DO UPDATE
+        SET processor_instance_id = p_processor_instance_id,
+            status = 'running',
+            last_updated = v_current_time
+        WHERE emt_processors.processor_instance_id = p_processor_instance_id
+           OR emt_processors.processor_instance_id = 'emt:unknown'
+           OR emt_processors.status = 'stopped'
+           OR emt_processors.last_updated < v_current_time - (p_lock_timeout_seconds || ' seconds')::interval
+        RETURNING last_processed_checkpoint
+    ),
+    projection_status AS (
+        INSERT INTO emt_projections (
+            name,
+            partition,
+            version,
+            type,
+            kind,
+            status,
+            definition
+        )
+        SELECT p_projection_name, p_partition, p_version, p_projection_type, p_projection_kind, 'async_processing', '{}'::jsonb
+        WHERE p_projection_name IS NOT NULL
+          AND (SELECT last_processed_checkpoint FROM ownership_check) IS NOT NULL
+        ON CONFLICT (name, partition, version) DO UPDATE
+        SET status = 'async_processing'
+        RETURNING name
+    )
+    SELECT
+        (SELECT COUNT(*) > 0 FROM ownership_check),
+        (SELECT oc.last_processed_checkpoint FROM ownership_check oc);
+END;
+$emt_try_acquire_processor_lock$;
+`);
+
+export const migration_0_42_0_3_FixProcessorLockTimeout: SQLMigration =
+  sqlMigration(
+    'emt:postgresql:eventstore:0.42.0-3:fix-processor-lock-timeout',
+    [migration_0_42_0_3_FixProcessorLockTimeoutSQL],
+  );
