@@ -21,7 +21,36 @@ export * from './readStream';
 export * from './storeProcessorCheckpoint';
 export * from './streamExists';
 export * from './tables';
-export * from './typing';
+
+export const schemaSQL: SQL[] = [
+  streamsTableSQL,
+  messagesTableSQL,
+  projectionsTableSQL,
+  processorsTableSQL,
+  sanitizeNameSQL,
+  addTablePartitions,
+  addPartitionSQL,
+  appendToStreamSQL,
+  addDefaultPartitionSQL,
+  storeSubscriptionCheckpointSQL,
+  tryAcquireProcessorLockSQL,
+  releaseProcessorLockSQL,
+  registerProjectionSQL,
+  activateProjectionSQL,
+  deactivateProjectionSQL,
+];
+
+export const schemaMigration = sqlMigration(
+  'emt:postgresql:eventstore:initial',
+  schemaSQL,
+);
+
+export const eventStoreSchemaMigrations: SQLMigration[] = [
+  migration_0_38_7_and_older,
+  migration_0_42_0_FromSubscriptionsToProcessors,
+  migration_0_42_0_2_AddProcessorProjectionFunctions,
+  schemaMigration,
+];
 
 export type CreateEventStoreSchemaOptions = {
   dryRun?: boolean | undefined;
