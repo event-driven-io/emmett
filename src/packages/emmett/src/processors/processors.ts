@@ -2,8 +2,10 @@ import { v7 as uuid } from 'uuid';
 import type { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
 import type { ProjectionDefinition } from '../projections';
-import type { JSONSerializationOptions } from '../serialization';
-import { JSONParser } from '../serialization';
+import {
+  JSONSerializer,
+  type JSONSerializationOptions,
+} from '../serialization';
 import {
   defaultTag,
   type AnyEvent,
@@ -440,7 +442,7 @@ export const reactor = <
 
       if (lastCheckpoint !== null) {
         console.log(
-          `Processor ${processorId} started with instance id ${instanceId}, checkpoint: ${JSONParser.stringify(lastCheckpoint)}`,
+          `Processor ${processorId} started with instance id ${instanceId}, checkpoint: ${JSONSerializer.serialize(lastCheckpoint)}`,
         );
         return {
           lastCheckpoint,
@@ -457,7 +459,7 @@ export const reactor = <
 
         if (startFrom && startFrom !== 'CURRENT') {
           console.log(
-            `Processor ${processorId} with instance id ${instanceId} starting from: ${JSONParser.stringify(startFrom)}`,
+            `Processor ${processorId} with instance id ${instanceId} starting from: ${JSONSerializer.serialize(startFrom)}`,
           );
           return startFrom;
         }
@@ -480,7 +482,7 @@ export const reactor = <
           return 'BEGINNING';
         }
         console.log(
-          `Checkpoint read for processor ${processorId} with instance id ${instanceId}: ${JSONParser.stringify(lastCheckpoint)}`,
+          `Checkpoint read for processor ${processorId} with instance id ${instanceId}: ${JSONSerializer.serialize(lastCheckpoint)}`,
         );
 
         return {

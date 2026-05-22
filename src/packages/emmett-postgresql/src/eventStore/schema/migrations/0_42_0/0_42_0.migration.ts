@@ -1,5 +1,5 @@
 import { SQL, sqlMigration, type SQLMigration } from '@event-driven-io/dumbo';
-import { defaultTag } from '../../typing';
+import { defaultTag, unknownTag } from '../../typing';
 
 const migration_0_42_0_FromSubscriptionsToProcessorsSQL = SQL`
 DO $$
@@ -544,13 +544,13 @@ export const migration_0_42_0_2_AddProcessorProjectionFunctions: SQLMigration =
     [migration_0_42_0_2_AddProcessorProjectionFunctionsSQL],
   );
 
-export const migration_0_42_0_3_FixProcessorLockTimeoutSQL = rawSql(`
+export const migration_0_42_0_3_FixProcessorLockTimeoutSQL = SQL`
 CREATE OR REPLACE FUNCTION emt_try_acquire_processor_lock(
     p_lock_key               BIGINT,
     p_processor_id           TEXT,
     p_version                INT,
-    p_partition              TEXT       DEFAULT '${defaultTag}',
-    p_processor_instance_id  TEXT       DEFAULT 'emt:unknown',
+    p_partition              TEXT       DEFAULT '${SQL.plain(defaultTag)}',
+    p_processor_instance_id  TEXT       DEFAULT '${SQL.plain(unknownTag)}',
     p_projection_name        TEXT       DEFAULT NULL,
     p_projection_type        VARCHAR(1) DEFAULT NULL,
     p_projection_kind        TEXT       DEFAULT NULL,
@@ -613,7 +613,7 @@ BEGIN
         (SELECT oc.last_processed_checkpoint FROM ownership_check oc);
 END;
 $emt_try_acquire_processor_lock$;
-`);
+`;
 
 export const migration_0_42_0_3_FixProcessorLockTimeout: SQLMigration =
   sqlMigration(

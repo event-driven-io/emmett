@@ -5,12 +5,13 @@ import {
   assertThrowsAsync,
   assertTrue,
   asyncAwaiter,
+  defaultTag,
   hashText,
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, describe, it } from 'vitest';
-import { createEventStoreSchema, defaultTag } from '../../schema';
+import { createEventStoreSchema } from '../../schema';
 import {
   postgreSQLProjectionLock,
   toProjectionLockKey,

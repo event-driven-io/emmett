@@ -1,14 +1,36 @@
+import type { SQL } from '@event-driven-io/dumbo';
 import {
   dumbo,
   runSQLMigrations,
-  type Dumbo,
+  sqlMigration,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
 import type { PgPool, PgTransaction } from '@event-driven-io/dumbo/pg';
 import type { JSONSerializationOptions } from '@event-driven-io/emmett';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 import { transactionToPostgreSQLProjectionHandlerContext } from '../projections';
+import { appendToStreamSQL } from './appendToStream';
 import { eventStoreSchemaMigrations } from './migrations';
+import {
+  releaseProcessorLockSQL,
+  tryAcquireProcessorLockSQL,
+} from './processors';
+import {
+  activateProjectionSQL,
+  deactivateProjectionSQL,
+  registerProjectionSQL,
+} from './projections';
+import { storeSubscriptionCheckpointSQL } from './storeProcessorCheckpoint';
+import {
+  addDefaultPartitionSQL,
+  addPartitionSQL,
+  addTablePartitions,
+  messagesTableSQL,
+  processorsTableSQL,
+  projectionsTableSQL,
+  sanitizeNameSQL,
+  streamsTableSQL,
+} from './tables';
 
 export * from './appendToStream';
 export * from './migrations';
@@ -45,13 +67,6 @@ export const schemaMigration = sqlMigration(
   schemaSQL,
 );
 
-export const eventStoreSchemaMigrations: SQLMigration[] = [
-  migration_0_38_7_and_older,
-  migration_0_42_0_FromSubscriptionsToProcessors,
-  migration_0_42_0_2_AddProcessorProjectionFunctions,
-  schemaMigration,
-];
-
 export type CreateEventStoreSchemaOptions = {
   dryRun?: boolean | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
@@ -71,7 +86,7 @@ export const createEventStoreSchema = (
   return pool.withTransaction(async (tx: PgTransaction) => {
     const context = await transactionToPostgreSQLProjectionHandlerContext(
       connectionString,
-      pool as Dumbo,
+      pool,
       tx,
     );
     const nestedPool = dumbo({

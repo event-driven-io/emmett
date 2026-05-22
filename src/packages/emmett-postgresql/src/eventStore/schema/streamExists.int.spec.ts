@@ -1,11 +1,16 @@
 import { dumbo, SQL } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
-import { assertFalse, assertTrue, type Event } from '@event-driven-io/emmett';
+import {
+  assertFalse,
+  assertTrue,
+  defaultTag,
+  type Event,
+} from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
-import { createEventStoreSchema, defaultTag } from '.';
+import { afterAll, beforeAll, describe, it } from 'vitest';
+import { createEventStoreSchema } from '.';
 import { appendToStream } from './appendToStream';
 import { streamExists } from './streamExists';
 import { streamsTable } from './typing';

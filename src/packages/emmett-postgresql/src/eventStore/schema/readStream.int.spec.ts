@@ -8,13 +8,14 @@ import {
   assertMatches,
   assertTrue,
   asyncRetry,
+  defaultTag,
   type Event,
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
-import { createEventStoreSchema, defaultTag } from '.';
+import { afterAll, beforeAll, describe, it } from 'vitest';
+import { createEventStoreSchema } from '.';
 import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
 import { appendToStream } from './appendToStream';
 import { readStream } from './readStream';
