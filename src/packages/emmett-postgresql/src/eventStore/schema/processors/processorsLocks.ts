@@ -25,6 +25,9 @@ CREATE OR REPLACE FUNCTION emt_try_acquire_processor_lock(
 RETURNS TABLE (acquired BOOLEAN, checkpoint TEXT)
 LANGUAGE plpgsql
 AS $emt_try_acquire_processor_lock$
+DECLARE
+  current_position TEXT;
+  v_current_time TIMESTAMPTZ := clock_timestamp();
 BEGIN
     RETURN QUERY
     WITH lock_check AS (
@@ -42,16 +45,16 @@ BEGIN
             created_at,
             last_updated
         )
-        SELECT p_processor_id, p_partition, p_version, p_processor_instance_id, 'running', '${SQL.plain(bigInt.toNormalizedString(0n))}', '0'::xid8, now(), now()
+        SELECT p_processor_id, p_partition, p_version, p_processor_instance_id, 'running', '${SQL.plain(bigInt.toNormalizedString(0n))}', '0'::xid8, v_current_time, v_current_time
         WHERE (SELECT lock_acquired FROM lock_check) = true
         ON CONFLICT (processor_id, partition, version) DO UPDATE
         SET processor_instance_id = p_processor_instance_id,
             status = 'running',
-            last_updated = now()
+            last_updated = v_current_time
         WHERE ${SQL.plain(processorsTable.name)}.processor_instance_id = p_processor_instance_id
            OR ${SQL.plain(processorsTable.name)}.processor_instance_id = '${SQL.plain(unknownTag)}'
            OR ${SQL.plain(processorsTable.name)}.status = 'stopped'
-           OR ${SQL.plain(processorsTable.name)}.last_updated < now() - (p_lock_timeout_seconds || ' seconds')::interval
+           OR ${SQL.plain(processorsTable.name)}.last_updated < v_current_time - (p_lock_timeout_seconds || ' seconds')::interval
         RETURNING last_processed_checkpoint
     ),
     projection_status AS (

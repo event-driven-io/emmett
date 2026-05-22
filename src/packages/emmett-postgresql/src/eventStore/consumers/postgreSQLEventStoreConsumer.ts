@@ -184,7 +184,11 @@ export const postgreSQLEventStoreConsumer = <
       abortController?.abort();
       await messagePuller.stop();
     }
-    await start;
+    try {
+      await start;
+    } catch (error) {
+      console.log('Error during consumer stop:', error);
+    }
 
     messagePuller = undefined;
     abortController = null;
