@@ -2,6 +2,7 @@ import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import {
   assertThatArray,
   assertThrowsAsync,
+  defaultTag,
   EmmettError,
   type Event,
 } from '@event-driven-io/emmett';
@@ -13,8 +14,8 @@ import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
-import { postgreSQLProcessorLock } from '../projections/locks';
-import { defaultTag, storeProcessorCheckpoint } from '../schema';
+import { postgreSQLProcessorLock } from '../projections';
+import { storeProcessorCheckpoint } from '../schema';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 import type { PostgreSQLReactorOptions } from './postgreSQLProcessor';
 
@@ -472,12 +473,14 @@ void describe('PostgreSQL event store started consumer', () => {
           eachMessage: () => {},
         });
 
-        await assertThrowsAsync<EmmettError>(
-          () => consumer.start(),
-          (error) => error.message.includes(processorId),
-        );
-
-        await consumer.close().catch(() => {});
+        try {
+          await assertThrowsAsync<EmmettError>(
+            () => consumer.start(),
+            (error) => error.message.includes(processorId),
+          );
+        } finally {
+          await consumer.close();
+        }
       },
     );
 
@@ -567,7 +570,7 @@ void describe('PostgreSQL event store started consumer', () => {
           },
         });
 
-        const consumer1Promise = consumer1.start();
+        consumer1.start().catch(console.error);
         await consumer1HasLock;
 
         const consumer2 = postgreSQLEventStoreConsumer({ connectionString });
@@ -583,9 +586,7 @@ void describe('PostgreSQL event store started consumer', () => {
             (error) => error.message.includes(processorId),
           );
         } finally {
-          await consumer1.stop();
-          await consumer1Promise.catch(() => {});
-          await consumer2.close().catch(() => {});
+          await Promise.allSettled([consumer1.close(), consumer2.close()]);
         }
       },
     );
@@ -606,6 +607,7 @@ void describe('PostgreSQL event store started consumer', () => {
         const consumer1 = postgreSQLEventStoreConsumer({ connectionString });
         consumer1.reactor<GuestStayEvent>({
           processorId,
+          startFrom: 'BEGINNING',
           stopAfter: (event) =>
             event.metadata.globalPosition === lastEventGlobalPosition,
           eachMessage: () => {},
@@ -613,12 +615,13 @@ void describe('PostgreSQL event store started consumer', () => {
         try {
           await consumer1.start();
         } finally {
-          await consumer1.stop();
+          await consumer1.close();
         }
 
         const consumer2 = postgreSQLEventStoreConsumer({ connectionString });
         consumer2.reactor<GuestStayEvent>({
           processorId,
+          startFrom: 'BEGINNING',
           stopAfter: (event) =>
             event.metadata.globalPosition === lastEventGlobalPosition,
           eachMessage: () => {},
@@ -654,7 +657,7 @@ void describe('PostgreSQL event store started consumer', () => {
         try {
           await consumer1.start();
         } finally {
-          await consumer1.stop();
+          await consumer1.close();
         }
 
         const { lastEventGlobalPosition: secondPosition } =
@@ -757,7 +760,7 @@ void describe('PostgreSQL event store started consumer', () => {
           partition: defaultTag,
           processorInstanceId: 'crashed-instance',
         });
-        await pool.withConnection((connection) =>
+        await pool.withTransaction((connection) =>
           crashedInstanceLock.tryAcquire({ execute: connection.execute }),
         );
         await storeProcessorCheckpoint(pool.execute, {
