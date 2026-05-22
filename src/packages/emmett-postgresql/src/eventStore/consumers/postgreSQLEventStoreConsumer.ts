@@ -168,8 +168,8 @@ export const postgreSQLEventStoreConsumer = <
     try {
       await start;
     } catch (error) {
-      console.log('Error during consumer stop:', error);
-
+      console.log('Error during completing consumer:', error);
+    } finally {
       await stopProcessors();
     }
   };
