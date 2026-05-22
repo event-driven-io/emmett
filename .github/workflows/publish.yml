@@ -8,6 +8,10 @@ defaults:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
       - name: Check Out Repo
         uses: actions/checkout@v6
@@ -29,10 +33,7 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Set public publishing
-        run: npm config set access public
-
-      - name: Publish package on NPM 📦
+      - name: Publish packages on NPM 📦
         run: |
           VERSION=$(node -p "require('./package.json').version")
           if [[ $VERSION == *"beta"* ]]; then
@@ -44,7 +45,16 @@ jobs:
           else
             TAG="latest"
           fi
-          npm publish --ws --tag $TAG
+
+          for pkg_dir in packages/*/; do
+            pkg_name=$(node -p "require('./${pkg_dir}package.json').name")
+
+            if npm view "${pkg_name}@${VERSION}" version >/dev/null 2>&1; then
+              echo "⏭  ${pkg_name}@${VERSION} already published — skipping"
+            else
+              echo "📦 Publishing ${pkg_name}@${VERSION}"
+              npm publish -w "${pkg_dir}" --tag "$TAG" --access public --provenance
+            fi
+          done
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_ENV: production
