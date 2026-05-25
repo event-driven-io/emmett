@@ -47,6 +47,17 @@ jobs:
           fi
 
           for pkg_dir in packages/*/; do
+            if [ ! -f "${pkg_dir}package.json" ]; then
+              echo "⏭  ${pkg_dir} has no package.json — skipping"
+              continue
+            fi
+
+            is_private=$(node -p "require('./${pkg_dir}package.json').private ?? false")
+            if [ "$is_private" = "true" ]; then
+              echo "⏭  ${pkg_dir} is private — skipping"
+              continue
+            fi
+
             pkg_name=$(node -p "require('./${pkg_dir}package.json').name")
 
             if npm view "${pkg_name}@${VERSION}" version >/dev/null 2>&1; then
