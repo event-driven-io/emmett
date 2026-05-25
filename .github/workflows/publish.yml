@@ -35,37 +35,22 @@ jobs:
 
       - name: Publish packages on NPM 📦
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          if [[ $VERSION == *"beta"* ]]; then
-            TAG="beta"
-          elif [[ $VERSION == *"alpha"* ]]; then
-            TAG="alpha"
-          elif [[ $VERSION == *"rc"* ]]; then
-            TAG="rc"
-          else
-            TAG="latest"
-          fi
-
           for pkg_dir in packages/*/; do
-            if [ ! -f "${pkg_dir}package.json" ]; then
-              echo "⏭  ${pkg_dir} has no package.json — skipping"
-              continue
-            fi
+            [ -f "${pkg_dir}package.json" ] || { echo "⏭  ${pkg_dir} has no package.json — skipping"; continue; }
 
-            is_private=$(node -p "require('./${pkg_dir}package.json').private ?? false")
-            if [ "$is_private" = "true" ]; then
-              echo "⏭  ${pkg_dir} is private — skipping"
-              continue
-            fi
+            read -r pkg_name pkg_version pkg_private < <(node -p "
+              const p = require('./${pkg_dir}package.json');
+              [p.name, p.version, p.private ?? false].join(' ')
+            ")
 
-            pkg_name=$(node -p "require('./${pkg_dir}package.json').name")
+            [ "$pkg_private" = "true" ] && { echo "⏭  ${pkg_name}@${pkg_version} is private — skipping"; continue; }
 
-            if npm view "${pkg_name}@${VERSION}" version >/dev/null 2>&1; then
-              echo "⏭  ${pkg_name}@${VERSION} already published — skipping"
+            tag=$(echo "$pkg_version" | sed -E 's/.*-(beta|alpha|rc)\..*/\1/; t; s/.*/latest/')
+
+            if npm view "${pkg_name}@${pkg_version}" version >/dev/null 2>&1; then
+              echo "⏭  ${pkg_name}@${pkg_version} already published — skipping"
             else
-              echo "📦 Publishing ${pkg_name}@${VERSION}"
-              npm publish -w "${pkg_dir}" --tag "$TAG" --access public --provenance
+              echo "📦 Publishing ${pkg_name}@${pkg_version}"
+              npm publish -w "${pkg_dir}" --tag "$tag" --access public --provenance
             fi
           done
-        env:
-          NODE_ENV: production
