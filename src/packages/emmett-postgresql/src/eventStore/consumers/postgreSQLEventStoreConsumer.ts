@@ -115,6 +115,7 @@ export const postgreSQLEventStoreConsumer = <
 
   const startedAwaiter: AsyncAwaiter<void> = asyncAwaiter<void>();
 
+  const isOwnPool = !options.pool;
   const pool = options.pool
     ? options.pool
     : dumbo({
@@ -396,7 +397,7 @@ export const postgreSQLEventStoreConsumer = <
     stop,
     close: async () => {
       await stop();
-      await pool.close();
+      if (isOwnPool) await pool.close();
     },
   };
 };
