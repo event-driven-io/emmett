@@ -47,6 +47,7 @@ import { migrations_0_42_0 } from '../0_42_0';
 import {
   appendToStream,
   readEvents,
+  readProcessorCheckpoint as readProcessorCheckpointV042,
   storeProcessorCheckpoint as storeProcessorCheckpointV042,
 } from '../0_42_0/legacyApi';
 import { migrations_0_43_0 } from './';
@@ -470,6 +471,119 @@ void describe('Schema migrations tests', () => {
 
     // Then
     assertTrue(storeResult.success);
+  });
+
+  void it('old consumer round-trip continues to work after 0.43.0 migration upgrades stored checkpoint to new format', async () => {
+    // Given: 0.42.0 schema with an old-format checkpoint already stored by old code
+    await runSQLMigrations(pool, [
+      ...migrations_0_36_0,
+      ...migrations_0_38_7,
+      ...migrations_0_42_0,
+    ]);
+    const result = await assertCanAppendAndRead();
+
+    const processorId = `processor-old-roundtrip-${result.shoppingCart.streamId}`;
+    await storeProcessorCheckpointV042(pool.execute, {
+      processorId,
+      newCheckpoint: bigIntProcessorCheckpoint(
+        result.shoppingCart.lastGlobalPosition,
+      ),
+      lastProcessedCheckpoint: null,
+    });
+
+    // When
+    await runSQLMigrations(pool, migrations_0_43_0);
+
+    // Then
+    const { lastProcessedCheckpoint: afterMigration } =
+      await readProcessorCheckpointV042(pool.execute, {
+        processorId,
+        partition: undefined,
+      });
+
+    assertTrue(afterMigration !== null);
+    assertTrue(
+      afterMigration!.includes(':'),
+      `Expected new-format checkpoint after migration, got: ${afterMigration}`,
+    );
+
+    // And
+    const advanced = await storeProcessorCheckpointV042(pool.execute, {
+      processorId,
+      newCheckpoint: bigIntProcessorCheckpoint(result.order.lastGlobalPosition),
+      lastProcessedCheckpoint: afterMigration,
+    });
+
+    assertTrue(advanced.success);
+
+    // And
+    const { lastProcessedCheckpoint: afterAdvance } =
+      await readProcessorCheckpointV042(pool.execute, {
+        processorId,
+        partition: undefined,
+      });
+
+    assertDeepEqual(
+      afterAdvance,
+      bigIntProcessorCheckpoint(result.order.lastGlobalPosition),
+    );
+
+    // And: the round-trip keeps working on subsequent cycles
+    const shoppingCartConfirmedAgain: ShoppingCartConfirmed = {
+      type: 'ShoppingCartConfirmed',
+      data: { shoppingCartId: result.shoppingCart.streamId },
+    };
+    const nextAppend = await appendToStream(pool.execute, {
+      streamId: `cart-next-${result.shoppingCart.streamId}`,
+      streamType: 'cart',
+      events: [shoppingCartConfirmedAgain],
+    });
+    const nextGlobalPosition = nextAppend.globalPositions[0]!;
+
+    const advancedAgain = await storeProcessorCheckpointV042(pool.execute, {
+      processorId,
+      newCheckpoint: bigIntProcessorCheckpoint(nextGlobalPosition),
+      lastProcessedCheckpoint: afterAdvance,
+    });
+
+    assertTrue(advancedAgain.success);
+
+    const { lastProcessedCheckpoint: final } =
+      await readProcessorCheckpointV042(pool.execute, {
+        processorId,
+        partition: undefined,
+      });
+
+    assertDeepEqual(final, bigIntProcessorCheckpoint(nextGlobalPosition));
+  });
+
+  void it('legacy reader returns new-format checkpoint verbatim without throwing', async () => {
+    // Given
+    await runSQLMigrations(pool, [
+      ...migrations_0_36_0,
+      ...migrations_0_38_7,
+      ...migrations_0_42_0,
+      ...migrations_0_43_0,
+    ]);
+    const result = await assertCanAppendAndRead();
+
+    const processorId = `processor-legacy-read-${result.shoppingCart.streamId}`;
+    await insertProcessorCheckpointDirectly(pool, {
+      processorId,
+      lastProcessedCheckpoint: result.shoppingCart.lastCheckpoint,
+    });
+
+    // When
+    const { lastProcessedCheckpoint } = await readProcessorCheckpointV042(
+      pool.execute,
+      { processorId, partition: undefined },
+    );
+
+    // Then
+    assertDeepEqual(
+      lastProcessedCheckpoint,
+      result.shoppingCart.lastCheckpoint,
+    );
   });
 
   const insertProcessorCheckpointDirectly = (
