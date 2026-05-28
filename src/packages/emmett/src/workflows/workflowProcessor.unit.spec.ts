@@ -745,6 +745,110 @@ void describe('Workflow Processor', () => {
       assertMatches(result, { type: 'STOP' });
     });
 
+    void it('output handler returned message feeds back to decide and completes the workflow', async () => {
+      // Given
+      const eventStore = getInMemoryEventStore();
+      const groupCheckoutId = randomUUID();
+      const guestStayAccountId = randomUUID();
+      const now = new Date();
+      const streamName = workflowStreamName({
+        workflowName: 'GroupCheckoutWorkflow',
+        workflowId: groupCheckoutId,
+      });
+
+      const processor = workflowProcessor({
+        ...workflowOptions,
+        separateInputInboxFromProcessing: true,
+        outputHandler: workflowOutputHandler<
+          GroupCheckoutInput,
+          GroupCheckoutOutput,
+          CheckOut
+        >({
+          canHandle: ['CheckOut'],
+          eachMessage: (msg): GuestCheckedOut => ({
+            type: 'GuestCheckedOut',
+            data: {
+              guestStayAccountId: msg.data.guestStayAccountId,
+              checkedOutAt: now,
+              groupCheckoutId,
+            },
+          }),
+        }),
+      });
+
+      // Seed the stream with a Pending state (one guest awaiting checkout)
+      await eventStore.appendToStream(streamName, [
+        {
+          type: 'GroupCheckoutWorkflow:InitiateGroupCheckout',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk-1',
+            guestStayAccountIds: [guestStayAccountId],
+            now,
+          },
+          metadata: {
+            input: true,
+            originalMessageId: randomUUID(),
+            action: 'InitiatedBy',
+          },
+        },
+        {
+          type: 'GroupCheckoutInitiated',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk-1',
+            guestStayAccountIds: [guestStayAccountId],
+            initiatedAt: now,
+          },
+          metadata: { action: 'Published' },
+        },
+      ] as unknown as Event[]);
+
+      await processor.start({ connection: { messageStore: eventStore } });
+
+      // Step 1: output handler intercepts CheckOut and appends GuestCheckedOut to the stream
+      const checkOutOutput = recordedOutput<CheckOut>(
+        { type: 'CheckOut', data: { guestStayAccountId, groupCheckoutId } },
+        streamName,
+      );
+      await processor.handle([checkOutOutput], {
+        connection: { messageStore: eventStore },
+      });
+
+      let { events } = await eventStore.readStream(streamName);
+      const appendedGuestCheckedOut = events[events.length - 1]!;
+      assertEqual(appendedGuestCheckedOut.type, 'GuestCheckedOut');
+
+      // Step 2: GuestCheckedOut arrives — first hop stores GroupCheckoutWorkflow:GuestCheckedOut
+      await processor.handle(
+        [
+          appendedGuestCheckedOut as unknown as RecordedMessage<GroupCheckoutInput>,
+        ],
+        { connection: { messageStore: eventStore } },
+      );
+
+      ({ events } = await eventStore.readStream(streamName));
+      const prefixedGuestCheckedOut = events[events.length - 1]!;
+      assertEqual(
+        prefixedGuestCheckedOut.type,
+        'GroupCheckoutWorkflow:GuestCheckedOut',
+      );
+
+      // Step 3: second hop — decide sees Pending state and produces GroupCheckoutCompleted
+      await processor.handle(
+        [
+          prefixedGuestCheckedOut as unknown as RecordedMessage<GroupCheckoutInput>,
+        ],
+        { connection: { messageStore: eventStore } },
+      );
+
+      // Then
+      ({ events } = await eventStore.readStream(streamName));
+      assertThatArray(events.map((e) => e.type)).containsElements([
+        'GroupCheckoutCompleted',
+      ]);
+    });
+
     void it('router response is appended to the workflow stream, derived from getWorkflowId', async () => {
       // Given: the output message's metadata.streamName is intentionally a
       // different value — the processor must derive the target stream from
