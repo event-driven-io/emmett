@@ -296,9 +296,17 @@ export const workflowProcessor = <
               workflowId,
             });
 
+        const inputTaggedMessages = messagesToAppend.map((msg) => ({
+          ...(msg as Record<string, unknown>),
+          metadata: {
+            ...(msg as { metadata?: Record<string, unknown> }).metadata,
+            input: true,
+          },
+        }));
+
         await context.connection.messageStore.appendToStream(
           streamName,
-          messagesToAppend as unknown as Event[],
+          inputTaggedMessages as unknown as Event[],
         );
 
         return;

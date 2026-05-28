@@ -4,6 +4,7 @@ import {
   assertEqual,
   assertThatArray,
   WorkflowHandler,
+  workflowOutputHandler,
   workflowStreamName,
   type WorkflowOptions,
 } from '@event-driven-io/emmett';
@@ -18,9 +19,11 @@ import {
 } from '../../sqlite3';
 import {
   GroupCheckoutWorkflow,
+  type CheckOut,
   type GroupCheckout,
   type GroupCheckoutInput,
   type GroupCheckoutOutput,
+  type GuestCheckedOut,
 } from '../../testing/groupCheckout.domain';
 import { createEventStoreSchema } from '../schema';
 import {
@@ -400,6 +403,165 @@ void describe('SQLite event store workflow processor', () => {
         assertEqual(events[1]!.type, 'GroupCheckoutInitiated');
         assertEqual(events[2]!.type, 'CheckOut');
         assertEqual(events[3]!.type, 'CheckOut');
+      } finally {
+        await consumer.close();
+      }
+    },
+  );
+
+  void it(
+    'completes group checkout when GuestCheckedOut arrives on external stream',
+    withDeadline,
+    async () => {
+      const groupCheckoutId = uuid();
+      const guestStayAccountId = uuid();
+      const now = new Date();
+
+      const consumer = sqliteEventStoreConsumer({
+        driver: sqlite3EventStoreDriver,
+        fileName,
+      });
+
+      consumer.workflowProcessor<
+        GroupCheckoutInput,
+        GroupCheckout,
+        GroupCheckoutOutput
+      >({
+        ...workflowProcessorOptions,
+        separateInputInboxFromProcessing: true,
+        stopAfter: (message) =>
+          message.type === 'GroupCheckoutCompleted' &&
+          message.data.groupCheckoutId === groupCheckoutId,
+      });
+
+      try {
+        const consumerPromise = consumer.start();
+
+        await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
+          {
+            type: 'InitiateGroupCheckout',
+            data: {
+              groupCheckoutId,
+              clerkId: 'clerk-1',
+              guestStayAccountIds: [guestStayAccountId],
+              now,
+            },
+          },
+        ]);
+
+        await eventStore.appendToStream(`guestStay-${guestStayAccountId}`, [
+          {
+            type: 'GuestCheckedOut',
+            data: {
+              guestStayAccountId,
+              checkedOutAt: now,
+              groupCheckoutId,
+            },
+          },
+        ]);
+
+        await consumerPromise;
+
+        const { events } = await eventStore.readStream(
+          workflowStreamName({
+            workflowName: 'GroupCheckoutWorkflow',
+            workflowId: groupCheckoutId,
+          }),
+        );
+
+        const eventTypes = events.map((e) => e.type);
+        assertThatArray(eventTypes).containsElements([
+          'GroupCheckoutWorkflow:InitiateGroupCheckout',
+          'GroupCheckoutInitiated',
+          'GroupCheckoutWorkflow:GuestCheckedOut',
+          'GroupCheckoutCompleted',
+        ]);
+      } finally {
+        await consumer.close();
+      }
+    },
+  );
+
+  void it(
+    'completes group checkout when output handler returns input message tagged for decide',
+    withDeadline,
+    async () => {
+      const groupCheckoutId = uuid();
+      const guestStayAccountId = uuid();
+      const now = new Date();
+
+      const consumer = sqliteEventStoreConsumer({
+        driver: sqlite3EventStoreDriver,
+        fileName,
+      });
+
+      consumer.workflowProcessor<
+        GroupCheckoutInput,
+        GroupCheckout,
+        GroupCheckoutOutput
+      >({
+        ...workflowProcessorOptions,
+        separateInputInboxFromProcessing: true,
+        outputHandler: workflowOutputHandler<
+          GroupCheckoutInput,
+          GroupCheckoutOutput,
+          GroupCheckoutOutput
+        >({
+          canHandle: ['CheckOut'],
+          eachMessage: (msg): GuestCheckedOut => {
+            const checkOut = msg as unknown as CheckOut;
+            return {
+              type: 'GuestCheckedOut',
+              data: {
+                guestStayAccountId: checkOut.data.guestStayAccountId,
+                checkedOutAt: now,
+                groupCheckoutId: checkOut.data.groupCheckoutId,
+              },
+            };
+          },
+        }),
+        stopAfter: (message) => {
+          return (
+            message.type === 'GroupCheckoutCompleted' &&
+            (message as unknown as { data: { groupCheckoutId: string } }).data
+              .groupCheckoutId === groupCheckoutId
+          );
+        },
+      });
+
+      try {
+        const consumerPromise = consumer.start();
+
+        await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
+          {
+            type: 'InitiateGroupCheckout',
+            data: {
+              groupCheckoutId,
+              clerkId: 'clerk-1',
+              guestStayAccountIds: [guestStayAccountId],
+              now,
+            },
+          },
+        ]);
+
+        await consumerPromise;
+
+        const { events } = await eventStore.readStream(
+          workflowStreamName({
+            workflowName: 'GroupCheckoutWorkflow',
+            workflowId: groupCheckoutId,
+          }),
+        );
+
+        const eventTypes = events.map((e) => e.type);
+        assertThatArray(eventTypes).containsElements([
+          'GroupCheckoutWorkflow:InitiateGroupCheckout',
+          'GroupCheckoutInitiated',
+          'CheckOut',
+          'GuestCheckedOut',
+          'GroupCheckoutWorkflow:GuestCheckedOut',
+          'GroupCheckoutCompleted',
+        ]);
       } finally {
         await consumer.close();
       }
