@@ -4,13 +4,13 @@ import {
   ObservabilitySpec,
 } from '@event-driven-io/almanac';
 import { describe, expect, it } from 'vitest';
-import type { AnyRecordedMessageMetadata } from '../../typing';
 import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
-} from '../attributes';
-import { resolveProcessorObservability } from '../options';
+} from '../../observability/attributes';
+import { resolveProcessorObservability } from '../../observability/options';
+import type { AnyRecordedMessageMetadata } from '../../typing';
 import { processorCollector } from './processorCollector';
 
 const A = EmmettAttributes;

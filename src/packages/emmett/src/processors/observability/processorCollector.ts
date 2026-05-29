@@ -5,19 +5,19 @@ import {
   type SpanContext,
   type SpanLink,
 } from '@event-driven-io/almanac';
-import type { ProcessorCheckpoint } from '../../processors';
-import type {
-  AnyReadEventMetadata,
-  Message,
-  RecordedMessage,
-} from '../../typing';
+import type { ProcessorCheckpoint } from '..';
 import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
   ScopeTypes,
-} from '../attributes';
-import type { ResolvedProcessorObservability } from '../options';
+} from '../../observability/attributes';
+import type { ResolvedProcessorObservability } from '../../observability/options';
+import type {
+  AnyReadEventMetadata,
+  Message,
+  RecordedMessage,
+} from '../../typing';
 
 export type ProcessorCollectorContext = {
   processorId: string;
