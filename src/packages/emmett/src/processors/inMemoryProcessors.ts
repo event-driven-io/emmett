@@ -20,9 +20,9 @@ import {
   type ReactorOptions,
 } from './processors';
 
-export type InMemoryProcessorHandlerContext = {
+export type InMemoryProcessorHandlerContext = WithObservabilityScope<{
   database: InMemoryDatabase;
-};
+}>;
 
 export type InMemoryProcessor<MessageType extends AnyMessage = AnyMessage> =
   MessageProcessor<
@@ -155,7 +155,7 @@ const inMemoryProcessingScope = (options: {
     InMemoryProcessorHandlerContext
   > = <Result = SingleMessageHandlerResult>(
     handler: (
-      context: WithObservabilityScope<InMemoryProcessorHandlerContext>,
+      context: InMemoryProcessorHandlerContext,
     ) => Result | Promise<Result>,
     partialContext: WithObservabilityScope<
       Partial<InMemoryProcessorHandlerContext>

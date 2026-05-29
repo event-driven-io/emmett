@@ -45,12 +45,14 @@ export type SQLiteProcessorEventsBatch<EventType extends Event = Event> = {
   messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
 };
 
-export type SQLiteProcessorHandlerContext = {
-  execute: SQLExecutor;
-  connection: AnySQLiteConnection;
-} &
-  // TODO: Reconsider if it should be for all processors
-  EventStoreSchemaMigrationOptions;
+export type SQLiteProcessorHandlerContext = WithObservabilityScope<
+  {
+    execute: SQLExecutor;
+    connection: AnySQLiteConnection;
+  } &
+    // TODO: Reconsider if it should be for all processors
+    EventStoreSchemaMigrationOptions
+>;
 
 export type SQLiteProcessor<MessageType extends Message = AnyMessage> =
   MessageProcessor<
@@ -131,11 +133,9 @@ const sqliteProcessingScope =
       SQLiteProcessorHandlerContext
     > = async <Result = SingleMessageHandlerResult>(
       handler: (
-        context: WithObservabilityScope<SQLiteProcessorHandlerContext>,
+        context: SQLiteProcessorHandlerContext,
       ) => Result | Promise<Result>,
-      partialContext: Partial<
-        WithObservabilityScope<SQLiteProcessorHandlerContext>
-      >,
+      partialContext: Partial<SQLiteProcessorHandlerContext>,
     ) => {
       const connection = partialContext?.connection;
 
@@ -167,12 +167,9 @@ const sqliteWorkflowProcessingScope = (
     SQLiteProcessorHandlerContext & WorkflowProcessorContext
   > = async <Result = SingleMessageHandlerResult>(
     handler: (
-      context: WithObservabilityScope<SQLiteProcessorHandlerContext> &
-        WorkflowProcessorContext,
+      context: SQLiteProcessorHandlerContext & WorkflowProcessorContext,
     ) => Result | Promise<Result>,
-    partialContext: Partial<
-      WithObservabilityScope<SQLiteProcessorHandlerContext>
-    > &
+    partialContext: Partial<SQLiteProcessorHandlerContext> &
       Partial<WorkflowProcessorContext>,
   ) => {
     const connection = partialContext?.connection;
@@ -293,9 +290,7 @@ export const sqliteProjector = <
     ...(options.hooks ?? {}),
     onInit:
       options.projection.init !== undefined || options.hooks?.onInit
-        ? async (
-            context: WithObservabilityScope<SQLiteProcessorHandlerContext>,
-          ) => {
+        ? async (context: SQLiteProcessorHandlerContext) => {
             if (options.projection.init)
               await options.projection.init({
                 version: options.projection.version ?? version,

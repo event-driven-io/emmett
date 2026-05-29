@@ -3,6 +3,7 @@ import type {
   AnyCommand,
   JSONSerializationOptions,
   MessageProcessor,
+  WithObservabilityScope,
   WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import {
@@ -230,7 +231,7 @@ export const sqliteEventStoreConsumer = <
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
           AnyRecordedMessageMetadata,
-          DefaultRecord
+          WithObservabilityScope<DefaultRecord>
         >,
       );
 
@@ -246,7 +247,7 @@ export const sqliteEventStoreConsumer = <
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
           AnyRecordedMessageMetadata,
-          DefaultRecord
+          WithObservabilityScope<DefaultRecord>
         >,
       );
 
@@ -291,7 +292,7 @@ export const sqliteEventStoreConsumer = <
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
           AnyRecordedMessageMetadata,
-          DefaultRecord
+          WithObservabilityScope<DefaultRecord>
         >,
       );
 

@@ -25,24 +25,26 @@ import { defaultTag } from '../schema/typing';
 import { postgreSQLProjectionLock } from './locks';
 import { registerProjection } from './management';
 
-export type PostgreSQLProjectionHandlerContext = {
-  execute: SQLExecutor;
-  connection: {
-    connectionString: string;
-    client: PgClient;
-    transaction: PgTransaction;
-    pool: Dumbo;
-  };
-} &
-  // TODO: This should be only for Init options
-  // Make init options type configurable for projections
-  EventStoreSchemaMigrationOptions;
+export type PostgreSQLProjectionHandlerContext = WithObservabilityScope<
+  {
+    execute: SQLExecutor;
+    connection: {
+      connectionString: string;
+      client: PgClient;
+      transaction: PgTransaction;
+      pool: Dumbo;
+    };
+  } &
+    // TODO: This should be only for Init options
+    // Make init options type configurable for projections
+    EventStoreSchemaMigrationOptions
+>;
 
 export const transactionToPostgreSQLProjectionHandlerContext = async (
   connectionString: string,
   pool: Dumbo,
   transaction: PgTransaction | DatabaseTransaction<AnyConnection>,
-): Promise<WithObservabilityScope<PostgreSQLProjectionHandlerContext>> => ({
+): Promise<PostgreSQLProjectionHandlerContext> => ({
   execute: transaction.execute,
   connection: {
     connectionString: connectionString,

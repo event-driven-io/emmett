@@ -60,19 +60,21 @@ import {
 } from '../schema';
 import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 
-export type PostgreSQLProcessorHandlerContext = {
-  partition: string;
-  execute: SQLExecutor;
-  connection: {
-    connectionString: string;
-    client: PgClient;
-    transaction: PgTransaction;
-    pool: Dumbo;
-    messageStore: PostgresEventStore;
-  };
-} &
-  // TODO: Reconsider if it should be for all processors
-  EventStoreSchemaMigrationOptions;
+export type PostgreSQLProcessorHandlerContext = WithObservabilityScope<
+  {
+    partition: string;
+    execute: SQLExecutor;
+    connection: {
+      connectionString: string;
+      client: PgClient;
+      transaction: PgTransaction;
+      pool: Dumbo;
+      messageStore: PostgresEventStore;
+    };
+  } &
+    // TODO: Reconsider if it should be for all processors
+    EventStoreSchemaMigrationOptions
+>;
 
 export type PostgreSQLProcessor<MessageType extends Message = AnyMessage> =
   MessageProcessor<
@@ -255,11 +257,9 @@ const postgreSQLProcessingScope = (options: {
     PostgreSQLProcessorHandlerContext
   > = async <Result = SingleMessageHandlerResult>(
     handler: (
-      context: WithObservabilityScope<PostgreSQLProcessorHandlerContext>,
+      context: PostgreSQLProcessorHandlerContext,
     ) => Result | Promise<Result>,
-    partialContext: Partial<
-      WithObservabilityScope<PostgreSQLProcessorHandlerContext>
-    >,
+    partialContext: Partial<PostgreSQLProcessorHandlerContext>,
   ) => {
     const connection = partialContext?.connection;
     const connectionString =

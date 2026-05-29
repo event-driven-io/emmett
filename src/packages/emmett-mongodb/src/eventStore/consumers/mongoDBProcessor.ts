@@ -25,9 +25,9 @@ type MongoDBConnectionOptions = {
   connectionOptions: MongoDBEventStoreConnectionOptions;
 };
 
-export type MongoDBProcessorHandlerContext = {
+export type MongoDBProcessorHandlerContext = WithObservabilityScope<{
   client: MongoClient;
-};
+}>;
 
 export type MongoDBProcessor<MessageType extends Message = AnyMessage> =
   MessageProcessor<
@@ -66,11 +66,9 @@ const mongoDBProcessingScope = (options: {
     MongoDBProcessorHandlerContext
   > = async <Result = SingleMessageHandlerResult>(
     handler: (
-      context: WithObservabilityScope<MongoDBProcessorHandlerContext>,
+      context: MongoDBProcessorHandlerContext,
     ) => Result | Promise<Result>,
-    partialContext: Partial<
-      WithObservabilityScope<MongoDBProcessorHandlerContext>
-    >,
+    partialContext: Partial<MongoDBProcessorHandlerContext>,
   ) => {
     return handler({
       client: options.client,

@@ -1,4 +1,8 @@
-import type { AsyncAwaiter, MessageProcessor } from '@event-driven-io/emmett';
+import type {
+  AsyncAwaiter,
+  MessageProcessor,
+  WithObservabilityScope,
+} from '@event-driven-io/emmett';
 import {
   asyncAwaiter,
   EmmettError,
@@ -191,7 +195,7 @@ export const eventStoreDBEventStoreConsumer = <
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
           AnyRecordedMessageMetadata,
-          DefaultRecord
+          WithObservabilityScope<DefaultRecord>
         >,
       );
 
@@ -207,7 +211,7 @@ export const eventStoreDBEventStoreConsumer = <
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
           AnyRecordedMessageMetadata,
-          DefaultRecord
+          WithObservabilityScope<DefaultRecord>
         >,
       );
 

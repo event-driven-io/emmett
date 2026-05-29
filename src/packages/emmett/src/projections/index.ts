@@ -20,32 +20,34 @@ export type ProjectionHandlingType = 'inline' | 'async';
 export type ProjectionHandler<
   EventType extends Event = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
 > = BatchRecordedMessageHandlerWithContext<
   EventType,
   EventMetaDataType,
-  WithObservabilityScope<ProjectionHandlerContext>
+  ProjectionHandlerContext
 >;
 
 export type TruncateProjection<
-  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
-> = (
-  context: WithObservabilityScope<ProjectionHandlerContext>,
-) => Promise<void>;
+  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
+> = (context: ProjectionHandlerContext) => Promise<void>;
 
 export type ProjectionInitOptions<
-  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
 > = {
   version: number;
   status?: 'active' | 'inactive';
   registrationType: ProjectionHandlingType;
-  context: WithObservabilityScope<ProjectionHandlerContext>;
+  context: ProjectionHandlerContext;
 };
 
 export type ProjectionDefinition<
   EventType extends Event = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
   EventPayloadType extends Event = EventType,
 > = {
   name?: string;
@@ -69,7 +71,8 @@ export type ProjectionDefinition<
 export type ProjectionRegistration<
   HandlingType extends ProjectionHandlingType,
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
 > = {
   type: HandlingType;
   projection: ProjectionDefinition<
@@ -82,7 +85,8 @@ export type ProjectionRegistration<
 
 export const filterProjections = <
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
 >(
   type: ProjectionHandlingType,
   projections: ProjectionRegistration<
@@ -113,7 +117,8 @@ export const filterProjections = <
 export const projection = <
   EventType extends Event = Event,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
   EventPayloadType extends Event = EventType,
 >(
   definition: ProjectionDefinition<
@@ -131,7 +136,8 @@ export const projection = <
 
 export const inlineProjections = <
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
 >(
   definitions: ProjectionDefinition<
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -151,7 +157,8 @@ export const inlineProjections = <
 
 export const asyncProjections = <
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
 >(
   definitions: ProjectionDefinition<
     AnyEvent,

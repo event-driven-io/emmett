@@ -148,6 +148,7 @@ export const SQLiteProjectionSpec = {
                   execute: connection.execute,
                   connection,
                   driverType,
+                  observabilityScope: noopScope,
                 }),
               );
             };
