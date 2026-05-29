@@ -15,9 +15,9 @@ import {
   type JSONSerializationOptions,
   type ProjectionDefinition,
   type ProjectionHandler,
+  type ProjectionHandlerContext,
   type ProjectionInitOptions,
   type ReadEvent,
-  type WithObservabilityScope,
 } from '@event-driven-io/emmett';
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 import type { EventStoreSchemaMigrationOptions } from '../schema';
@@ -25,7 +25,7 @@ import { defaultTag } from '../schema/typing';
 import { postgreSQLProjectionLock } from './locks';
 import { registerProjection } from './management';
 
-export type PostgreSQLProjectionHandlerContext = WithObservabilityScope<
+export type PostgreSQLProjectionHandlerContext = ProjectionHandlerContext<
   {
     execute: SQLExecutor;
     connection: {

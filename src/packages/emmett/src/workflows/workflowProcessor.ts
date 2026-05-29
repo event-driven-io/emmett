@@ -1,6 +1,5 @@
 import { EmmettError } from '../errors';
 import type { EventStore } from '../eventStore';
-import type { WithObservabilityScope } from '../observability';
 import type { MessageProcessor } from '../processors';
 import {
   MessageProcessorType,
@@ -14,6 +13,7 @@ import type {
   AnyRecordedMessageMetadata,
   CanHandle,
   Event,
+  MessageHandlerContext,
   MessageTypeOf,
   RecordedMessage,
 } from '../typing';
@@ -53,7 +53,7 @@ export type WorkflowOptions<
   };
 };
 
-export type WorkflowProcessorContext = WithObservabilityScope<{
+export type WorkflowProcessorContext = MessageHandlerContext<{
   connection: {
     messageStore: EventStore;
   };

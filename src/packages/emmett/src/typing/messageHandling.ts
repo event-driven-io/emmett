@@ -1,5 +1,6 @@
 import type { DefaultRecord } from '.';
 import type { EmmettError } from '../errors';
+import type { WithObservabilityScope } from '../observability';
 import type {
   AnyMessage,
   AnyRecordedMessage,
@@ -7,6 +8,11 @@ import type {
   Message,
   RecordedMessage,
 } from './message';
+
+export type MessageHandlerContext<
+  HandlerContext extends DefaultRecord = DefaultRecord,
+> = WithObservabilityScope<HandlerContext>;
+
 export type SingleRawMessageHandlerWithoutContext<
   MessageType extends Message = AnyMessage,
 > = (

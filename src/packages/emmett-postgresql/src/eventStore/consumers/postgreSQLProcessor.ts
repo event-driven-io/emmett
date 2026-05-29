@@ -17,6 +17,7 @@ import type {
   Event,
   JSONSerializationOptions,
   Message,
+  MessageHandlerContext,
   MessageProcessingScope,
   MessageProcessor,
   ProcessorHooks,
@@ -25,7 +26,6 @@ import type {
   ReadEventMetadataWithGlobalPosition,
   SingleMessageHandlerResult,
   SingleRecordedMessageHandlerWithContext,
-  WithObservabilityScope,
   WorkflowProcessorContext,
   WorkflowProcessorOptions,
 } from '@event-driven-io/emmett';
@@ -60,7 +60,7 @@ import {
 } from '../schema';
 import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 
-export type PostgreSQLProcessorHandlerContext = WithObservabilityScope<
+export type PostgreSQLProcessorHandlerContext = MessageHandlerContext<
   {
     partition: string;
     execute: SQLExecutor;
@@ -342,14 +342,14 @@ const wrapHooksWithProcessorLocks = <
   processorLock: ReturnType<typeof postgreSQLProcessorLock>,
 ): ProcessorHooks<HandlerContext> => ({
   ...(hooks ?? {}),
-  onStart: async (context: WithObservabilityScope<HandlerContext>) => {
+  onStart: async (context) => {
     await processorLock.tryAcquire({ execute: context.execute });
 
     if (hooks?.onStart) await hooks.onStart(context);
   },
   onClose:
     hooks?.onClose || processorLock
-      ? async (context: WithObservabilityScope<HandlerContext>) => {
+      ? async (context) => {
           await processorLock.release({ execute: context.execute });
 
           if (hooks?.onClose) await hooks.onClose(context);
@@ -399,9 +399,7 @@ export const postgreSQLProjector = <
         ...(options.hooks ?? {}),
         onInit:
           options.projection.init !== undefined || options.hooks?.onInit
-            ? async (
-                context: WithObservabilityScope<PostgreSQLProcessorHandlerContext>,
-              ) => {
+            ? async (context) => {
                 if (options.projection.init)
                   await options.projection.init({
                     version: options.projection.version ?? version,
@@ -420,9 +418,7 @@ export const postgreSQLProjector = <
               }
             : options.hooks?.onInit,
         onClose: close
-          ? async (
-              context: WithObservabilityScope<PostgreSQLProcessorHandlerContext>,
-            ) => {
+          ? async (context) => {
               if (options.hooks?.onClose) await options.hooks?.onClose(context);
               if (close) await close();
             }
@@ -502,13 +498,9 @@ export const postgreSQLWorkflowProcessor = <
     {
       ...(options.hooks ?? {}),
       onClose: close
-        ? async (
-            context: WithObservabilityScope<PostgreSQLProcessorHandlerContext>,
-          ) => {
+        ? async (context: PostgreSQLProcessorHandlerContext) => {
             if (options.hooks?.onClose)
-              await options.hooks?.onClose(
-                context as WithObservabilityScope<HandlerContext>,
-              );
+              await options.hooks?.onClose(context as HandlerContext);
             if (close) await close();
           }
         : options.hooks?.onClose,
@@ -569,9 +561,7 @@ export const postgreSQLReactor = <
       {
         ...(options.hooks ?? {}),
         onClose: close
-          ? async (
-              context: WithObservabilityScope<PostgreSQLProcessorHandlerContext>,
-            ) => {
+          ? async (context) => {
               if (options.hooks?.onClose) await options.hooks?.onClose(context);
               if (close) await close();
             }

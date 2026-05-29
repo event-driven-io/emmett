@@ -1,7 +1,7 @@
 import type {
+  MessageHandlerContext,
   MessageProcessor,
   RecordedMessageMetadataWithoutGlobalPosition,
-  WithObservabilityScope,
 } from '@event-driven-io/emmett';
 import {
   asyncAwaiter,
@@ -12,7 +12,6 @@ import {
   type AsyncAwaiter,
   type AsyncRetryOptions,
   type BatchRecordedMessageHandlerWithoutContext,
-  type DefaultRecord,
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
@@ -188,7 +187,7 @@ export const mongoDBEventStoreConsumer = <
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
           AnyRecordedMessageMetadata,
-          WithObservabilityScope<DefaultRecord>
+          MessageHandlerContext
         >,
       );
 
@@ -204,7 +203,7 @@ export const mongoDBEventStoreConsumer = <
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
           AnyRecordedMessageMetadata,
-          WithObservabilityScope<DefaultRecord>
+          MessageHandlerContext
         >,
       );
 

@@ -11,6 +11,7 @@ import type {
   BatchRecordedMessageHandlerWithContext,
   Checkpointer,
   Message,
+  MessageHandlerContext,
   MessageProcessingScope,
   MessageProcessor,
   ProcessorHooks,
@@ -19,7 +20,6 @@ import type {
   ReadEventMetadataWithGlobalPosition,
   SingleMessageHandlerResult,
   SingleRecordedMessageHandlerWithContext,
-  WithObservabilityScope,
   WorkflowProcessorContext,
   WorkflowProcessorOptions,
 } from '@event-driven-io/emmett';
@@ -45,7 +45,7 @@ export type SQLiteProcessorEventsBatch<EventType extends Event = Event> = {
   messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
 };
 
-export type SQLiteProcessorHandlerContext = WithObservabilityScope<
+export type SQLiteProcessorHandlerContext = MessageHandlerContext<
   {
     execute: SQLExecutor;
     connection: AnySQLiteConnection;
