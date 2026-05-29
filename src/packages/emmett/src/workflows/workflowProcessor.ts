@@ -1,6 +1,10 @@
 import { EmmettError } from '../errors';
 import type { EventStore } from '../eventStore';
 import type { MessageProcessor } from '../processors';
+import type {
+  WithObservabilityScope,
+  WorkflowObservabilityConfig,
+} from '../observability';
 import {
   MessageProcessorType,
   reactor,
@@ -50,6 +54,7 @@ export type WorkflowOptions<
       downcast?: (event: Output) => StoredMessage;
     };
   };
+  observability?: WorkflowObservabilityConfig;
 };
 
 export type WorkflowProcessorContext = {
@@ -73,7 +78,7 @@ export type SingleWorkflowOutputHandler<
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
 > = (
   message: Output | RecordedMessage<Output, MessageMetaDataType>,
-  context: HandlerContext,
+  context: WithObservabilityScope<HandlerContext>,
 ) => WorkflowOutputHandlerResult<Input>;
 
 export type BatchWorkflowOutputHandler<
@@ -83,7 +88,7 @@ export type BatchWorkflowOutputHandler<
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
 > = (
   messages: RecordedMessage<Output, MessageMetaDataType>[],
-  context: HandlerContext,
+  context: WithObservabilityScope<HandlerContext>,
 ) => WorkflowOutputHandlerResult<Input>;
 
 export type WorkflowOutputHandlerOptions<
@@ -227,7 +232,7 @@ export const workflowProcessor = <
     type: MessageProcessorType.PROJECTOR,
     eachMessage: async (
       message: RecordedMessage<Input | Output, MetaDataType>,
-      context: HandlerContext,
+      context: WithObservabilityScope<HandlerContext>,
     ) => {
       const messageType = message.type as string;
       const metadata = message.metadata as Record<string, unknown> | undefined;

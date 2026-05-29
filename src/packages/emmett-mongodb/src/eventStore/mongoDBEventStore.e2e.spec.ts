@@ -81,6 +81,36 @@ void describe('MongoDBEventStore', () => {
     assertTrue(stream.metadata.updatedAt instanceof Date);
   });
 
+  void it('should store correlationId and causationId in event metadata', async () => {
+    const shoppingCartId = uuid();
+    const streamType = 'shopping_cart';
+    const streamName = toStreamName(streamType, shoppingCartId);
+    const correlationId = uuid();
+    const causationId = uuid();
+
+    await eventStore.appendToStream<ShoppingCartEvent>(
+      streamName,
+      [
+        {
+          type: 'ProductItemAdded',
+          data: { productItem: { productId: '123', quantity: 1, price: 10 } },
+        },
+      ],
+      {
+        expectedStreamVersion: STREAM_DOES_NOT_EXIST,
+        correlationId,
+        causationId,
+      },
+    );
+
+    const { events } = await eventStore.readStream(streamName);
+
+    assertIsNotNull(events);
+    assertEqual(1, events.length);
+    assertEqual(correlationId, events[0]!.metadata.correlationId);
+    assertEqual(causationId, events[0]!.metadata.causationId);
+  });
+
   void it('should append events correctly using appendEvent function', async () => {
     const productItem: PricedProductItem = {
       productId: '123',

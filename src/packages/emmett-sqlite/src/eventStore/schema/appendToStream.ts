@@ -73,6 +73,10 @@ export const appendToStream = async <MessageType extends Message>(
           messageId: uuid(),
           streamPosition: BigInt(i + 1),
           ...('metadata' in m ? (m.metadata ?? {}) : {}),
+          ...(options?.correlationId
+            ? { correlationId: options.correlationId }
+            : {}),
+          ...(options?.causationId ? { causationId: options.causationId } : {}),
         },
       }) as RecordedMessage<MessageType, SQLiteReadEventMetadata>,
   );

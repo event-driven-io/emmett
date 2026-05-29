@@ -100,6 +100,30 @@ void describe('EventStoreDBEventStore', () => {
     assertEqual(1, schemaHookCreationHookCalls);
   });
 
+  void it('should store correlationId and causationId in event metadata', async () => {
+    const correlationId = uuid();
+    const causationId = uuid();
+
+    await eventStore.appendToStream<ShoppingCartEvent>(
+      shoppingCartId,
+      [
+        {
+          type: 'ProductItemAdded',
+          data: { productItem },
+          metadata: { clientId },
+        },
+      ],
+      { correlationId, causationId },
+    );
+
+    const { events } = await eventStore.readStream(shoppingCartId);
+
+    assertIsNotNull(events);
+    assertEqual(1, events.length);
+    assertEqual(correlationId, events[0]!.metadata.correlationId);
+    assertEqual(causationId, events[0]!.metadata.causationId);
+  });
+
   void it('should create schema only once with session', async () => {
     await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
       {

@@ -1,0 +1,2404 @@
+# Observability Implementation Plan
+
+Reference: [feedback.md](./feedback.md) for architecture rationale, metrics catalog, and discussion conclusions.
+
+All work follows TDD: write failing test, implement minimal code to pass, refactor. Run `npx vitest run` after each step. Run `npx tsc --noEmit` after each phase.
+
+---
+
+## Package Split: `@event-driven-io/almanac` + `@event-driven-io/emmett`
+
+### What is Almanac?
+
+An opinionated observability framework for event-driven/message-driven systems. Not a thin tracer wrapper — it has a point of view: wide events are the primary model, spans support both tree and flat styles, async boundaries use links by default, and messaging semantics are baked in. Fills the gap between "raw OTel SDK" and "full vendor-specific APM." Designed to be reusable across OSS projects beyond emmett.
+
+### What goes into `@event-driven-io/almanac` (`src/packages/almanac/`)
+
+**Core interfaces** (generic, no "Emmett" prefix):
+- `Tracer` (renamed from `EmmettTracer`) — `startSpan`, `ActiveSpan`, `SpanContext`, `SpanLink`, `StartSpanOptions`
+- `Meter` (renamed from `EmmettMeter`) — `Counter`, `Histogram`, `Gauge`
+- `noopTracer`, `noopMeter`, `noopSpan`
+- `compositeTracer`, `compositeMeter`
+- Console strategy (built-in, zero external deps)
+
+**Scope mechanism** (the core value — wide event support):
+- `ObservabilityScope` (factory function + type)
+- `AttributeTarget` (`'mainSpan'` | `'currentSpan'` | `'both'`)
+- `ScopeObservability` type
+
+**Propagation** (generic concept for message-driven systems):
+- `TracePropagation` (`'links'` | `'propagate'`)
+
+**Messaging semantic conventions** (OTel standard `messaging.*` constants):
+- `MessagingAttributes` — `messaging.system`, `messaging.operation.type`, `messaging.destination.name`, etc.
+
+**Base options + resolution**:
+- Generic `ObservabilityConfig` with tracer, meter, propagation, attributeTarget, attributePrefix
+- Generic `resolveObservability` function
+
+**Configurable attribute prefix** (resolved once at config time, not threaded through calls):
+- `ObservabilityConfig<Prefix>` is generic — prefix is part of the type
+- Defaults to `'almanac'` for scope attributes (`scope.main`, `scope.type`)
+- `EmmettObservabilityConfig` locks prefix to `'emmett'` at the type level — no accidental overrides
+- Other projects create their own branded config type
+- The prefix is resolved once by `resolveObservability` and baked into the `ResolvedObservability` object. `ObservabilityScope` reads it from there. No function ever takes `attributePrefix` as a separate parameter — it's always part of the resolved config.
+
+**Testing utilities** (basic, reusable):
+- `collectingTracer` — captures spans for assertions
+- `collectingMeter` — captures counter/histogram/gauge calls
+
+**Strategies** (inside almanac as sub-exports, not separate packages for now):
+- `@event-driven-io/almanac/otel` — OTel tracer + meter via `@opentelemetry/api` (peer dep)
+- `@event-driven-io/almanac/pino` — Pino tracer strategy (peer dep)
+- `@event-driven-io/almanac/clickhouse` — ClickHouse tracer strategy (peer dep)
+- Future: `@event-driven-io/almanac/duckdb` — DuckDB (follows ClickHouse pattern)
+
+### What stays in `@event-driven-io/emmett`
+
+**Domain attribute constants** (hardcoded `emmett.` prefix — emmett's semantic conventions):
+- `EmmettAttributes` — `emmett.command.*`, `emmett.stream.*`, `emmett.eventstore.*`, `emmett.processor.*`, `emmett.workflow.*`, `emmett.consumer.*`
+- `EmmettMetrics` — histogram/counter names
+- `ScopeTypes`, `MessagingSystemName`
+
+**Domain collectors** (compose almanac's Tracer + Meter for emmett archetypes):
+- `CommandHandlerCollector`, `EventStoreCollector`, `ProcessorCollector`, `WorkflowCollector`, `ConsumerCollector`
+
+**Domain-specific options**:
+- `PollTracing` (`'off'` | `'active'` | `'verbose'`) — emmett-specific polling concept
+- Per-archetype config types extending almanac's base with emmett-specific knobs
+- Per-archetype resolve functions
+
+**Message metadata** (event sourcing concepts):
+- `correlationId`, `causationId`, `traceId`, `spanId` on `CommonRecordedMessageMetadata`
+
+**Wiring into archetypes**:
+- `& ObservabilityOptions` on option types, collector wiring
+
+### Dependency direction
+
+```
+@event-driven-io/almanac          (zero deps for core; peer deps for sub-exports)
+  ├── /otel   (peer dep: @opentelemetry/api)
+  ├── /pino   (peer dep: pino)
+  └── /clickhouse (peer dep: @clickhouse/client)
+  ↑
+@event-driven-io/emmett            (depends on almanac)
+  ↑
+@event-driven-io/emmett-expressjs  (depends on emmett)
+@event-driven-io/emmett-postgresql (depends on emmett)
+...
+```
+
+Emmett re-exports almanac's core types from its own `observability` module so users don't need to import from two packages for basic usage.
+
+### File paths
+
+Phase 0-1 files (interfaces, scope, options, testing, strategies) → `src/packages/almanac/src/`
+Phase 2+ files (domain attributes, collectors, wiring) → `src/packages/emmett/src/observability/`
+
+### Type renames for almanac (generic names, no Emmett prefix)
+
+| Old (in emmett)         | New (in almanac)        |
+|-------------------------|-------------------------|
+| `EmmettTracer`          | `Tracer`                |
+| `EmmettMeter`           | `Meter`                 |
+| `EmmettCounter`         | `Counter`               |
+| `EmmettHistogram`       | `Histogram`             |
+| `EmmettGauge`           | `Gauge`                 |
+
+---
+
+## Phase 0: Create `@event-driven-io/almanac` Package Scaffolding
+
+### Step 0.1: Package setup
+
+Create `src/packages/almanac/` following existing monorepo pattern:
+- `package.json` — `@event-driven-io/almanac`, same version as root, ESM+CJS, zero dependencies
+- `tsconfig.json` — extends `../../tsconfig.shared.json`, no references (standalone)
+- `tsconfig.build.json` — `composite: false`
+- `tsconfig.eslint.json` — extends tsconfig.json
+- `vitest.config.ts` — extends shared
+- `tsup.config.ts` — standard single-entry config
+
+Modify:
+- `src/package.json` — add `packages/almanac` to workspaces
+- `src/tsconfig.json` — add path alias and reference for almanac
+
+### Step 0.2: Add almanac dependency to emmett
+
+- `src/packages/emmett/package.json` — add `@event-driven-io/almanac` dependency
+- `src/packages/emmett/tsconfig.json` — add path alias + reference for almanac
+
+---
+
+Base path for Phase 1 files: `src/packages/almanac/src/`
+Base path for Phase 2+ files: `src/packages/emmett/src/observability/`
+
+---
+
+## Phase 1: Focused Interfaces (in `@event-driven-io/almanac`)
+
+Three focused interface files + their noop/default implementations. These are the user-facing abstractions.
+All Phase 1 files live in `src/packages/almanac/src/`.
+
+### Step 1.1: Tracer interface + noopTracer
+
+**File to create:** `src/packages/almanac/src/tracer.unit.spec.ts`
+
+Tests to write:
+
+1. `noopTracer: executes the function and returns its result` -- call `tracer.startSpan('test', async () => 42)`, expect result to be `42`.
+2. `noopTracer: passes a noop ActiveSpan with setAttributes and spanContext` -- call `tracer.startSpan('test', async (span) => { span.setAttributes({ key: 'value' }); const ctx = span.spanContext(); expect(ctx.traceId).toBe(''); expect(ctx.spanId).toBe(''); })`. Should not throw.
+3. `noopTracer: propagates errors from the wrapped function` -- the function throws `new Error('boom')`, expect the startSpan promise to reject with 'boom'.
+4. `noopTracer: supports addLink without throwing` -- call `span.addLink({ traceId: 'abc', spanId: 'def' })` inside startSpan.
+5. `noopTracer: addEvent does not throw` -- call `span.addEvent('OrderPlaced', { orderId: '123' })` inside startSpan.
+6. `noopTracer: recordException does not throw` -- call `span.recordException(new Error('boom'))` inside startSpan.
+
+**File to create:** `src/packages/almanac/src/tracer.ts`
+
+The old `src/packages/emmett/src/observability/tracer.ts` (unused logger) will be removed later and replaced with re-exports from almanac. Define:
+
+```typescript
+type SpanContext = {
+  traceId: string;
+  spanId: string;
+};
+
+// SpanLink extends SpanContext — links can carry optional attributes per OTel spec.
+// Where only traceId/spanId are needed (parent, simple links), SpanContext suffices.
+type SpanLink = SpanContext & {
+  attributes?: Record<string, unknown>;
+};
+
+type ActiveSpan = {
+  setAttributes(attrs: Record<string, unknown>): void;
+  spanContext(): SpanContext;
+  addLink(link: SpanLink): void;
+  addEvent(name: string, attributes?: Record<string, unknown>): void;
+  recordException(error: Error | string): void;
+};
+
+// addEvent: records a timestamped event within the span. Uses:
+//   1. Domain events as span events (opt-in from feedback.md):
+//      span.addEvent('OrderPlaced', { orderId: '123', version: 6 })
+//   2. Pino/logging strategies use addEvent to emit structured log lines
+//   3. Any mid-operation annotation that isn't a flat attribute
+// recordException: records an error with stack trace on the span.
+//   OTel strategy -> otelSpan.recordException()
+//   Pino strategy -> logger.error({ err, ...attrs })
+//   Console strategy -> console.error(err)
+//   Noop -> nothing
+
+// Per-call overrides. Defaults come from ObservabilityConfig (resolved once at setup).
+// The scope forwards config defaults automatically — you rarely need to set these directly.
+type StartSpanOptions = {
+  parent?: SpanContext;  // producing trace's context (e.g. from message metadata)
+  attributes?: Record<string, unknown>;  // initial attributes — enables head-based sampling
+  links?: SpanLink[];  // additional span links — provided at creation time (OTel requirement)
+  propagation?: TracePropagation;  // override — strategy uses this to decide parent vs link
+  sampleRate?: number;  // override — 0.0–1.0, hint to the strategy
+};
+
+type Tracer = {
+  startSpan<T>(
+    name: string,
+    fn: (span: ActiveSpan) => Promise<T>,
+    options?: StartSpanOptions,
+  ): Promise<T>;
+};
+
+const noopSpan: ActiveSpan = {
+  setAttributes: () => {},
+  spanContext: () => ({ traceId: '', spanId: '' }),
+  addLink: () => {},
+  addEvent: () => {},
+  recordException: () => {},
+};
+
+const noopTracer = (): Tracer => ({
+  startSpan: async (_name, fn, _options?) => fn(noopSpan),
+});
+```
+
+Export: `Tracer`, `ActiveSpan`, `SpanContext`, `SpanLink`, `StartSpanOptions`, `noopTracer`, `noopSpan`.
+
+Note on `startSpan` signature: it takes a `name` and an async function that receives an `ActiveSpan`. The implementation wraps the call, times it, records attributes, etc. The noop version just passes through. OTel version (in `almanac-otel`) will call `@opentelemetry/api`'s `tracer.startActiveSpan()`. ClickHouse version (in `almanac-clickhouse`) will time the call and insert a row on completion.
+
+### Step 1.2: Meter interface + noopMeter
+
+**File to create:** `src/packages/almanac/src/meter.unit.spec.ts`
+
+Tests to write:
+
+1. `noopMeter: counter.add does not throw` -- `noopMeter().counter('test.count').add(1, { key: 'value' })`.
+2. `noopMeter: histogram.record does not throw` -- `noopMeter().histogram('test.duration').record(42, { status: 'success' })`.
+3. `noopMeter: gauge.record does not throw` -- `noopMeter().gauge('test.lag').record(10)`.
+
+**File to create:** `src/packages/almanac/src/meter.ts`
+
+```typescript
+type Counter = {
+  add(value: number, attributes?: Record<string, unknown>): void;
+};
+
+type Histogram = {
+  record(value: number, attributes?: Record<string, unknown>): void;
+};
+
+type Gauge = {
+  record(value: number, attributes?: Record<string, unknown>): void;
+};
+
+type Meter = {
+  counter(name: string): Counter;
+  histogram(name: string): Histogram;
+  gauge(name: string): Gauge;
+};
+
+const noopMeter = (): Meter => ({
+  counter: () => ({ add: () => {} }),
+  histogram: () => ({ record: () => {} }),
+  gauge: () => ({ record: () => {} }),
+});
+```
+
+Export: `Meter`, `Counter`, `Histogram`, `Gauge`, `noopMeter`.
+
+Maps to past sample's `MetricsFactory` interface. `counter` = past sample's `Counter.increment`, `histogram` = past sample's `Distribution.record`, `gauge` = new (past sample didn't have it, we need it for `processor.lag_events`).
+
+### Step 1.3: (removed -- EmmettLogger merged into Tracer)
+
+Logging is handled by `addEvent` and `recordException` on `ActiveSpan`. There is no separate Logger interface. The tracer strategy decides where these go:
+
+- OTel strategy: `addEvent` → `otelSpan.addEvent()`, `recordException` → `otelSpan.recordException()` + `setStatus(ERROR)`
+- Pino strategy: `addEvent` → `pino.info(attrs, name)`, `recordException` → `pino.error({ err }, name)`
+- Console strategy: `addEvent` → `console.log(name, attrs)`, `recordException` → `console.error(err)`
+- ClickHouse strategy: `addEvent` → buffers as part of span row, `recordException` → marks span as error + stores exception data
+- Noop: both are no-ops
+
+Users who want standalone logging outside of spans (application-level Pino/Winston usage) do that directly — not emmett's concern. emmett instruments its own archetypes, and within those, `addEvent`/`recordException` is the recording mechanism.
+
+### Step 1.4: Composite wrappers (compositeTracer, compositeMeter)
+
+Users can combine multiple strategies: `composite(otel(), clickhouse(conn))`.
+
+**File to create:** `src/packages/almanac/src/composite.unit.spec.ts`
+
+Tests to write:
+
+1. `compositeTracer: calls startSpan on all inner tracers and returns the function result` -- create two "collecting" tracers that push span names to arrays. Call `compositeTracer(t1, t2).startSpan('test', async () => 42)`. Expect both arrays to contain 'test', result to be 42.
+2. `compositeTracer: propagates errors from the wrapped function` -- function throws, expect rejection.
+3. `compositeTracer: with zero tracers, behaves as noop` -- empty composite returns fn result.
+4. `compositeMeter: counter.add calls add on all inner meters` -- two collecting meters, call `compositeMeter(m1, m2).counter('x').add(1)`, both see it.
+
+**File to create:** `src/packages/almanac/src/composite.ts`
+
+For `compositeTracer`: runs `fn` once (with the first tracer's span or noopSpan), then notifies all other tracers of the span completion. The key design decision: the function `fn` only executes once -- composite tracers share the same execution, not run it N times.
+
+Implementation approach for compositeTracer:
+- Run fn wrapped by the first tracer's startSpan (so it gets timing, attributes, etc.)
+- For other tracers, call startSpan with a function that immediately completes (to register the span in their backends) and manually set the same attributes.
+- Alternative simpler approach: run fn once, capture start/end time, then create a "synthetic" span in each tracer. This requires tracers to have a `recordSpan(name, startTime, endTime, attributes)` method -- but that changes the interface. Let me propose both options to Oskar.
+
+Actually, the simplest approach: compositeTracer calls startSpan on each tracer sequentially, but only the FIRST one gets the real `fn`. The others get a no-op fn. After the first startSpan completes, we have the attributes and result. The problem: other tracers won't know the timing or attributes.
+
+Better approach: each tracer's startSpan wraps the function call. For composite, we nest them:
+```
+tracer1.startSpan('name', (span1) =>
+  tracer2.startSpan('name', (span2) =>
+    fn(compositeSpan(span1, span2))
+  )
+)
+```
+This way each tracer wraps the same execution. Each sees the real duration. The `fn` receives a composite ActiveSpan that forwards `setAttributes` and `addLink` to all inner spans.
+
+Export: `compositeTracer`, `compositeMeter`.
+
+### Step 1.5: Base ObservabilityOptions (in almanac) + per-archetype resolvers (in emmett)
+
+**This step spans both packages:**
+- Base options (`TracePropagation`, `ObservabilityConfig`, `resolveObservability`) → `src/packages/almanac/src/options.ts`
+- Per-archetype emmett options (`PollTracing`, `CommandObservabilityConfig`, etc.) → `src/packages/emmett/src/observability/options.ts`
+
+#### Almanac base options
+
+**File to create:** `src/packages/almanac/src/options.unit.spec.ts`
+
+Tests for `resolveObservability`:
+1. `returns noop tracer, meter, propagation=links, attributeTarget=both, prefix=almanac, sampler=alwaysSample when no options`
+2. `uses provided values`
+3. `falls back to parent`
+4. `child overrides parent`
+5. `uses provided sampler`
+6. `rateSample(0) rejects all samples`
+7. `rateSample(1) accepts all samples`
+
+**File to create:** `src/packages/almanac/src/options.ts`
+
+```typescript
+type TracePropagation = 'links' | 'propagate';
+
+// Base config — generic via Prefix type parameter.
+// Projects lock down their prefix: type MyConfig = ObservabilityConfig<'myapp'>
+// This prevents accidental prefix mismatches at the type level.
+type Sampler = {
+  shouldSample(name: string, attributes?: Record<string, unknown>): boolean;
+};
+
+type ObservabilityConfig<Prefix extends string = typeof defaultPrefix> = {
+  tracer?: Tracer;
+  meter?: Meter;
+  propagation?: TracePropagation;
+  attributeTarget?: AttributeTarget;
+  attributePrefix?: Prefix;
+  sampler?: Sampler;  // controls whether spans are created. Default: alwaysSample.
+};
+
+type ObservabilityOptions<Prefix extends string = typeof defaultPrefix> = {
+  observability?: ObservabilityConfig<Prefix>;
+};
+
+type ResolvedObservability<Prefix extends string = typeof defaultPrefix> = {
+  tracer: Tracer;
+  meter: Meter;
+  propagation: TracePropagation;
+  attributeTarget: AttributeTarget;
+  attributePrefix: Prefix;
+  sampler: Sampler;
+};
+
+// Built-in samplers:
+const alwaysSample: Sampler = { shouldSample: () => true };
+const neverSample: Sampler = { shouldSample: () => false };
+const rateSample = (rate: number): Sampler => ({
+  shouldSample: () => Math.random() < rate,
+});
+
+const resolveObservability = <Prefix extends string = typeof defaultPrefix>(
+  options?: ObservabilityOptions<Prefix>,
+  parent?: ObservabilityOptions<Prefix>,
+  defaultPfx: Prefix = defaultPrefix as Prefix,
+): ResolvedObservability<Prefix> => ({
+  tracer: options?.observability?.tracer ?? parent?.observability?.tracer ?? noopTracer(),
+  meter: options?.observability?.meter ?? parent?.observability?.meter ?? noopMeter(),
+  propagation: options?.observability?.propagation ?? parent?.observability?.propagation ?? 'links',
+  attributeTarget: options?.observability?.attributeTarget ?? parent?.observability?.attributeTarget ?? 'both',
+  attributePrefix: options?.observability?.attributePrefix ?? parent?.observability?.attributePrefix ?? defaultPfx,
+  sampler: options?.observability?.sampler ?? parent?.observability?.sampler ?? alwaysSample,
+});
+```
+
+#### Emmett per-archetype options
+
+**File to create:** `src/packages/emmett/src/observability/options.unit.spec.ts`
+
+Tests to write:
+
+**Per-archetype resolver tests (each resolver gets its own describe block):**
+
+`resolveCommandObservability`:
+1. `returns noop tracer, meter, attributeTarget=both, and prefix=emmett when no options` -- call with undefined.
+2. `uses provided tracer and meter` -- pass custom, expect them back.
+3. `uses provided attributeTarget` -- pass `'mainSpan'`, expect it.
+4. `falls back to parent options` -- parent has tracer, child has none, resolved uses parent's.
+5. `child overrides parent` -- both provide tracer, child wins.
+6. `does not accept propagation or pollTracing` -- type-level check (compile-time, not runtime test).
+
+`resolveProcessorObservability`:
+7. `returns noop tracer, meter, propagation=links, attributeTarget=both when no options`.
+8. `uses provided propagation` -- pass `'propagate'`, expect it.
+9. `uses provided attributeTarget` -- pass `'currentSpan'`, expect it.
+10. `falls back to parent` -- parent has propagation, child has none.
+11. `child overrides parent` -- both provide propagation, child wins.
+
+`resolveConsumerObservability`:
+12. `returns noop tracer, meter, and pollTracing=off when no options`.
+13. `uses provided pollTracing` -- pass `'active'`, expect it.
+14. `uses provided pollTracing=verbose` -- pass `'verbose'`, expect it.
+15. `falls back to parent pollTracing` -- parent has `pollTracing: 'active'`, child has none.
+16. `does not accept attributeTarget or propagation` -- type-level check.
+
+`resolveWorkflowObservability`:
+17. `returns noop tracer, meter, propagation=links, attributeTarget=both when no options`.
+18. `uses provided propagation and attributeTarget`.
+19. `falls back to parent` -- same pattern as processor.
+
+**File to create:** `src/packages/emmett/src/observability/options.ts`
+
+```typescript
+import type { Tracer, Meter, TracePropagation, AttributeTarget,
+  ObservabilityConfig } from '@event-driven-io/almanac';
+import { noopTracer, noopMeter } from '@event-driven-io/almanac';
+
+type PollTracing = 'off' | 'active' | 'verbose';
+
+// Emmett locks the prefix to 'emmett' at the type level.
+// Users can't accidentally pass a different prefix — the generic enforces it.
+type EmmettObservabilityConfig = ObservabilityConfig<'emmett'> & {
+  pollTracing?: PollTracing;
+  includeMessagePayloads?: boolean;
+};
+
+type EmmettObservabilityOptions = {
+  observability?: EmmettObservabilityConfig;
+};
+
+// Per-archetype config subsets — each archetype only accepts relevant knobs.
+// Derived via Pick from EmmettObservabilityConfig so there's one source of truth.
+type CommandObservabilityConfig = Pick<EmmettObservabilityConfig, 'tracer' | 'meter' | 'attributeTarget' | 'includeMessagePayloads'>;
+type ProcessorObservabilityConfig = Pick<EmmettObservabilityConfig, 'tracer' | 'meter' | 'propagation' | 'attributeTarget' | 'includeMessagePayloads'>;
+type ConsumerObservabilityConfig = Pick<EmmettObservabilityConfig, 'tracer' | 'meter' | 'pollTracing' | 'attributeTarget'>;
+type WorkflowObservabilityConfig = Pick<EmmettObservabilityConfig, 'tracer' | 'meter' | 'propagation' | 'attributeTarget' | 'includeMessagePayloads'>;
+
+// Resolved types — all fields required, defaults applied.
+type ResolvedCommandObservability = Required<CommandObservabilityConfig>;
+type ResolvedProcessorObservability = Required<ProcessorObservabilityConfig>;
+type ResolvedConsumerObservability = Required<ConsumerObservabilityConfig>;
+type ResolvedWorkflowObservability = Required<WorkflowObservabilityConfig>;
+
+const resolveCommandObservability = (
+  options: { observability?: CommandObservabilityConfig } | undefined,
+  parent?: EmmettObservabilityOptions,
+): ResolvedCommandObservability => ({
+  tracer: options?.observability?.tracer ?? parent?.observability?.tracer ?? noopTracer(),
+  meter: options?.observability?.meter ?? parent?.observability?.meter ?? noopMeter(),
+  attributeTarget: options?.observability?.attributeTarget ?? parent?.observability?.attributeTarget ?? 'both',
+  includeMessagePayloads: options?.observability?.includeMessagePayloads ?? parent?.observability?.includeMessagePayloads ?? false,
+});
+
+const resolveProcessorObservability = (
+  options: { observability?: ProcessorObservabilityConfig } | undefined,
+  parent?: EmmettObservabilityOptions,
+): ResolvedProcessorObservability => ({
+  tracer: options?.observability?.tracer ?? parent?.observability?.tracer ?? noopTracer(),
+  meter: options?.observability?.meter ?? parent?.observability?.meter ?? noopMeter(),
+  propagation: options?.observability?.propagation ?? parent?.observability?.propagation ?? 'links',
+  attributeTarget: options?.observability?.attributeTarget ?? parent?.observability?.attributeTarget ?? 'both',
+  includeMessagePayloads: options?.observability?.includeMessagePayloads ?? parent?.observability?.includeMessagePayloads ?? false,
+});
+
+const resolveConsumerObservability = (
+  options: { observability?: ConsumerObservabilityConfig } | undefined,
+  parent?: EmmettObservabilityOptions,
+): ResolvedConsumerObservability => ({
+  tracer: options?.observability?.tracer ?? parent?.observability?.tracer ?? noopTracer(),
+  meter: options?.observability?.meter ?? parent?.observability?.meter ?? noopMeter(),
+  pollTracing: options?.observability?.pollTracing ?? parent?.observability?.pollTracing ?? 'off',
+  attributeTarget: options?.observability?.attributeTarget ?? parent?.observability?.attributeTarget ?? 'both',
+});
+
+const resolveWorkflowObservability = (
+  options: { observability?: WorkflowObservabilityConfig } | undefined,
+  parent?: EmmettObservabilityOptions,
+): ResolvedWorkflowObservability => ({
+  tracer: options?.observability?.tracer ?? parent?.observability?.tracer ?? noopTracer(),
+  meter: options?.observability?.meter ?? parent?.observability?.meter ?? noopMeter(),
+  propagation: options?.observability?.propagation ?? parent?.observability?.propagation ?? 'links',
+  attributeTarget: options?.observability?.attributeTarget ?? parent?.observability?.attributeTarget ?? 'both',
+  includeMessagePayloads: options?.observability?.includeMessagePayloads ?? parent?.observability?.includeMessagePayloads ?? false,
+});
+```
+
+`propagation` controls how async boundaries (command → processor) are traced:
+- `'links'` (default): processor creates a fresh trace, adds SpanLink to originating command span. Traces stay short-lived and independent.
+- `'propagate'`: processor creates a child span under the originating command's trace. Creates longer traces spanning async boundaries.
+
+Both modes read `traceId`/`spanId` from message metadata. The difference is what they do with it: set it as `parentSpanId` (propagate) or add it as a `SpanLink` (links).
+
+`pollTracing` controls the consumer's polling loop verbosity:
+- `'off'` (default): puller is invisible. Processors create their own root spans with links back to producer traces.
+- `'active'`: lightweight span per poll iteration that found messages (batch size, query duration). Empty polls are silent.
+- `'verbose'`: every poll iteration including empty ones, with backoff timing and `emmett.consumer.poll.empty` attribute.
+
+Per-archetype `Pick` subsets ensure that:
+- Command handlers never see `pollTracing` or `propagation` (they produce, not consume).
+- Consumers never see `propagation` or `includeMessagePayloads` (dispatching concern, not content processing).
+- Processors and workflows see `propagation`, `attributeTarget`, and `includeMessagePayloads` but not `pollTracing`.
+- All archetypes see `attributeTarget` — every span respects the configured target.
+
+This follows the `JSONSerializer.from(options)` pattern: resolve from options or return default. The `parent` parameter enables the "configure globally, allow per-operation overrides" flow — the event store passes its observability as parent, per-operation options override.
+
+Almanac exports: `ObservabilityOptions`, `ObservabilityConfig`, `TracePropagation`, `ResolvedObservability`, `resolveObservability`, `Sampler`, `alwaysSample`, `neverSample`, `rateSample`.
+Emmett exports: `PollTracing`, `EmmettObservabilityConfig`, `EmmettObservabilityOptions`, `CommandObservabilityConfig`, `ProcessorObservabilityConfig`, `ConsumerObservabilityConfig`, `WorkflowObservabilityConfig`, `ResolvedCommandObservability`, `ResolvedProcessorObservability`, `ResolvedConsumerObservability`, `ResolvedWorkflowObservability`, `resolveCommandObservability`, `resolveProcessorObservability`, `resolveConsumerObservability`, `resolveWorkflowObservability`.
+
+### Step 1.6: ObservabilityScope (in almanac)
+
+The `ObservabilityScope` is the core abstraction for instrumented operations. It carries context (root span, config) so that child operations can set attributes without knowing about target config.
+
+The scope is the complete user-facing API — there is no `scope.span` accessor. Methods like `addEvent`, `recordException`, and `spanContext` live directly on the scope. The underlying `ActiveSpan` is an internal detail for strategy implementors.
+
+Attributes flow through three tiers:
+1. **Creation-time attributes** — passed via `{ attributes }` options on `scope()` / `startScope()`. Always land on the local span. Used for identity attributes (e.g., `messaging.operation.type`).
+2. **`setAttributes(attrs)`** — follows configured `AttributeTarget` (`'mainSpan'` / `'currentSpan'` / `'both'`). Used for result attributes (e.g., `eventstore.read.event_count`).
+3. **`setAttributes(attrs, { target })`** — per-call override for rare cases where you need to break the configured rule.
+
+**File to create:** `src/packages/almanac/src/scope.unit.spec.ts`
+
+Tests to write:
+
+1. `ObservabilityScope: startScope executes the function and returns its result` -- call `ObservabilityScope(o11y).startScope('test', async () => 42)`, expect 42.
+2. `ObservabilityScope: root scope setAttributes sets on root span` -- verify attributes land on the span regardless of target config.
+3. `ObservabilityScope: child scope with target=mainSpan sets attributes on root span only` -- create a collecting tracer, `startScope('root', (scope) => scope.scope('child', async (child) => { child.setAttributes({ x: 1 }); }))`. Verify 'x' is on root span, NOT on child span.
+4. `ObservabilityScope: child scope with target=currentSpan sets attributes on child span only` -- same setup, verify 'x' is on child span, NOT on root span.
+5. `ObservabilityScope: child scope with target=both sets attributes on both spans` -- verify 'x' is on both.
+6. `ObservabilityScope: addEvent delegates to underlying span` -- call `scope.addEvent('test', { key: 'val' })`, verify it doesn't throw and collecting tracer records it.
+7. `ObservabilityScope: recordException delegates to underlying span` -- call `scope.recordException(new Error('boom'))`, verify collecting tracer records it.
+8. `ObservabilityScope: spanContext returns the underlying span context` -- call `scope.spanContext()`, verify it returns a valid SpanContext.
+9. `ObservabilityScope: child scopes nest correctly` -- `scope.scope('a', (a) => a.scope('b', (b) => ...))` creates two child spans.
+10. `ObservabilityScope: root scope carries {prefix}.scope.main=true` -- verify attribute on root span (uses configured prefix, defaults to `almanac.scope.main`).
+11. `ObservabilityScope: child scopes do NOT carry {prefix}.scope.main` -- verify attribute absent on child spans.
+12. `ObservabilityScope: uses custom attributePrefix when provided` -- pass `attributePrefix: 'myapp'`, verify `myapp.scope.main=true` on root span.
+13. `ObservabilityScope: creation-time attributes land on the local span` -- call `scope.scope('child', fn, { attributes: { op: 'receive' } })`, verify 'op' is on child span only, regardless of target config.
+14. `ObservabilityScope: per-call target override` -- configured target is `'currentSpan'`, call `child.setAttributes({ x: 1 }, { target: 'mainSpan' })`, verify 'x' lands on root span.
+15. `ObservabilityScope: startScope creation-time attributes land on root span` -- call `startScope('root', fn, { attributes: { op: 'handle' } })`, verify 'op' is on root span.
+16. `ObservabilityScope: defaultAttributes from factory are merged into startScope` -- factory with `defaultAttributes: { stream: 'x' }`, call `startScope(...)`, verify 'stream' is on root span.
+17. `ObservabilityScope: per-operation attributes override factory defaultAttributes` -- factory has `{ key: 'default' }`, startScope has `{ key: 'override' }`, verify 'key' is `'override'` on root span.
+
+**File to create:** `src/packages/almanac/src/scope.ts`
+
+```typescript
+type SetAttributesOptions = {
+  target?: AttributeTarget;
+};
+
+type ScopeOptions = {
+  attributes?: Record<string, unknown>;
+  links?: SpanLink[];  // additional span links
+  parent?: SpanContext;  // producing trace's context — strategy decides parent vs link
+};
+
+type ObservabilityScope = {
+  // Set attributes — follows configured AttributeTarget by default.
+  // On root scope: always sets on root span (span === root).
+  // On child scope: 'mainSpan' → root only, 'currentSpan' → child only, 'both' → both.
+  // Optional per-call override via second argument.
+  setAttributes(attrs: Record<string, unknown>, options?: SetAttributesOptions): void;
+
+  // Create a child scope — always creates a child span.
+  // Optional creation-time attributes always land on the child span (identity attributes).
+  scope<T>(name: string, fn: (child: ObservabilityScope) => Promise<T>, options?: ScopeOptions): Promise<T>;
+
+  // Span methods promoted to scope level — no scope.span accessor.
+  addEvent(name: string, attributes?: Record<string, unknown>): void;
+  addLink(link: SpanLink): void;
+  recordException(error: Error | string): void;
+  spanContext(): SpanContext;
+  // Note: no meter on scope — users hold their own meter reference from resolved config.
+};
+
+type ScopeOptions = {
+  attributes?: Record<string, unknown>;
+  defaultAttributes?: Record<string, unknown>;  // factory-level defaults merged into every startScope call
+  links?: SpanLink[];
+  parent?: SpanContext;
+  propagation?: TracePropagation;
+};
+
+// ObservabilityScope factory accepts resolved observability + optional factory defaults.
+// attributePrefix is resolved once at config time and baked in — defaults to 'almanac'.
+// propagation is forwarded to startSpan automatically — collector just passes parent.
+type ScopeObservability = {
+  tracer: Tracer;
+  sampler: Sampler;
+  attributeTarget?: AttributeTarget;
+  attributePrefix: string;  // resolved at config time, not optional at usage
+  propagation?: TracePropagation;
+};
+
+// ObservabilityScope is both the type (interface) and the factory function.
+// TypeScript allows this — types and values live in separate namespaces.
+const ObservabilityScope = (
+  observability: ScopeObservability,
+  factoryOptions?: { defaultAttributes?: Record<string, unknown> },
+) => {
+  const scopeAttrs = scopeAttributes(observability.attributePrefix);
+  const defaultAttrs = factoryOptions?.defaultAttributes ?? {};
+
+  return {
+    startScope: <T>(
+      name: string,
+      fn: (scope: ObservabilityScope) => Promise<T>,
+      options?: ScopeOptions,
+    ): Promise<T> => {
+      const mergedAttrs = { ...defaultAttrs, ...(options?.attributes ?? {}) };
+
+      if (!observability.sampler.shouldSample(name, mergedAttrs)) {
+        return fn(noopScope);
+      }
+
+      return observability.tracer.startSpan(name, async (rootSpan) => {
+        rootSpan.setAttributes({ [scopeAttrs.main]: true });
+        if (Object.keys(mergedAttrs).length > 0) {
+          rootSpan.setAttributes(mergedAttrs);
+        }
+
+        const makeScope = (span: ActiveSpan, root: ActiveSpan): ObservabilityScope => ({
+          setAttributes: (attrs, opts?) => {
+            const target = opts?.target ?? observability.attributeTarget ?? 'both';
+            if (target === 'mainSpan' || target === 'both') {
+              root.setAttributes(attrs);
+            }
+            if (target === 'currentSpan' || target === 'both') {
+              span.setAttributes(attrs);
+            }
+          },
+          scope: (childName, childFn, childOpts?) =>
+            observability.tracer.startSpan(childName, async (childSpan) => {
+              if (childOpts?.attributes) {
+                childSpan.setAttributes(childOpts.attributes);
+              }
+              return childFn(makeScope(childSpan, root));
+            }, {
+              attributes: childOpts?.attributes,
+              links: childOpts?.links,
+              parent: childOpts?.parent,
+              propagation: childOpts?.propagation ?? observability.propagation,
+            }),
+          addEvent: (eventName, eventAttrs?) => span.addEvent(eventName, eventAttrs),
+          addLink: (link) => span.addLink(link),
+          recordException: (error) => span.recordException(error),
+          spanContext: () => span.spanContext(),
+        });
+
+        return fn(makeScope(rootSpan, rootSpan));
+      }, {
+        attributes: mergedAttrs,
+        links: options?.links,
+        parent: options?.parent,
+        propagation: options?.propagation ?? observability.propagation,
+      });
+    },
+  };
+};
+```
+
+On the root scope, `span === root`, so `setAttributes` always hits the root span regardless of target config. On child scopes, `span !== root`, so the target determines where attributes land. The root span reference is captured in the closure and threaded to all descendants.
+
+`defaultAttributes` (factory-level) are merged with per-operation `options.attributes` before being set on the root span and forwarded to `startSpan` for head-based sampling. Per-operation attributes take precedence over factory defaults.
+
+**Sampling integration:** `ObservabilityScope` consults `observability.sampler.shouldSample(name, mergedAttrs)` before calling `tracer.startSpan`. If the sampler rejects, runs `fn` with a noop scope. This keeps sampling at the almanac level.
+
+Export: `ObservabilityScope`, `ScopeObservability`, `ScopeOptions`, `SetAttributesOptions`.
+
+### Step 1.7: Attribute name constants + semantic conventions
+
+Split between almanac (generic scope attrs + messaging conventions) and emmett (domain attrs).
+
+#### Almanac attributes (generic, prefix-aware)
+
+**File to create:** `src/packages/almanac/src/attributes.ts`
+
+Contains `scopeAttributes(prefix?)` function (returns `{prefix}.scope.type`, `{prefix}.scope.main`) and `MessagingAttributes` constants (OTel `messaging.*` standard). `scope.name` is omitted — it's redundant with the span name, which is a first-class span field. See Step 1.4 in the package split section above.
+
+#### Emmett domain attributes (hardcoded `emmett.` prefix)
+
+**File to create:** `src/packages/emmett/src/observability/attributes.ts`
+
+```typescript
+const EmmettAttributes = {
+  command: {
+    type: 'emmett.command.type',
+    status: 'emmett.command.status',
+    eventCount: 'emmett.command.event_count',
+    eventTypes: 'emmett.command.event_types',
+  },
+  stream: {
+    name: 'emmett.stream.name',
+    versionBefore: 'emmett.stream.version.before',
+    versionAfter: 'emmett.stream.version.after',
+  },
+  eventStore: {
+    operation: 'emmett.eventstore.operation',
+    read: {
+      eventCount: 'emmett.eventstore.read.event_count',
+      eventTypes: 'emmett.eventstore.read.event_types',
+      status: 'emmett.eventstore.read.status',
+    },
+    append: {
+      batchSize: 'emmett.eventstore.append.batch_size',
+      status: 'emmett.eventstore.append.status',
+    },
+  },
+  event: {
+    type: 'emmett.event.type',
+  },
+  processor: {
+    id: 'emmett.processor.id',
+    type: 'emmett.processor.type',
+    batchSize: 'emmett.processor.batch_size',
+    eventTypes: 'emmett.processor.event_types',
+    checkpointBefore: 'emmett.processor.checkpoint.before',
+    checkpointAfter: 'emmett.processor.checkpoint.after',
+    lagEvents: 'emmett.processor.lag_events',
+  },
+  workflow: {
+    id: 'emmett.workflow.id',
+    type: 'emmett.workflow.type',
+    inputType: 'emmett.workflow.input.type',
+    outputs: 'emmett.workflow.outputs',
+    outputsCount: 'emmett.workflow.outputs.count',
+    streamPosition: 'emmett.workflow.stream_position',
+    stateRebuildEventCount: 'emmett.workflow.state_rebuild.event_count',
+  },
+  consumer: {
+    batchSize: 'emmett.consumer.batch_size',
+    processorCount: 'emmett.consumer.processor_count',
+    delivery: {
+      processorId: 'emmett.consumer.delivery.processor_id',
+    },
+  },
+} as const;
+
+// MessagingAttributes is in almanac (src/packages/almanac/src/attributes.ts)
+// Re-exported by emmett's observability index for convenience.
+
+const EmmettMetrics = {
+  command: {
+    handlingDuration: 'emmett.command.handling.duration',
+  },
+  event: {
+    appendingCount: 'emmett.event.appending.count',
+    readingCount: 'emmett.event.reading.count',
+  },
+  stream: {
+    readingDuration: 'emmett.stream.reading.duration',
+    readingSize: 'emmett.stream.reading.size',
+    appendingDuration: 'emmett.stream.appending.duration',
+    appendingSize: 'emmett.stream.appending.size',
+  },
+  processor: {
+    processingDuration: 'emmett.processor.processing.duration',
+    lagEvents: 'emmett.processor.lag_events',
+  },
+  workflow: {
+    processingDuration: 'emmett.workflow.processing.duration',
+  },
+  consumer: {
+    pollDuration: 'emmett.consumer.poll.duration',
+    deliveryDuration: 'emmett.consumer.delivery.duration',
+  },
+} as const;
+
+const ScopeTypes = {
+  command: 'command',
+  processor: 'processor',
+  workflow: 'workflow',
+  consumer: 'consumer',
+} as const;
+
+const MessagingSystemName = 'emmett' as const;
+```
+
+Export: `EmmettAttributes`, `EmmettMetrics`, `ScopeTypes`, `MessagingSystemName`.
+(Re-export `MessagingAttributes` and `scopeAttributes` from almanac.)
+
+**File to create:** `src/packages/emmett/src/observability/attributes.unit.spec.ts`
+
+Tests:
+1. `EmmettAttributes: all leaf values are prefixed with emmett.` -- recursively iterate all leaf values, verify each starts with `'emmett.'`.
+2. `MessagingAttributes: all values are prefixed with messaging.` -- same pattern.
+3. `EmmettMetrics: all leaf values are prefixed with emmett.` -- same pattern.
+4. `no duplicate values across all attribute constants` -- collect all leaf values, verify no collisions.
+
+These are structural tests that catch typos and naming drift.
+
+---
+
+Every scope created by emmett collectors carries semantic attributes for filtering, sampling, and routing:
+
+```
+EmmettAttributes.scope.type  = 'command' | 'processor' | 'workflow' | 'consumer'
+EmmettAttributes.scope.main  = true  (only on root scope — Morrell's main=true convention)
+```
+
+These enable:
+- **Filtering**: show only `emmett.scope.main=true` spans for wide event querying
+- **Routing**: OTel Collector routes `emmett.scope.type=command` to ClickHouse via routing processor
+- **Sampling**: tail-based sampling — always keep `error=true`, sample 10% of `emmett.scope.main=true` with `emmett.command.status=success`
+
+For event store operations, OTel messaging semantic conventions apply:
+
+| Constant | Wire Value | emmett Concept |
+|---|---|---|
+| `MessagingAttributes.system` | `messaging.system` | `'emmett'` |
+| `MessagingAttributes.messageId` | `messaging.message.id` | `messageId` |
+| `MessagingAttributes.messageConversationId` | `messaging.message.conversation_id` | `correlationId` |
+| `MessagingAttributes.batchMessageCount` | `messaging.batch.message_count` | event count in append/batch |
+| `MessagingAttributes.operationType` | `messaging.operation.type` | `'send'` / `'process'` / `'receive'` |
+| `MessagingAttributes.destinationName` | `messaging.destination.name` | stream name |
+| `MessagingAttributes.messageBodySize` | `messaging.message.body.size` | serialized event size |
+
+For batches, per OTel guidance: "If the attribute value is the same for all messages in the batch, set it on the span. If values differ, set them on span links or span events."
+
+Collectors set these automatically. `EmmettAttributes.scope.main` is set by `ObservabilityScope`'s `startScope`. `EmmettAttributes.scope.type` is set by each domain collector.
+
+### Step 1.8: Update exports
+
+#### Almanac exports
+
+**Create:** `src/packages/almanac/src/index.ts`
+
+```typescript
+export * from './tracer';
+export * from './meter';
+export * from './composite';
+export * from './attributes';
+export * from './scope';
+export * from './options';
+export * from './consoleTracer';
+export * from './testing';
+```
+
+#### Emmett observability exports
+
+**Modify:** `src/packages/emmett/src/observability/index.ts`
+
+Replace current `export * from './tracer'` with:
+
+```typescript
+// Re-export almanac core types so users don't need to import from two packages
+export * from '@event-driven-io/almanac';
+// Emmett-specific domain modules
+export * from './attributes';
+export * from './options';
+export * from './testing';
+```
+
+**Modify:** `src/packages/emmett/src/index.ts` — add `export * from './observability'` (currently missing since only internal `tracer` was there).
+
+**Run:** `npx vitest run` for all observability tests, then `npx tsc --noEmit`.
+
+---
+
+## Phase 2: correlationId / causationId on message metadata ✅ DONE
+
+### Step 2.1: Add fields to CommonRecordedMessageMetadata ✅
+
+**File modified:** `src/packages/emmett/src/typing/message.ts`
+
+Added four optional fields to `CommonRecordedMessageMetadata`:
+- `correlationId` -- business flow identifier, propagated through the entire chain
+- `causationId` -- direct trigger identifier
+- `traceId` -- trace identifier from the active span at append time (used in Phase 4)
+- `spanId` -- span identifier from the active span at append time (used in Phase 4)
+
+No type-level spec tests -- they add no value.
+
+### Step 2.2: correlationId / causationId assigned via AppendToStreamOptions ✅
+
+**Decision:** `correlationId` and `causationId` are passed as part of `AppendToStreamOptions` and assigned by each event store implementation, not stamped on individual events by the caller.
+
+**Files modified:**
+- `src/packages/emmett/src/eventStore/eventStore.ts` -- added `correlationId?` and `causationId?` to `AppendToStreamOptions`
+- `src/packages/emmett/src/eventStore/inMemoryEventStore.ts` -- assigns from options into recorded metadata
+- `src/packages/emmett-postgresql/src/eventStore/schema/appendToStream.ts` -- assigns from options in the second-stage metadata merge
+- `src/packages/emmett-sqlite/src/eventStore/schema/appendToStream.ts` -- assigns from options into metadata
+- `src/packages/emmett-mongodb/src/eventStore/mongoDBEventStore.ts` -- assigns from options after user metadata spread
+- `src/packages/emmett-esdb/src/eventStore/eventstoreDBEventStore.ts` -- maps to `$correlationId`/`$causationId` in ESDB event metadata (native ESDB convention)
+
+### Step 2.3: Auto-populate in handleCommand ✅
+
+**File modified:** `src/packages/emmett/src/commandHandling/handleCommand.ts`
+
+- Added `correlationId?` and `causationId?` to `HandleOptions` (explicit intersection alongside `expectedStreamVersion` and `retry`)
+- `handleCommand` auto-generates a UUID v7 `correlationId` if not provided by the caller
+- Both are forwarded to `appendToStream` via the options object -- no per-event stamping
+
+**Tests:** `src/packages/emmett/src/commandHandling/handleCommand.unit.spec.ts`
+- Verifies `correlationId` from handle options appears in recorded event metadata
+- Verifies `causationId` from handle options appears in recorded event metadata
+- Verifies `correlationId` is auto-generated when not provided
+
+---
+
+## Phase 3: Wire per-archetype observability configs into option types
+
+Only archetypes that own a unit-of-work get observability options. Each archetype uses its specific config type (not the full `EmmettObservabilityOptions`), because different archetypes need different knobs.
+
+**What does NOT get observability options:**
+
+- `ReadStreamOptions` / `AppendToStreamOptions` — event store operations are instrumented by the collector that owns the scope (e.g., CommandHandlerCollector wraps the entire handleCommand flow and creates child spans for read/append internally). Per-call read/append options don't need `propagation`, `pollTracing`, or `attributeTarget`.
+- `ProjectionDefinition` — inline projections inherit observability from the event store that runs them; async projections inherit from the processor. The definition itself doesn't own a scope.
+
+**What gets observability options (archetype-specific config):**
+
+### Step 3.1: Add per-archetype observability configs to option types
+
+1. `src/packages/emmett/src/commandHandling/handleCommand.ts` — `HandleOptions`:
+   - Add `& { observability?: CommandObservabilityConfig }` to the type intersection
+   - Import `CommandObservabilityConfig` from `'../observability'`
+   - Phase 4's `CommandHandlerCollector` reads this via `resolveCommandObservability(options.observability)`
+
+2. `src/packages/emmett/src/processors/processors.ts` — `BaseMessageProcessorOptions`:
+   - Add `& { observability?: ProcessorObservabilityConfig }` to the type intersection
+   - Import `ProcessorObservabilityConfig` from `'../observability'`
+   - Phase 4's `ProcessorCollector` reads this via `resolveProcessorObservability(options.observability)`
+
+**Status:** Done. Both types now accept their archetype-specific observability config. All fields are optional with `?`, so existing code is unaffected.
+
+**Test:** `npx tsc --noEmit` passes. All existing tests pass.
+
+---
+
+## Wide Events Design: Attribute Targeting
+
+Child spans for sub-operations **always get created**. They represent real operations in the trace tree. The configurable part is **where attributes land**: on the main span (wide event), on child spans (current span), or both.
+
+### `attributeTarget` option
+
+```typescript
+type AttributeTarget = 'mainSpan' | 'currentSpan' | 'both';
+```
+
+- **`'mainSpan'`** — Timing/detail attributes on the **main span**. Child spans exist but are lightweight (just name + duration).
+- **`'currentSpan'`** — Attributes on **each child span**. Main span has summary only (status, event count).
+- **`'both'`** (default) — Attributes on **both**. Redundant but gives full power for wide event querying AND span tree drill-down.
+
+Example with `'both'` (default):
+
+```
+Span: "command.handle"                        ← all attributes
+  emmett.scope.type: "command"
+  emmett.scope.main: true
+  emmett.command.event_count: 2
+  emmett.command.event_types: ["DepositRecorded", "CashWithdrawnFromAtm"]
+  emmett.command.status: "success"
+  emmett.stream.name: "BankAccount-123"
+  emmett.stream.version.before: 5
+  emmett.stream.version.after: 7
+  emmett.eventstore.read.event_count: 5
+  messaging.system: "emmett"
+  messaging.destination.name: "BankAccount-123"
+  messaging.batch.message_count: 2
+  └── Span: "eventStore.readStream"           ← also has attributes
+        emmett.eventstore.read.event_count: 5
+        emmett.eventstore.read.status: "success"
+        messaging.operation.type: "receive"
+        messaging.destination.name: "BankAccount-123"
+  └── Span: "decide"
+        (duration captured by span timestamps)
+  └── Span: "eventStore.appendToStream"
+        emmett.eventstore.append.batch_size: 2
+        emmett.eventstore.append.status: "success"
+        emmett.stream.version.before: 5
+        emmett.stream.version.after: 7
+        messaging.operation.type: "send"
+        messaging.batch.message_count: 2
+```
+
+With `'mainSpan'`, the child spans exist but are lightweight (no rich attributes on them — only `messaging.*` conventions that identify the operation). With `'currentSpan'`, the main span only has summary attributes (status, event count, `emmett.scope.*`), and the detail lives on each child.
+
+Default is `'both'` because:
+- Wide event queries work out of the box (filter/group on main span attributes)
+- Span tree drill-down also works (click into child spans)
+- Attribute duplication cost is negligible for most workloads
+- Users who care about telemetry volume switch to `'mainSpan'` or `'currentSpan'`
+
+### Attribute naming convention
+
+All emmett-specific attributes use the `emmett.` prefix per OTel custom namespace guidelines. OTel standard conventions (e.g., `messaging.*`, `http.*`, `error.*`) keep their standard names.
+
+**Casing rule:** dot-separated lowercase throughout. No camelCase in attribute names. This matches OTel convention (`http.request.method`, not `http.requestMethod`). Examples: `emmett.eventstore.read.event_count` (not `eventStore`), `emmett.command.event_count` (not `eventCount`). Underscores separate words within a segment. The `EmmettAttributes` constant object uses camelCase for TypeScript property access (`eventStore.read.eventCount`), but the wire values are always lowercase with underscores.
+
+**Note:** feedback.md's metrics catalog uses unprefixed camelCase names (`command.type`, `eventStore.read.duration_ms`) as shorthand. The canonical wire names are the `emmett.`-prefixed lowercase form defined in `EmmettAttributes`.
+
+```
+emmett.scope.type          — archetype: 'command' | 'processor' | 'workflow' | 'consumer'
+emmett.scope.main          — true on root scope (Morrell's main=true convention)
+emmett.command.*           — command handling attributes
+emmett.stream.*            — stream-related attributes
+emmett.eventstore.*        — event store operation attributes
+emmett.processor.*         — processor/reactor/projector attributes
+emmett.workflow.*          — workflow step attributes
+emmett.consumer.*          — consumer poll cycle attributes
+emmett.decide.*            — business logic decision attributes
+messaging.*                — OTel messaging conventions (standard, no prefix)
+```
+
+### How handleCommand uses the scope
+
+```typescript
+// Inside CommandHandler (handleCommand.ts), after resolving observability:
+const resolved = resolveCommandObservability(handleOptions);
+const { startScope } = ObservabilityScope(resolved, {
+  defaultAttributes: { [EmmettAttributes.stream.name]: streamName },
+});
+const A = EmmettAttributes;
+const M = MessagingAttributes;
+
+return startScope('command.handle', async (scope) => {
+  // Identity attributes — on root scope, setAttributes always hits root span
+  scope.setAttributes({
+    [A.scope.type]: ScopeTypes.command,
+    [M.system]: MessagingSystemName,
+    [M.destinationName]: streamName,
+  });
+
+  // Step 1: Read — EventStoreCollector creates the 'eventStore.readStream' child scope
+  // internally when eventStore.aggregateStream is called. The command handler doesn't
+  // create event store scopes — that's the EventStoreCollector's responsibility.
+  const aggregation = await eventStore.aggregateStream(streamName, { evolve, initialState });
+
+  // Step 2: Decide — command handler owns this child scope
+  const newEvents = await scope.scope('decide', async (_child) => {
+    return handler(aggregation.state);
+  });
+
+  // Step 3: Append — EventStoreCollector creates the 'eventStore.appendToStream' child scope
+  const appendResult = await eventStore.appendToStream(streamName, newEvents, { expectedStreamVersion });
+
+  // Summary attributes — on root scope (scope === root, target doesn't matter)
+  scope.setAttributes({
+    [A.command.eventCount]: newEvents.length,
+    [A.command.eventTypes]: [...new Set(newEvents.map(e => e.type))],
+    [A.command.status]: 'success',
+    [A.stream.versionBefore]: Number(aggregation.currentStreamVersion),
+    [A.stream.versionAfter]: Number(appendResult.nextExpectedStreamVersion),
+    [M.batchMessageCount]: newEvents.length,
+  });
+
+  return { ...appendResult, newEvents, newState: state };
+}, { attributes: { [A.scope.type]: ScopeTypes.command } });
+```
+
+Attribute setting uses three tiers:
+- **Creation-time `{ attributes }`** on `scope()` / `startScope()` — identity attributes that always land on the local span (e.g., `messaging.operation.type`).
+- **`scope.setAttributes(attrs)`** — result attributes that follow configured `attributeTarget` (`'mainSpan'` / `'currentSpan'` / `'both'`). On root scope, always hits root span since span === root.
+- **`scope.setAttributes(attrs, { target: 'mainSpan' })`** — per-call override for rare cases where you need to break the configured rule.
+
+### How reactor/processor uses the scope
+
+Same pattern. The processor collector creates one `processor.handle` root scope per batch. Each message gets a child scope:
+
+```typescript
+// Inside reactor's handle method (processors.ts):
+const resolved = resolveProcessorObservability(options);
+const { startScope } = ObservabilityScope(resolved);
+const A = EmmettAttributes;
+const M = MessagingAttributes;
+
+return startScope('processor.handle', async (scope) => {
+  // (EmmettAttributes.scope.main=true is set automatically by ObservabilityScope)
+  scope.setAttributes({
+    [A.scope.type]: ScopeTypes.processor,
+    [A.processor.id]: processorId,
+    [A.processor.type]: processorType,
+    [M.system]: MessagingSystemName,
+  });
+
+  const batchCtx = scope.spanContext();
+
+  for (const message of messages) {
+    const parent = message.metadata?.traceId && message.metadata?.spanId
+      ? { traceId: message.metadata.traceId, spanId: message.metadata.spanId }
+      : undefined;
+
+    // Link back to batch span so the connection is preserved even when propagation='propagate'
+    // reparents this child under the producer's trace.
+    const links: SpanLink[] = batchCtx.traceId ? [batchCtx] : [];
+
+    await scope.scope(`processor.message.${message.type}`, async (child) => {
+      await eachMessage(message, context);
+    }, {
+      parent,
+      links,
+      attributes: { [M.operationType]: 'process', [M.messageId]: message.metadata?.messageId },
+    });
+  }
+
+  scope.setAttributes({
+    [A.processor.batchSize]: messages.length,
+    [A.processor.eventTypes]: [...new Set(messages.map(m => m.type))],
+    [M.batchMessageCount]: messages.length,
+  });
+});
+```
+
+### Per-archetype child scopes
+
+| Archetype | Sub-operations that get child scopes |
+|---|---|
+| CommandHandler | `decide` (business logic). Event store ops are instrumented by EventStoreCollector, not here. |
+| EventStore | `eventStore.readStream`, `eventStore.appendToStream` (created by EventStoreCollector inside the ES impl) |
+| Processor | per-message handler (one child per message in batch) |
+| Workflow | `workflow.evolve` (state rebuild), `workflow.decide`, `workflow.route` |
+| Consumer | per-processor delivery (one child per processor) |
+
+### What emmett does vs what the user does
+
+**emmett does automatically (via collectors wired into archetypes):**
+- Creates the root scope (with `emmett.scope.main=true`) for each unit-of-work
+- Creates child scopes for each sub-operation
+- Times each sub-operation automatically (span duration)
+- Places attributes per `attributeTarget` config via `scope.setAttributes()`
+- Sets `emmett.scope.*` semantic attributes for filtering/routing
+- Sets `messaging.*` OTel conventions for interoperability
+- Records metrics (histograms, counters)
+- Stamps traceId/spanId/correlationId/causationId on produced events
+
+**The user does NOT need to:**
+- Call `Date.now()` or measure timings
+- Know attribute names from the metrics catalog
+- Create scopes manually for standard operations
+- Understand placement config to get correct behavior
+
+**The user CAN optionally:**
+- Add custom attributes via `scope.setAttributes({ 'my.custom.attr': value })`
+- Add span events for extra detail: `scope.addEvent('ValidationPassed', { rules: 5 })`
+- Record exceptions: `scope.recordException(error)`
+- Wrap their own `tracer.startSpan` around `handleCommand` for custom instrumentation
+
+---
+
+## Context Propagation Design
+
+emmett manages context propagation explicitly through two mechanisms. No AsyncLocalStorage — if the user plugs in OTel as a strategy, OTel handles its own context internally, but emmett's own flow is explicit.
+
+### Mechanism 1: Handler context (synchronous flow)
+
+Within a single operation (e.g., handleCommand), the span flows through emmett's existing handler context/options. The collector creates the span and passes it through internal operations:
+
+```
+HTTP handler
+  └── tracer.startSpan('POST /orders', (httpSpan) =>
+        handleCommand(store, id, handler, {
+          observability: { tracer, meter, propagation: 'links' }
+        })
+      )
+        └── CommandHandlerCollector creates 'command.handle' span
+            └── internally times aggregateStream, sets eventStore.read.duration_ms on span
+            └── internally times appendToStream, sets eventStore.append.duration_ms on span
+            └── stamps produced events with traceId/spanId from span.spanContext()
+```
+
+The collector owns the root scope. Internal operations (event store read, append, decide) use `scope.scope(name, fn)` to create child scopes. Each child scope's `setAttributes()` respects `attributeTarget` config. No manual context threading — the scope carries the root span reference internally.
+
+For Express/Hono, the `on()` handler wrapper creates the root span and passes observability through to handleCommand via options. No request mutation, no `__emmettSpan`.
+
+### Mechanism 2: Message metadata (async boundary)
+
+When events are stored, they carry trace context in metadata: `traceId`, `spanId`, `correlationId`, `causationId`. When a processor reads those events later, the collector reads the metadata and creates spans based on the `propagation` config:
+
+**`propagation: 'links'` (default):**
+```
+Command handler (Trace A) → produces events with metadata { traceId: A, spanId: x }
+    ↓ (async gap — events stored in event store)
+Processor batch span (Trace B): fresh root (groups the batch)
+    └── per-message child span → parent is { traceId: A, spanId: x }
+        → strategy demotes parent to SpanLink { traceId: A, spanId: x }
+        → traces A and B are independent, linked for navigation
+```
+
+**`propagation: 'propagate'`:**
+```
+Command handler (Trace A) → produces events with metadata { traceId: A, spanId: x }
+    ↓ (async gap — events stored in event store)
+Processor batch span: links to all source traces (Trace A, Trace B, ...)
+    └── per-message child span → parent: { traceId: A, spanId: x }, links: [batchCtx]
+        → strategy: 'propagate' → child under trace A, link back to batch
+        → strategy: 'links'    → child under batch, link to trace A
+```
+
+The `propagation` setting is on `ObservabilityOptions`. User chooses based on their needs:
+- `'links'`: better for high-throughput systems, keeps traces short, avoids mega-traces
+- `'propagate'`: better for debugging flows end-to-end, sees full causal chain in one trace
+
+Both modes use the same message metadata (`traceId`/`spanId`). The batch span always links to all unique source message traces (never propagates — a batch can span multiple source traces). Each per-message child scope carries `parent` from its message metadata plus `links: [batchCtx]`, so the connection back to the batch is preserved regardless of propagation mode. The scope forwards the configured `propagation` to the strategy via `StartSpanOptions`. The strategy decides what to do with `parent`.
+
+### How OTel nesting works
+
+When the user plugs in `otelTracer()`, each `startSpan` call creates a real OTel span via `@opentelemetry/api`. OTel's own `startActiveSpan` uses AsyncLocalStorage internally to nest spans — so if handleCommand is called inside an HTTP handler's `startSpan`, OTel automatically makes the `command.handle` span a child of the HTTP span. emmett doesn't manage this — it's OTel's built-in behavior.
+
+For strategies without their own context management (Pino, ClickHouse, noop), spans are flat — no parent-child nesting. Each `startSpan` call is independent. Wide event attributes on the main span still work because the collector passes the span explicitly through its internal operations.
+
+### Propagation behavior across strategies
+
+`propagation: 'propagate'` has different fidelity depending on the strategy, but is still useful everywhere:
+
+| Strategy | `'links'` behavior | `'propagate'` behavior |
+|---|---|---|
+| **OTel** | SpanLink on processor span → full navigation in trace UI | Child span under producer's trace → full nesting, single trace view |
+| **Pino** | `parentTraceId`/`parentSpanId` in structured log fields → filterable | `parentSpanId` set on log entry → filter by parentSpanId to see causal chain |
+| **ClickHouse** | `link_trace_id`/`link_span_id` columns → JOIN query | `parent_span_id` column → recursive CTE for full trace tree |
+| **Console** | Prints link reference | Prints parent reference |
+| **Noop** | Nothing | Nothing |
+
+Non-OTel strategies can still emit `parentSpanId` in structured output, enabling correlation and filtering even without full trace nesting. The difference is: OTel gives you interactive trace tree navigation; other strategies give you queryable references.
+
+---
+
+## Phase 4: Domain Collectors
+
+Domain collectors are the emmett-built components that compose Tracer + Meter to instrument specific archetypes. Each collector knows what attributes, metrics, and spans matter for its archetype.
+
+Maps to my past sample's `EventStoreMetricsCollector` -- but instead of just metrics, each collector also uses the Tracer for span creation and wide event attributes.
+
+### Step 4.1: CommandHandlerCollector
+
+**File to create:** `src/packages/emmett/src/observability/collectors/commandHandlerCollector.ts`
+
+This collector instruments the `handleCommand` flow using `ObservabilityScope`. It:
+- Creates a root scope `command.handle` wrapping the entire command handling
+- Sets `emmett.scope.*` semantic attributes for filtering/routing
+- Sets `messaging.*` OTel conventions for interoperability
+- Sets `emmett.*` domain attributes:
+  - `emmett.command.type`: string -- derived from the events produced
+  - `emmett.command.status`: "success" | "failure"
+  - `emmett.command.event_count`: number -- count of produced events
+  - `emmett.command.event_types`: string[] -- type names of produced events
+  - `error`: boolean -- did any error occur (OTel standard, no prefix)
+  - `exception.message`: string -- error message (OTel standard)
+  - `exception.type`: string -- error class name (OTel standard)
+  - `emmett.stream.name`: string -- the target stream
+  - `emmett.stream.version.before`: number -- version before append
+  - `emmett.stream.version.after`: number -- version after append
+- Records metrics:
+  - `emmett.command.handling.duration` histogram with `{ emmett.command.type, emmett.command.status }` attributes
+  - `emmett.event.appending.count` counter, incremented per event with `{ emmett.event.type }` attributes
+- Auto-populates `traceId` and `spanId` on produced events from the active span context
+- Auto-populates `correlationId` and `causationId` on produced events
+- When `includeMessagePayloads=true`: records command body and event bodies via `addEvent`
+
+The collector is a function, not a class. It uses `ObservabilityScope` and returns a `startScope` wrapper:
+
+```typescript
+type CommandHandlerCollectorContext = {
+  streamName: string;
+};
+
+const commandHandlerCollector = (
+  observability: ResolvedCommandObservability,
+) => {
+  const { startScope } = ObservabilityScope(observability, {
+    defaultAttributes: { [EmmettAttributes.stream.name]: '' }, // set per-call
+  });
+  const A = EmmettAttributes;
+  const M = MessagingAttributes;
+  const commandHandlingDuration = observability.meter.histogram(EmmettMetrics.command.handlingDuration);
+  const eventAppendingCount = observability.meter.counter(EmmettMetrics.event.appendingCount);
+
+  return {
+    startScope: <T>(
+      context: CommandHandlerCollectorContext,
+      fn: (scope: ObservabilityScope) => Promise<T>,
+    ): Promise<T> =>
+      startScope('command.handle', async (scope) => {
+        // EmmettAttributes.scope.main=true is set automatically by ObservabilityScope
+        scope.setAttributes({
+          [A.scope.type]: ScopeTypes.command,
+          [M.system]: MessagingSystemName,
+          [M.destinationName]: context.streamName,
+        });
+
+        try {
+          const result = await fn(scope);
+          scope.setAttributes({ [A.command.status]: 'success', error: false });
+          return result;
+        } catch (err) {
+          scope.setAttributes({
+            [A.command.status]: 'failure',
+            error: true,
+            'exception.message': err instanceof Error ? err.message : String(err),
+            'exception.type': err instanceof Error ? err.constructor.name : 'unknown',
+          });
+          scope.recordException(err instanceof Error ? err : new Error(String(err)));
+          throw err;
+        } finally {
+          commandHandlingDuration.record(Date.now(), { [A.command.status]: 'unknown' });
+        }
+      }, {
+        attributes: {
+          [A.scope.type]: ScopeTypes.command,
+          [A.stream.name]: context.streamName,
+        },
+      }),
+
+    recordEvents: (scope: ObservabilityScope, events: Event[], status: string) => {
+      scope.setAttributes({
+        [A.command.eventCount]: events.length,
+        [A.command.eventTypes]: events.map(e => e.type),
+        [M.batchMessageCount]: events.length,
+        [A.command.status]: status,
+      });
+      for (const event of events) {
+        eventAppendingCount.add(1, { [A.event.type]: event.type });
+      }
+    },
+
+    recordVersions: (scope: ObservabilityScope, before: bigint, after: bigint) => {
+      scope.setAttributes({
+        [A.stream.versionBefore]: Number(before),
+        [A.stream.versionAfter]: Number(after),
+      });
+    },
+  };
+};
+```
+
+**Note on `asyncRetry` placement:** The collector scope should go INSIDE the `asyncRetry` callback in `CommandHandler` — one span per attempt, not one span for all retries. A parent span wrapping retries carries `retryCount` as an attribute.
+
+**File to create:** `src/packages/emmett/src/observability/collectors/commandHandlerCollector.unit.spec.ts`
+
+Tests to write (use a "collecting" tracer and meter that capture calls for assertion):
+
+1. `creates a span named command.handle` -- startScope a fn, verify collecting tracer received span name 'command.handle'.
+2. `sets emmett.scope.type and emmett.scope.main on root span` -- verify semantic attributes.
+3. `sets emmett.stream.name via creation-time attributes` -- verify stream name on root span.
+4. `sets messaging.system and messaging.destination.name` -- verify OTel conventions.
+5. `sets emmett.command.status to success on success` -- verify attribute.
+6. `sets emmett.command.status to failure and error attributes on error` -- throw inside fn, verify error attributes.
+7. `records emmett.command.handling.duration histogram` -- verify collecting meter's histogram received a record call.
+8. `recordEvents sets emmett.command.event_count, emmett.command.event_types, messaging.batch.message_count and increments counter per event` -- call recordEvents with 2 events, verify counter called twice, attributes set.
+9. `recordVersions sets emmett.stream.version.before and emmett.stream.version.after` -- verify attributes.
+10. `scope.scope creates child scopes with target-aware attributes` -- use target='mainSpan', verify child attributes land on root span.
+11. `works with noop observability (no errors)` -- pass resolveCommandObservability(undefined), everything runs without error.
+
+Helper: `collectingTracer` and `collectingMeter` live in `src/packages/almanac/src/testing.ts` (reusable across projects). Emmett's `src/packages/emmett/src/observability/testing.ts` re-exports them and can add domain-specific test helpers.
+
+```typescript
+// In src/packages/almanac/src/testing.ts:
+const collectingTracer = () => {
+  const spans: { name: string; attributes: Record<string, unknown> }[] = [];
+  const tracer: Tracer = {
+    startSpan: async (name, fn) => {
+      const attrs: Record<string, unknown> = {};
+      const span: ActiveSpan = {
+        setAttributes: (a) => Object.assign(attrs, a),
+        spanContext: () => ({ traceId: 'test-trace-id', spanId: 'test-span-id' }),
+        addLink: () => {},
+        addEvent: () => {},
+        recordException: () => {},
+      };
+      try {
+        return await fn(span);
+      } finally {
+        spans.push({ name, attributes: attrs });
+      }
+    },
+  };
+  return { tracer, spans };
+};
+
+const collectingMeter = () => {
+  const counters: { name: string; value: number; attributes?: Record<string, unknown> }[] = [];
+  const histograms: { name: string; value: number; attributes?: Record<string, unknown> }[] = [];
+  const gauges: { name: string; value: number; attributes?: Record<string, unknown> }[] = [];
+  const meter: Meter = {
+    counter: (name) => ({ add: (v, a) => counters.push({ name, value: v, attributes: a }) }),
+    histogram: (name) => ({ record: (v, a) => histograms.push({ name, value: v, attributes: a }) }),
+    gauge: (name) => ({ record: (v, a) => gauges.push({ name, value: v, attributes: a }) }),
+  };
+  return { meter, counters, histograms, gauges };
+};
+```
+
+### Step 4.2: Wire CommandHandlerCollector into handleCommand
+
+**File to modify:** `src/packages/emmett/src/commandHandling/handleCommand.ts`
+
+In the `CommandHandler` function (line 92-220):
+
+1. At the start of the async retry callback (line 109), resolve observability: `const o11y = resolveCommandObservability(options);`
+2. Create collector: `const collector = commandHandlerCollector(o11y);`
+3. Wrap the entire session callback in `collector.startScope({ streamName }, async (scope) => { ... })`:
+   - Event store read/append are NOT wrapped by command handler scopes — the EventStoreCollector instruments those internally
+   - Use `scope.scope('decide', ...)` for the business logic (command handler owns this)
+   - After decide: `collector.recordEvents(scope, eventsToAppend, streamType)`
+   - After append: `collector.recordVersions(scope, currentStreamVersion, appendResult.nextExpectedStreamVersion)`
+   - Before append: stamp events with `traceId` and `spanId` from `scope.spanContext()`
+
+4. Stamp correlationId/causationId on produced events:
+   - `causationId`: from handleOptions or auto-generated UUID
+   - `correlationId`: from handleOptions or auto-generated UUID
+   - `traceId`: from `scope.spanContext().traceId`
+   - `spanId`: from `scope.spanContext().spanId`
+
+**Test:** `src/packages/emmett/src/commandHandling/handleCommand.observability.unit.spec.ts`
+
+1. `handleCommand with collecting tracer produces command.handle span` -- use in-memory event store + collecting tracer, handle a command, verify span exists.
+2. `handleCommand root span has emmett.scope.type=command and emmett.scope.main=true` -- verify semantic attributes for filtering/routing.
+3. `handleCommand root span has messaging.system=emmett and messaging.destination.name` -- verify OTel conventions.
+4. `handleCommand span has correct emmett.* attributes after success` -- verify emmett.stream.name, emmett.command.event_count, emmett.command.event_types, emmett.command.status, emmett.stream.version.before/after.
+5. `handleCommand creates child span for decide` -- verify decide child span exists (event store spans are created by EventStoreCollector, not tested here).
+6. `handleCommand with placement=wide puts child attributes on root span` -- verify emmett.eventstore.read.event_count on root, not on child.
+7. `handleCommand with placement=tree puts child attributes on child spans` -- verify emmett.eventstore.read.event_count on child, not on root.
+8. `handleCommand span has error attributes on failure` -- make the decide function throw, verify error attributes.
+9. `handleCommand records emmett.command.handling.duration histogram` -- verify collecting meter histogram entry.
+10. `handleCommand records emmett.event.appending.count counter per event` -- verify collecting meter counter entries.
+11. `handleCommand stamps traceId and spanId on produced events` -- read stream, verify events have traceId and spanId in metadata.
+12. `handleCommand stamps correlationId on produced events` -- verify.
+13. `handleCommand without observability options works (noop, no errors)` -- call without observability, everything works as before.
+
+### Step 4.3: EventStoreCollector
+
+**File to create:** `src/packages/emmett/src/observability/collectors/eventStoreCollector.ts`
+
+**Responsibility boundary:** EventStoreCollector lives *inside* the event store implementation. It creates child scopes for `eventStore.readStream` and `eventStore.appendToStream` operations. CommandHandlerCollector wraps the full command handling flow — its scope is the main span. When event store ops happen inside command handling, the EventStoreCollector's child scopes nest under the CommandHandlerCollector's main span automatically (OTel does this via AsyncLocalStorage; for non-OTel strategies, the scope threading handles it).
+
+The CommandHandlerCollector does NOT create `eventStore.*` child scopes — that's the EventStoreCollector's job. The CommandHandlerCollector only creates `command.handle` (root), `decide` (child for business logic). Event store operations are instrumented at the event store level, regardless of whether they're called from a command handler or standalone.
+
+Instruments event store operations. Maps directly to past sample's `EventStoreMetricsCollector`. All emmett-specific attributes use the `emmett.` prefix; OTel messaging conventions keep their standard names.
+
+For `readStream`:
+- Span: `eventStore.readStream`
+- Attributes: `emmett.eventstore.operation: "readStream"`, `emmett.stream.name`, `emmett.eventstore.read.event_count`, `emmett.eventstore.read.event_types`, `emmett.eventstore.read.status`, `messaging.operation.type: "receive"`, `messaging.destination.name`
+- Metrics: `emmett.stream.reading.duration` histogram with `{ emmett.eventstore.read.status }`, `emmett.stream.reading.size` histogram, `emmett.event.reading.count` counter per event with `{ emmett.event.type }`
+
+For `appendToStream`:
+- Span: `eventStore.appendToStream`
+- Attributes: `emmett.eventstore.operation: "appendToStream"`, `emmett.stream.name`, `emmett.eventstore.append.batch_size`, `emmett.eventstore.append.status`, `emmett.stream.version.before`, `emmett.stream.version.after`, `messaging.operation.type: "send"`, `messaging.batch.message_count`, `messaging.destination.name`
+- Metrics: `emmett.stream.appending.duration` histogram with `{ emmett.eventstore.append.status }`, `emmett.stream.appending.size` histogram, `emmett.event.appending.count` counter per event with `{ emmett.event.type }`
+
+These metric names map to past sample's:
+- `matching.stream.reading.duration` -> `emmett.stream.reading.duration`
+- `matching.stream.appending.duration` -> `emmett.stream.appending.duration`
+- `matching.stream.appending.size` -> `emmett.stream.appending.size`
+- `matching.event.appending.count` -> `emmett.event.appending.count`
+- `matching.event.reading.count` -> `emmett.event.reading.count`
+
+(Dropped the `matching.` prefix since past sample used it for their specific domain. Added `emmett.` prefix per OTel custom namespace convention.)
+
+```typescript
+const eventStoreCollector = (observability: ResolvedCommandObservability) => {
+  const A = EmmettAttributes;
+  const M = MessagingAttributes;
+  const streamReadingDuration = observability.meter.histogram(EmmettMetrics.stream.readingDuration);
+  const streamReadingSize = observability.meter.histogram(EmmettMetrics.stream.readingSize);
+  const eventReadingCount = observability.meter.counter(EmmettMetrics.event.readingCount);
+  const streamAppendingDuration = observability.meter.histogram(EmmettMetrics.stream.appendingDuration);
+  const streamAppendingSize = observability.meter.histogram(EmmettMetrics.stream.appendingSize);
+  const eventAppendingCount = observability.meter.counter(EmmettMetrics.event.appendingCount);
+
+  return {
+    instrumentRead: <T>(streamName: string, fn: (span: ActiveSpan) => Promise<T>): Promise<T> =>
+      observability.tracer.startSpan('eventStore.readStream', async (span) => {
+        const streamType = streamName.split('-')[0] ?? streamName;
+        span.setAttributes({
+          [A.eventStore.operation]: 'readStream',
+          [A.stream.name]: streamName,
+          [M.operationType]: 'receive',
+          [M.destinationName]: streamName,
+        });
+        // ... timing, error handling, metrics recording
+      }),
+
+    instrumentAppend: <T>(streamName: string, events: Event[], fn: (span: ActiveSpan) => Promise<T>): Promise<T> =>
+      observability.tracer.startSpan('eventStore.appendToStream', async (span) => {
+        span.setAttributes({
+          [A.eventStore.operation]: 'appendToStream',
+          [A.stream.name]: streamName,
+          [M.operationType]: 'send',
+          [M.batchMessageCount]: events.length,
+          [M.destinationName]: streamName,
+        });
+        // ... similar pattern
+      }),
+  };
+};
+```
+
+**File to create:** `src/packages/emmett/src/observability/collectors/eventStoreCollector.unit.spec.ts`
+
+Tests (similar pattern to CommandHandlerCollector tests):
+
+1. `instrumentRead creates eventStore.readStream span with emmett.eventstore.operation and messaging.operation.type attributes`
+2. `instrumentRead records emmett.stream.reading.duration histogram on success`
+3. `instrumentRead records emmett.stream.reading.duration histogram on failure with emmett.eventstore.read.status=failure`
+4. `instrumentRead records emmett.event.reading.count counter per event type`
+5. `instrumentRead records emmett.stream.reading.size histogram`
+6. `instrumentAppend creates eventStore.appendToStream span with emmett.* and messaging.* attributes`
+7. `instrumentAppend records emmett.stream.appending.duration, emmett.stream.appending.size, emmett.event.appending.count`
+8. `instrumentAppend records emmett.stream.version.before and emmett.stream.version.after`
+9. `works with noop observability`
+
+### Step 4.4: Wire EventStoreCollector into event store
+
+The EventStoreCollector lives inside the event store implementation (e.g., `inMemoryEventStore.ts`, `postgreSQLEventStore.ts`). It wraps `readStream`/`appendToStream` with `instrumentRead`/`instrumentAppend`, creating child spans for each operation. When called from inside a `command.handle` span, OTel's AsyncLocalStorage auto-nests them as children. For non-OTel strategies, child spans are independent (flat).
+
+The EventStoreCollector receives its observability config from the **event store factory options** (e.g., `getInMemoryEventStore({ observability: ... })`), not from per-call `ReadStreamOptions`/`AppendToStreamOptions`. Per-call options don't carry observability — `propagation`, `pollTracing`, `attributeTarget` etc. are store-level concerns, not per-read/per-append concerns. This step adds `observability?: EventStoreObservabilityConfig` to the event store factory options type.
+
+The CommandHandlerCollector does NOT wrap event store calls — the event store instruments itself. This means event store operations are instrumented whether called from command handling, standalone scripts, or tests.
+
+Inline projections also inherit from the event store's observability — when `handleProjections()` runs during `appendToStream`, the EventStoreCollector's active scope covers it. No separate observability config on `ProjectionDefinition`.
+
+### Step 4.5: ProcessorCollector
+
+**File to create:** `src/packages/emmett/src/observability/collectors/processorCollector.ts`
+
+Instruments processor message handling using `ObservabilityScope`. Attributes from the metrics catalog (see feedback.md "Processor Metrics"):
+
+- Root scope: `processor.handle`
+- Semantic attributes: `emmett.scope.type: 'processor'`, `emmett.scope.main: trueD`
+- Domain attributes:
+  - `emmett.processor.id`: string -- from processor config
+  - `emmett.processor.type`: "projector" | "reactor" | "workflow" | "custom" -- from processor config
+  - `emmett.processor.batch_size`: number -- count of messages in this batch
+  - `emmett.processor.event_types`: string[] -- event types in batch
+  - `emmett.processor.checkpoint.before`: string -- checkpoint position before processing
+  - `emmett.processor.checkpoint.after`: string -- checkpoint position after processing
+  - `emmett.processor.lag_events`: number -- how far behind latest position (populated when stream tail position is available)
+- OTel messaging conventions:
+  - `messaging.system: 'emmett'`
+  - `messaging.batch.message_count`: batch size
+  - Per-message child scopes: `messaging.operation.type: 'process'`, `messaging.message.id`
+  - Per-message `parent` from message metadata (traceId/spanId) — strategy handles propagation vs link
+- Metrics:
+  - `emmett.processor.processing.duration` histogram with `{ emmett.processor.id, emmett.processor.type, emmett.processor.status }`
+  - `emmett.processor.lag_events` gauge with `{ emmett.processor.id }`
+
+```typescript
+const processorCollector = (observability: ResolvedProcessorObservability) => {
+  const { startScope } = ObservabilityScope(observability);
+  const A = EmmettAttributes;
+  const M = MessagingAttributes;
+  const processingDuration = observability.meter.histogram(EmmettMetrics.processor.processingDuration);
+  const lagEvents = observability.meter.gauge(EmmettMetrics.processor.lagEvents);
+
+  return {
+    startScope: <T>(
+      context: { processorId: string; type: string; checkpoint: ProcessorCheckpoint | null },
+      messages: RecordedMessage[],
+      fn: (scope: ObservabilityScope) => Promise<T>,
+    ): Promise<T> => {
+      // Batch span links to all unique source message traces — always links, never propagates,
+      // since a batch can span multiple source traces.
+      const sourceLinks: SpanLink[] = messages
+        .filter(m => m.metadata?.traceId && m.metadata?.spanId)
+        .reduce<SpanLink[]>((acc, m) => {
+          const link = { traceId: m.metadata.traceId!, spanId: m.metadata.spanId! };
+          return acc.some(l => l.traceId === link.traceId && l.spanId === link.spanId)
+            ? acc
+            : [...acc, link];
+        }, []);
+
+      return startScope('processor.handle', async (scope) => {
+        scope.setAttributes({
+          [A.scope.type]: ScopeTypes.processor,
+          [A.processor.id]: context.processorId,
+          [A.processor.type]: context.type,
+          [A.processor.batchSize]: messages.length,
+          [A.processor.eventTypes]: [...new Set(messages.map(m => m.type))],
+          [M.system]: MessagingSystemName,
+          [M.batchMessageCount]: messages.length,
+          ...(context.checkpoint ? { [A.processor.checkpointBefore]: context.checkpoint } : {}),
+        });
+
+        // ... timing, error handling, metrics recording
+        return fn(scope);
+      }, { links: sourceLinks });
+    },
+    },
+  };
+};
+```
+
+Note: this means `startSpan` needs an optional third argument for parent context. This is already defined in almanac's `Tracer` interface (Step 1.1) via `StartSpanOptions`.
+
+When `parent` is provided:
+- OTel strategy: creates span with explicit parent via `context.with(trace.setSpanContext(ctx, parent), ...)`
+- Pino/ClickHouse/noop: ignore parent (no nesting support)
+
+This is how the propagation config actually reaches the tracer — through explicit `StartSpanOptions`, not through ambient state.
+
+**File to create:** `src/packages/emmett/src/observability/collectors/processorCollector.unit.spec.ts`
+
+Tests:
+
+1. `creates processor.handle span with emmett.scope.type=processor and emmett.scope.main=true`
+2. `sets emmett.processor.id, emmett.processor.type, emmett.processor.batch_size`
+3. `sets messaging.system, messaging.batch.message_count`
+4. `sets emmett.processor.event_types from message types`
+5. `batch span links to all unique source message trace contexts`
+6. `per-message child scopes receive parent from message metadata and links back to batch span`
+7. `creates child scopes per message with messaging.operation.type=process`
+8. `records emmett.processor.processing.duration histogram`
+9. `records emmett.processor.lag_events gauge`
+10. `works with noop observability`
+
+### Step 4.6: Wire ProcessorCollector into reactor/projector
+
+**File to modify:** `src/packages/emmett/src/processors/processors.ts`
+
+In the `reactor` function (line 292), in the `handle` method (line 418-487):
+
+1. Resolve observability from options: `const o11y = resolveProcessorObservability(options);`
+2. Create collector: `const collector = processorCollector(o11y);`
+3. Wrap the batch processing in `collector.startScope(...)`.
+
+The `handle` method receives `messages` and `partialContext`. Wrap the processing in the collector's scope:
+
+```typescript
+handle: async (messages, partialContext) => {
+  if (!isActive) return Promise.resolve();
+  const A = EmmettAttributes;
+  const M = MessagingAttributes;
+  return collector.startScope(
+    { processorId, type, checkpoint: lastCheckpoint },
+    messages,
+    async (scope) => {
+      const batchCtx = scope.spanContext();
+
+      for (const message of messages) {
+        const parent = message.metadata?.traceId && message.metadata?.spanId
+          ? { traceId: message.metadata.traceId, spanId: message.metadata.spanId }
+          : undefined;
+
+        const links: SpanLink[] = batchCtx.traceId ? [batchCtx] : [];
+
+        await scope.scope(`processor.message.${message.type}`, async (child) => {
+          await eachMessage(message, context);
+        }, {
+          parent,
+          links,
+          attributes: { [M.operationType]: 'process', [M.messageId]: message.metadata?.messageId },
+        });
+      }
+      scope.setAttributes({ [A.processor.status]: result?.type ?? 'ack' });
+      return result;
+    },
+  );
+},
+```
+
+### Step 4.7: WorkflowCollector
+
+**File to create:** `src/packages/emmett/src/observability/collectors/workflowCollector.ts`
+
+Instruments workflow steps using `ObservabilityScope`. Attributes from the metrics catalog (see feedback.md "Workflow-Specific Metrics"):
+
+- Root scope: `workflow.handle`
+- Semantic attributes: `emmett.scope.type: 'workflow'`, `emmett.scope.main: true`
+- Domain attributes:
+  - `emmett.workflow.id`: string -- workflow instance ID
+  - `emmett.workflow.type`: string -- workflow definition name
+  - `emmett.workflow.input.type`: string -- what message triggered this step
+  - `emmett.workflow.outputs`: string[] -- output message types
+  - `emmett.workflow.outputs.count`: number
+  - `emmett.workflow.stream_position`: number -- position in workflow stream
+  - `emmett.workflow.state_rebuild.event_count`: number -- events replayed to rebuild state
+  - `parent?: SpanContext` -- from input event's traceId/spanId metadata (strategy handles propagate vs link)
+- Child scopes: `workflow.evolve` (state rebuild), `workflow.decide` (business logic)
+- OTel messaging: `messaging.system: 'emmett'`
+- Metrics:
+  - `emmett.workflow.processing.duration` histogram with `{ emmett.workflow.type }`
+
+**File to create:** `src/packages/emmett/src/observability/collectors/workflowCollector.unit.spec.ts`
+
+Tests:
+
+1. `creates workflow.handle scope with emmett.scope.type=workflow and emmett.scope.main=true`
+2. `sets emmett.workflow.id, emmett.workflow.type, emmett.workflow.input.type`
+3. `sets emmett.workflow.outputs and emmett.workflow.outputs.count`
+4. `creates child scopes for evolve/decide/route with placement-aware attributes`
+5. `records emmett.workflow.processing.duration histogram`
+6. `passes parent from input event metadata — strategy decides propagate vs link`
+7. `works with noop observability`
+
+### Step 4.8: Wire WorkflowCollector into handleWorkflow
+
+**File to modify:** `src/packages/emmett/src/workflows/handleWorkflow.ts`
+
+In `WorkflowHandler` (line 185), wrap the session callback in the collector's `startScope`. Use `scope.scope('workflow.evolve', ...)` for the `aggregateStream` call and `scope.scope('workflow.decide', ...)` for the business logic. Set `emmett.workflow.state_rebuild.event_count` on the evolve child scope after aggregation. Child scope attributes respect `attributeTarget` config.
+
+### Step 4.9: ConsumerCollector + Puller Instrumentation
+
+**File to create:** `src/packages/emmett/src/observability/collectors/consumerCollector.ts`
+
+#### Design: Polling loop vs batch processing — separate concerns
+
+The consumer has two distinct layers:
+
+1. **Puller** (`messageBatchPuller`) — infrastructure loop: poll DB, sleep, backoff. Lives in `emmett-postgresql`/`emmett-sqlite`.
+2. **Consumer** (`eachBatch`) — fans out batches to processors. Each processor creates its own root span with links.
+
+The puller is NOT a parent of processor work. Processors create independent traces (with links back to producers via message metadata). The puller's spans, when enabled, are sibling infrastructure traces — operational telemetry about the polling mechanics.
+
+#### `pollTracing` controls puller visibility
+
+Resolved from `ConsumerObservabilityConfig` (which only exposes `tracer`, `meter`, `pollTracing`):
+
+- **`'off'`** (default) — puller creates no spans. Processors get their own root spans as usual. Metrics still recorded (poll duration histogram, lag gauge) because metrics are cheap.
+- **`'active'`** — span per poll iteration that found messages. Attributes: batch size, query duration, position after. Empty polls are silent.
+- **`'verbose'`** — every poll iteration. Empty polls get `emmett.consumer.poll.empty: true` with backoff timing (`emmett.consumer.poll.wait_ms`).
+
+Poll spans are always root spans (fresh trace, `emmett.scope.main: true`). They are NOT parents of processor spans.
+
+#### Attributes
+
+Consumer-level (on poll spans when enabled, always on metrics):
+- `emmett.scope.type: 'consumer'`, `emmett.scope.main: true`
+- `emmett.consumer.batch_size`: number -- messages fetched this cycle (0 for empty polls)
+- `emmett.consumer.processor_count`: number -- active processors
+- `emmett.consumer.poll.empty`: boolean -- true when no messages found (verbose mode only)
+- `emmett.consumer.poll.wait_ms`: number -- backoff wait time before next poll
+- `messaging.system: 'emmett'`, `messaging.operation.type: 'receive'`
+
+Per-processor delivery (child scopes of the poll span, only when poll span exists):
+- `emmett.consumer.delivery.processor_id`: string
+
+#### Span links: established at processor level, not consumer level
+
+The consumer does NOT add span links. It doesn't know about producer traces — that's the processor's job. Each processor's `processorCollector.startScope` extracts `traceId`/`spanId` from message metadata and adds links (already defined in Step 4.5).
+
+This means the trace topology looks like:
+
+```
+[Poll trace — infrastructure, optional]
+Span: "consumer.poll"
+  emmett.scope.main: true
+  emmett.consumer.batch_size: 25
+  emmett.consumer.poll.empty: false
+  (no links — this is plumbing)
+
+[Processor traces — independent, one per processor per batch]
+Span: "processor.handle" (Trace B — independent root)
+  emmett.scope.main: true
+  emmett.processor.id: "ShoppingCartProjection"
+  links: [{ traceId: A1, spanId: x1 }, { traceId: A2, spanId: x2 }]  ← from message metadata
+  └── Span: "processor.message.OrderPlaced"
+  └── Span: "processor.message.ItemAdded"
+
+Span: "processor.handle" (Trace C — independent root)
+  emmett.scope.main: true
+  emmett.processor.id: "OrderWorkflow"
+  links: [{ traceId: A1, spanId: x1 }]
+  └── Span: "processor.message.OrderPlaced"
+```
+
+The poll span and processor spans are NOT in a parent-child relationship. They happen to be triggered by the same poll cycle, but they're in separate traces. If you need to correlate them, use timestamps or add a shared `emmett.consumer.poll_id` attribute (a UUID per poll iteration).
+
+#### Collector implementation
+
+```typescript
+const consumerCollector = (observability: ResolvedConsumerObservability) => {
+  const { startScope } = ObservabilityScope(observability);
+  const A = EmmettAttributes;
+  const M = MessagingAttributes;
+  const pollDuration = observability.meter.histogram(EmmettMetrics.consumer.pollDuration);
+  const deliveryDuration = observability.meter.histogram(EmmettMetrics.consumer.deliveryDuration);
+
+  return {
+    // Called per poll iteration by the puller.
+    // Returns whether to create a span based on pollTracing config.
+    shouldTrace: (messageCount: number): boolean => {
+      if (observability.pollTracing === 'off') return false;
+      if (observability.pollTracing === 'active') return messageCount > 0;
+      return true; // 'verbose'
+    },
+
+    // Wraps a poll iteration in a span (only called when shouldTrace returns true).
+    tracePoll: <T>(
+      context: {
+        processorCount: number;
+        batchSize: number;
+        empty: boolean;
+        waitMs?: number;
+      },
+      fn: (scope: ObservabilityScope) => Promise<T>,
+    ): Promise<T> =>
+      startScope('consumer.poll', async (scope) => {
+        scope.setAttributes({
+          [A.scope.type]: ScopeTypes.consumer,
+          [A.consumer.batchSize]: context.batchSize,
+          [A.consumer.processorCount]: context.processorCount,
+          [M.system]: MessagingSystemName,
+          [M.operationType]: 'receive',
+          ...(context.empty ? { ['emmett.consumer.poll.empty']: true } : {}),
+          ...(context.waitMs != null ? { ['emmett.consumer.poll.wait_ms']: context.waitMs } : {}),
+        });
+
+        return fn(scope);
+      }),
+
+    // Records metrics (always, regardless of pollTracing).
+    recordPollMetrics: (durationMs: number, attrs: Record<string, unknown>) => {
+      pollDuration.record(durationMs, attrs);
+    },
+
+    // Wraps per-processor delivery in a child scope.
+    traceDelivery: <T>(
+      scope: ObservabilityScope,
+      processorId: string,
+      fn: () => Promise<T>,
+    ): Promise<T> =>
+      scope.scope(`consumer.deliver.${processorId}`, async (child) => {
+        try {
+          return await fn();
+        } catch (error) {
+          if (error instanceof Error) child.recordException(error);
+          throw error;
+        }
+      }, { attributes: { [A.consumer.delivery.processorId]: processorId } }),
+  };
+};
+```
+
+#### Wiring into the puller
+
+The puller (`postgreSQLEventStoreMessageBatchPuller` / `sqliteEventStoreMessageBatchPuller`) accepts an optional `observability` parameter typed as `ConsumerObservabilityConfig`. The `pullMessages` loop uses the collector:
+
+```typescript
+// In the pullMessages while loop:
+while (isRunning && !signal?.aborted) {
+  const start = Date.now();
+  const { messages, currentGlobalPosition, areMessagesLeft } =
+    await readMessagesBatch(executor, readMessagesOptions);
+
+  const durationMs = Date.now() - start;
+  collector.recordPollMetrics(durationMs);
+
+  if (collector.shouldTrace(messages.length)) {
+    await collector.tracePoll(
+      {
+        batchSize: messages.length,
+        processorCount: activeProcessorCount,
+        empty: messages.length === 0,
+        waitMs: waitTime,
+      },
+      async (scope) => {
+        if (messages.length > 0) {
+          // eachBatch is NOT wrapped in a child span here —
+          // each processor inside eachBatch creates its own root trace.
+          await eachBatch(messages);
+        }
+        return undefined;
+      },
+    );
+  } else if (messages.length > 0) {
+    // pollTracing=off but still process the batch
+    await eachBatch(messages);
+  }
+
+  readMessagesOptions.after = currentGlobalPosition;
+  // ... backoff logic unchanged
+}
+```
+
+**File to create:** `src/packages/emmett/src/observability/collectors/consumerCollector.unit.spec.ts`
+
+Tests:
+
+1. `shouldTrace returns false for empty polls when pollTracing=off`
+2. `shouldTrace returns false for non-empty polls when pollTracing=off`
+3. `shouldTrace returns false for empty polls when pollTracing=active`
+4. `shouldTrace returns true for non-empty polls when pollTracing=active`
+5. `shouldTrace returns true for empty polls when pollTracing=verbose`
+6. `shouldTrace returns true for non-empty polls when pollTracing=verbose`
+7. `tracePoll creates consumer.poll span with emmett.scope.type=consumer and emmett.scope.main=true`
+8. `tracePoll sets emmett.consumer.batch_size, emmett.consumer.processor_count`
+9. `tracePoll sets messaging.system=emmett and messaging.operation.type=receive`
+10. `tracePoll sets emmett.consumer.poll.empty=true for empty polls`
+11. `tracePoll sets emmett.consumer.poll.wait_ms for backoff timing`
+12. `traceDelivery creates child scope per processor with emmett.consumer.delivery.processor_id`
+13. `traceDelivery records exception on failure`
+14. `recordPollMetrics records emmett.consumer.poll.duration histogram regardless of pollTracing`
+15. `works with noop observability`
+
+### Step 4.10: Collector index + exports
+
+**File to create:** `src/packages/emmett/src/observability/collectors/index.ts`
+
+```typescript
+export * from './commandHandlerCollector';
+export * from './eventStoreCollector';
+export * from './processorCollector';
+export * from './workflowCollector';
+export * from './consumerCollector';
+```
+
+**File to modify:** `src/packages/emmett/src/observability/index.ts` -- add `export * from './collectors';`
+
+**Run:** All tests pass. `npx tsc --noEmit` passes.
+
+---
+
+## Phase 5: Strategy Implementations (inside `@event-driven-io/almanac`)
+
+Strategies live inside the almanac package as sub-exports: `@event-driven-io/almanac/otel`, `@event-driven-io/almanac/pino`, `@event-driven-io/almanac/clickhouse`. Each uses peer dependencies for its third-party lib. Can be extracted to separate packages later if needed.
+
+### Step 5.1: OTel Tracer
+
+**File to create:** `src/packages/almanac/src/strategies/otelTracer.ts`
+
+Creates real OTel spans via `@opentelemetry/api`. This file is the ONLY place that imports `@opentelemetry/api` for tracing.
+
+```typescript
+import { trace, context, SpanStatusCode } from '@opentelemetry/api';
+import type { Tracer, ActiveSpan } from '@event-driven-io/almanac';
+
+const otelTracer = (tracerName = 'almanac'): Tracer => ({
+  startSpan: async (name, fn, options?) => {
+    const tracer = trace.getTracer(tracerName);
+    const spanOptions: SpanOptions = {};
+
+    // Links always added as-is — OTel requires them at creation time.
+    if (options?.links?.length) {
+      spanOptions.links = options.links.map(l => ({
+        context: { traceId: l.traceId, spanId: l.spanId, traceFlags: 1 },
+        attributes: l.attributes,
+      }));
+    }
+
+    // parent handling depends on propagation:
+    // 'propagate' → real parent (child span under producer's trace)
+    // 'links' or default → demote parent to a SpanLink, create fresh trace
+    let ctx = context.active();
+    if (options?.parent) {
+      const parentCtx = { traceId: options.parent.traceId, spanId: options.parent.spanId, traceFlags: 1 };
+      if (options.propagation === 'propagate') {
+        ctx = trace.setSpanContext(ctx, parentCtx);
+      } else {
+        spanOptions.links = [...(spanOptions.links ?? []), { context: parentCtx }];
+      }
+    }
+
+    return tracer.startActiveSpan(name, spanOptions, ctx, async (otelSpan) => {
+      const span: ActiveSpan = {
+        setAttributes: (attrs) => {
+          for (const [key, value] of Object.entries(attrs)) {
+            if (value !== undefined) {
+              otelSpan.setAttribute(key, value as string | number | boolean);
+            }
+          }
+        },
+        spanContext: () => ({
+          traceId: otelSpan.spanContext().traceId,
+          spanId: otelSpan.spanContext().spanId,
+        }),
+        addLink: () => {
+          // No-op for OTel — links are passed at creation time via StartSpanOptions.
+          // Non-OTel strategies (ClickHouse, Pino) can still accept addLink after creation.
+        },
+      };
+      try {
+        const result = await fn(span);
+        otelSpan.setStatus({ code: SpanStatusCode.OK });
+        return result;
+      } catch (err) {
+        otelSpan.setStatus({ code: SpanStatusCode.ERROR, message: err instanceof Error ? err.message : String(err) });
+        otelSpan.recordException(err instanceof Error ? err : new Error(String(err)));
+        throw err;
+      } finally {
+        otelSpan.end();
+      }
+    });
+  },
+});
+```
+
+The strategy handles `parent` based on `propagation` from options (forwarded by the scope from config). `links` are always added as SpanLinks. Non-OTel strategies (ClickHouse, Pino, noop) follow the same contract: use `parent` as parent for 'propagate', emit as link reference for 'links'.
+
+`addLink` on `ActiveSpan` is still available — non-OTel strategies can implement it for runtime link attachment. For OTel it is a no-op, since OTel requires links at span creation time. The primary mechanism for cross-boundary linking is `parent` + `links` on `StartSpanOptions`, with the strategy deciding the semantics.
+
+**File to create:** `src/packages/almanac/src/strategies/otelTracer.unit.spec.ts`
+
+Tests (these require `@opentelemetry/api` as a dev dependency):
+
+1. `creates a span via OTel API` -- set up in-memory span exporter, call otelTracer().startSpan('test', ...), verify span was created with correct name.
+2. `setAttributes maps to OTel span.setAttribute` -- verify attributes on exported span.
+3. `spanContext returns real OTel traceId and spanId` -- verify they are valid hex strings (32 chars and 16 chars respectively).
+4. `nested startSpan creates parent-child relationship` -- start outer span, inside it start inner span, verify inner span has outer's spanId as parentSpanId.
+5. `sets ERROR status on exception` -- throw inside fn, verify span has error status.
+6. `passes links at span creation` -- call startSpan with `{ links: [{ traceId: '...', spanId: '...' }] }`, verify exported span has links.
+7. `propagation=propagate with parent creates child span` -- call with `{ parent: { traceId, spanId }, propagation: 'propagate' }`, verify span has parentSpanId.
+8. `propagation=links with parent demotes parent to SpanLink` -- call with `{ parent: { traceId, spanId }, propagation: 'links' }`, verify span has no parentSpanId but has a link to that traceId/spanId.
+
+**Dependencies:** `@opentelemetry/api` is a **peer dependency** of `@event-driven-io/almanac`. Users who want OTel bring their own SDK.
+
+### Step 5.2: OTel Meter
+
+**File to create:** `src/packages/almanac/src/strategies/otelMeter.ts`
+
+```typescript
+import { metrics } from '@opentelemetry/api';
+
+const otelMeter = (meterName = 'almanac'): Meter => {
+  const meter = metrics.getMeter(meterName);
+  return {
+    counter: (name) => {
+      const counter = meter.createCounter(name);
+      return { add: (value, attrs) => counter.add(value, attrs) };
+    },
+    histogram: (name) => {
+      const histogram = meter.createHistogram(name);
+      return { record: (value, attrs) => histogram.record(value, attrs) };
+    },
+    gauge: (name) => {
+      const gauge = meter.createGauge(name);
+      return { record: (value, attrs) => gauge.record(value, attrs) };
+    },
+  };
+};
+```
+
+**File to create:** `src/packages/almanac/src/strategies/otelMeter.unit.spec.ts`
+
+Tests:
+
+1. `counter.add creates an OTel counter and calls add`
+2. `histogram.record creates an OTel histogram and calls record`
+3. `gauge.record creates an OTel gauge and calls record`
+
+### Step 5.3: Pino Tracer Strategy
+
+Pino as a tracer strategy — `addEvent` emits structured log lines via Pino, `recordException` logs at error level. The span itself is logged on completion with timing and attributes.
+
+**File to create:** `src/packages/almanac/src/strategies/pinoTracer.ts`
+
+User passes their own Pino instance. The strategy implements almanac's `Tracer`:
+
+```typescript
+import type { Logger as PinoLogger } from 'pino';
+
+const pinoTracer = (pino: PinoLogger): Tracer => ({
+  startSpan: async (name, fn) => {
+    const startTime = Date.now();
+    const attrs: Record<string, unknown> = {};
+    const span: ActiveSpan = {
+      setAttributes: (a) => Object.assign(attrs, a),
+      spanContext: () => ({ traceId: '', spanId: '' }),
+      addLink: () => {},
+      addEvent: (eventName, eventAttrs) => pino.info({ ...eventAttrs, spanName: name }, eventName),
+      recordException: (err) => {
+        const error = err instanceof Error ? err : new Error(String(err));
+        pino.error({ err: error, spanName: name }, error.message);
+      },
+    };
+    try {
+      const result = await fn(span);
+      const durationMs = Date.now() - startTime;
+      pino.info({ ...attrs, durationMs, status: 'success' }, name);
+      return result;
+    } catch (err) {
+      const durationMs = Date.now() - startTime;
+      pino.error({ ...attrs, durationMs, status: 'failure', err }, name);
+      throw err;
+    }
+  },
+});
+```
+
+**Test:** `src/packages/almanac/src/strategies/pinoTracer.unit.spec.ts`
+
+1. `logs span name and attributes on completion` -- mock Pino, verify pino.info called with attrs and name.
+2. `addEvent emits pino.info with event name and attributes`
+3. `recordException emits pino.error`
+4. `logs at error level on failure`
+
+**Dependency:** `pino` as a peer dependency of `@event-driven-io/almanac`.
+
+---
+
+### Step 5.4: Console Tracer Strategy
+
+**File to create:** `src/packages/almanac/src/consoleTracer.ts`
+
+Built-in, zero-dependency tracer that outputs to `console.*`. Useful for development, debugging, and as a reference implementation. Lives in almanac core (not a strategy sub-export) since it has no external dependencies.
+
+```typescript
+const consoleTracer = (options?: { verbose?: boolean }): Tracer => ({
+  startSpan: async (name, fn, spanOptions?) => {
+    const startTime = Date.now();
+    const traceId = generateTraceId();
+    const spanId = generateSpanId();
+    const attrs: Record<string, unknown> = {};
+
+    const span: ActiveSpan = {
+      setAttributes: (a) => Object.assign(attrs, a),
+      spanContext: () => ({ traceId, spanId }),
+      addLink: (link) => {
+        if (options?.verbose) console.log(`  [link] ${link.traceId}:${link.spanId}`);
+      },
+      addEvent: (eventName, eventAttrs) => console.log(`  [event] ${eventName}`, eventAttrs ?? ''),
+      recordException: (err) => console.error(`  [exception]`, err),
+    };
+
+    console.log(`[span:start] ${name} (${traceId.slice(0, 8)}:${spanId.slice(0, 8)})`);
+    try {
+      const result = await fn(span);
+      const durationMs = Date.now() - startTime;
+      console.log(`[span:end]   ${name} ${durationMs}ms OK`, options?.verbose ? attrs : '');
+      return result;
+    } catch (err) {
+      const durationMs = Date.now() - startTime;
+      console.error(`[span:end]   ${name} ${durationMs}ms ERROR`, err);
+      throw err;
+    }
+  },
+});
+```
+
+**File to create:** `src/packages/almanac/src/consoleTracer.unit.spec.ts`
+
+Tests:
+1. `executes the function and returns its result`
+2. `logs span start and end to console` -- spy on console.log, verify calls.
+3. `addEvent logs to console` -- verify console.log called with event name.
+4. `recordException logs to console.error` -- verify console.error called.
+5. `generates valid traceId and spanId`
+
+Export: `consoleTracer`.
+
+### Step 5.5: ClickHouse Tracer Strategy
+
+**File to create:** `src/packages/almanac/src/strategies/clickhouseTracer.ts`
+
+On span completion, calls an insert function with span data flattened as columns. This validates the strategy pattern works for analytical backends.
+
+```typescript
+type ClickHouseInsert = (row: {
+  name: string;
+  startTime: number;
+  durationMs: number;
+  traceId: string;
+  spanId: string;
+  attributes: Record<string, unknown>;
+  status: 'success' | 'failure';
+}) => Promise<void>;
+
+const clickhouseTracer = (insert: ClickHouseInsert): Tracer => ({
+  startSpan: async (name, fn) => {
+    const startTime = Date.now();
+    const traceId = generateTraceId(); // 16-byte hex
+    const spanId = generateSpanId();    // 8-byte hex
+    const attrs: Record<string, unknown> = {};
+    let status: 'success' | 'failure' = 'success';
+
+    const span: ActiveSpan = {
+      setAttributes: (a) => Object.assign(attrs, a),
+      spanContext: () => ({ traceId, spanId }),
+      addLink: () => {},
+    };
+
+    try {
+      return await fn(span);
+    } catch (err) {
+      status = 'failure';
+      throw err;
+    } finally {
+      const durationMs = Date.now() - startTime;
+      await insert({ name, startTime, durationMs, traceId, spanId, attributes: attrs, status });
+    }
+  },
+});
+```
+
+**Test:** `src/packages/almanac/src/strategies/clickhouseTracer.unit.spec.ts`
+
+1. `calls insert function on span completion with correct fields` -- use a mock insert that captures the row, verify fields.
+2. `captures all attributes set during execution`
+3. `status is failure when fn throws`
+4. `generates valid hex traceId (32 chars) and spanId (16 chars)`
+
+### Step 5.6: Strategy sub-exports
+
+**File to create:** `src/packages/almanac/src/strategies/index.ts`
+
+```typescript
+export * from './otelTracer';
+export * from './otelMeter';
+export * from './pinoTracer';
+export * from './clickhouseTracer';
+```
+
+**Modify:** `src/packages/almanac/package.json` — add sub-export entries:
+
+```json
+"exports": {
+  ".": { "import": ..., "require": ... },
+  "./otel": { "import": ..., "require": ... },
+  "./pino": { "import": ..., "require": ... },
+  "./clickhouse": { "import": ..., "require": ... }
+}
+```
+
+Each sub-export entry points to a separate tsup entry point so tree-shaking works and peer deps are only needed when the sub-export is imported.
+
+**Modify:** `src/packages/almanac/tsup.config.ts` — add entry points: `['src/index.ts', 'src/otel.ts', 'src/pino.ts', 'src/clickhouse.ts']`
+
+**Create bridge files:**
+- `src/packages/almanac/src/otel.ts` → re-exports from `./strategies/otelTracer` and `./strategies/otelMeter`
+- `src/packages/almanac/src/pino.ts` → re-exports from `./strategies/pinoTracer`
+- `src/packages/almanac/src/clickhouse.ts` → re-exports from `./strategies/clickhouseTracer`
+
+---
+
+## Phase 6: HTTP Framework Auto-instrumentation
+
+### Step 6.1: Express instrumented handler
+
+**File to modify:** `src/packages/emmett-expressjs/src/handler.ts`
+
+Instead of separate middleware, extend emmett-expressjs's existing `on()` handler wrapper to accept observability options. The `on()` function already wraps route handlers — it's the natural place to create spans.
+
+```typescript
+import type { ObservabilityOptions } from '@event-driven-io/emmett';
+
+export const on =
+  <RequestType extends Request>(
+    handle: HttpHandler<RequestType>,
+    options?: ObservabilityOptions,
+  ) =>
+  async (request: RequestType, response: Response, _next: NextFunction): Promise<void> => {
+    // HTTP handlers only need tracer + meter, no archetype-specific config.
+    const tracer = options?.observability?.tracer ?? noopTracer();
+    const meter = options?.observability?.meter ?? noopMeter();
+
+    await tracer.startSpan(
+      `${request.method} ${request.path}`,
+      async (span) => {
+        span.setAttributes({
+          'http.method': request.method,
+          'http.url': request.originalUrl,
+          'http.route': request.path,
+        });
+
+        const setResponse = await Promise.resolve(handle(request));
+
+        // Response carries status code after setting
+        setResponse(response);
+        span.setAttributes({ 'http.status_code': response.statusCode });
+      },
+    );
+  };
+```
+
+No request mutation. No middleware. The span wraps the handler directly. When `handleCommand` is called inside the handler, it receives its own observability options and creates `command.handle` span. If the user plugged in OTel, OTel's internal AsyncLocalStorage nests them automatically. If not, they're independent spans — which is fine because the wide event attributes are on each span.
+
+**Test:** `src/packages/emmett-expressjs/src/handler.observability.unit.spec.ts`
+
+1. `on() with observability creates a span wrapping the handler`
+2. `span has http.method, http.url, http.status_code attributes`
+3. `on() without observability works as before (noop)`
+4. `errors in handler set error attributes on span`
+
+### Step 6.2: Hono instrumented handler
+
+**File to modify:** `src/packages/emmett-honojs/src/handler.ts`
+
+Same pattern — extend the existing handler wrapper to accept `ObservabilityOptions`.
+
+---
+
+## Phase 7: Integration Tests
+
+### Step 7.1: End-to-end: command handler -> event store -> processor with observability
+
+**File to create:** `src/packages/emmett/src/observability/integration.spec.ts`
+
+Full flow test:
+
+1. Configure: `collectingTracer()` + `collectingMeter()` as observability.
+2. Set up in-memory event store with observability options.
+3. Handle a command via `CommandHandler` with observability. Verify:
+   - `command.handle` scope exists with `emmett.scope.type=command`, `emmett.scope.main=true`
+   - Child scopes exist for `eventStore.readStream`, `decide`, `eventStore.appendToStream`
+   - `emmett.*` domain attributes and `messaging.*` OTel conventions present
+   - `emmett.command.handling.duration` histogram recorded
+   - `emmett.event.appending.count` counter recorded per event
+   - Produced events have `traceId`, `spanId`, `correlationId`, `causationId` in metadata
+4. Set up a reactor with observability that receives those events. Verify:
+   - `processor.handle` scope exists with `emmett.scope.type=processor`, `emmett.scope.main=true`
+   - Child scopes per message with `messaging.operation.type=process`
+   - SpanLinks point back to the command's traceId/spanId (from event metadata)
+   - `emmett.processor.processing.duration` histogram recorded
+5. Verify `composite(tracer1, tracer2)` runs both strategies for the same execution.
+6. Verify `attributeTarget=mainSpan` puts child scope attributes on root span only.
+7. Verify `attributeTarget=currentSpan` puts child scope attributes on child spans only.
+
+### Step 7.2: Full stack with Express
+
+**File to create:** `src/packages/emmett-expressjs/src/e2e/observability.e2e.spec.ts`
+
+Using supertest:
+
+1. Set up Express app with observability middleware + command handler endpoint.
+2. Send HTTP request.
+3. Verify span nesting: HTTP span -> command.handle span -> event store operations.
+4. Verify http.status_code set on the HTTP span.
+
+---
+
+## Verification Checklist
+
+After each phase:
+- [ ] `npx vitest run` -- all new and existing tests pass
+- [ ] `npx tsc --noEmit` -- type checking passes
+- [ ] No `any` types introduced (use `unknown` instead)
+- [ ] All exports flow through index.ts files up to the package root
+- [ ] Existing tests still pass without observability configured (noop defaults)
+
+---
+
+## File Summary
+
+### New package: `@event-driven-io/almanac` (`src/packages/almanac/`)
+
+```
+src/packages/almanac/
+├── package.json, tsconfig.json, tsconfig.build.json, tsconfig.eslint.json
+├── vitest.config.ts, tsup.config.ts
+└── src/
+    ├── index.ts                (core exports — no strategies)
+    ├── tracer.ts              + tracer.unit.spec.ts
+    ├── meter.ts               + meter.unit.spec.ts
+    ├── composite.ts           + composite.unit.spec.ts
+    ├── attributes.ts          + attributes.unit.spec.ts
+    ├── scope.ts               + scope.unit.spec.ts
+    ├── options.ts             + options.unit.spec.ts
+    ├── consoleTracer.ts       + consoleTracer.unit.spec.ts
+    ├── testing.ts
+    ├── otel.ts                 (sub-export: @event-driven-io/almanac/otel)
+    ├── pino.ts                 (sub-export: @event-driven-io/almanac/pino)
+    ├── clickhouse.ts           (sub-export: @event-driven-io/almanac/clickhouse)
+    └── strategies/
+        ├── otelTracer.ts      + otelTracer.unit.spec.ts
+        ├── otelMeter.ts       + otelMeter.unit.spec.ts
+        ├── pinoTracer.ts      + pinoTracer.unit.spec.ts
+        └── clickhouseTracer.ts + clickhouseTracer.unit.spec.ts
+```
+
+### Emmett observability files (`src/packages/emmett/src/observability/`):
+
+```
+observability/
+├── index.ts                    (re-exports almanac core + domain modules)
+├── attributes.ts               + attributes.unit.spec.ts
+├── options.ts                  + options.unit.spec.ts
+├── testing.ts                  (re-exports almanac helpers + domain-specific helpers)
+└── collectors/
+    ├── index.ts
+    ├── commandHandlerCollector.ts    + .unit.spec.ts
+    ├── eventStoreCollector.ts        + .unit.spec.ts
+    ├── processorCollector.ts         + .unit.spec.ts
+    ├── workflowCollector.ts          + .unit.spec.ts
+    └── consumerCollector.ts          + .unit.spec.ts
+```
+
+### Emmett test files:
+
+- `src/packages/emmett/src/commandHandling/handleCommand.observability.unit.spec.ts`
+- `src/packages/emmett/src/observability/integration.spec.ts`
+- `src/packages/emmett-expressjs/src/handler.observability.unit.spec.ts`
+- `src/packages/emmett-expressjs/src/e2e/observability.e2e.spec.ts`
+
+### Existing files to modify:
+
+- `src/package.json` -- add almanac to workspaces
+- `src/tsconfig.json` -- add path alias + reference for almanac
+- `src/packages/emmett/package.json` -- add `@event-driven-io/almanac` dependency
+- `src/packages/emmett/tsconfig.json` -- add almanac path alias + reference
+- `src/packages/emmett/src/typing/message.ts` -- add correlationId, causationId, traceId, spanId to CommonRecordedMessageMetadata
+- `src/packages/emmett/src/commandHandling/handleCommand.ts` -- add `& EmmettObservabilityOptions`, wire collector, stamp events
+- `src/packages/emmett/src/eventStore/eventStore.ts` -- add `& EmmettObservabilityOptions` to ReadStreamOptions, AppendToStreamOptions
+- `src/packages/emmett/src/processors/processors.ts` -- add `& EmmettObservabilityOptions` to BaseMessageProcessorOptions, wire collector
+- `src/packages/emmett/src/projections/index.ts` -- add `& EmmettObservabilityOptions` to ProjectionDefinition
+- `src/packages/emmett/src/observability/index.ts` -- re-export almanac + domain modules
+- `src/packages/emmett/src/index.ts` -- add `export * from './observability'`
+- `src/packages/emmett/src/workflows/handleWorkflow.ts` -- wire WorkflowCollector
+- `src/packages/emmett-expressjs/src/handler.ts` -- extend `on()` to accept ObservabilityOptions, wrap in span
+- `src/packages/emmett-honojs/src/handler.ts` -- same pattern for Hono
+
+### Removed:
+
+- `src/packages/emmett/src/observability/tracer.ts` -- old unused logger, replaced by almanac re-exports

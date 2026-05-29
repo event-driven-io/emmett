@@ -3,6 +3,11 @@ import {
   getInMemoryDatabase,
   type InMemoryDatabase,
 } from '../database/inMemoryDatabase';
+import type { EventStoreObservabilityConfig } from '../observability';
+import {
+  eventStoreCollector,
+  resolveEventStoreObservability,
+} from '../observability';
 import { bigIntProcessorCheckpoint } from '../processors';
 import type { ProjectionRegistration } from '../projections';
 import type {
@@ -49,6 +54,7 @@ export type InMemoryEventStoreOptions =
       InMemoryProjectionHandlerContext
     >[];
     database?: InMemoryDatabase;
+    observability?: EventStoreObservabilityConfig;
   };
 
 export type InMemoryReadEvent<EventType extends Event = Event> = ReadEvent<
@@ -77,6 +83,9 @@ export const getInMemoryEventStore = (
   const inlineProjections = (eventStoreOptions?.projections ?? [])
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
+
+  const observability = resolveEventStoreObservability(eventStoreOptions);
+  const collector = eventStoreCollector(observability);
 
   // Create the event store object
   const eventStore: InMemoryEventStore = {
@@ -120,54 +129,50 @@ export const getInMemoryEventStore = (
       readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
-    > => {
-      const events = streams.get(streamName);
-      const currentStreamVersion = events
-        ? BigInt(events.length)
-        : InMemoryEventStoreDefaultStreamVersion;
+    > =>
+      collector.instrumentRead(streamName, () => {
+        const events = streams.get(streamName);
+        const currentStreamVersion = events
+          ? BigInt(events.length)
+          : InMemoryEventStoreDefaultStreamVersion;
 
-      assertExpectedVersionMatchesCurrent(
-        currentStreamVersion,
-        readOptions?.expectedStreamVersion,
-        InMemoryEventStoreDefaultStreamVersion,
-      );
+        assertExpectedVersionMatchesCurrent(
+          currentStreamVersion,
+          readOptions?.expectedStreamVersion,
+          InMemoryEventStoreDefaultStreamVersion,
+        );
 
-      const from = Number(readOptions?.from ?? 0);
-      const to = Number(
-        readOptions?.to ??
-          (readOptions?.maxCount
-            ? (readOptions.from ?? 0n) + readOptions.maxCount
-            : (events?.length ?? 1)),
-      );
+        const from = Number(readOptions?.from ?? 0);
+        const to = Number(
+          readOptions?.to ??
+            (readOptions?.maxCount
+              ? (readOptions.from ?? 0n) + readOptions.maxCount
+              : (events?.length ?? 1)),
+        );
 
-      const resultEvents =
-        events !== undefined && events.length > 0
-          ? upcastRecordedMessages<
-              EventType,
-              EventPayloadType,
-              ReadEventMetadataWithGlobalPosition
-            >(
-              events.slice(from, to) as ReadEvent<
+        const resultEvents =
+          events !== undefined && events.length > 0
+            ? upcastRecordedMessages<
+                EventType,
                 EventPayloadType,
                 ReadEventMetadataWithGlobalPosition
-              >[],
-              readOptions?.schema?.versioning,
-            )
-          : [];
+              >(
+                events.slice(from, to) as ReadEvent<
+                  EventPayloadType,
+                  ReadEventMetadataWithGlobalPosition
+                >[],
+                readOptions?.schema?.versioning,
+              )
+            : [];
 
-      const result: ReadStreamResult<
-        EventType,
-        ReadEventMetadataWithGlobalPosition
-      > = {
-        currentStreamVersion,
-        events: resultEvents,
-        streamExists: events !== undefined && events.length > 0,
-      };
+        return Promise.resolve({
+          currentStreamVersion,
+          events: resultEvents,
+          streamExists: events !== undefined && events.length > 0,
+        });
+      }),
 
-      return Promise.resolve(result);
-    },
-
-    appendToStream: async <
+    appendToStream: <
       EventType extends Event,
       EventPayloadType extends Event = EventType,
     >(
@@ -181,68 +186,79 @@ export const getInMemoryEventStore = (
           ? BigInt(currentEvents.length)
           : InMemoryEventStoreDefaultStreamVersion;
 
-      assertExpectedVersionMatchesCurrent(
-        currentStreamVersion,
-        options?.expectedStreamVersion,
-        InMemoryEventStoreDefaultStreamVersion,
-      );
+      return collector.instrumentAppend(streamName, events, async () => {
+        assertExpectedVersionMatchesCurrent(
+          currentStreamVersion,
+          options?.expectedStreamVersion,
+          InMemoryEventStoreDefaultStreamVersion,
+        );
 
-      const newEvents: ReadEvent<
-        EventType,
-        ReadEventMetadataWithGlobalPosition
-      >[] = events.map((event, index) => {
-        const globalPosition = BigInt(getAllEventsCount() + index + 1);
-        const metadata: ReadEventMetadataWithGlobalPosition = {
-          streamName,
-          messageId: uuid(),
-          streamPosition: BigInt(currentEvents.length + index + 1),
-          globalPosition: bigIntProcessorCheckpoint(globalPosition),
-          checkpoint: bigIntProcessorCheckpoint(globalPosition),
-        };
-        return {
-          ...event,
-          kind: event.kind ?? 'Event',
-          metadata: {
-            ...('metadata' in event ? (event.metadata ?? {}) : {}),
-            ...metadata,
-          } as CombinedReadEventMetadata<
-            EventType,
-            ReadEventMetadataWithGlobalPosition
-          >,
-        };
-      });
-
-      const positionOfLastEventInTheStream = BigInt(
-        newEvents.slice(-1)[0]!.metadata.streamPosition,
-      );
-
-      streams.set(streamName, [
-        ...currentEvents,
-        ...downcastRecordedMessages(newEvents, options?.schema?.versioning),
-      ]);
-
-      // Process projections if there are any registered
-      if (inlineProjections.length > 0) {
-        await handleInMemoryProjections({
-          projections: inlineProjections,
-          events: newEvents,
-          database: eventStore.database,
-          eventStore,
+        const newEvents: ReadEvent<
+          EventType,
+          ReadEventMetadataWithGlobalPosition
+        >[] = events.map((event, index) => {
+          const globalPosition = BigInt(getAllEventsCount() + index + 1);
+          const metadata: ReadEventMetadataWithGlobalPosition = {
+            streamName,
+            messageId: uuid(),
+            streamPosition: BigInt(currentEvents.length + index + 1),
+            globalPosition: bigIntProcessorCheckpoint(globalPosition),
+            checkpoint: bigIntProcessorCheckpoint(globalPosition),
+            ...(options?.correlationId
+              ? { correlationId: options.correlationId }
+              : {}),
+            ...(options?.causationId
+              ? { causationId: options.causationId }
+              : {}),
+            ...(options?.traceId ? { traceId: options.traceId } : {}),
+            ...(options?.spanId ? { spanId: options.spanId } : {}),
+          };
+          return {
+            ...event,
+            kind: event.kind ?? 'Event',
+            metadata: {
+              ...('metadata' in event ? (event.metadata ?? {}) : {}),
+              ...metadata,
+            } as CombinedReadEventMetadata<
+              EventType,
+              ReadEventMetadataWithGlobalPosition
+            >,
+          };
         });
-      }
 
-      const result: AppendToStreamResult = {
-        nextExpectedStreamVersion: positionOfLastEventInTheStream,
-        createdNewStream:
-          currentStreamVersion === InMemoryEventStoreDefaultStreamVersion,
-      };
+        const positionOfLastEventInTheStream = BigInt(
+          newEvents.slice(-1)[0]!.metadata.streamPosition,
+        );
 
-      await tryPublishMessagesAfterCommit<InMemoryEventStore>(
-        newEvents,
-        eventStoreOptions?.hooks,
-      );
+        streams.set(streamName, [
+          ...currentEvents,
+          ...downcastRecordedMessages(newEvents, options?.schema?.versioning),
+        ]);
 
-      return result;
+        // Process projections if there are any registered
+        if (inlineProjections.length > 0) {
+          await handleInMemoryProjections({
+            projections: inlineProjections,
+            events: newEvents,
+            database: eventStore.database,
+            eventStore,
+            observability,
+          });
+        }
+
+        const result: AppendToStreamResult = {
+          nextExpectedStreamVersion: positionOfLastEventInTheStream,
+          createdNewStream:
+            currentStreamVersion === InMemoryEventStoreDefaultStreamVersion,
+        };
+
+        await tryPublishMessagesAfterCommit<InMemoryEventStore>(
+          newEvents,
+          eventStoreOptions?.hooks,
+        );
+
+        return result;
+      });
     },
 
     streamExists: (streamName): Promise<StreamExistsResult> => {

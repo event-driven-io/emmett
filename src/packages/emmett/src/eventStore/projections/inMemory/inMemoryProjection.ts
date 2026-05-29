@@ -1,4 +1,6 @@
+import { ObservabilityScope } from '@event-driven-io/almanac';
 import type { InMemoryDatabase } from '../../../database/inMemoryDatabase';
+import type { ResolvedEventStoreObservability } from '../../../observability';
 import type {
   ProjectionDefinition,
   TruncateProjection,
@@ -25,6 +27,7 @@ export type InMemoryProjectionHandlerOptions<EventType extends Event = Event> =
     events: ReadEvent<EventType, InMemoryReadEventMetadata>[];
     database: InMemoryDatabase;
     eventStore?: InMemoryProjectionHandlerContext['eventStore'];
+    observability: ResolvedEventStoreObservability;
   };
 
 /**
@@ -36,7 +39,7 @@ export const handleInMemoryProjections = async <
 >(
   options: InMemoryProjectionHandlerOptions<EventType>,
 ): Promise<void> => {
-  const { projections, events, database, eventStore } = options;
+  const { projections, events, database, eventStore, observability } = options;
 
   // Get all event types from the events batch to filter projections
   const eventTypes = events.map((e) => e.type);
@@ -46,12 +49,17 @@ export const handleInMemoryProjections = async <
     p.canHandle.some((type) => eventTypes.includes(type)),
   );
 
+  const { startScope } = ObservabilityScope(observability);
+
   // Process each projection
   for (const projection of relevantProjections) {
-    await projection.handle(events, {
-      eventStore,
-      database,
-    });
+    await startScope('eventStore.inlineProjection', async (observabilityScope) =>
+      projection.handle(events, {
+        eventStore,
+        database,
+        observabilityScope,
+      }),
+    );
   }
 };
 
