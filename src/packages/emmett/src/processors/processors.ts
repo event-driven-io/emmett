@@ -1,3 +1,4 @@
+import { noopScope } from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
 import type { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
@@ -82,16 +83,20 @@ export type MessageProcessor<
   instanceId: string;
   type: string;
   canHandle?: string[];
-  init: (options: Partial<HandlerContext>) => Promise<void>;
+  init: (
+    options: Partial<WithObservabilityScope<HandlerContext>>,
+  ) => Promise<void>;
   start: (
-    options: Partial<HandlerContext>,
+    options: Partial<WithObservabilityScope<HandlerContext>>,
   ) => Promise<CurrentMessageProcessorPosition | undefined>;
-  close: (closeOptions: Partial<HandlerContext>) => Promise<void>;
+  close: (
+    closeOptions: Partial<WithObservabilityScope<HandlerContext>>,
+  ) => Promise<void>;
   isActive: boolean;
   handle: BatchRecordedMessageHandlerWithContext<
     MessageType,
     MessageMetadataType,
-    Partial<HandlerContext>
+    Partial<WithObservabilityScope<HandlerContext>>
   >;
 };
 
@@ -114,8 +119,10 @@ export const MessageProcessor = {
 export type MessageProcessingScope<
   HandlerContext extends DefaultRecord | undefined = undefined,
 > = <Result = SingleMessageHandlerResult>(
-  handler: (context: HandlerContext) => Result | Promise<Result>,
-  partialContext: Partial<HandlerContext>,
+  handler: (
+    context: WithObservabilityScope<HandlerContext>,
+  ) => Result | Promise<Result>,
+  partialContext: WithObservabilityScope<Partial<HandlerContext>>,
 ) => Result | Promise<Result>;
 
 export type ProcessorHooks<
@@ -172,15 +179,15 @@ export type HandlerOptions<
 
 export type OnReactorInitHook<
   HandlerContext extends DefaultRecord = DefaultRecord,
-> = (context: HandlerContext) => Promise<void>;
+> = (context: WithObservabilityScope<HandlerContext>) => Promise<void>;
 
 export type OnReactorStartHook<
   HandlerContext extends DefaultRecord = DefaultRecord,
-> = (context: HandlerContext) => Promise<void>;
+> = (context: WithObservabilityScope<HandlerContext>) => Promise<void>;
 
 export type OnReactorCloseHook<
   HandlerContext extends DefaultRecord = DefaultRecord,
-> = (context: HandlerContext) => Promise<void>;
+> = (context: WithObservabilityScope<HandlerContext>) => Promise<void>;
 
 export type ReactorOptions<
   MessageType extends AnyMessage = AnyMessage,
@@ -222,9 +229,11 @@ export const defaultProcessingMessageProcessingScope = <
   HandlerContext = never,
   Result = SingleMessageHandlerResult,
 >(
-  handler: (context: HandlerContext) => Result | Promise<Result>,
-  partialContext: Partial<HandlerContext>,
-) => handler(partialContext as HandlerContext);
+  handler: (
+    context: WithObservabilityScope<HandlerContext>,
+  ) => Result | Promise<Result>,
+  partialContext: WithObservabilityScope<Partial<HandlerContext>>,
+) => handler(partialContext as WithObservabilityScope<HandlerContext>);
 
 export const defaultProcessorVersion = 1;
 export const defaultProcessorPartition = defaultTag;
@@ -341,7 +350,9 @@ export const reactor = <
   let lastCheckpoint: ProcessorCheckpoint | null = null;
   let closeSignal: (() => void) | null = null;
 
-  const init = async (initOptions: Partial<HandlerContext>): Promise<void> => {
+  const init = async (
+    initOptions: WithObservabilityScope<Partial<HandlerContext>>,
+  ): Promise<void> => {
     if (isInitiated) return;
 
     if (hooks.onInit === undefined) {
@@ -356,7 +367,7 @@ export const reactor = <
   };
 
   const close = async (
-    closeOptions: Partial<HandlerContext>,
+    closeOptions: WithObservabilityScope<Partial<HandlerContext>>,
   ): Promise<void> => {
     // TODO: Align when active is set to false
     // if (!isActive) return;
@@ -379,10 +390,30 @@ export const reactor = <
     instanceId,
     type,
     canHandle,
-    init,
+    init: async (partialOptions) => {
+      const options: WithObservabilityScope<Partial<HandlerContext>> = {
+        ...partialOptions,
+        // TODO: Consider adding explicit init scope
+        observabilityScope:
+          ('observabilityScope' in partialOptions
+            ? (partialOptions.observabilityScope ?? noopScope)
+            : noopScope) ?? noopScope,
+      };
+
+      await init(options);
+    },
     start: async (
-      startOptions: Partial<HandlerContext>,
+      partialOptions: Partial<WithObservabilityScope<HandlerContext>>,
     ): Promise<CurrentMessageProcessorPosition | undefined> => {
+      const startOptions: WithObservabilityScope<Partial<HandlerContext>> = {
+        ...partialOptions,
+        // TODO: Consider adding explicit start scope
+        observabilityScope:
+          ('observabilityScope' in partialOptions
+            ? (partialOptions.observabilityScope ?? noopScope)
+            : noopScope) ?? noopScope,
+      };
+
       if (isActive) {
         console.log(
           `Processor ${processorId} with instance id ${instanceId} is already active. Start request ignored.`,
@@ -450,13 +481,23 @@ export const reactor = <
         };
       }, startOptions);
     },
-    close,
+    close: async (partialOptions) => {
+      const options: WithObservabilityScope<Partial<HandlerContext>> = {
+        ...partialOptions,
+        // TODO: Consider adding explicit close scope
+        observabilityScope:
+          ('observabilityScope' in partialOptions
+            ? (partialOptions.observabilityScope ?? noopScope)
+            : noopScope) ?? noopScope,
+      };
+      await close(options);
+    },
     get isActive() {
       return isActive;
     },
     handle: async (
       messages: RecordedMessage<MessageType, MessageMetadataType>[],
-      partialContext: Partial<HandlerContext>,
+      partialContext: Partial<WithObservabilityScope<HandlerContext>>,
     ): Promise<BatchMessageHandlerResult> => {
       if (!isActive) return Promise.resolve();
 
@@ -465,96 +506,102 @@ export const reactor = <
         messages,
         async (scope) => {
           try {
-            return await processingScope(async (context) => {
-              const messagesAboveCheckpoint = messages.filter(
-                (message) => !wasMessageHandled(message, lastCheckpoint),
-              );
-
-              const upcastedMessages = messagesAboveCheckpoint
-                .map((message) =>
-                  upcastRecordedMessage(
-                    // TODO: Make it smarter
-                    message as unknown as RecordedMessage<
-                      MessagePayloadType,
-                      MessageMetadataType
-                    >,
-                    options.messageOptions?.schema?.versioning,
-                  ),
-                )
-                .filter(
-                  (upcasted) => !canHandle || canHandle.includes(upcasted.type),
+            return await processingScope(
+              async (context) => {
+                const messagesAboveCheckpoint = messages.filter(
+                  (message) => !wasMessageHandled(message, lastCheckpoint),
                 );
 
-              const stopMessageIndex =
-                isCustomBatch && stopAfter
-                  ? upcastedMessages.findIndex(stopAfter)
-                  : -1;
-
-              const unhandledMessages =
-                stopMessageIndex !== -1
-                  ? upcastedMessages.slice(0, stopMessageIndex + 1)
-                  : upcastedMessages;
-
-              const batchResult = await eachBatch(unhandledMessages, {
-                ...context,
-                observabilityScope: scope,
-              });
-
-              const messageProcessingResult: BatchMessageHandlerResult =
-                batchResult?.type === 'STOP'
-                  ? batchResult
-                  : stopMessageIndex !== -1
-                    ? {
-                        type: 'STOP',
-                        reason: 'Stop condition reached',
-                        lastSuccessfulMessage:
-                          unhandledMessages[stopMessageIndex],
-                      }
-                    : batchResult;
-
-              const isStop =
-                messageProcessingResult &&
-                messageProcessingResult.type === 'STOP';
-
-              const checkpointMessage =
-                messageProcessingResult?.type === 'STOP'
-                  ? messageProcessingResult.lastSuccessfulMessage
-                  : messagesAboveCheckpoint[messagesAboveCheckpoint.length - 1];
-
-              if (checkpointMessage && checkpoints) {
-                const storeCheckpointResult: StoreProcessorCheckpointResult =
-                  await checkpoints.store(
-                    {
-                      processorId,
-                      version,
-                      message: checkpointMessage as RecordedMessage<
-                        MessageType,
+                const upcastedMessages = messagesAboveCheckpoint
+                  .map((message) =>
+                    upcastRecordedMessage(
+                      // TODO: Make it smarter
+                      message as unknown as RecordedMessage<
+                        MessagePayloadType,
                         MessageMetadataType
                       >,
-                      lastCheckpoint,
-                      partition,
-                    },
-                    context,
+                      options.messageOptions?.schema?.versioning,
+                    ),
+                  )
+                  .filter(
+                    (upcasted) =>
+                      !canHandle || canHandle.includes(upcasted.type),
                   );
 
-                if (storeCheckpointResult.success) {
-                  // TODO: Add correct handling of the storing checkpoint
-                  lastCheckpoint = storeCheckpointResult.newCheckpoint;
+                const stopMessageIndex =
+                  isCustomBatch && stopAfter
+                    ? upcastedMessages.findIndex(stopAfter)
+                    : -1;
+
+                const unhandledMessages =
+                  stopMessageIndex !== -1
+                    ? upcastedMessages.slice(0, stopMessageIndex + 1)
+                    : upcastedMessages;
+
+                const batchResult = await eachBatch(unhandledMessages, {
+                  ...context,
+                  observabilityScope: scope,
+                });
+
+                const messageProcessingResult: BatchMessageHandlerResult =
+                  batchResult?.type === 'STOP'
+                    ? batchResult
+                    : stopMessageIndex !== -1
+                      ? {
+                          type: 'STOP',
+                          reason: 'Stop condition reached',
+                          lastSuccessfulMessage:
+                            unhandledMessages[stopMessageIndex],
+                        }
+                      : batchResult;
+
+                const isStop =
+                  messageProcessingResult &&
+                  messageProcessingResult.type === 'STOP';
+
+                const checkpointMessage =
+                  messageProcessingResult?.type === 'STOP'
+                    ? messageProcessingResult.lastSuccessfulMessage
+                    : messagesAboveCheckpoint[
+                        messagesAboveCheckpoint.length - 1
+                      ];
+
+                if (checkpointMessage && checkpoints) {
+                  const storeCheckpointResult: StoreProcessorCheckpointResult =
+                    await checkpoints.store(
+                      {
+                        processorId,
+                        version,
+                        message: checkpointMessage as RecordedMessage<
+                          MessageType,
+                          MessageMetadataType
+                        >,
+                        lastCheckpoint,
+                        partition,
+                      },
+                      context,
+                    );
+
+                  if (storeCheckpointResult.success) {
+                    // TODO: Add correct handling of the storing checkpoint
+                    lastCheckpoint = storeCheckpointResult.newCheckpoint;
+                  }
                 }
-              }
 
-              scope.setAttributes({
-                [EmmettAttributes.processor.status]:
-                  messageProcessingResult?.type ?? 'ack',
-              });
+                scope.setAttributes({
+                  [EmmettAttributes.processor.status]:
+                    messageProcessingResult?.type ?? 'ack',
+                });
 
-              if (isStop) {
-                isActive = false;
-                return messageProcessingResult;
-              }
+                if (isStop) {
+                  isActive = false;
+                  return messageProcessingResult;
+                }
 
-              return undefined;
-            }, partialContext);
+                return undefined;
+              },
+              { ...partialContext, observabilityScope: scope },
+            );
           } catch (error) {
             console.log(
               `Error during message processing for processor ${processorId} with instance id ${instanceId}. Stopping the processor.`,
@@ -611,7 +658,7 @@ export const projector = <
       onStart:
         (options.truncateOnStart && options.projection.truncate) ||
         options.hooks?.onStart
-          ? async (context: HandlerContext) => {
+          ? async (context: WithObservabilityScope<HandlerContext>) => {
               if (options.truncateOnStart && options.projection.truncate)
                 await options.projection.truncate(context);
 

@@ -53,12 +53,14 @@ export const handleInMemoryProjections = async <
 
   // Process each projection
   for (const projection of relevantProjections) {
-    await startScope('eventStore.inlineProjection', async (observabilityScope) =>
-      projection.handle(events, {
-        eventStore,
-        database,
-        observabilityScope,
-      }),
+    await startScope(
+      'eventStore.inlineProjection',
+      async (observabilityScope) =>
+        projection.handle(events, {
+          eventStore,
+          database,
+          observabilityScope,
+        }),
     );
   }
 };

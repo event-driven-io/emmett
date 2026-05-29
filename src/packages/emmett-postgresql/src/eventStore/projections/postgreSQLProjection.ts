@@ -7,6 +7,7 @@ import type {
 } from '@event-driven-io/dumbo';
 import type { PgClient, PgTransaction } from '@event-driven-io/dumbo/pg';
 import {
+  noopScope,
   projection,
   type CanHandle,
   type Event,
@@ -16,6 +17,7 @@ import {
   type ProjectionHandler,
   type ProjectionInitOptions,
   type ReadEvent,
+  type WithObservabilityScope,
 } from '@event-driven-io/emmett';
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 import type { EventStoreSchemaMigrationOptions } from '../schema';
@@ -40,7 +42,7 @@ export const transactionToPostgreSQLProjectionHandlerContext = async (
   connectionString: string,
   pool: Dumbo,
   transaction: PgTransaction | DatabaseTransaction<AnyConnection>,
-): Promise<PostgreSQLProjectionHandlerContext> => ({
+): Promise<WithObservabilityScope<PostgreSQLProjectionHandlerContext>> => ({
   execute: transaction.execute,
   connection: {
     connectionString: connectionString,
@@ -48,6 +50,7 @@ export const transactionToPostgreSQLProjectionHandlerContext = async (
     transaction: transaction as PgTransaction,
     pool,
   },
+  observabilityScope: noopScope,
 });
 
 export type PostgreSQLProjectionHandler<
@@ -118,6 +121,7 @@ export const handleProjections = async <EventType extends Event = Event>(
         transaction,
       },
       execute: transaction.execute,
+      observabilityScope: noopScope,
     });
   }
 };

@@ -25,6 +25,7 @@ import type {
   ReadEventMetadataWithGlobalPosition,
   SingleMessageHandlerResult,
   SingleRecordedMessageHandlerWithContext,
+  WithObservabilityScope,
   WorkflowProcessorContext,
   WorkflowProcessorOptions,
 } from '@event-driven-io/emmett';
@@ -36,6 +37,7 @@ import {
   getProcessorInstanceId,
   getProjectorId,
   getWorkflowId,
+  noopScope,
   projector,
   reactor,
   unknownTag,
@@ -253,9 +255,11 @@ const postgreSQLProcessingScope = (options: {
     PostgreSQLProcessorHandlerContext
   > = async <Result = SingleMessageHandlerResult>(
     handler: (
-      context: PostgreSQLProcessorHandlerContext,
+      context: WithObservabilityScope<PostgreSQLProcessorHandlerContext>,
     ) => Result | Promise<Result>,
-    partialContext: Partial<PostgreSQLProcessorHandlerContext>,
+    partialContext: Partial<
+      WithObservabilityScope<PostgreSQLProcessorHandlerContext>
+    >,
   ) => {
     const connection = partialContext?.connection;
     const connectionString =
@@ -293,6 +297,7 @@ const postgreSQLProcessingScope = (options: {
             connectionOptions: { client },
           }),
         },
+        observabilityScope: partialContext?.observabilityScope ?? noopScope,
       });
     });
   };
@@ -337,14 +342,14 @@ const wrapHooksWithProcessorLocks = <
   processorLock: ReturnType<typeof postgreSQLProcessorLock>,
 ): ProcessorHooks<HandlerContext> => ({
   ...(hooks ?? {}),
-  onStart: async (context: HandlerContext) => {
+  onStart: async (context: WithObservabilityScope<HandlerContext>) => {
     await processorLock.tryAcquire({ execute: context.execute });
 
     if (hooks?.onStart) await hooks.onStart(context);
   },
   onClose:
     hooks?.onClose || processorLock
-      ? async (context: HandlerContext) => {
+      ? async (context: WithObservabilityScope<HandlerContext>) => {
           await processorLock.release({ execute: context.execute });
 
           if (hooks?.onClose) await hooks.onClose(context);
@@ -394,7 +399,9 @@ export const postgreSQLProjector = <
         ...(options.hooks ?? {}),
         onInit:
           options.projection.init !== undefined || options.hooks?.onInit
-            ? async (context: PostgreSQLProcessorHandlerContext) => {
+            ? async (
+                context: WithObservabilityScope<PostgreSQLProcessorHandlerContext>,
+              ) => {
                 if (options.projection.init)
                   await options.projection.init({
                     version: options.projection.version ?? version,
@@ -413,7 +420,9 @@ export const postgreSQLProjector = <
               }
             : options.hooks?.onInit,
         onClose: close
-          ? async (context: PostgreSQLProcessorHandlerContext) => {
+          ? async (
+              context: WithObservabilityScope<PostgreSQLProcessorHandlerContext>,
+            ) => {
               if (options.hooks?.onClose) await options.hooks?.onClose(context);
               if (close) await close();
             }
@@ -493,9 +502,13 @@ export const postgreSQLWorkflowProcessor = <
     {
       ...(options.hooks ?? {}),
       onClose: close
-        ? async (context: PostgreSQLProcessorHandlerContext) => {
+        ? async (
+            context: WithObservabilityScope<PostgreSQLProcessorHandlerContext>,
+          ) => {
             if (options.hooks?.onClose)
-              await options.hooks?.onClose(context as HandlerContext);
+              await options.hooks?.onClose(
+                context as WithObservabilityScope<HandlerContext>,
+              );
             if (close) await close();
           }
         : options.hooks?.onClose,
@@ -556,7 +569,9 @@ export const postgreSQLReactor = <
       {
         ...(options.hooks ?? {}),
         onClose: close
-          ? async (context: PostgreSQLProcessorHandlerContext) => {
+          ? async (
+              context: WithObservabilityScope<PostgreSQLProcessorHandlerContext>,
+            ) => {
               if (options.hooks?.onClose) await options.hooks?.onClose(context);
               if (close) await close();
             }

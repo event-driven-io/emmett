@@ -5,6 +5,7 @@ import type {
 } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
+  noopScope,
   projection,
   type CanHandle,
   type Event,
@@ -68,6 +69,7 @@ export const handleProjections = async <EventType extends Event = Event>(
       connection,
       execute,
       driverType,
+      observabilityScope: noopScope,
     });
   }
 };

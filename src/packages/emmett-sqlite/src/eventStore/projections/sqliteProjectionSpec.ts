@@ -8,6 +8,7 @@ import {
   assertTrue,
   bigIntProcessorCheckpoint,
   isErrorConstructor,
+  noopScope,
   type CombinedReadEventMetadata,
   type Event,
   type JSONSerializationOptions,
@@ -133,6 +134,7 @@ export const SQLiteProjectionSpec = {
                     execute: connection.execute,
                     connection,
                     driverType,
+                    observabilityScope: noopScope,
                   },
                   version: projection.version ?? 1,
                 });
