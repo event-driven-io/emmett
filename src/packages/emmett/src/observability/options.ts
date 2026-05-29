@@ -23,15 +23,6 @@ export type EmmettObservabilityOptions = {
   observability?: EmmettObservabilityConfig;
 };
 
-export type ProcessorObservabilityConfig = Pick<
-  EmmettObservabilityConfig,
-  | 'tracer'
-  | 'meter'
-  | 'propagation'
-  | 'attributeTarget'
-  | 'includeMessagePayloads'
->;
-
 export type ConsumerObservabilityConfig = Pick<
   EmmettObservabilityConfig,
   'tracer' | 'meter' | 'pollTracing' | 'attributeTarget'
@@ -50,14 +41,6 @@ export type WorkflowObservabilityConfig = Pick<
   | 'attributeTarget'
   | 'includeMessagePayloads'
 >;
-
-export type ResolvedProcessorObservability = {
-  tracer: Tracer;
-  meter: Meter;
-  propagation: TracePropagation;
-  attributeTarget: AttributeTarget;
-  includeMessagePayloads: boolean;
-};
 
 export type ResolvedConsumerObservability = {
   tracer: Tracer;
@@ -79,32 +62,6 @@ export type ResolvedWorkflowObservability = {
   attributeTarget: AttributeTarget;
   includeMessagePayloads: boolean;
 };
-
-export const resolveProcessorObservability = (
-  options: { observability?: ProcessorObservabilityConfig } | undefined,
-  parent?: EmmettObservabilityOptions,
-): ResolvedProcessorObservability => ({
-  tracer:
-    options?.observability?.tracer ??
-    parent?.observability?.tracer ??
-    noopTracer(),
-  meter:
-    options?.observability?.meter ??
-    parent?.observability?.meter ??
-    noopMeter(),
-  propagation:
-    options?.observability?.propagation ??
-    parent?.observability?.propagation ??
-    'links',
-  attributeTarget:
-    options?.observability?.attributeTarget ??
-    parent?.observability?.attributeTarget ??
-    'both',
-  includeMessagePayloads:
-    options?.observability?.includeMessagePayloads ??
-    parent?.observability?.includeMessagePayloads ??
-    false,
-});
 
 export const resolveConsumerObservability = (
   options: { observability?: ConsumerObservabilityConfig } | undefined,

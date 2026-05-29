@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { resolveCommandObservability } from '../commandHandling/observability';
 import {
   resolveConsumerObservability,
-  resolveProcessorObservability,
   resolveWorkflowObservability,
 } from './options';
 
@@ -64,57 +63,6 @@ describe('resolveCommandObservability', () => {
 
   it('falls back to parent includeMessagePayloads', () => {
     const resolved = resolveCommandObservability(undefined, {
-      observability: { includeMessagePayloads: true },
-    });
-    expect(resolved.includeMessagePayloads).toBe(true);
-  });
-});
-
-describe('resolveProcessorObservability', () => {
-  it('returns noop tracer, meter, propagation=links, attributeTarget=both when no options', () => {
-    const resolved = resolveProcessorObservability(undefined);
-    expect(resolved.tracer).toBeDefined();
-    expect(resolved.meter).toBeDefined();
-    expect(resolved.propagation).toBe('links');
-    expect(resolved.attributeTarget).toBe('both');
-  });
-
-  it('uses provided propagation', () => {
-    const resolved = resolveProcessorObservability({
-      observability: { propagation: 'propagate' },
-    });
-    expect(resolved.propagation).toBe('propagate');
-  });
-
-  it('uses provided attributeTarget', () => {
-    const resolved = resolveProcessorObservability({
-      observability: { attributeTarget: 'currentSpan' },
-    });
-    expect(resolved.attributeTarget).toBe('currentSpan');
-  });
-
-  it('falls back to parent', () => {
-    const resolved = resolveProcessorObservability(undefined, {
-      observability: { propagation: 'propagate' },
-    });
-    expect(resolved.propagation).toBe('propagate');
-  });
-
-  it('child overrides parent', () => {
-    const resolved = resolveProcessorObservability(
-      { observability: { propagation: 'propagate' } },
-      { observability: { propagation: 'links' } },
-    );
-    expect(resolved.propagation).toBe('propagate');
-  });
-
-  it('defaults includeMessagePayloads to false', () => {
-    const resolved = resolveProcessorObservability(undefined);
-    expect(resolved.includeMessagePayloads).toBe(false);
-  });
-
-  it('uses provided includeMessagePayloads', () => {
-    const resolved = resolveProcessorObservability({
       observability: { includeMessagePayloads: true },
     });
     expect(resolved.includeMessagePayloads).toBe(true);
