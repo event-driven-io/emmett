@@ -1,5 +1,6 @@
 import { EmmettError } from '../errors';
 import type { EventStoreReadSchemaOptions } from '../eventStore';
+import type { WithObservabilityScope } from '../observability';
 import {
   JSONSerializer,
   type JSONSerializationOptions,
@@ -23,12 +24,14 @@ export type ProjectionHandler<
 > = BatchRecordedMessageHandlerWithContext<
   EventType,
   EventMetaDataType,
-  ProjectionHandlerContext
+  WithObservabilityScope<ProjectionHandlerContext>
 >;
 
 export type TruncateProjection<
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
-> = (context: ProjectionHandlerContext) => Promise<void>;
+> = (
+  context: WithObservabilityScope<ProjectionHandlerContext>,
+) => Promise<void>;
 
 export type ProjectionInitOptions<
   ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
@@ -36,7 +39,7 @@ export type ProjectionInitOptions<
   version: number;
   status?: 'active' | 'inactive';
   registrationType: ProjectionHandlingType;
-  context: ProjectionHandlerContext;
+  context: WithObservabilityScope<ProjectionHandlerContext>;
 };
 
 export type ProjectionDefinition<
