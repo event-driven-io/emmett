@@ -1,8 +1,10 @@
 import {
+  collectingMeter,
+  collectingTracer,
   MessagingAttributes,
   ObservabilitySpec,
 } from '@event-driven-io/almanac';
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   EmmettAttributes,
   EmmettMetrics,
@@ -328,5 +330,68 @@ describe('commandHandlerCollector', () => {
           .haveHistogramNamed(EmmettMetrics.command.handlingDuration)
           .hasAttribute(A.command.type, undefined),
       );
+  });
+});
+
+describe('resolveCommandObservability', () => {
+  it('returns noop tracer, meter, attributeTarget=both when no options', () => {
+    const resolved = resolveCommandObservability(undefined);
+    expect(resolved.tracer).toBeDefined();
+    expect(resolved.meter).toBeDefined();
+    expect(resolved.attributeTarget).toBe('both');
+  });
+
+  it('uses provided tracer and meter', () => {
+    const tracer = collectingTracer();
+    const meter = collectingMeter();
+    const resolved = resolveCommandObservability({
+      observability: { tracer, meter },
+    });
+    expect(resolved.tracer).toBe(tracer);
+    expect(resolved.meter).toBe(meter);
+  });
+
+  it('uses provided attributeTarget', () => {
+    const resolved = resolveCommandObservability({
+      observability: { attributeTarget: 'mainSpan' },
+    });
+    expect(resolved.attributeTarget).toBe('mainSpan');
+  });
+
+  it('falls back to parent options', () => {
+    const tracer = collectingTracer();
+    const resolved = resolveCommandObservability(undefined, {
+      observability: { tracer },
+    });
+    expect(resolved.tracer).toBe(tracer);
+  });
+
+  it('child overrides parent', () => {
+    const parentTracer = collectingTracer();
+    const childTracer = collectingTracer();
+    const resolved = resolveCommandObservability(
+      { observability: { tracer: childTracer } },
+      { observability: { tracer: parentTracer } },
+    );
+    expect(resolved.tracer).toBe(childTracer);
+  });
+
+  it('defaults includeMessagePayloads to false', () => {
+    const resolved = resolveCommandObservability(undefined);
+    expect(resolved.includeMessagePayloads).toBe(false);
+  });
+
+  it('uses provided includeMessagePayloads', () => {
+    const resolved = resolveCommandObservability({
+      observability: { includeMessagePayloads: true },
+    });
+    expect(resolved.includeMessagePayloads).toBe(true);
+  });
+
+  it('falls back to parent includeMessagePayloads', () => {
+    const resolved = resolveCommandObservability(undefined, {
+      observability: { includeMessagePayloads: true },
+    });
+    expect(resolved.includeMessagePayloads).toBe(true);
   });
 });

@@ -1,3 +1,3 @@
+export * from '../../eventStore/observability/eventStoreCollector';
 export * from './consumerCollector';
-export * from './eventStoreCollector';
 export * from './workflowCollector';
