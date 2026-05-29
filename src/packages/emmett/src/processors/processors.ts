@@ -75,26 +75,23 @@ export const MessageProcessorType = {
 export type MessageProcessor<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends DefaultRecord | undefined = undefined,
+  HandlerContext extends WithObservabilityScope<DefaultRecord> | undefined =
+    undefined,
 > = {
   id: string;
   instanceId: string;
   type: string;
   canHandle?: string[];
-  init: (
-    options?: Partial<WithObservabilityScope<HandlerContext>>,
-  ) => Promise<void>;
+  init: (options?: Partial<HandlerContext>) => Promise<void>;
   start: (
-    options?: Partial<WithObservabilityScope<HandlerContext>>,
+    options?: Partial<HandlerContext>,
   ) => Promise<CurrentMessageProcessorPosition | undefined>;
-  close: (
-    closeOptions?: Partial<WithObservabilityScope<HandlerContext>>,
-  ) => Promise<void>;
+  close: (closeOptions?: Partial<HandlerContext>) => Promise<void>;
   isActive: boolean;
   handle: BatchRecordedMessageHandlerWithContext<
     MessageType,
     MessageMetadataType,
-    Partial<WithObservabilityScope<HandlerContext>>
+    Partial<HandlerContext>
   >;
 };
 
@@ -115,16 +112,16 @@ export const MessageProcessor = {
 };
 
 export type MessageProcessingScope<
-  HandlerContext extends DefaultRecord | undefined = undefined,
+  HandlerContext extends WithObservabilityScope<DefaultRecord> | undefined =
+    undefined,
 > = <Result = SingleMessageHandlerResult>(
-  handler: (
-    context: WithObservabilityScope<HandlerContext>,
-  ) => Result | Promise<Result>,
+  handler: (context: HandlerContext) => Result | Promise<Result>,
   partialContext: WithObservabilityScope<Partial<HandlerContext>>,
 ) => Result | Promise<Result>;
 
 export type ProcessorHooks<
-  HandlerContext extends DefaultRecord = DefaultRecord,
+  HandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
 > = {
   onInit?: OnReactorInitHook<HandlerContext>;
   onStart?: OnReactorStartHook<HandlerContext>;
@@ -134,7 +131,8 @@ export type ProcessorHooks<
 export type BaseMessageProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends DefaultRecord = DefaultRecord,
+  HandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
 > = {
   type?: string;
   processorId: string;
@@ -156,13 +154,14 @@ export type BaseMessageProcessorOptions<
 export type HandlerOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends DefaultRecord = DefaultRecord,
+  HandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
 > =
   | {
       eachMessage: SingleRecordedMessageHandlerWithContext<
         MessageType,
         MessageMetadataType,
-        WithObservabilityScope<HandlerContext>
+        HandlerContext
       >;
       eachBatch?: never;
     }
@@ -171,26 +170,30 @@ export type HandlerOptions<
       eachBatch: BatchRecordedMessageHandlerWithContext<
         MessageType,
         MessageMetadataType,
-        WithObservabilityScope<HandlerContext>
+        HandlerContext
       >;
     };
 
 export type OnReactorInitHook<
-  HandlerContext extends DefaultRecord = DefaultRecord,
-> = (context: WithObservabilityScope<HandlerContext>) => Promise<void>;
+  HandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
+> = (context: HandlerContext) => Promise<void>;
 
 export type OnReactorStartHook<
-  HandlerContext extends DefaultRecord = DefaultRecord,
-> = (context: WithObservabilityScope<HandlerContext>) => Promise<void>;
+  HandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
+> = (context: HandlerContext) => Promise<void>;
 
 export type OnReactorCloseHook<
-  HandlerContext extends DefaultRecord = DefaultRecord,
-> = (context: WithObservabilityScope<HandlerContext>) => Promise<void>;
+  HandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
+> = (context: HandlerContext) => Promise<void>;
 
 export type ReactorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends DefaultRecord = DefaultRecord,
+  HandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
   MessagePayloadType extends AnyMessage = MessageType,
 > = BaseMessageProcessorOptions<
   MessageType,
@@ -208,7 +211,8 @@ export type ReactorOptions<
 export type ProjectorOptions<
   EventType extends AnyEvent = AnyEvent,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends DefaultRecord = DefaultRecord,
+  HandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
   EventPayloadType extends Event = EventType,
 > = Omit<
   BaseMessageProcessorOptions<EventType, MessageMetadataType, HandlerContext>,
@@ -231,7 +235,11 @@ export const defaultProcessingMessageProcessingScope = <
     context: WithObservabilityScope<HandlerContext>,
   ) => Result | Promise<Result>,
   partialContext: WithObservabilityScope<Partial<HandlerContext>>,
-) => handler(partialContext as WithObservabilityScope<HandlerContext>);
+) =>
+  handler({
+    ...partialContext,
+    observabilityScope: partialContext.observabilityScope ?? noopScope,
+  } as WithObservabilityScope<HandlerContext>);
 
 export const defaultProcessorVersion = 1;
 export const defaultProcessorPartition = defaultTag;
@@ -245,7 +253,8 @@ export const getProjectorId = (options: { projectionName: string }): string =>
 export const reactor = <
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends DefaultRecord = DefaultRecord,
+  HandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
   MessagePayloadType extends Message = MessageType,
 >(
   options: ReactorOptions<
@@ -276,12 +285,12 @@ export const reactor = <
   const eachBatch: BatchRecordedMessageHandlerWithContext<
     MessageType,
     MessageMetadataType,
-    WithObservabilityScope<HandlerContext>
+    HandlerContext
   > = isCustomBatch
     ? options.eachBatch
     : async (
         messages: RecordedMessage<MessageType, MessageMetadataType>[],
-        context: WithObservabilityScope<HandlerContext>,
+        context: HandlerContext,
       ): Promise<BatchMessageHandlerResult> => {
         const batchCtx = context.observabilityScope.spanContext();
 
@@ -402,7 +411,7 @@ export const reactor = <
       await init(options);
     },
     start: async (
-      partialOptions?: Partial<WithObservabilityScope<HandlerContext>>,
+      partialOptions?: Partial<HandlerContext>,
     ): Promise<CurrentMessageProcessorPosition | undefined> => {
       partialOptions ??= {};
 
@@ -499,7 +508,7 @@ export const reactor = <
     },
     handle: async (
       messages: RecordedMessage<MessageType, MessageMetadataType>[],
-      partialContext: Partial<WithObservabilityScope<HandlerContext>>,
+      partialContext: Partial<HandlerContext>,
     ): Promise<BatchMessageHandlerResult> => {
       if (!isActive) return Promise.resolve();
 
@@ -626,7 +635,8 @@ export const projector = <
   EventType extends Event = Event,
   EventMetaDataType extends AnyRecordedMessageMetadata =
     AnyRecordedMessageMetadata,
-  HandlerContext extends DefaultRecord = DefaultRecord,
+  HandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
   EventPayloadType extends Event = EventType,
 >(
   options: ProjectorOptions<
@@ -660,7 +670,7 @@ export const projector = <
       onStart:
         (options.truncateOnStart && options.projection.truncate) ||
         options.hooks?.onStart
-          ? async (context: WithObservabilityScope<HandlerContext>) => {
+          ? async (context) => {
               if (options.truncateOnStart && options.projection.truncate)
                 await options.projection.truncate(context);
 
@@ -669,9 +679,6 @@ export const projector = <
           : undefined,
       onClose: options.hooks?.onClose,
     },
-    eachBatch: async (
-      events: RecordedMessage<EventType, EventMetaDataType>[],
-      context: WithObservabilityScope<HandlerContext>,
-    ) => projection.handle(events, context),
+    eachBatch: (events, context) => projection.handle(events, context),
   });
 };

@@ -15,14 +15,15 @@ import {
   type ProjectionHandler,
   type ProjectionInitOptions,
   type ReadEvent,
+  type WithObservabilityScope,
 } from '@event-driven-io/emmett';
 import type { SQLiteReadEventMetadata } from '../SQLiteEventStore';
 
-export type SQLiteProjectionHandlerContext = {
+export type SQLiteProjectionHandlerContext = WithObservabilityScope<{
   execute: SQLExecutor;
   connection: AnySQLiteConnection;
   driverType: DatabaseDriverType;
-};
+}>;
 
 export type SQLiteProjectionHandler<
   EventType extends Event = Event,

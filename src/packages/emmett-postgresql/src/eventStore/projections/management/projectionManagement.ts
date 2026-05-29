@@ -12,6 +12,7 @@ import {
   type ProjectionDefinition,
   type ProjectionHandlingType,
   type ProjectionRegistration,
+  type WithObservabilityScope,
 } from '@event-driven-io/emmett';
 import {
   callActivateProjection,
@@ -23,7 +24,8 @@ import { toProjectionLockKey } from '../locks/postgreSQLProjectionLock';
 
 export const registerProjection = async <
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends DefaultRecord = DefaultRecord,
+  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
+    WithObservabilityScope<DefaultRecord>,
 >(
   execute: SQLExecutor,
   options: {

@@ -5,6 +5,7 @@ import {
   type ProjectionDefinition,
   type ProjectionHandler,
   type ReadEvent,
+  type WithObservabilityScope,
 } from '@event-driven-io/emmett';
 import type { Collection, Document, UpdateFilter } from 'mongodb';
 import type {
@@ -19,12 +20,12 @@ export const MongoDBDefaultInlineProjectionName = '_default';
 export type MongoDBProjectionInlineHandlerContext<
   EventType extends Event = Event,
   EventMetaDataType extends MongoDBReadEventMetadata = MongoDBReadEventMetadata,
-> = {
+> = WithObservabilityScope<{
   document: MongoDBReadModel | null;
   streamId: string;
   updates: UpdateFilter<EventStream<EventType, EventMetaDataType>>;
   collection: Collection<EventStream<EventType, EventMetaDataType>>;
-};
+}>;
 
 export type MongoDBInlineProjectionHandler<
   EventType extends Event = Event,

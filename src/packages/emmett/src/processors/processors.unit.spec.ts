@@ -1,4 +1,3 @@
-import { noopScope } from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
 import { describe, it } from 'vitest';
 import {
@@ -202,7 +201,6 @@ void describe('Processors', () => {
 
       const startOptions = {
         connectionString: 'postgresql://localhost:5432/testdb',
-        observabilityScope: noopScope,
       };
 
       const processor = reactor({
@@ -316,9 +314,7 @@ void describe('Processors', () => {
         await processor.start();
 
         // When
-        await processor.handle(recordedEvents, {
-          observabilityScope: noopScope,
-        });
+        await processor.handle(recordedEvents, {});
 
         // Then
         assertEqual(handledMessages.length, 2);
@@ -385,9 +381,7 @@ void describe('Processors', () => {
         await processor.start();
 
         // When
-        await processor.handle(recordedEvents, {
-          observabilityScope: noopScope,
-        });
+        await processor.handle(recordedEvents, {});
 
         // Then
         assertEqual(handledMessages.length, 0);
@@ -466,12 +460,10 @@ void describe('Processors', () => {
         },
       ];
 
-      await processor.start({
-        observabilityScope: noopScope,
-      });
+      await processor.start({});
 
       // When
-      await processor.handle(recordedEvents, { observabilityScope: noopScope });
+      await processor.handle(recordedEvents, {});
 
       // Then
       assertEqual(handledMessages.length, 2);
@@ -494,9 +486,7 @@ void describe('Processors', () => {
       });
 
       // When
-      const startPosition = await processor.start({
-        observabilityScope: noopScope,
-      });
+      const startPosition = await processor.start({});
 
       // Then
       assertDeepEqual(startPosition, { lastCheckpoint: checkpoint });
@@ -545,9 +535,7 @@ void describe('Processors', () => {
       await processor.start();
 
       // When
-      await processor.handle([recordedEvent], {
-        observabilityScope: noopScope,
-      });
+      await processor.handle([recordedEvent], {});
 
       // Then
       assertEqual(storedCheckpoint, bigIntProcessorCheckpoint(1n));
@@ -654,7 +642,7 @@ void describe('Processors', () => {
       await processor.start();
 
       // When
-      await processor.handle(recordedEvents, { observabilityScope: noopScope });
+      await processor.handle(recordedEvents, {});
 
       // Then
       assertEqual(handledEvents.length, 1);

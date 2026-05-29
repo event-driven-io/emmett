@@ -1,5 +1,6 @@
 import { EmmettError } from '../errors';
 import type { EventStore } from '../eventStore';
+import type { WithObservabilityScope } from '../observability';
 import type { MessageProcessor } from '../processors';
 import {
   MessageProcessorType,
@@ -52,11 +53,11 @@ export type WorkflowOptions<
   };
 };
 
-export type WorkflowProcessorContext = {
+export type WorkflowProcessorContext = WithObservabilityScope<{
   connection: {
     messageStore: EventStore;
   };
-};
+}>;
 
 export type WorkflowOutputHandlerResult<Input extends AnyEvent | AnyCommand> =
   | Promise<Input | Input[] | EmmettError | [] | void>
