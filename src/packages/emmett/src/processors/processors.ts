@@ -8,7 +8,6 @@ import type {
 } from '../observability';
 import {
   EmmettAttributes,
-  processorCollector,
   resolveProcessorObservability,
 } from '../observability';
 import type { ProjectionDefinition } from '../projections';
@@ -39,6 +38,7 @@ import {
   type ProcessorCheckpoint,
   type StoreProcessorCheckpointResult,
 } from './checkpoints';
+import { processorCollector } from './observability';
 
 export type CurrentMessageProcessorPosition =
   | { lastCheckpoint: ProcessorCheckpoint }
