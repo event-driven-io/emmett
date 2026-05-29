@@ -1,12 +1,51 @@
-import { MessagingAttributes } from '@event-driven-io/almanac';
-import type { AppendToStreamResult, ReadStreamResult } from '../../eventStore';
-import type { AnyReadEventMetadata, Event, ReadEvent } from '../../typing';
+import {
+  MessagingAttributes,
+  noopMeter,
+  noopTracer,
+  type AttributeTarget,
+  type Meter,
+  type Tracer,
+} from '@event-driven-io/almanac';
+import type { AppendToStreamResult, ReadStreamResult } from '..';
 import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
-} from '../attributes';
-import type { ResolvedEventStoreObservability } from '../options';
+} from '../../observability/attributes';
+import type {
+  EmmettObservabilityConfig,
+  EmmettObservabilityOptions,
+} from '../../observability/options';
+import type { AnyReadEventMetadata, Event, ReadEvent } from '../../typing';
+
+export type EventStoreObservabilityConfig = Pick<
+  EmmettObservabilityConfig,
+  'tracer' | 'meter' | 'attributeTarget'
+>;
+
+export type ResolvedEventStoreObservability = {
+  tracer: Tracer;
+  meter: Meter;
+  attributeTarget: AttributeTarget;
+};
+
+export const resolveEventStoreObservability = (
+  options: { observability?: EventStoreObservabilityConfig } | undefined,
+  parent?: EmmettObservabilityOptions,
+): ResolvedEventStoreObservability => ({
+  tracer:
+    options?.observability?.tracer ??
+    parent?.observability?.tracer ??
+    noopTracer(),
+  meter:
+    options?.observability?.meter ??
+    parent?.observability?.meter ??
+    noopMeter(),
+  attributeTarget:
+    options?.observability?.attributeTarget ??
+    parent?.observability?.attributeTarget ??
+    'both',
+});
 
 export const eventStoreCollector = (
   observability: ResolvedEventStoreObservability,

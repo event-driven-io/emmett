@@ -55,7 +55,7 @@ void describe('Processors', () => {
       });
 
       // When
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
 
       // Then
       assertEqual(onStartCalled, true);
@@ -77,10 +77,10 @@ void describe('Processors', () => {
         },
       });
 
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
 
       // When
-      await processor.close({ observabilityScope: noopScope });
+      await processor.close();
 
       // Then
       assertEqual(onCloseCalled, true);
@@ -95,10 +95,10 @@ void describe('Processors', () => {
       });
 
       // When
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
       assertEqual(processor.isActive, true);
 
-      await processor.close({ observabilityScope: noopScope });
+      await processor.close();
 
       // Then
       assertEqual(processor.isActive, false);
@@ -121,12 +121,12 @@ void describe('Processors', () => {
         },
       });
 
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
 
       // When
-      await processor.close({ observabilityScope: noopScope });
-      await processor.close({ observabilityScope: noopScope });
-      await processor.close({ observabilityScope: noopScope });
+      await processor.close();
+      await processor.close();
+      await processor.close();
 
       // Then
       assertEqual(closeCount, 1);
@@ -140,10 +140,10 @@ void describe('Processors', () => {
         eachMessage: () => Promise.resolve(),
       });
 
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
 
       // When/Then - should not throw
-      await processor.close({ observabilityScope: noopScope });
+      await processor.close();
       assertEqual(processor.isActive, false);
     });
 
@@ -163,7 +163,7 @@ void describe('Processors', () => {
         },
       });
 
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
       assertEqual(processor.isActive, true);
 
       // When - emit SIGTERM
@@ -184,7 +184,7 @@ void describe('Processors', () => {
         eachMessage: () => Promise.resolve(),
       });
 
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
       assertEqual(processor.isActive, true);
 
       // When
@@ -246,10 +246,10 @@ void describe('Processors', () => {
         },
       });
 
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
 
       // When - close manually
-      await processor.close({ observabilityScope: noopScope });
+      await processor.close();
       assertEqual(closeCount, 1);
       assertEqual(processor.isActive, false);
 
@@ -313,7 +313,7 @@ void describe('Processors', () => {
           },
         ];
 
-        await processor.start({ observabilityScope: noopScope });
+        await processor.start();
 
         // When
         await processor.handle(recordedEvents, {
@@ -382,7 +382,7 @@ void describe('Processors', () => {
           },
         ];
 
-        await processor.start({ observabilityScope: noopScope });
+        await processor.start();
 
         // When
         await processor.handle(recordedEvents, {
@@ -542,7 +542,7 @@ void describe('Processors', () => {
           streamPosition: 1n,
         },
       };
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
 
       // When
       await processor.handle([recordedEvent], {
@@ -595,7 +595,7 @@ void describe('Processors', () => {
       });
 
       // When
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
 
       // Then
       assertEqual(truncateCalled, true);
@@ -651,7 +651,7 @@ void describe('Processors', () => {
         },
       ];
 
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
 
       // When
       await processor.handle(recordedEvents, { observabilityScope: noopScope });
@@ -699,7 +699,7 @@ void describe('Processors', () => {
       });
 
       // When
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
 
       // Then
       assertEqual(truncateCalled, false);
@@ -723,7 +723,7 @@ void describe('Processors', () => {
       });
 
       // When
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
 
       // Then
       assertEqual(truncateCalled, false);
@@ -754,7 +754,7 @@ void describe('Processors', () => {
       });
 
       // When
-      await processor.start({ observabilityScope: noopScope });
+      await processor.start();
 
       // Then
       assertDeepEqual(callOrder, ['truncate', 'onStart']);
