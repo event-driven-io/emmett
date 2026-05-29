@@ -622,7 +622,7 @@ export const projector = <
     },
     eachBatch: async (
       events: RecordedMessage<EventType, EventMetaDataType>[],
-      context: HandlerContext,
+      context: WithObservabilityScope<HandlerContext>,
     ) => projection.handle(events, context),
   });
 };
