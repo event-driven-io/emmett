@@ -8,8 +8,10 @@ import {
   EmmettMetrics,
   MessagingSystemName,
 } from '../../observability/attributes';
-import { resolveCommandObservability } from '../../observability/options';
-import { commandHandlerCollector } from './commandHandlerCollector';
+import {
+  commandHandlerCollector,
+  resolveCommandObservability,
+} from './commandHandlerCollector';
 
 const A = EmmettAttributes;
 const M = MessagingAttributes;

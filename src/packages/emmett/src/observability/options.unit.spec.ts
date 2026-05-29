@@ -1,9 +1,9 @@
+import { collectingMeter, collectingTracer } from '@event-driven-io/almanac';
 import { describe, expect, it } from 'vitest';
-import { collectingTracer, collectingMeter } from '@event-driven-io/almanac';
+import { resolveCommandObservability } from '../commandHandling/observability';
 import {
-  resolveCommandObservability,
-  resolveProcessorObservability,
   resolveConsumerObservability,
+  resolveProcessorObservability,
   resolveWorkflowObservability,
 } from './options';
 
