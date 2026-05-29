@@ -1,9 +1,15 @@
 import {
   MessagingAttributes,
+  noopMeter,
+  noopTracer,
   ObservabilityScope,
+  type AttributeTarget,
+  type Meter,
   type ObservabilityScope as ObservabilityScopeType,
   type SpanContext,
   type SpanLink,
+  type TracePropagation,
+  type Tracer,
 } from '@event-driven-io/almanac';
 import type { ProcessorCheckpoint } from '..';
 import {
@@ -12,12 +18,58 @@ import {
   MessagingSystemName,
   ScopeTypes,
 } from '../../observability/attributes';
-import type { ResolvedProcessorObservability } from '../../observability/options';
+import type {
+  EmmettObservabilityConfig,
+  EmmettObservabilityOptions,
+} from '../../observability/options';
 import type {
   AnyReadEventMetadata,
   Message,
   RecordedMessage,
 } from '../../typing';
+
+export type ProcessorObservabilityConfig = Pick<
+  EmmettObservabilityConfig,
+  | 'tracer'
+  | 'meter'
+  | 'propagation'
+  | 'attributeTarget'
+  | 'includeMessagePayloads'
+>;
+
+export type ResolvedProcessorObservability = {
+  tracer: Tracer;
+  meter: Meter;
+  propagation: TracePropagation;
+  attributeTarget: AttributeTarget;
+  includeMessagePayloads: boolean;
+};
+
+export const resolveProcessorObservability = (
+  options: { observability?: ProcessorObservabilityConfig } | undefined,
+  parent?: EmmettObservabilityOptions,
+): ResolvedProcessorObservability => ({
+  tracer:
+    options?.observability?.tracer ??
+    parent?.observability?.tracer ??
+    noopTracer(),
+  meter:
+    options?.observability?.meter ??
+    parent?.observability?.meter ??
+    noopMeter(),
+  propagation:
+    options?.observability?.propagation ??
+    parent?.observability?.propagation ??
+    'links',
+  attributeTarget:
+    options?.observability?.attributeTarget ??
+    parent?.observability?.attributeTarget ??
+    'both',
+  includeMessagePayloads:
+    options?.observability?.includeMessagePayloads ??
+    parent?.observability?.includeMessagePayloads ??
+    false,
+});
 
 export type ProcessorCollectorContext = {
   processorId: string;

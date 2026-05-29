@@ -2,14 +2,8 @@ import { noopScope } from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
 import type { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
-import type {
-  ProcessorObservabilityConfig,
-  WithObservabilityScope,
-} from '../observability';
-import {
-  EmmettAttributes,
-  resolveProcessorObservability,
-} from '../observability';
+import type { WithObservabilityScope } from '../observability';
+import { EmmettAttributes } from '../observability';
 import type { ProjectionDefinition } from '../projections';
 import {
   JSONSerializer,
@@ -38,7 +32,11 @@ import {
   type ProcessorCheckpoint,
   type StoreProcessorCheckpointResult,
 } from './checkpoints';
-import { processorCollector } from './observability';
+import {
+  processorCollector,
+  resolveProcessorObservability,
+  type ProcessorObservabilityConfig,
+} from './observability';
 
 export type CurrentMessageProcessorPosition =
   | { lastCheckpoint: ProcessorCheckpoint }
@@ -84,13 +82,13 @@ export type MessageProcessor<
   type: string;
   canHandle?: string[];
   init: (
-    options: Partial<WithObservabilityScope<HandlerContext>>,
+    options?: Partial<WithObservabilityScope<HandlerContext>>,
   ) => Promise<void>;
   start: (
-    options: Partial<WithObservabilityScope<HandlerContext>>,
+    options?: Partial<WithObservabilityScope<HandlerContext>>,
   ) => Promise<CurrentMessageProcessorPosition | undefined>;
   close: (
-    closeOptions: Partial<WithObservabilityScope<HandlerContext>>,
+    closeOptions?: Partial<WithObservabilityScope<HandlerContext>>,
   ) => Promise<void>;
   isActive: boolean;
   handle: BatchRecordedMessageHandlerWithContext<
@@ -391,6 +389,7 @@ export const reactor = <
     type,
     canHandle,
     init: async (partialOptions) => {
+      partialOptions ??= {};
       const options: WithObservabilityScope<Partial<HandlerContext>> = {
         ...partialOptions,
         // TODO: Consider adding explicit init scope
@@ -403,8 +402,10 @@ export const reactor = <
       await init(options);
     },
     start: async (
-      partialOptions: Partial<WithObservabilityScope<HandlerContext>>,
+      partialOptions?: Partial<WithObservabilityScope<HandlerContext>>,
     ): Promise<CurrentMessageProcessorPosition | undefined> => {
+      partialOptions ??= {};
+
       const startOptions: WithObservabilityScope<Partial<HandlerContext>> = {
         ...partialOptions,
         // TODO: Consider adding explicit start scope
@@ -482,6 +483,7 @@ export const reactor = <
       }, startOptions);
     },
     close: async (partialOptions) => {
+      partialOptions ??= {};
       const options: WithObservabilityScope<Partial<HandlerContext>> = {
         ...partialOptions,
         // TODO: Consider adding explicit close scope

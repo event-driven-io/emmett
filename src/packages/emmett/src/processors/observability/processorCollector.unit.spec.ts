@@ -9,9 +9,11 @@ import {
   EmmettMetrics,
   MessagingSystemName,
 } from '../../observability/attributes';
-import { resolveProcessorObservability } from '../../observability/options';
 import type { AnyRecordedMessageMetadata } from '../../typing';
-import { processorCollector } from './processorCollector';
+import {
+  processorCollector,
+  resolveProcessorObservability,
+} from './processorCollector';
 
 const A = EmmettAttributes;
 const M = {
@@ -268,5 +270,56 @@ describe('processorCollector', () => {
       [],
       () => Promise.resolve(),
     );
+  });
+});
+
+describe('resolveProcessorObservability', () => {
+  it('returns noop tracer, meter, propagation=links, attributeTarget=both when no options', () => {
+    const resolved = resolveProcessorObservability(undefined);
+    expect(resolved.tracer).toBeDefined();
+    expect(resolved.meter).toBeDefined();
+    expect(resolved.propagation).toBe('links');
+    expect(resolved.attributeTarget).toBe('both');
+  });
+
+  it('uses provided propagation', () => {
+    const resolved = resolveProcessorObservability({
+      observability: { propagation: 'propagate' },
+    });
+    expect(resolved.propagation).toBe('propagate');
+  });
+
+  it('uses provided attributeTarget', () => {
+    const resolved = resolveProcessorObservability({
+      observability: { attributeTarget: 'currentSpan' },
+    });
+    expect(resolved.attributeTarget).toBe('currentSpan');
+  });
+
+  it('falls back to parent', () => {
+    const resolved = resolveProcessorObservability(undefined, {
+      observability: { propagation: 'propagate' },
+    });
+    expect(resolved.propagation).toBe('propagate');
+  });
+
+  it('child overrides parent', () => {
+    const resolved = resolveProcessorObservability(
+      { observability: { propagation: 'propagate' } },
+      { observability: { propagation: 'links' } },
+    );
+    expect(resolved.propagation).toBe('propagate');
+  });
+
+  it('defaults includeMessagePayloads to false', () => {
+    const resolved = resolveProcessorObservability(undefined);
+    expect(resolved.includeMessagePayloads).toBe(false);
+  });
+
+  it('uses provided includeMessagePayloads', () => {
+    const resolved = resolveProcessorObservability({
+      observability: { includeMessagePayloads: true },
+    });
+    expect(resolved.includeMessagePayloads).toBe(true);
   });
 });
