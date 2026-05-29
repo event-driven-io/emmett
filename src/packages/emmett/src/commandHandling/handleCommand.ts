@@ -12,12 +12,14 @@ import {
   type ExpectedStreamVersion,
   type ReadStreamOptions,
 } from '../eventStore';
-import type { CommandObservabilityConfig } from '../observability';
-import { resolveCommandObservability } from '../observability';
 import type { JSONSerializationOptions } from '../serialization';
 import type { Event } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
-import { commandHandlerCollector } from './observability';
+import {
+  commandHandlerCollector,
+  resolveCommandObservability,
+  type CommandObservabilityConfig,
+} from './observability';
 
 export const CommandHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
   {
