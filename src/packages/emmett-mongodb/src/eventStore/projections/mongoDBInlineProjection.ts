@@ -1,9 +1,10 @@
-import type {
-  CanHandle,
-  Event,
-  ProjectionDefinition,
-  ProjectionHandler,
-  ReadEvent,
+import {
+  noopScope,
+  type CanHandle,
+  type Event,
+  type ProjectionDefinition,
+  type ProjectionHandler,
+  type ReadEvent,
 } from '@event-driven-io/emmett';
 import type { Collection, Document, UpdateFilter } from 'mongodb';
 import type {
@@ -89,6 +90,7 @@ export const handleInlineProjections = async <
       streamId,
       collection,
       updates: update,
+      observabilityScope: noopScope,
     });
   }
 };

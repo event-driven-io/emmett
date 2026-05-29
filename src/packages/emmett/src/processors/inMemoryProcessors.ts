@@ -1,5 +1,6 @@
 import { getInMemoryDatabase, type InMemoryDatabase } from '../database';
 import { EmmettError } from '../errors';
+import type { WithObservabilityScope } from '../observability';
 import type {
   AnyEvent,
   AnyMessage,
@@ -154,9 +155,11 @@ const inMemoryProcessingScope = (options: {
     InMemoryProcessorHandlerContext
   > = <Result = SingleMessageHandlerResult>(
     handler: (
-      context: InMemoryProcessorHandlerContext,
+      context: WithObservabilityScope<InMemoryProcessorHandlerContext>,
     ) => Result | Promise<Result>,
-    partialContext: Partial<InMemoryProcessorHandlerContext>,
+    partialContext: WithObservabilityScope<
+      Partial<InMemoryProcessorHandlerContext>
+    >,
   ) => {
     const database = processorDatabase ?? partialContext?.database;
 
@@ -180,7 +183,9 @@ export const inMemoryProjector = <EventType extends AnyEvent = AnyEvent>(
     onInit: options.hooks?.onInit,
     onStart: options.hooks?.onStart,
     onClose: options.hooks?.onClose
-      ? async (context: InMemoryProcessorHandlerContext) => {
+      ? async (
+          context: WithObservabilityScope<InMemoryProcessorHandlerContext>,
+        ) => {
           if (options.hooks?.onClose) await options.hooks?.onClose(context);
         }
       : undefined,

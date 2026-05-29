@@ -18,6 +18,7 @@ import {
   downcastRecordedMessages,
   ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
+  noopScope,
   unknownTag,
   type AggregateStreamOptions,
   type AggregateStreamResult,
@@ -238,7 +239,11 @@ export const getPostgreSQLEventStore = (
                   version: projection.version ?? 1,
                   status: 'active',
                   registrationType: 'inline',
-                  context: { ...context, migrationOptions },
+                  context: {
+                    ...context,
+                    migrationOptions,
+                    observabilityScope: noopScope,
+                  },
                 });
               }
             }
@@ -317,7 +322,10 @@ export const getPostgreSQLEventStore = (
                 );
               for (const projection of options?.projections ?? []) {
                 if (projection.projection.truncate)
-                  await projection.projection.truncate(projectionContext);
+                  await projection.projection.truncate({
+                    ...projectionContext,
+                    observabilityScope: noopScope,
+                  });
               }
             }
           }),

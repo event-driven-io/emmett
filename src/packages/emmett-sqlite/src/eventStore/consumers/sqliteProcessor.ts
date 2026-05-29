@@ -19,6 +19,7 @@ import type {
   ReadEventMetadataWithGlobalPosition,
   SingleMessageHandlerResult,
   SingleRecordedMessageHandlerWithContext,
+  WithObservabilityScope,
   WorkflowProcessorContext,
   WorkflowProcessorOptions,
 } from '@event-driven-io/emmett';
@@ -29,6 +30,7 @@ import {
   getProcessorInstanceId,
   getProjectorId,
   getWorkflowId,
+  noopScope,
   projector,
   reactor,
   workflowProcessor,
@@ -129,9 +131,11 @@ const sqliteProcessingScope =
       SQLiteProcessorHandlerContext
     > = async <Result = SingleMessageHandlerResult>(
       handler: (
-        context: SQLiteProcessorHandlerContext,
+        context: WithObservabilityScope<SQLiteProcessorHandlerContext>,
       ) => Result | Promise<Result>,
-      partialContext: Partial<SQLiteProcessorHandlerContext>,
+      partialContext: Partial<
+        WithObservabilityScope<SQLiteProcessorHandlerContext>
+      >,
     ) => {
       const connection = partialContext?.connection;
 
@@ -145,6 +149,7 @@ const sqliteProcessingScope =
             ...partialContext,
             connection: connection,
             execute: transaction.execute,
+            observabilityScope: partialContext?.observabilityScope ?? noopScope,
           });
         },
       );
@@ -162,11 +167,13 @@ const sqliteWorkflowProcessingScope = (
     SQLiteProcessorHandlerContext & WorkflowProcessorContext
   > = async <Result = SingleMessageHandlerResult>(
     handler: (
-      context: SQLiteProcessorHandlerContext & WorkflowProcessorContext,
+      context: WithObservabilityScope<SQLiteProcessorHandlerContext> &
+        WorkflowProcessorContext,
     ) => Result | Promise<Result>,
     partialContext: Partial<
-      SQLiteProcessorHandlerContext & WorkflowProcessorContext
-    >,
+      WithObservabilityScope<SQLiteProcessorHandlerContext>
+    > &
+      Partial<WorkflowProcessorContext>,
   ) => {
     const connection = partialContext?.connection;
 
@@ -179,6 +186,7 @@ const sqliteWorkflowProcessingScope = (
           ...partialContext,
           connection: Object.assign(connection, { messageStore }),
           execute: transaction.execute,
+          observabilityScope: partialContext?.observabilityScope ?? noopScope,
         });
       },
     );
@@ -285,7 +293,9 @@ export const sqliteProjector = <
     ...(options.hooks ?? {}),
     onInit:
       options.projection.init !== undefined || options.hooks?.onInit
-        ? async (context: SQLiteProcessorHandlerContext) => {
+        ? async (
+            context: WithObservabilityScope<SQLiteProcessorHandlerContext>,
+          ) => {
             if (options.projection.init)
               await options.projection.init({
                 version: options.projection.version ?? version,

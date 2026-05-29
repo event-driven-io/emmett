@@ -1,4 +1,7 @@
-import type { MessageProcessor } from '@event-driven-io/emmett';
+import type {
+  MessageProcessor,
+  WithObservabilityScope,
+} from '@event-driven-io/emmett';
 import {
   type AnyEvent,
   type AnyMessage,
@@ -9,6 +12,7 @@ import {
   type ProjectorOptions,
   type ReactorOptions,
   type SingleMessageHandlerResult,
+  noopScope,
   projector,
   reactor,
 } from '@event-driven-io/emmett';
@@ -62,13 +66,16 @@ const mongoDBProcessingScope = (options: {
     MongoDBProcessorHandlerContext
   > = async <Result = SingleMessageHandlerResult>(
     handler: (
-      context: MongoDBProcessorHandlerContext,
+      context: WithObservabilityScope<MongoDBProcessorHandlerContext>,
     ) => Result | Promise<Result>,
-    partialContext: Partial<MongoDBProcessorHandlerContext>,
+    partialContext: Partial<
+      WithObservabilityScope<MongoDBProcessorHandlerContext>
+    >,
   ) => {
     return handler({
       client: options.client,
       ...partialContext,
+      observabilityScope: partialContext?.observabilityScope ?? noopScope,
     });
   };
 

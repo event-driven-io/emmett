@@ -6,6 +6,7 @@ import {
   ExpectedVersionConflictError,
   JSONSerializer,
   NO_CONCURRENCY_CHECK,
+  noopScope,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
@@ -168,6 +169,7 @@ export const getSQLiteEventStore = <
                   execute: context.connection.execute,
                   connection: context.connection,
                   driverType: options.driver.driverType,
+                  observabilityScope: noopScope,
                 },
               });
             }
