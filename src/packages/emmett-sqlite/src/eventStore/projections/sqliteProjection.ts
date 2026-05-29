@@ -13,13 +13,13 @@ import {
   type JSONSerializationOptions,
   type ProjectionDefinition,
   type ProjectionHandler,
+  type ProjectionHandlerContext,
   type ProjectionInitOptions,
   type ReadEvent,
-  type WithObservabilityScope,
 } from '@event-driven-io/emmett';
 import type { SQLiteReadEventMetadata } from '../SQLiteEventStore';
 
-export type SQLiteProjectionHandlerContext = WithObservabilityScope<{
+export type SQLiteProjectionHandlerContext = ProjectionHandlerContext<{
   execute: SQLExecutor;
   connection: AnySQLiteConnection;
   driverType: DatabaseDriverType;

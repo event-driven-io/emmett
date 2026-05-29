@@ -18,9 +18,9 @@ import {
   type BatchMessageHandlerResult,
   type BatchRecordedMessageHandlerWithContext,
   type CanHandle,
-  type DefaultRecord,
   type Event,
   type Message,
+  type MessageHandlerContext,
   type RecordedMessage,
   type SingleMessageHandlerResult,
   type SingleRecordedMessageHandlerWithContext,
@@ -75,8 +75,7 @@ export const MessageProcessorType = {
 export type MessageProcessor<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends WithObservabilityScope<DefaultRecord> | undefined =
-    undefined,
+  HandlerContext extends MessageHandlerContext | undefined = undefined,
 > = {
   id: string;
   instanceId: string;
@@ -112,16 +111,14 @@ export const MessageProcessor = {
 };
 
 export type MessageProcessingScope<
-  HandlerContext extends WithObservabilityScope<DefaultRecord> | undefined =
-    undefined,
+  HandlerContext extends MessageHandlerContext | undefined = undefined,
 > = <Result = SingleMessageHandlerResult>(
   handler: (context: HandlerContext) => Result | Promise<Result>,
   partialContext: WithObservabilityScope<Partial<HandlerContext>>,
 ) => Result | Promise<Result>;
 
 export type ProcessorHooks<
-  HandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
 > = {
   onInit?: OnReactorInitHook<HandlerContext>;
   onStart?: OnReactorStartHook<HandlerContext>;
@@ -131,8 +128,7 @@ export type ProcessorHooks<
 export type BaseMessageProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
 > = {
   type?: string;
   processorId: string;
@@ -154,8 +150,7 @@ export type BaseMessageProcessorOptions<
 export type HandlerOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
 > =
   | {
       eachMessage: SingleRecordedMessageHandlerWithContext<
@@ -175,25 +170,21 @@ export type HandlerOptions<
     };
 
 export type OnReactorInitHook<
-  HandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
 > = (context: HandlerContext) => Promise<void>;
 
 export type OnReactorStartHook<
-  HandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
 > = (context: HandlerContext) => Promise<void>;
 
 export type OnReactorCloseHook<
-  HandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
 > = (context: HandlerContext) => Promise<void>;
 
 export type ReactorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
   MessagePayloadType extends AnyMessage = MessageType,
 > = BaseMessageProcessorOptions<
   MessageType,
@@ -211,8 +202,7 @@ export type ReactorOptions<
 export type ProjectorOptions<
   EventType extends AnyEvent = AnyEvent,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
   EventPayloadType extends Event = EventType,
 > = Omit<
   BaseMessageProcessorOptions<EventType, MessageMetadataType, HandlerContext>,
@@ -253,8 +243,7 @@ export const getProjectorId = (options: { projectionName: string }): string =>
 export const reactor = <
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
   MessagePayloadType extends Message = MessageType,
 >(
   options: ReactorOptions<
@@ -635,8 +624,7 @@ export const projector = <
   EventType extends Event = Event,
   EventMetaDataType extends AnyRecordedMessageMetadata =
     AnyRecordedMessageMetadata,
-  HandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
   EventPayloadType extends Event = EventType,
 >(
   options: ProjectorOptions<

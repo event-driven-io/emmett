@@ -2,8 +2,8 @@ import { dumbo, JSONSerializer, type Dumbo } from '@event-driven-io/dumbo';
 import type {
   AnyCommand,
   JSONSerializationOptions,
+  MessageHandlerContext,
   MessageProcessor,
-  WithObservabilityScope,
   WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import {
@@ -14,7 +14,6 @@ import {
   type AnyRecordedMessageMetadata,
   type AsyncAwaiter,
   type BatchRecordedMessageHandlerWithoutContext,
-  type DefaultRecord,
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
@@ -247,7 +246,7 @@ export const postgreSQLEventStoreConsumer = <
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
           AnyRecordedMessageMetadata,
-          WithObservabilityScope<DefaultRecord>
+          MessageHandlerContext
         >,
       );
 
@@ -263,7 +262,7 @@ export const postgreSQLEventStoreConsumer = <
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
           AnyRecordedMessageMetadata,
-          WithObservabilityScope<DefaultRecord>
+          MessageHandlerContext
         >,
       );
 
@@ -296,7 +295,7 @@ export const postgreSQLEventStoreConsumer = <
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
           AnyRecordedMessageMetadata,
-          WithObservabilityScope<DefaultRecord>
+          MessageHandlerContext
         >,
       );
 

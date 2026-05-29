@@ -8,11 +8,10 @@ import {
 import {
   hashText,
   type AnyReadEventMetadata,
-  type DefaultRecord,
   type ProjectionDefinition,
+  type ProjectionHandlerContext,
   type ProjectionHandlingType,
   type ProjectionRegistration,
-  type WithObservabilityScope,
 } from '@event-driven-io/emmett';
 import {
   callActivateProjection,
@@ -24,8 +23,7 @@ import { toProjectionLockKey } from '../locks/postgreSQLProjectionLock';
 
 export const registerProjection = async <
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
 >(
   execute: SQLExecutor,
   options: {
@@ -34,7 +32,7 @@ export const registerProjection = async <
     registration: ProjectionRegistration<
       ProjectionHandlingType,
       ReadEventMetadataType,
-      ProjectionHandlerContext
+      HandlerContext
     >;
   },
 ): Promise<{ registered: boolean }> => {

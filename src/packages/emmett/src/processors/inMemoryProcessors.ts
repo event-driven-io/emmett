@@ -5,6 +5,7 @@ import type {
   AnyEvent,
   AnyMessage,
   BatchRecordedMessageHandlerWithContext,
+  MessageHandlerContext,
   ReadEventMetadataWithGlobalPosition,
   SingleMessageHandlerResult,
   SingleRecordedMessageHandlerWithContext,
@@ -20,7 +21,7 @@ import {
   type ReactorOptions,
 } from './processors';
 
-export type InMemoryProcessorHandlerContext = WithObservabilityScope<{
+export type InMemoryProcessorHandlerContext = MessageHandlerContext<{
   database: InMemoryDatabase;
 }>;
 
@@ -183,9 +184,7 @@ export const inMemoryProjector = <EventType extends AnyEvent = AnyEvent>(
     onInit: options.hooks?.onInit,
     onStart: options.hooks?.onStart,
     onClose: options.hooks?.onClose
-      ? async (
-          context: WithObservabilityScope<InMemoryProcessorHandlerContext>,
-        ) => {
+      ? async (context: InMemoryProcessorHandlerContext) => {
           if (options.hooks?.onClose) await options.hooks?.onClose(context);
         }
       : undefined,

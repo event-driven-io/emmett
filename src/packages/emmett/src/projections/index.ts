@@ -1,6 +1,5 @@
 import { EmmettError } from '../errors';
 import type { EventStoreReadSchemaOptions } from '../eventStore';
-import type { WithObservabilityScope } from '../observability';
 import {
   JSONSerializer,
   type JSONSerializationOptions,
@@ -12,56 +11,53 @@ import type {
   CanHandle,
   DefaultRecord,
   Event,
+  MessageHandlerContext,
 } from '../typing';
 import { arrayUtils } from '../utils';
 
 export type ProjectionHandlingType = 'inline' | 'async';
 
+export type ProjectionHandlerContext<
+  HandlerContext extends DefaultRecord = DefaultRecord,
+> = MessageHandlerContext<HandlerContext>;
+
 export type ProjectionHandler<
   EventType extends Event = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
 > = BatchRecordedMessageHandlerWithContext<
   EventType,
   EventMetaDataType,
-  ProjectionHandlerContext
+  HandlerContext
 >;
 
 export type TruncateProjection<
-  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
-> = (context: ProjectionHandlerContext) => Promise<void>;
+  HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
+> = (context: HandlerContext) => Promise<void>;
 
 export type ProjectionInitOptions<
-  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
 > = {
   version: number;
   status?: 'active' | 'inactive';
   registrationType: ProjectionHandlingType;
-  context: ProjectionHandlerContext;
+  context: HandlerContext;
 };
 
 export type ProjectionDefinition<
   EventType extends Event = AnyEvent,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
   EventPayloadType extends Event = EventType,
 > = {
   name?: string;
   version?: number;
   kind?: string;
   canHandle: CanHandle<EventType>;
-  handle: ProjectionHandler<
-    EventType,
-    EventMetaDataType,
-    ProjectionHandlerContext
-  >;
-  truncate?: TruncateProjection<ProjectionHandlerContext>;
+  handle: ProjectionHandler<EventType, EventMetaDataType, HandlerContext>;
+  truncate?: TruncateProjection<HandlerContext>;
   init?: (
-    options: ProjectionInitOptions<ProjectionHandlerContext>,
+    options: ProjectionInitOptions<HandlerContext>,
   ) => void | Promise<void>;
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
@@ -71,28 +67,26 @@ export type ProjectionDefinition<
 export type ProjectionRegistration<
   HandlingType extends ProjectionHandlingType,
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
 > = {
   type: HandlingType;
   projection: ProjectionDefinition<
     AnyEvent,
     ReadEventMetadataType,
-    ProjectionHandlerContext,
+    HandlerContext,
     AnyEvent
   >;
 };
 
 export const filterProjections = <
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
 >(
   type: ProjectionHandlingType,
   projections: ProjectionRegistration<
     ProjectionHandlingType,
     ReadEventMetadataType,
-    ProjectionHandlerContext
+    HandlerContext
   >[],
 ) => {
   const inlineProjections = projections
@@ -117,39 +111,33 @@ export const filterProjections = <
 export const projection = <
   EventType extends Event = Event,
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
   EventPayloadType extends Event = EventType,
 >(
   definition: ProjectionDefinition<
     EventType,
     EventMetaDataType,
-    ProjectionHandlerContext,
+    HandlerContext,
     EventPayloadType
   >,
 ): ProjectionDefinition<
   EventType,
   EventMetaDataType,
-  ProjectionHandlerContext,
+  HandlerContext,
   EventPayloadType
 > => definition;
 
 export const inlineProjections = <
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
 >(
   definitions: ProjectionDefinition<
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     any,
     ReadEventMetadataType,
-    ProjectionHandlerContext
+    HandlerContext
   >[],
-): ProjectionRegistration<
-  'inline',
-  ReadEventMetadataType,
-  ProjectionHandlerContext
->[] =>
+): ProjectionRegistration<'inline', ReadEventMetadataType, HandlerContext>[] =>
   definitions.map((definition) => ({
     type: 'inline',
     projection: definition,
@@ -157,19 +145,14 @@ export const inlineProjections = <
 
 export const asyncProjections = <
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  ProjectionHandlerContext extends WithObservabilityScope<DefaultRecord> =
-    WithObservabilityScope<DefaultRecord>,
+  HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
 >(
   definitions: ProjectionDefinition<
     AnyEvent,
     ReadEventMetadataType,
-    ProjectionHandlerContext
+    HandlerContext
   >[],
-): ProjectionRegistration<
-  'inline',
-  ReadEventMetadataType,
-  ProjectionHandlerContext
->[] =>
+): ProjectionRegistration<'inline', ReadEventMetadataType, HandlerContext>[] =>
   definitions.map((definition) => ({
     type: 'inline',
     projection: definition,

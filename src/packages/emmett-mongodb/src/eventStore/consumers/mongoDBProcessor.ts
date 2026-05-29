@@ -1,6 +1,6 @@
 import type {
+  MessageHandlerContext,
   MessageProcessor,
-  WithObservabilityScope,
 } from '@event-driven-io/emmett';
 import {
   type AnyEvent,
@@ -25,7 +25,7 @@ type MongoDBConnectionOptions = {
   connectionOptions: MongoDBEventStoreConnectionOptions;
 };
 
-export type MongoDBProcessorHandlerContext = WithObservabilityScope<{
+export type MongoDBProcessorHandlerContext = MessageHandlerContext<{
   client: MongoClient;
 }>;
 

@@ -1,7 +1,7 @@
 import type {
   AsyncAwaiter,
+  MessageHandlerContext,
   MessageProcessor,
-  WithObservabilityScope,
 } from '@event-driven-io/emmett';
 import {
   asyncAwaiter,
@@ -13,7 +13,6 @@ import {
   type AnyRecordedMessageMetadata,
   type AsyncRetryOptions,
   type BatchRecordedMessageHandlerWithoutContext,
-  type DefaultRecord,
   type InMemoryProcessor,
   type InMemoryProjectorOptions,
   type InMemoryReactorOptions,
@@ -195,7 +194,7 @@ export const eventStoreDBEventStoreConsumer = <
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
           AnyRecordedMessageMetadata,
-          WithObservabilityScope<DefaultRecord>
+          MessageHandlerContext
         >,
       );
 
@@ -211,7 +210,7 @@ export const eventStoreDBEventStoreConsumer = <
         processor as unknown as MessageProcessor<
           ConsumerMessageType,
           AnyRecordedMessageMetadata,
-          WithObservabilityScope<DefaultRecord>
+          MessageHandlerContext
         >,
       );
 

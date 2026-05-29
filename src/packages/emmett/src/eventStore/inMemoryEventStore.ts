@@ -3,10 +3,7 @@ import {
   getInMemoryDatabase,
   type InMemoryDatabase,
 } from '../database/inMemoryDatabase';
-import type {
-  EventStoreObservabilityConfig,
-  WithObservabilityScope,
-} from '../observability';
+import type { EventStoreObservabilityConfig } from '../observability';
 import {
   eventStoreCollector,
   resolveEventStoreObservability,
@@ -16,6 +13,7 @@ import type { ProjectionRegistration } from '../projections';
 import type {
   CombinedReadEventMetadata,
   Event,
+  MessageHandlerContext,
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
 } from '../typing';
@@ -44,7 +42,7 @@ export type InMemoryEventStore =
 
 export type InMemoryReadEventMetadata = ReadEventMetadataWithGlobalPosition;
 
-export type InMemoryProjectionHandlerContext = WithObservabilityScope<{
+export type InMemoryProjectionHandlerContext = MessageHandlerContext<{
   eventStore?: InMemoryEventStore;
   database?: InMemoryDatabase;
 }>;
