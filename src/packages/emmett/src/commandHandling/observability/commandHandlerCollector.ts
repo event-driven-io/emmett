@@ -1,7 +1,12 @@
 import {
   MessagingAttributes,
+  noopMeter,
+  noopTracer,
   ObservabilityScope,
+  type AttributeTarget,
+  type Meter,
   type ObservabilityScope as ObservabilityScopeType,
+  type Tracer,
 } from '@event-driven-io/almanac';
 import {
   EmmettAttributes,
@@ -9,8 +14,45 @@ import {
   MessagingSystemName,
   ScopeTypes,
 } from '../../observability/attributes';
-import type { ResolvedCommandObservability } from '../../observability/options';
+import type {
+  EmmettObservabilityConfig,
+  EmmettObservabilityOptions,
+} from '../../observability/options';
 import type { Event } from '../../typing';
+
+export type CommandObservabilityConfig = Pick<
+  EmmettObservabilityConfig,
+  'tracer' | 'meter' | 'attributeTarget' | 'includeMessagePayloads'
+>;
+
+export type ResolvedCommandObservability = {
+  tracer: Tracer;
+  meter: Meter;
+  attributeTarget: AttributeTarget;
+  includeMessagePayloads: boolean;
+};
+
+export const resolveCommandObservability = (
+  options: { observability?: CommandObservabilityConfig } | undefined,
+  parent?: EmmettObservabilityOptions,
+): ResolvedCommandObservability => ({
+  tracer:
+    options?.observability?.tracer ??
+    parent?.observability?.tracer ??
+    noopTracer(),
+  meter:
+    options?.observability?.meter ??
+    parent?.observability?.meter ??
+    noopMeter(),
+  attributeTarget:
+    options?.observability?.attributeTarget ??
+    parent?.observability?.attributeTarget ??
+    'both',
+  includeMessagePayloads:
+    options?.observability?.includeMessagePayloads ??
+    parent?.observability?.includeMessagePayloads ??
+    false,
+});
 
 export type CommandHandlerCollectorContext = {
   streamName: string;
