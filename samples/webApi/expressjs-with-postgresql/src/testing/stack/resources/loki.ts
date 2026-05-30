@@ -1,3 +1,4 @@
+import { waitFor } from '../../index';
 import { httpHealthCheck } from '../healthCheck';
 import { getJson } from '../http';
 import type { Resource } from '../types';
@@ -5,8 +6,8 @@ import { verifications } from '../verify';
 
 export type LokiOptions = { url: string; timeout?: number };
 
-// A view over the Loki container. `queryRange` runs a LogQL query over the last
-// `sinceMs` and returns how many streams matched; `diagnose` dumps the known labels.
+// A view over the Loki container. `queryRange` is the low-level read; `serviceLogs` /
+// `waitForServiceLogs` are the intention-revealing helpers; `diagnose` dumps labels.
 export const loki = (opts: LokiOptions) => {
   const queryRange = async (
     logql: string,
@@ -18,6 +19,28 @@ export const loki = (opts: LokiOptions) => {
         `&start=${(now - sinceMs) * 1_000_000}&end=${now * 1_000_000}`,
     );
     return json.data?.result?.length ?? 0;
+  };
+
+  // How many log streams the service emitted recently.
+  const serviceLogs = (service: string): Promise<number> =>
+    queryRange(`{service_name="${service}"}`);
+
+  const waitForServiceLogs = async (
+    service: string,
+    o?: { timeout?: number },
+  ): Promise<void> => {
+    await waitFor(
+      async () => {
+        const count = await serviceLogs(service);
+        if (count === 0) console.log('    Loki: no log streams yet');
+        return count > 0;
+      },
+      {
+        timeout: o?.timeout ?? 30_000,
+        interval: 3_000,
+        label: `logs from ${service} in Loki`,
+      },
+    );
   };
 
   const diagnose = async (): Promise<void> => {
@@ -41,9 +64,13 @@ export const loki = (opts: LokiOptions) => {
     healthCheck: ready,
     verify: verifications({}),
     queryRange,
+    serviceLogs,
+    waitForServiceLogs,
     diagnose,
   } satisfies Resource & {
     queryRange: typeof queryRange;
+    serviceLogs: typeof serviceLogs;
+    waitForServiceLogs: typeof waitForServiceLogs;
     diagnose: typeof diagnose;
   };
 };
