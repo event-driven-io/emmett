@@ -46,6 +46,15 @@ export const nodeApp = (opts: NodeAppOptions) => {
   const endpoint = (path = ''): string =>
     path ? `${opts.url}/${path}` : opts.url;
 
+  const post = (path: string, body?: unknown): Promise<Response> =>
+    fetch(endpoint(path), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+
+  const get = (path: string): Promise<Response> => fetch(endpoint(path));
+
   const up = async (upOpts?: UpOptions): Promise<void> => {
     if (await isOurs()) {
       console.log('▶ app already running and healthy — skipping npm start');
@@ -104,5 +113,11 @@ export const nodeApp = (opts: NodeAppOptions) => {
     healthCheck,
     verify: verifications({}),
     endpoint,
-  } satisfies Resource & { endpoint: typeof endpoint };
+    post,
+    get,
+  } satisfies Resource & {
+    endpoint: typeof endpoint;
+    post: typeof post;
+    get: typeof get;
+  };
 };

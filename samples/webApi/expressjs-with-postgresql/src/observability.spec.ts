@@ -3,15 +3,15 @@
  *
  * Manages its own docker compose lifecycle. Run with:
  *
- *   npm run verify:observability               # auto-detect running stack
- *   npm run verify:observability:cleanup       # down -v first, then fresh start
- *   NO_START=1 npm run verify:observability    # skip docker/app startup entirely
+ *   npm run verify:observability               # up, verify, then close
+ *   npm run verify:observability:cleanup       # down -v first and after (fresh CI run)
+ *   NO_START=1 npm run verify:observability    # verify a running stack, leave it up
  *
- * Containers are left running after the test for faster re-runs. The stack, its
- * resources, and the verifications all live in src/stack.ts — `observability.up()`
- * brings the tree up, gates on each healthCheck, then runs every verification as a
- * node:test test. Lifecycle flags resolve by precedence: env CLEANUP / CLEANUP_AFTER
- * / NO_START map onto the stack's clean / cleanAfter / noStart options.
+ * The stack, its resources, and the verifications all live in src/stack.ts.
+ * `observability.test()` brings the tree up, gates on each healthCheck, runs every
+ * verification as a node:test test, then closes — except under NO_START, where it
+ * verifies a stack it didn't start and leaves it running. Lifecycle flags resolve by
+ * precedence: env CLEANUP / NO_START map onto the stack's clean / noStart options.
  *
  * ─── Troubleshooting log ────────────────────────────────────────────────────
  *
@@ -52,4 +52,4 @@
 
 import { observability } from './stack';
 
-await observability.up();
+await observability.test();

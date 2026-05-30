@@ -25,8 +25,6 @@
     "test:e2e:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts",
     "verify:observability": "node --import tsx --test src/observability.spec.ts",
     "verify:observability:cleanup": "CLEANUP=1 node --import tsx --test src/observability.spec.ts",
-    "verify:observability:cleanup:after": "CLEANUP_AFTER=1 node --import tsx --test src/observability.spec.ts",
-    "verify:observability:full": "CLEANUP=1 CLEANUP_AFTER=1 node --import tsx --test src/observability.spec.ts",
     "dev": "node --import tsx src/dev.ts",
     "dev:clean": "node --import tsx src/dev.ts clean"
   },

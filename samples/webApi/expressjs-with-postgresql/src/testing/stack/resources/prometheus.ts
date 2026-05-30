@@ -1,4 +1,5 @@
 import { httpHealthCheck } from '../healthCheck';
+import { getJson } from '../http';
 import type { Resource } from '../types';
 import { verifications } from '../verify';
 
@@ -9,21 +10,16 @@ export type PrometheusOptions = { url: string; timeout?: number };
 // metric verifications share.
 export const prometheus = (opts: PrometheusOptions) => {
   const queryInstant = async (promql: string): Promise<number> => {
-    const json = await fetch(
-      `${opts.url}/api/v1/query?query=${encodeURIComponent(promql)}`,
-    ).then(
-      (r) =>
-        r.json() as Promise<{
-          data: { result: { value: [number, string] }[] };
-        }>,
-    );
+    const json = await getJson<{
+      data: { result: { value: [number, string] }[] };
+    }>(`${opts.url}/api/v1/query?query=${encodeURIComponent(promql)}`);
     return parseFloat(json.data?.result?.[0]?.value?.[1] ?? '0');
   };
 
   const diagnose = async (): Promise<void> => {
-    const json = await fetch(`${opts.url}/api/v1/label/__name__/values`)
-      .then((r) => r.json() as Promise<{ data: string[] }>)
-      .catch(() => ({ data: [] as string[] }));
+    const json = await getJson<{ data: string[] }>(
+      `${opts.url}/api/v1/label/__name__/values`,
+    ).catch(() => ({ data: [] as string[] }));
     const emmett = json.data.filter((n) => n.startsWith('emmett_'));
     console.log(
       emmett.length
