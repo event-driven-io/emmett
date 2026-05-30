@@ -1,4 +1,5 @@
 import { httpHealthCheck } from '../healthCheck';
+import { getJson } from '../http';
 import type { Resource } from '../types';
 import { verifications } from '../verify';
 
@@ -12,18 +13,17 @@ export const loki = (opts: LokiOptions) => {
     sinceMs = 300_000,
   ): Promise<number> => {
     const now = Date.now();
-    const res = await fetch(
+    const json = await getJson<{ data: { result: unknown[] } }>(
       `${opts.url}/loki/api/v1/query_range?query=${encodeURIComponent(logql)}&limit=10` +
         `&start=${(now - sinceMs) * 1_000_000}&end=${now * 1_000_000}`,
     );
-    const json = (await res.json()) as { data: { result: unknown[] } };
     return json.data?.result?.length ?? 0;
   };
 
   const diagnose = async (): Promise<void> => {
-    const labels = await fetch(`${opts.url}/loki/api/v1/labels`)
-      .then((r) => r.json() as Promise<{ data?: string[] }>)
-      .catch(() => ({ data: [] as string[] }));
+    const labels = await getJson<{ data?: string[] }>(
+      `${opts.url}/loki/api/v1/labels`,
+    ).catch(() => ({ data: [] as string[] }));
     console.log(
       `\n  Loki labels: ${(labels.data ?? []).join(', ') || '(none)'}`,
     );

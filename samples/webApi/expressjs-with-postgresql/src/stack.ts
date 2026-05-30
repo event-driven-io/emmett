@@ -1,12 +1,14 @@
 // Single source of truth for the observability stack: endpoints, identity, the
 // composed resource tree, and the cross-resource verifications. Shared by the
-// verification spec (`observability.up()`) and the dev entry point.
+// verification spec (`observability.test()`) and the dev entry point.
 
-import assert from 'node:assert/strict';
+import { assertOk } from '@event-driven-io/emmett';
 import { randomUUID } from 'node:crypto';
 import { waitFor } from './testing/index';
 import {
   dockerCompose,
+  expectResponse,
+  fetchText,
   grafana,
   loki,
   nodeApp,
@@ -47,14 +49,11 @@ export const resources = { compose, prom, graf, trc, log, app };
 // Fresh client per run — avoids stale cart state from previous runs.
 
 const CLIENT_ID = randomUUID();
-const CART_ENDPOINT = `${URLS.app}/clients/${CLIENT_ID}/shopping-carts/current/product-items`;
-const CONFIRM_ENDPOINT = `${URLS.app}/clients/${CLIENT_ID}/shopping-carts/current/confirm`;
+const CART_PATH = `clients/${CLIENT_ID}/shopping-carts/current/product-items`;
+const CONFIRM_PATH = `clients/${CLIENT_ID}/shopping-carts/current/confirm`;
 
 // Matches the .http file — unitPrice is resolved server-side.
-const ADD_PRODUCT_BODY = JSON.stringify({
-  productId: randomUUID(),
-  quantity: 10,
-});
+const ADD_PRODUCT = { productId: randomUUID(), quantity: 10 };
 
 console.log(`\n▶ client ID for this run: ${CLIENT_ID}\n`);
 
@@ -62,19 +61,10 @@ console.log(`\n▶ client ID for this run: ${CLIENT_ID}\n`);
 
 let traceId: string;
 
-async function fetchWithDiag(label: string, url: string, init?: RequestInit) {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    const body = await res.text().catch(() => '(could not read body)');
-    console.error(`\n  ✗ ${label} → HTTP ${res.status}\n  body: ${body}\n`);
-  }
-  return res;
-}
-
 async function diagCollector() {
-  const text = await fetch(URLS.otelCollectorMetrics)
-    .then((r) => r.text())
-    .catch(() => 'unreachable');
+  const text = await fetchText(URLS.otelCollectorMetrics).catch(
+    () => 'unreachable',
+  );
   const emmett = text
     .split('\n')
     .filter((l) => l.startsWith('emmett_') && !l.startsWith('#'))
@@ -112,29 +102,12 @@ export const observability = stack({
     returnsTraceId: {
       name: 'successful command returns x-trace-id header',
       verify: async () => {
-        const res = await fetchWithDiag('POST add product', CART_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: ADD_PRODUCT_BODY,
+        const res = await app.post(CART_PATH, ADD_PRODUCT);
+        await expectResponse(res, 204, {
+          headers: { 'x-trace-id': /^[0-9a-f]{32}$/ },
         });
 
-        assert.equal(res.status, 204, `Expected 204 — body logged above`);
-
-        const header = res.headers.get('x-trace-id');
-        if (!header) {
-          console.error(
-            '  ✗ x-trace-id missing — verify the wrapper app in src/index.ts ' +
-              'adds it via @opentelemetry/api before mounting the emmett app',
-          );
-        }
-        assert.ok(header, 'x-trace-id header missing');
-        assert.match(
-          header,
-          /^[0-9a-f]{32}$/,
-          `"${header}" is not a 32-hex trace ID`,
-        );
-
-        traceId = header;
+        traceId = res.headers.get('x-trace-id')!;
         console.log(`  trace ID: ${traceId}`);
       },
     },
@@ -142,25 +115,17 @@ export const observability = stack({
       name: 'OTel collector exposes Emmett metrics on port 8889',
       verify: async () => {
         // Send a few more requests so metrics are definitely recorded.
-        for (let i = 0; i < 5; i++) {
-          await fetch(CART_ENDPOINT, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: ADD_PRODUCT_BODY,
-          });
-        }
+        for (let i = 0; i < 5; i++) await app.post(CART_PATH, ADD_PRODUCT);
 
         try {
           await waitFor(
             async () => {
-              let text: string;
-              try {
-                const res = await fetch(URLS.otelCollectorMetrics);
-                text = await res.text();
-              } catch {
-                console.log('    collector :8889: connection refused');
-                return false;
-              }
+              const text = await fetchText(URLS.otelCollectorMetrics).catch(
+                () => {
+                  console.log('    collector :8889: connection refused');
+                  return '';
+                },
+              );
               const emmettLines = text
                 .split('\n')
                 .filter((l) => l.startsWith('emmett_') && !l.startsWith('#'));
@@ -198,11 +163,7 @@ export const observability = stack({
       verify: async () => {
         // Keep sending traffic so rate() has data across scrape boundaries.
         const traffic = setInterval(() => {
-          fetch(CART_ENDPOINT, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: ADD_PRODUCT_BODY,
-          }).catch(() => {});
+          void app.post(CART_PATH, ADD_PRODUCT).catch(() => {});
         }, 3_000);
 
         try {
@@ -233,7 +194,7 @@ export const observability = stack({
     tempoSpan: {
       name: 'Tempo received the trace with command.handle span',
       verify: async () => {
-        assert.ok(traceId, 'traceId not set — x-trace-id test must pass first');
+        assertOk(traceId, 'traceId not set — x-trace-id test must pass first');
 
         let spans: string[] = [];
         try {
@@ -255,7 +216,7 @@ export const observability = stack({
         }
 
         console.log(`\n  spans: ${spans.join(', ')}`);
-        assert.ok(
+        assertOk(
           spans.some((name) => name === 'command.handle'),
           `No "command.handle" span found. Got: ${spans.join(', ')}`,
         );
@@ -266,14 +227,7 @@ export const observability = stack({
       verify: async () => {
         // Trigger the only explicit pino log in this sample — the MessageBus handler
         // logs "Shopping Cart confirmed" via pino-opentelemetry-transport → OTel collector → Loki.
-        const confirmRes = await fetchWithDiag(
-          'POST confirm cart',
-          CONFIRM_ENDPOINT,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-          },
-        );
+        const confirmRes = await app.post(CONFIRM_PATH);
         console.log(`  confirm status: ${confirmRes.status}`);
 
         try {

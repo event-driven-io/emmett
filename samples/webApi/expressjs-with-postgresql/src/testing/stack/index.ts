@@ -2,6 +2,7 @@ export * from './types';
 export { sequence, parallel } from './composition';
 export { verifications } from './verify';
 export { httpHealthCheck } from './healthCheck';
+export { getJson, fetchText, expectResponse } from './http';
 export { stack } from './stack';
 export { dockerCompose } from './tools/dockerCompose';
 export { tsx } from './tools/tsx';

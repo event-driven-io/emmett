@@ -1,5 +1,6 @@
-import assert from 'node:assert/strict';
+import { assertOk } from '@event-driven-io/emmett';
 import { httpHealthCheck } from '../healthCheck';
+import { getJson } from '../http';
 import type { Resource } from '../types';
 import { verifications } from '../verify';
 
@@ -9,14 +10,12 @@ export type GrafanaOptions = { url: string; service: string; timeout?: number };
 // only query Grafana — so they live here; `searchDashboards` and `queryDatasource`
 // are the typed fetch wrappers they share.
 export const grafana = (opts: GrafanaOptions) => {
-  const searchDashboards = async (
+  const searchDashboards = (
     query: string,
-  ): Promise<Array<{ uid: string; title: string }>> => {
-    const res = await fetch(
+  ): Promise<Array<{ uid: string; title: string }>> =>
+    getJson<Array<{ uid: string; title: string }>>(
       `${opts.url}/api/search?query=${encodeURIComponent(query)}&type=dash-db`,
     );
-    return (await res.json()) as Array<{ uid: string; title: string }>;
-  };
 
   const queryDatasource = async (
     uid: string,
@@ -69,7 +68,7 @@ export const grafana = (opts: GrafanaOptions) => {
                 '  Check docker/observability/grafana/dashboards.yml is mounted in docker-compose.yml',
             );
           }
-          assert.ok(
+          assertOk(
             dashboards.some((d) => d.uid === 'emmett-observability'),
             'Emmett dashboard not provisioned in Grafana',
           );
@@ -82,7 +81,7 @@ export const grafana = (opts: GrafanaOptions) => {
             'prometheus',
             `sum(rate(emmett_command_handling_duration_count{service_name="${opts.service}"}[5m]))`,
           );
-          assert.ok(ok, `Grafana datasource proxy returned ${status}`);
+          assertOk(ok, `Grafana datasource proxy returned ${status}`);
           if (frames.length === 0) {
             console.error(
               '\n  ✗ no frames from Grafana datasource proxy\n' +
@@ -90,7 +89,7 @@ export const grafana = (opts: GrafanaOptions) => {
                 '  and that Prometheus has emmett_* metrics (run the Prometheus test first)',
             );
           }
-          assert.ok(
+          assertOk(
             frames.length > 0,
             'No frames — Grafana datasource or metrics missing',
           );

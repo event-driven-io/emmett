@@ -1,5 +1,4 @@
 import inspector from 'node:inspector';
-import { after } from 'node:test';
 import { sequence } from './composition';
 import { renderDashboard } from './dashboard';
 import { listrUp } from './reporter';
@@ -35,9 +34,10 @@ export type StackConfig = {
   Presentation;
 
 // The root Resource. Composes its resources as a sequence, layers the stack's own
-// cross-resource verifications on top, and owns the whole lifecycle: the clean /
-// noStart / cleanAfter flags (resolved by precedence), the post-run teardown, and
-// graceful shutdown on SIGINT/SIGTERM — so entry points never wire signals themselves.
+// cross-resource verifications on top, and owns the lifecycle: `up` starts everything
+// and verifies but never closes; `test` is sugar that closes afterwards; the clean /
+// noStart flags resolve by precedence; SIGINT/SIGTERM shut down gracefully — so entry
+// points never wire signals themselves.
 export const stack = (config: StackConfig): Stack => {
   const root = sequence(...config.resources);
 
@@ -65,10 +65,11 @@ export const stack = (config: StackConfig): Stack => {
     process.once('SIGTERM', () => shutdown('SIGTERM'));
   };
 
+  // Starts every resource and runs verify() unless skipped — and leaves it running.
+  // Closing is the caller's choice (down / test / Ctrl-C), never automatic.
   const up = async (opts?: UpOptions): Promise<void> => {
     const clean = resolve('clean', 'CLEANUP', opts, config);
     const noStart = resolve('noStart', 'NO_START', opts, config);
-    const cleanAfter = resolve('cleanAfter', 'CLEANUP_AFTER', opts, config);
     const renderer = opts?.renderer ?? config.renderer ?? 'console';
     const debug = opts?.debug ?? inspector.url() !== undefined;
 
@@ -89,10 +90,6 @@ export const stack = (config: StackConfig): Stack => {
       const bringUp = { skipVerification: true, debug };
       if (renderer === 'listr') await listrUp(root, bringUp);
       else await root.up(bringUp);
-
-      // Tear down once the run completes — but only what we brought up, so a
-      // verify run against an already-running stack (noStart) leaves it untouched.
-      if (!opts?.skipVerification) after(() => down({ cleanup: cleanAfter }));
     }
 
     if (config.dashboard) renderDashboard(config.dashboard);
@@ -100,10 +97,21 @@ export const stack = (config: StackConfig): Stack => {
     if (!opts?.skipVerification) await runVerify();
   };
 
+  // Sugar: bring up, verify, then close — unless we're running against a stack we
+  // didn't start (noStart), in which case we leave it as we found it.
+  const test = async (opts?: UpOptions & DownOptions): Promise<void> => {
+    await up(opts);
+    if (!resolve('noStart', 'NO_START', opts, config))
+      await down({
+        cleanup: opts?.cleanup ?? resolve('clean', 'CLEANUP', opts, config),
+      });
+  };
+
   return {
     name: config.name,
     up,
     down,
+    test,
     restart: async (opts?: UpOptions) => {
       await down();
       await up(opts);

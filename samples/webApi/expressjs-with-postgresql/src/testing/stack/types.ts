@@ -10,8 +10,7 @@ export type Verify<T extends Record<string, Verification>> =
 // Lifecycle flags. Settable on the stack() config (defaults) and overridable per call.
 // Resolution precedence: explicit method option > stack config > env var > built-in default.
 export type LifecycleOptions = {
-  clean?: boolean; // down() before up()                    — env CLEANUP
-  cleanAfter?: boolean; // down() after the run (node:test after) — env CLEANUP_AFTER
+  clean?: boolean; // down({ cleanup: true }) before up()    — env CLEANUP
   noStart?: boolean; // skip bring-up, assume already running  — env NO_START
 };
 
@@ -58,4 +57,8 @@ export type Resource = {
   mode?: 'sequence' | 'parallel';
 };
 
-export type Stack = Resource;
+// The root Resource, plus `test` sugar: bring up, verify, then close (down) unless
+// running against a stack we didn't start (noStart).
+export type Stack = Resource & {
+  test(opts?: UpOptions & DownOptions): Promise<void>;
+};
