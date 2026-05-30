@@ -26,7 +26,9 @@
     "verify:observability": "node --import tsx --test src/observability.spec.ts",
     "verify:observability:cleanup": "CLEANUP=1 node --import tsx --test src/observability.spec.ts",
     "verify:observability:cleanup:after": "CLEANUP_AFTER=1 node --import tsx --test src/observability.spec.ts",
-    "verify:observability:full": "CLEANUP=1 CLEANUP_AFTER=1 node --import tsx --test src/observability.spec.ts"
+    "verify:observability:full": "CLEANUP=1 CLEANUP_AFTER=1 node --import tsx --test src/observability.spec.ts",
+    "dev": "node --import tsx src/dev.ts",
+    "dev:clean": "node --import tsx -e \"import('./src/stack.ts').then(({ observability }) => observability.down())\""
   },
   "repository": {
     "type": "git",
@@ -77,8 +79,10 @@
     "execa": "^9.5.2",
     "glob": "10.3.10",
     "globals": "^17.5.0",
+    "listr2": "^10.2.1",
     "npm-run-all2": "6.1.2",
     "pg": "8.20.0",
+    "picocolors": "^1.1.1",
     "prettier": "^3.8.3",
     "tsconfig-paths": "4.2.0",
     "tsdown": "^0.21.9",

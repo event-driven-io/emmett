@@ -1,10 +1,12 @@
 import { execa } from 'execa';
-import { URLS } from '../../../stack';
+import type { DownOptions, Resource } from '../types';
+import { verifications } from '../verify';
 
 export type DockerComposeOptions = { file: string; profile: string };
 
-// Drives `docker compose` for one compose file + profile. `up` is idempotent —
-// compose leaves already-running containers in place, preserving the reuse path.
+// Drives `docker compose` for one compose file + profile as a leaf Resource. `up` is
+// idempotent — compose leaves already-running containers in place, preserving the
+// reuse path. healthCheck is a no-op; the services it starts have their own probes.
 export const dockerCompose = (options: DockerComposeOptions) => {
   const args = ['compose', '-f', options.file, '--profile', options.profile];
 
@@ -12,7 +14,7 @@ export const dockerCompose = (options: DockerComposeOptions) => {
     await execa('docker', [...args, 'up', '-d'], { stdio: 'inherit' });
   };
 
-  const down = async (opts?: { keepVolumes?: boolean }): Promise<void> => {
+  const down = async (opts?: DownOptions): Promise<void> => {
     await execa(
       'docker',
       [
@@ -40,20 +42,16 @@ export const dockerCompose = (options: DockerComposeOptions) => {
     },
   });
 
-  return { up, down, service };
+  return {
+    name: 'docker-compose',
+    up,
+    down,
+    restart: async () => {
+      await down();
+      await up();
+    },
+    healthCheck: async () => {},
+    verify: verifications({}),
+    service,
+  } satisfies Resource & { service: typeof service };
 };
-
-export async function diagCollector() {
-  const text = await fetch(URLS.otelCollectorMetrics)
-    .then((r) => r.text())
-    .catch(() => 'unreachable');
-  const emmett = text
-    .split('\n')
-    .filter((l) => l.startsWith('emmett_') && !l.startsWith('#'))
-    .slice(0, 5);
-  console.log(
-    emmett.length
-      ? `\n  collector /metrics (emmett lines):\n  ${emmett.join('\n  ')}`
-      : '\n  collector /metrics: no emmett_* lines found',
-  );
-}
