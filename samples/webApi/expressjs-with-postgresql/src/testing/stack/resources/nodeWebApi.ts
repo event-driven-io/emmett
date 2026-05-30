@@ -1,17 +1,27 @@
 import { checkUrl } from '../../index';
 import { httpHealthCheck } from '../healthCheck';
-import type { Resource } from '../types';
 import { nodeApp } from './nodeApp';
 
 export type NodeWebApiOptions = {
   url: string;
   service: string;
+  name?: string;
+  command?: string;
+  args?: string[];
+  label?: string;
   inspectPort?: number;
+};
+
+type RequestSpec = {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  path: string;
+  body?: unknown;
 };
 
 // The application under test: a node web API. Wraps nodeApp (the process) and owns
 // the HTTP surface — the /health readiness, foreign-process detection, and the
-// request helpers the verifications use.
+// request helpers the verifications use. The process runner is overridable (npm,
+// node, nodemon, pm2…) via command/args.
 export const nodeWebApi = (opts: NodeWebApiOptions) => {
   // /health returns { status: 'ok', service: 'expressjs-with-postgresql' } —
   // checking the service name distinguishes our app from other processes on the port.
@@ -33,11 +43,11 @@ export const nodeWebApi = (opts: NodeWebApiOptions) => {
   const isOurs = () => checkUrl('app /health', `${opts.url}/health`, validate);
 
   const app = nodeApp({
-    name: 'app',
-    command: 'npm',
-    args: ['start'],
+    name: opts.name ?? 'app',
+    command: opts.command ?? 'npm',
+    args: opts.args ?? ['start'],
     url: opts.url,
-    label: opts.service,
+    label: opts.label ?? opts.service,
     inspectPort: opts.inspectPort,
     healthCheck,
     isOurs,
@@ -46,31 +56,35 @@ export const nodeWebApi = (opts: NodeWebApiOptions) => {
   const endpoint = (path = ''): string =>
     path ? `${opts.url}/${path}` : opts.url;
 
-  const post = (path: string, body?: unknown): Promise<Response> =>
+  const send = ({
+    method = 'GET',
+    path,
+    body,
+  }: RequestSpec): Promise<Response> =>
     fetch(endpoint(path), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method,
+      headers:
+        body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
 
-  const get = (path: string): Promise<Response> => fetch(endpoint(path));
-
-  // Drives steady traffic at the API; returns a stop function (for rate() windows).
-  const traffic = (
-    path: string,
-    body?: unknown,
-    intervalMs = 3_000,
-  ): (() => void) => {
-    const timer = setInterval(() => {
-      void post(path, body).catch(() => {});
-    }, intervalMs);
-    return () => clearInterval(timer);
+  const http = {
+    endpoint,
+    send,
+    get: (path: string) => send({ method: 'GET', path }),
+    post: (path: string, body?: unknown) =>
+      send({ method: 'POST', path, body }),
+    put: (path: string, body?: unknown) => send({ method: 'PUT', path, body }),
+    delete: (path: string) => send({ method: 'DELETE', path }),
+    // Steady load for rate() windows: replays one request every intervalMs until the
+    // returned stop() is called. Any method/body, because it reuses send().
+    traffic: (spec: RequestSpec, o?: { intervalMs?: number }): (() => void) => {
+      const timer = setInterval(() => {
+        void send(spec).catch(() => {});
+      }, o?.intervalMs ?? 3_000);
+      return () => clearInterval(timer);
+    },
   };
 
-  return { ...app, endpoint, post, get, traffic } satisfies Resource & {
-    endpoint: typeof endpoint;
-    post: typeof post;
-    get: typeof get;
-    traffic: typeof traffic;
-  };
+  return { ...app, http };
 };

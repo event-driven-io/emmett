@@ -1,5 +1,5 @@
 import { Listr, type ListrTask } from 'listr2';
-import type { Resource } from './types';
+import type { Resource } from './composition';
 
 // Mirrors the resource tree as a Listr task tree: composites become task groups
 // (concurrent for `parallel`), leaves run their own up(). Rendering is scoped to

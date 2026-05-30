@@ -1,5 +1,11 @@
 import pc from 'picocolors';
-import type { Dashboard } from './types';
+
+// The stack's "dashboard": the endpoints + tips printed once the stack is up.
+export type Dashboard = {
+  title?: string;
+  endpoints: Record<string, string>;
+  tips?: string[];
+};
 
 // Renders the stack's dashboard once it's up: the endpoint table and any tips.
 export const renderDashboard = (dashboard: Dashboard): void => {

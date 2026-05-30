@@ -1,14 +1,12 @@
 import { waitFor } from '../../index';
 import { httpHealthCheck } from '../healthCheck';
 import { getJson } from '../http';
-import type { Resource } from '../types';
-import { verifications } from '../verify';
+import { resource } from './resource';
 
 export type PrometheusOptions = { url: string; timeout?: number };
 
-// A view over the Prometheus container that compose owns: up/down are no-ops, the
-// readiness probe hits /-/ready. `queryInstant` is the low-level read; `rate` /
-// `waitForNonZeroRate` are the intention-revealing helpers the verifications use.
+// A view over the Prometheus container that compose owns. Its metric queries live
+// under `metrics`; `diagnose` (the failure dump) stays top-level.
 export const prometheus = (opts: PrometheusOptions) => {
   const queryInstant = async (promql: string): Promise<number> => {
     const json = await getJson<{
@@ -40,15 +38,18 @@ export const prometheus = (opts: PrometheusOptions) => {
     );
   };
 
-  const diagnose = async (): Promise<void> => {
+  const diagnose = async (prefix = ''): Promise<void> => {
     const json = await getJson<{ data: string[] }>(
       `${opts.url}/api/v1/label/__name__/values`,
     ).catch(() => ({ data: [] as string[] }));
-    const emmett = json.data.filter((n) => n.startsWith('emmett_'));
+    const names = prefix
+      ? json.data.filter((n) => n.startsWith(prefix))
+      : json.data;
+    const label = prefix ? `${prefix}* metrics` : 'metrics';
     console.log(
-      emmett.length
-        ? `\n  Prometheus emmett_* metrics: ${emmett.join(', ')}`
-        : '\n  Prometheus: no emmett_* metrics found yet',
+      names.length
+        ? `\n  Prometheus ${label}: ${names.slice(0, 20).join(', ')}`
+        : `\n  Prometheus: no ${label} found yet`,
     );
   };
 
@@ -57,20 +58,8 @@ export const prometheus = (opts: PrometheusOptions) => {
   });
 
   return {
-    name: 'prometheus',
-    up: async () => ready(),
-    down: async () => {},
-    restart: async () => {},
-    healthCheck: ready,
-    verify: verifications({}),
-    queryInstant,
-    rate,
-    waitForNonZeroRate,
+    ...resource({ name: 'prometheus', up: ready, healthCheck: ready }),
+    metrics: { queryInstant, rate, waitForNonZeroRate },
     diagnose,
-  } satisfies Resource & {
-    queryInstant: typeof queryInstant;
-    rate: typeof rate;
-    waitForNonZeroRate: typeof waitForNonZeroRate;
-    diagnose: typeof diagnose;
   };
 };

@@ -1,13 +1,12 @@
 import { waitFor } from '../../index';
 import { httpHealthCheck } from '../healthCheck';
 import { getJson } from '../http';
-import type { Resource } from '../types';
-import { verifications } from '../verify';
+import { resource } from './resource';
 
 export type LokiOptions = { url: string; timeout?: number };
 
-// A view over the Loki container. `queryRange` is the low-level read; `serviceLogs` /
-// `waitForServiceLogs` are the intention-revealing helpers; `diagnose` dumps labels.
+// A view over the Loki container. Log queries live under `logs`; `diagnose` (the
+// failure dump) stays top-level and lists the service names Loki has actually seen.
 export const loki = (opts: LokiOptions) => {
   const queryRange = async (
     logql: string,
@@ -22,16 +21,16 @@ export const loki = (opts: LokiOptions) => {
   };
 
   // How many log streams the service emitted recently.
-  const serviceLogs = (service: string): Promise<number> =>
+  const forService = (service: string): Promise<number> =>
     queryRange(`{service_name="${service}"}`);
 
-  const waitForServiceLogs = async (
+  const waitForService = async (
     service: string,
     o?: { timeout?: number },
   ): Promise<void> => {
     await waitFor(
       async () => {
-        const count = await serviceLogs(service);
+        const count = await forService(service);
         if (count === 0) console.log('    Loki: no log streams yet');
         return count > 0;
       },
@@ -44,11 +43,14 @@ export const loki = (opts: LokiOptions) => {
   };
 
   const diagnose = async (): Promise<void> => {
-    const labels = await getJson<{ data?: string[] }>(
-      `${opts.url}/loki/api/v1/labels`,
+    const { data } = await getJson<{ data?: string[] }>(
+      `${opts.url}/loki/api/v1/label/service_name/values`,
     ).catch(() => ({ data: [] as string[] }));
+    const services = data ?? [];
     console.log(
-      `\n  Loki labels: ${(labels.data ?? []).join(', ') || '(none)'}`,
+      services.length
+        ? `\n  Loki service_name values: ${services.join(', ')}`
+        : '\n  Loki: no service_name label values yet',
     );
   };
 
@@ -57,20 +59,8 @@ export const loki = (opts: LokiOptions) => {
   });
 
   return {
-    name: 'loki',
-    up: async () => ready(),
-    down: async () => {},
-    restart: async () => {},
-    healthCheck: ready,
-    verify: verifications({}),
-    queryRange,
-    serviceLogs,
-    waitForServiceLogs,
+    ...resource({ name: 'loki', up: ready, healthCheck: ready }),
+    logs: { queryRange, forService, waitForService },
     diagnose,
-  } satisfies Resource & {
-    queryRange: typeof queryRange;
-    serviceLogs: typeof serviceLogs;
-    waitForServiceLogs: typeof waitForServiceLogs;
-    diagnose: typeof diagnose;
   };
 };

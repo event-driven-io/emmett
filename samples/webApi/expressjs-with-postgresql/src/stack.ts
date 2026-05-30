@@ -40,9 +40,9 @@ const compose = dockerCompose({
   profile: 'observability',
 });
 const prom = prometheus({ url: URLS.prometheus });
-const graf = grafana({ url: URLS.grafana, service: SERVICE_NAME });
+const graf = grafana({ url: URLS.grafana });
 const trc = tempo({ url: URLS.tempo });
-const loki = loki({ url: URLS.loki });
+const log = loki({ url: URLS.loki });
 const collector = otelCollector({
   url: URLS.otelCollectorMetrics,
   logs: (lines) => compose.service('otel-collector').logs(lines),
@@ -54,7 +54,7 @@ export const resources = {
   prom,
   graf,
   trc,
-  log: loki,
+  log,
   collector,
   api,
 };
@@ -81,7 +81,7 @@ let traceId: string;
 export const observability = stack({
   name: 'emmett-observability',
   resources: [
-    sequence(compose, parallel(prom, graf, trc, loki, collector), api),
+    sequence(compose, parallel(prom, graf, trc, log, collector), api),
   ],
   renderer: 'listr',
   dashboard: {
@@ -102,7 +102,7 @@ export const observability = stack({
     returnsTraceId: {
       name: 'successful command returns x-trace-id header',
       verify: async () => {
-        const res = await api.post(CART_PATH, ADD_PRODUCT);
+        const res = await api.http.post(CART_PATH, ADD_PRODUCT);
         await expectResponse(res, 204, {
           headers: { 'x-trace-id': /^[0-9a-f]{32}$/ },
         });
@@ -115,12 +115,12 @@ export const observability = stack({
       name: 'OTel collector exposes Emmett metrics on port 8889',
       verify: async () => {
         // Send a few more requests so metrics are definitely recorded.
-        for (let i = 0; i < 5; i++) await api.post(CART_PATH, ADD_PRODUCT);
+        for (let i = 0; i < 5; i++) await api.http.post(CART_PATH, ADD_PRODUCT);
 
         try {
-          await collector.waitForMetrics('emmett_', { timeout: 90_000 });
+          await collector.metrics.waitFor('emmett_', { timeout: 90_000 });
         } catch (err) {
-          await collector.diagnose();
+          await collector.diagnose('emmett_');
           await collector.logs();
           throw err;
         }
@@ -130,15 +130,19 @@ export const observability = stack({
       name: 'Prometheus has scraped Emmett metrics with non-zero rate',
       verify: async () => {
         // Keep sending traffic so rate() has data across scrape boundaries.
-        const stop = api.traffic(CART_PATH, ADD_PRODUCT);
+        const stop = api.http.traffic({
+          method: 'POST',
+          path: CART_PATH,
+          body: ADD_PRODUCT,
+        });
         try {
-          await prom.waitForNonZeroRate(COMMAND_METRIC, {
+          await prom.metrics.waitForNonZeroRate(COMMAND_METRIC, {
             service: SERVICE_NAME,
             timeout: 120_000,
           });
         } catch (err) {
-          await prom.diagnose();
-          await collector.diagnose();
+          await prom.diagnose('emmett_');
+          await collector.diagnose('emmett_');
           throw err;
         } finally {
           stop();
@@ -151,9 +155,13 @@ export const observability = stack({
         assertOk(traceId, 'traceId not set — x-trace-id test must pass first');
 
         try {
-          const spans = await trc.waitForSpan(traceId, 'command.handle', {
-            timeout: 30_000,
-          });
+          const spans = await trc.traces.waitForSpan(
+            traceId,
+            'command.handle',
+            {
+              timeout: 30_000,
+            },
+          );
           console.log(`\n  spans: ${spans.join(', ')}`);
         } catch (err) {
           console.error(`\n  ✗ trace not found in Tempo: ${traceId}`);
@@ -167,16 +175,49 @@ export const observability = stack({
       verify: async () => {
         // Trigger the only explicit pino log in this sample — the MessageBus handler
         // logs "Shopping Cart confirmed" via pino-opentelemetry-transport → OTel collector → Loki.
-        const confirmRes = await api.post(CONFIRM_PATH);
+        const confirmRes = await api.http.post(CONFIRM_PATH);
         console.log(`  confirm status: ${confirmRes.status}`);
 
         try {
-          await loki.waitForServiceLogs(SERVICE_NAME, { timeout: 30_000 });
+          await log.logs.waitForService(SERVICE_NAME, { timeout: 30_000 });
         } catch (err) {
-          await loki.diagnose();
+          await log.diagnose();
           await collector.logs(15);
           throw err;
         }
+      },
+    },
+    grafanaDashboard: {
+      name: 'Grafana has Emmett dashboard provisioned',
+      verify: async () => {
+        const dashboards = await graf.api.searchDashboards('Emmett');
+        const found = dashboards.some((d) => d.uid === 'emmett-observability');
+        if (!found)
+          console.error(
+            `\n  ✗ dashboard not found. Grafana returned:\n  ${JSON.stringify(dashboards)}\n` +
+              '  Check docker/observability/grafana/dashboards.yml is mounted in docker-compose.yml',
+          );
+        assertOk(found, 'Emmett dashboard not provisioned in Grafana');
+      },
+    },
+    grafanaDatasource: {
+      name: 'Grafana Prometheus datasource returns Emmett metric data',
+      verify: async () => {
+        const { ok, status, frames } = await graf.api.queryDatasource(
+          'prometheus',
+          `sum(rate(${COMMAND_METRIC}{service_name="${SERVICE_NAME}"}[5m]))`,
+        );
+        assertOk(ok, `Grafana datasource proxy returned ${status}`);
+        if (frames.length === 0)
+          console.error(
+            '\n  ✗ no frames from Grafana datasource proxy\n' +
+              '  Check: uid "prometheus" in docker/observability/grafana/datasources.yml\n' +
+              '  and that Prometheus has emmett_* metrics (run the Prometheus test first)',
+          );
+        assertOk(
+          frames.length > 0,
+          'No frames — Grafana datasource or metrics missing',
+        );
       },
     },
   }),

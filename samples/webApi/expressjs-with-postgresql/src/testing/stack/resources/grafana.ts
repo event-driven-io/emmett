@@ -1,14 +1,11 @@
-import { assertOk } from '@event-driven-io/emmett';
 import { httpHealthCheck } from '../healthCheck';
 import { getJson } from '../http';
-import type { Resource } from '../types';
-import { verifications } from '../verify';
+import { resource } from './resource';
 
-export type GrafanaOptions = { url: string; service: string; timeout?: number };
+export type GrafanaOptions = { url: string; timeout?: number };
 
-// A view over the Grafana container. Its two verifications are self-contained — they
-// only query Grafana — so they live here; `searchDashboards` and `queryDatasource`
-// are the typed fetch wrappers they share.
+// A view over the Grafana container. Reads live under `api`; what to assert about a
+// specific app's dashboards/metrics is the caller's concern, not this resource's.
 export const grafana = (opts: GrafanaOptions) => {
   const searchDashboards = (
     query: string,
@@ -52,54 +49,7 @@ export const grafana = (opts: GrafanaOptions) => {
   });
 
   return {
-    name: 'grafana',
-    up: async () => ready(),
-    down: async () => {},
-    restart: async () => {},
-    healthCheck: ready,
-    verify: verifications({
-      dashboardProvisioned: {
-        name: 'Grafana has Emmett dashboard provisioned',
-        verify: async () => {
-          const dashboards = await searchDashboards('Emmett');
-          if (!dashboards.some((d) => d.uid === 'emmett-observability')) {
-            console.error(
-              `\n  ✗ dashboard not found. Grafana returned:\n  ${JSON.stringify(dashboards)}\n` +
-                '  Check docker/observability/grafana/dashboards.yml is mounted in docker-compose.yml',
-            );
-          }
-          assertOk(
-            dashboards.some((d) => d.uid === 'emmett-observability'),
-            'Emmett dashboard not provisioned in Grafana',
-          );
-        },
-      },
-      datasourceReturnsData: {
-        name: 'Grafana Prometheus datasource returns Emmett metric data',
-        verify: async () => {
-          const { ok, status, frames } = await queryDatasource(
-            'prometheus',
-            `sum(rate(emmett_command_handling_duration_count{service_name="${opts.service}"}[5m]))`,
-          );
-          assertOk(ok, `Grafana datasource proxy returned ${status}`);
-          if (frames.length === 0) {
-            console.error(
-              '\n  ✗ no frames from Grafana datasource proxy\n' +
-                '  Check: uid "prometheus" in docker/observability/grafana/datasources.yml\n' +
-                '  and that Prometheus has emmett_* metrics (run the Prometheus test first)',
-            );
-          }
-          assertOk(
-            frames.length > 0,
-            'No frames — Grafana datasource or metrics missing',
-          );
-        },
-      },
-    }),
-    searchDashboards,
-    queryDatasource,
-  } satisfies Resource & {
-    searchDashboards: typeof searchDashboards;
-    queryDatasource: typeof queryDatasource;
+    ...resource({ name: 'grafana', up: ready, healthCheck: ready }),
+    api: { searchDashboards, queryDatasource },
   };
 };
