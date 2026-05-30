@@ -46,11 +46,20 @@
  *    for the same clientId can't be reopened. Fix: randomUUID() per run.
  */
 
-import { after, before, test } from 'node:test';
+import { execa } from 'execa';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { execa, type ResultPromise } from 'execa';
-import { checkUrl, waitFor } from './testing/index';
+import { after, before, test } from 'node:test';
+import { SERVICE_NAME, URLS } from './stack';
+import { waitFor } from './testing/index';
+import { httpHealthCheck } from './testing/stack/healthCheck';
+import { diagLoki } from './testing/stack/resources/loki';
+import { diagPrometheus } from './testing/stack/resources/prometheus';
+import { nodeApp } from './testing/stack/resources/nodeApp';
+import {
+  diagCollector,
+  dockerCompose,
+} from './testing/stack/tools/dockerCompose';
 
 // ─── flags ───────────────────────────────────────────────────────────────────
 // Use env vars — node --test doesn't reliably pass args after -- to process.argv.
@@ -61,35 +70,36 @@ import { checkUrl, waitFor } from './testing/index';
 //   npm run verify:observability:full          # down -v before AND after (CI)
 //   NO_START=1 npm run verify:observability   # skip docker/app startup entirely
 
-const CLEANUP = process.env['CLEANUP'] === '1' || process.env['CLEANUP'] === 'true';
-const CLEANUP_AFTER = process.env['CLEANUP_AFTER'] === '1' || process.env['CLEANUP_AFTER'] === 'true';
-const NO_START = process.env['NO_START'] === '1' || process.env['NO_START'] === 'true';
+const CLEANUP =
+  process.env['CLEANUP'] === '1' || process.env['CLEANUP'] === 'true';
+const CLEANUP_AFTER =
+  process.env['CLEANUP_AFTER'] === '1' ||
+  process.env['CLEANUP_AFTER'] === 'true';
+const NO_START =
+  process.env['NO_START'] === '1' || process.env['NO_START'] === 'true';
 
 // ─── configuration ───────────────────────────────────────────────────────────
 
-const COMPOSE = ['compose', '-f', 'docker-compose.yml', '--profile', 'observability'];
+const compose = dockerCompose({
+  file: 'docker-compose.yml',
+  profile: 'observability',
+});
 
-const URLS = {
-  app: 'http://localhost:3000',
-  prometheus: 'http://localhost:9090',
-  tempo: 'http://localhost:3200',
-  loki: 'http://localhost:3100',
-  grafana: 'http://localhost:3001',
-  otelCollectorMetrics: 'http://localhost:8889/metrics',
-};
+const app = nodeApp({ url: URLS.app, service: SERVICE_NAME });
 
 // Fresh client per run — avoids stale cart state from previous runs.
-const SERVICE_NAME = 'expressjs-with-postgresql';
 const CLIENT_ID = randomUUID();
 const CART_ENDPOINT = `${URLS.app}/clients/${CLIENT_ID}/shopping-carts/current/product-items`;
 const CONFIRM_ENDPOINT = `${URLS.app}/clients/${CLIENT_ID}/shopping-carts/current/confirm`;
 
 // Matches the .http file — unitPrice is resolved server-side.
-const ADD_PRODUCT_BODY = JSON.stringify({ productId: randomUUID(), quantity: 10 });
+const ADD_PRODUCT_BODY = JSON.stringify({
+  productId: randomUUID(),
+  quantity: 10,
+});
 
 // ─── state ───────────────────────────────────────────────────────────────────
 
-let app: ResultPromise | undefined;
 let traceId: string;
 
 // ─── diagnostic helpers ───────────────────────────────────────────────────────
@@ -103,53 +113,6 @@ async function fetchWithDiag(label: string, url: string, init?: RequestInit) {
   return res;
 }
 
-async function diagCollector() {
-  const text = await fetch(URLS.otelCollectorMetrics)
-    .then((r) => r.text())
-    .catch(() => 'unreachable');
-  const emmett = text
-    .split('\n')
-    .filter((l) => l.startsWith('emmett_') && !l.startsWith('#'))
-    .slice(0, 5);
-  console.log(
-    emmett.length
-      ? `\n  collector /metrics (emmett lines):\n  ${emmett.join('\n  ')}`
-      : '\n  collector /metrics: no emmett_* lines found',
-  );
-}
-
-async function diagPrometheus() {
-  const json = await fetch(
-    `${URLS.prometheus}/api/v1/label/__name__/values`,
-  )
-    .then((r) => r.json() as Promise<{ data: string[] }>)
-    .catch(() => ({ data: [] as string[] }));
-  const emmett = json.data.filter((n) => n.startsWith('emmett_'));
-  console.log(
-    emmett.length
-      ? `\n  Prometheus emmett_* metrics: ${emmett.join(', ')}`
-      : '\n  Prometheus: no emmett_* metrics found yet',
-  );
-}
-
-async function diagLoki() {
-  const labels = await fetch(`${URLS.loki}/loki/api/v1/labels`)
-    .then((r) => r.json() as Promise<{ data?: string[] }>)
-    .catch(() => ({ data: [] as string[] }));
-  console.log(`\n  Loki labels: ${(labels.data ?? []).join(', ') || '(none)'}`);
-}
-
-async function diagDockerLogs(service: string, lines = 10) {
-  const { stdout } = await execa('docker', [
-    ...COMPOSE,
-    'logs',
-    '--tail',
-    String(lines),
-    service,
-  ]).catch(() => ({ stdout: '(could not get logs)' }));
-  console.log(`\n  docker logs ${service} (last ${lines}):\n  ${stdout.split('\n').join('\n  ')}`);
-}
-
 // ─── lifecycle ────────────────────────────────────────────────────────────────
 
 before(async () => {
@@ -161,12 +124,14 @@ before(async () => {
   }
 
   if (CLEANUP) {
-    console.log('▶ --cleanup: killing port 3000 and tearing down stack (down -v)…');
-    await execa('bash', ['-c', 'fuser -k 3000/tcp 2>/dev/null || true']).catch(() => {});
+    console.log(
+      '▶ --cleanup: killing port 3000 and tearing down stack (down -v)…',
+    );
+    await execa('bash', ['-c', 'fuser -k 3000/tcp 2>/dev/null || true']).catch(
+      () => {},
+    );
     await new Promise((r) => setTimeout(r, 500));
-    await execa('docker', [...COMPOSE, 'down', '-v', '--remove-orphans'], {
-      stdio: 'inherit',
-    });
+    await compose.down();
   }
 
   const stackReady = await fetch(`${URLS.prometheus}/-/ready`)
@@ -174,80 +139,39 @@ before(async () => {
     .catch(() => false);
 
   if (stackReady) {
-    console.log('▶ observability stack already up — skipping docker compose up');
+    console.log(
+      '▶ observability stack already up — skipping docker compose up',
+    );
   } else {
     console.log('▶ starting observability stack…');
-    await execa('docker', [...COMPOSE, 'up', '-d'], { stdio: 'inherit' });
+    await compose.up();
   }
 
   console.log('▶ waiting for backends…');
-  await waitFor(() => checkUrl('Prometheus', `${URLS.prometheus}/-/ready`), {
-    timeout: 90_000, label: 'Prometheus',
-  });
-  await waitFor(() => checkUrl('Grafana', `${URLS.grafana}/api/health`), {
-    timeout: 90_000, label: 'Grafana',
-  });
-  await waitFor(() => checkUrl('Tempo', `${URLS.tempo}/ready`), {
-    timeout: 90_000, label: 'Tempo',
-  });
-  await waitFor(() => checkUrl('Loki', `${URLS.loki}/ready`), {
-    timeout: 90_000, label: 'Loki',
-  });
+  await httpHealthCheck('Prometheus', `${URLS.prometheus}/-/ready`, {
+    timeout: 90_000,
+  })();
+  await httpHealthCheck('Grafana', `${URLS.grafana}/api/health`, {
+    timeout: 90_000,
+  })();
+  await httpHealthCheck('Tempo', `${URLS.tempo}/ready`, {
+    timeout: 90_000,
+  })();
+  await httpHealthCheck('Loki', `${URLS.loki}/ready`, {
+    timeout: 90_000,
+  })();
 
-  // /health returns { status: 'ok', service: 'expressjs-with-postgresql' } —
-  // checking service name lets us distinguish our app from other processes on :3000.
-  const checkOurApp = () =>
-    checkUrl('app /health', `${URLS.app}/health`, async (res) => {
-      const json = (await res.json().catch(() => ({}))) as { service?: string };
-      if (json.service !== SERVICE_NAME) {
-        console.log(
-          `    app /health: service="${json.service ?? '(missing)'}", expected="${SERVICE_NAME}"`,
-        );
-        return false;
-      }
-      return true;
-    });
-
-  const appIsOurs = stackReady && (await checkOurApp());
-
-  if (appIsOurs) {
-    console.log('▶ app already running and healthy — skipping npm start');
-  } else {
-    const portTaken = await fetch(URLS.app).then(() => true).catch(() => false);
-    if (portTaken) {
-      // Port is occupied but not by our app — stale process or unrelated service.
-      console.error(
-        '\n  ✗ Port 3000 is occupied by a process that is not this app.\n' +
-          '  It may be a stale version of this app (connected to a wiped database)\n' +
-          '  or a completely different service.\n' +
-          '  Fix: run  npm run verify:observability:cleanup  to kill it and restart,\n' +
-          '  or manually free port 3000.\n',
-      );
-      process.exit(1);
-    }
-
-    console.log('▶ starting app…');
-    app = execa('npm', ['start'], { stdio: 'inherit' });
-
-    await waitFor(checkOurApp, { timeout: 60_000, label: 'app /health' });
-  }
+  await app.up();
 
   console.log('▶ setup complete\n');
 });
 
 after(async () => {
-  if (app) {
-    console.log('\n▶ stopping app…');
-    app.kill('SIGTERM');
-    await app.catch(() => {});
-    console.log('▶ app stopped');
-  }
+  await app.down();
 
   if (CLEANUP_AFTER) {
     console.log('▶ tearing down stack (down -v)…');
-    await execa('docker', [...COMPOSE, 'down', '-v', '--remove-orphans'], {
-      stdio: 'inherit',
-    });
+    await compose.down();
     console.log('▶ stack torn down');
   } else {
     console.log('▶ stack is still running');
@@ -257,7 +181,7 @@ after(async () => {
 
 // ─── tests ────────────────────────────────────────────────────────────────────
 
-test('successful command returns x-trace-id header', async () => {
+await test('successful command returns x-trace-id header', async () => {
   const res = await fetchWithDiag('POST add product', CART_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -274,13 +198,17 @@ test('successful command returns x-trace-id header', async () => {
     );
   }
   assert.ok(header, 'x-trace-id header missing');
-  assert.match(header, /^[0-9a-f]{32}$/, `"${header}" is not a 32-hex trace ID`);
+  assert.match(
+    header,
+    /^[0-9a-f]{32}$/,
+    `"${header}" is not a 32-hex trace ID`,
+  );
 
   traceId = header;
   console.log(`  trace ID: ${traceId}`);
 });
 
-test('OTel collector exposes Emmett metrics on port 8889', async () => {
+await test('OTel collector exposes Emmett metrics on port 8889', async () => {
   // Send a few more requests so metrics are definitely recorded.
   for (let i = 0; i < 5; i++) {
     await fetch(CART_ENDPOINT, {
@@ -301,24 +229,39 @@ test('OTel collector exposes Emmett metrics on port 8889', async () => {
           console.log('    collector :8889: connection refused');
           return false;
         }
-        const emmettLines = text.split('\n').filter((l) => l.startsWith('emmett_') && !l.startsWith('#'));
+        const emmettLines = text
+          .split('\n')
+          .filter((l) => l.startsWith('emmett_') && !l.startsWith('#'));
         if (emmettLines.length === 0) {
-          const allFamilies = [...new Set(text.split('\n').filter((l) => !l.startsWith('#') && l).map((l) => l.split('{')[0]))].slice(0, 5);
-          console.log(`    collector :8889: no emmett_* metrics yet. Present: ${allFamilies.join(', ') || '(none)'}`);
+          const allFamilies = [
+            ...new Set(
+              text
+                .split('\n')
+                .filter((l) => !l.startsWith('#') && l)
+                .map((l) => l.split('{')[0]),
+            ),
+          ].slice(0, 5);
+          console.log(
+            `    collector :8889: no emmett_* metrics yet. Present: ${allFamilies.join(', ') || '(none)'}`,
+          );
           return false;
         }
         return true;
       },
-      { timeout: 90_000, interval: 5_000, label: 'emmett metrics on collector :8889' },
+      {
+        timeout: 90_000,
+        interval: 5_000,
+        label: 'emmett metrics on collector :8889',
+      },
     );
   } catch (err) {
     await diagCollector();
-    await diagDockerLogs('otel-collector');
+    await compose.service('otel-collector').logs();
     throw err;
   }
 });
 
-test('Prometheus has scraped Emmett metrics with non-zero rate', async () => {
+await test('Prometheus has scraped Emmett metrics with non-zero rate', async () => {
   // Keep sending traffic so rate() has data across scrape boundaries.
   const traffic = setInterval(() => {
     fetch(CART_ENDPOINT, {
@@ -335,13 +278,22 @@ test('Prometheus has scraped Emmett metrics with non-zero rate', async () => {
           `${URLS.prometheus}/api/v1/query?query=${encodeURIComponent(
             'sum(rate(emmett_command_handling_duration_count{service_name="expressjs-with-postgresql"}[5m]))',
           )}`,
-        ).then((r) => r.json() as Promise<{ data: { result: { value: [number, string] }[] } }>);
+        ).then(
+          (r) =>
+            r.json() as Promise<{
+              data: { result: { value: [number, string] }[] };
+            }>,
+        );
         const value = parseFloat(json.data?.result?.[0]?.value?.[1] ?? '0');
         if (value > 0) return true;
         console.log(`    rate = ${value} — waiting for non-zero…`);
         return false;
       },
-      { timeout: 120_000, interval: 5_000, label: 'non-zero command rate in Prometheus' },
+      {
+        timeout: 120_000,
+        interval: 5_000,
+        label: 'non-zero command rate in Prometheus',
+      },
     );
   } catch (err) {
     await diagPrometheus();
@@ -352,10 +304,12 @@ test('Prometheus has scraped Emmett metrics with non-zero rate', async () => {
   }
 });
 
-test('Tempo received the trace with command.handle span', async () => {
+await test('Tempo received the trace with command.handle span', async () => {
   assert.ok(traceId, 'traceId not set — x-trace-id test must pass first');
 
-  let batches: Array<{ scopeSpans: Array<{ spans: Array<{ name: string }> }> }> = [];
+  let batches: Array<{
+    scopeSpans: Array<{ spans: Array<{ name: string }> }>;
+  }> = [];
 
   try {
     await waitFor(
@@ -370,7 +324,7 @@ test('Tempo received the trace with command.handle span', async () => {
     );
   } catch (err) {
     console.error(`\n  ✗ trace not found in Tempo: ${traceId}`);
-    await diagDockerLogs('otel-collector', 20);
+    await compose.service('otel-collector').logs(20);
     throw err;
   }
 
@@ -385,19 +339,25 @@ test('Tempo received the trace with command.handle span', async () => {
   );
 });
 
-test('Loki received logs correlated to the service', async () => {
+await test('Loki received logs correlated to the service', async () => {
   // Trigger the only explicit pino log in this sample — the MessageBus handler
   // logs "Shopping Cart confirmed" via pino-opentelemetry-transport → OTel collector → Loki.
-  const confirmRes = await fetchWithDiag('POST confirm cart', CONFIRM_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
+  const confirmRes = await fetchWithDiag(
+    'POST confirm cart',
+    CONFIRM_ENDPOINT,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    },
+  );
   console.log(`  confirm status: ${confirmRes.status}`);
 
   try {
     await waitFor(
       async () => {
-        const query = encodeURIComponent(`{service_name="expressjs-with-postgresql"}`);
+        const query = encodeURIComponent(
+          `{service_name="expressjs-with-postgresql"}`,
+        );
         const now = Date.now();
         const res = await fetch(
           `${URLS.loki}/loki/api/v1/query_range?query=${query}&limit=10` +
@@ -412,13 +372,15 @@ test('Loki received logs correlated to the service', async () => {
     );
   } catch (err) {
     await diagLoki();
-    await diagDockerLogs('otel-collector', 15);
+    await compose.service('otel-collector').logs(15);
     throw err;
   }
 });
 
-test('Grafana has Emmett dashboard provisioned', async () => {
-  const res = await fetch(`${URLS.grafana}/api/search?query=Emmett&type=dash-db`);
+await test('Grafana has Emmett dashboard provisioned', async () => {
+  const res = await fetch(
+    `${URLS.grafana}/api/search?query=Emmett&type=dash-db`,
+  );
   const json = (await res.json()) as Array<{ uid: string; title: string }>;
 
   if (!json.some((d) => d.uid === 'emmett-observability')) {
@@ -434,7 +396,7 @@ test('Grafana has Emmett dashboard provisioned', async () => {
   );
 });
 
-test('Grafana Prometheus datasource returns Emmett metric data', async () => {
+await test('Grafana Prometheus datasource returns Emmett metric data', async () => {
   const res = await fetch(`${URLS.grafana}/api/ds/query`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -454,7 +416,9 @@ test('Grafana Prometheus datasource returns Emmett metric data', async () => {
 
   assert.ok(res.ok, `Grafana datasource proxy returned ${res.status}`);
 
-  const json = (await res.json()) as { results?: { A?: { frames?: unknown[] } } };
+  const json = (await res.json()) as {
+    results?: { A?: { frames?: unknown[] } };
+  };
   const frames = json.results?.A?.frames ?? [];
 
   if (frames.length === 0) {
@@ -466,5 +430,8 @@ test('Grafana Prometheus datasource returns Emmett metric data', async () => {
     await diagPrometheus();
   }
 
-  assert.ok(frames.length > 0, 'No frames — Grafana datasource or metrics missing');
+  assert.ok(
+    frames.length > 0,
+    'No frames — Grafana datasource or metrics missing',
+  );
 });

@@ -53,14 +53,14 @@ curl -i -X POST http://localhost:3000/clients/dummy/shopping-carts/current/produ
 
 ### Endpoints
 
-| Service    | URL                         | What it shows                                   |
-|------------|-----------------------------|-------------------------------------------------|
-| App        | http://localhost:3000       | REST API                                        |
-| Grafana    | http://localhost:3001       | Dashboards, trace explorer, log explorer        |
-| Prometheus | http://localhost:9090       | Raw metrics, PromQL                             |
-| Tempo      | http://localhost:3200       | Trace storage (query via Grafana)               |
-| Loki       | http://localhost:3100       | Log storage (query via Grafana)                 |
-| pgAdmin    | http://localhost:5050       | PostgreSQL browser                              |
+| Service    | URL                   | What it shows                            |
+| ---------- | --------------------- | ---------------------------------------- |
+| App        | http://localhost:3000 | REST API                                 |
+| Grafana    | http://localhost:3001 | Dashboards, trace explorer, log explorer |
+| Prometheus | http://localhost:9090 | Raw metrics, PromQL                      |
+| Tempo      | http://localhost:3200 | Trace storage (query via Grafana)        |
+| Loki       | http://localhost:3100 | Log storage (query via Grafana)          |
+| pgAdmin    | http://localhost:5050 | PostgreSQL browser                       |
 
 ### Traces — Tempo
 
@@ -85,17 +85,17 @@ HTTP POST /clients/dummy/shopping-carts/current/product-items
 
 Key attributes on the `command.handle` span:
 
-| Attribute                         | Example value                        |
-|-----------------------------------|--------------------------------------|
-| `emmett.scope.type`               | `command`                            |
-| `emmett.stream.name`              | `shopping_cart-dummy`                |
-| `emmett.command.status`           | `success` / `failure`                |
-| `emmett.command.event_count`      | `1`                                  |
-| `emmett.command.event_types`      | `["ProductItemAddedToShoppingCart"]` |
-| `emmett.stream.version.before`    | `0`                                  |
-| `emmett.stream.version.after`     | `1`                                  |
-| `messaging.system`                | `emmett`                             |
-| `messaging.message.correlation_id`| (propagated if present)              |
+| Attribute                          | Example value                        |
+| ---------------------------------- | ------------------------------------ |
+| `emmett.scope.type`                | `command`                            |
+| `emmett.stream.name`               | `shopping_cart-dummy`                |
+| `emmett.command.status`            | `success` / `failure`                |
+| `emmett.command.event_count`       | `1`                                  |
+| `emmett.command.event_types`       | `["ProductItemAddedToShoppingCart"]` |
+| `emmett.stream.version.before`     | `0`                                  |
+| `emmett.stream.version.after`      | `1`                                  |
+| `messaging.system`                 | `emmett`                             |
+| `messaging.message.correlation_id` | (propagated if present)              |
 
 ### Logs — Loki
 
@@ -123,26 +123,26 @@ Open Grafana → Dashboards → **Emmett** folder → **Emmett** dashboard. It h
 
 #### Metric reference
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `emmett_command_handling_duration` | histogram (ms) | `emmett_command_status`, `emmett_command_type` | Command handler execution time |
-| `emmett_event_appending_count_total` | counter | `emmett_event_type` | Events written per type |
-| `emmett_stream_reading_duration` | histogram (ms) | `emmett_stream_name` | Stream read time (requires `eventStoreCollector`) |
-| `emmett_stream_appending_duration` | histogram (ms) | `emmett_stream_name` | Stream append time (requires `eventStoreCollector`) |
-| `emmett_processor_processing_duration` | histogram (ms) | `emmett_processor_id` | Processor batch time (requires consumer framework) |
-| `emmett_processor_lag_events` | gauge | `emmett_processor_id` | Events behind tail (requires consumer framework) |
+| Metric                                 | Type           | Labels                                         | Description                                         |
+| -------------------------------------- | -------------- | ---------------------------------------------- | --------------------------------------------------- |
+| `emmett_command_handling_duration`     | histogram (ms) | `emmett_command_status`, `emmett_command_type` | Command handler execution time                      |
+| `emmett_event_appending_count_total`   | counter        | `emmett_event_type`                            | Events written per type                             |
+| `emmett_stream_reading_duration`       | histogram (ms) | `emmett_stream_name`                           | Stream read time (requires `eventStoreCollector`)   |
+| `emmett_stream_appending_duration`     | histogram (ms) | `emmett_stream_name`                           | Stream append time (requires `eventStoreCollector`) |
+| `emmett_processor_processing_duration` | histogram (ms) | `emmett_processor_id`                          | Processor batch time (requires consumer framework)  |
+| `emmett_processor_lag_events`          | gauge          | `emmett_processor_id`                          | Events behind tail (requires consumer framework)    |
 
 ### What's instrumented in this sample
 
 Only `commandHandlerCollector` is wired here. The others exist in Emmett but need to be enabled:
 
-| Collector | Status | Metrics prefix | Span names |
-|-----------|--------|----------------|-----------|
-| `commandHandlerCollector` | **active** | `emmett.command.*`, `emmett.event.appending.*` | `command.handle` |
-| `eventStoreCollector` | not wired in this sample | `emmett.stream.*`, `emmett.event.reading.*` | `eventStore.readStream`, `eventStore.appendToStream` |
-| `processorCollector` | not wired (uses in-memory MessageBus) | `emmett.processor.*` | `processor.handle` |
-| `consumerCollector` | not wired | `emmett.consumer.*` | `consumer.poll` |
-| `workflowCollector` | not wired | `emmett.workflow.*` | `workflow.handle` |
+| Collector                 | Status                                | Metrics prefix                                 | Span names                                           |
+| ------------------------- | ------------------------------------- | ---------------------------------------------- | ---------------------------------------------------- |
+| `commandHandlerCollector` | **active**                            | `emmett.command.*`, `emmett.event.appending.*` | `command.handle`                                     |
+| `eventStoreCollector`     | not wired in this sample              | `emmett.stream.*`, `emmett.event.reading.*`    | `eventStore.readStream`, `eventStore.appendToStream` |
+| `processorCollector`      | not wired (uses in-memory MessageBus) | `emmett.processor.*`                           | `processor.handle`                                   |
+| `consumerCollector`       | not wired                             | `emmett.consumer.*`                            | `consumer.poll`                                      |
+| `workflowCollector`       | not wired                             | `emmett.workflow.*`                            | `workflow.handle`                                    |
 
 ### Customising
 

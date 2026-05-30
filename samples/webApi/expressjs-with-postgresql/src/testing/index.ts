@@ -20,7 +20,7 @@ export async function waitFor(
         console.log(`  ✓ ready: ${label}`);
         return;
       }
-    } catch (err) {
+    } catch {
       // predicate threw — not ready yet, keep waiting
     }
     attempts++;
@@ -42,7 +42,7 @@ export async function checkUrl(
   let res: Response;
   try {
     res = await fetch(url);
-  } catch (err) {
+  } catch {
     console.log(`    ${label}: connection refused (${url})`);
     return false;
   }
@@ -59,7 +59,7 @@ export async function checkUrl(
     }
 
     return ok;
-  } catch (err) {
+  } catch {
     return false;
   }
 }
