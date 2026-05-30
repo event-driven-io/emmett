@@ -1,6 +1,6 @@
 import { execa } from 'execa';
-import type { DownOptions, Resource } from '../types';
-import { verifications } from '../verify';
+import type { DownOptions } from '../composition';
+import { resource } from '../resources/resource';
 import { prefixOutput } from './output';
 
 export type DockerComposeOptions = { file: string; profile: string };
@@ -42,15 +42,7 @@ export const dockerCompose = (options: DockerComposeOptions) => {
   });
 
   return {
-    name: 'docker-compose',
-    up,
-    down,
-    restart: async () => {
-      await down();
-      await up();
-    },
-    healthCheck: async () => {},
-    verify: verifications({}),
+    ...resource({ name: 'docker-compose', up, down }),
     service,
-  } satisfies Resource & { service: typeof service };
+  };
 };

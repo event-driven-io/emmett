@@ -1,8 +1,7 @@
 import { waitFor } from '../../index';
 import { httpHealthCheck } from '../healthCheck';
 import { fetchText } from '../http';
-import type { Resource } from '../types';
-import { verifications } from '../verify';
+import { resource } from './resource';
 
 export type OtelCollectorOptions = {
   url: string; // the Prometheus-exporter /metrics endpoint (e.g. :8889/metrics)
@@ -11,19 +10,19 @@ export type OtelCollectorOptions = {
 };
 
 // A view over the OTel collector container that compose owns. Its metric helpers are
-// generic — pass the metric name/prefix you're after — and come in a single-shot read
-// plus a polling `waitForMetrics` built on it.
+// generic — pass the metric name/prefix you're after — and live under `metrics`.
+// `diagnose` and the container `logs` (failure dumps) stay top-level.
 export const otelCollector = (opts: OtelCollectorOptions) => {
-  const metrics = (): Promise<string> => fetchText(opts.url);
+  const raw = (): Promise<string> => fetchText(opts.url);
 
   const linesWith = (text: string, prefix: string): string[] =>
     text.split('\n').filter((l) => l.startsWith(prefix) && !l.startsWith('#'));
 
-  const metricNames = async (prefix: string): Promise<string[]> =>
-    linesWith(await metrics().catch(() => ''), prefix);
+  const names = async (prefix: string): Promise<string[]> =>
+    linesWith(await raw().catch(() => ''), prefix);
 
-  const hasMetrics = async (prefix: string): Promise<boolean> =>
-    (await metricNames(prefix)).length > 0;
+  const has = async (prefix: string): Promise<boolean> =>
+    (await names(prefix)).length > 0;
 
   const waitForMetrics = async (
     prefix: string,
@@ -31,7 +30,7 @@ export const otelCollector = (opts: OtelCollectorOptions) => {
   ): Promise<void> => {
     await waitFor(
       async () => {
-        const text = await metrics().catch(() => {
+        const text = await raw().catch(() => {
           console.log('    collector: connection refused');
           return '';
         });
@@ -57,12 +56,13 @@ export const otelCollector = (opts: OtelCollectorOptions) => {
     );
   };
 
-  const diagnose = async (prefix = 'emmett_'): Promise<void> => {
-    const lines = (await metricNames(prefix)).slice(0, 5);
+  const diagnose = async (prefix = ''): Promise<void> => {
+    const lines = (await names(prefix)).slice(0, 5);
+    const label = prefix ? `${prefix} lines` : 'lines';
     console.log(
       lines.length
-        ? `\n  collector /metrics (${prefix} lines):\n  ${lines.join('\n  ')}`
-        : `\n  collector /metrics: no ${prefix}* lines found`,
+        ? `\n  collector /metrics (${label}):\n  ${lines.join('\n  ')}`
+        : `\n  collector /metrics: no ${label} found`,
     );
   };
 
@@ -71,24 +71,9 @@ export const otelCollector = (opts: OtelCollectorOptions) => {
   });
 
   return {
-    name: 'otel-collector',
-    up: async () => ready(),
-    down: async () => {},
-    restart: async () => {},
-    healthCheck: ready,
-    verify: verifications({}),
-    metrics,
-    metricNames,
-    hasMetrics,
-    waitForMetrics,
+    ...resource({ name: 'otel-collector', up: ready, healthCheck: ready }),
+    metrics: { raw, names, has, waitFor: waitForMetrics },
     diagnose,
     logs: opts.logs,
-  } satisfies Resource & {
-    metrics: typeof metrics;
-    metricNames: typeof metricNames;
-    hasMetrics: typeof hasMetrics;
-    waitForMetrics: typeof waitForMetrics;
-    diagnose: typeof diagnose;
-    logs: typeof opts.logs;
   };
 };

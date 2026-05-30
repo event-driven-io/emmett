@@ -1,7 +1,7 @@
 import { execa } from 'execa';
-import { tsx } from '../tools/tsx';
-import type { DownOptions, Resource, UpOptions } from '../types';
-import { verifications } from '../verify';
+import type { DownOptions, UpOptions } from '../composition';
+import { spawnProcess } from '../tools/spawnProcess';
+import { resource } from './resource';
 
 export type NodeAppOptions = {
   name: string;
@@ -20,11 +20,10 @@ export type NodeAppOptions = {
 // bring-up on a supplied readiness probe. It knows nothing about HTTP — a web API
 // layers that on via nodeWebApi; a worker could supply a different readiness probe.
 export const nodeApp = (opts: NodeAppOptions) => {
-  const proc = tsx({
+  const proc = spawnProcess({
     command: opts.command,
     args: opts.args,
     label: opts.label,
-    inspectPort: opts.inspectPort,
   });
   let started = false;
 
@@ -50,7 +49,13 @@ export const nodeApp = (opts: NodeAppOptions) => {
     }
 
     console.log('▶ starting app…');
-    proc.up({ debug: upOpts?.debug });
+    // --inspect-brk is node-specific, so the env lives here, not in spawnProcess.
+    const env = upOpts?.debug
+      ? {
+          NODE_OPTIONS: `--inspect-brk=127.0.0.1:${opts.inspectPort ?? 9229}`,
+        }
+      : undefined;
+    proc.up({ env });
     started = true;
     await opts.healthCheck();
   };
@@ -75,15 +80,5 @@ export const nodeApp = (opts: NodeAppOptions) => {
     }
   };
 
-  return {
-    name: opts.name,
-    up,
-    down,
-    restart: async (restartOpts?: UpOptions) => {
-      await down();
-      await up(restartOpts);
-    },
-    healthCheck: opts.healthCheck,
-    verify: verifications({}),
-  } satisfies Resource;
+  return resource({ name: opts.name, up, down, healthCheck: opts.healthCheck });
 };

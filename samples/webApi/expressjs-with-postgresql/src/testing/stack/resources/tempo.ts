@@ -1,17 +1,16 @@
 import { waitFor } from '../../index';
 import { httpHealthCheck } from '../healthCheck';
-import type { Resource } from '../types';
-import { verifications } from '../verify';
+import { resource } from './resource';
 
 export type TempoOptions = { url: string; timeout?: number };
 
 type TraceBatch = { scopeSpans: Array<{ spans: Array<{ name: string }> }> };
 
-// A view over the Tempo container. `getSpans` is the low-level read (returns [] until
-// the trace is ingested); `waitForSpan` polls until a named span shows up and returns
-// the trace's span names.
+// A view over the Tempo container. Trace reads live under `traces`: `spans` is the
+// low-level read (returns [] until the trace is ingested); `waitForSpan` polls until
+// a named span shows up and returns the trace's span names.
 export const tempo = (opts: TempoOptions) => {
-  const getSpans = async (traceId: string): Promise<string[]> => {
+  const spans = async (traceId: string): Promise<string[]> => {
     const res = await fetch(`${opts.url}/api/traces/${traceId}`);
     if (!res.ok) return [];
     const json = (await res.json()) as { batches?: TraceBatch[] };
@@ -25,11 +24,11 @@ export const tempo = (opts: TempoOptions) => {
     spanName: string,
     o?: { timeout?: number },
   ): Promise<string[]> => {
-    let spans: string[] = [];
+    let found: string[] = [];
     await waitFor(
       async () => {
-        spans = await getSpans(traceId);
-        return spans.includes(spanName);
+        found = await spans(traceId);
+        return found.includes(spanName);
       },
       {
         timeout: o?.timeout ?? 30_000,
@@ -37,7 +36,7 @@ export const tempo = (opts: TempoOptions) => {
         label: `span "${spanName}" of trace ${traceId} in Tempo`,
       },
     );
-    return spans;
+    return found;
   };
 
   const ready = httpHealthCheck('Tempo', `${opts.url}/ready`, {
@@ -45,16 +44,7 @@ export const tempo = (opts: TempoOptions) => {
   });
 
   return {
-    name: 'tempo',
-    up: async () => ready(),
-    down: async () => {},
-    restart: async () => {},
-    healthCheck: ready,
-    verify: verifications({}),
-    getSpans,
-    waitForSpan,
-  } satisfies Resource & {
-    getSpans: typeof getSpans;
-    waitForSpan: typeof waitForSpan;
+    ...resource({ name: 'tempo', up: ready, healthCheck: ready }),
+    traces: { spans, waitForSpan },
   };
 };

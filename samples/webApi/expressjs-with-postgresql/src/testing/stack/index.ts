@@ -1,11 +1,21 @@
-export * from './types';
 export { sequence, parallel } from './composition';
+export type {
+  Resource,
+  UpOptions,
+  DownOptions,
+  LifecycleOptions,
+  Renderer,
+} from './composition';
 export { verifications } from './verify';
+export type { Verification, Verify } from './verify';
 export { httpHealthCheck } from './healthCheck';
 export { getJson, fetchText, expectResponse } from './http';
 export { stack } from './stack';
+export type { Presentation, Stack } from './stack';
+export type { Dashboard } from './dashboard';
+export { resource } from './resources/resource';
 export { dockerCompose } from './tools/dockerCompose';
-export { tsx } from './tools/tsx';
+export { spawnProcess } from './tools/spawnProcess';
 export { prometheus } from './resources/prometheus';
 export { grafana } from './resources/grafana';
 export { tempo } from './resources/tempo';

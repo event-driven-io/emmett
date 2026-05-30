@@ -1,16 +1,31 @@
 import inspector from 'node:inspector';
 import { sequence } from './composition';
-import { renderDashboard } from './dashboard';
-import { listrUp } from './reporter';
-import { configureResourceOutput } from './tools/output';
 import type {
   DownOptions,
   LifecycleOptions,
-  Presentation,
+  Renderer,
   Resource,
-  Stack,
   UpOptions,
-} from './types';
+} from './composition';
+import { renderDashboard, type Dashboard } from './dashboard';
+import { listrUp } from './reporter';
+import { configureResourceOutput } from './tools/output';
+import { onShutdown } from './tools/signals';
+
+// Presentation defaults configured on the stack. `renderer` picks the bring-up
+// view; `showResourceOutput` toggles whether spawned-process output is piped
+// through (false → only the stack's own orchestration logs + dashboard).
+export type Presentation = {
+  renderer?: Renderer;
+  dashboard?: Dashboard;
+  showResourceOutput?: boolean;
+};
+
+// The root Resource, plus `test` sugar: bring up, verify, then close (down) unless
+// running against a stack we didn't start (noStart).
+export type Stack = Resource & {
+  test(opts?: UpOptions & DownOptions): Promise<void>;
+};
 
 const envFlag = (name: string): boolean | undefined => {
   const v = process.env[name];
@@ -51,19 +66,6 @@ export const stack = (config: StackConfig): Stack => {
   };
 
   let signalsBound = false;
-  const bindSignals = (): void => {
-    if (signalsBound) return;
-    signalsBound = true;
-    const shutdown = (signal: NodeJS.Signals): void => {
-      void (async () => {
-        console.log(`\n▶ ${signal} — shutting the stack down…`);
-        await down();
-        process.exit(0);
-      })();
-    };
-    process.once('SIGINT', () => shutdown('SIGINT'));
-    process.once('SIGTERM', () => shutdown('SIGTERM'));
-  };
 
   // Starts every resource and runs verify() unless skipped — and leaves it running.
   // Closing is the caller's choice (down / test / Ctrl-C), never automatic.
@@ -76,7 +78,10 @@ export const stack = (config: StackConfig): Stack => {
     configureResourceOutput(
       opts?.showResourceOutput ?? config.showResourceOutput ?? true,
     );
-    bindSignals();
+    if (!signalsBound) {
+      signalsBound = true;
+      onShutdown(down);
+    }
 
     if (noStart) {
       console.log(

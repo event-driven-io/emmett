@@ -1,5 +1,13 @@
 import { test } from 'node:test';
-import type { Verification, Verify } from './types';
+
+// A single named verification. `verify` runs it; throws on assertion failure.
+export type Verification = { name: string; verify: () => Promise<void> };
+
+// Callable namespace: verify() runs all; verify.<key>() runs one. Keys stay typed.
+export type Verify<T extends Record<string, Verification>> =
+  (() => Promise<void>) & {
+    [K in keyof T]: () => Promise<void>;
+  };
 
 // Turns a record of named verifications into a callable namespace:
 //   verify()            → registers every verification as a node:test test
