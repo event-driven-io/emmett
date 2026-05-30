@@ -1,63 +1,36 @@
 import { execa } from 'execa';
-import { checkUrl } from '../../index';
-import { httpHealthCheck } from '../healthCheck';
 import { tsx } from '../tools/tsx';
 import type { DownOptions, Resource, UpOptions } from '../types';
 import { verifications } from '../verify';
 
 export type NodeAppOptions = {
+  name: string;
+  command: string;
+  args: string[];
   url: string;
-  service: string;
+  label: string;
   inspectPort?: number;
+  // Readiness probe; resolves when the process is up, throws on timeout.
+  healthCheck: () => Promise<void>;
+  // "Is the thing already running and ours?" — lets a warm process be reused.
+  isOurs: () => Promise<boolean>;
 };
 
-// The application under test. Starts via `npm start` unless the app is already
-// running and reports the expected service name on /health — which is also how a
-// stray process on the same port is detected (it fails the service-name check).
+// A generic node process resource: owns the spawned process lifecycle and gates
+// bring-up on a supplied readiness probe. It knows nothing about HTTP — a web API
+// layers that on via nodeWebApi; a worker could supply a different readiness probe.
 export const nodeApp = (opts: NodeAppOptions) => {
   const proc = tsx({
-    command: 'npm',
-    args: ['start'],
-    label: opts.service,
+    command: opts.command,
+    args: opts.args,
+    label: opts.label,
     inspectPort: opts.inspectPort,
   });
   let started = false;
 
-  // /health returns { status: 'ok', service: 'expressjs-with-postgresql' } —
-  // checking the service name distinguishes our app from other processes on the port.
-  const validate = async (res: Response): Promise<boolean> => {
-    const json = (await res.json().catch(() => ({}))) as { service?: string };
-    if (json.service !== opts.service) {
-      console.log(
-        `    app /health: service="${json.service ?? '(missing)'}", expected="${opts.service}"`,
-      );
-      return false;
-    }
-    return true;
-  };
-
-  const isOurs = () => checkUrl('app /health', `${opts.url}/health`, validate);
-
-  const healthCheck = httpHealthCheck('app /health', `${opts.url}/health`, {
-    validate,
-    timeout: 60_000,
-  });
-
-  const endpoint = (path = ''): string =>
-    path ? `${opts.url}/${path}` : opts.url;
-
-  const post = (path: string, body?: unknown): Promise<Response> =>
-    fetch(endpoint(path), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-
-  const get = (path: string): Promise<Response> => fetch(endpoint(path));
-
   const up = async (upOpts?: UpOptions): Promise<void> => {
-    if (await isOurs()) {
-      console.log('▶ app already running and healthy — skipping npm start');
+    if (await opts.isOurs()) {
+      console.log('▶ app already running and healthy — skipping start');
       return;
     }
 
@@ -67,11 +40,11 @@ export const nodeApp = (opts: NodeAppOptions) => {
     if (portTaken) {
       // Port is occupied but not by our app — stale process or unrelated service.
       console.error(
-        '\n  ✗ Port 3000 is occupied by a process that is not this app.\n' +
+        `\n  ✗ ${opts.url} is occupied by a process that is not this app.\n` +
           '  It may be a stale version of this app (connected to a wiped database)\n' +
           '  or a completely different service.\n' +
           '  Fix: run  npm run verify:observability:cleanup  to kill it and restart,\n' +
-          '  or manually free port 3000.\n',
+          '  or free the port manually.\n',
       );
       process.exit(1);
     }
@@ -79,7 +52,7 @@ export const nodeApp = (opts: NodeAppOptions) => {
     console.log('▶ starting app…');
     proc.up({ debug: upOpts?.debug });
     started = true;
-    await healthCheck();
+    await opts.healthCheck();
   };
 
   const down = async (downOpts?: DownOptions): Promise<void> => {
@@ -103,21 +76,14 @@ export const nodeApp = (opts: NodeAppOptions) => {
   };
 
   return {
-    name: 'app',
+    name: opts.name,
     up,
     down,
-    restart: async (opts?: UpOptions) => {
+    restart: async (restartOpts?: UpOptions) => {
       await down();
-      await up(opts);
+      await up(restartOpts);
     },
-    healthCheck,
+    healthCheck: opts.healthCheck,
     verify: verifications({}),
-    endpoint,
-    post,
-    get,
-  } satisfies Resource & {
-    endpoint: typeof endpoint;
-    post: typeof post;
-    get: typeof get;
-  };
+  } satisfies Resource;
 };

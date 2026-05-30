@@ -10,4 +10,6 @@ export { prometheus } from './resources/prometheus';
 export { grafana } from './resources/grafana';
 export { tempo } from './resources/tempo';
 export { loki } from './resources/loki';
+export { otelCollector } from './resources/otelCollector';
 export { nodeApp } from './resources/nodeApp';
+export { nodeWebApi } from './resources/nodeWebApi';

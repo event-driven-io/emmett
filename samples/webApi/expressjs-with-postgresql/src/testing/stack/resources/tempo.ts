@@ -1,3 +1,4 @@
+import { waitFor } from '../../index';
 import { httpHealthCheck } from '../healthCheck';
 import type { Resource } from '../types';
 import { verifications } from '../verify';
@@ -6,9 +7,9 @@ export type TempoOptions = { url: string; timeout?: number };
 
 type TraceBatch = { scopeSpans: Array<{ spans: Array<{ name: string }> }> };
 
-// A view over the Tempo container. `getSpans` fetches a trace by id and flattens it
-// to span names; it returns [] when the trace hasn't been ingested yet, so callers
-// can poll with waitFor until a span shows up.
+// A view over the Tempo container. `getSpans` is the low-level read (returns [] until
+// the trace is ingested); `waitForSpan` polls until a named span shows up and returns
+// the trace's span names.
 export const tempo = (opts: TempoOptions) => {
   const getSpans = async (traceId: string): Promise<string[]> => {
     const res = await fetch(`${opts.url}/api/traces/${traceId}`);
@@ -17,6 +18,26 @@ export const tempo = (opts: TempoOptions) => {
     return (json.batches ?? []).flatMap((b) =>
       b.scopeSpans.flatMap((s) => s.spans.map((sp) => sp.name)),
     );
+  };
+
+  const waitForSpan = async (
+    traceId: string,
+    spanName: string,
+    o?: { timeout?: number },
+  ): Promise<string[]> => {
+    let spans: string[] = [];
+    await waitFor(
+      async () => {
+        spans = await getSpans(traceId);
+        return spans.includes(spanName);
+      },
+      {
+        timeout: o?.timeout ?? 30_000,
+        interval: 2_000,
+        label: `span "${spanName}" of trace ${traceId} in Tempo`,
+      },
+    );
+    return spans;
   };
 
   const ready = httpHealthCheck('Tempo', `${opts.url}/ready`, {
@@ -31,5 +52,9 @@ export const tempo = (opts: TempoOptions) => {
     healthCheck: ready,
     verify: verifications({}),
     getSpans,
-  } satisfies Resource & { getSpans: typeof getSpans };
+    waitForSpan,
+  } satisfies Resource & {
+    getSpans: typeof getSpans;
+    waitForSpan: typeof waitForSpan;
+  };
 };
