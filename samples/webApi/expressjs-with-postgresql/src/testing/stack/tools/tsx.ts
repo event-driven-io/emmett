@@ -8,6 +8,10 @@ export const tsx = (options: TsxOptions) => {
 
   const up = (): void => {
     proc = execa(options.command, options.args, { stdio: 'inherit' });
+    // Don't let the child keep the loop alive: tests finish, Node exits, and
+    // execa's cleanup kills the process — so the runner exits without an explicit
+    // teardown while the containers stay warm.
+    proc.unref();
   };
 
   const down = async (): Promise<void> => {

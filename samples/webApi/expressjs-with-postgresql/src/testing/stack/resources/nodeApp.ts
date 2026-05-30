@@ -1,6 +1,9 @@
+import { execa } from 'execa';
 import { checkUrl } from '../../index';
 import { httpHealthCheck } from '../healthCheck';
 import { tsx } from '../tools/tsx';
+import type { Resource, UpOptions } from '../types';
+import { verifications } from '../verify';
 
 export type NodeAppOptions = { url: string; service: string };
 
@@ -31,7 +34,10 @@ export const nodeApp = (opts: NodeAppOptions) => {
     timeout: 60_000,
   });
 
-  const up = async (): Promise<void> => {
+  const endpoint = (path = ''): string =>
+    path ? `${opts.url}/${path}` : opts.url;
+
+  const up = async (_opts?: UpOptions): Promise<void> => {
     if (await isOurs()) {
       console.log('▶ app already running and healthy — skipping npm start');
       return;
@@ -59,11 +65,33 @@ export const nodeApp = (opts: NodeAppOptions) => {
   };
 
   const down = async (): Promise<void> => {
-    if (!started) return;
-    console.log('\n▶ stopping app…');
-    await proc.down();
-    console.log('▶ app stopped');
+    if (started) {
+      console.log('\n▶ stopping app…');
+      await proc.down();
+      console.log('▶ app stopped');
+      started = false;
+    }
+    // Free the port even when we didn't start the process — a clean bring-up
+    // tears down first, and a stale app (connected to a wiped DB) would otherwise
+    // hold :3000 and trip the foreign-process guard on the next up().
+    const portUrl = new URL(opts.url);
+    await execa('bash', [
+      '-c',
+      `fuser -k ${portUrl.port}/tcp 2>/dev/null || true`,
+    ]).catch(() => {});
+    await new Promise((r) => setTimeout(r, 500));
   };
 
-  return { up, down, healthCheck };
+  return {
+    name: 'app',
+    up,
+    down,
+    restart: async (opts?: UpOptions) => {
+      await down();
+      await up(opts);
+    },
+    healthCheck,
+    verify: verifications({}),
+    endpoint,
+  } satisfies Resource & { endpoint: typeof endpoint };
 };
