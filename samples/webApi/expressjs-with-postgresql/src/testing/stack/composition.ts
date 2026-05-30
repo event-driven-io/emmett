@@ -2,14 +2,14 @@ import type { DownOptions, Resource, UpOptions } from './types';
 import { aggregate } from './verify';
 
 // Brings children up — `sequence` in order, `parallel` concurrently — then gates on
-// its own (no-op) healthCheck. Children are always brought up with `verify: false`;
+// its own (no-op) healthCheck. Children are always brought up with skipVerification;
 // only the outermost up() call runs verify(), once, over the whole tree.
 const composite = (
   mode: 'sequence' | 'parallel',
   resources: Resource[],
 ): Resource => {
   const bringUp = async (opts: UpOptions): Promise<void> => {
-    const childOpts = { ...opts, verify: false };
+    const childOpts = { ...opts, skipVerification: true };
     if (mode === 'parallel') {
       await Promise.all(resources.map((child) => child.up(childOpts)));
     } else {
@@ -19,7 +19,7 @@ const composite = (
 
   const up = async (opts?: UpOptions): Promise<void> => {
     await bringUp({ ...opts });
-    if (opts?.verify !== false) await verify();
+    if (!opts?.skipVerification) await verify();
   };
 
   const down = async (opts?: DownOptions): Promise<void> => {
