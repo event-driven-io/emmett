@@ -2,16 +2,25 @@ import { execa } from 'execa';
 import { checkUrl } from '../../index';
 import { httpHealthCheck } from '../healthCheck';
 import { tsx } from '../tools/tsx';
-import type { Resource, UpOptions } from '../types';
+import type { DownOptions, Resource, UpOptions } from '../types';
 import { verifications } from '../verify';
 
-export type NodeAppOptions = { url: string; service: string };
+export type NodeAppOptions = {
+  url: string;
+  service: string;
+  inspectPort?: number;
+};
 
 // The application under test. Starts via `npm start` unless the app is already
 // running and reports the expected service name on /health — which is also how a
 // stray process on the same port is detected (it fails the service-name check).
 export const nodeApp = (opts: NodeAppOptions) => {
-  const proc = tsx({ command: 'npm', args: ['start'] });
+  const proc = tsx({
+    command: 'npm',
+    args: ['start'],
+    label: opts.service,
+    inspectPort: opts.inspectPort,
+  });
   let started = false;
 
   // /health returns { status: 'ok', service: 'expressjs-with-postgresql' } —
@@ -37,7 +46,7 @@ export const nodeApp = (opts: NodeAppOptions) => {
   const endpoint = (path = ''): string =>
     path ? `${opts.url}/${path}` : opts.url;
 
-  const up = async (_opts?: UpOptions): Promise<void> => {
+  const up = async (upOpts?: UpOptions): Promise<void> => {
     if (await isOurs()) {
       console.log('▶ app already running and healthy — skipping npm start');
       return;
@@ -59,27 +68,29 @@ export const nodeApp = (opts: NodeAppOptions) => {
     }
 
     console.log('▶ starting app…');
-    proc.up();
+    proc.up({ debug: upOpts?.debug });
     started = true;
     await healthCheck();
   };
 
-  const down = async (): Promise<void> => {
+  const down = async (downOpts?: DownOptions): Promise<void> => {
     if (started) {
       console.log('\n▶ stopping app…');
       await proc.down();
       console.log('▶ app stopped');
       started = false;
     }
-    // Free the port even when we didn't start the process — a clean bring-up
-    // tears down first, and a stale app (connected to a wiped DB) would otherwise
-    // hold :3000 and trip the foreign-process guard on the next up().
-    const portUrl = new URL(opts.url);
-    await execa('bash', [
-      '-c',
-      `fuser -k ${portUrl.port}/tcp 2>/dev/null || true`,
-    ]).catch(() => {});
-    await new Promise((r) => setTimeout(r, 500));
+    // On cleanup, free the port even if we didn't start the process — a clean
+    // bring-up tears down first, and a stale app (connected to a wiped DB) would
+    // otherwise hold the port and trip the foreign-process guard on the next up().
+    if (downOpts?.cleanup) {
+      const portUrl = new URL(opts.url);
+      await execa('bash', [
+        '-c',
+        `fuser -k ${portUrl.port}/tcp 2>/dev/null || true`,
+      ]).catch(() => {});
+      await new Promise((r) => setTimeout(r, 500));
+    }
   };
 
   return {

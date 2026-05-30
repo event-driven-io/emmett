@@ -1,28 +1,29 @@
-// Aspire-like entry point: one command brings the whole observability stack up,
-// renders the concurrent startup, and prints the endpoints. Ctrl-C stops the app
-// while leaving the stack warm; SIGTERM tears the whole stack down.
+// Aspire-like entry point. One command brings the whole observability stack up and
+// keeps it running; the stack owns the renderer, dashboard, signal handling and
+// debugger detection, so this stays a thin command line over `observability`.
+//
+//   npm run dev                 # bring the stack up, print the dashboard, stay warm
+//   npm run dev -- --clean      # tear down (incl. volumes) first, then bring up
+//   npm run dev -- --no-start   # attach to an already-running stack
+//   npm run dev -- --debug      # start the app with the inspector attached
+//   npm run dev -- --quiet      # only orchestration logs + dashboard, no app output
+//   npm run dev:clean           # tear the stack down (incl. volumes)
 
-import pc from 'picocolors';
-import { observability, resources, URLS } from './stack';
+import { observability } from './stack';
 
-process.once('SIGINT', () => {
-  void resources.app.down().then(() => process.exit(0));
+const argv = process.argv.slice(2);
+const flag = (name: string): boolean => argv.includes(name);
+const command = argv.find((arg) => !arg.startsWith('-')) ?? 'up';
+
+if (command === 'down' || command === 'clean') {
+  await observability.down({ cleanup: true });
+  process.exit(0);
+}
+
+await observability.up({
+  skipVerification: true,
+  ...(flag('--clean') ? { clean: true } : {}),
+  ...(flag('--no-start') ? { noStart: true } : {}),
+  ...(flag('--debug') ? { debug: true } : {}),
+  ...(flag('--quiet') ? { showResourceOutput: false } : {}),
 });
-process.once('SIGTERM', () => {
-  void observability.down().then(() => process.exit(0));
-});
-
-await observability.up({ verify: false, renderer: 'listr' });
-
-console.log(`
-  ${pc.bold('Emmett observability stack is up')}
-
-  ${pc.cyan('App')}        ${resources.app.endpoint()}
-  ${pc.cyan('Grafana')}    ${URLS.grafana}
-  ${pc.cyan('Prometheus')} ${URLS.prometheus}
-  ${pc.cyan('Tempo')}      ${URLS.tempo}
-  ${pc.cyan('Loki')}       ${URLS.loki}
-
-  ${pc.dim('tip: every command response carries an x-trace-id header — paste it into Tempo.')}
-  ${pc.dim('Ctrl-C stops the app and leaves the stack warm.')}
-`);

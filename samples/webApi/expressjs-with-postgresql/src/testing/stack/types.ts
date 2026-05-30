@@ -17,11 +17,33 @@ export type LifecycleOptions = {
 
 export type Renderer = 'console' | 'listr';
 
-export type UpOptions = {
-  verify?: boolean;
+// The stack's "dashboard": the endpoints + tips printed once the stack is up.
+export type Dashboard = {
+  title?: string;
+  endpoints: Record<string, string>;
+  tips?: string[];
+};
+
+// Presentation defaults configured on the stack. `renderer` picks the bring-up
+// view; `showResourceOutput` toggles whether spawned-process output is piped
+// through (false → only the stack's own orchestration logs + dashboard).
+export type Presentation = {
   renderer?: Renderer;
+  dashboard?: Dashboard;
+  showResourceOutput?: boolean;
+};
+
+export type UpOptions = {
+  skipVerification?: boolean; // bring up only; don't run verify()
+  debug?: boolean; // start debuggable resources with the inspector attached
+  renderer?: Renderer; // overrides the stack's configured renderer
+  showResourceOutput?: boolean; // overrides the stack's configured output visibility
 } & LifecycleOptions;
-export type DownOptions = { keepVolumes?: boolean };
+
+// `cleanup` tells each resource whether this is a cleanup teardown (wipe its
+// persistent state) or a routine stop. Each resource decides what that means —
+// the stack never reasons about containers or volumes itself.
+export type DownOptions = { cleanup?: boolean };
 
 // The single recursive type. Leaf, group, and stack all satisfy it. Composites
 // expose `children` + `mode` so a renderer can mirror the tree without re-running it.

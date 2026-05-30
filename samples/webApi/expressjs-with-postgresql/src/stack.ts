@@ -93,6 +93,21 @@ async function diagCollector() {
 export const observability = stack({
   name: 'emmett-observability',
   resources: [sequence(compose, parallel(prom, graf, trc, log), app)],
+  renderer: 'listr',
+  dashboard: {
+    title: 'Emmett observability stack is up',
+    endpoints: {
+      App: URLS.app,
+      Grafana: URLS.grafana,
+      Prometheus: URLS.prometheus,
+      Tempo: URLS.tempo,
+      Loki: URLS.loki,
+    },
+    tips: [
+      'every command response carries an x-trace-id header — paste it into Tempo.',
+      'Ctrl-C tears the stack down.',
+    ],
+  },
   verify: verifications({
     returnsTraceId: {
       name: 'successful command returns x-trace-id header',
