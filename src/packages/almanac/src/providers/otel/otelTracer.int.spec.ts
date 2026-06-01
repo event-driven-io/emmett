@@ -42,7 +42,10 @@ describe('otelTracer integration', () => {
         'messaging.destination.name': 'orders-stream',
         'emmett.stream.name': 'orders-stream',
       });
-      s.addEvent('command.validated', { 'emmett.command.type': 'PlaceOrder' });
+      s.record.info(
+        { 'emmett.command.type': 'PlaceOrder' },
+        'command.validated',
+      );
       s.setAttributes({
         'emmett.command.status': 'success',
         'emmett.command.event_count': 1,
@@ -97,7 +100,7 @@ describe('otelTracer integration', () => {
           'exception.message': error.message,
           'exception.type': 'Error',
         });
-        s.recordException(error);
+        s.record.error(error);
         return Promise.reject(error);
       }),
     ).rejects.toThrow('stream version conflict');
@@ -532,5 +535,66 @@ describe('otelTracer integration', () => {
       'emmett.stream.name': 'orders-read-model',
       'emmett.eventstore.read.event_count': 3,
     });
+  });
+
+  it('record in logs mode delegates to provided logger instead of span events', async () => {
+    const recorded: Array<{
+      level: string;
+      msgOrObj: unknown;
+      msg?: string;
+    }> = [];
+    const captureLogger = {
+      fatal: (msgOrObj: unknown, msg?: string) =>
+        void recorded.push({ level: 'fatal', msgOrObj, msg }),
+      error: (msgOrObj: unknown, msg?: string) =>
+        void recorded.push({ level: 'error', msgOrObj, msg }),
+      warn: (msgOrObj: unknown, msg?: string) =>
+        void recorded.push({ level: 'warn', msgOrObj, msg }),
+      info: (msgOrObj: unknown, msg?: string) =>
+        void recorded.push({ level: 'info', msgOrObj, msg }),
+      debug: (msgOrObj: unknown, msg?: string) =>
+        void recorded.push({ level: 'debug', msgOrObj, msg }),
+      trace: (msgOrObj: unknown, msg?: string) =>
+        void recorded.push({ level: 'trace', msgOrObj, msg }),
+      silent: (msgOrObj: unknown, msg?: string) =>
+        void recorded.push({ level: 'silent', msgOrObj, msg }),
+    };
+
+    const tracer = otelTracer('almanac-integration', {
+      mode: 'logs',
+      logger: captureLogger,
+    });
+
+    await tracer.startSpan('my-span', (span) => {
+      span.record.info({ userId: 'u1' }, 'user.registered');
+      span.record.warn('degraded');
+      span.record.error(new Error('boom'));
+      return Promise.resolve();
+    });
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0]!.events).toHaveLength(0);
+
+    expect(recorded).toMatchObject([
+      { level: 'info', msgOrObj: { userId: 'u1' }, msg: 'user.registered' },
+      { level: 'warn', msgOrObj: 'degraded' },
+      { level: 'error', msgOrObj: expect.any(Error) as unknown },
+    ]);
+  });
+
+  it('record in logs mode uses OTel Logs API when no logger provided', async () => {
+    const tracer = otelTracer('almanac-integration', { mode: 'logs' });
+
+    await expect(
+      tracer.startSpan('my-span', (span) => {
+        span.record.info({ userId: 'u1' }, 'user.registered');
+        return Promise.resolve();
+      }),
+    ).resolves.toBeUndefined();
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0]!.events).toHaveLength(0);
   });
 });

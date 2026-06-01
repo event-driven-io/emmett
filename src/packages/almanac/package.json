@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/almanac",
   "type": "module",
-  "version": "0.1.0-beta.19",
+  "version": "0.1.0-beta.20",
   "description": "Almanac - Opinionated observability for event-driven systems",
   "scripts": {
     "build": "tsdown",
@@ -60,6 +60,16 @@
         "types": "./dist/pino.d.cts",
         "default": "./dist/pino.cjs"
       }
+    },
+    "./console": {
+      "import": {
+        "types": "./dist/console.d.ts",
+        "default": "./dist/console.js"
+      },
+      "require": {
+        "types": "./dist/console.d.cts",
+        "default": "./dist/console.cjs"
+      }
     }
   },
   "main": "./dist/index.cjs",
@@ -87,5 +97,8 @@
     "@opentelemetry/context-async-hooks": "^2.7.0",
     "pino": "^10.3.1",
     "pino-test": "^2.0.0"
+  },
+  "dependencies": {
+    "@opentelemetry/api-logs": "^0.218.0"
   }
 }

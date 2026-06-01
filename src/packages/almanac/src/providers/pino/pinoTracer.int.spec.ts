@@ -62,7 +62,10 @@ describe('pinoTracer', () => {
         'messaging.system': 'emmett',
         'emmett.stream.name': 'orders-stream',
       });
-      s.addEvent('command.validated', { 'emmett.command.type': 'PlaceOrder' });
+      s.record.info(
+        { 'emmett.command.type': 'PlaceOrder' },
+        'command.validated',
+      );
       s.setAttributes({ 'emmett.command.status': 'success', error: false });
       return Promise.resolve();
     });
@@ -113,7 +116,7 @@ describe('pinoTracer', () => {
           'exception.message': error.message,
           'exception.type': 'Error',
         });
-        s.recordException(error);
+        s.record.error(error);
         throw error;
       }),
     ).rejects.toThrow('stream version conflict');
@@ -357,13 +360,13 @@ describe('pinoTracer', () => {
     expect(ctx).toEqual({ traceId: '', spanId: '' });
   });
 
-  it('recordException with a string coerces to Error and emits pino.error', async () => {
+  it('record.error with an Error emits pino.error with err field', async () => {
     const stream = pinoTest.sink();
     const logger = pino(stream);
     const tracer = pinoTracer(logger);
 
     await tracer.startSpan('command.handle', (span) => {
-      span.recordException('unexpected state');
+      span.record.error(new Error('unexpected state'));
       return Promise.resolve();
     });
 
@@ -389,21 +392,19 @@ describe('pinoTracer', () => {
     ]);
   });
 
-  it('addEvent with level routes to the correct pino level', async () => {
+  it('record with level routes to the correct pino level', async () => {
     const stream = pinoTest.sink();
     const logger = pino({ level: 'trace' }, stream);
     const tracer = pinoTracer(logger);
 
     await tracer.startSpan('command.handle', (span) => {
-      span.addEvent(
-        'loading.state',
+      span.record.debug(
         { 'emmett.stream.name': 'orders-stream' },
-        'debug',
+        'loading.state',
       );
-      span.addEvent(
-        'command.validated',
+      span.record.warn(
         { 'emmett.command.type': 'PlaceOrder' },
-        'warn',
+        'command.validated',
       );
       return Promise.resolve();
     });
@@ -431,6 +432,37 @@ describe('pinoTracer', () => {
           level: 30,
           status: 'success',
           durationMs: expect.any(Number) as unknown,
+        });
+      },
+    ]);
+  });
+
+  it('record in span-events mode emits structured span-event log', async () => {
+    const stream = pinoTest.sink();
+    const logger = pino(stream);
+    const tracer = pinoTracer(logger, { mode: 'span-events' });
+
+    await tracer.startSpan('my-span', (span) => {
+      span.record.info({ userId: 'u1' }, 'user.registered');
+      return Promise.resolve();
+    });
+
+    await pinoTest.consecutive(stream, [
+      (received: Record<string, unknown>) => {
+        expect(received).toMatchObject({
+          msg: 'span-event',
+          level: 30,
+          type: 'span-event',
+          name: 'user.registered',
+          userId: 'u1',
+          spanName: 'my-span',
+        });
+      },
+      (received: Record<string, unknown>) => {
+        expect(received).toMatchObject({
+          msg: 'my-span',
+          level: 30,
+          status: 'success',
         });
       },
     ]);

@@ -1,4 +1,8 @@
-import { noopScope } from '@event-driven-io/almanac';
+import {
+  consoleLogger,
+  noopScope,
+  type SpanRecorder,
+} from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
 import type { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
@@ -143,6 +147,7 @@ export type BaseMessageProcessorOptions<
   checkpoints?: Checkpointer<MessageType, MessageMetadataType, HandlerContext>;
   canHandle?: CanHandle<MessageType>;
   hooks?: ProcessorHooks<HandlerContext>;
+  logger?: SpanRecorder;
 } & JSONSerializationOptions & {
     observability?: ProcessorObservabilityConfig;
   };
@@ -265,6 +270,7 @@ export const reactor = <
     startFrom,
     canHandle,
     stopAfter,
+    logger = consoleLogger,
   } = options;
 
   const collector = processorCollector(resolveProcessorObservability(options));
@@ -414,13 +420,13 @@ export const reactor = <
       };
 
       if (isActive) {
-        console.log(
+        logger.info(
           `Processor ${processorId} with instance id ${instanceId} is already active. Start request ignored.`,
         );
         return;
       }
 
-      console.log(
+      logger.info(
         `Starting processor ${processorId} with instance id ${instanceId}`,
       );
 
@@ -431,7 +437,7 @@ export const reactor = <
       closeSignal = onShutdown(() => close(startOptions));
 
       if (lastCheckpoint !== null) {
-        console.log(
+        logger.info(
           `Processor ${processorId} started with instance id ${instanceId}, checkpoint: ${JSONSerializer.serialize(lastCheckpoint)}`,
         );
         return {
@@ -441,14 +447,14 @@ export const reactor = <
 
       return await processingScope(async (context) => {
         if (hooks.onStart) {
-          console.log(
+          logger.info(
             `Executing onStart hook for processor ${processorId} with instance id ${instanceId}`,
           );
           await hooks.onStart(context);
         }
 
         if (startFrom && startFrom !== 'CURRENT') {
-          console.log(
+          logger.info(
             `Processor ${processorId} with instance id ${instanceId} starting from: ${JSONSerializer.serialize(startFrom)}`,
           );
           return startFrom;
@@ -466,12 +472,12 @@ export const reactor = <
         }
 
         if (lastCheckpoint === null) {
-          console.log(
+          logger.info(
             `Processor ${processorId} with instance id ${instanceId} starting from: BEGINNING`,
           );
           return 'BEGINNING';
         }
-        console.log(
+        logger.info(
           `Checkpoint read for processor ${processorId} with instance id ${instanceId}: ${JSONSerializer.serialize(lastCheckpoint)}`,
         );
 
@@ -603,9 +609,9 @@ export const reactor = <
               { ...partialContext, observabilityScope: scope },
             );
           } catch (error) {
-            console.log(
+            logger.error(
+              { err: error },
               `Error during message processing for processor ${processorId} with instance id ${instanceId}. Stopping the processor.`,
-              error,
             );
             isActive = false;
             return {

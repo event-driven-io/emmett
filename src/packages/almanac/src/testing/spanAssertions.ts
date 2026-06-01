@@ -1,5 +1,5 @@
 import type { TracePropagation } from '../tracers';
-import type { CollectedSpan } from './collectedSpan';
+import type { CollectedSpan, RecordedEntry } from './collectedSpan';
 
 type SpanAssertions = {
   exists(): SpanAssertions;
@@ -11,6 +11,13 @@ type SpanAssertions = {
   hasCreationLinks(
     links: { traceId: string; spanId: string }[],
   ): SpanAssertions;
+  recorded(
+    level: RecordedEntry['level'],
+    msg?: string,
+    partialObj?: Record<string, unknown>,
+  ): SpanAssertions;
+  recordedCount(n: number): SpanAssertions;
+  noRecords(): SpanAssertions;
 };
 
 export type SpanCollectionAssertions = {
@@ -100,6 +107,53 @@ export const assertThatSpan = (
             `Expected span "${span.name}" to have creation link ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
           );
       }
+      return self;
+    },
+    recorded(level, msg, partialObj) {
+      if (!span)
+        throw new Error(
+          'Expected span to have a record but span was not found',
+        );
+      const match = span.records.find((r) => {
+        if (r.level !== level) return false;
+        if (msg !== undefined && r.msg !== msg) return false;
+        if (partialObj !== undefined) {
+          const obj = r.obj as Record<string, unknown> | undefined;
+          if (!obj) return false;
+          for (const [k, v] of Object.entries(partialObj)) {
+            if (JSON.stringify(obj[k]) !== JSON.stringify(v)) return false;
+          }
+        }
+        return true;
+      });
+      if (!match)
+        throw new Error(
+          `Expected span "${span.name}" to have a "${level}" record${
+            msg ? ` with msg "${msg}"` : ''
+          }${
+            partialObj ? ` and obj ${JSON.stringify(partialObj)}` : ''
+          }. Records: ${JSON.stringify(span.records, null, 2)}`,
+        );
+      return self;
+    },
+    recordedCount(n) {
+      if (!span)
+        throw new Error('Expected span to have records but span was not found');
+      if (span.records.length !== n)
+        throw new Error(
+          `Expected span "${span.name}" to have ${n} record(s) but found ${span.records.length}. Records: ${JSON.stringify(span.records, null, 2)}`,
+        );
+      return self;
+    },
+    noRecords() {
+      if (!span)
+        throw new Error(
+          'Expected span to have no records but span was not found',
+        );
+      if (span.records.length > 0)
+        throw new Error(
+          `Expected span "${span.name}" to have no records but found ${span.records.length}. Records: ${JSON.stringify(span.records, null, 2)}`,
+        );
       return self;
     },
   };

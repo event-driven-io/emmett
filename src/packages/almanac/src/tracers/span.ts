@@ -1,6 +1,6 @@
+import type { SpanRecorder } from './logger';
+import { noopRecorder } from './logger';
 import type { TracePropagation } from './tracer';
-
-export type SpanEventLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 
 export type SpanContext = {
   traceId: string;
@@ -15,12 +15,7 @@ export type ActiveSpan = {
   setAttributes(attrs: Record<string, unknown>): void;
   spanContext(): SpanContext;
   addLink(link: SpanLink): void;
-  addEvent(
-    name: string,
-    attributes?: Record<string, unknown>,
-    level?: SpanEventLevel,
-  ): void;
-  recordException(error: Error | string): void;
+  record: SpanRecorder;
 };
 
 export type StartSpanOptions = {
@@ -35,6 +30,15 @@ export const noopSpan: ActiveSpan = {
   setAttributes: () => {},
   spanContext: () => ({ traceId: '', spanId: '' }),
   addLink: () => {},
-  addEvent: () => {},
-  recordException: () => {},
+  record: noopRecorder,
 };
+
+const randomHex = (bytes: number): string => {
+  const arr = new Uint8Array(bytes);
+  globalThis.crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
+};
+
+// OTel-compatible IDs: 128-bit trace (32 hex), 64-bit span (16 hex)
+export const generateTraceId = (): string => randomHex(16);
+export const generateSpanId = (): string => randomHex(8);
