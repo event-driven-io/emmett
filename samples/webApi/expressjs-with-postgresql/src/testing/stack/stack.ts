@@ -1,5 +1,4 @@
 import inspector from 'node:inspector';
-import { sequence } from './composition';
 import type {
   DownOptions,
   LifecycleOptions,
@@ -11,6 +10,7 @@ import { renderDashboard, type Dashboard } from './dashboard';
 import { listrUp } from './reporter';
 import { configureResourceOutput } from './tools/output';
 import { onShutdown } from './tools/signals';
+import { runVerifications, type Verification } from './verify';
 
 // Presentation defaults configured on the stack. `renderer` picks the bring-up
 // view; `showResourceOutput` toggles whether spawned-process output is piped
@@ -41,23 +41,42 @@ const resolve = (
   config: LifecycleOptions,
 ): boolean => opts?.[flag] ?? config[flag] ?? envFlag(env) ?? false;
 
-export type StackConfig = {
+export type StackConfig<R extends Record<string, Resource>, C> = {
   name: string;
-  resources: Resource[];
-  verify?: () => Promise<void>;
+  resources: R;
+  pipeline: (r: R) => Resource;
+  context?: () => C; // fresh per run; C inferred from it
+  // Receives the typed registry + the per-run context. Returns an array of named checks,
+  // or runs the assertions itself (returning void / a promise) as a single check. The
+  // bodies close over what they need, so they stay annotation-free.
+  verify?: (
+    resources: R,
+    context: C,
+  ) => Array<Verification> | void | Promise<void>;
 } & LifecycleOptions &
   Presentation;
 
-// The root Resource. Composes its resources as a sequence, layers the stack's own
-// cross-resource verifications on top, and owns the lifecycle: `up` starts everything
-// and verifies but never closes; `test` is sugar that closes afterwards; the clean /
-// noStart flags resolve by precedence; SIGINT/SIGTERM shut down gracefully — so entry
-// points never wire signals themselves.
-export const stack = (config: StackConfig): Stack => {
-  const root = sequence(...config.resources);
+// The root Resource. Derives its tree from the named registry via `topology`, layers
+// the stack's own cross-resource verifications on top, and owns the lifecycle: `up`
+// starts everything and verifies but never closes; `test` is sugar that closes
+// afterwards; the clean / noStart flags resolve by precedence; SIGINT/SIGTERM shut
+// down gracefully — so entry points never wire signals themselves.
+export const stack = <
+  R extends Record<string, Resource>,
+  C = Record<string, never>,
+>(
+  config: StackConfig<R, C>,
+): Stack => {
+  const root = config.pipeline(config.resources);
 
+  // Fresh ctx per pass so reruns / restart never see stale state.
   const runVerify = async (): Promise<void> => {
-    if (config.verify) await config.verify();
+    if (config.verify) {
+      const ctx = config.context ? config.context() : ({} as C);
+      const result = config.verify(config.resources, ctx);
+      if (Array.isArray(result)) await runVerifications(result)();
+      else await result;
+    }
     await root.verify();
   };
 
