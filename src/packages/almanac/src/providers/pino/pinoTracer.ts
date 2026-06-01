@@ -1,5 +1,6 @@
 import type { Logger as PinoLogger } from 'pino';
-import type { ActiveSpan, SpanEventLevel, Tracer } from '../../tracers';
+import { shouldLog } from '../../loggers/logger';
+import type { ActiveSpan, Tracer } from '../../tracers';
 
 export const pinoTracer = (pino: PinoLogger): Tracer => ({
   startSpan: async <T>(
@@ -8,15 +9,27 @@ export const pinoTracer = (pino: PinoLogger): Tracer => ({
   ): Promise<T> => {
     const startTime = Date.now();
     const attrs: Record<string, unknown> = {};
+
     const span: ActiveSpan = {
       setAttributes: (a) => Object.assign(attrs, a),
       spanContext: () => ({ traceId: '', spanId: '' }),
       addLink: () => {},
-      addEvent: (eventName, eventAttrs, level: SpanEventLevel = 'info') =>
-        pino[level]({ ...eventAttrs, spanName: name }, eventName),
-      recordException: (err) => {
-        const error = err instanceof Error ? err : new Error(String(err));
-        pino.error({ err: error, spanName: name }, error.message);
+      log: (event) => {
+        if (
+          event.metadata.level === 'silent' ||
+          !shouldLog(event.metadata.level, 'trace')
+        )
+          return;
+
+        pino[event.metadata.level](
+          {
+            ...(event.data.attributes ?? {}),
+            ...(event.name ? { eventName: event.name } : {}),
+            ...(event.data.error ? { err: event.data.error } : {}),
+            spanName: name,
+          },
+          event.data.body ?? event.data.error?.message,
+        );
       },
     };
     try {

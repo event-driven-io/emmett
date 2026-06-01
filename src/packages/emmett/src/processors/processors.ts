@@ -1,4 +1,4 @@
-import { noopScope } from '@event-driven-io/almanac';
+import { LogEvent, noopScope } from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
 import type { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
@@ -237,6 +237,8 @@ export const getProcessorInstanceId = (processorId: string): string =>
 export const getProjectorId = (options: { projectionName: string }): string =>
   `emt:processor:projector:${options.projectionName}`;
 
+const { info, error: error } = LogEvent;
+
 export const reactor = <
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -409,16 +411,21 @@ export const reactor = <
             ? (partialOptions.observabilityScope ?? noopScope)
             : noopScope) ?? noopScope,
       };
+      const log = startOptions.observabilityScope.log;
 
       if (isActive) {
-        console.log(
-          `Processor ${processorId} with instance id ${instanceId} is already active. Start request ignored.`,
+        log(
+          info(
+            `Processor ${processorId} with instance id ${instanceId} is already active. Start request ignored.`,
+          ),
         );
         return;
       }
 
-      console.log(
-        `Starting processor ${processorId} with instance id ${instanceId}`,
+      log(
+        info(
+          `Starting processor ${processorId} with instance id ${instanceId}`,
+        ),
       );
 
       await init(startOptions);
@@ -428,8 +435,10 @@ export const reactor = <
       closeSignal = onShutdown(() => close(startOptions));
 
       if (lastCheckpoint !== null) {
-        console.log(
-          `Processor ${processorId} started with instance id ${instanceId}, checkpoint: ${JSONSerializer.serialize(lastCheckpoint)}`,
+        log(
+          info(
+            `Processor ${processorId} started with instance id ${instanceId}, checkpoint: ${JSONSerializer.serialize(lastCheckpoint)}`,
+          ),
         );
         return {
           lastCheckpoint,
@@ -437,16 +446,21 @@ export const reactor = <
       }
 
       return await processingScope(async (context) => {
+        const log = context.observabilityScope.log;
         if (hooks.onStart) {
-          console.log(
-            `Executing onStart hook for processor ${processorId} with instance id ${instanceId}`,
+          log(
+            info(
+              `Executing onStart hook for processor ${processorId} with instance id ${instanceId}`,
+            ),
           );
           await hooks.onStart(context);
         }
 
         if (startFrom && startFrom !== 'CURRENT') {
-          console.log(
-            `Processor ${processorId} with instance id ${instanceId} starting from: ${JSONSerializer.serialize(startFrom)}`,
+          log(
+            info(
+              `Processor ${processorId} with instance id ${instanceId} starting from: ${JSONSerializer.serialize(startFrom)}`,
+            ),
           );
           return startFrom;
         }
@@ -463,13 +477,17 @@ export const reactor = <
         }
 
         if (lastCheckpoint === null) {
-          console.log(
-            `Processor ${processorId} with instance id ${instanceId} starting from: BEGINNING`,
+          log(
+            info(
+              `Processor ${processorId} with instance id ${instanceId} starting from: BEGINNING`,
+            ),
           );
           return 'BEGINNING';
         }
-        console.log(
-          `Checkpoint read for processor ${processorId} with instance id ${instanceId}: ${JSONSerializer.serialize(lastCheckpoint)}`,
+        log(
+          info(
+            `Checkpoint read for processor ${processorId} with instance id ${instanceId}: ${JSONSerializer.serialize(lastCheckpoint)}`,
+          ),
         );
 
         return {
@@ -599,15 +617,17 @@ export const reactor = <
               },
               { ...partialContext, observabilityScope: scope },
             );
-          } catch (error) {
-            console.log(
-              `Error during message processing for processor ${processorId} with instance id ${instanceId}. Stopping the processor.`,
-              error,
+          } catch (err) {
+            scope.log(
+              error(
+                { err: err },
+                `Error during message processing for processor ${processorId} with instance id ${instanceId}. Stopping the processor.`,
+              ),
             );
             isActive = false;
             return {
               type: 'STOP',
-              error: error as EmmettError,
+              error: err as EmmettError,
               reason: 'Error during message processing',
             };
           }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LogEvent } from '../loggers/logger';
 import { noopTracer } from './tracer';
 
 describe('noopTracer', () => {
@@ -34,18 +35,16 @@ describe('noopTracer', () => {
     });
   });
 
-  it('addEvent does not throw', async () => {
+  it('span.log accepts all 7 levels without throwing', async () => {
     const tracer = noopTracer();
     await tracer.startSpan('test', (span) => {
-      span.addEvent('OrderPlaced', { orderId: '123' });
-      return Promise.resolve();
-    });
-  });
-
-  it('recordException does not throw', async () => {
-    const tracer = noopTracer();
-    await tracer.startSpan('test', (span) => {
-      span.recordException(new Error('boom'));
+      span.log(LogEvent.info({ orderId: '123' }, 'OrderPlaced'));
+      span.log(LogEvent.error(new Error('boom'), 'operation failed'));
+      span.log(LogEvent.warn('degraded'));
+      span.log(LogEvent.debug('details'));
+      span.log(LogEvent.trace('verbose'));
+      span.log(LogEvent.fatal('critical'));
+      span.log(LogEvent.silent('shh'));
       return Promise.resolve();
     });
   });

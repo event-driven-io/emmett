@@ -1,15 +1,28 @@
-import type { ActiveSpan, StartSpanOptions, Tracer } from '../tracers';
+import { shouldLog } from '../loggers/logger';
+import type {
+  ActiveSpan,
+  StartSpanOptions,
+  TraceContextGenerator,
+  Tracer,
+} from '../tracers';
+import { defaultTraceContextGenerator } from '../tracers';
+import { logEventForSpan } from '../tracers/spanLogEvent';
 import type { CollectedSpan } from './collectedSpan';
 
 export type CollectingTracer = Tracer & {
   spans: CollectedSpan[];
 };
 
-let nextTraceId = 0;
-let nextSpanId = 0;
+export type CollectingTracerOptions = {
+  traceContextGenerator?: TraceContextGenerator;
+};
 
-export const collectingTracer = (): CollectingTracer => {
+export const collectingTracer = (
+  options?: CollectingTracerOptions,
+): CollectingTracer => {
   const spans: CollectedSpan[] = [];
+  const traceContextGenerator =
+    options?.traceContextGenerator ?? defaultTraceContextGenerator;
 
   return {
     spans,
@@ -18,27 +31,28 @@ export const collectingTracer = (): CollectingTracer => {
       fn: (span: ActiveSpan) => Promise<T>,
       options?: StartSpanOptions,
     ): Promise<T> => {
-      const traceId = `trace-${++nextTraceId}`;
-      const spanId = `span-${++nextSpanId}`;
+      const traceId = traceContextGenerator.generateTraceId();
+      const spanId = traceContextGenerator.generateSpanId();
+      const context = { traceId, spanId };
 
       const collected: CollectedSpan = {
         name,
         attributes: {},
-        events: [],
+        logs: [],
         links: [],
-        exceptions: [],
         startOptions: options ?? {},
-        ownContext: { traceId, spanId },
+        ownContext: context,
       };
       spans.push(collected);
 
       const span: ActiveSpan = {
         setAttributes: (attrs) => Object.assign(collected.attributes, attrs),
-        spanContext: () => ({ traceId, spanId }),
+        spanContext: () => context,
         addLink: (link) => collected.links.push(link),
-        addEvent: (eventName, attributes) =>
-          collected.events.push({ name: eventName, attributes }),
-        recordException: (error) => collected.exceptions.push(error),
+        log: (event) => {
+          if (!shouldLog(event.metadata.level, 'trace')) return;
+          collected.logs.push(logEventForSpan(event, context));
+        },
       };
 
       return fn(span);

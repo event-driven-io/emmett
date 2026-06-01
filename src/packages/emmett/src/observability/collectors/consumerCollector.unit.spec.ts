@@ -250,7 +250,11 @@ describe('consumerCollector', () => {
       (s) => s.name === 'consumer.deliver.p1',
     );
     assertDefined(deliverySpan);
-    assertTrue(deliverySpan.exceptions.includes(err));
+    assertTrue(
+      deliverySpan.logs.some(
+        (r) => r.metadata.level === 'error' && r.data.error === err,
+      ),
+    );
   });
 
   it('recordPollMetrics records emmett.consumer.poll.duration histogram regardless of pollTracing', () => {

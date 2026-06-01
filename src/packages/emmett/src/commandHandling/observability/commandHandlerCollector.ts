@@ -1,4 +1,5 @@
 import {
+  LogEvent,
   MessagingAttributes,
   noopMeter,
   noopTracer,
@@ -126,8 +127,10 @@ export const commandHandlerCollector = (
               'exception.type':
                 err instanceof Error ? err.constructor.name : 'unknown',
             });
-            scope.recordException(
-              err instanceof Error ? err : new Error(String(err)),
+            scope.log(
+              LogEvent.error(
+                err instanceof Error ? err : new Error(String(err)),
+              ),
             );
             throw err;
           } finally {

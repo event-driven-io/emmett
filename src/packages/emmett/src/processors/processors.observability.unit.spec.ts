@@ -117,4 +117,30 @@ describe('processors observability wiring', () => {
           .hasParent({ traceId: 'trace-A', spanId: 'span-x' }),
       );
   });
+
+  it('logs processing errors on the processor handle span', async () => {
+    await given((config) =>
+      reactor({
+        processorId: 'test',
+        processorInstanceId: 'test',
+        eachMessage: () => {
+          throw new Error('boom');
+        },
+        observability: config,
+      }),
+    )
+      .when(async (reactor) => {
+        await reactor.start({});
+        await reactor.handle([makeMessage('OrderPlaced')], {});
+        await reactor.close({});
+      })
+      .then(({ spans }) =>
+        spans
+          .haveSpanNamed('processor.handle')
+          .logged(
+            'error',
+            'Error during message processing for processor test with instance id test. Stopping the processor.',
+          ),
+      );
+  });
 });

@@ -7,7 +7,7 @@ export default defineConfig({
   minify: false,
   target: 'esnext',
   outDir: 'dist',
-  entry: ['src/index.ts', 'src/otel.ts', 'src/pino.ts'],
+  entry: ['src/index.ts', 'src/otel.ts', 'src/pino.ts', 'src/console.ts'],
   sourcemap: true,
   deps: {
     skipNodeModulesBundle: true,

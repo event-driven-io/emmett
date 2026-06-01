@@ -4,7 +4,16 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { SpanStatusCode, trace } from '@opentelemetry/api';
+import { SeverityNumber, logs } from '@opentelemetry/api-logs';
+import {
+  InMemoryLogRecordExporter,
+  LoggerProvider,
+  SimpleLogRecordProcessor,
+} from '@opentelemetry/sdk-logs';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { LogEvent, logger } from '../../loggers';
+import { otelLogger } from './otelLogger';
+import { otelAssertions } from './otelTesting';
 import { otelTracer } from './otelTracer';
 
 describe('otelTracer', () => {
@@ -13,12 +22,19 @@ describe('otelTracer', () => {
     spanProcessors: [new SimpleSpanProcessor(exporter)],
   });
 
+  const logExporter = new InMemoryLogRecordExporter();
+  const loggerProvider = new LoggerProvider({
+    processors: [new SimpleLogRecordProcessor(logExporter)],
+  });
+
   beforeAll(() => {
     trace.setGlobalTracerProvider(provider);
+    logs.setGlobalLoggerProvider(loggerProvider);
   });
 
   beforeEach(() => {
     exporter.reset();
+    logExporter.reset();
   });
 
   it('creates a span via OTel API', async () => {
@@ -69,6 +85,60 @@ describe('otelTracer', () => {
     const inner = spans.find((s) => s.name === 'inner')!;
 
     expect(inner.parentSpanContext?.spanId).toBe(outer.spanContext().spanId);
+  });
+
+  it('lifts the reserved eventName key into the logged event', async () => {
+    const tracer = otelTracer('almanac', { logger: otelLogger() });
+    await tracer.startSpan('test-span', (span) => {
+      span.log(LogEvent.info({ eventName: 'user.registered', userId: 'u1' }));
+      return Promise.resolve();
+    });
+
+    otelAssertions
+      .logs(logExporter.getFinishedLogRecords())
+      .haveLogNamed('user.registered')
+      .hasSeverity(SeverityNumber.INFO)
+      .hasAttribute('userId', 'u1');
+  });
+
+  it('does not synthesize span context for standalone OTel logger logs', () => {
+    const log = otelLogger();
+
+    log(LogEvent.info('standalone'));
+
+    otelAssertions
+      .logs(logExporter.getFinishedLogRecords())
+      .haveLogWithBody('standalone');
+    expect(logExporter.getFinishedLogRecords()[0]!.spanContext).toBeUndefined();
+  });
+
+  it('stamps injected loggers with the OTel span context', async () => {
+    const logs: LogEvent[] = [];
+    const log = logger({ event: (event) => logs.push(event) });
+    const tracer = otelTracer('almanac', { logger: log });
+
+    await tracer.startSpan('test-span', (span) => {
+      span.log(LogEvent.info('inside span'));
+      return Promise.resolve();
+    });
+
+    const span = exporter.getFinishedSpans()[0]!;
+    expect(logs[0]!.data.body).toBe('inside span');
+    expect(logs[0]!.metadata.traceId).toBe(span.spanContext().traceId);
+    expect(logs[0]!.metadata.spanId).toBe(span.spanContext().spanId);
+  });
+
+  it('logs an exception event when the span throws', async () => {
+    const tracer = otelTracer('almanac', { logger: otelLogger() });
+    await expect(
+      tracer.startSpan('failing-span', () => Promise.reject(new Error('boom'))),
+    ).rejects.toThrow('boom');
+
+    otelAssertions
+      .logs(logExporter.getFinishedLogRecords())
+      .haveLogNamed('exception')
+      .hasSeverity(SeverityNumber.ERROR)
+      .hasAttribute('exception.message', 'boom');
   });
 
   it('sets ERROR status on exception', async () => {

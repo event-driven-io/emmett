@@ -1,5 +1,8 @@
-import type { ReadableSpan } from '@opentelemetry/sdk-trace-base';
+import { JSONSerializer } from '../../serialization/json';
 import type { SpanStatusCode } from '@opentelemetry/api';
+import type { SeverityNumber } from '@opentelemetry/api-logs';
+import type { ReadableLogRecord } from '@opentelemetry/sdk-logs';
+import type { ReadableSpan } from '@opentelemetry/sdk-trace-base';
 
 type OtelSpanAssertions = {
   exists(): OtelSpanAssertions;
@@ -8,7 +11,6 @@ type OtelSpanAssertions = {
   hasParent(ctx: { traceId: string; spanId: string }): OtelSpanAssertions;
   hasNoParent(): OtelSpanAssertions;
   hasStatus(code: SpanStatusCode, message?: string): OtelSpanAssertions;
-  hasEvent(name: string): OtelSpanAssertions;
   hasCreationLinks(
     links: { traceId: string; spanId: string }[],
   ): OtelSpanAssertions;
@@ -21,9 +23,7 @@ type OtelSpanCollectionAssertions = {
   haveNoSpans(): void;
 };
 
-export const assertThatOtelSpan = (
-  span: ReadableSpan | undefined,
-): OtelSpanAssertions => {
+const otelSpan = (span: ReadableSpan | undefined): OtelSpanAssertions => {
   const self: OtelSpanAssertions = {
     exists() {
       if (!span) throw new Error('Expected span to exist but it was not found');
@@ -85,15 +85,6 @@ export const assertThatOtelSpan = (
         );
       return self;
     },
-    hasEvent(name) {
-      if (!span)
-        throw new Error('Expected span to have event but span was not found');
-      if (!span.events.some((e) => e.name === name))
-        throw new Error(
-          `Expected span "${span.name}" to have event "${name}", found: [${span.events.map((e) => e.name).join(', ')}]`,
-        );
-      return self;
-    },
     hasCreationLinks(links) {
       if (!span)
         throw new Error('Expected span to have links but span was not found');
@@ -117,9 +108,7 @@ export const assertThatOtelSpan = (
   return self;
 };
 
-export const assertThatOtelSpans = (
-  spans: ReadableSpan[],
-): OtelSpanCollectionAssertions => {
+const otelSpans = (spans: ReadableSpan[]): OtelSpanCollectionAssertions => {
   const self: OtelSpanCollectionAssertions = {
     haveSpanNamed(name) {
       const span = spans.find((s) => s.name === name);
@@ -127,7 +116,7 @@ export const assertThatOtelSpans = (
         throw new Error(
           `Expected span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
         );
-      return assertThatOtelSpan(span);
+      return otelSpan(span);
     },
     containSpanNamed(name) {
       const span = spans.find((s) => s.name === name);
@@ -145,4 +134,113 @@ export const assertThatOtelSpans = (
     },
   };
   return self;
+};
+
+type OtelLogAssertions = {
+  exists(): OtelLogAssertions;
+  hasEventName(name: string): OtelLogAssertions;
+  hasBody(body: unknown): OtelLogAssertions;
+  hasSeverity(severityNumber: SeverityNumber): OtelLogAssertions;
+  hasAttribute(key: string, value: unknown): OtelLogAssertions;
+  hasAttributes(attrs: Record<string, unknown>): OtelLogAssertions;
+  hasSpanContext(ctx: { traceId: string; spanId: string }): OtelLogAssertions;
+};
+
+type OtelLogCollectionAssertions = {
+  haveLogNamed(eventName: string): OtelLogAssertions;
+  haveLogWithBody(body: string): OtelLogAssertions;
+  haveNoLogs(): void;
+};
+
+const otelLog = (log: ReadableLogRecord | undefined): OtelLogAssertions => {
+  const self: OtelLogAssertions = {
+    exists() {
+      if (!log) throw new Error('Expected log to exist but it was not found');
+      return self;
+    },
+    hasEventName(name) {
+      self.exists();
+      if (log!.eventName !== name)
+        throw new Error(
+          `Expected log event name to be "${name}", got "${log!.eventName}"`,
+        );
+      return self;
+    },
+    hasBody(body) {
+      self.exists();
+      if (log!.body !== body)
+        throw new Error(
+          `Expected log body to be ${JSON.stringify(body)}, got ${JSON.stringify(log!.body)}`,
+        );
+      return self;
+    },
+    hasSeverity(severityNumber) {
+      self.exists();
+      if (log!.severityNumber !== severityNumber)
+        throw new Error(
+          `Expected log severityNumber to be ${severityNumber}, got ${log!.severityNumber}`,
+        );
+      return self;
+    },
+    hasAttribute(key, value) {
+      self.exists();
+      const actual = log!.attributes[key];
+      if (actual !== value)
+        throw new Error(
+          `Expected log attribute "${key}" to be ${JSON.stringify(value)}, got ${JSON.stringify(actual)}`,
+        );
+      return self;
+    },
+    hasAttributes(attrs) {
+      for (const [key, value] of Object.entries(attrs)) {
+        self.hasAttribute(key, value);
+      }
+      return self;
+    },
+    hasSpanContext(ctx) {
+      self.exists();
+      const sc = log!.spanContext;
+      if (!sc || sc.traceId !== ctx.traceId || sc.spanId !== ctx.spanId)
+        throw new Error(
+          `Expected log span context to be ${JSON.stringify(ctx)}, got ${JSON.stringify(sc && { traceId: sc.traceId, spanId: sc.spanId })}`,
+        );
+      return self;
+    },
+  };
+  return self;
+};
+
+const otelLogs = (logs: ReadableLogRecord[]): OtelLogCollectionAssertions => {
+  const self: OtelLogCollectionAssertions = {
+    haveLogNamed(eventName) {
+      const log = logs.find((r) => r.eventName === eventName);
+      if (!log)
+        throw new Error(
+          `Expected log named "${eventName}" but found: [${logs.map((r) => r.eventName ?? '<unnamed>').join(', ')}]`,
+        );
+      return otelLog(log);
+    },
+    haveLogWithBody(body) {
+      const log = logs.find((r) => r.body === body);
+      if (!log)
+        throw new Error(
+          `Expected log with body "${body}" but found: [${logs.map((r) => JSONSerializer.serialize(r.body, { safe: true })).join(', ')}]`,
+        );
+      return otelLog(log);
+    },
+    haveNoLogs() {
+      if (logs.length > 0)
+        throw new Error(
+          `Expected no logs but found: [${logs.map((r) => r.eventName ?? JSONSerializer.serialize(r.body, { safe: true })).join(', ')}]`,
+        );
+    },
+  };
+  return self;
+};
+
+export const otelAssertions = {
+  span: otelSpan,
+  spans: otelSpans,
+  log: otelLog,
+  logs: otelLogs,
 };

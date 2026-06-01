@@ -4,3 +4,4 @@ export * from './collectingTracer';
 export * from './meterAssertions';
 export * from './observabilitySpec';
 export * from './spanAssertions';
+export * from './traceContextGenerator';

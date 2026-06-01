@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { alwaysSample, neverSample } from '../configuration/options';
+import { LogEvent } from '../loggers/logger';
 import { collectingTracer } from '../testing';
 import type { ScopeObservability } from './scope';
 import { ObservabilityScope } from './scope';
@@ -85,31 +86,36 @@ describe('ObservabilityScope', () => {
     expect(tracer.spans[1]!.attributes).toHaveProperty('x', 1);
   });
 
-  it('addEvent delegates to underlying span', async () => {
+  it('record delegates to underlying span', async () => {
     const tracer = collectingTracer();
     const o11y = defaultObservability({ tracer });
 
     await ObservabilityScope(o11y).startScope('root', (scope) => {
-      scope.addEvent('test', { key: 'val' });
+      scope.log(LogEvent.info({ key: 'val' }, 'test'));
       return Promise.resolve();
     });
 
-    expect(tracer.spans[0]!.events).toEqual([
-      { name: 'test', attributes: { key: 'val' } },
+    expect(tracer.spans[0]!.logs).toMatchObject([
+      {
+        metadata: { level: 'info' },
+        data: { attributes: { key: 'val' }, body: 'test' },
+      },
     ]);
   });
 
-  it('recordException delegates to underlying span', async () => {
+  it('record.error delegates to underlying span', async () => {
     const tracer = collectingTracer();
     const o11y = defaultObservability({ tracer });
     const error = new Error('boom');
 
     await ObservabilityScope(o11y).startScope('root', (scope) => {
-      scope.recordException(error);
+      scope.log(LogEvent.error(error, 'boom'));
       return Promise.resolve();
     });
 
-    expect(tracer.spans[0]!.exceptions).toEqual([error]);
+    expect(tracer.spans[0]!.logs).toMatchObject([
+      { metadata: { level: 'error' }, data: { error, body: 'boom' } },
+    ]);
   });
 
   it('spanContext returns the underlying span context', async () => {

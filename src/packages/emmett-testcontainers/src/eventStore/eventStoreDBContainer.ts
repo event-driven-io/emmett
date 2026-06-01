@@ -1,3 +1,5 @@
+import { LogEvent } from '@event-driven-io/almanac';
+import { consoleLogger } from '@event-driven-io/almanac/console';
 import { InProcessLock } from '@event-driven-io/emmett';
 import { EventStoreDBClient } from '@eventstore/db-client';
 import {
@@ -106,9 +108,9 @@ export const getSharedEventStoreDBTestContainer = () =>
 
       container.withLogConsumer((stream) =>
         stream
-          .on('data', (line) => console.log(line))
-          .on('err', (line) => console.error(line))
-          .on('end', () => console.log('Stream closed')),
+          .on('data', (line) => consoleLogger(LogEvent.info(String(line))))
+          .on('err', (line) => consoleLogger(LogEvent.error(String(line))))
+          .on('end', () => consoleLogger(LogEvent.info('Stream closed'))),
       );
 
       return startedContainer;
