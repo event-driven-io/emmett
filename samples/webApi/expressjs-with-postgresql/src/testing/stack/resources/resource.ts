@@ -1,5 +1,4 @@
 import type { Resource } from '../composition';
-import { verifications } from '../verify';
 
 // The primitive every resource builds on: takes a partial Resource and fills the
 // methods you didn't supply. It knows nothing about HTTP or readiness — a resource
@@ -18,7 +17,7 @@ export const resource = (r: Partial<Resource> & { name: string }): Resource => {
         await up(opts);
       }),
     healthCheck: r.healthCheck ?? (async () => {}),
-    verify: r.verify ?? verifications({}),
+    verify: r.verify ?? (async () => {}),
     ...(r.children ? { children: r.children, mode: r.mode } : {}),
   };
 };

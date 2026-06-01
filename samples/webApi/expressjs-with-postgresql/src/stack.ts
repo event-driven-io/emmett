@@ -5,6 +5,7 @@
 import { assertOk } from '@event-driven-io/emmett';
 import { randomUUID } from 'node:crypto';
 import {
+  stack as delorean,
   dockerCompose,
   expectResponse,
   grafana,
@@ -14,9 +15,8 @@ import {
   parallel,
   prometheus,
   sequence,
-  stack,
   tempo,
-  verifications,
+  verify,
 } from './testing/stack';
 
 export const SERVICE_NAME = 'expressjs-with-postgresql';
@@ -30,7 +30,6 @@ export const URLS = {
   otelCollectorMetrics: 'http://localhost:8889/metrics',
 } as const;
 
-// The Emmett metric whose non-zero rate proves commands are being handled + scraped.
 const COMMAND_METRIC = 'emmett_command_handling_duration_count';
 
 // ─── resource handles ─────────────────────────────────────────────────────────
@@ -39,51 +38,39 @@ const compose = dockerCompose({
   file: 'docker-compose.yml',
   profile: 'observability',
 });
-const prom = prometheus({ url: URLS.prometheus });
-const graf = grafana({ url: URLS.grafana });
-const trc = tempo({ url: URLS.tempo });
-const log = loki({ url: URLS.loki });
-const collector = otelCollector({
-  url: URLS.otelCollectorMetrics,
-  logs: (lines) => compose.service('otel-collector').logs(lines),
-});
-const api = nodeWebApi({ url: URLS.app, service: SERVICE_NAME });
-
-export const resources = {
-  compose,
-  prom,
-  graf,
-  trc,
-  log,
-  collector,
-  api,
-};
-
-// ─── per-run client + payloads ──────────────────────────────────────────────
-// Fresh client per run — avoids stale cart state from previous runs.
 
 const CLIENT_ID = randomUUID();
 const CART_PATH = `clients/${CLIENT_ID}/shopping-carts/current/product-items`;
 const CONFIRM_PATH = `clients/${CLIENT_ID}/shopping-carts/current/confirm`;
-
-// Matches the .http file — unitPrice is resolved server-side.
 const ADD_PRODUCT = { productId: randomUUID(), quantity: 10 };
 
 console.log(`\n▶ client ID for this run: ${CLIENT_ID}\n`);
+type ObservabilityContext = { traceId?: string };
 
-let traceId: string;
-
-// ─── the stack ──────────────────────────────────────────────────────────────
-// Cross-resource verifications (app traffic, the traceId flow) live on the stack;
-// each backend owns the parsing/polling behind an intention-revealing method, so
-// these read as intent. The self-contained Grafana checks live on the Grafana resource.
-
-export const observability = stack({
+export const observability = delorean({
   name: 'emmett-observability',
-  resources: [
-    sequence(compose, parallel(prom, graf, trc, log, collector), api),
-  ],
-  renderer: 'listr',
+  resources: {
+    compose: dockerCompose({
+      file: 'docker-compose.yml',
+      profile: 'observability',
+    }),
+    prom: prometheus({ url: URLS.prometheus }),
+    graf: grafana({ url: URLS.grafana }),
+    trc: tempo({ url: URLS.tempo }),
+    log: loki({ url: URLS.loki }),
+    collector: otelCollector({
+      url: URLS.otelCollectorMetrics,
+      logs: (lines) => compose.service('otel-collector').logs(lines),
+    }),
+    api: nodeWebApi({ url: URLS.app, service: SERVICE_NAME }),
+  },
+  pipeline: (r) =>
+    sequence(
+      r.compose,
+      parallel(r.prom, r.graf, r.trc, r.log, r.collector),
+      r.api,
+    ),
+  context: (): ObservabilityContext => ({ traceId: undefined }),
   dashboard: {
     title: 'Emmett observability stack is up',
     endpoints: {
@@ -98,37 +85,31 @@ export const observability = stack({
       'Ctrl-C tears the stack down.',
     ],
   },
-  verify: verifications({
-    returnsTraceId: {
-      name: 'successful command returns x-trace-id header',
-      verify: async () => {
-        const res = await api.http.post(CART_PATH, ADD_PRODUCT);
-        await expectResponse(res, 204, {
-          headers: { 'x-trace-id': /^[0-9a-f]{32}$/ },
-        });
+  verify: ({ api, prom, graf, trc, log, collector }, context) => [
+    verify('successful command returns x-trace-id header', async () => {
+      const res = await api.http.post(CART_PATH, ADD_PRODUCT);
+      await expectResponse(res, 204, {
+        headers: { 'x-trace-id': /^[0-9a-f]{32}$/ },
+      });
 
-        traceId = res.headers.get('x-trace-id')!;
-        console.log(`  trace ID: ${traceId}`);
-      },
-    },
-    collectorMetrics: {
-      name: 'OTel collector exposes Emmett metrics on port 8889',
-      verify: async () => {
-        // Send a few more requests so metrics are definitely recorded.
-        for (let i = 0; i < 5; i++) await api.http.post(CART_PATH, ADD_PRODUCT);
+      context.traceId = res.headers.get('x-trace-id')!;
+      console.log(`  trace ID: ${context.traceId}`);
+    }),
+    verify('OTel collector exposes Emmett metrics on port 8889', async () => {
+      // Send a few more requests so metrics are definitely recorded.
+      for (let i = 0; i < 5; i++) await api.http.post(CART_PATH, ADD_PRODUCT);
 
-        try {
-          await collector.metrics.waitFor('emmett_', { timeout: 90_000 });
-        } catch (err) {
-          await collector.diagnose('emmett_');
-          await collector.logs();
-          throw err;
-        }
-      },
-    },
-    scrapedMetrics: {
-      name: 'Prometheus has scraped Emmett metrics with non-zero rate',
-      verify: async () => {
+      try {
+        await collector.metrics.waitFor('emmett_', { timeout: 90_000 });
+      } catch (err) {
+        await collector.diagnose('emmett_');
+        await collector.logs();
+        throw err;
+      }
+    }),
+    verify(
+      'Prometheus has scraped Emmett metrics with non-zero rate',
+      async () => {
         // Keep sending traffic so rate() has data across scrape boundaries.
         const stop = api.http.traffic({
           method: 'POST',
@@ -148,61 +129,55 @@ export const observability = stack({
           stop();
         }
       },
-    },
-    tempoSpan: {
-      name: 'Tempo received the trace with command.handle span',
-      verify: async () => {
-        assertOk(traceId, 'traceId not set — x-trace-id test must pass first');
+    ),
+    verify('Tempo received the trace with command.handle span', async () => {
+      assertOk(
+        context.traceId,
+        'traceId not set — x-trace-id check must run first',
+      );
 
-        try {
-          const spans = await trc.traces.waitForSpan(
-            traceId,
-            'command.handle',
-            {
-              timeout: 30_000,
-            },
-          );
-          console.log(`\n  spans: ${spans.join(', ')}`);
-        } catch (err) {
-          console.error(`\n  ✗ trace not found in Tempo: ${traceId}`);
-          await collector.logs(20);
-          throw err;
-        }
-      },
-    },
-    lokiCorrelated: {
-      name: 'Loki received logs correlated to the service',
-      verify: async () => {
-        // Trigger the only explicit pino log in this sample — the MessageBus handler
-        // logs "Shopping Cart confirmed" via pino-opentelemetry-transport → OTel collector → Loki.
-        const confirmRes = await api.http.post(CONFIRM_PATH);
-        console.log(`  confirm status: ${confirmRes.status}`);
+      try {
+        const spans = await trc.traces.waitForSpan(
+          context.traceId,
+          'command.handle',
+          {
+            timeout: 30_000,
+          },
+        );
+        console.log(`\n  spans: ${spans.join(', ')}`);
+      } catch (err) {
+        console.error(`\n  ✗ trace not found in Tempo: ${context.traceId}`);
+        await collector.logs(20);
+        throw err;
+      }
+    }),
+    verify('Loki received logs correlated to the service', async () => {
+      // Trigger the only explicit pino log in this sample — the MessageBus handler
+      // logs "Shopping Cart confirmed" via pino-opentelemetry-transport → OTel collector → Loki.
+      const confirmRes = await api.http.post(CONFIRM_PATH);
+      console.log(`  confirm status: ${confirmRes.status}`);
 
-        try {
-          await log.logs.waitForService(SERVICE_NAME, { timeout: 30_000 });
-        } catch (err) {
-          await log.diagnose();
-          await collector.logs(15);
-          throw err;
-        }
-      },
-    },
-    grafanaDashboard: {
-      name: 'Grafana has Emmett dashboard provisioned',
-      verify: async () => {
-        const dashboards = await graf.api.searchDashboards('Emmett');
-        const found = dashboards.some((d) => d.uid === 'emmett-observability');
-        if (!found)
-          console.error(
-            `\n  ✗ dashboard not found. Grafana returned:\n  ${JSON.stringify(dashboards)}\n` +
-              '  Check docker/observability/grafana/dashboards.yml is mounted in docker-compose.yml',
-          );
-        assertOk(found, 'Emmett dashboard not provisioned in Grafana');
-      },
-    },
-    grafanaDatasource: {
-      name: 'Grafana Prometheus datasource returns Emmett metric data',
-      verify: async () => {
+      try {
+        await log.logs.waitForService(SERVICE_NAME, { timeout: 30_000 });
+      } catch (err) {
+        await log.diagnose();
+        await collector.logs(15);
+        throw err;
+      }
+    }),
+    verify('Grafana has Emmett dashboard provisioned', async () => {
+      const dashboards = await graf.api.searchDashboards('Emmett');
+      const found = dashboards.some((d) => d.uid === 'emmett-observability');
+      if (!found)
+        console.error(
+          `\n  ✗ dashboard not found. Grafana returned:\n  ${JSON.stringify(dashboards)}\n` +
+            '  Check docker/observability/grafana/dashboards.yml is mounted in docker-compose.yml',
+        );
+      assertOk(found, 'Emmett dashboard not provisioned in Grafana');
+    }),
+    verify(
+      'Grafana Prometheus datasource returns Emmett metric data',
+      async () => {
         const { ok, status, frames } = await graf.api.queryDatasource(
           'prometheus',
           `sum(rate(${COMMAND_METRIC}{service_name="${SERVICE_NAME}"}[5m]))`,
@@ -219,6 +194,6 @@ export const observability = stack({
           'No frames — Grafana datasource or metrics missing',
         );
       },
-    },
-  }),
+    ),
+  ],
 });

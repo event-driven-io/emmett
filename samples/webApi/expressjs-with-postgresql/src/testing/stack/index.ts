@@ -6,8 +6,8 @@ export type {
   LifecycleOptions,
   Renderer,
 } from './composition';
-export { verifications } from './verify';
-export type { Verification, Verify } from './verify';
+export { verify } from './verify';
+export type { Verification } from './verify';
 export { httpHealthCheck } from './healthCheck';
 export { getJson, fetchText, expectResponse } from './http';
 export { stack } from './stack';
