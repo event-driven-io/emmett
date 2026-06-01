@@ -17,6 +17,9 @@ type JSONSerializerOptions = {
 
 type JSONSerializeOptions = {
   replacer?: JSONReplacer;
+  format?: 'compact' | 'pretty';
+  safe?: boolean;
+  skipErrorSerialization?: boolean;
 } & JSONSerializerOptions;
 
 type JSONDeserializeOptions = {
@@ -94,6 +97,16 @@ const dateReplacer: JSONReplacer = (_key, value) => {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return value instanceof Date ? value.toISOString() : value;
 };
+
+const errorReplacer: JSONReplacer = (_key, value) =>
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  value instanceof Error
+    ? {
+        type: value.constructor.name || 'error',
+        message: value.message,
+        stack: value.stack,
+      }
+    : value;
 
 const isFirstLetterNumeric = (str: string): boolean => {
   const c = str.charCodeAt(0);
@@ -187,6 +200,7 @@ const JSONReplacer = (opts?: JSONSerializeOptions) =>
     opts?.replacer,
     opts?.failOnBigIntSerialization !== true ? JSONReplacers.bigInt : undefined,
     opts?.useDefaultDateSerialization !== true ? JSONReplacers.date : undefined,
+    opts?.skipErrorSerialization !== true ? JSONReplacers.error : undefined,
   );
 
 const JSONReviver = (opts?: JSONDeserializeOptions) =>
@@ -199,6 +213,7 @@ const JSONReviver = (opts?: JSONDeserializeOptions) =>
 const JSONReplacers = {
   bigInt: bigIntReplacer,
   date: dateReplacer,
+  error: errorReplacer,
 };
 
 const JSONRevivers = {
@@ -217,16 +232,31 @@ const jsonSerializer = (
 ): JSONSerializer => {
   const defaultReplacer = JSONReplacer(options);
   const defaultReviver = JSONReviver(options);
+  const defaultFormat = options?.format ?? 'compact';
+  const defaultSafe = options?.safe ?? false;
 
   return {
     serialize: <T>(
       object: T,
       serializerOptions?: JSONSerializeOptions,
-    ): string =>
-      JSON.stringify(
-        object,
-        serializerOptions ? JSONReplacer(serializerOptions) : defaultReplacer,
-      ),
+    ): string => {
+      const replacer = serializerOptions
+        ? JSONReplacer(serializerOptions)
+        : defaultReplacer;
+      const indent =
+        (serializerOptions?.format ?? defaultFormat) === 'pretty'
+          ? 2
+          : undefined;
+      const isSafe = serializerOptions?.safe ?? defaultSafe;
+      if (isSafe) {
+        try {
+          return JSON.stringify(object, replacer, indent);
+        } catch (e) {
+          return `{"__serializationError":${JSON.stringify(String(e))}}`;
+        }
+      }
+      return JSON.stringify(object, replacer, indent);
+    },
     deserialize: <T>(
       payload: string,
       deserializerOptions?: JSONDeserializeOptions,
@@ -299,6 +329,7 @@ const JSONCodec = <
 export {
   composeJSONReplacers,
   composeJSONRevivers,
+  errorReplacer,
   JSONCodec,
   JSONReplacer,
   JSONReplacers,

@@ -1,5 +1,5 @@
 import type { TracePropagation } from '../tracers';
-import type { CollectedSpan } from './collectedSpan';
+import type { CollectedSpan, LoggedEvent } from './collectedSpan';
 
 type SpanAssertions = {
   exists(): SpanAssertions;
@@ -11,6 +11,13 @@ type SpanAssertions = {
   hasCreationLinks(
     links: { traceId: string; spanId: string }[],
   ): SpanAssertions;
+  logged(
+    level: LoggedEvent['metadata']['level'],
+    msg?: string,
+    partialObj?: Record<string, unknown>,
+  ): SpanAssertions;
+  loggedCount(n: number): SpanAssertions;
+  noLogs(): SpanAssertions;
 };
 
 export type SpanCollectionAssertions = {
@@ -100,6 +107,50 @@ export const assertThatSpan = (
             `Expected span "${span.name}" to have creation link ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
           );
       }
+      return self;
+    },
+    logged(level, msg, partialObj) {
+      if (!span)
+        throw new Error('Expected span to have a log but span was not found');
+      const match = span.logs.find((r) => {
+        if (r.metadata.level !== level) return false;
+        if (msg !== undefined && r.data.body !== msg) return false;
+        if (partialObj !== undefined) {
+          const attributes = r.data.attributes;
+          if (!attributes) return false;
+          for (const [k, v] of Object.entries(partialObj)) {
+            if (JSON.stringify(attributes[k]) !== JSON.stringify(v))
+              return false;
+          }
+        }
+        return true;
+      });
+      if (!match)
+        throw new Error(
+          `Expected span "${span.name}" to have a "${level}" log${
+            msg ? ` with msg "${msg}"` : ''
+          }${
+            partialObj ? ` and obj ${JSON.stringify(partialObj)}` : ''
+          }. Logs: ${JSON.stringify(span.logs, null, 2)}`,
+        );
+      return self;
+    },
+    loggedCount(n) {
+      if (!span)
+        throw new Error('Expected span to have logs but span was not found');
+      if (span.logs.length !== n)
+        throw new Error(
+          `Expected span "${span.name}" to have ${n} log(s) but found ${span.logs.length}. Logs: ${JSON.stringify(span.logs, null, 2)}`,
+        );
+      return self;
+    },
+    noLogs() {
+      if (!span)
+        throw new Error('Expected span to have no logs but span was not found');
+      if (span.logs.length > 0)
+        throw new Error(
+          `Expected span "${span.name}" to have no logs but found ${span.logs.length}. Logs: ${JSON.stringify(span.logs, null, 2)}`,
+        );
       return self;
     },
   };

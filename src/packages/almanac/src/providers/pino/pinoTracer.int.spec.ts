@@ -1,6 +1,7 @@
 import pino from 'pino';
 import pinoTest from 'pino-test';
 import { describe, expect, it } from 'vitest';
+import { LogEvent } from '../../loggers/logger';
 import { ObservabilityScope } from '../../scopes/scope';
 import { pinoTracer } from './pinoTracer';
 
@@ -62,7 +63,12 @@ describe('pinoTracer', () => {
         'messaging.system': 'emmett',
         'emmett.stream.name': 'orders-stream',
       });
-      s.addEvent('command.validated', { 'emmett.command.type': 'PlaceOrder' });
+      s.log(
+        LogEvent.info(
+          { 'emmett.command.type': 'PlaceOrder' },
+          'command.validated',
+        ),
+      );
       s.setAttributes({ 'emmett.command.status': 'success', error: false });
       return Promise.resolve();
     });
@@ -111,9 +117,9 @@ describe('pinoTracer', () => {
           'emmett.command.status': 'failure',
           error: true,
           'exception.message': error.message,
-          'exception.type': 'Error',
+          'exception.type': 'error',
         });
-        s.recordException(error);
+        s.log(LogEvent.error(error));
         throw error;
       }),
     ).rejects.toThrow('stream version conflict');
@@ -140,7 +146,7 @@ describe('pinoTracer', () => {
           'emmett.command.status': 'failure',
           error: true,
           'exception.message': 'stream version conflict',
-          'exception.type': 'Error',
+          'exception.type': 'error',
           status: 'failure',
           durationMs: expect.any(Number) as unknown,
           err: expect.objectContaining({
@@ -357,13 +363,13 @@ describe('pinoTracer', () => {
     expect(ctx).toEqual({ traceId: '', spanId: '' });
   });
 
-  it('recordException with a string coerces to Error and emits pino.error', async () => {
+  it('LogEvent.error with an Error logs pino.error with err field', async () => {
     const stream = pinoTest.sink();
     const logger = pino(stream);
     const tracer = pinoTracer(logger);
 
     await tracer.startSpan('command.handle', (span) => {
-      span.recordException('unexpected state');
+      span.log(LogEvent.error(new Error('unexpected state')));
       return Promise.resolve();
     });
 
@@ -389,21 +395,23 @@ describe('pinoTracer', () => {
     ]);
   });
 
-  it('addEvent with level routes to the correct pino level', async () => {
+  it('log event level routes to the correct pino level', async () => {
     const stream = pinoTest.sink();
     const logger = pino({ level: 'trace' }, stream);
     const tracer = pinoTracer(logger);
 
     await tracer.startSpan('command.handle', (span) => {
-      span.addEvent(
-        'loading.state',
-        { 'emmett.stream.name': 'orders-stream' },
-        'debug',
+      span.log(
+        LogEvent.debug(
+          { 'emmett.stream.name': 'orders-stream' },
+          'loading.state',
+        ),
       );
-      span.addEvent(
-        'command.validated',
-        { 'emmett.command.type': 'PlaceOrder' },
-        'warn',
+      span.log(
+        LogEvent.warn(
+          { 'emmett.command.type': 'PlaceOrder' },
+          'command.validated',
+        ),
       );
       return Promise.resolve();
     });
@@ -431,6 +439,34 @@ describe('pinoTracer', () => {
           level: 30,
           status: 'success',
           durationMs: expect.any(Number) as unknown,
+        });
+      },
+    ]);
+  });
+
+  it('lifts the reserved eventName key into an eventName field', async () => {
+    const stream = pinoTest.sink();
+    const logger = pino(stream);
+    const tracer = pinoTracer(logger);
+
+    await tracer.startSpan('my-span', (span) => {
+      span.log(LogEvent.info({ eventName: 'user.registered', userId: 'u1' }));
+      return Promise.resolve();
+    });
+
+    await pinoTest.consecutive(stream, [
+      (received: Record<string, unknown>) => {
+        expect(received).toMatchObject({
+          eventName: 'user.registered',
+          userId: 'u1',
+          spanName: 'my-span',
+        });
+      },
+      (received: Record<string, unknown>) => {
+        expect(received).toMatchObject({
+          msg: 'my-span',
+          level: 30,
+          status: 'success',
         });
       },
     ]);

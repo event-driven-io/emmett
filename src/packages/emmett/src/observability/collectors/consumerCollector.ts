@@ -1,4 +1,5 @@
 import {
+  LogEvent,
   MessagingAttributes,
   noopScope,
   ObservabilityScope,
@@ -80,7 +81,7 @@ export const consumerCollector = (
             const result = await fn();
             return result;
           } catch (error) {
-            if (error instanceof Error) child.recordException(error);
+            if (error instanceof Error) child.log(LogEvent.error(error));
             throw error;
           } finally {
             deliveryDuration.record(Date.now() - start, {

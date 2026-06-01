@@ -33,7 +33,5 @@ const compositeSpan = (spans: ActiveSpan[]): ActiveSpan => ({
   setAttributes: (attrs) => spans.forEach((s) => s.setAttributes(attrs)),
   spanContext: () => (spans[0] ?? noopSpan).spanContext(),
   addLink: (link: SpanLink) => spans.forEach((s) => s.addLink(link)),
-  addEvent: (name, attributes) =>
-    spans.forEach((s) => s.addEvent(name, attributes)),
-  recordException: (error) => spans.forEach((s) => s.recordException(error)),
+  log: (event) => spans.forEach((s) => s.log(event)),
 });
