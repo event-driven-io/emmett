@@ -1,15 +1,21 @@
-import type { ActiveSpan, StartSpanOptions, Tracer } from '../../tracers';
-import { generateSpanId, generateTraceId, noopRecorder } from '../../tracers';
 import { JSONSerializer } from '../../serialization/json';
-import { consoleSpanRecorder, type ConsoleMode } from './consoleSpanRecorder';
+import type {
+  ActiveSpan,
+  RecordLevel,
+  StartSpanOptions,
+  Tracer,
+} from '../../tracers';
+import { generateSpanId, generateTraceId, noopRecorder } from '../../tracers';
+import { consoleSpanRecorder, type ConsoleFormat } from './consoleSpanRecorder';
 
 export type ConsoleTracerOptions = {
-  mode?: ConsoleMode;
+  mode?: ConsoleFormat;
   suppressRecords?: boolean;
+  recordLevel?: RecordLevel;
 };
 
 export const consoleTracer = (options?: ConsoleTracerOptions): Tracer => {
-  const mode = options?.mode ?? 'ndjson';
+  const mode = options?.mode ?? 'compact';
   const suppressRecords = options?.suppressRecords ?? false;
 
   return {
@@ -27,7 +33,12 @@ export const consoleTracer = (options?: ConsoleTracerOptions): Tracer => {
         spanContext: () => ({ traceId, spanId }),
         setAttributes: (attrs) => Object.assign(attributes, attrs),
         addLink: () => {},
-        record: !suppressRecords ? consoleSpanRecorder({ mode }) : noopRecorder,
+        record: !suppressRecords
+          ? consoleSpanRecorder({
+              format: mode,
+              recordLevel: options?.recordLevel,
+            })
+          : noopRecorder,
       };
 
       let ok = true;

@@ -1,11 +1,22 @@
-import type { RecordLevel } from '../../testing/collectedSpan';
-import type { RecordFn, SpanRecorder } from '../../tracers/logger';
 import { JSONSerializer } from '../../serialization/json';
+import type { RecordLevel } from '../../tracers/logger';
+import {
+  shouldRecord,
+  type RecordFn,
+  type SpanRecorder,
+} from '../../tracers/logger';
 
-export type ConsoleMode = 'ndjson' | 'pretty' | 'simple';
+export type ConsoleFormat = 'compact' | 'pretty' | 'simple';
+
+export const ConsoleFormat = {
+  compact: 'compact' as ConsoleFormat,
+  pretty: 'pretty' as ConsoleFormat,
+  SIMPLE: 'simple' as ConsoleFormat,
+};
 
 export type ConsoleSpanRecorderOptions = {
-  mode?: ConsoleMode;
+  format?: ConsoleFormat;
+  recordLevel?: RecordLevel;
 };
 
 const buildEntry = (
@@ -17,7 +28,9 @@ const buildEntry = (
     return { level, msg: msgOrObj };
   }
   const entry: Record<string, unknown> = { level };
+
   if (msg !== undefined) entry.msg = msg;
+
   if (msgOrObj instanceof Error) {
     entry.error = msgOrObj;
   } else {
@@ -40,36 +53,34 @@ const formatSimple = (
 export const consoleSpanRecorder = (
   options?: ConsoleSpanRecorderOptions,
 ): SpanRecorder => {
-  const mode = options?.mode ?? 'ndjson';
+  const format: ConsoleFormat = options?.format ?? 'compact';
 
-  const makeRecordFn = (level: RecordLevel): RecordFn => {
-    const fn = (
-      msgOrObj: string | Record<string, unknown> | Error,
-      msg?: string,
-    ) => {
-      if (level === 'silent') return;
-      if (mode === 'simple') {
-        console.log(formatSimple(level, msgOrObj, msg));
-      } else {
-        const entry = buildEntry(level, msgOrObj, msg);
-        console.log(
-          JSONSerializer.serialize(entry, {
-            format: mode === 'pretty' ? 'pretty' : 'compact',
-            safe: true,
-          }),
-        );
-      }
-    };
-    return fn;
+  const logRecord = (level: RecordLevel): RecordFn => {
+    if (level === 'silent' || !shouldRecord(level, options?.recordLevel))
+      return () => {};
+
+    if (format === 'simple')
+      return (
+        msgOrObj: string | Record<string, unknown> | Error,
+        msg?: string,
+      ) => console.log(formatSimple(level, msgOrObj, msg));
+
+    return (msgOrObj: string | Record<string, unknown> | Error, msg?: string) =>
+      console.log(
+        JSONSerializer.serialize(buildEntry(level, msgOrObj, msg), {
+          format,
+          safe: true,
+        }),
+      );
   };
 
   return {
-    fatal: makeRecordFn('fatal'),
-    error: makeRecordFn('error'),
-    warn: makeRecordFn('warn'),
-    info: makeRecordFn('info'),
-    debug: makeRecordFn('debug'),
-    trace: makeRecordFn('trace'),
-    silent: makeRecordFn('silent'),
+    fatal: logRecord('fatal'),
+    error: logRecord('error'),
+    warn: logRecord('warn'),
+    info: logRecord('info'),
+    debug: logRecord('debug'),
+    trace: logRecord('trace'),
+    silent: logRecord('silent'),
   };
 };

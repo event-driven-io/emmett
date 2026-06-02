@@ -102,7 +102,7 @@ const errorReplacer: JSONReplacer = (_key, value) =>
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   value instanceof Error
     ? {
-        type: value.constructor.name || 'Error',
+        type: value.constructor.name || 'error',
         message: value.message,
         stack: value.stack,
       }

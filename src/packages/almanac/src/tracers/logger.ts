@@ -17,6 +17,74 @@ export type Logger = SpanRecorder;
 
 export type RecordMode = 'span-events' | 'logs';
 
+export type RecordLevel =
+  | 'silent'
+  | 'trace'
+  | 'debug'
+  | 'info'
+  | 'warn'
+  | 'error'
+  | 'fatal';
+
+export type LogLevel = RecordLevel;
+
+export const RecordLevel = {
+  default: 'info' as RecordLevel,
+  silent: 'silent' as RecordLevel,
+  trace: 'trace' as RecordLevel,
+  debug: 'debug' as RecordLevel,
+  info: 'info' as RecordLevel,
+  warn: 'warn' as RecordLevel,
+  error: 'error' as RecordLevel,
+  fatal: 'fatal' as RecordLevel,
+};
+
+export const LogLevel = RecordLevel;
+
+export const shouldRecord = (
+  logLevel: RecordLevel,
+  definedRecordLevel: RecordLevel | undefined,
+): boolean => {
+  definedRecordLevel ??= definedRecordLevel ?? RecordLevel.default;
+
+  switch (definedRecordLevel) {
+    case 'fatal':
+      return logLevel === RecordLevel.fatal;
+    case 'error':
+      return [RecordLevel.fatal, RecordLevel.error].includes(logLevel);
+    case 'warn':
+      return [RecordLevel.fatal, RecordLevel.error, RecordLevel.warn].includes(
+        logLevel,
+      );
+    case 'info':
+      return [
+        RecordLevel.fatal,
+        RecordLevel.error,
+        RecordLevel.warn,
+        RecordLevel.info,
+      ].includes(logLevel);
+    case 'debug':
+      return [
+        RecordLevel.fatal,
+        RecordLevel.error,
+        RecordLevel.warn,
+        RecordLevel.info,
+        RecordLevel.debug,
+      ].includes(logLevel);
+    case 'trace':
+      return [
+        RecordLevel.fatal,
+        RecordLevel.error,
+        RecordLevel.warn,
+        RecordLevel.info,
+        RecordLevel.debug,
+        RecordLevel.trace,
+      ].includes(logLevel);
+    case 'silent':
+      return false;
+  }
+};
+
 export const noopRecorder: SpanRecorder = {
   fatal: () => {},
   error: () => {},

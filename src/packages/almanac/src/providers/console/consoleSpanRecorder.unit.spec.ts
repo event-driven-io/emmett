@@ -20,9 +20,11 @@ describe('consoleSpanRecorder', () => {
     vi.restoreAllMocks();
   });
 
-  describe('ndjson mode (default)', () => {
+  describe('compact mode (default)', () => {
     it('writes compact JSON line for string message', () => {
-      const recorder = consoleSpanRecorder();
+      const recorder = consoleSpanRecorder({
+        recordLevel: 'info',
+      });
       recorder.info('hello');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
@@ -32,7 +34,9 @@ describe('consoleSpanRecorder', () => {
     });
 
     it('output has no newlines', () => {
-      const recorder = consoleSpanRecorder();
+      const recorder = consoleSpanRecorder({
+        recordLevel: 'info',
+      });
       recorder.info('test');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
@@ -40,7 +44,9 @@ describe('consoleSpanRecorder', () => {
     });
 
     it('spreads object fields into JSON entry', () => {
-      const recorder = consoleSpanRecorder();
+      const recorder = consoleSpanRecorder({
+        recordLevel: 'info',
+      });
       recorder.info({ count: 5 }, 'event');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
@@ -69,10 +75,15 @@ describe('consoleSpanRecorder', () => {
     });
   });
 
-  describe('ndjson mode (explicit)', () => {
+  describe('compact mode (explicit)', () => {
     it('produces same output as default mode', () => {
-      const recorderDefault = consoleSpanRecorder();
-      const recorderExplicit = consoleSpanRecorder({ mode: 'ndjson' });
+      const recorderDefault = consoleSpanRecorder({
+        recordLevel: 'info',
+      });
+      const recorderExplicit = consoleSpanRecorder({
+        format: 'compact',
+        recordLevel: 'info',
+      });
 
       recorderDefault.info('same');
       recorderExplicit.info('same');
@@ -85,7 +96,10 @@ describe('consoleSpanRecorder', () => {
 
   describe('pretty mode', () => {
     it('writes JSON with indentation', () => {
-      const recorder = consoleSpanRecorder({ mode: 'pretty' });
+      const recorder = consoleSpanRecorder({
+        format: 'pretty',
+        recordLevel: 'info',
+      });
       recorder.info('hello');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
@@ -98,7 +112,10 @@ describe('consoleSpanRecorder', () => {
 
   describe('simple mode', () => {
     it('writes [level] message for string', () => {
-      const recorder = consoleSpanRecorder({ mode: 'simple' });
+      const recorder = consoleSpanRecorder({
+        format: 'simple',
+        recordLevel: 'info',
+      });
       recorder.info('hello simple');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
@@ -106,7 +123,10 @@ describe('consoleSpanRecorder', () => {
     });
 
     it('writes [level] message for object with msg', () => {
-      const recorder = consoleSpanRecorder({ mode: 'simple' });
+      const recorder = consoleSpanRecorder({
+        format: 'simple',
+        recordLevel: 'warn',
+      });
       recorder.warn({ foo: 'bar' }, 'something');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
@@ -114,7 +134,10 @@ describe('consoleSpanRecorder', () => {
     });
 
     it('writes [level] for object without msg', () => {
-      const recorder = consoleSpanRecorder({ mode: 'simple' });
+      const recorder = consoleSpanRecorder({
+        format: 'simple',
+        recordLevel: 'debug',
+      });
       recorder.debug({ foo: 'bar' });
 
       const [output] = consoleSpy.mock.calls[0] as [string];
@@ -134,7 +157,7 @@ describe('consoleSpanRecorder', () => {
 
     for (const level of levels) {
       it(`records ${level} level`, () => {
-        const recorder = consoleSpanRecorder();
+        const recorder = consoleSpanRecorder({ recordLevel: level });
         recorder[level](`${level} message`);
 
         const [output] = consoleSpy.mock.calls[0] as [string];

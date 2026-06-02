@@ -1,13 +1,4 @@
-import type { SpanLink, StartSpanOptions } from '../tracers';
-
-export type RecordLevel =
-  | 'fatal'
-  | 'error'
-  | 'warn'
-  | 'info'
-  | 'debug'
-  | 'trace'
-  | 'silent';
+import type { RecordLevel, SpanLink, StartSpanOptions } from '../tracers';
 
 export type RecordedEntry = {
   level: RecordLevel;

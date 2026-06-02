@@ -68,7 +68,7 @@ describe('consoleTracer', () => {
 
   describe('records emitted inline by default', () => {
     it('emits records inline before the span summary', async () => {
-      const tracer = consoleTracer();
+      const tracer = consoleTracer({ recordLevel: 'info' });
       await tracer.startSpan('my-span', (span) => {
         span.record.info('hello from span');
         return Promise.resolve();

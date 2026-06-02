@@ -98,7 +98,7 @@ describe('otelTracer integration', () => {
           'emmett.command.status': 'failure',
           error: true,
           'exception.message': error.message,
-          'exception.type': 'Error',
+          'exception.type': 'error',
         });
         s.record.error(error);
         return Promise.reject(error);
@@ -116,7 +116,7 @@ describe('otelTracer integration', () => {
         'emmett.command.status': 'failure',
         error: true,
         'exception.message': 'stream version conflict',
-        'exception.type': 'Error',
+        'exception.type': 'error',
       })
       .hasStatus(SpanStatusCode.ERROR, 'stream version conflict')
       .hasEvent('exception');

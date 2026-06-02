@@ -114,7 +114,7 @@ describe('pinoTracer', () => {
           'emmett.command.status': 'failure',
           error: true,
           'exception.message': error.message,
-          'exception.type': 'Error',
+          'exception.type': 'error',
         });
         s.record.error(error);
         throw error;
@@ -143,7 +143,7 @@ describe('pinoTracer', () => {
           'emmett.command.status': 'failure',
           error: true,
           'exception.message': 'stream version conflict',
-          'exception.type': 'Error',
+          'exception.type': 'error',
           status: 'failure',
           durationMs: expect.any(Number) as unknown,
           err: expect.objectContaining({
