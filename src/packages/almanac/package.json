@@ -80,10 +80,14 @@
   ],
   "peerDependencies": {
     "@opentelemetry/api": "^1.9.1",
-    "pino": ">=10.3.1"
+    "@opentelemetry/api-logs": "^0.218.0",
+    "pino": "^10.3.1"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/api": {
+      "optional": true
+    },
+    "@opentelemetry/api-logs": {
       "optional": true
     },
     "pino": {
@@ -91,14 +95,13 @@
     }
   },
   "optionalDependencies": {
-    "@opentelemetry/api": "^1.9.1"
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.218.0",
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "@opentelemetry/context-async-hooks": "^2.7.0",
-    "pino": "^10.3.1",
     "pino-test": "^2.0.0"
   },
-  "dependencies": {
-    "@opentelemetry/api-logs": "^0.218.0"
-  }
+  "dependencies": {}
 }
