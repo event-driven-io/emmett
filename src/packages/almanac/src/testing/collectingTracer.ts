@@ -34,7 +34,7 @@ export const collectingTracer = (): CollectingTracer => {
         setAttributes: (attrs) => Object.assign(collected.attributes, attrs),
         spanContext: () => ({ traceId, spanId }),
         addLink: (link) => collected.links.push(link),
-        record: logger({
+        log: logger({
           minLevel: 'trace',
           event: (e) => collected.logs.push(e),
         }),

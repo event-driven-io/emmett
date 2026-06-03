@@ -31,7 +31,7 @@ export type ObservabilityScope = {
     fn: (child: ObservabilityScope) => Promise<T>,
     options?: ScopeOptions,
   ): Promise<T>;
-  record: Logger;
+  log: Logger;
   addLink(link: SpanLink): void;
   spanContext(): SpanContext;
 };
@@ -82,7 +82,7 @@ const makeScope = (
         propagation: childOpts?.propagation ?? observability.propagation,
       },
     ),
-  record: span.record,
+  log: span.log,
   addLink: (link) => span.addLink(link),
   spanContext: () => span.spanContext(),
 });
@@ -90,7 +90,7 @@ const makeScope = (
 export const noopScope: ObservabilityScope = {
   setAttributes: () => {},
   scope: async (_name, fn) => fn(noopScope),
-  record: noopLogger,
+  log: noopLogger,
   addLink: () => {},
   spanContext: () => noopSpan.spanContext(),
 };

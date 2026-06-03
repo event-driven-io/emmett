@@ -90,7 +90,7 @@ describe('ObservabilityScope', () => {
     const o11y = defaultObservability({ tracer });
 
     await ObservabilityScope(o11y).startScope('root', (scope) => {
-      scope.record.info({ key: 'val' }, 'test');
+      scope.log.info({ key: 'val' }, 'test');
       return Promise.resolve();
     });
 
@@ -105,7 +105,7 @@ describe('ObservabilityScope', () => {
     const error = new Error('boom');
 
     await ObservabilityScope(o11y).startScope('root', (scope) => {
-      scope.record.error(error, 'boom');
+      scope.log.error(error, 'boom');
       return Promise.resolve();
     });
 

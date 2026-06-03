@@ -1,2 +1,2 @@
-export * from './consoleSpanRecorder';
+export * from './consoleSpanLogger';
 export * from './consoleTracer';

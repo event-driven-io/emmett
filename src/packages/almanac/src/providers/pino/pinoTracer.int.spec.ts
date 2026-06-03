@@ -62,10 +62,7 @@ describe('pinoTracer', () => {
         'messaging.system': 'emmett',
         'emmett.stream.name': 'orders-stream',
       });
-      s.record.info(
-        { 'emmett.command.type': 'PlaceOrder' },
-        'command.validated',
-      );
+      s.log.info({ 'emmett.command.type': 'PlaceOrder' }, 'command.validated');
       s.setAttributes({ 'emmett.command.status': 'success', error: false });
       return Promise.resolve();
     });
@@ -116,7 +113,7 @@ describe('pinoTracer', () => {
           'exception.message': error.message,
           'exception.type': 'error',
         });
-        s.record.error(error);
+        s.log.error(error);
         throw error;
       }),
     ).rejects.toThrow('stream version conflict');
@@ -366,7 +363,7 @@ describe('pinoTracer', () => {
     const tracer = pinoTracer(logger);
 
     await tracer.startSpan('command.handle', (span) => {
-      span.record.error(new Error('unexpected state'));
+      span.log.error(new Error('unexpected state'));
       return Promise.resolve();
     });
 
@@ -398,11 +395,11 @@ describe('pinoTracer', () => {
     const tracer = pinoTracer(logger);
 
     await tracer.startSpan('command.handle', (span) => {
-      span.record.debug(
+      span.log.debug(
         { 'emmett.stream.name': 'orders-stream' },
         'loading.state',
       );
-      span.record.warn(
+      span.log.warn(
         { 'emmett.command.type': 'PlaceOrder' },
         'command.validated',
       );
@@ -443,7 +440,7 @@ describe('pinoTracer', () => {
     const tracer = pinoTracer(logger);
 
     await tracer.startSpan('my-span', (span) => {
-      span.record.info({ eventName: 'user.registered', userId: 'u1' });
+      span.log.info({ eventName: 'user.registered', userId: 'u1' });
       return Promise.resolve();
     });
 

@@ -88,7 +88,7 @@ describe('otelTracer', () => {
   it('lifts the reserved eventName key into the emitted log record', async () => {
     const tracer = otelTracer();
     await tracer.startSpan('test-span', (span) => {
-      span.record.info({ eventName: 'user.registered', userId: 'u1' });
+      span.log.info({ eventName: 'user.registered', userId: 'u1' });
       return Promise.resolve();
     });
 

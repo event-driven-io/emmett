@@ -1,18 +1,18 @@
 import { JSONSerializer } from '../../serialization/json';
 import type {
   ActiveSpan,
-  RecordLevel,
+  LogLevel,
   SpanLink,
   StartSpanOptions,
   Tracer,
 } from '../../tracers';
 import { generateSpanId, generateTraceId, noopLogger } from '../../tracers';
-import { consoleSpanRecorder, type ConsoleFormat } from './consoleSpanRecorder';
+import { consoleSpanLogger, type ConsoleFormat } from './consoleSpanLogger';
 
 export type ConsoleTracerOptions = {
   mode?: ConsoleFormat;
   suppressRecords?: boolean;
-  recordLevel?: RecordLevel;
+  recordLevel?: LogLevel;
 };
 
 export const consoleTracer = (options?: ConsoleTracerOptions): Tracer => {
@@ -37,8 +37,8 @@ export const consoleTracer = (options?: ConsoleTracerOptions): Tracer => {
         spanContext: () => ({ traceId, spanId }),
         setAttributes: (attrs) => Object.assign(attributes, attrs),
         addLink: (link) => links.push(link),
-        record: !suppressRecords
-          ? consoleSpanRecorder({
+        log: !suppressRecords
+          ? consoleSpanLogger({
               format: mode,
               recordLevel: options?.recordLevel,
               traceId,

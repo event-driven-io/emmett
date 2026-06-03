@@ -1,5 +1,5 @@
 import { JSONSerializer } from '../../serialization/json';
-import type { Attributes, LogEvent, RecordLevel } from '../../tracers/logger';
+import type { Attributes, LogEvent, LogLevel } from '../../tracers/logger';
 import { logger, type Logger } from '../../tracers/logger';
 
 export type ConsoleFormat = 'compact' | 'pretty' | 'simple';
@@ -10,9 +10,9 @@ export const ConsoleFormat = {
   SIMPLE: 'simple' as ConsoleFormat,
 };
 
-export type ConsoleSpanRecorderOptions = {
+export type ConsoleSpanLoggerOptions = {
   format?: ConsoleFormat;
-  recordLevel?: RecordLevel;
+  recordLevel?: LogLevel;
   traceId?: string;
   spanId?: string;
 };
@@ -41,8 +41,8 @@ const toOtelRecord = (
   };
 };
 
-export const consoleSpanRecorder = (
-  options?: ConsoleSpanRecorderOptions,
+export const consoleSpanLogger = (
+  options?: ConsoleSpanLoggerOptions,
 ): Logger => {
   const format: ConsoleFormat = options?.format ?? 'compact';
   const span = { traceId: options?.traceId, spanId: options?.spanId };

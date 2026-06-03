@@ -7,7 +7,7 @@ import {
   it,
   vi,
 } from 'vitest';
-import { consoleSpanRecorder } from './consoleSpanRecorder';
+import { consoleSpanLogger } from './consoleSpanLogger';
 
 type OtelRecord = {
   timestamp: number;
@@ -20,7 +20,7 @@ type OtelRecord = {
   attributes?: Record<string, unknown>;
 };
 
-describe('consoleSpanRecorder', () => {
+describe('consoleSpanLogger', () => {
   let consoleSpy!: MockInstance<typeof console.log>;
 
   beforeEach(() => {
@@ -33,7 +33,7 @@ describe('consoleSpanRecorder', () => {
 
   describe('compact mode (default)', () => {
     it('writes an OTel-shaped record for a string message', () => {
-      const recorder = consoleSpanRecorder({ recordLevel: 'info' });
+      const recorder = consoleSpanLogger({ recordLevel: 'info' });
       recorder.info('hello');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
@@ -45,7 +45,7 @@ describe('consoleSpanRecorder', () => {
     });
 
     it('output has no newlines', () => {
-      const recorder = consoleSpanRecorder({ recordLevel: 'info' });
+      const recorder = consoleSpanLogger({ recordLevel: 'info' });
       recorder.info('test');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
@@ -53,7 +53,7 @@ describe('consoleSpanRecorder', () => {
     });
 
     it('keeps object fields under attributes with the message as body', () => {
-      const recorder = consoleSpanRecorder({ recordLevel: 'info' });
+      const recorder = consoleSpanLogger({ recordLevel: 'info' });
       recorder.info({ count: 5 }, 'event');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
@@ -63,7 +63,7 @@ describe('consoleSpanRecorder', () => {
     });
 
     it('lifts the reserved eventName key into the EventName field', () => {
-      const recorder = consoleSpanRecorder({ recordLevel: 'info' });
+      const recorder = consoleSpanLogger({ recordLevel: 'info' });
       recorder.info({ eventName: 'user.registered', userId: 'u1' });
 
       const [output] = consoleSpy.mock.calls[0] as [string];
@@ -74,7 +74,7 @@ describe('consoleSpanRecorder', () => {
     });
 
     it('maps an Error to exception.* attributes', () => {
-      const recorder = consoleSpanRecorder();
+      const recorder = consoleSpanLogger();
       recorder.error(new Error('boom'), 'oh no');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
@@ -86,7 +86,7 @@ describe('consoleSpanRecorder', () => {
     });
 
     it('carries the span trace_id and span_id when provided', () => {
-      const recorder = consoleSpanRecorder({
+      const recorder = consoleSpanLogger({
         recordLevel: 'info',
         traceId: 'a'.repeat(32),
         spanId: 'b'.repeat(16),
@@ -102,8 +102,8 @@ describe('consoleSpanRecorder', () => {
 
   describe('compact mode (explicit)', () => {
     it('produces same output as default mode', () => {
-      const recorderDefault = consoleSpanRecorder({ recordLevel: 'info' });
-      const recorderExplicit = consoleSpanRecorder({
+      const recorderDefault = consoleSpanLogger({ recordLevel: 'info' });
+      const recorderExplicit = consoleSpanLogger({
         format: 'compact',
         recordLevel: 'info',
       });
@@ -119,7 +119,7 @@ describe('consoleSpanRecorder', () => {
 
   describe('pretty mode', () => {
     it('writes JSON with indentation', () => {
-      const recorder = consoleSpanRecorder({
+      const recorder = consoleSpanLogger({
         format: 'pretty',
         recordLevel: 'info',
       });
@@ -134,7 +134,7 @@ describe('consoleSpanRecorder', () => {
 
   describe('simple mode', () => {
     it('writes [level] message for string', () => {
-      const recorder = consoleSpanRecorder({
+      const recorder = consoleSpanLogger({
         format: 'simple',
         recordLevel: 'info',
       });
@@ -145,7 +145,7 @@ describe('consoleSpanRecorder', () => {
     });
 
     it('writes [level] message for object with msg', () => {
-      const recorder = consoleSpanRecorder({
+      const recorder = consoleSpanLogger({
         format: 'simple',
         recordLevel: 'warn',
       });
@@ -156,7 +156,7 @@ describe('consoleSpanRecorder', () => {
     });
 
     it('falls back to the eventName when no message is given', () => {
-      const recorder = consoleSpanRecorder({
+      const recorder = consoleSpanLogger({
         format: 'simple',
         recordLevel: 'debug',
       });
@@ -167,7 +167,7 @@ describe('consoleSpanRecorder', () => {
     });
 
     it('writes [level] for object without msg or eventName', () => {
-      const recorder = consoleSpanRecorder({
+      const recorder = consoleSpanLogger({
         format: 'simple',
         recordLevel: 'debug',
       });
@@ -190,7 +190,7 @@ describe('consoleSpanRecorder', () => {
 
     for (const level of levels) {
       it(`records ${level} level`, () => {
-        const recorder = consoleSpanRecorder({ recordLevel: level });
+        const recorder = consoleSpanLogger({ recordLevel: level });
         recorder[level](`${level} message`);
 
         const [output] = consoleSpy.mock.calls[0] as [string];
@@ -200,7 +200,7 @@ describe('consoleSpanRecorder', () => {
     }
 
     it('silent produces no output', () => {
-      const recorder = consoleSpanRecorder();
+      const recorder = consoleSpanLogger();
       recorder.silent('hidden');
 
       assert.strictEqual(consoleSpy.mock.calls.length, 0);

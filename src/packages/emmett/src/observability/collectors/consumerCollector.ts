@@ -80,7 +80,7 @@ export const consumerCollector = (
             const result = await fn();
             return result;
           } catch (error) {
-            if (error instanceof Error) child.record.error(error);
+            if (error instanceof Error) child.log.error(error);
             throw error;
           } finally {
             deliveryDuration.record(Date.now() - start, {

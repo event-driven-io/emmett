@@ -4,7 +4,7 @@ import {
   consoleLogger,
   logEvent,
   logger,
-  noopRecorder,
+  noopLogger,
   severityNumberFor,
   severityTextFor,
   shouldLog,
@@ -119,7 +119,7 @@ describe('logger', () => {
   });
 });
 
-describe('noopRecorder', () => {
+describe('noopLogger', () => {
   it('exposes all 7 levels without throwing', () => {
     const levels = [
       'fatal',
@@ -131,13 +131,11 @@ describe('noopRecorder', () => {
       'silent',
     ] as const;
     for (const level of levels) {
-      expect(() => noopRecorder[level]('message')).not.toThrow();
+      expect(() => noopLogger[level]('message')).not.toThrow();
       expect(() =>
-        noopRecorder[level]({ key: 'value' }, 'message'),
+        noopLogger[level]({ key: 'value' }, 'message'),
       ).not.toThrow();
-      expect(() =>
-        noopRecorder[level](new Error('boom'), 'oops'),
-      ).not.toThrow();
+      expect(() => noopLogger[level](new Error('boom'), 'oops')).not.toThrow();
     }
   });
 });

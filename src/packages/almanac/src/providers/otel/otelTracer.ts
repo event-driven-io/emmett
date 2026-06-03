@@ -8,10 +8,10 @@ import {
 import type { AnyValueMap } from '@opentelemetry/api-logs';
 import { logs, SeverityNumber } from '@opentelemetry/api-logs';
 import type { ActiveSpan, StartSpanOptions, Tracer } from '../../tracers';
-import type { LogEvent, Logger, RecordLevel } from '../../tracers/logger';
+import type { LogEvent, Logger, LogLevel } from '../../tracers/logger';
 import { logEvent, logger } from '../../tracers/logger';
 
-const severityNumbers: Record<RecordLevel, SeverityNumber> = {
+const severityNumbers: Record<LogLevel, SeverityNumber> = {
   fatal: SeverityNumber.FATAL,
   error: SeverityNumber.ERROR,
   warn: SeverityNumber.WARN,
@@ -23,7 +23,7 @@ const severityNumbers: Record<RecordLevel, SeverityNumber> = {
 
 export const otelTracer = (
   tracerName = 'almanac',
-  tracerOptions?: { logger?: Logger; minLevel?: RecordLevel },
+  tracerOptions?: { logger?: Logger; minLevel?: LogLevel },
 ): Tracer => ({
   startSpan: async <T>(
     name: string,
@@ -85,7 +85,7 @@ export const otelTracer = (
         });
       };
 
-      const record: Logger =
+      const log: Logger =
         tracerOptions?.logger ??
         logger({ event: emit, minLevel: tracerOptions?.minLevel });
 
@@ -105,7 +105,7 @@ export const otelTracer = (
           // No-op for OTel — links are passed at creation time via SpanOptions.
           // Non-OTel strategies (ClickHouse, Pino) can still accept addLink after creation.
         },
-        record,
+        log,
       };
       try {
         const result = await fn(span);

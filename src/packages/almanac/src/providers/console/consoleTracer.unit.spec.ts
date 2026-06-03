@@ -96,7 +96,7 @@ describe('consoleTracer', () => {
     it('emits records inline before the span summary', async () => {
       const tracer = consoleTracer({ recordLevel: 'info' });
       await tracer.startSpan('my-span', (span) => {
-        span.record.info('hello from span');
+        span.log.info('hello from span');
         return Promise.resolve();
       });
 
@@ -113,7 +113,7 @@ describe('consoleTracer', () => {
     it('records carry the span trace_id and span_id', async () => {
       const tracer = consoleTracer({ recordLevel: 'info' });
       await tracer.startSpan('my-span', (span) => {
-        span.record.info('hello from span');
+        span.log.info('hello from span');
         return Promise.resolve();
       });
 
@@ -133,7 +133,7 @@ describe('consoleTracer', () => {
     it('suppresses records, only emits span summary', async () => {
       const tracer = consoleTracer({ suppressRecords: true });
       await tracer.startSpan('my-span', (span) => {
-        span.record.info('this should not appear');
+        span.log.info('this should not appear');
         return Promise.resolve();
       });
 

@@ -1,4 +1,4 @@
-import type { SerializationCodec, Serializer } from './serializer';
+import type { SerializationCodec, Serializer } from '../serializer';
 
 interface JSONSerializer<
   SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,

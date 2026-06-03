@@ -57,7 +57,7 @@ describe('otelTracer integration', () => {
         'messaging.destination.name': 'orders-stream',
         'emmett.stream.name': 'orders-stream',
       });
-      s.record.info({
+      s.log.info({
         eventName: 'command.validated',
         'emmett.command.type': 'PlaceOrder',
       });
@@ -122,7 +122,7 @@ describe('otelTracer integration', () => {
           'exception.message': error.message,
           'exception.type': 'error',
         });
-        s.record.error(error);
+        s.log.error(error);
         return Promise.reject(error);
       }),
     ).rejects.toThrow('stream version conflict');
@@ -582,9 +582,9 @@ describe('otelTracer integration', () => {
     });
 
     await tracer.startSpan('my-span', (span) => {
-      span.record.info({ userId: 'u1' }, 'user.registered');
-      span.record.warn('degraded');
-      span.record.error(new Error('boom'));
+      span.log.info({ userId: 'u1' }, 'user.registered');
+      span.log.warn('degraded');
+      span.log.error(new Error('boom'));
       return Promise.resolve();
     });
 
@@ -603,7 +603,7 @@ describe('otelTracer integration', () => {
     const tracer = otelTracer('almanac-integration');
 
     await tracer.startSpan('my-span', (span) => {
-      span.record.info({ userId: 'u1' }, 'user.registered');
+      span.log.info({ userId: 'u1' }, 'user.registered');
       return Promise.resolve();
     });
 

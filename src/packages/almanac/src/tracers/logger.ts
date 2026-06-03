@@ -1,21 +1,4 @@
-export type RecordFn = {
-  (msg: string): void;
-  (obj: Record<string, unknown> | Error, msg?: string): void;
-};
-
-export type SpanRecorder = {
-  fatal: RecordFn;
-  error: RecordFn;
-  warn: RecordFn;
-  info: RecordFn;
-  debug: RecordFn;
-  trace: RecordFn;
-  silent: RecordFn;
-};
-
-export type RecordMode = 'span-events' | 'logs';
-
-export type RecordLevel =
+export type LogLevel =
   | 'silent'
   | 'trace'
   | 'debug'
@@ -24,66 +7,58 @@ export type RecordLevel =
   | 'error'
   | 'fatal';
 
-export type LogLevel = RecordLevel;
-
-export const RecordLevel = {
-  default: 'info' as RecordLevel,
-  silent: 'silent' as RecordLevel,
-  trace: 'trace' as RecordLevel,
-  debug: 'debug' as RecordLevel,
-  info: 'info' as RecordLevel,
-  warn: 'warn' as RecordLevel,
-  error: 'error' as RecordLevel,
-  fatal: 'fatal' as RecordLevel,
+export const LogLevel = {
+  default: 'info' as LogLevel,
+  silent: 'silent' as LogLevel,
+  trace: 'trace' as LogLevel,
+  debug: 'debug' as LogLevel,
+  info: 'info' as LogLevel,
+  warn: 'warn' as LogLevel,
+  error: 'error' as LogLevel,
+  fatal: 'fatal' as LogLevel,
 };
 
-export const LogLevel = RecordLevel;
-
 export const shouldLog = (
-  logLevel: RecordLevel,
-  definedRecordLevel: RecordLevel | undefined,
+  logLevel: LogLevel,
+  definedLogLevel: LogLevel | undefined,
 ): boolean => {
-  definedRecordLevel ??= definedRecordLevel ?? RecordLevel.default;
+  definedLogLevel ??= definedLogLevel ?? LogLevel.default;
 
-  switch (definedRecordLevel) {
+  switch (definedLogLevel) {
     case 'fatal':
-      return logLevel === RecordLevel.fatal;
+      return logLevel === LogLevel.fatal;
     case 'error':
-      return [RecordLevel.fatal, RecordLevel.error].includes(logLevel);
+      return [LogLevel.fatal, LogLevel.error].includes(logLevel);
     case 'warn':
-      return [RecordLevel.fatal, RecordLevel.error, RecordLevel.warn].includes(
-        logLevel,
-      );
+      return [LogLevel.fatal, LogLevel.error, LogLevel.warn].includes(logLevel);
     case 'info':
       return [
-        RecordLevel.fatal,
-        RecordLevel.error,
-        RecordLevel.warn,
-        RecordLevel.info,
+        LogLevel.fatal,
+        LogLevel.error,
+        LogLevel.warn,
+        LogLevel.info,
       ].includes(logLevel);
     case 'debug':
       return [
-        RecordLevel.fatal,
-        RecordLevel.error,
-        RecordLevel.warn,
-        RecordLevel.info,
-        RecordLevel.debug,
+        LogLevel.fatal,
+        LogLevel.error,
+        LogLevel.warn,
+        LogLevel.info,
+        LogLevel.debug,
       ].includes(logLevel);
     case 'trace':
       return [
-        RecordLevel.fatal,
-        RecordLevel.error,
-        RecordLevel.warn,
-        RecordLevel.info,
-        RecordLevel.debug,
-        RecordLevel.trace,
+        LogLevel.fatal,
+        LogLevel.error,
+        LogLevel.warn,
+        LogLevel.info,
+        LogLevel.debug,
+        LogLevel.trace,
       ].includes(logLevel);
     case 'silent':
       return false;
   }
 };
-
-export const shouldRecord = shouldLog;
 
 export type Attributes = Record<string, unknown>;
 
@@ -91,7 +66,7 @@ export type Attributes = Record<string, unknown>;
 // Named `eventName` so an ordinary attribute is unlikely to collide with it.
 export const EVENT_NAME_KEY = 'eventName';
 
-const SEVERITY_NUMBER: Record<RecordLevel, number> = {
+const SEVERITY_NUMBER: Record<LogLevel, number> = {
   silent: 0,
   trace: 1,
   debug: 5,
@@ -101,14 +76,13 @@ const SEVERITY_NUMBER: Record<RecordLevel, number> = {
   fatal: 21,
 };
 
-export const severityNumberFor = (level: RecordLevel): number =>
+export const severityNumberFor = (level: LogLevel): number =>
   SEVERITY_NUMBER[level];
 
-export const severityTextFor = (level: RecordLevel): string =>
-  level.toUpperCase();
+export const severityTextFor = (level: LogLevel): string => level.toUpperCase();
 
 export type LogEvent = {
-  level: RecordLevel;
+  level: LogLevel;
   severityNumber: number;
   severityText: string;
   timestamp: number;
@@ -121,7 +95,7 @@ export type LogEvent = {
 };
 
 export const logEvent = (
-  level: RecordLevel,
+  level: LogLevel,
   fields: {
     body?: string;
     eventName?: string;
@@ -141,7 +115,14 @@ export type LogFn = {
   (attributes: Attributes | Error, msg?: string): void;
 };
 
-export type Logger = SpanRecorder & {
+export type Logger = {
+  fatal: LogFn;
+  error: LogFn;
+  warn: LogFn;
+  info: LogFn;
+  debug: LogFn;
+  trace: LogFn;
+  silent: LogFn;
   event(record: LogEvent): void;
 };
 
@@ -166,7 +147,7 @@ const toFields = (
 
 export const logger = (options: {
   event: (record: LogEvent) => void;
-  minLevel?: RecordLevel;
+  minLevel?: LogLevel;
 }): Logger => {
   const { event: sink, minLevel } = options;
   const event = (record: LogEvent): void => {
@@ -174,7 +155,7 @@ export const logger = (options: {
     sink(record);
   };
   const make =
-    (level: RecordLevel): LogFn =>
+    (level: LogLevel): LogFn =>
     (msgOrObj: string | Attributes | Error, msg?: string) =>
       event(logEvent(level, toFields(msgOrObj, msg)));
   return {
@@ -191,11 +172,7 @@ export const logger = (options: {
 
 export const noopLogger: Logger = logger({ event: () => {} });
 
-export const noopRecorder: SpanRecorder = noopLogger;
-
-const consoleMethodFor = (
-  level: RecordLevel,
-): ((...args: unknown[]) => void) => {
+const consoleMethodFor = (level: LogLevel): ((...args: unknown[]) => void) => {
   switch (level) {
     case 'fatal':
     case 'error':

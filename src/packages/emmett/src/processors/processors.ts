@@ -1,7 +1,7 @@
 import {
   consoleLogger,
   noopScope,
-  type SpanRecorder,
+  type Logger,
 } from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
 import type { EmmettError } from '../errors';
@@ -147,7 +147,7 @@ export type BaseMessageProcessorOptions<
   checkpoints?: Checkpointer<MessageType, MessageMetadataType, HandlerContext>;
   canHandle?: CanHandle<MessageType>;
   hooks?: ProcessorHooks<HandlerContext>;
-  logger?: SpanRecorder;
+  logger?: Logger;
 } & JSONSerializationOptions & {
     observability?: ProcessorObservabilityConfig;
   };

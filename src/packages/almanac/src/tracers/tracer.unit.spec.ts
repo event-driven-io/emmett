@@ -37,13 +37,13 @@ describe('noopTracer', () => {
   it('span.record exposes all 7 levels without throwing', async () => {
     const tracer = noopTracer();
     await tracer.startSpan('test', (span) => {
-      span.record.info({ orderId: '123' }, 'OrderPlaced');
-      span.record.error(new Error('boom'), 'operation failed');
-      span.record.warn('degraded');
-      span.record.debug('details');
-      span.record.trace('verbose');
-      span.record.fatal('critical');
-      span.record.silent('shh');
+      span.log.info({ orderId: '123' }, 'OrderPlaced');
+      span.log.error(new Error('boom'), 'operation failed');
+      span.log.warn('degraded');
+      span.log.debug('details');
+      span.log.trace('verbose');
+      span.log.fatal('critical');
+      span.log.silent('shh');
       return Promise.resolve();
     });
   });

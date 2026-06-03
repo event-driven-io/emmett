@@ -14,7 +14,7 @@ export const pinoTracer = (pino: PinoLogger): Tracer => ({
       setAttributes: (a) => Object.assign(attrs, a),
       spanContext: () => ({ traceId: '', spanId: '' }),
       addLink: () => {},
-      record: logger({
+      log: logger({
         minLevel: 'trace',
         event: (event) =>
           pino[event.level](

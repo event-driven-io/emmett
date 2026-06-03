@@ -34,8 +34,8 @@ const compositeSpan = (spans: ActiveSpan[]): ActiveSpan => ({
   setAttributes: (attrs) => spans.forEach((s) => s.setAttributes(attrs)),
   spanContext: () => (spans[0] ?? noopSpan).spanContext(),
   addLink: (link: SpanLink) => spans.forEach((s) => s.addLink(link)),
-  record: logger({
+  log: logger({
     minLevel: 'trace',
-    event: (e) => spans.forEach((s) => s.record.event(e)),
+    event: (e) => spans.forEach((s) => s.log.event(e)),
   }),
 });
