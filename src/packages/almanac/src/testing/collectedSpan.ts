@@ -1,15 +1,12 @@
-import type { RecordLevel, SpanLink, StartSpanOptions } from '../tracers';
+import type { SpanLink, StartSpanOptions } from '../tracers';
+import type { LogEvent } from '../tracers/logger';
 
-export type RecordedEntry = {
-  level: RecordLevel;
-  msg?: string;
-  obj?: Record<string, unknown> | Error;
-};
+export type LoggedEvent = LogEvent;
 
 export type CollectedSpan = {
   name: string;
   attributes: Record<string, unknown>;
-  records: RecordedEntry[];
+  logs: LoggedEvent[];
   links: SpanLink[];
   startOptions: StartSpanOptions;
   ownContext: { traceId: string; spanId: string };

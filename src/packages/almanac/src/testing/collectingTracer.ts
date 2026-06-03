@@ -1,6 +1,7 @@
 import type { ActiveSpan, StartSpanOptions, Tracer } from '../tracers';
 import { generateSpanId, generateTraceId } from '../tracers';
-import type { CollectedSpan, RecordedEntry } from './collectedSpan';
+import { logger } from '../tracers/logger';
+import type { CollectedSpan } from './collectedSpan';
 
 export type CollectingTracer = Tracer & {
   spans: CollectedSpan[];
@@ -22,36 +23,21 @@ export const collectingTracer = (): CollectingTracer => {
       const collected: CollectedSpan = {
         name,
         attributes: {},
-        records: [],
+        logs: [],
         links: [],
         startOptions: options ?? {},
         ownContext: { traceId, spanId },
       };
       spans.push(collected);
 
-      const makeRecordFn =
-        (level: RecordedEntry['level']) =>
-        (msgOrObj: string | Record<string, unknown> | Error, msg?: string) => {
-          if (typeof msgOrObj === 'string') {
-            collected.records.push({ level, msg: msgOrObj });
-          } else {
-            collected.records.push({ level, obj: msgOrObj, msg });
-          }
-        };
-
       const span: ActiveSpan = {
         setAttributes: (attrs) => Object.assign(collected.attributes, attrs),
         spanContext: () => ({ traceId, spanId }),
         addLink: (link) => collected.links.push(link),
-        record: {
-          fatal: makeRecordFn('fatal'),
-          error: makeRecordFn('error'),
-          warn: makeRecordFn('warn'),
-          info: makeRecordFn('info'),
-          debug: makeRecordFn('debug'),
-          trace: makeRecordFn('trace'),
-          silent: makeRecordFn('silent'),
-        },
+        record: logger({
+          minLevel: 'trace',
+          event: (e) => collected.logs.push(e),
+        }),
       };
 
       return fn(span);

@@ -251,7 +251,7 @@ describe('consumerCollector', () => {
     );
     assertDefined(deliverySpan);
     assertTrue(
-      deliverySpan.records.some((r) => r.level === 'error' && r.obj === err),
+      deliverySpan.logs.some((r) => r.level === 'error' && r.error === err),
     );
   });
 

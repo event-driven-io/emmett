@@ -8,7 +8,7 @@ import {
 import type { AnyValueMap } from '@opentelemetry/api-logs';
 import { logs, SeverityNumber } from '@opentelemetry/api-logs';
 import type { ActiveSpan, StartSpanOptions, Tracer } from '../../tracers';
-import type { LogEvent, RecordLevel, SpanRecorder } from '../../tracers/logger';
+import type { LogEvent, Logger, RecordLevel } from '../../tracers/logger';
 import { logEvent, logger } from '../../tracers/logger';
 
 const severityNumbers: Record<RecordLevel, SeverityNumber> = {
@@ -23,7 +23,7 @@ const severityNumbers: Record<RecordLevel, SeverityNumber> = {
 
 export const otelTracer = (
   tracerName = 'almanac',
-  tracerOptions?: { logger?: SpanRecorder; minLevel?: RecordLevel },
+  tracerOptions?: { logger?: Logger; minLevel?: RecordLevel },
 ): Tracer => ({
   startSpan: async <T>(
     name: string,
@@ -85,7 +85,7 @@ export const otelTracer = (
         });
       };
 
-      const record: SpanRecorder =
+      const record: Logger =
         tracerOptions?.logger ??
         logger({ event: emit, minLevel: tracerOptions?.minLevel });
 

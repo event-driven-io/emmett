@@ -1,4 +1,4 @@
-import type { RecordFn } from './logger';
+import { logger } from './logger';
 import {
   noopSpan,
   type ActiveSpan,
@@ -30,28 +30,12 @@ export const compositeTracer = (...tracers: Tracer[]): Tracer => ({
   },
 });
 
-const compositeSpan = (spans: ActiveSpan[]): ActiveSpan => {
-  const fan =
-    (pick: (s: ActiveSpan) => RecordFn) =>
-    (msgOrObj: string | Record<string, unknown> | Error, msg?: string) =>
-      spans.forEach((s) => {
-        const fn = pick(s);
-        if (typeof msgOrObj === 'string') fn(msgOrObj);
-        else fn(msgOrObj, msg);
-      });
-
-  return {
-    setAttributes: (attrs) => spans.forEach((s) => s.setAttributes(attrs)),
-    spanContext: () => (spans[0] ?? noopSpan).spanContext(),
-    addLink: (link: SpanLink) => spans.forEach((s) => s.addLink(link)),
-    record: {
-      fatal: fan((s) => s.record.fatal),
-      error: fan((s) => s.record.error),
-      warn: fan((s) => s.record.warn),
-      info: fan((s) => s.record.info),
-      debug: fan((s) => s.record.debug),
-      trace: fan((s) => s.record.trace),
-      silent: fan((s) => s.record.silent),
-    },
-  };
-};
+const compositeSpan = (spans: ActiveSpan[]): ActiveSpan => ({
+  setAttributes: (attrs) => spans.forEach((s) => s.setAttributes(attrs)),
+  spanContext: () => (spans[0] ?? noopSpan).spanContext(),
+  addLink: (link: SpanLink) => spans.forEach((s) => s.addLink(link)),
+  record: logger({
+    minLevel: 'trace',
+    event: (e) => spans.forEach((s) => s.record.event(e)),
+  }),
+});

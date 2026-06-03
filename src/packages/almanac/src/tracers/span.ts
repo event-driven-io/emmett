@@ -15,7 +15,7 @@ export type ActiveSpan = {
   setAttributes(attrs: Record<string, unknown>): void;
   spanContext(): SpanContext;
   addLink(link: SpanLink): void;
-  record: SpanRecorder;
+  record: Logger;
 };
 
 export type StartSpanOptions = {
@@ -30,7 +30,7 @@ export const noopSpan: ActiveSpan = {
   setAttributes: () => {},
   spanContext: () => ({ traceId: '', spanId: '' }),
   addLink: () => {},
-  record: noopRecorder,
+  record: noopLogger,
 };
 
 const randomHex = (bytes: number): string => {

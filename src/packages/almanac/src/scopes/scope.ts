@@ -2,13 +2,13 @@ import { scopeAttributes, type AttributeTarget } from '../attributes';
 import { alwaysSample, type Sampler } from '../configuration';
 import type {
   ActiveSpan,
+  Logger,
   SpanContext,
   SpanLink,
-  SpanRecorder,
   TracePropagation,
   Tracer,
 } from '../tracers';
-import { noopRecorder, noopSpan } from '../tracers';
+import { noopLogger, noopSpan } from '../tracers';
 
 export type SetAttributesOptions = {
   target?: AttributeTarget;
@@ -31,7 +31,7 @@ export type ObservabilityScope = {
     fn: (child: ObservabilityScope) => Promise<T>,
     options?: ScopeOptions,
   ): Promise<T>;
-  record: SpanRecorder;
+  record: Logger;
   addLink(link: SpanLink): void;
   spanContext(): SpanContext;
 };
@@ -90,7 +90,7 @@ const makeScope = (
 export const noopScope: ObservabilityScope = {
   setAttributes: () => {},
   scope: async (_name, fn) => fn(noopScope),
-  record: noopRecorder,
+  record: noopLogger,
   addLink: () => {},
   spanContext: () => noopSpan.spanContext(),
 };

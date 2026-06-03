@@ -14,6 +14,8 @@ import {
 } from '@opentelemetry/sdk-trace-base';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ObservabilityScope } from '../../scopes/scope';
+import type { LogEvent } from '../../tracers/logger';
+import { logger } from '../../tracers/logger';
 import { otelAssertions } from './otelTesting';
 import { otelTracer } from './otelTracer';
 
@@ -569,27 +571,11 @@ describe('otelTracer integration', () => {
   });
 
   it('delegates to a provided logger instead of the OTel Logs API', async () => {
-    const recorded: Array<{
-      level: string;
-      msgOrObj: unknown;
-      msg?: string;
-    }> = [];
-    const captureLogger = {
-      fatal: (msgOrObj: unknown, msg?: string) =>
-        void recorded.push({ level: 'fatal', msgOrObj, msg }),
-      error: (msgOrObj: unknown, msg?: string) =>
-        void recorded.push({ level: 'error', msgOrObj, msg }),
-      warn: (msgOrObj: unknown, msg?: string) =>
-        void recorded.push({ level: 'warn', msgOrObj, msg }),
-      info: (msgOrObj: unknown, msg?: string) =>
-        void recorded.push({ level: 'info', msgOrObj, msg }),
-      debug: (msgOrObj: unknown, msg?: string) =>
-        void recorded.push({ level: 'debug', msgOrObj, msg }),
-      trace: (msgOrObj: unknown, msg?: string) =>
-        void recorded.push({ level: 'trace', msgOrObj, msg }),
-      silent: (msgOrObj: unknown, msg?: string) =>
-        void recorded.push({ level: 'silent', msgOrObj, msg }),
-    };
+    const recorded: LogEvent[] = [];
+    const captureLogger = logger({
+      minLevel: 'trace',
+      event: (e) => void recorded.push(e),
+    });
 
     const tracer = otelTracer('almanac-integration', {
       logger: captureLogger,
@@ -607,9 +593,9 @@ describe('otelTracer integration', () => {
     expect(logExporter.getFinishedLogRecords()).toHaveLength(0);
 
     expect(recorded).toMatchObject([
-      { level: 'info', msgOrObj: { userId: 'u1' }, msg: 'user.registered' },
-      { level: 'warn', msgOrObj: 'degraded' },
-      { level: 'error', msgOrObj: expect.any(Error) as unknown },
+      { level: 'info', attributes: { userId: 'u1' }, body: 'user.registered' },
+      { level: 'warn', body: 'degraded' },
+      { level: 'error', error: expect.any(Error) as unknown },
     ]);
   });
 

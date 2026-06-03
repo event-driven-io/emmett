@@ -94,8 +94,8 @@ describe('ObservabilityScope', () => {
       return Promise.resolve();
     });
 
-    expect(tracer.spans[0]!.records).toEqual([
-      { level: 'info', obj: { key: 'val' }, msg: 'test' },
+    expect(tracer.spans[0]!.logs).toMatchObject([
+      { level: 'info', attributes: { key: 'val' }, body: 'test' },
     ]);
   });
 
@@ -109,8 +109,8 @@ describe('ObservabilityScope', () => {
       return Promise.resolve();
     });
 
-    expect(tracer.spans[0]!.records).toEqual([
-      { level: 'error', obj: error, msg: 'boom' },
+    expect(tracer.spans[0]!.logs).toMatchObject([
+      { level: 'error', error, body: 'boom' },
     ]);
   });
 

@@ -6,7 +6,7 @@ import type {
   StartSpanOptions,
   Tracer,
 } from '../../tracers';
-import { generateSpanId, generateTraceId, noopRecorder } from '../../tracers';
+import { generateSpanId, generateTraceId, noopLogger } from '../../tracers';
 import { consoleSpanRecorder, type ConsoleFormat } from './consoleSpanRecorder';
 
 export type ConsoleTracerOptions = {
@@ -44,7 +44,7 @@ export const consoleTracer = (options?: ConsoleTracerOptions): Tracer => {
               traceId,
               spanId,
             })
-          : noopRecorder,
+          : noopLogger,
       };
 
       let ok = true;
