@@ -4,7 +4,14 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { SpanStatusCode, trace } from '@opentelemetry/api';
+import { SeverityNumber, logs } from '@opentelemetry/api-logs';
+import {
+  InMemoryLogRecordExporter,
+  LoggerProvider,
+  SimpleLogRecordProcessor,
+} from '@opentelemetry/sdk-logs';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { otelAssertions } from './otelTesting';
 import { otelTracer } from './otelTracer';
 
 describe('otelTracer', () => {
@@ -13,12 +20,19 @@ describe('otelTracer', () => {
     spanProcessors: [new SimpleSpanProcessor(exporter)],
   });
 
+  const logExporter = new InMemoryLogRecordExporter();
+  const loggerProvider = new LoggerProvider({
+    processors: [new SimpleLogRecordProcessor(logExporter)],
+  });
+
   beforeAll(() => {
     trace.setGlobalTracerProvider(provider);
+    logs.setGlobalLoggerProvider(loggerProvider);
   });
 
   beforeEach(() => {
     exporter.reset();
+    logExporter.reset();
   });
 
   it('creates a span via OTel API', async () => {
@@ -69,6 +83,35 @@ describe('otelTracer', () => {
     const inner = spans.find((s) => s.name === 'inner')!;
 
     expect(inner.parentSpanContext?.spanId).toBe(outer.spanContext().spanId);
+  });
+
+  it('lifts the reserved eventName key into the emitted log record', async () => {
+    const tracer = otelTracer();
+    await tracer.startSpan('test-span', (span) => {
+      span.record.info({ eventName: 'user.registered', userId: 'u1' });
+      return Promise.resolve();
+    });
+
+    otelAssertions
+      .logs(logExporter.getFinishedLogRecords())
+      .haveLogNamed('user.registered')
+      .hasSeverity(SeverityNumber.INFO)
+      .hasAttribute('userId', 'u1');
+  });
+
+  it('emits an exception log record when the span throws', async () => {
+    const tracer = otelTracer();
+    await expect(
+      tracer.startSpan('failing-span', () =>
+        Promise.reject(new Error('boom')),
+      ),
+    ).rejects.toThrow('boom');
+
+    otelAssertions
+      .logs(logExporter.getFinishedLogRecords())
+      .haveLogNamed('exception')
+      .hasSeverity(SeverityNumber.ERROR)
+      .hasAttribute('exception.message', 'boom');
   });
 
   it('sets ERROR status on exception', async () => {

@@ -1,5 +1,11 @@
 import { SpanStatusCode, context, trace } from '@opentelemetry/api';
+import { SeverityNumber, logs } from '@opentelemetry/api-logs';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
+import {
+  InMemoryLogRecordExporter,
+  LoggerProvider,
+  SimpleLogRecordProcessor,
+} from '@opentelemetry/sdk-logs';
 import {
   BasicTracerProvider,
   ConsoleSpanExporter,
@@ -8,7 +14,7 @@ import {
 } from '@opentelemetry/sdk-trace-base';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ObservabilityScope } from '../../scopes/scope';
-import { assertThatOtelSpan, assertThatOtelSpans } from './otelTesting';
+import { otelAssertions } from './otelTesting';
 import { otelTracer } from './otelTracer';
 
 describe('otelTracer integration', () => {
@@ -20,15 +26,22 @@ describe('otelTracer integration', () => {
     ],
   });
 
+  const logExporter = new InMemoryLogRecordExporter();
+  const loggerProvider = new LoggerProvider({
+    processors: [new SimpleLogRecordProcessor(logExporter)],
+  });
+
   beforeAll(() => {
     const contextManager = new AsyncLocalStorageContextManager();
     contextManager.enable();
     context.setGlobalContextManager(contextManager);
     trace.setGlobalTracerProvider(provider);
+    logs.setGlobalLoggerProvider(loggerProvider);
   });
 
   beforeEach(() => {
     exporter.reset();
+    logExporter.reset();
   });
 
   it('records command.handle span with all success attributes', async () => {
@@ -42,10 +55,10 @@ describe('otelTracer integration', () => {
         'messaging.destination.name': 'orders-stream',
         'emmett.stream.name': 'orders-stream',
       });
-      s.record.info(
-        { 'emmett.command.type': 'PlaceOrder' },
-        'command.validated',
-      );
+      s.record.info({
+        eventName: 'command.validated',
+        'emmett.command.type': 'PlaceOrder',
+      });
       s.setAttributes({
         'emmett.command.status': 'success',
         'emmett.command.event_count': 1,
@@ -61,7 +74,7 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    assertThatOtelSpans(spans)
+    otelAssertions.spans(spans)
       .haveSpanNamed('command.handle')
       .isMainScope('emmett')
       .hasAttributes({
@@ -74,12 +87,18 @@ describe('otelTracer integration', () => {
         'emmett.stream.version.before': 0,
         'emmett.stream.version.after': 1,
         error: false,
-      })
-      .hasEvent('command.validated');
+      });
     expect(spans[0]!.attributes['emmett.command.event_types']).toEqual([
       'OrderPlaced',
     ]);
     expect(spans[0]!.spanContext().traceId).toMatch(/^[0-9a-f]{32}$/);
+
+    otelAssertions
+      .logs(logExporter.getFinishedLogRecords())
+      .haveLogNamed('command.validated')
+      .hasSeverity(SeverityNumber.INFO)
+      .hasAttribute('emmett.command.type', 'PlaceOrder')
+      .hasSpanContext(spans[0]!.spanContext());
   });
 
   it('records command.handle span with all failure attributes', async () => {
@@ -107,7 +126,7 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    assertThatOtelSpan(spans[0])
+    otelAssertions.span(spans[0])
       .isMainScope('emmett')
       .hasAttributes({
         'emmett.scope.type': 'command',
@@ -118,8 +137,14 @@ describe('otelTracer integration', () => {
         'exception.message': 'stream version conflict',
         'exception.type': 'error',
       })
-      .hasStatus(SpanStatusCode.ERROR, 'stream version conflict')
-      .hasEvent('exception');
+      .hasStatus(SpanStatusCode.ERROR, 'stream version conflict');
+
+    otelAssertions
+      .logs(logExporter.getFinishedLogRecords())
+      .haveLogNamed('exception')
+      .hasSeverity(SeverityNumber.ERROR)
+      .hasAttribute('exception.message', 'stream version conflict')
+      .hasSpanContext(spans[0]!.spanContext());
   });
 
   it('nested command.handle with eventStore child scopes inherits active context as parent', async () => {
@@ -159,11 +184,11 @@ describe('otelTracer integration', () => {
     const read = spans.find((s) => s.name === 'eventStore.readStream')!;
     const append = spans.find((s) => s.name === 'eventStore.appendToStream')!;
 
-    assertThatOtelSpan(root).isMainScope('emmett');
-    assertThatOtelSpan(read).hasParent(root.spanContext());
-    assertThatOtelSpan(append).hasParent(root.spanContext());
+    otelAssertions.span(root).isMainScope('emmett');
+    otelAssertions.span(read).hasParent(root.spanContext());
+    otelAssertions.span(append).hasParent(root.spanContext());
     // attributeTarget=both copies child attributes up to root; last write wins for emmett.eventstore.operation
-    assertThatOtelSpan(root)
+    otelAssertions.span(root)
       .hasAttribute('emmett.eventstore.operation', 'appendToStream')
       .hasAttribute('emmett.command.status', 'success');
   });
@@ -207,9 +232,9 @@ describe('otelTracer integration', () => {
     const msg = spans.find((s) => s.name === 'processor.message.OrderPlaced')!;
     const read = spans.find((s) => s.name === 'eventStore.readStream')!;
 
-    assertThatOtelSpan(root).isMainScope('emmett');
-    assertThatOtelSpan(msg).hasParent(root.spanContext());
-    assertThatOtelSpan(read).hasParent(msg.spanContext());
+    otelAssertions.span(root).isMainScope('emmett');
+    otelAssertions.span(msg).hasParent(root.spanContext());
+    otelAssertions.span(read).hasParent(msg.spanContext());
   });
 
   it('records eventStore.readStream span with all attributes', async () => {
@@ -237,7 +262,7 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    assertThatOtelSpan(spans[0]).hasAttributes({
+    otelAssertions.span(spans[0]).hasAttributes({
       'emmett.eventstore.operation': 'readStream',
       'emmett.stream.name': 'orders-stream',
       'messaging.operation.type': 'receive',
@@ -275,7 +300,7 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    assertThatOtelSpan(spans[0]).hasAttributes({
+    otelAssertions.span(spans[0]).hasAttributes({
       'emmett.eventstore.operation': 'appendToStream',
       'emmett.stream.name': 'orders-stream',
       'emmett.eventstore.append.batch_size': 1,
@@ -310,7 +335,7 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    assertThatOtelSpan(spans[0]).isMainScope('emmett').hasAttributes({
+    otelAssertions.span(spans[0]).isMainScope('emmett').hasAttributes({
       'emmett.scope.type': 'workflow',
       'emmett.workflow.id': 'workflow-123',
       'emmett.workflow.type': 'OrderFulfillment',
@@ -351,7 +376,7 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    assertThatOtelSpan(spans[0]).hasParent({
+    otelAssertions.span(spans[0]).hasParent({
       traceId: producerTraceId,
       spanId: producerSpanId,
     });
@@ -384,7 +409,7 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    assertThatOtelSpan(spans[0])
+    otelAssertions.span(spans[0])
       .hasNoParent()
       .hasCreationLinks([{ traceId: producerTraceId, spanId: producerSpanId }]);
     expect(spans[0]!.spanContext().traceId).not.toBe(producerTraceId);
@@ -413,7 +438,7 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    assertThatOtelSpan(spans[0]).hasCreationLinks([sourceLink1, sourceLink2]);
+    otelAssertions.span(spans[0]).hasCreationLinks([sourceLink1, sourceLink2]);
   });
 
   it('propagation=links with extra links includes both demoted parent and additional links', async () => {
@@ -441,7 +466,7 @@ describe('otelTracer integration', () => {
     );
 
     const spans = exporter.getFinishedSpans();
-    assertThatOtelSpan(spans[0])
+    otelAssertions.span(spans[0])
       .hasNoParent()
       .hasCreationLinks([
         { traceId: producerTraceId, spanId: producerSpanId },
@@ -503,7 +528,7 @@ describe('otelTracer integration', () => {
     const msg = spans.find((s) => s.name === 'processor.message.OrderPlaced')!;
     const read = spans.find((s) => s.name === 'eventStore.readStream')!;
 
-    assertThatOtelSpan(root)
+    otelAssertions.span(root)
       .isMainScope('emmett')
       .hasAttributes({
         // emmett.scope.type is overwritten to 'projector' by attributeTarget=both bubbling from the message child scope
@@ -522,7 +547,7 @@ describe('otelTracer integration', () => {
       'OrderPlaced',
     ]);
 
-    assertThatOtelSpan(msg).hasParent(root.spanContext()).hasAttributes({
+    otelAssertions.span(msg).hasParent(root.spanContext()).hasAttributes({
       'emmett.scope.type': 'projector',
       'emmett.processor.id': 'orders-processor',
       'emmett.processor.type': 'projector',
@@ -530,14 +555,14 @@ describe('otelTracer integration', () => {
       'messaging.message.id': 'msg-001',
     });
 
-    assertThatOtelSpan(read).hasParent(msg.spanContext()).hasAttributes({
+    otelAssertions.span(read).hasParent(msg.spanContext()).hasAttributes({
       'emmett.eventstore.operation': 'readStream',
       'emmett.stream.name': 'orders-read-model',
       'emmett.eventstore.read.event_count': 3,
     });
   });
 
-  it('record in logs mode delegates to provided logger instead of span events', async () => {
+  it('delegates to a provided logger instead of the OTel Logs API', async () => {
     const recorded: Array<{
       level: string;
       msgOrObj: unknown;
@@ -561,7 +586,6 @@ describe('otelTracer integration', () => {
     };
 
     const tracer = otelTracer('almanac-integration', {
-      mode: 'logs',
       logger: captureLogger,
     });
 
@@ -574,7 +598,7 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    expect(spans[0]!.events).toHaveLength(0);
+    expect(logExporter.getFinishedLogRecords()).toHaveLength(0);
 
     expect(recorded).toMatchObject([
       { level: 'info', msgOrObj: { userId: 'u1' }, msg: 'user.registered' },
@@ -583,18 +607,22 @@ describe('otelTracer integration', () => {
     ]);
   });
 
-  it('record in logs mode uses OTel Logs API when no logger provided', async () => {
-    const tracer = otelTracer('almanac-integration', { mode: 'logs' });
+  it('emits records via the OTel Logs API when no logger provided', async () => {
+    const tracer = otelTracer('almanac-integration');
 
-    await expect(
-      tracer.startSpan('my-span', (span) => {
-        span.record.info({ userId: 'u1' }, 'user.registered');
-        return Promise.resolve();
-      }),
-    ).resolves.toBeUndefined();
+    await tracer.startSpan('my-span', (span) => {
+      span.record.info({ userId: 'u1' }, 'user.registered');
+      return Promise.resolve();
+    });
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    expect(spans[0]!.events).toHaveLength(0);
+
+    otelAssertions
+      .logs(logExporter.getFinishedLogRecords())
+      .haveLogWithBody('user.registered')
+      .hasSeverity(SeverityNumber.INFO)
+      .hasAttribute('userId', 'u1')
+      .hasSpanContext(spans[0]!.spanContext());
   });
 });

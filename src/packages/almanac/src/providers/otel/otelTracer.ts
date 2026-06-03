@@ -5,11 +5,13 @@ import {
   SpanStatusCode,
   trace,
 } from '@opentelemetry/api';
+import type { AnyValueMap } from '@opentelemetry/api-logs';
 import { logs, SeverityNumber } from '@opentelemetry/api-logs';
 import type { ActiveSpan, StartSpanOptions, Tracer } from '../../tracers';
-import type { RecordMode, SpanRecorder } from '../../tracers/logger';
+import type { LogEvent, RecordLevel, SpanRecorder } from '../../tracers/logger';
+import { logEvent, logger } from '../../tracers/logger';
 
-const severityNumbers: Record<keyof SpanRecorder, SeverityNumber> = {
+const severityNumbers: Record<RecordLevel, SeverityNumber> = {
   fatal: SeverityNumber.FATAL,
   error: SeverityNumber.ERROR,
   warn: SeverityNumber.WARN,
@@ -21,7 +23,7 @@ const severityNumbers: Record<keyof SpanRecorder, SeverityNumber> = {
 
 export const otelTracer = (
   tracerName = 'almanac',
-  tracerOptions?: { mode?: RecordMode; logger?: SpanRecorder },
+  tracerOptions?: { logger?: SpanRecorder; minLevel?: RecordLevel },
 ): Tracer => ({
   startSpan: async <T>(
     name: string,
@@ -64,48 +66,28 @@ export const otelTracer = (
     }
 
     return tracer.startActiveSpan(name, spanOptions, ctx, async (otelSpan) => {
-      const mode = tracerOptions?.mode ?? 'span-events';
-      const otelLogger = mode === 'logs' ? logs.getLogger(tracerName) : null;
+      const otelLogger = logs.getLogger(tracerName);
 
-      const makeRecord =
-        (level: keyof SpanRecorder) =>
-        (msgOrObj: string | Record<string, unknown> | Error, msg?: string) => {
-          if (tracerOptions?.logger) {
-            if (typeof msgOrObj === 'string') {
-              tracerOptions.logger[level](msgOrObj);
-            } else {
-              tracerOptions.logger[level](msgOrObj, msg);
-            }
-            return;
-          }
-          if (mode === 'logs') {
-            const body =
-              typeof msgOrObj === 'string' ? msgOrObj : (msg ?? 'event');
-            const attributes =
-              typeof msgOrObj === 'object' && !(msgOrObj instanceof Error)
-                ? (msgOrObj as Record<string, string | number | boolean>)
-                : {};
-            otelLogger!.emit({
-              severityNumber: severityNumbers[level],
-              severityText: level.toUpperCase(),
-              body,
-              attributes,
-            });
-            return;
-          }
-          if (msgOrObj instanceof Error) {
-            otelSpan.recordException(msgOrObj);
-            return;
-          }
-          if (typeof msgOrObj === 'string') {
-            otelSpan.addEvent(msgOrObj, { level });
-          } else {
-            otelSpan.addEvent(msg ?? 'event', {
-              level,
-              ...(msgOrObj as Record<string, string | number | boolean>),
-            });
-          }
-        };
+      const emit = (e: LogEvent): void => {
+        const attributes: AnyValueMap = { ...(e.attributes as AnyValueMap) };
+        if (e.error) {
+          attributes['exception.type'] = e.error.name;
+          attributes['exception.message'] = e.error.message;
+          if (e.error.stack) attributes['exception.stacktrace'] = e.error.stack;
+        }
+        otelLogger.emit({
+          timestamp: e.timestamp,
+          severityNumber: severityNumbers[e.level],
+          severityText: e.severityText,
+          ...(e.body !== undefined ? { body: e.body } : {}),
+          ...(e.eventName !== undefined ? { eventName: e.eventName } : {}),
+          attributes,
+        });
+      };
+
+      const record: SpanRecorder =
+        tracerOptions?.logger ??
+        logger({ event: emit, minLevel: tracerOptions?.minLevel });
 
       const span: ActiveSpan = {
         setAttributes: (attrs) => {
@@ -123,28 +105,19 @@ export const otelTracer = (
           // No-op for OTel — links are passed at creation time via SpanOptions.
           // Non-OTel strategies (ClickHouse, Pino) can still accept addLink after creation.
         },
-        record: {
-          fatal: makeRecord('fatal'),
-          error: makeRecord('error'),
-          warn: makeRecord('warn'),
-          info: makeRecord('info'),
-          debug: makeRecord('debug'),
-          trace: makeRecord('trace'),
-          silent: makeRecord('silent'),
-        },
+        record,
       };
       try {
         const result = await fn(span);
         otelSpan.setStatus({ code: SpanStatusCode.OK });
         return result;
       } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
         otelSpan.setStatus({
           code: SpanStatusCode.ERROR,
-          message: err instanceof Error ? err.message : String(err),
+          message: error.message,
         });
-        otelSpan.recordException(
-          err instanceof Error ? err : new Error(String(err)),
-        );
+        emit(logEvent('error', { eventName: 'exception', error }));
         throw err;
       } finally {
         otelSpan.end();
