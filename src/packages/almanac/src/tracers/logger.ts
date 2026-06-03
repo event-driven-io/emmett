@@ -189,15 +189,9 @@ export const logger = (options: {
   };
 };
 
-export const noopRecorder: SpanRecorder = {
-  fatal: () => {},
-  error: () => {},
-  warn: () => {},
-  info: () => {},
-  debug: () => {},
-  trace: () => {},
-  silent: () => {},
-};
+export const noopLogger: Logger = logger({ event: () => {} });
+
+export const noopRecorder: SpanRecorder = noopLogger;
 
 const consoleMethodFor = (
   level: RecordLevel,

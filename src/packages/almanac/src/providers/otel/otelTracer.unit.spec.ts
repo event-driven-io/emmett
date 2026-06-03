@@ -102,9 +102,7 @@ describe('otelTracer', () => {
   it('emits an exception log record when the span throws', async () => {
     const tracer = otelTracer();
     await expect(
-      tracer.startSpan('failing-span', () =>
-        Promise.reject(new Error('boom')),
-      ),
+      tracer.startSpan('failing-span', () => Promise.reject(new Error('boom'))),
     ).rejects.toThrow('boom');
 
     otelAssertions

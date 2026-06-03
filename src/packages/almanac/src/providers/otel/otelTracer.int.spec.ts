@@ -74,7 +74,8 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    otelAssertions.spans(spans)
+    otelAssertions
+      .spans(spans)
       .haveSpanNamed('command.handle')
       .isMainScope('emmett')
       .hasAttributes({
@@ -126,7 +127,8 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    otelAssertions.span(spans[0])
+    otelAssertions
+      .span(spans[0])
       .isMainScope('emmett')
       .hasAttributes({
         'emmett.scope.type': 'command',
@@ -188,7 +190,8 @@ describe('otelTracer integration', () => {
     otelAssertions.span(read).hasParent(root.spanContext());
     otelAssertions.span(append).hasParent(root.spanContext());
     // attributeTarget=both copies child attributes up to root; last write wins for emmett.eventstore.operation
-    otelAssertions.span(root)
+    otelAssertions
+      .span(root)
       .hasAttribute('emmett.eventstore.operation', 'appendToStream')
       .hasAttribute('emmett.command.status', 'success');
   });
@@ -409,7 +412,8 @@ describe('otelTracer integration', () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    otelAssertions.span(spans[0])
+    otelAssertions
+      .span(spans[0])
       .hasNoParent()
       .hasCreationLinks([{ traceId: producerTraceId, spanId: producerSpanId }]);
     expect(spans[0]!.spanContext().traceId).not.toBe(producerTraceId);
@@ -466,7 +470,8 @@ describe('otelTracer integration', () => {
     );
 
     const spans = exporter.getFinishedSpans();
-    otelAssertions.span(spans[0])
+    otelAssertions
+      .span(spans[0])
       .hasNoParent()
       .hasCreationLinks([
         { traceId: producerTraceId, spanId: producerSpanId },
@@ -528,7 +533,8 @@ describe('otelTracer integration', () => {
     const msg = spans.find((s) => s.name === 'processor.message.OrderPlaced')!;
     const read = spans.find((s) => s.name === 'eventStore.readStream')!;
 
-    otelAssertions.span(root)
+    otelAssertions
+      .span(root)
       .isMainScope('emmett')
       .hasAttributes({
         // emmett.scope.type is overwritten to 'projector' by attributeTarget=both bubbling from the message child scope

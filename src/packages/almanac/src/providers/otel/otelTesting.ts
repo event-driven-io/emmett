@@ -1,3 +1,4 @@
+import { JSONSerializer } from '../../serialization/json';
 import type { SpanStatusCode } from '@opentelemetry/api';
 import type { SeverityNumber } from '@opentelemetry/api-logs';
 import type { ReadableLogRecord } from '@opentelemetry/sdk-logs';
@@ -151,9 +152,7 @@ type OtelLogCollectionAssertions = {
   haveNoLogs(): void;
 };
 
-const otelLog = (
-  record: ReadableLogRecord | undefined,
-): OtelLogAssertions => {
+const otelLog = (record: ReadableLogRecord | undefined): OtelLogAssertions => {
   const self: OtelLogAssertions = {
     exists() {
       if (!record)
@@ -228,14 +227,14 @@ const otelLogs = (
       const record = records.find((r) => r.body === body);
       if (!record)
         throw new Error(
-          `Expected log record with body "${body}" but found: [${records.map((r) => String(r.body)).join(', ')}]`,
+          `Expected log record with body "${body}" but found: [${records.map((r) => JSONSerializer.serialize(r.body, { safe: true })).join(', ')}]`,
         );
       return otelLog(record);
     },
     haveNoLogs() {
       if (records.length > 0)
         throw new Error(
-          `Expected no log records but found: [${records.map((r) => r.eventName ?? String(r.body)).join(', ')}]`,
+          `Expected no log records but found: [${records.map((r) => r.eventName ?? JSONSerializer.serialize(r.body, { safe: true })).join(', ')}]`,
         );
     },
   };
