@@ -437,23 +437,20 @@ describe('pinoTracer', () => {
     ]);
   });
 
-  it('record in span-events mode emits structured span-event log', async () => {
+  it('lifts the reserved eventName key into an eventName field', async () => {
     const stream = pinoTest.sink();
     const logger = pino(stream);
-    const tracer = pinoTracer(logger, { mode: 'span-events' });
+    const tracer = pinoTracer(logger);
 
     await tracer.startSpan('my-span', (span) => {
-      span.record.info({ userId: 'u1' }, 'user.registered');
+      span.record.info({ eventName: 'user.registered', userId: 'u1' });
       return Promise.resolve();
     });
 
     await pinoTest.consecutive(stream, [
       (received: Record<string, unknown>) => {
         expect(received).toMatchObject({
-          msg: 'span-event',
-          level: 30,
-          type: 'span-event',
-          name: 'user.registered',
+          eventName: 'user.registered',
           userId: 'u1',
           spanName: 'my-span',
         });

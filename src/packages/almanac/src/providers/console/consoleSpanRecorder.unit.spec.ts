@@ -9,6 +9,17 @@ import {
 } from 'vitest';
 import { consoleSpanRecorder } from './consoleSpanRecorder';
 
+type OtelRecord = {
+  timestamp: number;
+  severityNumber: number;
+  severityText: string;
+  body?: string;
+  eventName?: string;
+  trace_id?: string;
+  span_id?: string;
+  attributes?: Record<string, unknown>;
+};
+
 describe('consoleSpanRecorder', () => {
   let consoleSpy!: MockInstance<typeof console.log>;
 
@@ -21,65 +32,77 @@ describe('consoleSpanRecorder', () => {
   });
 
   describe('compact mode (default)', () => {
-    it('writes compact JSON line for string message', () => {
-      const recorder = consoleSpanRecorder({
-        recordLevel: 'info',
-      });
+    it('writes an OTel-shaped record for a string message', () => {
+      const recorder = consoleSpanRecorder({ recordLevel: 'info' });
       recorder.info('hello');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
-      const parsed = JSON.parse(output) as { level: string; msg: string };
-      assert.strictEqual(parsed.level, 'info');
-      assert.strictEqual(parsed.msg, 'hello');
+      const parsed = JSON.parse(output) as OtelRecord;
+      assert.strictEqual(parsed.body, 'hello');
+      assert.strictEqual(parsed.severityText, 'INFO');
+      assert.strictEqual(parsed.severityNumber, 9);
+      assert.strictEqual(typeof parsed.timestamp, 'number');
     });
 
     it('output has no newlines', () => {
-      const recorder = consoleSpanRecorder({
-        recordLevel: 'info',
-      });
+      const recorder = consoleSpanRecorder({ recordLevel: 'info' });
       recorder.info('test');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
       assert.ok(!output.includes('\n'));
     });
 
-    it('spreads object fields into JSON entry', () => {
-      const recorder = consoleSpanRecorder({
-        recordLevel: 'info',
-      });
+    it('keeps object fields under attributes with the message as body', () => {
+      const recorder = consoleSpanRecorder({ recordLevel: 'info' });
       recorder.info({ count: 5 }, 'event');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
-      const parsed = JSON.parse(output) as {
-        level: string;
-        msg: string;
-        count: number;
-      };
-      assert.strictEqual(parsed.msg, 'event');
-      assert.strictEqual(parsed.count, 5);
+      const parsed = JSON.parse(output) as OtelRecord;
+      assert.strictEqual(parsed.body, 'event');
+      assert.deepStrictEqual(parsed.attributes, { count: 5 });
     });
 
-    it('serializes Error under "error" key', () => {
+    it('lifts the reserved eventName key into the EventName field', () => {
+      const recorder = consoleSpanRecorder({ recordLevel: 'info' });
+      recorder.info({ eventName: 'user.registered', userId: 'u1' });
+
+      const [output] = consoleSpy.mock.calls[0] as [string];
+      const parsed = JSON.parse(output) as OtelRecord;
+      assert.strictEqual(parsed.eventName, 'user.registered');
+      assert.deepStrictEqual(parsed.attributes, { userId: 'u1' });
+      assert.strictEqual(parsed.body, undefined);
+    });
+
+    it('maps an Error to exception.* attributes', () => {
       const recorder = consoleSpanRecorder();
       recorder.error(new Error('boom'), 'oh no');
 
       const [output] = consoleSpy.mock.calls[0] as [string];
-      const parsed = JSON.parse(output) as {
-        level: string;
-        msg: string;
-        error: { type: string; message: string };
-      };
-      assert.strictEqual(parsed.level, 'error');
-      assert.strictEqual(parsed.error.type, 'Error');
-      assert.strictEqual(parsed.error.message, 'boom');
+      const parsed = JSON.parse(output) as OtelRecord;
+      assert.strictEqual(parsed.severityText, 'ERROR');
+      assert.strictEqual(parsed.body, 'oh no');
+      assert.strictEqual(parsed.attributes!['exception.type'], 'Error');
+      assert.strictEqual(parsed.attributes!['exception.message'], 'boom');
+    });
+
+    it('carries the span trace_id and span_id when provided', () => {
+      const recorder = consoleSpanRecorder({
+        recordLevel: 'info',
+        traceId: 'a'.repeat(32),
+        spanId: 'b'.repeat(16),
+      });
+      recorder.info('hello');
+
+      const [output] = consoleSpy.mock.calls[0] as [string];
+      const parsed = JSON.parse(output) as OtelRecord;
+      assert.strictEqual(parsed.trace_id, 'a'.repeat(32));
+      assert.strictEqual(parsed.span_id, 'b'.repeat(16));
     });
   });
 
   describe('compact mode (explicit)', () => {
     it('produces same output as default mode', () => {
-      const recorderDefault = consoleSpanRecorder({
-        recordLevel: 'info',
-      });
+      const recorderDefault = consoleSpanRecorder({ recordLevel: 'info' });
       const recorderExplicit = consoleSpanRecorder({
         format: 'compact',
         recordLevel: 'info',
@@ -104,9 +127,8 @@ describe('consoleSpanRecorder', () => {
 
       const [output] = consoleSpy.mock.calls[0] as [string];
       assert.ok(output.includes('\n'));
-      const parsed = JSON.parse(output) as { level: string; msg: string };
-      assert.strictEqual(parsed.level, 'info');
-      assert.strictEqual(parsed.msg, 'hello');
+      const parsed = JSON.parse(output) as OtelRecord;
+      assert.strictEqual(parsed.body, 'hello');
     });
   });
 
@@ -133,7 +155,18 @@ describe('consoleSpanRecorder', () => {
       assert.strictEqual(output, '[warn] something');
     });
 
-    it('writes [level] for object without msg', () => {
+    it('falls back to the eventName when no message is given', () => {
+      const recorder = consoleSpanRecorder({
+        format: 'simple',
+        recordLevel: 'debug',
+      });
+      recorder.debug({ eventName: 'cache.miss', foo: 'bar' });
+
+      const [output] = consoleSpy.mock.calls[0] as [string];
+      assert.strictEqual(output, '[debug] cache.miss');
+    });
+
+    it('writes [level] for object without msg or eventName', () => {
       const recorder = consoleSpanRecorder({
         format: 'simple',
         recordLevel: 'debug',
@@ -161,8 +194,8 @@ describe('consoleSpanRecorder', () => {
         recorder[level](`${level} message`);
 
         const [output] = consoleSpy.mock.calls[0] as [string];
-        const parsed = JSON.parse(output) as { level: string };
-        assert.strictEqual(parsed.level, level);
+        const parsed = JSON.parse(output) as OtelRecord;
+        assert.strictEqual(parsed.severityText, level.toUpperCase());
       });
     }
 

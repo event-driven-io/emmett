@@ -2,6 +2,7 @@ import { JSONSerializer } from '../../serialization/json';
 import type {
   ActiveSpan,
   RecordLevel,
+  SpanLink,
   StartSpanOptions,
   Tracer,
 } from '../../tracers';
@@ -22,21 +23,26 @@ export const consoleTracer = (options?: ConsoleTracerOptions): Tracer => {
     startSpan: async <T>(
       name: string,
       fn: (span: ActiveSpan) => Promise<T>,
-      _spanOptions?: StartSpanOptions,
+      spanOptions?: StartSpanOptions,
     ): Promise<T> => {
       const traceId = generateTraceId();
       const spanId = generateSpanId();
       const startMs = Date.now();
-      const attributes: Record<string, unknown> = {};
+      const attributes: Record<string, unknown> = {
+        ...spanOptions?.attributes,
+      };
+      const links: SpanLink[] = [...(spanOptions?.links ?? [])];
 
       const span: ActiveSpan = {
         spanContext: () => ({ traceId, spanId }),
         setAttributes: (attrs) => Object.assign(attributes, attrs),
-        addLink: () => {},
+        addLink: (link) => links.push(link),
         record: !suppressRecords
           ? consoleSpanRecorder({
               format: mode,
               recordLevel: options?.recordLevel,
+              traceId,
+              spanId,
             })
           : noopRecorder,
       };
@@ -52,20 +58,33 @@ export const consoleTracer = (options?: ConsoleTracerOptions): Tracer => {
         throw e;
       } finally {
         const durationMs = Date.now() - startMs;
-        const summary: Record<string, unknown> = {
-          span: name,
-          traceId,
-          spanId,
-          durationMs,
-          ok,
-        };
-        if (spanError !== undefined) summary.error = spanError;
 
         if (mode === 'simple') {
           console.log(
             `[span] ${name} (${durationMs}ms)${ok ? '' : ' [failed]'}`,
           );
         } else {
+          const summary = {
+            name,
+            traceId,
+            spanId,
+            ...(spanOptions?.parent?.spanId
+              ? { parentSpanId: spanOptions.parent.spanId }
+              : {}),
+            startTimeUnixNano: (BigInt(startMs) * 1_000_000n).toString(),
+            endTimeUnixNano: (
+              BigInt(startMs + durationMs) * 1_000_000n
+            ).toString(),
+            attributes,
+            status: {
+              code: ok ? 'OK' : 'ERROR',
+              ...(spanError !== undefined
+                ? { message: spanError.message }
+                : {}),
+            },
+            links,
+          };
+
           console.log(
             JSONSerializer.serialize(summary, {
               format: mode === 'pretty' ? 'pretty' : 'compact',

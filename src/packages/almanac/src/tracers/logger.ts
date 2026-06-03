@@ -13,8 +13,6 @@ export type SpanRecorder = {
   silent: RecordFn;
 };
 
-export type Logger = SpanRecorder;
-
 export type RecordMode = 'span-events' | 'logs';
 
 export type RecordLevel =
@@ -41,7 +39,7 @@ export const RecordLevel = {
 
 export const LogLevel = RecordLevel;
 
-export const shouldRecord = (
+export const shouldLog = (
   logLevel: RecordLevel,
   definedRecordLevel: RecordLevel | undefined,
 ): boolean => {
@@ -85,6 +83,112 @@ export const shouldRecord = (
   }
 };
 
+export const shouldRecord = shouldLog;
+
+export type Attributes = Record<string, unknown>;
+
+// Reserved attribute key that promotes a property to the OTel EventName field.
+// Named `eventName` so an ordinary attribute is unlikely to collide with it.
+export const EVENT_NAME_KEY = 'eventName';
+
+const SEVERITY_NUMBER: Record<RecordLevel, number> = {
+  silent: 0,
+  trace: 1,
+  debug: 5,
+  info: 9,
+  warn: 13,
+  error: 17,
+  fatal: 21,
+};
+
+export const severityNumberFor = (level: RecordLevel): number =>
+  SEVERITY_NUMBER[level];
+
+export const severityTextFor = (level: RecordLevel): string =>
+  level.toUpperCase();
+
+export type LogEvent = {
+  level: RecordLevel;
+  severityNumber: number;
+  severityText: string;
+  timestamp: number;
+  body?: string;
+  eventName?: string;
+  attributes?: Attributes;
+  error?: Error;
+  traceId?: string;
+  spanId?: string;
+};
+
+export const logEvent = (
+  level: RecordLevel,
+  fields: {
+    body?: string;
+    eventName?: string;
+    attributes?: Attributes;
+    error?: Error;
+  } = {},
+): LogEvent => ({
+  level,
+  severityNumber: severityNumberFor(level),
+  severityText: severityTextFor(level),
+  timestamp: Date.now(),
+  ...fields,
+});
+
+export type LogFn = {
+  (msg: string): void;
+  (attributes: Attributes | Error, msg?: string): void;
+};
+
+export type Logger = SpanRecorder & {
+  event(record: LogEvent): void;
+};
+
+const toFields = (
+  msgOrObj: string | Attributes | Error,
+  msg?: string,
+): {
+  body?: string;
+  eventName?: string;
+  attributes?: Attributes;
+  error?: Error;
+} => {
+  if (typeof msgOrObj === 'string') return { body: msgOrObj };
+  if (msgOrObj instanceof Error) return { error: msgOrObj, body: msg };
+  const { [EVENT_NAME_KEY]: eventName, ...attributes } = msgOrObj;
+  return {
+    body: msg,
+    eventName: typeof eventName === 'string' ? eventName : undefined,
+    attributes,
+  };
+};
+
+export const logger = (options: {
+  event: (record: LogEvent) => void;
+  minLevel?: RecordLevel;
+}): Logger => {
+  const { event: sink, minLevel } = options;
+  const event = (record: LogEvent): void => {
+    if (record.level === 'silent' || !shouldLog(record.level, minLevel)) return;
+    sink(record);
+  };
+  const make =
+    (level: RecordLevel): LogFn =>
+    (msgOrObj: string | Attributes | Error, msg?: string) =>
+      event(logEvent(level, toFields(msgOrObj, msg)));
+  return {
+    event,
+    fatal: make('fatal'),
+    error: make('error'),
+    warn: make('warn'),
+    info: make('info'),
+    debug: make('debug'),
+    trace: make('trace'),
+    silent: make('silent'),
+  };
+};
+
 export const noopRecorder: SpanRecorder = {
   fatal: () => {},
   error: () => {},
@@ -95,30 +199,36 @@ export const noopRecorder: SpanRecorder = {
   silent: () => {},
 };
 
-export const consoleLogger: SpanRecorder = {
-  fatal: (msgOrObj: string | Record<string, unknown> | Error, msg?: string) => {
-    if (typeof msgOrObj === 'string') console.error(msgOrObj);
-    else console.error(msg ?? '', msgOrObj);
-  },
-  error: (msgOrObj: string | Record<string, unknown> | Error, msg?: string) => {
-    if (typeof msgOrObj === 'string') console.error(msgOrObj);
-    else console.error(msg ?? '', msgOrObj);
-  },
-  warn: (msgOrObj: string | Record<string, unknown> | Error, msg?: string) => {
-    if (typeof msgOrObj === 'string') console.warn(msgOrObj);
-    else console.warn(msg ?? '', msgOrObj);
-  },
-  info: (msgOrObj: string | Record<string, unknown> | Error, msg?: string) => {
-    if (typeof msgOrObj === 'string') console.log(msgOrObj);
-    else console.log(msg ?? '', msgOrObj);
-  },
-  debug: (msgOrObj: string | Record<string, unknown> | Error, msg?: string) => {
-    if (typeof msgOrObj === 'string') console.debug(msgOrObj);
-    else console.debug(msg ?? '', msgOrObj);
-  },
-  trace: (msgOrObj: string | Record<string, unknown> | Error, msg?: string) => {
-    if (typeof msgOrObj === 'string') console.trace(msgOrObj);
-    else console.trace(msg ?? '', msgOrObj);
-  },
-  silent: () => {},
+const consoleMethodFor = (
+  level: RecordLevel,
+): ((...args: unknown[]) => void) => {
+  switch (level) {
+    case 'fatal':
+    case 'error':
+      return console.error;
+    case 'warn':
+      return console.warn;
+    case 'debug':
+      return console.debug;
+    case 'trace':
+      return console.trace;
+    default:
+      return console.log;
+  }
 };
+
+export const consoleLogger: Logger = logger({
+  event: (event) => {
+    const write = consoleMethodFor(event.level);
+    const extra =
+      event.error ??
+      (event.attributes && Object.keys(event.attributes).length
+        ? event.attributes
+        : undefined);
+    if (event.body !== undefined && extra !== undefined)
+      write(event.body, extra);
+    else if (event.body !== undefined) write(event.body);
+    else if (extra !== undefined) write(extra);
+    else write('');
+  },
+});

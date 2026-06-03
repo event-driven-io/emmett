@@ -9,6 +9,18 @@ import {
 } from 'vitest';
 import { consoleTracer } from './consoleTracer';
 
+type OtlpSpan = {
+  name: string;
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  startTimeUnixNano: string;
+  endTimeUnixNano: string;
+  attributes: Record<string, unknown>;
+  status: { code: string; message?: string };
+  links: { traceId: string; spanId: string }[];
+};
+
 describe('consoleTracer', () => {
   let consoleSpy!: MockInstance<typeof console.log>;
 
@@ -27,14 +39,14 @@ describe('consoleTracer', () => {
     assert.strictEqual(result, 42);
   });
 
-  it('emits span summary after execution', async () => {
+  it('emits an OTLP-shaped span summary after execution', async () => {
     const tracer = consoleTracer();
     await tracer.startSpan('my-span', async () => {});
 
     assert.strictEqual(consoleSpy.mock.calls.length, 1);
     const [output] = consoleSpy.mock.calls[0] as [string];
-    const parsed = JSON.parse(output) as { span: string };
-    assert.strictEqual(parsed.span, 'my-span');
+    const parsed = JSON.parse(output) as OtlpSpan;
+    assert.strictEqual(parsed.name, 'my-span');
   });
 
   it('span summary includes traceId (32 hex chars) and spanId (16 hex chars)', async () => {
@@ -42,28 +54,42 @@ describe('consoleTracer', () => {
     await tracer.startSpan('my-span', async () => {});
 
     const [output] = consoleSpy.mock.calls[0] as [string];
-    const parsed = JSON.parse(output) as { traceId: string; spanId: string };
+    const parsed = JSON.parse(output) as OtlpSpan;
     assert.ok(/^[0-9a-f]{32}$/.test(parsed.traceId));
     assert.ok(/^[0-9a-f]{16}$/.test(parsed.spanId));
   });
 
-  it('span summary includes durationMs as a non-negative number', async () => {
+  it('span summary carries start and end unix-nano timestamps', async () => {
     const tracer = consoleTracer();
     await tracer.startSpan('my-span', async () => {});
 
     const [output] = consoleSpy.mock.calls[0] as [string];
-    const parsed = JSON.parse(output) as { durationMs: number };
-    assert.ok(typeof parsed.durationMs === 'number');
-    assert.ok(parsed.durationMs >= 0);
+    const parsed = JSON.parse(output) as OtlpSpan;
+    assert.ok(/^\d+$/.test(parsed.startTimeUnixNano));
+    assert.ok(/^\d+$/.test(parsed.endTimeUnixNano));
+    assert.ok(
+      BigInt(parsed.endTimeUnixNano) >= BigInt(parsed.startTimeUnixNano),
+    );
   });
 
-  it('span summary has ok: true on success', async () => {
+  it('span summary has status OK on success', async () => {
     const tracer = consoleTracer();
     await tracer.startSpan('my-span', async () => {});
 
     const [output] = consoleSpy.mock.calls[0] as [string];
-    const parsed = JSON.parse(output) as { ok: boolean };
-    assert.strictEqual(parsed.ok, true);
+    const parsed = JSON.parse(output) as OtlpSpan;
+    assert.strictEqual(parsed.status.code, 'OK');
+  });
+
+  it('span summary carries parentSpanId from the parent option', async () => {
+    const tracer = consoleTracer();
+    await tracer.startSpan('my-span', async () => {}, {
+      parent: { traceId: 'a'.repeat(32), spanId: 'c'.repeat(16) },
+    });
+
+    const [output] = consoleSpy.mock.calls[0] as [string];
+    const parsed = JSON.parse(output) as OtlpSpan;
+    assert.strictEqual(parsed.parentSpanId, 'c'.repeat(16));
   });
 
   describe('records emitted inline by default', () => {
@@ -77,11 +103,29 @@ describe('consoleTracer', () => {
       assert.strictEqual(consoleSpy.mock.calls.length, 2);
       const [firstOutput] = consoleSpy.mock.calls[0] as [string];
       const firstParsed = JSON.parse(firstOutput) as {
-        level: string;
-        msg: string;
+        severityText: string;
+        body: string;
       };
-      assert.strictEqual(firstParsed.level, 'info');
-      assert.strictEqual(firstParsed.msg, 'hello from span');
+      assert.strictEqual(firstParsed.severityText, 'INFO');
+      assert.strictEqual(firstParsed.body, 'hello from span');
+    });
+
+    it('records carry the span trace_id and span_id', async () => {
+      const tracer = consoleTracer({ recordLevel: 'info' });
+      await tracer.startSpan('my-span', (span) => {
+        span.record.info('hello from span');
+        return Promise.resolve();
+      });
+
+      const [recordOutput] = consoleSpy.mock.calls[0] as [string];
+      const [summaryOutput] = consoleSpy.mock.calls[1] as [string];
+      const record = JSON.parse(recordOutput) as {
+        trace_id: string;
+        span_id: string;
+      };
+      const summary = JSON.parse(summaryOutput) as OtlpSpan;
+      assert.strictEqual(record.trace_id, summary.traceId);
+      assert.strictEqual(record.span_id, summary.spanId);
     });
   });
 
@@ -95,8 +139,8 @@ describe('consoleTracer', () => {
 
       assert.strictEqual(consoleSpy.mock.calls.length, 1);
       const [output] = consoleSpy.mock.calls[0] as [string];
-      const parsed = JSON.parse(output) as { span: string };
-      assert.strictEqual(parsed.span, 'my-span');
+      const parsed = JSON.parse(output) as OtlpSpan;
+      assert.strictEqual(parsed.name, 'my-span');
     });
   });
 
@@ -115,7 +159,7 @@ describe('consoleTracer', () => {
       );
     });
 
-    it('emits span summary even when span throws', async () => {
+    it('emits span summary with ERROR status when span throws', async () => {
       const tracer = consoleTracer();
       await assert.rejects(() =>
         tracer.startSpan('failing-span', () =>
@@ -125,14 +169,10 @@ describe('consoleTracer', () => {
 
       assert.strictEqual(consoleSpy.mock.calls.length, 1);
       const [output] = consoleSpy.mock.calls[0] as [string];
-      const parsed = JSON.parse(output) as {
-        span: string;
-        ok: boolean;
-        error: { type: string; message: string };
-      };
-      assert.strictEqual(parsed.span, 'failing-span');
-      assert.strictEqual(parsed.ok, false);
-      assert.strictEqual(parsed.error.message, 'failure');
+      const parsed = JSON.parse(output) as OtlpSpan;
+      assert.strictEqual(parsed.name, 'failing-span');
+      assert.strictEqual(parsed.status.code, 'ERROR');
+      assert.strictEqual(parsed.status.message, 'failure');
     });
   });
 
@@ -143,8 +183,8 @@ describe('consoleTracer', () => {
 
       const [output] = consoleSpy.mock.calls[0] as [string];
       assert.ok(output.includes('\n'));
-      const parsed = JSON.parse(output) as { span: string };
-      assert.strictEqual(parsed.span, 'my-span');
+      const parsed = JSON.parse(output) as OtlpSpan;
+      assert.strictEqual(parsed.name, 'my-span');
     });
   });
 
