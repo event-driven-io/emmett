@@ -47,23 +47,28 @@ export const consoleSpanLogger = (
   const format: ConsoleFormat = options?.format ?? 'compact';
   const span = { traceId: options?.traceId, spanId: options?.spanId };
 
+  const event =
+    format === 'simple'
+      ? (event: LogEvent) => {
+          const text = event.body ?? event.eventName;
+          console.log(
+            text !== undefined
+              ? `[${event.level}] ${text}`
+              : `[${event.level}]`,
+          );
+          return;
+        }
+      : (event: LogEvent) => {
+          console.log(
+            JSONSerializer.serialize(toOtelRecord(event, span), {
+              format,
+              safe: true,
+            }),
+          );
+        };
+
   return logger({
     minLevel: options?.recordLevel,
-    event: (event) => {
-      if (format === 'simple') {
-        const text = event.body ?? event.eventName;
-        console.log(
-          text !== undefined ? `[${event.level}] ${text}` : `[${event.level}]`,
-        );
-        return;
-      }
-
-      console.log(
-        JSONSerializer.serialize(toOtelRecord(event, span), {
-          format,
-          safe: true,
-        }),
-      );
-    },
+    event,
   });
 };
