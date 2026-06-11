@@ -1,3 +1,4 @@
+import { consoleLogger } from '@event-driven-io/almanac';
 import { Command } from 'commander';
 
 interface MigrateRunOptions {
@@ -41,13 +42,13 @@ migrateCommand
     //let collectionNames: string[];
 
     if (!connectionString) {
-      console.error(
+      consoleLogger.error(
         'Error: Connection string is required. Provide it either as a "--connectionString" parameter or through the DB_CONNECTION_STRING environment variable.',
       );
       process.exit(1);
     }
 
-    console.log('Nothing has happened, but test was successful');
+    consoleLogger.info('Nothing has happened, but test was successful');
     // if (options.config) {
     //   const config = await loadConfigFile(options.config);
 
@@ -92,13 +93,13 @@ migrateCommand
     const { collection } = options;
 
     if (!collection) {
-      console.error(
+      consoleLogger.error(
         'Error: You need to provide at least one collection name is required. Provide it either as a "col" parameter.',
       );
       process.exit(1);
     }
 
-    console.log('Nothing has happened, but test was successful!');
+    consoleLogger.info('Nothing has happened, but test was successful!');
     // const coreMigrations = migrationTableSchemaComponent.migrations({
     //   connector: 'PostgreSQL:pg',
     // });

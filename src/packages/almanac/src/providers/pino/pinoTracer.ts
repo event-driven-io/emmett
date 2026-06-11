@@ -1,5 +1,6 @@
 import type { Logger as PinoLogger } from 'pino';
-import type { ActiveSpan, SpanEventLevel, Tracer } from '../../tracers';
+import { logger } from '../../loggers/logger';
+import type { ActiveSpan, Tracer } from '../../tracers';
 
 export const pinoTracer = (pino: PinoLogger): Tracer => ({
   startSpan: async <T>(
@@ -8,16 +9,24 @@ export const pinoTracer = (pino: PinoLogger): Tracer => ({
   ): Promise<T> => {
     const startTime = Date.now();
     const attrs: Record<string, unknown> = {};
+
     const span: ActiveSpan = {
       setAttributes: (a) => Object.assign(attrs, a),
       spanContext: () => ({ traceId: '', spanId: '' }),
       addLink: () => {},
-      addEvent: (eventName, eventAttrs, level: SpanEventLevel = 'info') =>
-        pino[level]({ ...eventAttrs, spanName: name }, eventName),
-      recordException: (err) => {
-        const error = err instanceof Error ? err : new Error(String(err));
-        pino.error({ err: error, spanName: name }, error.message);
-      },
+      log: logger({
+        minLevel: 'trace',
+        event: (event) =>
+          pino[event.level](
+            {
+              ...(event.attributes ?? {}),
+              ...(event.eventName ? { eventName: event.eventName } : {}),
+              ...(event.error ? { err: event.error } : {}),
+              spanName: name,
+            },
+            event.body ?? event.error?.message,
+          ),
+      }),
     };
     try {
       const result = await fn(span);

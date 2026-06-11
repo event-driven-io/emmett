@@ -127,7 +127,7 @@ export const commandHandlerCollector = (
               'exception.type':
                 err instanceof Error ? err.constructor.name : 'unknown',
             });
-            scope.recordException(
+            scope.log.error(
               err instanceof Error ? err : new Error(String(err)),
             );
             throw err;

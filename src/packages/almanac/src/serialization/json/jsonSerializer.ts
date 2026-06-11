@@ -1,4 +1,4 @@
-import type { SerializationCodec, Serializer } from './serializer';
+import type { SerializationCodec, Serializer } from '../serializer';
 
 interface JSONSerializer<
   SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
@@ -14,6 +14,8 @@ type JSONSerializerOptions = {
   failOnBigIntSerialization?: boolean;
   useDefaultDateSerialization?: boolean;
 };
+
+type JSONSerializeFormat = 'compact' | 'pretty';
 
 type JSONSerializeOptions = {
   replacer?: JSONReplacer;
@@ -340,6 +342,7 @@ export {
   type JSONCodecOptions,
   type JSONDeserializeOptions,
   type JSONSerializationOptions,
+  type JSONSerializeFormat,
   type JSONSerializeOptions,
   type JSONSerializerOptions,
 };

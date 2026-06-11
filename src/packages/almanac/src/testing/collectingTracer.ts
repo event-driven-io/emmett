@@ -1,12 +1,11 @@
+import { logger } from '../loggers/logger';
 import type { ActiveSpan, StartSpanOptions, Tracer } from '../tracers';
+import { generateSpanId, generateTraceId } from '../tracers';
 import type { CollectedSpan } from './collectedSpan';
 
 export type CollectingTracer = Tracer & {
   spans: CollectedSpan[];
 };
-
-let nextTraceId = 0;
-let nextSpanId = 0;
 
 export const collectingTracer = (): CollectingTracer => {
   const spans: CollectedSpan[] = [];
@@ -18,15 +17,14 @@ export const collectingTracer = (): CollectingTracer => {
       fn: (span: ActiveSpan) => Promise<T>,
       options?: StartSpanOptions,
     ): Promise<T> => {
-      const traceId = `trace-${++nextTraceId}`;
-      const spanId = `span-${++nextSpanId}`;
+      const traceId = generateTraceId();
+      const spanId = generateSpanId();
 
       const collected: CollectedSpan = {
         name,
         attributes: {},
-        events: [],
+        logs: [],
         links: [],
-        exceptions: [],
         startOptions: options ?? {},
         ownContext: { traceId, spanId },
       };
@@ -36,9 +34,10 @@ export const collectingTracer = (): CollectingTracer => {
         setAttributes: (attrs) => Object.assign(collected.attributes, attrs),
         spanContext: () => ({ traceId, spanId }),
         addLink: (link) => collected.links.push(link),
-        addEvent: (eventName, attributes) =>
-          collected.events.push({ name: eventName, attributes }),
-        recordException: (error) => collected.exceptions.push(error),
+        log: logger({
+          minLevel: 'trace',
+          event: (e) => collected.logs.push(e),
+        }),
       };
 
       return fn(span);

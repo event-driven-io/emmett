@@ -2,13 +2,13 @@ import { scopeAttributes, type AttributeTarget } from '../attributes';
 import { alwaysSample, type Sampler } from '../configuration';
 import type {
   ActiveSpan,
+  Logger,
   SpanContext,
-  SpanEventLevel,
   SpanLink,
   TracePropagation,
   Tracer,
 } from '../tracers';
-import { noopSpan } from '../tracers';
+import { noopLogger, noopSpan } from '../tracers';
 
 export type SetAttributesOptions = {
   target?: AttributeTarget;
@@ -31,13 +31,8 @@ export type ObservabilityScope = {
     fn: (child: ObservabilityScope) => Promise<T>,
     options?: ScopeOptions,
   ): Promise<T>;
-  addEvent(
-    name: string,
-    attributes?: Record<string, unknown>,
-    level?: SpanEventLevel,
-  ): void;
+  log: Logger;
   addLink(link: SpanLink): void;
-  recordException(error: Error | string): void;
   spanContext(): SpanContext;
 };
 
@@ -87,18 +82,16 @@ const makeScope = (
         propagation: childOpts?.propagation ?? observability.propagation,
       },
     ),
-  addEvent: (name, attributes, level) => span.addEvent(name, attributes, level),
+  log: span.log,
   addLink: (link) => span.addLink(link),
-  recordException: (error) => span.recordException(error),
   spanContext: () => span.spanContext(),
 });
 
 export const noopScope: ObservabilityScope = {
   setAttributes: () => {},
   scope: async (_name, fn) => fn(noopScope),
-  addEvent: () => {},
+  log: noopLogger,
   addLink: () => {},
-  recordException: () => {},
   spanContext: () => noopSpan.spanContext(),
 };
 

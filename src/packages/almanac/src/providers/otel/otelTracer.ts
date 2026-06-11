@@ -5,9 +5,26 @@ import {
   SpanStatusCode,
   trace,
 } from '@opentelemetry/api';
+import type { AnyValueMap } from '@opentelemetry/api-logs';
+import { logs, SeverityNumber } from '@opentelemetry/api-logs';
+import type { LogEvent, Logger, LogLevel } from '../../loggers/logger';
+import { logEvent, logger } from '../../loggers/logger';
 import type { ActiveSpan, StartSpanOptions, Tracer } from '../../tracers';
 
-export const otelTracer = (tracerName = 'almanac'): Tracer => ({
+const severityNumbers: Record<LogLevel, SeverityNumber> = {
+  fatal: SeverityNumber.FATAL,
+  error: SeverityNumber.ERROR,
+  warn: SeverityNumber.WARN,
+  info: SeverityNumber.INFO,
+  debug: SeverityNumber.DEBUG,
+  trace: SeverityNumber.TRACE,
+  silent: SeverityNumber.UNSPECIFIED,
+};
+
+export const otelTracer = (
+  tracerName = 'almanac',
+  tracerOptions?: { logger?: Logger; minLevel?: LogLevel },
+): Tracer => ({
   startSpan: async <T>(
     name: string,
     fn: (span: ActiveSpan) => Promise<T>,
@@ -49,6 +66,29 @@ export const otelTracer = (tracerName = 'almanac'): Tracer => ({
     }
 
     return tracer.startActiveSpan(name, spanOptions, ctx, async (otelSpan) => {
+      const otelLogger = logs.getLogger(tracerName);
+
+      const emit = (e: LogEvent): void => {
+        const attributes: AnyValueMap = { ...(e.attributes as AnyValueMap) };
+        if (e.error) {
+          attributes['exception.type'] = e.error.name;
+          attributes['exception.message'] = e.error.message;
+          if (e.error.stack) attributes['exception.stacktrace'] = e.error.stack;
+        }
+        otelLogger.emit({
+          timestamp: e.timestamp,
+          severityNumber: severityNumbers[e.level],
+          severityText: e.severityText,
+          ...(e.body !== undefined ? { body: e.body } : {}),
+          ...(e.eventName !== undefined ? { eventName: e.eventName } : {}),
+          attributes,
+        });
+      };
+
+      const log: Logger =
+        tracerOptions?.logger ??
+        logger({ event: emit, minLevel: tracerOptions?.minLevel });
+
       const span: ActiveSpan = {
         setAttributes: (attrs) => {
           for (const [key, value] of Object.entries(attrs)) {
@@ -65,30 +105,19 @@ export const otelTracer = (tracerName = 'almanac'): Tracer => ({
           // No-op for OTel — links are passed at creation time via SpanOptions.
           // Non-OTel strategies (ClickHouse, Pino) can still accept addLink after creation.
         },
-        addEvent: (eventName, attributes) => {
-          otelSpan.addEvent(
-            eventName,
-            attributes as Record<string, string | number | boolean> | undefined,
-          );
-        },
-        recordException: (error) => {
-          otelSpan.recordException(
-            error instanceof Error ? error : new Error(String(error)),
-          );
-        },
+        log,
       };
       try {
         const result = await fn(span);
         otelSpan.setStatus({ code: SpanStatusCode.OK });
         return result;
       } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
         otelSpan.setStatus({
           code: SpanStatusCode.ERROR,
-          message: err instanceof Error ? err.message : String(err),
+          message: error.message,
         });
-        otelSpan.recordException(
-          err instanceof Error ? err : new Error(String(err)),
-        );
+        emit(logEvent('error', { eventName: 'exception', error }));
         throw err;
       } finally {
         otelSpan.end();

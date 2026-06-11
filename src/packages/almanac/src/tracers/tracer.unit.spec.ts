@@ -34,18 +34,16 @@ describe('noopTracer', () => {
     });
   });
 
-  it('addEvent does not throw', async () => {
+  it('span.record exposes all 7 levels without throwing', async () => {
     const tracer = noopTracer();
     await tracer.startSpan('test', (span) => {
-      span.addEvent('OrderPlaced', { orderId: '123' });
-      return Promise.resolve();
-    });
-  });
-
-  it('recordException does not throw', async () => {
-    const tracer = noopTracer();
-    await tracer.startSpan('test', (span) => {
-      span.recordException(new Error('boom'));
+      span.log.info({ orderId: '123' }, 'OrderPlaced');
+      span.log.error(new Error('boom'), 'operation failed');
+      span.log.warn('degraded');
+      span.log.debug('details');
+      span.log.trace('verbose');
+      span.log.fatal('critical');
+      span.log.silent('shh');
       return Promise.resolve();
     });
   });

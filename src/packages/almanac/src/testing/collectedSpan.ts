@@ -1,11 +1,13 @@
+import type { LogEvent } from '../loggers/logger';
 import type { SpanLink, StartSpanOptions } from '../tracers';
+
+export type LoggedEvent = LogEvent;
 
 export type CollectedSpan = {
   name: string;
   attributes: Record<string, unknown>;
-  events: { name: string; attributes?: Record<string, unknown> }[];
+  logs: LoggedEvent[];
   links: SpanLink[];
-  exceptions: (Error | string)[];
   startOptions: StartSpanOptions;
   ownContext: { traceId: string; spanId: string };
 };
