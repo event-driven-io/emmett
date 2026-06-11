@@ -15,6 +15,8 @@ type JSONSerializerOptions = {
   useDefaultDateSerialization?: boolean;
 };
 
+type JSONSerializeFormat = 'compact' | 'pretty';
+
 type JSONSerializeOptions = {
   replacer?: JSONReplacer;
   format?: 'compact' | 'pretty';
@@ -340,6 +342,7 @@ export {
   type JSONCodecOptions,
   type JSONDeserializeOptions,
   type JSONSerializationOptions,
+  type JSONSerializeFormat,
   type JSONSerializeOptions,
   type JSONSerializerOptions,
 };

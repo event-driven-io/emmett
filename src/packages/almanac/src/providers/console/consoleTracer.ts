@@ -18,6 +18,12 @@ export type ConsoleTracerOptions = {
 export const consoleTracer = (options?: ConsoleTracerOptions): Tracer => {
   const mode = options?.mode ?? 'compact';
   const suppressRecords = options?.suppressRecords ?? false;
+  const log = !suppressRecords
+    ? consoleSpanLogger({
+        format: mode,
+        recordLevel: options?.recordLevel,
+      })
+    : noopLogger;
 
   return {
     startSpan: async <T>(
@@ -37,14 +43,7 @@ export const consoleTracer = (options?: ConsoleTracerOptions): Tracer => {
         spanContext: () => ({ traceId, spanId }),
         setAttributes: (attrs) => Object.assign(attributes, attrs),
         addLink: (link) => links.push(link),
-        log: !suppressRecords
-          ? consoleSpanLogger({
-              format: mode,
-              recordLevel: options?.recordLevel,
-              traceId,
-              spanId,
-            })
-          : noopLogger,
+        log,
       };
 
       let ok = true;

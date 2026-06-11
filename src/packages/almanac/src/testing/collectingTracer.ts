@@ -1,6 +1,6 @@
+import { logger } from '../loggers/logger';
 import type { ActiveSpan, StartSpanOptions, Tracer } from '../tracers';
 import { generateSpanId, generateTraceId } from '../tracers';
-import { logger } from '../tracers/logger';
 import type { CollectedSpan } from './collectedSpan';
 
 export type CollectingTracer = Tracer & {

@@ -13,9 +13,9 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { LogEvent } from '../../loggers/logger';
+import { logger } from '../../loggers/logger';
 import { ObservabilityScope } from '../../scopes/scope';
-import type { LogEvent } from '../../tracers/logger';
-import { logger } from '../../tracers/logger';
 import { otelAssertions } from './otelTesting';
 import { otelTracer } from './otelTracer';
 

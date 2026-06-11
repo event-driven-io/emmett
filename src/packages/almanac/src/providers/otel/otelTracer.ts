@@ -7,9 +7,9 @@ import {
 } from '@opentelemetry/api';
 import type { AnyValueMap } from '@opentelemetry/api-logs';
 import { logs, SeverityNumber } from '@opentelemetry/api-logs';
+import type { LogEvent, Logger, LogLevel } from '../../loggers/logger';
+import { logEvent, logger } from '../../loggers/logger';
 import type { ActiveSpan, StartSpanOptions, Tracer } from '../../tracers';
-import type { LogEvent, Logger, LogLevel } from '../../tracers/logger';
-import { logEvent, logger } from '../../tracers/logger';
 
 const severityNumbers: Record<LogLevel, SeverityNumber> = {
   fatal: SeverityNumber.FATAL,

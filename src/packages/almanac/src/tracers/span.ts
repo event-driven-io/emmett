@@ -1,5 +1,5 @@
-import type { Logger } from './logger';
-import { noopLogger } from './logger';
+import type { Logger } from '../loggers/logger';
+import { noopLogger } from '../loggers/logger';
 import type { TracePropagation } from './tracer';
 
 export type SpanContext = {

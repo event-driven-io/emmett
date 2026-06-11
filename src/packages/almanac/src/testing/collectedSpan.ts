@@ -1,5 +1,5 @@
+import type { LogEvent } from '../loggers/logger';
 import type { SpanLink, StartSpanOptions } from '../tracers';
-import type { LogEvent } from '../tracers/logger';
 
 export type LoggedEvent = LogEvent;
 
