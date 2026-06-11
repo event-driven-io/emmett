@@ -93,15 +93,15 @@ export const handleProjections = async <EventType extends Event = Event>(
     partition = defaultTag,
   } = options;
 
-  const eventTypes = events.map((e) => e.type);
-
-  const projections = allProjections.filter((p) =>
-    p.canHandle.some((type) => eventTypes.includes(type)),
-  );
-
   const client = (await transaction.connection.open()) as PgClient;
 
-  for (const projection of projections) {
+  for (const projection of allProjections) {
+    const filteredEvents = events.filter(({ type }) =>
+      projection.canHandle.includes(type),
+    );
+
+    if (filteredEvents.length === 0) continue;
+
     // TODO: Make projection name mandatory
     if (projection.name) {
       const lockAcquired = await postgreSQLProjectionLock({
@@ -115,7 +115,7 @@ export const handleProjections = async <EventType extends Event = Event>(
       }
     }
 
-    await projection.handle(events, {
+    await projection.handle(filteredEvents, {
       connection: {
         connectionString,
         pool,
