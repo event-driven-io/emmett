@@ -161,24 +161,33 @@ export type PongoMultiStreamProjectionOptions<
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
-  getDocumentId: (event: ReadEvent<EventType>) => string;
 } & (
   | {
-      evolve: PongoWithNullableDocumentEvolve<
-        Document,
-        EventType,
-        EventMetaDataType
-      >;
+      getDocumentId: (event: ReadEvent<EventType>) => string | null;
+      getDocumentIds?: never;
     }
   | {
-      evolve: PongoWithNotNullDocumentEvolve<
-        Document,
-        EventType,
-        EventMetaDataType
-      >;
-      initialState: () => Document;
+      getDocumentId?: never;
+      getDocumentIds: (event: ReadEvent<EventType>) => string[];
     }
 ) &
+  (
+    | {
+        evolve: PongoWithNullableDocumentEvolve<
+          Document,
+          EventType,
+          EventMetaDataType
+        >;
+      }
+    | {
+        evolve: PongoWithNotNullDocumentEvolve<
+          Document,
+          EventType,
+          EventMetaDataType
+        >;
+        initialState: () => Document;
+      }
+  ) &
   JSONSerializationOptions;
 
 export const pongoMultiStreamProjection = <
@@ -195,7 +204,7 @@ export const pongoMultiStreamProjection = <
     EventPayloadType
   >,
 ): PostgreSQLProjectionDefinition<EventType, EventPayloadType> => {
-  const { collectionName, getDocumentId, canHandle } = options;
+  const { collectionName, getDocumentId, getDocumentIds, canHandle } = options;
   const collectionNameWithVersion =
     options.version && options.version > 0
       ? `${collectionName}_v${options.version}`
@@ -215,15 +224,19 @@ export const pongoMultiStreamProjection = <
         );
 
       const eventsByDocumentId = events
-        .map((event) => {
-          const documentId = getDocumentId(event);
+        .flatMap((event) => {
+          const documentIds = getDocumentId
+            ? [getDocumentId(event)].filter((e) => e !== null)
+            : getDocumentIds(event);
 
-          return {
+          return documentIds.map((documentId) => ({
             documentId,
             event: event as ReadEvent<EventType, EventMetaDataType>,
-          };
+          }));
         })
         .reduce((acc, { documentId, event }) => {
+          if (documentId === null) return acc;
+
           if (!acc.has(documentId)) {
             acc.set(documentId, []);
           }
@@ -302,7 +315,6 @@ export type PongoSingleStreamProjectionOptions<
   DocumentPayload extends PongoDocument = Document,
 > = {
   canHandle: CanHandle<EventType>;
-  getDocumentId?: (event: ReadEvent<EventType>) => string;
   version?: number;
   collectionName: string;
   collectionOptions?: PongoDBCollectionOptions<Document, DocumentPayload>;
@@ -311,21 +323,35 @@ export type PongoSingleStreamProjectionOptions<
   };
 } & (
   | {
-      evolve: PongoWithNullableDocumentEvolve<
-        Document,
-        EventType,
-        EventMetaDataType
-      >;
+      getDocumentId: (event: ReadEvent<EventType>) => string | null;
+      getDocumentIds?: never;
     }
   | {
-      evolve: PongoWithNotNullDocumentEvolve<
-        Document,
-        EventType,
-        EventMetaDataType
-      >;
-      initialState: () => Document;
+      getDocumentId?: never;
+      getDocumentIds: (event: ReadEvent<EventType>) => string[];
+    }
+  | {
+      getDocumentId?: never;
+      getDocumentIds?: never;
     }
 ) &
+  (
+    | {
+        evolve: PongoWithNullableDocumentEvolve<
+          Document,
+          EventType,
+          EventMetaDataType
+        >;
+      }
+    | {
+        evolve: PongoWithNotNullDocumentEvolve<
+          Document,
+          EventType,
+          EventMetaDataType
+        >;
+        initialState: () => Document;
+      }
+  ) &
   JSONSerializationOptions;
 
 export const pongoSingleStreamProjection = <
@@ -334,23 +360,28 @@ export const pongoSingleStreamProjection = <
   EventMetaDataType extends PostgresReadEventMetadata =
     PostgresReadEventMetadata,
   EventPayloadType extends Event = EventType,
->(
-  options: PongoSingleStreamProjectionOptions<
-    Document,
-    EventType,
-    EventMetaDataType,
-    EventPayloadType
-  >,
-): PostgreSQLProjectionDefinition<EventType, EventPayloadType> => {
+>({
+  getDocumentId,
+  getDocumentIds,
+  ...options
+}: PongoSingleStreamProjectionOptions<
+  Document,
+  EventType,
+  EventMetaDataType,
+  EventPayloadType
+>): PostgreSQLProjectionDefinition<EventType, EventPayloadType> => {
   return pongoMultiStreamProjection<
     Document,
     EventType,
     EventMetaDataType,
     EventPayloadType
   >({
-    ...options,
     kind: 'emt:projections:postgresql:pongo:single_stream',
-    getDocumentId:
-      options.getDocumentId ?? ((event) => event.metadata.streamName),
+    ...options,
+    ...(getDocumentId
+      ? { getDocumentId: getDocumentId }
+      : getDocumentIds
+        ? { getDocumentIds: getDocumentIds }
+        : { getDocumentId: (event) => event.metadata.streamName }),
   });
 };

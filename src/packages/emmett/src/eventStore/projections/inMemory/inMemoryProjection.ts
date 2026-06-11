@@ -41,22 +41,19 @@ export const handleInMemoryProjections = async <
 ): Promise<void> => {
   const { projections, events, database, eventStore, observability } = options;
 
-  // Get all event types from the events batch to filter projections
-  const eventTypes = events.map((e) => e.type);
-
-  // Filter projections that can handle these event types
-  const relevantProjections = projections.filter((p) =>
-    p.canHandle.some((type) => eventTypes.includes(type)),
-  );
-
   const { startScope } = ObservabilityScope(observability);
 
   // Process each projection
-  for (const projection of relevantProjections) {
+  for (const projection of projections) {
+    const filteredEvents = events.filter(({ type }) =>
+      projection.canHandle.includes(type),
+    );
+    if (filteredEvents.length === 0) continue;
+
     await startScope(
       'eventStore.inlineProjection',
       async (observabilityScope) =>
-        projection.handle(events, {
+        projection.handle(filteredEvents, {
           eventStore,
           database,
           observabilityScope,

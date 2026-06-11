@@ -60,13 +60,14 @@ export const handleProjections = async <EventType extends Event = Event>(
     driverType,
   } = options;
 
-  const eventTypes = events.map((e) => e.type);
-
   for (const projection of allProjections) {
-    if (!projection.canHandle.some((type) => eventTypes.includes(type))) {
-      continue;
-    }
-    await projection.handle(events, {
+    const filteredEvents = events.filter(({ type }) =>
+      projection.canHandle.includes(type),
+    );
+
+    if (filteredEvents.length === 0) continue;
+
+    await projection.handle(filteredEvents, {
       connection,
       execute,
       driverType,
