@@ -1,6 +1,10 @@
 import { describe, it } from 'vitest';
 import { IllegalStateError, ValidationError } from '../errors';
-import { AssertionError, assertThrows } from '../testing/assertions';
+import {
+  AssertionError,
+  assertEqual,
+  assertThrows,
+} from '../testing/assertions';
 import type { Command, Event } from '../typing';
 import { DeciderSpecification } from './deciderSpecification';
 import {
@@ -58,6 +62,52 @@ void describe('DeciderSpecification', () => {
           error.message ===
             `Arrays lengths don't match:\nExpected: 1\nActual: 0`,
       );
+    });
+  });
+
+  void describe('then with an assertion callback', () => {
+    void it('passes when the callback does not throw or return an error', () => {
+      given([])
+        .when({ type: 'Do', data: { something: 'Yes!' } })
+        .then((events) => {
+          assertEqual(events.length, 1);
+          assertEqual(events[0]!.data.something, 'Yes!');
+        });
+    });
+
+    void it('fails when the callback throws', () => {
+      assertThrows(
+        () => {
+          given([])
+            .when({ type: 'Do', data: { something: 'Yes!' } })
+            .then(() => {
+              throw new Error('assertion from client code');
+            });
+        },
+        (error) =>
+          error instanceof Error &&
+          error.message === 'assertion from client code',
+      );
+    });
+
+    void it('fails when the callback returns an error', () => {
+      assertThrows(
+        () => {
+          given([])
+            .when({ type: 'Do', data: { something: 'Yes!' } })
+            .then(() => new Error('returned error'));
+        },
+        (error) => error instanceof Error && error.message === 'returned error',
+      );
+    });
+
+    void it('supports async callbacks on a sync decider', async () => {
+      await given([])
+        .when({ type: 'Do', data: { something: 'Yes!' } })
+        .then(async (events) => {
+          await Promise.resolve();
+          assertEqual(events.length, 1);
+        });
     });
   });
 
