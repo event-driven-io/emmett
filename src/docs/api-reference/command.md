@@ -215,9 +215,9 @@ function logCommand(command: AnyCommand): void {
 ### Direct Handler
 
 ```typescript
-import { CommandHandler } from '@event-driven-io/emmett';
+import { DeciderCommandHandler } from '@event-driven-io/emmett';
 
-const handle = CommandHandler(eventStore, {
+const handle = DeciderCommandHandler(eventStore, {
   decide,
   evolve,
   initialState,
