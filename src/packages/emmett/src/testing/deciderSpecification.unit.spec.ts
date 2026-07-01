@@ -111,6 +111,29 @@ void describe('DeciderSpecification', () => {
     });
   });
 
+  void describe('then with a non-native thenable result', () => {
+    void it('awaits a thenable returned by decide instead of treating it as an event', async () => {
+      const thenableDecider = DeciderSpecification.for({
+        decide: (): Promise<SomethingHappened[]> =>
+          ({
+            then: (onFulfilled: (events: SomethingHappened[]) => unknown) =>
+              onFulfilled([{ type: 'Did', data: { something: 'Thenable' } }]),
+          }) as unknown as Promise<SomethingHappened[]>,
+        evolve,
+        initialState,
+      });
+
+      let asserted: string | undefined;
+      await thenableDecider([])
+        .when({ type: 'Do', data: { something: 'x' } })
+        .then((events) => {
+          asserted = events[0]!.data.something;
+        });
+
+      assertEqual(asserted, 'Thenable');
+    });
+  });
+
   void describe('thenNothingHappened', () => {
     void it('thenNothingHappened succeeds if returns empty array', () => {
       given([])
