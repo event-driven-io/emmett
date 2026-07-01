@@ -77,6 +77,44 @@ void describe('AsyncDeciderSpecification', () => {
         thrown instanceof Error && thrown.message === 'async assertion failed',
       );
     });
+
+    void it('passes when the async callback resolves without an error', async () => {
+      await given([])
+        .when({ type: 'Do', data: { something: 'Yes!' } })
+        .then(async (events) => {
+          await Promise.resolve();
+          assertTrue(events.length === 1);
+        });
+    });
+    void it('fails when the callback throws', async () => {
+      let thrown: unknown;
+      try {
+        await given([])
+          .when({ type: 'Do', data: { something: 'Yes!' } })
+          .then(() => {
+            throw new Error('assertion from client code');
+          });
+      } catch (error) {
+        thrown = error;
+      }
+      assertTrue(
+        thrown instanceof Error &&
+          thrown.message === 'assertion from client code',
+      );
+    });
+    void it('fails when the callback returns an error', async () => {
+      let thrown: unknown;
+      try {
+        await given([])
+          .when({ type: 'Do', data: { something: 'Yes!' } })
+          .then(() => new Error('returned error'));
+      } catch (error) {
+        thrown = error;
+      }
+      assertTrue(
+        thrown instanceof Error && thrown.message === 'returned error',
+      );
+    });
   });
 
   void describe('thenNothingHappened', () => {
