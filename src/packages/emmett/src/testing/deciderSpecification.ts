@@ -52,6 +52,15 @@ export type AsyncDeciderSpecification<Command, Event> = (
   };
 };
 
+// Detect promise-like values reliably. `instanceof Promise` misses non-native
+// Promises and custom promise-like objects, and fails across realms (e.g.
+// different globals/iframes) — treating an async result as a plain event.
+// Callers normalize the value with `Promise.resolve` before awaiting it.
+const isPromiseLike = <T = unknown>(value: unknown): value is PromiseLike<T> =>
+  value !== null &&
+  (typeof value === 'object' || typeof value === 'function') &&
+  typeof (value as { then?: unknown }).then === 'function';
+
 export const DeciderSpecification = {
   for: deciderSpecificationFor,
 };
@@ -99,8 +108,8 @@ function deciderSpecificationFor<Command, Event, State>(decider: {
             ): void | Promise<void> => {
               const resultEvents = handle();
 
-              if (resultEvents instanceof Promise) {
-                return resultEvents.then((events) =>
+              if (isPromiseLike<Event | Event[]>(resultEvents)) {
+                return Promise.resolve(resultEvents).then((events) =>
                   thenHandler(events, expectedEventsOrAssert),
                 );
               }
@@ -110,8 +119,8 @@ function deciderSpecificationFor<Command, Event, State>(decider: {
             thenNothingHappened: (): void | Promise<void> => {
               const resultEvents = handle();
 
-              if (resultEvents instanceof Promise) {
-                return resultEvents.then((events) => {
+              if (isPromiseLike<Event | Event[]>(resultEvents)) {
+                return Promise.resolve(resultEvents).then((events) => {
                   thenNothingHappensHandler(events);
                 });
               }
@@ -123,8 +132,8 @@ function deciderSpecificationFor<Command, Event, State>(decider: {
             ): void | Promise<void> => {
               try {
                 const result = handle();
-                if (result instanceof Promise) {
-                  return result
+                if (isPromiseLike<Event | Event[]>(result)) {
+                  return Promise.resolve(result)
                     .then(() => {
                       throw new AssertionError(
                         'Handler did not fail as expected',
@@ -178,7 +187,8 @@ function runThenAssert<Event>(
 ): void | Promise<void> {
   const outcome = assert(events);
 
-  if (outcome instanceof Promise) return outcome.then(failIfError);
+  if (isPromiseLike<void | Error>(outcome))
+    return Promise.resolve(outcome).then(failIfError);
 
   failIfError(outcome);
 }
