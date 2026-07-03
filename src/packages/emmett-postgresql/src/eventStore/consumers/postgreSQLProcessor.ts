@@ -100,8 +100,7 @@ export type PostgreSQLProcessorEachBatchHandler<
 >;
 
 export type PostgreSQLProcessorStartFrom =
-  | PostgreSQLEventStoreMessageBatchPullerStartFrom
-  | 'CURRENT';
+  PostgreSQLEventStoreMessageBatchPullerStartFrom | 'CURRENT';
 
 type PostgreSQLProcessorPooledOptions =
   | {

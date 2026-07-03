@@ -39,9 +39,7 @@ import {
 } from './observability';
 
 export type CurrentMessageProcessorPosition =
-  | { lastCheckpoint: ProcessorCheckpoint }
-  | 'BEGINNING'
-  | 'END';
+  { lastCheckpoint: ProcessorCheckpoint } | 'BEGINNING' | 'END';
 
 export const wasMessageHandled = <
   MessageType extends AnyMessage = AnyMessage,
@@ -63,8 +61,7 @@ export const wasMessageHandled = <
 };
 
 export type MessageProcessorStartFrom =
-  | CurrentMessageProcessorPosition
-  | 'CURRENT';
+  CurrentMessageProcessorPosition | 'CURRENT';
 
 export type MessageProcessorType = 'projector' | 'reactor';
 export const MessageProcessorType = {

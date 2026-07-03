@@ -129,8 +129,7 @@ const collectionFor = async <EventType extends Event = Event>(options: {
   const { collectionName, db, streamCollections } = options;
 
   let collection = streamCollections.get(collectionName) as
-    | Collection<EventStream<EventType>>
-    | undefined;
+    Collection<EventStream<EventType>> | undefined;
 
   if (!collection) {
     collection = db.collection<EventStream<EventType>>(collectionName);
@@ -169,8 +168,7 @@ export const mongoDBEventStoreStorage = (options: {
       );
 
       let collection = streamCollections.get(collectionName) as
-        | Collection<EventStream<EventType>>
-        | undefined;
+        Collection<EventStream<EventType>> | undefined;
 
       if (!collection) {
         const db = await getDB({ databaseName, dbsCache, getConnectedClient });

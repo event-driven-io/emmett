@@ -52,8 +52,7 @@ export type MongoDBSubscriptionOptions<MessageType extends Message = Message> =
     };
   };
 export type ChangeStreamFullDocumentValuePolicy = () =>
-  | 'whenAvailable'
-  | 'updateLookup';
+  'whenAvailable' | 'updateLookup';
 export type MongoDBSubscriptionDocument<TSchema extends Document = Document> =
   | ChangeStreamInsertDocument<TSchema>
   | ChangeStreamUpdateDocument<TSchema>

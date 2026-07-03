@@ -52,8 +52,7 @@ export async function tryPublishMessagesAfterCommit<
 >(
   messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
   options:
-    | TryPublishMessagesAfterCommitOptions<Store, HandlerContext>
-    | undefined,
+    TryPublishMessagesAfterCommitOptions<Store, HandlerContext> | undefined,
   context: HandlerContext,
 ): Promise<boolean>;
 export async function tryPublishMessagesAfterCommit<
@@ -62,8 +61,7 @@ export async function tryPublishMessagesAfterCommit<
 >(
   messages: ReadEvent<Event, EventStoreReadEventMetadata<Store>>[],
   options:
-    | TryPublishMessagesAfterCommitOptions<Store, HandlerContext>
-    | undefined,
+    TryPublishMessagesAfterCommitOptions<Store, HandlerContext> | undefined,
   context?: HandlerContext,
 ): Promise<boolean> {
   if (options?.onAfterCommit === undefined) return false;

@@ -164,8 +164,7 @@ type PostgresEventStoreNotPooledOptions =
     };
 
 export type PostgresEventStoreConnectionOptions =
-  | PostgresEventStorePooledOptions
-  | PostgresEventStoreNotPooledOptions;
+  PostgresEventStorePooledOptions | PostgresEventStoreNotPooledOptions;
 
 export type PostgresEventStoreOptions = {
   projections?: ProjectionRegistration<

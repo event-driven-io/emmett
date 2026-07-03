@@ -326,14 +326,10 @@ void describe('SQLiteEventStore upcasting', () => {
   >;
 
   type ShoppingCartEventFromDB =
-    | ProductItemAdded
-    | DiscountApplied
-    | ShoppingCartOpenedFromDB;
+    ProductItemAdded | DiscountApplied | ShoppingCartOpenedFromDB;
 
   type ShoppingCartEventWithDatesAndBigInt =
-    | ProductItemAdded
-    | DiscountApplied
-    | ShoppingCartOpened;
+    ProductItemAdded | DiscountApplied | ShoppingCartOpened;
 
   type ShoppingCartState = {
     productItems: PricedProductItem[];

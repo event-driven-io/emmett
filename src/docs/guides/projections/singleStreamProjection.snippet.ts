@@ -29,8 +29,7 @@ type ProductItemRemovedFromShoppingCart = Event<
 >;
 
 type ShoppingCartEvent =
-  | ProductItemAddedToShoppingCart
-  | ProductItemRemovedFromShoppingCart;
+  ProductItemAddedToShoppingCart | ProductItemRemovedFromShoppingCart;
 
 // #region single-stream-projection
 import { pongoSingleStreamProjection } from '@event-driven-io/emmett-postgresql';

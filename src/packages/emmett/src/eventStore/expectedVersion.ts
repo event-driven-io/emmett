@@ -2,8 +2,7 @@ import { ConcurrencyError, EmmettError } from '../errors';
 import type { Flavour, StreamPosition } from '../typing';
 
 export type ExpectedStreamVersion =
-  | ExpectedStreamVersionWithValue
-  | ExpectedStreamVersionGeneral;
+  ExpectedStreamVersionWithValue | ExpectedStreamVersionGeneral;
 
 export type ExpectedStreamVersionWithValue = Flavour<
   StreamPosition,

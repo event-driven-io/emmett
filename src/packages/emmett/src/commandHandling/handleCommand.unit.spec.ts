@@ -576,8 +576,7 @@ void describe('Command Handler', () => {
     type DiscountAppliedFromDB = Event<'DiscountApplied', { percent: string }>;
 
     type ShoppingCartEventFromDB =
-      | ProductItemAddedFromDB
-      | DiscountAppliedFromDB;
+      ProductItemAddedFromDB | DiscountAppliedFromDB;
 
     const upcast = (event: Event): ShoppingCartEvent => {
       switch (event.type) {
@@ -652,9 +651,7 @@ void describe('Command Handler', () => {
     >;
 
     type ShoppingCartEventWithDatesAndBigInt =
-      | ShoppingCartOpened
-      | ProductItemAdded
-      | DiscountApplied;
+      ShoppingCartOpened | ProductItemAdded | DiscountApplied;
 
     type ShoppingCartOpenedFromDB = Event<
       'ShoppingCartOpened',
@@ -662,9 +659,7 @@ void describe('Command Handler', () => {
     >;
 
     type ShoppingCartEventFromDB =
-      | ShoppingCartOpenedFromDB
-      | ProductItemAdded
-      | DiscountApplied;
+      ShoppingCartOpenedFromDB | ProductItemAdded | DiscountApplied;
 
     const upcastDatesAndBigInt = (
       event: Event,

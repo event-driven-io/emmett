@@ -56,9 +56,7 @@ export type EventStoreDBSubscriptionOptions<
 };
 
 export type EventStoreDBSubscriptionStartFrom =
-  | { lastCheckpoint: ProcessorCheckpoint }
-  | 'BEGINNING'
-  | 'END';
+  { lastCheckpoint: ProcessorCheckpoint } | 'BEGINNING' | 'END';
 
 export type EventStoreDBSubscriptionStartOptions = {
   startFrom: EventStoreDBSubscriptionStartFrom;

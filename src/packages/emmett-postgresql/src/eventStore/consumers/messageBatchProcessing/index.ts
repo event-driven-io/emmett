@@ -41,9 +41,7 @@ export type PostgreSQLEventStoreMessageBatchPullerOptions<
 };
 
 export type PostgreSQLEventStoreMessageBatchPullerStartFrom =
-  | { lastCheckpoint: ProcessorCheckpoint }
-  | 'BEGINNING'
-  | 'END';
+  { lastCheckpoint: ProcessorCheckpoint } | 'BEGINNING' | 'END';
 
 export type PostgreSQLEventStoreMessageBatchPullerStartOptions = {
   startFrom: PostgreSQLEventStoreMessageBatchPullerStartFrom;

@@ -21,8 +21,7 @@ export const otelTracer = (tracerName = 'almanac'): Tracer => ({
       spanOptions.links = options.links.map((l) => ({
         context: { traceId: l.traceId, spanId: l.spanId, traceFlags: 1 },
         attributes: l.attributes as
-          | Record<string, string | number | boolean>
-          | undefined,
+          Record<string, string | number | boolean> | undefined,
       }));
     }
 

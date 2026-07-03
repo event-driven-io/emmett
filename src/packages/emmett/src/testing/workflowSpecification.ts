@@ -33,8 +33,7 @@ function workflowSpecificationFor<
 ): WorkflowSpecification<Input, Output> {
   return (
     givenEvents:
-      | WorkflowEvent<Input | Output>
-      | WorkflowEvent<Input | Output>[],
+      WorkflowEvent<Input | Output> | WorkflowEvent<Input | Output>[],
   ) => {
     return {
       when: (input: Input) => {

@@ -92,19 +92,17 @@ export const readEvents = async <E extends Event>(
     return { events: [], currentStreamVersion: 0n, streamExists: false };
   }
 
-  const events = result.rows.map(
-    (row): V0387ReadEvent<E> => ({
-      type: row.message_type,
-      data: row.message_data,
-      metadata: {
-        messageId: row.message_id,
-        streamName: options.streamId,
-        streamPosition: BigInt(row.stream_position),
-        globalPosition: BigInt(row.global_position),
-        transactionId: BigInt(row.transaction_id),
-      },
-    }),
-  );
+  const events = result.rows.map((row): V0387ReadEvent<E> => ({
+    type: row.message_type,
+    data: row.message_data,
+    metadata: {
+      messageId: row.message_id,
+      streamName: options.streamId,
+      streamPosition: BigInt(row.stream_position),
+      globalPosition: BigInt(row.global_position),
+      transactionId: BigInt(row.transaction_id),
+    },
+  }));
 
   return {
     events,

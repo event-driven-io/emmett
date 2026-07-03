@@ -25,9 +25,7 @@ export type ShoppingCartConfirmed = Event<
 >;
 
 export type ShoppingCartEvent =
-  | ProductItemAdded
-  | DiscountApplied
-  | ShoppingCartConfirmed;
+  ProductItemAdded | DiscountApplied | ShoppingCartConfirmed;
 
 export const evolve = (
   state: ShoppingCart,

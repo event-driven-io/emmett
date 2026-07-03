@@ -404,8 +404,7 @@ const decide = (input, state) => {
 ```typescript
 // ✅ Good: State allows recovery
 type State =
-  | { status: 'Processing'; completedSteps: string[] }
-  | { status: 'Completed' };
+  { status: 'Processing'; completedSteps: string[] } | { status: 'Completed' };
 
 // ❌ Bad: No way to know what's done
 type State = { processing: boolean };

@@ -29,8 +29,7 @@ if (generateSchemaUpfront) await eventStore.schema.migrate();
 type DidSomething = Event<'DidSomething', { id: number; description: string }>;
 
 type WhatDidIDo =
-  | { id: number; description: string }
-  | { description: 'Nothing!' };
+  { id: number; description: string } | { description: 'Nothing!' };
 
 const evolve = (_state: WhatDidIDo, event: DidSomething): WhatDidIDo =>
   event.data;

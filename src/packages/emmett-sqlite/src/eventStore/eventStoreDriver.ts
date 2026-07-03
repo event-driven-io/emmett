@@ -18,8 +18,7 @@ export type EventStoreDriverOptions<
   Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
 > = {
   connectionOptions?:
-    | ExtractDumboDatabaseDriverOptions<Driver['dumboDriver']>
-    | undefined;
+    ExtractDumboDatabaseDriverOptions<Driver['dumboDriver']> | undefined;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

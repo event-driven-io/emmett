@@ -433,9 +433,7 @@ type ShoppingCartConfirmed = Event<
 >;
 
 type ShoppingCartEvent =
-  | ProductItemAdded
-  | DiscountApplied
-  | ShoppingCartConfirmed;
+  ProductItemAdded | DiscountApplied | ShoppingCartConfirmed;
 
 const shoppingCartShortInfoProjection = pongoSingleStreamProjection({
   collectionName: shoppingCartShortInfoCollectionName,

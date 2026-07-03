@@ -32,9 +32,7 @@ export type DocumentHandler<T extends Document> = (
 ) => T | null;
 
 export type ExpectedDocumentVersionGeneral =
-  | 'DOCUMENT_EXISTS'
-  | 'DOCUMENT_DOES_NOT_EXIST'
-  | 'NO_CONCURRENCY_CHECK';
+  'DOCUMENT_EXISTS' | 'DOCUMENT_DOES_NOT_EXIST' | 'NO_CONCURRENCY_CHECK';
 
 export type ExpectedDocumentVersion = bigint | ExpectedDocumentVersionGeneral;
 
@@ -88,8 +86,7 @@ export type DatabaseHandleResult<T> =
   | (OperationResult & { document: null });
 
 export type DatabaseHandleOptionErrors =
-  | { throwOnOperationFailures?: boolean }
-  | undefined;
+  { throwOnOperationFailures?: boolean } | undefined;
 
 export declare type OptionalId<TSchema> = EnhancedOmit<TSchema, '_id'> & {
   _id?: string;

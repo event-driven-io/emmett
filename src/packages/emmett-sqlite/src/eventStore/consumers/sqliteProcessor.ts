@@ -78,8 +78,7 @@ export type SQLiteProcessorEachBatchHandler<
 >;
 
 export type SQLiteProcessorStartFrom =
-  | SQLiteEventStoreMessageBatchPullerStartFrom
-  | 'CURRENT';
+  SQLiteEventStoreMessageBatchPullerStartFrom | 'CURRENT';
 
 export type SQLiteProcessorConnectionOptions = {
   connection?: AnySQLiteConnection;

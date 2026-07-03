@@ -41,8 +41,7 @@ export const WorkflowHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions
   };
 
 export type WorkflowHandlerRetryOptions =
-  | AsyncRetryOptions
-  | { onVersionConflict: true | number | AsyncRetryOptions };
+  AsyncRetryOptions | { onVersionConflict: true | number | AsyncRetryOptions };
 
 const fromWorkflowHandlerRetryOptions = (
   retryOptions: WorkflowHandlerRetryOptions | undefined,
@@ -141,8 +140,7 @@ const createWrappedEvolve = <
     event: WorkflowEvent<Input | Output>,
   ): WorkflowInternalState<State> => {
     const metadata = (event as Record<string, unknown>).metadata as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
 
     // Track processed inputs for idempotency
     let processedInputIds = state.processedInputIds;

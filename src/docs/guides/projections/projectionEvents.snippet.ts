@@ -28,5 +28,4 @@ type ProductItemRemovedFromShoppingCart = Event<
 >;
 
 export type ShoppingCartEvent =
-  | ProductItemAddedToShoppingCart
-  | ProductItemRemovedFromShoppingCart;
+  ProductItemAddedToShoppingCart | ProductItemRemovedFromShoppingCart;

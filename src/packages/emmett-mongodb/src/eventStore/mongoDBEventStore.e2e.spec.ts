@@ -163,8 +163,7 @@ void describe('MongoDBEventStore', () => {
     type ShoppingCartEventFromDB = ShoppingCartEvent | ShoppingCartOpenedFromDB;
 
     type ShoppingCartEventWithDatesAndBigInt =
-      | ShoppingCartEvent
-      | ShoppingCartOpened;
+      ShoppingCartEvent | ShoppingCartOpened;
 
     type ShoppingCartState = {
       productItems: PricedProductItem[];

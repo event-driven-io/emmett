@@ -22,8 +22,7 @@ export const downcastRecordedMessage = <
     AnyRecordedMessageMetadata,
 >(
   recordedMessage:
-    | RecordedMessage<MessageType, RecordedMessageMetadataType>
-    | MessageType,
+    RecordedMessage<MessageType, RecordedMessageMetadataType> | MessageType,
   options?: {
     downcast?: MessageDowncast<
       MessageType,
@@ -74,8 +73,7 @@ export const downcastRecordedMessages = <
     AnyRecordedMessageMetadata,
 >(
   recordedMessages:
-    | RecordedMessage<MessageType, RecordedMessageMetadataType>[]
-    | MessageType[],
+    RecordedMessage<MessageType, RecordedMessageMetadataType>[] | MessageType[],
   options?: {
     downcast?: MessageDowncast<
       MessageType,

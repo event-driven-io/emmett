@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/core",
   "type": "module",
-  "version": "0.43.0-beta.22",
+  "version": "0.43.0-beta.23",
   "description": "Emmett - Event Sourcing development made simple",
   "engines": {
     "node": ">=24.12.0"
@@ -116,7 +116,7 @@
     "vitest": "^4.1.5"
   },
   "peerDependencies": {
-    "@event-driven-io/pongo": "0.17.0-beta.39",
+    "@event-driven-io/pongo": "0.17.0-beta.40",
     "@types/express": "4.17.21",
     "@types/node": "^25.6.0",
     "@types/supertest": "^7.2.0",

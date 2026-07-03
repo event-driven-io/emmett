@@ -132,8 +132,7 @@ export const eventStoreDBEventStoreConsumer = <
     );
 
     const error = result.find((r) => r.status === 'rejected')?.reason as
-      | Error
-      | undefined;
+      Error | undefined;
 
     return result.some(
       (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',

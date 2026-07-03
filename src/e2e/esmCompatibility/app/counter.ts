@@ -7,9 +7,7 @@ export type CounterDecremented = Event<'CounterDecremented', { by: number }>;
 export type CounterSubmitted = Event<'CounterSubmitted'>;
 
 export type CounterEvent =
-  | CounterIncremented
-  | CounterDecremented
-  | CounterSubmitted;
+  CounterIncremented | CounterDecremented | CounterSubmitted;
 
 export type IncrementCounter = Command<
   'IncrementCounter',
@@ -22,9 +20,7 @@ export type DecrementCounter = Command<
 export type SubmitCounter = Command<'SubmitCounter'>;
 
 export type CounterCommand =
-  | IncrementCounter
-  | DecrementCounter
-  | SubmitCounter;
+  IncrementCounter | DecrementCounter | SubmitCounter;
 
 export type OpenedCounter = { status: 'opened'; value: number };
 export type SubmittedCounter = { status: 'submitted'; value: number };

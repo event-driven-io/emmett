@@ -30,8 +30,7 @@ export const CommandHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions 
   };
 
 export type CommandHandlerRetryOptions =
-  | AsyncRetryOptions
-  | { onVersionConflict: true | number | AsyncRetryOptions };
+  AsyncRetryOptions | { onVersionConflict: true | number | AsyncRetryOptions };
 
 // #region command-handler
 export type CommandHandlerResult<

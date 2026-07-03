@@ -48,9 +48,7 @@ export type SQLiteEventStoreMessageBatchPullerOptions<
 } & JSONSerializationOptions;
 
 export type SQLiteEventStoreMessageBatchPullerStartFrom =
-  | { lastCheckpoint: ProcessorCheckpoint }
-  | 'BEGINNING'
-  | 'END';
+  { lastCheckpoint: ProcessorCheckpoint } | 'BEGINNING' | 'END';
 
 export type SQLiteEventStoreMessageBatchPullerStartOptions = {
   startFrom: SQLiteEventStoreMessageBatchPullerStartFrom;

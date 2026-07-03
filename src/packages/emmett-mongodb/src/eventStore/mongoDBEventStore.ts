@@ -101,8 +101,7 @@ type SingleProjectionQueryStreamFilter<T extends StreamType> = {
 type MultiProjectionQueryStreamFilter<T extends StreamType> = {
   projectionName?: string;
 } & (
-  | { streamNames: StreamName<T>[] }
-  | { streamType: T; streamIds?: string[] }
+  { streamNames: StreamName<T>[] } | { streamType: T; streamIds?: string[] }
 );
 
 type MultiProjectionQueryOptions = {
@@ -172,8 +171,7 @@ export type MongoDBEventStoreConnectionStringOptions = {
 };
 
 export type MongoDBEventStoreConnectionOptions =
-  | MongoDBEventStoreClientOptions
-  | MongoDBEventStoreConnectionStringOptions;
+  MongoDBEventStoreClientOptions | MongoDBEventStoreConnectionStringOptions;
 
 export type MongoDBEventStoreOptions = {
   projections?: ProjectionRegistration<
