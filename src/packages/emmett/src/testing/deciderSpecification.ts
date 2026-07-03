@@ -3,10 +3,6 @@ import { AssertionError, assertThatArray, assertTrue } from './assertions';
 
 type ErrorCheck<ErrorType> = (error: ErrorType) => boolean;
 
-// Callback overload for `.then(...)`: the client asserts the resulting events
-// however they like (Emmett assertions, node:assert, Vitest `expect`, ...).
-// The test fails when the callback throws, returns an `Error`, or returns a
-// rejecting/`Error`-resolving Promise. Otherwise it passes.
 export type DeciderAssert<Event> = (
   events: Event[],
 ) => void | Error | Promise<void | Error>;
@@ -52,10 +48,6 @@ export type AsyncDeciderSpecification<Command, Event> = (
   };
 };
 
-// Detect promise-like values reliably. `instanceof Promise` misses non-native
-// Promises and custom promise-like objects, and fails across realms (e.g.
-// different globals/iframes) — treating an async result as a plain event.
-// Callers normalize the value with `Promise.resolve` before awaiting it.
 const isPromiseLike = <T = unknown>(value: unknown): value is PromiseLike<T> =>
   value !== null &&
   (typeof value === 'object' || typeof value === 'function') &&
@@ -177,10 +169,12 @@ function thenHandler<Event>(
   );
 }
 
-// Runs the client-provided assertion. The test fails (throws) when the callback
-// throws, returns an `Error`, or returns a Promise that rejects or resolves to
-// an `Error`. A thrown error is propagated as-is so the client's assertion
-// library (node:assert, Vitest `expect`, ...) keeps its own message and diff.
+/**
+ * Runs the client-provided assertion. The test fails (throws) when the callback
+ * throws, returns an `Error`, or returns a Promise that rejects or resolves to
+ * an `Error`. A thrown error is propagated as-is so the client's assertion
+ * library (node:assert, Vitest `expect`, ...) keeps its own message and diff.
+ */
 function runThenAssert<Event>(
   events: Event[],
   assert: DeciderAssert<Event>,
