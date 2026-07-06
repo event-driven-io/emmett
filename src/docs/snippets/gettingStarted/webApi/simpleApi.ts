@@ -40,6 +40,7 @@ export const shoppingCartApi =
   ): WebApiSetup =>
   (router: Router) => {
     // #region complete-api
+    // #region add-product-item-endpoint
     // Add Product Item
     router.post(
       '/clients/:clientId/shopping-carts/current/product-items',
@@ -69,6 +70,7 @@ export const shoppingCartApi =
         return NoContent();
       }),
     );
+    // #endregion add-product-item-endpoint
 
     // Remove Product Item
     router.delete(

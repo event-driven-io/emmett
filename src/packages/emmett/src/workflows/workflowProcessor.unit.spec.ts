@@ -216,7 +216,7 @@ void describe('Workflow Processor', () => {
         connection: { messageStore: eventStore },
       });
 
-      // Then: process the prefixed input — simulates what the consumer delivers
+      // Then: process the prefixed input: simulates what the consumer delivers
       // back from the workflow stream. It carries input: true in metadata,
       // which is what the processor uses to dispatch it to the handler.
       const prefixedMessage = {
@@ -482,7 +482,7 @@ void describe('Workflow Processor', () => {
     // Simulate what the consumer delivers back from the workflow stream:
     // an output message stamped with action metadata but no input flag.
     // Cast to RecordedMessage<GroupCheckoutInput> to satisfy the processor's
-    // public handle() signature — the runtime value is an output type.
+    // public handle() signature: the runtime value is an output type.
     const recordedOutput = <T extends GroupCheckoutOutput>(
       message: T,
       wfStreamName: string,
@@ -495,7 +495,7 @@ void describe('Workflow Processor', () => {
           streamPosition: 2n,
           messageId: randomUUID(),
           action: 'Published',
-          // intentionally no `input: true` — this is an output
+          // intentionally no `input: true`: this is an output
         },
       }) as unknown as RecordedMessage<GroupCheckoutInput>;
 
@@ -543,7 +543,7 @@ void describe('Workflow Processor', () => {
       // Then
       assertOk(routerCalledWith);
       assertEqual(routerCalledWith.type, 'CheckOut');
-      // data is fully typed as CheckOut's data — no cast needed
+      // data is fully typed as CheckOut's data: no cast needed
       assertOk(routerCalledWith.data.guestStayAccountId);
     });
 
@@ -562,7 +562,7 @@ void describe('Workflow Processor', () => {
       const processor = workflowProcessor({
         ...workflowOptions,
         outputHandler: {
-          // GroupCheckoutFailed is an output type — but we send it as an input
+          // GroupCheckoutFailed is an output type: but we send it as an input
           canHandle: ['GroupCheckoutFailed'],
           eachMessage: () => {
             routerCalled = true;
@@ -620,7 +620,7 @@ void describe('Workflow Processor', () => {
         connection: { messageStore: eventStore },
       });
 
-      // Router must not have been called — metadata.input===true routes to handler
+      // Router must not have been called: metadata.input===true routes to handler
       assertFalse(routerCalled);
     });
 
@@ -819,7 +819,7 @@ void describe('Workflow Processor', () => {
       const appendedGuestCheckedOut = events[events.length - 1]!;
       assertEqual(appendedGuestCheckedOut.type, 'GuestCheckedOut');
 
-      // Step 2: GuestCheckedOut arrives — first hop stores GroupCheckoutWorkflow:GuestCheckedOut
+      // Step 2: GuestCheckedOut arrives: first hop stores GroupCheckoutWorkflow:GuestCheckedOut
       await processor.handle(
         [
           appendedGuestCheckedOut as unknown as RecordedMessage<GroupCheckoutInput>,
@@ -834,7 +834,7 @@ void describe('Workflow Processor', () => {
         'GroupCheckoutWorkflow:GuestCheckedOut',
       );
 
-      // Step 3: second hop — decide sees Pending state and produces GroupCheckoutCompleted
+      // Step 3: second hop: decide sees Pending state and produces GroupCheckoutCompleted
       await processor.handle(
         [
           prefixedGuestCheckedOut as unknown as RecordedMessage<GroupCheckoutInput>,
@@ -851,7 +851,7 @@ void describe('Workflow Processor', () => {
 
     void it('router response is appended to the workflow stream, derived from getWorkflowId', async () => {
       // Given: the output message's metadata.streamName is intentionally a
-      // different value — the processor must derive the target stream from
+      // different value: the processor must derive the target stream from
       // getWorkflowId, not from message.metadata.streamName
       const eventStore = getInMemoryEventStore();
       const groupCheckoutId = randomUUID();

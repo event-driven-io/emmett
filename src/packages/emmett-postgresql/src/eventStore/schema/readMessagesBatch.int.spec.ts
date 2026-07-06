@@ -128,7 +128,7 @@ void describe('reading messages in batches', () => {
       ]);
       await tx2.commit();
 
-      // tx1 (low xid) is still open — its xid is the pg_snapshot_xmin,
+      // tx1 (low xid) is still open: its xid is the pg_snapshot_xmin,
       // so tx2's committed event must not be visible yet
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
         after: PostgreSQLEventStoreCheckpoint.default,
@@ -141,7 +141,7 @@ void describe('reading messages in batches', () => {
         'tx2 event must be invisible while tx1 (lower xid) is still open',
       );
 
-      // tx1 commits — both events become visible
+      // tx1 commits: both events become visible
       await appentToStreamRaw(tx1.execute, streamId1, 'shopping_cart', [
         createTestEvent(streamId1, 'evt_slow', 1n),
       ]);
@@ -176,13 +176,13 @@ void describe('reading messages in batches', () => {
   void it('does not skip events written by a slow transaction that began before a faster one', async () => {
     // Race condition: tx1 begins first (lower xid) but writes second (higher global_position).
     // tx2 begins second (higher xid) but writes first (lower global_position).
-    // tx1 commits first — its event at position 2 becomes visible and the checkpoint advances.
-    // tx2 commits later — its event at position 1 is now behind the checkpoint and is missed.
+    // tx1 commits first: its event at position 2 becomes visible and the checkpoint advances.
+    // tx2 commits later: its event at position 1 is now behind the checkpoint and is missed.
     const streamId1 = uuid();
     const streamId2 = uuid();
 
-    const connection1 = await pool.connection({ readonly: false }); // tx2 — long running
-    const connection2 = await pool.connection({ readonly: false }); // tx1 — quick commit
+    const connection1 = await pool.connection({ readonly: false }); // tx2: long running
+    const connection2 = await pool.connection({ readonly: false }); // tx1: quick commit
 
     try {
       const tx1 = connection2.transaction();
@@ -208,7 +208,7 @@ void describe('reading messages in batches', () => {
         [createTestEvent(streamId2, 'evt2', 1n)],
       );
 
-      // tx1 commits — its event at position 2 is now visible (xid < xmin), position 1 is not
+      // tx1 commits: its event at position 2 is now visible (xid < xmin), position 1 is not
       await tx1.commit();
 
       const firstPoll = await readMessagesBatch<TestEvent>(pool.execute, {
@@ -231,10 +231,10 @@ void describe('reading messages in batches', () => {
         firstPoll.currentCheckpoint,
       );
 
-      // tx2 commits — evt1 at position 1 is now visible in the DB
+      // tx2 commits: evt1 at position 1 is now visible in the DB
       await tx2.commit();
 
-      // Poller reads from the safe checkpoint — evt1 must not be missed
+      // Poller reads from the safe checkpoint: evt1 must not be missed
       const secondPoll = await readMessagesBatch<TestEvent>(pool.execute, {
         after: firstPoll.currentCheckpoint,
         batchSize: 10,
@@ -254,12 +254,12 @@ void describe('reading messages in batches', () => {
 
   void it('does not skip multiple events from a slow transaction that began before a faster one', async () => {
     // Same race condition as above, but the slow transaction wrote multiple events.
-    // All of them must appear after it commits — not just the first one.
+    // All of them must appear after it commits: not just the first one.
     const streamId1 = uuid();
     const streamId2 = uuid();
 
-    const connection1 = await pool.connection({ readonly: false }); // tx1 — quick commit, low xid
-    const connection2 = await pool.connection({ readonly: false }); // tx2 — slow, high xid
+    const connection1 = await pool.connection({ readonly: false }); // tx1: quick commit, low xid
+    const connection2 = await pool.connection({ readonly: false }); // tx2: slow, high xid
 
     try {
       const tx1 = connection1.transaction();
@@ -334,9 +334,9 @@ void describe('reading messages in batches', () => {
     const streamId2 = uuid();
     const streamId3 = uuid();
 
-    const connection1 = await pool.connection({ readonly: false }); // tx1 — lowest xid, commits first
-    const connection2 = await pool.connection({ readonly: false }); // tx2 — mid xid
-    const connection3 = await pool.connection({ readonly: false }); // tx3 — highest xid
+    const connection1 = await pool.connection({ readonly: false }); // tx1: lowest xid, commits first
+    const connection2 = await pool.connection({ readonly: false }); // tx2: mid xid
+    const connection3 = await pool.connection({ readonly: false }); // tx3: highest xid
 
     try {
       const tx1 = connection1.transaction();
@@ -422,13 +422,13 @@ void describe('reading messages in batches', () => {
       const tx1 = connection1.transaction();
       await tx1.begin();
 
-      // tx1 writes to claim a global_position slot, then rolls back — the slot is lost
+      // tx1 writes to claim a global_position slot, then rolls back: the slot is lost
       await appentToStreamRaw(tx1.execute, streamId1, 'shopping_cart', [
         createTestEvent(streamId1, 'evt_lost', 1n),
       ]);
       await tx1.execute.command(SQL`ROLLBACK`);
 
-      // tx2 writes and commits — gets the next global_position after the gap
+      // tx2 writes and commits: gets the next global_position after the gap
       const tx2 = connection2.transaction();
       await tx2.begin();
       await appentToStreamRaw(tx2.execute, streamId2, 'shopping_cart', [
@@ -516,7 +516,7 @@ void describe('reading messages in batches', () => {
       await tx1.begin();
       await tx1.execute.query(SQL`SELECT pg_current_xact_id()`);
 
-      // tx2 commits its event — but tx1's xid is still the pg_snapshot_xmin
+      // tx2 commits its event: but tx1's xid is still the pg_snapshot_xmin
       const tx2 = connection2.transaction();
       await tx2.begin();
       await appentToStreamRaw(tx2.execute, streamId2, 'shopping_cart', [
@@ -535,7 +535,7 @@ void describe('reading messages in batches', () => {
         'tx2 event is invisible while tx1 (lower xid) is still open',
       );
 
-      // tx1 eventually commits — the visibility window advances and tx2's event appears
+      // tx1 eventually commits: the visibility window advances and tx2's event appears
       await appentToStreamRaw(tx1.execute, streamId1, 'shopping_cart', [
         createTestEvent(streamId1, 'evt_unblocked', 1n),
       ]);

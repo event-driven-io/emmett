@@ -32,7 +32,6 @@ export const CommandHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions 
 export type CommandHandlerRetryOptions =
   AsyncRetryOptions | { onVersionConflict: true | number | AsyncRetryOptions };
 
-// #region command-handler
 export type CommandHandlerResult<
   State,
   StreamEvent extends Event,
@@ -112,7 +111,7 @@ export const CommandHandler =
     // `emmett.command.type` array attribute on the parent span and drop the
     // type label from the handling-duration histogram (OTel metric labels
     // must be scalar). An alternative is a child scope per handler with its
-    // own type — revisit when per-command metrics become important.
+    // own type: revisit when per-command metrics become important.
     const commandType: string | string[] | undefined =
       handleOptions?.commandType ??
       options.commandType ??
@@ -264,7 +263,6 @@ export const CommandHandler =
       ),
     );
   };
-// #endregion command-handler
 
 const withSession = <EventStoreType extends EventStore, T = unknown>(
   eventStore: EventStoreType,

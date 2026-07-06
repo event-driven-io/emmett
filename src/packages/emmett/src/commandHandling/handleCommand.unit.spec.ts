@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'vitest';
+import { ConcurrencyError, IllegalStateError } from '../errors';
 import {
   ExpectedVersionConflictError,
   getInMemoryEventStore,
+  STREAM_DOES_NOT_EXIST,
 } from '../eventStore';
 import {
   assertDeepEqual,
   assertEqual,
   assertFalse,
+  assertOk,
   assertThatArray,
   assertThrowsAsync,
   assertTrue,
@@ -22,6 +25,7 @@ type PricedProductItem = { productId: string; quantity: number; price: number };
 type ShoppingCart = {
   productItems: PricedProductItem[];
   totalAmount: number;
+  status: 'Opened' | 'Confirmed';
 };
 
 type ProductItemAdded = Event<
@@ -29,8 +33,15 @@ type ProductItemAdded = Event<
   { productItem: PricedProductItem }
 >;
 type DiscountApplied = Event<'DiscountApplied', { percent: number }>;
+type ShoppingCartConfirmed = Event<
+  'ShoppingCartConfirmed',
+  { confirmedAt: Date }
+>;
 
-type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
+// #region event-union
+type ShoppingCartEvent =
+  ProductItemAdded | DiscountApplied | ShoppingCartConfirmed;
+// #endregion event-union
 
 const evolve = (
   state: ShoppingCart,
@@ -40,6 +51,7 @@ const evolve = (
     case 'ProductItemAdded': {
       const productItem = data.productItem;
       return {
+        ...state,
         productItems: [...state.productItems, productItem],
         totalAmount:
           state.totalAmount + productItem.price * productItem.quantity,
@@ -50,11 +62,13 @@ const evolve = (
         ...state,
         totalAmount: state.totalAmount * (1 - data.percent),
       };
+    case 'ShoppingCartConfirmed':
+      return { ...state, status: 'Confirmed' };
   }
 };
 
 const initialState = (): ShoppingCart => {
-  return { productItems: [], totalAmount: 0 };
+  return { productItems: [], totalAmount: 0, status: 'Opened' };
 };
 
 // Decision making
@@ -64,6 +78,7 @@ type AddProductItem = Event<
   { productItem: PricedProductItem }
 >;
 
+// #region single-event-decision
 const addProductItem = (
   command: AddProductItem,
   _state: ShoppingCart,
@@ -73,9 +88,11 @@ const addProductItem = (
     data: { productItem: command.data.productItem },
   };
 };
+// #endregion single-event-decision
 
 const defaultDiscount = 0.1;
 
+// #region multiple-events-decision
 const addProductItemWithDiscount = (
   command: AddProductItem,
   _state: ShoppingCart,
@@ -88,6 +105,26 @@ const addProductItemWithDiscount = (
     { type: 'DiscountApplied', data: { percent: defaultDiscount } },
   ];
 };
+// #endregion multiple-events-decision
+
+type ConfirmShoppingCart = Event<'ConfirmShoppingCart', { now: Date }>;
+
+// #region confirm-decision
+const confirm = (
+  command: ConfirmShoppingCart,
+  state: ShoppingCart,
+): ShoppingCartEvent[] => {
+  // Already confirmed: nothing left to do, so append nothing
+  if (state.status === 'Confirmed') return [];
+
+  if (state.productItems.length === 0)
+    throw new IllegalStateError('Cannot confirm an empty shopping cart');
+
+  return [
+    { type: 'ShoppingCartConfirmed', data: { confirmedAt: command.data.now } },
+  ];
+};
+// #endregion confirm-decision
 
 const handleCommand = CommandHandler<ShoppingCart, ShoppingCartEvent>({
   evolve,
@@ -110,16 +147,19 @@ void describe('Command Handler', () => {
       data: { productItem },
     };
 
+    // #region single-event
     const { nextExpectedStreamVersion, newState, newEvents, createdNewStream } =
       await handleCommand(eventStore, shoppingCartId, (state) =>
         addProductItem(command, state),
       );
+    // #endregion single-event
 
     assertTrue(createdNewStream);
     assertThatArray(newEvents).hasSize(1);
     assertDeepEqual(newState, {
       productItems: [productItem],
       totalAmount: productItem.price * productItem.quantity,
+      status: 'Opened',
     });
     assertEqual(nextExpectedStreamVersion, 1n);
   });
@@ -137,6 +177,7 @@ void describe('Command Handler', () => {
       data: { productItem },
     };
 
+    // #region require-new-stream
     const { nextExpectedStreamVersion, newState, newEvents, createdNewStream } =
       await handleCommand(
         eventStore,
@@ -144,12 +185,14 @@ void describe('Command Handler', () => {
         (state) => addProductItem(command, state),
         { expectedStreamVersion: 'STREAM_DOES_NOT_EXIST' },
       );
+    // #endregion require-new-stream
 
     assertTrue(createdNewStream);
     assertThatArray(newEvents).hasSize(1);
     assertDeepEqual(newState, {
       productItems: [productItem],
       totalAmount: productItem.price * productItem.quantity,
+      status: 'Opened',
     });
     assertEqual(nextExpectedStreamVersion, 1n);
   });
@@ -168,6 +211,46 @@ void describe('Command Handler', () => {
     assertFalse(createdNewStream);
   });
 
+  void it('appends nothing when a decision is a no-op on the current state', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = randomUUID();
+    const addProduct: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem },
+    };
+    const confirmCart: ConfirmShoppingCart = {
+      type: 'ConfirmShoppingCart',
+      data: { now: new Date() },
+    };
+
+    // open, add an item, and confirm the cart
+    const { nextExpectedStreamVersion: confirmedVersion } = await handleCommand(
+      eventStore,
+      shoppingCartId,
+      [
+        (state) => addProductItem(addProduct, state),
+        (state) => confirm(confirmCart, state),
+      ],
+    );
+
+    // #region no-op
+    // Confirming an already-confirmed cart is a no-op, so nothing is appended
+    const { newEvents, nextExpectedStreamVersion, createdNewStream } =
+      await handleCommand(eventStore, shoppingCartId, (state) =>
+        confirm(confirmCart, state),
+      );
+    // #endregion no-op
+
+    assertThatArray(newEvents).isEmpty();
+    assertFalse(createdNewStream);
+    assertEqual(nextExpectedStreamVersion, confirmedVersion);
+  });
+
   void it('Creates new stream on first command and follows up with next expected version', async () => {
     const productItem: PricedProductItem = {
       productId: '123',
@@ -181,29 +264,34 @@ void describe('Command Handler', () => {
       data: { productItem },
     };
 
+    // #region automatic-version
     const { newState: state1, nextExpectedStreamVersion } = await handleCommand(
       eventStore,
       shoppingCartId,
       (state) => addProductItem(command, state),
     );
+    // #endregion automatic-version
 
     assertDeepEqual(state1, {
       productItems: [productItem],
       totalAmount: productItem.price * productItem.quantity,
+      status: 'Opened',
     });
     assertEqual(nextExpectedStreamVersion, 1n);
 
+    // #region explicit-version
     const { nextExpectedStreamVersion: version2 } = await handleCommand(
       eventStore,
       shoppingCartId,
       (state) => addProductItem(command, state),
       { expectedStreamVersion: nextExpectedStreamVersion },
     );
+    // #endregion explicit-version
 
     assertEqual(version2, 2n);
   });
 
-  void it('can handle multiple commands at once', async () => {
+  void it('runs several decisions in order and appends their events together', async () => {
     const productItem: PricedProductItem = {
       productId: '123',
       quantity: 10,
@@ -211,23 +299,28 @@ void describe('Command Handler', () => {
     };
 
     const shoppingCartId = randomUUID();
-    const command: AddProductItem = {
+    const addProduct: AddProductItem = {
       type: 'AddProductItem',
       data: { productItem },
     };
+    const confirmCart: ConfirmShoppingCart = {
+      type: 'ConfirmShoppingCart',
+      data: { now: new Date() },
+    };
 
-    const { newState: state1, nextExpectedStreamVersion } = await handleCommand(
-      eventStore,
-      shoppingCartId,
-      [
-        (state) => addProductItem(command, state),
-        (state) => addProductItem(command, state),
-      ],
-    );
+    // #region sequential-handlers
+    const { newState, newEvents, nextExpectedStreamVersion } =
+      await handleCommand(eventStore, shoppingCartId, [
+        (state) => addProductItem(addProduct, state),
+        (state) => confirm(confirmCart, state),
+      ]);
+    // #endregion sequential-handlers
 
-    assertDeepEqual(state1, {
-      productItems: [productItem, productItem],
-      totalAmount: productItem.price * productItem.quantity * 2,
+    assertThatArray(newEvents).hasSize(2);
+    assertDeepEqual(newState, {
+      productItems: [productItem],
+      totalAmount: productItem.price * productItem.quantity,
+      status: 'Confirmed',
     });
     assertEqual(nextExpectedStreamVersion, 2n);
   });
@@ -241,6 +334,181 @@ void describe('Command Handler', () => {
     assertFalse(createdNewStream);
     assertThatArray(newEvents).isEmpty();
     assertEqual(nextExpectedStreamVersion, 0n);
+  });
+
+  void it('maps the business id to a custom stream name', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = randomUUID();
+    const command: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem },
+    };
+
+    // #region stream-id-mapping
+    const handle = CommandHandler<ShoppingCart, ShoppingCartEvent>({
+      evolve,
+      initialState,
+      mapToStreamId: (id) => `shopping_cart-${id}`,
+    });
+    // #endregion stream-id-mapping
+
+    await handle(eventStore, shoppingCartId, (state) =>
+      addProductItem(command, state),
+    );
+
+    const { events } = await eventStore.readStream<ShoppingCartEvent>(
+      `shopping_cart-${shoppingCartId}`,
+    );
+    assertThatArray(events).hasSize(1);
+  });
+
+  void it('awaits an async handler before appending', async () => {
+    const shoppingCartId = randomUUID();
+    const command: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem: { productId: '123', quantity: 10, price: 0 } },
+    };
+
+    const getPrice = (_productId: string): Promise<number> =>
+      Promise.resolve(3);
+
+    // #region async-handler
+    const { newState, newEvents } = await handleCommand(
+      eventStore,
+      shoppingCartId,
+      async (state) => {
+        // ❌ Avoid: on a version-conflict retry the whole handler re-runs, so this call fires again
+        const price = await getPrice(command.data.productItem.productId);
+        return addProductItem(
+          {
+            ...command,
+            data: { productItem: { ...command.data.productItem, price } },
+          },
+          state,
+        );
+      },
+    );
+    // #endregion async-handler
+
+    assertThatArray(newEvents).hasSize(1);
+    assertEqual(newState.totalAmount, 30);
+  });
+
+  void it('accepts a per-call retry policy for version conflicts', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = randomUUID();
+    const command: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem },
+    };
+
+    // #region retry-on-conflict
+    const { newEvents } = await handleCommand(
+      eventStore,
+      shoppingCartId,
+      (state) => addProductItem(command, state),
+      { retry: { onVersionConflict: true } },
+    );
+    // #endregion retry-on-conflict
+
+    assertThatArray(newEvents).hasSize(1);
+  });
+
+  void it('accepts custom retry options with a shouldRetryError predicate', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = randomUUID();
+    const command: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem },
+    };
+
+    // #region custom-retry
+    const handle = CommandHandler<ShoppingCart, ShoppingCartEvent>({
+      evolve,
+      initialState,
+      retry: {
+        retries: 5,
+        minTimeout: 50,
+        factor: 2,
+        shouldRetryError: (error) => error instanceof ConcurrencyError,
+      },
+    });
+    // #endregion custom-retry
+
+    const { newEvents } = await handle(eventStore, shoppingCartId, (state) =>
+      addProductItem(command, state),
+    );
+
+    assertThatArray(newEvents).hasSize(1);
+  });
+
+  void it('exposes expected and current versions on a version conflict', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = randomUUID();
+    const command: AddProductItem = {
+      type: 'AddProductItem',
+      data: { productItem },
+    };
+
+    // seed the stream so a STREAM_DOES_NOT_EXIST expectation will conflict
+    await handleCommand(eventStore, shoppingCartId, (state) =>
+      addProductItem(command, state),
+    );
+
+    let caught: ConcurrencyError | undefined;
+
+    // #region concurrency-error
+    try {
+      await handleCommand(
+        eventStore,
+        shoppingCartId,
+        (state) => addProductItem(command, state),
+        { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+      );
+    } catch (error) {
+      if (error instanceof ConcurrencyError) {
+        // error.expected: the version the command required
+        // error.current:  the version the stream is actually at
+        caught = error;
+      }
+    }
+    // #endregion concurrency-error
+
+    assertOk(caught);
+    assertOk(caught.expected);
+  });
+
+  void it('propagates a business error thrown by the handler', async () => {
+    const shoppingCartId = randomUUID();
+
+    const run = () =>
+      // #region business-error
+      handleCommand(eventStore, shoppingCartId, () => {
+        throw new IllegalStateError('Shopping Cart already closed');
+      });
+    // #endregion business-error
+
+    await assertThrowsAsync(run, (error) => error instanceof IllegalStateError);
   });
 
   void describe('retries', () => {
@@ -293,6 +561,7 @@ void describe('Command Handler', () => {
       assertDeepEqual(newState, {
         productItems: [productItem, productItem],
         totalAmount: productItem.price * productItem.quantity * 2,
+        status: 'Opened',
       });
       assertEqual(nextExpectedStreamVersion, 2n);
     });
@@ -353,6 +622,7 @@ void describe('Command Handler', () => {
         data: { productItem },
       };
 
+      // #region multiple-events
       const {
         nextExpectedStreamVersion,
         newState,
@@ -361,6 +631,7 @@ void describe('Command Handler', () => {
       } = await handleCommand(eventStore, shoppingCartId, (state) =>
         addProductItemWithDiscount(command, state),
       );
+      // #endregion multiple-events
 
       assertTrue(createdNewStream);
       assertThatArray(newEvents).hasSize(2);
@@ -368,6 +639,7 @@ void describe('Command Handler', () => {
         productItems: [productItem],
         totalAmount:
           productItem.price * productItem.quantity * (1 - defaultDiscount),
+        status: 'Opened',
       });
       assertEqual(nextExpectedStreamVersion, 2n);
     });
@@ -487,6 +759,7 @@ void describe('Command Handler', () => {
       assertDeepEqual(newState, {
         productItems: [productItem, productItem],
         totalAmount: productItem.price * productItem.quantity * 2,
+        status: 'Opened',
       });
     });
 
@@ -522,6 +795,7 @@ void describe('Command Handler', () => {
       assertDeepEqual(newState, {
         productItems: [productItem],
         totalAmount: productItem.price * productItem.quantity,
+        status: 'Opened',
       });
     });
 
@@ -633,6 +907,7 @@ void describe('Command Handler', () => {
       assertDeepEqual(newState, {
         productItems: [{ productId: '123', quantity: 10, price: 3 }],
         totalAmount: 30,
+        status: 'Opened',
       });
     });
   });
