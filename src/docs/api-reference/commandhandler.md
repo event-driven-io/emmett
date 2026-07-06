@@ -5,387 +5,200 @@ outline: deep
 
 # Command Handler
 
-::: warning
-We created this page with the help of the GenAI tool.
-
-We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
-:::
-
-The Command Handler encapsulates the standard Event Sourcing pattern: read state, run business logic, append events.
-
 ## Overview
 
-Command handling follows a repeatable pattern:
+A command handler processes a command against a single event stream. The command is an intention, such as adding an item to a cart; your business logic decides what should happen; the events it returns are the outcome that gets stored.
 
-1. **Aggregate stream** - Read events and build current state
-2. **Execute business logic** - Run the handler with command and state
-3. **Append events** - Store the resulting events with optimistic concurrency
+Use it whenever a command writes to a single stream. It saves you from repeating this flow by hand, and it applies the optimistic concurrency check that stops two commands on the same stream from overwriting each other.
 
-```typescript
-// The pattern Command Handler automates:
-const { state, currentStreamVersion } = await eventStore.aggregateStream(
-  streamName,
-  { evolve, initialState },
-);
-
-const events = handle(command, state);
-
-await eventStore.appendToStream(streamName, events, {
-  expectedStreamVersion: currentStreamVersion,
-});
-```
+On each call it loads the stream and folds its events into the current state with `evolve` and `initialState`, runs your decision function, and appends the returned events using the version it read as the expected version. It builds on the event store's [`aggregateStream`](/api-reference/eventstore#aggregatestream) and [`appendToStream`](/api-reference/eventstore#appendtostream); when you'd rather keep `decide`, `evolve`, and `initialState` together as one object, the [Decider](/api-reference/decider) is the more structured alternative.
 
 ## Basic Usage
 
-### Creating a Command Handler
+Configure a handler once with `evolve` and `initialState`, then reuse it across the app, calling it for each command with a stream id and one or more decision functions.
+
+### Creating a handler {#create}
 
 <<< @/snippets/gettingStarted/commandHandler.ts#command-handler
 
-### Using the Handler
+### Handling a command {#handle}
 
 <<< @/snippets/gettingStarted/commandHandling.ts#command-handling
 
 ## Type Definitions
 
-### CommandHandler
-
-```typescript
-const CommandHandler = <State, StreamEvent extends Event>(
-  options: CommandHandlerOptions<State, StreamEvent>
-) => async <Store extends EventStore>(
-  store: Store,
-  id: string,
-  handle: CommandHandlerFunction<State, StreamEvent>,
-  handleOptions?: HandleOptions<Store>
-): Promise<CommandHandlerResult<State, StreamEvent, Store>>;
-```
+`CommandHandler` takes three type parameters: `State`, `StreamEvent` (the discriminated union written to the stream), and an optional `EventPayloadType` (the stored shape when it differs from `StreamEvent`, used with schema versioning). It returns an async function whose third argument is either a single handler or an **array** of handlers. The full signatures are shown under [Type Source](#type-source); the tables below summarise them.
 
 ### CommandHandlerOptions
 
-```typescript
-type CommandHandlerOptions<State, StreamEvent extends Event> = {
-  evolve: (state: State, event: StreamEvent) => State;
-  initialState: () => State;
-  mapToStreamId?: (id: string) => string;
-  retry?: CommandHandlerRetryOptions;
-};
-```
-
-| Property        | Type                         | Description                                |
-| --------------- | ---------------------------- | ------------------------------------------ |
-| `evolve`        | `(state, event) => state`    | State evolution function                   |
-| `initialState`  | `() => State`                | Factory for initial state                  |
-| `mapToStreamId` | `(id: string) => string`     | Maps ID to stream name (default: identity) |
-| `retry`         | `CommandHandlerRetryOptions` | Retry configuration                        |
+| Property               | Type                                          | Description                                                                        |
+| ---------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `evolve`               | `(state: State, event: StreamEvent) => State` | Folds an event into state. Required.                                               |
+| `initialState`         | `() => State`                                 | Starting state for a stream with no events. Required.                              |
+| `mapToStreamId`        | `(id: string) => string`                      | Maps the business id to the stream name. Defaults to the identity function.        |
+| `retry`                | `CommandHandlerRetryOptions`                  | Retry policy for version conflicts. See [Retry Configuration](#retries).           |
+| `schema.versioning`    | `{ upcast?; downcast? }`                      | Converts stored events to and from `StreamEvent` for schema evolution.             |
+| `serialization`        | `{ serializer?; ... }`                        | Custom serialiser for reading and writing events.                                  |
+| `name` / `commandType` | `string` / `string \| string[]`               | Labels used for observability and as the default command type when none is passed. |
+| `observability`        | `CommandObservabilityConfig`                  | Tracing and metrics configuration.                                                 |
 
 ### CommandHandlerResult
 
-```typescript
-type CommandHandlerResult<State, StreamEvent, Store> = {
-  newState: State;
-  newEvents: StreamEvent[];
-  nextExpectedStreamVersion: bigint;
-  createdNewStream: boolean;
-};
-```
+Each call returns the new state, the events it appended, and the version to pass on the next call. For the stores shipped with Emmett:
+
+| Property                    | Type                                                | Description                                                      |
+| --------------------------- | --------------------------------------------------- | ---------------------------------------------------------------- |
+| `newState`                  | `State`                                             | State after applying the newly produced events.                  |
+| `newEvents`                 | `StreamEvent[]`                                     | Events that were appended, empty when the handler produced none. |
+| `nextExpectedStreamVersion` | `StreamPosition` (`bigint` for the built-in stores) | Pass this as `expectedStreamVersion` on the next call.           |
+| `createdNewStream`          | `boolean`                                           | Whether this call created the stream.                            |
+
+`nextExpectedStreamVersion` and `createdNewStream` come from the store you're using, so their exact type depends on it.
 
 ## Stream ID Mapping
 
-Map business IDs to stream names:
+The id you pass to the handler is not always the stream's name. A cart id, for example, might map to a stream named `shopping_cart:{id}`. Set `mapToStreamId` to build the stream name from the id; you keep passing the business id, and the handler applies the mapping.
 
-```typescript
-const handle = CommandHandler({
-  evolve,
-  initialState,
-  mapToStreamId: (id) => `shopping_cart-${id}`,
-});
-
-// Called with business ID
-await handle(eventStore, 'cart-123', (state) => [...]);
-// Internally uses stream: 'shopping_cart-cart-123'
-```
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#stream-id-mapping
 
 ## Handler Functions
 
-Handlers receive state and return events:
+A handler receives the current state and returns one or more events to append.
 
-### Single Event
+### Single event {#single-event}
 
-```typescript
-await handle(eventStore, cartId, (state) => ({
-  type: 'ProductItemAdded',
-  data: { productId, quantity, price },
-}));
-```
+A decision that produces one outcome returns a single event:
 
-### Multiple Events
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#single-event-decision
 
-```typescript
-await handle(eventStore, cartId, (state) => [
-  { type: 'DiscountApplied', data: { code: 'SAVE10' } },
-  { type: 'TaxCalculated', data: { amount: 15.5 } },
-]);
-```
+The handler appends it and reports the new state:
 
-### Async Handler
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#single-event
 
-```typescript
-await handle(eventStore, cartId, async (state) => {
-  const price = await lookupPrice(productId);
-  return {
-    type: 'ProductItemAdded',
-    data: { productId, quantity, price },
-  };
-});
-```
+### Multiple events {#multiple-events}
 
-### Multiple Handlers (Sequential)
+Return an array when a decision produces several events:
 
-Execute multiple handlers in sequence, each seeing the updated state:
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#multiple-events-decision
 
-```typescript
-await handle(eventStore, cartId, [
-  (state) => ({ type: 'ProductItemAdded', data: productData }),
-  (state) => {
-    // state now includes the effect of ProductItemAdded
-    if (state.items.length >= 3) {
-      return { type: 'BulkDiscountApplied', data: { discount: 10 } };
-    }
-    return [];
-  },
-]);
-```
+The call is unchanged; the events are appended in a single operation, so the stream cannot be left holding only some of them:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#multiple-events
+
+### Sequential handlers {#sequential-handlers}
+
+Pass an array of handlers to run several decisions in order. Each runs on the state produced by the handlers before it, and all their events are appended in a single write:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#sequential-handlers
 
 ## Optimistic Concurrency
 
-### Automatic Version Tracking
+The handler keeps the version it read from the stream and requires the stream to still be at that version when it appends. If another writer has changed the stream in between, the append fails with `ExpectedVersionConflictError` (a `ConcurrencyError`) instead of overwriting their events.
 
-By default, Command Handler tracks versions automatically:
+### Automatic version tracking {#automatic-version}
 
-```typescript
-// First call: creates stream at version 0
-await handle(eventStore, 'cart-123', (state) => firstEvent);
+By default the handler reuses the version it read, so you don't need to pass one:
 
-// Second call: expects version 0, appends at version 1
-await handle(eventStore, 'cart-123', (state) => secondEvent);
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#automatic-version
 
-// Concurrent call: fails if version changed
-await handle(eventStore, 'cart-123', (state) => thirdEvent);
-// Throws ConcurrencyError if stream was modified
-```
+`nextExpectedStreamVersion` in the result is the stream's version after this append. The [ETag concurrency](#etag) example returns it to the client, which sends it back to guard its next write.
 
-### Explicit Version
+### Explicit version {#explicit-version}
 
-```typescript
-await handle(eventStore, cartId, (state) => events, {
-  expectedStreamVersion: 5n,
-});
-```
+Pass `expectedStreamVersion` when the version to check comes from outside the handler, such as a client's `If-Match` header. The append then succeeds only if the stream is still at that version:
 
-### Require New Stream
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#explicit-version
 
-```typescript
-await handle(
-  eventStore,
-  cartId,
-  (state) => [{ type: 'CartOpened', data: {} }],
-  { expectedStreamVersion: 'no_stream' },
-);
-```
+### New-stream requirement {#require-new-stream}
 
-## Retry Configuration
+Pass `STREAM_DOES_NOT_EXIST` as the expected version so the append succeeds only if the stream does not exist yet. This enforces that the stream is created exactly once:
 
-### Retry on Version Conflict
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#require-new-stream
 
-```typescript
-const handle = CommandHandler({
-  evolve,
-  initialState,
-  retry: { onVersionConflict: true }, // 3 retries with backoff
-});
+## Retry Configuration {#retries}
 
-// Or specify retry count
-const handle = CommandHandler({
-  evolve,
-  initialState,
-  retry: { onVersionConflict: 5 },
-});
-```
+Set `retry` so Emmett re-runs the handler when a version conflict occurs.
 
-### Custom Retry Options
+`{ onVersionConflict: true }` applies Emmett's default conflict policy (**3 retries, a 100&nbsp;ms minimum timeout, and a 1.5× backoff factor**), retrying only on `ExpectedVersionConflictError`:
 
-```typescript
-const handle = CommandHandler({
-  evolve,
-  initialState,
-  retry: {
-    retries: 5,
-    minTimeout: 100,
-    factor: 2,
-    shouldRetryError: (error) => error instanceof ConcurrencyError,
-  },
-});
-```
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#retry-on-conflict
 
-### Per-Call Retry Override
+Pass a number (`{ onVersionConflict: 5 }`) to keep that policy but change the retry count. For full control, such as a different backoff or retrying on errors other than version conflicts, pass `AsyncRetryOptions` with your own `shouldRetryError`:
 
-```typescript
-await handle(eventStore, cartId, (state) => events, {
-  retry: { onVersionConflict: 10 },
-});
-```
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#custom-retry
+
+You can also set `retry` per call in the handle options, which overrides the handler-level policy for that call.
 
 ## No-Op Handling
 
-If handler returns empty array, no append occurs:
+A decision returns an empty array when the current state leaves it nothing to do. Confirming a cart that is already confirmed is the common case:
 
-```typescript
-await handle(eventStore, cartId, (state) => {
-  // Already confirmed, do nothing
-  if (state.status === 'Confirmed') {
-    return [];
-  }
-  return [{ type: 'CartConfirmed', data: {} }];
-});
-```
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#confirm-decision
+
+The handler then appends nothing and returns the current version with `newEvents: []` and `createdNewStream: false`, so re-sending the command is safe:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#no-op
 
 ## Error Handling
 
-### Business Errors
+### Business-rule errors {#business-errors}
 
-Throw errors for business rule violations:
+If a command breaks a business rule, throw from the decision: `IllegalStateError` for an invalid state transition, `ValidationError` for bad input. Nothing gets appended, and the error reaches the caller unchanged:
 
-```typescript
-await handle(eventStore, cartId, (state) => {
-  if (state.status !== 'Open') {
-    throw new IllegalStateError('Cart is not open');
-  }
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#business-error
 
-  if (command.quantity <= 0) {
-    throw new ValidationError('Quantity must be positive');
-  }
+### Concurrency errors {#concurrency-errors}
 
-  return [{ type: 'ProductItemAdded', data: command }];
-});
-```
+A version conflict throws `ExpectedVersionConflictError`, which extends `ConcurrencyError`. Both carry the `expected` and `current` versions as strings, so you can report what happened to the caller:
 
-### Concurrency Errors
-
-```typescript
-import { ConcurrencyError } from '@event-driven-io/emmett';
-
-try {
-  await handle(eventStore, cartId, (state) => events);
-} catch (error) {
-  if (error instanceof ConcurrencyError) {
-    // Stream was modified by another process
-    console.log(
-      `Version conflict: expected ${error.expected}, got ${error.actual}`,
-    );
-    // Retry with fresh state or notify user
-  }
-  throw error;
-}
-```
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#concurrency-error
 
 ## Integration with Web Frameworks
 
-### Express.js
+### Express.js {#express}
 
-```typescript
-import { on, ok } from '@event-driven-io/emmett-expressjs';
+`emmett-expressjs` wraps a handler with `on`: call the command handler, then return a response helper. Fetch any data the decision needs, such as the unit price, **before** calling the handler and pass it into the command; this keeps the decision pure. The first write creates the stream:
 
-router.post(
-  '/carts/:id/items',
-  on(async (request) => {
-    const { id } = request.params;
-    const { productId, quantity } = request.body;
+<<< @/snippets/gettingStarted/webApi/simpleApi.ts#add-product-item-endpoint{17,23-25}
 
-    const result = await handle(eventStore, id, (state) => ({
-      type: 'ProductItemAdded',
-      data: { productId, quantity, price: await getPrice(productId) },
-    }));
+### ETag concurrency {#etag}
 
-    return ok({
-      status: 'Added',
-      version: result.nextExpectedStreamVersion.toString(),
-    });
-  }),
-);
-```
+To expose optimistic concurrency over HTTP, carry the version in a weak ETag. Read the client's version from the `If-Match` header with `getETagValueFromIfMatch`, pass it as `expectedStreamVersion`, and return the new version via `toWeakETag(result.nextExpectedStreamVersion)`:
 
-### With ETag Concurrency
+<<< @./../packages/emmett-expressjs/src/e2e/commandHandler/api.ts#etag-command-handler
 
-```typescript
-router.post(
-  '/carts/:id/confirm',
-  on(async (request) => {
-    const { id } = request.params;
-    const expectedVersion = getExpectedVersionFromRequest(request);
+A stale `If-Match` makes the handler throw `ExpectedVersionConflictError`, which `emmett-expressjs` maps to **HTTP 412 Precondition Failed**.
 
-    const result = await handle(
-      eventStore,
-      id,
-      (state) => ({ type: 'CartConfirmed', data: { confirmedAt: new Date() } }),
-      { expectedStreamVersion: expectedVersion },
-    );
+## Best Practices {#best-practices}
 
-    return ok({ status: 'Confirmed' });
-  }),
-);
-```
+### Keep the Decision Pure {#best-practices-keep-pure}
 
-## Best Practices
+A handler that only reads state and returns events is easy to test and safe to retry. When a decision needs external data, such as a price or an exchange rate, fetch it **before** the handler and pass it in, as the [Express.js example](#express) does with the unit price.
 
-### 1. Keep Handlers Pure When Possible
+The handler can be `async`, and Emmett awaits it. Avoid I/O inside it, because on a version conflict the whole handler re-runs, so the call is made again on every retry:
 
-```typescript
-// ✅ Good: Pure handler
-await handle(eventStore, cartId, (state) => ({
-  type: 'ProductItemAdded',
-  data: { ...command.data, addedAt: command.metadata.now },
-}));
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#async-handler
 
-// ⚠️ Less ideal: Side effects in handler
-await handle(eventStore, cartId, async (state) => {
-  await externalService.notify(); // Side effect
-  return [event];
-});
-```
+### Guard Before Deciding {#best-practices-guard-first}
 
-### 2. Validate Before Deciding
+Throw `IllegalStateError` or `ValidationError` before building any event, so an invalid command never produces one. The [`confirm` decision](#no-op-handling) does this: it refuses to confirm an empty cart. See [Error Handling](#error-handling) for how those errors reach the caller.
 
-```typescript
-// ✅ Good: Guard clauses first
-await handle(eventStore, cartId, (state) => {
-  if (state.status === 'Confirmed') {
-    throw new IllegalStateError('Cannot modify confirmed cart');
-  }
-  return [event];
-});
-```
+### Type Events as a Discriminated Union {#best-practices-type-events}
 
-### 3. Use Type-Safe Event Unions
+Declare your events as a discriminated union and pass it as `CommandHandler`'s `StreamEvent`:
 
-```typescript
-// ✅ Good: Discriminated union of events
-type ShoppingCartEvent =
-  | Event<'ProductItemAdded', {...}>
-  | Event<'CartConfirmed', {...}>;
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#event-union
 
-const handle = CommandHandler<ShoppingCart, ShoppingCartEvent>({
-  evolve,
-  initialState,
-});
-```
+`evolve` and every handler's return value are then checked against that union, and unknown event types surface at compile time.
 
 ## Type Source
 
-<<< @./../packages/emmett/src/commandHandling/handleCommand.ts#command-handler
+For the full signatures, see [`handleCommand.ts`](https://github.com/event-driven-io/emmett/blob/main/src/packages/emmett/src/commandHandling/handleCommand.ts) in the source.
 
-## See Also
+## See also {#see-also}
 
 - [Getting Started - Command Handling](/getting-started#command-handling)
+- [Command](/api-reference/command)
 - [Decider Pattern](/api-reference/decider)
 - [Event Store](/api-reference/eventstore)
 - [Error Handling](/guides/error-handling)

@@ -16,7 +16,7 @@ export const otelTracer = (tracerName = 'almanac'): Tracer => ({
     const tracer = trace.getTracer(tracerName);
     const spanOptions: SpanOptions = {};
 
-    // Links always added as-is — OTel requires them at creation time.
+    // Links always added as-is: OTel requires them at creation time.
     if (options?.links?.length) {
       spanOptions.links = options.links.map((l) => ({
         context: { traceId: l.traceId, spanId: l.spanId, traceFlags: 1 },
@@ -61,7 +61,7 @@ export const otelTracer = (tracerName = 'almanac'): Tracer => ({
           spanId: otelSpan.spanContext().spanId,
         }),
         addLink: () => {
-          // No-op for OTel — links are passed at creation time via SpanOptions.
+          // No-op for OTel: links are passed at creation time via SpanOptions.
           // Non-OTel strategies (ClickHouse, Pino) can still accept addLink after creation.
         },
         addEvent: (eventName, attributes) => {

@@ -36,7 +36,7 @@ export const DeciderCommandHandler =
     );
 
     // TODO: forwarding an array of command types to a single span attribute
-    // mirrors the array-of-handlers case in CommandHandler — revisit once we
+    // mirrors the array-of-handlers case in CommandHandler: revisit once we
     // decide on per-command child scopes vs. a single parent with an array
     // attribute.
     return CommandHandler<State, StreamEvent>(rest)(eventStore, id, deciders, {

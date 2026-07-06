@@ -107,7 +107,6 @@ export const commandHandlerCollector = (
               : {}),
           });
 
-          // eslint-disable-next-line no-useless-assignment
           let status = 'success';
           try {
             const result = await fn(scope);
