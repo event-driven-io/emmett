@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'vitest';
-import { ConcurrencyError, IllegalStateError } from '../errors';
+import {
+  ConcurrencyError,
+  IllegalStateError,
+  ValidationError,
+} from '../errors';
 import {
   ExpectedVersionConflictError,
   getInMemoryEventStore,
@@ -25,7 +29,7 @@ type PricedProductItem = { productId: string; quantity: number; price: number };
 type ShoppingCart = {
   productItems: PricedProductItem[];
   totalAmount: number;
-  status: 'Opened' | 'Confirmed';
+  status: 'Opened' | 'Confirmed' | 'Cancelled';
 };
 
 type ProductItemAdded = Event<
@@ -37,10 +41,17 @@ type ShoppingCartConfirmed = Event<
   'ShoppingCartConfirmed',
   { confirmedAt: Date }
 >;
+type ShoppingCartCancelled = Event<
+  'ShoppingCartCancelled',
+  { canceledAt: Date }
+>;
 
 // #region event-union
 type ShoppingCartEvent =
-  ProductItemAdded | DiscountApplied | ShoppingCartConfirmed;
+  | ProductItemAdded
+  | DiscountApplied
+  | ShoppingCartConfirmed
+  | ShoppingCartCancelled;
 // #endregion event-union
 
 const evolve = (
@@ -64,6 +75,8 @@ const evolve = (
       };
     case 'ShoppingCartConfirmed':
       return { ...state, status: 'Confirmed' };
+    case 'ShoppingCartCancelled':
+      return { ...state, status: 'Cancelled' };
   }
 };
 
@@ -89,6 +102,21 @@ const addProductItem = (
   };
 };
 // #endregion single-event-decision
+
+type ApplyDiscount = Event<'ApplyDiscount', { percent: number }>;
+
+// #region validation-error-decision
+const applyDiscount = (
+  command: ApplyDiscount,
+  _state: ShoppingCart,
+): ShoppingCartEvent => {
+  // Reject invalid input before producing any event
+  if (command.data.percent <= 0 || command.data.percent > 1)
+    throw new ValidationError('Discount percent has to be between 0 and 1');
+
+  return { type: 'DiscountApplied', data: { percent: command.data.percent } };
+};
+// #endregion validation-error-decision
 
 const defaultDiscount = 0.1;
 
@@ -125,6 +153,22 @@ const confirm = (
   ];
 };
 // #endregion confirm-decision
+
+type CancelShoppingCart = Event<'CancelShoppingCart', { now: Date }>;
+
+// #region empty-array-no-op
+const cancel = (
+  command: CancelShoppingCart,
+  state: ShoppingCart,
+): ShoppingCartEvent[] => {
+  // Already cancelled: nothing left to do, so append nothing
+  if (state.status === 'Cancelled') return [];
+
+  return [
+    { type: 'ShoppingCartCancelled', data: { canceledAt: command.data.now } },
+  ];
+};
+// #endregion empty-array-no-op
 
 const handleCommand = CommandHandler<ShoppingCart, ShoppingCartEvent>({
   evolve,
@@ -249,6 +293,31 @@ void describe('Command Handler', () => {
     assertThatArray(newEvents).isEmpty();
     assertFalse(createdNewStream);
     assertEqual(nextExpectedStreamVersion, confirmedVersion);
+  });
+
+  void it('appends nothing when a decision returns an empty array', async () => {
+    const shoppingCartId = randomUUID();
+    const cancelCart: CancelShoppingCart = {
+      type: 'CancelShoppingCart',
+      data: { now: new Date() },
+    };
+
+    // cancel once
+    const { nextExpectedStreamVersion: cancelledVersion } = await handleCommand(
+      eventStore,
+      shoppingCartId,
+      (state) => cancel(cancelCart, state),
+    );
+
+    // cancelling an already-cancelled cart is a no-op, so nothing is appended
+    const { newEvents, nextExpectedStreamVersion, createdNewStream } =
+      await handleCommand(eventStore, shoppingCartId, (state) =>
+        cancel(cancelCart, state),
+      );
+
+    assertThatArray(newEvents).isEmpty();
+    assertFalse(createdNewStream);
+    assertEqual(nextExpectedStreamVersion, cancelledVersion);
   });
 
   void it('Creates new stream on first command and follows up with next expected version', async () => {
@@ -509,6 +578,21 @@ void describe('Command Handler', () => {
     // #endregion business-error
 
     await assertThrowsAsync(run, (error) => error instanceof IllegalStateError);
+  });
+
+  void it('propagates a validation error thrown by the handler', async () => {
+    const shoppingCartId = randomUUID();
+    const applyInvalidDiscount: ApplyDiscount = {
+      type: 'ApplyDiscount',
+      data: { percent: 1.5 },
+    };
+
+    const run = () =>
+      handleCommand(eventStore, shoppingCartId, (state) =>
+        applyDiscount(applyInvalidDiscount, state),
+      );
+
+    await assertThrowsAsync(run, (error) => error instanceof ValidationError);
   });
 
   void describe('retries', () => {

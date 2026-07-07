@@ -27,11 +27,15 @@ export default defineConfig({
       {
         text: 'Guides',
         items: [
+          { text: 'Command Handling', link: '/guides/command-handling' },
           { text: 'Read Models', link: '/guides/projections' },
           { text: 'Testing', link: '/guides/testing' },
           { text: 'Error Handling', link: '/guides/error-handling' },
           { text: 'Workflows', link: '/guides/workflows' },
-          { text: 'Choosing an Event Store', link: '/guides/choosing-event-store' },
+          {
+            text: 'Choosing an Event Store',
+            link: '/guides/choosing-event-store',
+          },
         ],
       },
       {
@@ -69,11 +73,15 @@ export default defineConfig({
       {
         text: 'Guides',
         items: [
+          { text: 'Command Handling', link: '/guides/command-handling' },
           { text: 'Read Models', link: '/guides/projections' },
           { text: 'Testing', link: '/guides/testing' },
           { text: 'Error Handling', link: '/guides/error-handling' },
           { text: 'Workflows', link: '/guides/workflows' },
-          { text: 'Choosing an Event Store', link: '/guides/choosing-event-store' },
+          {
+            text: 'Choosing an Event Store',
+            link: '/guides/choosing-event-store',
+          },
         ],
       },
       {

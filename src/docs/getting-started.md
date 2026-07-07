@@ -190,6 +190,8 @@ Such handlers should be defined per stream type (e.g., one for Shopping Cart, th
 
 You could put such code, e.g. in your WebApi endpoint. Let's go to the next step and use that in practice in the real web application.
 
+See the [Command Handling](/guides/command-handling) guide for writing decisions, controlling concurrency, retries, and wiring the handler to HTTP.
+
 ## Application Setup
 
 Seems like we have our business rules modelled, business logic reflected in code, and even tested. You also know how to write application code for handling commands. Isn't that cool? That's nice, but we need to build real applications, which nowadays typically mean a Web Application. Let's try to do it as well.
