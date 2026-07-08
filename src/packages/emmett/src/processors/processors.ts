@@ -33,6 +33,7 @@ import {
   type ProcessorCheckpoint,
   type StoreProcessorCheckpointResult,
 } from './checkpoints';
+import { inMemoryCheckpointer } from './inMemoryProcessors';
 import { processorCollector, processorObservability } from './observability';
 
 export type CurrentMessageProcessorPosition =
@@ -58,7 +59,9 @@ export const wasMessageHandled = <
 };
 
 export type MessageProcessorStartFrom =
-  CurrentMessageProcessorPosition | 'CURRENT';
+  | CurrentMessageProcessorPosition
+  /** @deprecated omit `startFrom` instead */
+  | 'CURRENT';
 
 export type MessageProcessorType = 'projector' | 'reactor';
 export const MessageProcessorType = {
@@ -134,7 +137,8 @@ export type BaseMessageProcessorOptions<
     message: RecordedMessage<MessageType, MessageMetadataType>,
   ) => boolean;
   processingScope?: MessageProcessingScope<HandlerContext>;
-  checkpoints?: Checkpointer<MessageType, MessageMetadataType, HandlerContext>;
+  checkpoints?:
+    Checkpointer<MessageType, MessageMetadataType, HandlerContext> | 'DISABLED';
   canHandle?: CanHandle<MessageType>;
   hooks?: ProcessorHooks<HandlerContext>;
 } & JSONSerializationOptions & {
@@ -262,6 +266,11 @@ export const reactor = <
     canHandle,
     stopAfter,
   } = options;
+
+  const checkpointer =
+    checkpoints === 'DISABLED'
+      ? inMemoryCheckpointer<MessageType, MessageMetadataType, HandlerContext>()
+      : checkpoints;
 
   const collector = processorCollector(processorObservability(options));
 
@@ -453,7 +462,10 @@ export const reactor = <
           await hooks.onStart(context);
         }
 
-        if (startFrom && startFrom !== 'CURRENT') {
+        if (startFrom !== undefined && startFrom !== 'CURRENT') {
+          if (typeof startFrom !== 'string') {
+            lastCheckpoint = startFrom.lastCheckpoint;
+          }
           log(
             info(
               `Processor ${processorId} with instance id ${instanceId} starting from: ${JSONSerializer.serialize(startFrom)}`,
@@ -462,8 +474,8 @@ export const reactor = <
           return startFrom;
         }
 
-        if (checkpoints) {
-          const readResult = await checkpoints?.read(
+        if (checkpointer) {
+          const readResult = await checkpointer.read(
             {
               processorId: processorId,
               partition,
@@ -481,12 +493,12 @@ export const reactor = <
           );
           return 'BEGINNING';
         }
+
         log(
           info(
             `Checkpoint read for processor ${processorId} with instance id ${instanceId}: ${JSONSerializer.serialize(lastCheckpoint)}`,
           ),
         );
-
         return {
           lastCheckpoint,
         };
@@ -578,9 +590,9 @@ export const reactor = <
                         messagesAboveCheckpoint.length - 1
                       ];
 
-                if (checkpointMessage && checkpoints) {
+                if (checkpointMessage && checkpointer) {
                   const storeCheckpointResult: StoreProcessorCheckpointResult =
-                    await checkpoints.store(
+                    await checkpointer.store(
                       {
                         processorId,
                         version,

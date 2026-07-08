@@ -585,6 +585,78 @@ void describe('PostgreSQL event store started consumer', () => {
     );
 
     void it(
+      'does not flood END processor when mixed with BEGINNING processor in one consumer',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const newEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const fromBeginning: GuestStayEvent[] = [];
+        const fromEnd: GuestStayEvent[] = [];
+        let stopAfterPosition: string | undefined = undefined;
+
+        // When
+        const consumer = postgreSQLEventStoreConsumer({
+          connectionString,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'BEGINNING',
+          stopAfter: (event) =>
+            event.metadata.globalPosition === stopAfterPosition,
+          eachMessage: (event) => {
+            fromBeginning.push(event);
+          },
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'END',
+          stopAfter: (event) =>
+            event.metadata.globalPosition === stopAfterPosition,
+          eachMessage: (event) => {
+            fromEnd.push(event);
+          },
+        });
+
+        try {
+          const consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          const appendResult = await eventStore.appendToStream(
+            streamName,
+            newEvents,
+          );
+          stopAfterPosition = appendResult.lastEventGlobalPosition;
+
+          await consumerPromise;
+
+          // Then the BEGINNING processor sees the whole history,
+          // while the END processor sees only messages appended after start
+          assertThatArray(fromBeginning).containsElementsMatching([
+            ...initialEvents,
+            ...newEvents,
+          ]);
+          assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
+    void it(
       'handles ONLY events matching canHandle filter',
       withDeadline,
       async () => {

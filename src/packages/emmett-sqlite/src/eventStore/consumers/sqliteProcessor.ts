@@ -30,6 +30,7 @@ import {
   getProcessorInstanceId,
   getProjectorId,
   getWorkflowId,
+  inMemoryCheckpointer,
   noopScope,
   projector,
   reactor,
@@ -235,11 +236,14 @@ export const sqliteWorkflowProcessor = <
     processingScope: sqliteWorkflowProcessingScope(
       options.messageStore,
     ) as unknown as MessageProcessingScope<HandlerContext>,
-    checkpoints: sqliteCheckpointer<Input | Output>() as Checkpointer<
-      Input | Output,
-      MetaDataType,
-      HandlerContext
-    >,
+    checkpoints:
+      options.checkpoints === 'DISABLED'
+        ? inMemoryCheckpointer<Input | Output, MetaDataType, HandlerContext>()
+        : (sqliteCheckpointer<Input | Output>() as Checkpointer<
+            Input | Output,
+            MetaDataType,
+            HandlerContext
+          >),
   }) as SQLiteProcessor<Input | Output>;
 };
 
@@ -266,7 +270,10 @@ export const sqliteReactor = <
     hooks,
     processingScope: sqliteProcessingScope(),
 
-    checkpoints: sqliteCheckpointer<MessageType>(),
+    checkpoints:
+      options.checkpoints === 'DISABLED'
+        ? inMemoryCheckpointer<MessageType>()
+        : sqliteCheckpointer<MessageType>(),
   });
 };
 
@@ -323,7 +330,10 @@ export const sqliteProjector = <
     partition,
     hooks,
     processingScope: sqliteProcessingScope(),
-    checkpoints: sqliteCheckpointer<EventType>(),
+    checkpoints:
+      options.checkpoints === 'DISABLED'
+        ? inMemoryCheckpointer<EventType>()
+        : sqliteCheckpointer<EventType>(),
   });
 
   return processor;
