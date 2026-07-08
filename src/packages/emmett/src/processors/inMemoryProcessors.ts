@@ -4,7 +4,9 @@ import type { WithObservabilityScope } from '../observability';
 import type {
   AnyEvent,
   AnyMessage,
+  AnyReadEventMetadata,
   BatchRecordedMessageHandlerWithContext,
+  DefaultRecord,
   MessageHandlerContext,
   ReadEventMetadataWithGlobalPosition,
   SingleMessageHandlerResult,
@@ -58,31 +60,36 @@ type CheckpointDocument = {
   lastCheckpoint: ProcessorCheckpoint | null;
 };
 
-export type InMemoryCheckpointer<MessageType extends AnyMessage = AnyMessage> =
-  Checkpointer<
-    MessageType,
-    ReadEventMetadataWithGlobalPosition,
-    InMemoryProcessorHandlerContext
-  >;
+export type InMemoryCheckpointer<
+  MessageType extends AnyMessage = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends DefaultRecord = DefaultRecord,
+> = Checkpointer<MessageType, MessageMetadataType, HandlerContext>;
 
 export const inMemoryCheckpointer = <
   MessageType extends AnyMessage = AnyMessage,
->(): InMemoryCheckpointer<MessageType> => {
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends DefaultRecord = DefaultRecord,
+>(): InMemoryCheckpointer<MessageType, MessageMetadataType, HandlerContext> => {
+  let fallbackDatabase: InMemoryDatabase | undefined;
+  const resolveDatabase = (context: HandlerContext): InMemoryDatabase =>
+    (context as { database?: InMemoryDatabase })?.database ??
+    (fallbackDatabase ??= getInMemoryDatabase());
+
   return {
-    read: async ({ processorId }, { database }) => {
-      const checkpoint = await database
+    read: async ({ processorId }, context) => {
+      const checkpoint = await resolveDatabase(context)
         .collection<CheckpointDocument>('emt_processor_checkpoints')
         .findOne((d) => d._id === processorId);
 
-      return Promise.resolve({
+      return {
         lastCheckpoint: checkpoint?.lastCheckpoint ?? null,
-      });
+      };
     },
-    store: async (context, { database }) => {
-      const { message, processorId, lastCheckpoint } = context;
-      const checkpoints = database.collection<CheckpointDocument>(
-        'emt_processor_checkpoints',
-      );
+    store: async ({ message, processorId, lastCheckpoint }, context) => {
+      const checkpoints = resolveDatabase(
+        context,
+      ).collection<CheckpointDocument>('emt_processor_checkpoints');
 
       const checkpoint = await checkpoints.findOne(
         (d) => d._id === processorId,

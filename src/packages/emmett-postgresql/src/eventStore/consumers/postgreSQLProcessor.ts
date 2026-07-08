@@ -37,6 +37,7 @@ import {
   getProcessorInstanceId,
   getProjectorId,
   getWorkflowId,
+  inMemoryCheckpointer,
   noopScope,
   projector,
   reactor,
@@ -444,7 +445,10 @@ export const postgreSQLProjector = <
       processorId,
       partition,
     }),
-    checkpoints: postgreSQLCheckpointer<EventType>(),
+    checkpoints:
+      options.checkpoints === 'DISABLED'
+        ? inMemoryCheckpointer<EventType>()
+        : postgreSQLCheckpointer<EventType>(),
   });
 
   return processor;
@@ -520,11 +524,14 @@ export const postgreSQLWorkflowProcessor = <
       processorId,
       partition,
     }) as unknown as MessageProcessingScope<HandlerContext>,
-    checkpoints: postgreSQLCheckpointer<Input | Output>() as Checkpointer<
-      Input | Output,
-      MetaDataType,
-      HandlerContext
-    >,
+    checkpoints:
+      options.checkpoints === 'DISABLED'
+        ? inMemoryCheckpointer<Input | Output, MetaDataType, HandlerContext>()
+        : (postgreSQLCheckpointer<Input | Output>() as Checkpointer<
+            Input | Output,
+            MetaDataType,
+            HandlerContext
+          >),
   }) as PostgreSQLProcessor<Input | Output>;
 };
 
@@ -582,6 +589,9 @@ export const postgreSQLReactor = <
       processorId,
       partition,
     }),
-    checkpoints: postgreSQLCheckpointer<MessageType>(),
+    checkpoints:
+      options.checkpoints === 'DISABLED'
+        ? inMemoryCheckpointer<MessageType>()
+        : postgreSQLCheckpointer<MessageType>(),
   });
 };

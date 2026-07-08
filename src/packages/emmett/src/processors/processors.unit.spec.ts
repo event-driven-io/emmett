@@ -542,6 +542,145 @@ void describe('Processors', () => {
     });
   });
 
+  void describe('start position resolution', () => {
+    const trackingCheckpointer = (
+      stored: ProcessorCheckpoint | null,
+    ): {
+      checkpoints: Checkpointer<TestEvent>;
+      wasRead: () => boolean;
+    } => {
+      let read = false;
+      return {
+        checkpoints: {
+          read: () => {
+            read = true;
+            return Promise.resolve({ lastCheckpoint: stored });
+          },
+          store: () => Promise.resolve({ success: true, newCheckpoint: null }),
+        },
+        wasRead: () => read,
+      };
+    };
+
+    void it('resolves BEGINNING without reading the stored checkpoint', async () => {
+      // Given
+      const { checkpoints, wasRead } = trackingCheckpointer(
+        bigIntProcessorCheckpoint(9n),
+      );
+      const processor = reactor({
+        processorId: uuid(),
+        startFrom: 'BEGINNING',
+        eachMessage: () => Promise.resolve(),
+        checkpoints,
+      });
+
+      // When
+      const startPosition = await processor.start({});
+
+      // Then
+      assertEqual(startPosition, 'BEGINNING');
+      assertEqual(wasRead(), false);
+    });
+
+    void it('resolves an explicit checkpoint without reading the stored checkpoint', async () => {
+      // Given
+      const provided = bigIntProcessorCheckpoint(5n);
+      const { checkpoints, wasRead } = trackingCheckpointer(
+        bigIntProcessorCheckpoint(9n),
+      );
+      const processor = reactor({
+        processorId: uuid(),
+        startFrom: { lastCheckpoint: provided },
+        eachMessage: () => Promise.resolve(),
+        checkpoints,
+      });
+
+      // When
+      const startPosition = await processor.start({});
+
+      // Then
+      assertDeepEqual(startPosition, { lastCheckpoint: provided });
+      assertEqual(wasRead(), false);
+    });
+
+    void it('resolves the default to BEGINNING when no checkpoint is stored', async () => {
+      // Given
+      const { checkpoints } = trackingCheckpointer(null);
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => Promise.resolve(),
+        checkpoints,
+      });
+
+      // When
+      const startPosition = await processor.start({});
+
+      // Then
+      assertEqual(startPosition, 'BEGINNING');
+    });
+
+    void it('resolves the default to the stored checkpoint when present', async () => {
+      // Given
+      const stored = bigIntProcessorCheckpoint(7n);
+      const { checkpoints } = trackingCheckpointer(stored);
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => Promise.resolve(),
+        checkpoints,
+      });
+
+      // When
+      const startPosition = await processor.start({});
+
+      // Then
+      assertDeepEqual(startPosition, { lastCheckpoint: stored });
+    });
+
+    void it('treats CURRENT as a deprecated alias of the default', async () => {
+      // Given
+      const stored = bigIntProcessorCheckpoint(7n);
+      const withCurrent = reactor({
+        processorId: uuid(),
+        startFrom: 'CURRENT',
+        eachMessage: () => Promise.resolve(),
+        checkpoints: trackingCheckpointer(stored).checkpoints,
+      });
+      const withDefault = reactor({
+        processorId: uuid(),
+        eachMessage: () => Promise.resolve(),
+        checkpoints: trackingCheckpointer(stored).checkpoints,
+      });
+
+      // When
+      const currentPosition = await withCurrent.start({});
+      const defaultPosition = await withDefault.start({});
+
+      // Then
+      assertDeepEqual(currentPosition, defaultPosition);
+      assertDeepEqual(currentPosition, { lastCheckpoint: stored });
+    });
+
+    void it('returns END verbatim, leaving the consumer to resolve the tail', async () => {
+      // Given
+      const { checkpoints, wasRead } = trackingCheckpointer(
+        bigIntProcessorCheckpoint(9n),
+      );
+      const processor = reactor({
+        processorId: uuid(),
+        startFrom: 'END',
+        eachMessage: () => Promise.resolve(),
+        checkpoints,
+      });
+
+      // When
+      const startPosition = await processor.start({});
+
+      // Then
+      assertEqual(startPosition, 'END');
+      assertEqual(wasRead(), false);
+    });
+  });
+
   void describe('projector', () => {
     void it('should create projector with default options', () => {
       // Given

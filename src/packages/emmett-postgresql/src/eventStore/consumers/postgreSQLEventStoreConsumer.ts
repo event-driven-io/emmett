@@ -9,6 +9,7 @@ import type {
 import {
   asyncAwaiter,
   EmmettError,
+  getCheckpoint,
   mergeObservabilityOptions,
   type AnyEvent,
   type AnyMessage,
@@ -18,9 +19,14 @@ import {
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
+  type ProcessorCheckpoint,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { v7 as uuid } from 'uuid';
+import {
+  PostgreSQLEventStoreCheckpoint,
+  readLastMessageCheckpoint,
+} from '../schema';
 import {
   DefaultPostgreSQLEventStoreProcessorBatchSize,
   DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
@@ -123,47 +129,6 @@ export const postgreSQLEventStoreConsumer = <
         connectionString: options.connectionString,
         serialization: options.serialization,
       });
-
-  const eachBatch: BatchRecordedMessageHandlerWithoutContext<
-    ConsumerMessageType,
-    ReadEventMetadataWithGlobalPosition
-  > = async (messagesBatch) => {
-    const activeProcessors = processors.filter((s) => s.isActive);
-
-    if (activeProcessors.length === 0)
-      return {
-        type: 'STOP',
-        reason: 'No active processors',
-      };
-
-    const result = await Promise.allSettled(
-      activeProcessors.map(async (s) => {
-        try {
-          // TODO: Add here filtering to only pass messages that can be handled by processor
-          return await s.handle(messagesBatch, {
-            connection: {
-              connectionString: options.connectionString,
-              pool,
-            },
-          });
-        } catch (error) {
-          console.log(
-            `Error during message batch processing for processor: ${s.id}`,
-            error,
-          );
-          throw error;
-        }
-      }),
-    );
-
-    return result.some(
-      (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
-    )
-      ? undefined
-      : {
-          type: 'STOP',
-        };
-  };
 
   const processorContext = {
     execute: pool.execute,
@@ -335,6 +300,56 @@ export const postgreSQLEventStoreConsumer = <
       start = (async () => {
         if (!isRunning) return;
 
+        const processorFloors = new Map<string, ProcessorCheckpoint>();
+
+        const eachBatch: BatchRecordedMessageHandlerWithoutContext<
+          ConsumerMessageType,
+          ReadEventMetadataWithGlobalPosition
+        > = async (messagesBatch) => {
+          const activeProcessors = processors.filter((s) => s.isActive);
+
+          if (activeProcessors.length === 0)
+            return {
+              type: 'STOP',
+              reason: 'No active processors',
+            };
+
+          const result = await Promise.allSettled(
+            activeProcessors.map(async (s) => {
+              const floor = processorFloors.get(s.id);
+              const batch =
+                floor !== undefined
+                  ? messagesBatch.filter((message) => {
+                      const checkpoint = getCheckpoint(message);
+                      return checkpoint !== null && checkpoint > floor;
+                    })
+                  : messagesBatch;
+              try {
+                return await s.handle(batch, {
+                  connection: {
+                    connectionString: options.connectionString,
+                    pool,
+                  },
+                });
+              } catch (error) {
+                console.log(
+                  `Error during message batch processing for processor: ${s.id}`,
+                  error,
+                );
+                throw error;
+              }
+            }),
+          );
+
+          return result.some(
+            (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
+          )
+            ? undefined
+            : {
+                type: 'STOP',
+              };
+        };
+
         try {
           messagePuller = postgreSQLEventStoreMessageBatchPuller({
             stopWhen: options.stopWhen,
@@ -356,11 +371,29 @@ export const postgreSQLEventStoreConsumer = <
             await init();
           }
 
+          let lastMessageCheckpointPromise:
+            Promise<ProcessorCheckpoint | null> | undefined;
+          const resolveLastMessageCheckpoint = () => {
+            if (lastMessageCheckpointPromise === undefined) {
+              lastMessageCheckpointPromise = (async () => {
+                const { currentCheckpoint } = await readLastMessageCheckpoint(
+                  pool.execute,
+                );
+                return currentCheckpoint !== null
+                  ? PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
+                      currentCheckpoint,
+                    )
+                  : null;
+              })();
+            }
+            return lastMessageCheckpointPromise;
+          };
+
           const startFrom = zipPostgreSQLEventStoreMessageBatchPullerStartFrom(
             await Promise.all(
               processors.map(async (o) => {
                 try {
-                  const result = await o.start({
+                  const position = await o.start({
                     execute: pool.execute,
                     connection: {
                       connectionString: options.connectionString,
@@ -368,7 +401,16 @@ export const postgreSQLEventStoreConsumer = <
                     },
                   });
 
-                  return result;
+                  if (position === 'END') {
+                    const lastMessageCheckpoint =
+                      await resolveLastMessageCheckpoint();
+                    if (lastMessageCheckpoint !== null) {
+                      processorFloors.set(o.id, lastMessageCheckpoint);
+                      return { lastCheckpoint: lastMessageCheckpoint };
+                    }
+                  }
+
+                  return position;
                 } catch (error) {
                   console.log(
                     `Error during processor start position retrieval for processor: ${o.id}. Stopping it.`,

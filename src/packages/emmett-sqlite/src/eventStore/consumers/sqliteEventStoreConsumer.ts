@@ -8,7 +8,9 @@ import type {
 } from '@event-driven-io/emmett';
 import {
   asyncAwaiter,
+  bigIntProcessorCheckpoint,
   EmmettError,
+  getCheckpoint,
   mergeObservabilityOptions,
   type AnyEvent,
   type AnyMessage,
@@ -18,6 +20,7 @@ import {
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
+  type ProcessorCheckpoint,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { v7 as uuid } from 'uuid';
@@ -25,6 +28,7 @@ import type {
   AnyEventStoreDriver,
   InferOptionsFromEventStoreDriver,
 } from '../eventStoreDriver';
+import { readLastMessageGlobalPosition } from '../schema';
 import { getSQLiteEventStore } from '../SQLiteEventStore';
 import {
   DefaultSQLiteEventStoreProcessorBatchSize,
@@ -137,38 +141,6 @@ export const sqliteEventStoreConsumer = <
         mode: 'session_based',
       },
       ...options.driver.mapToDumboOptions(options),
-    });
-
-  const eachBatch: BatchRecordedMessageHandlerWithoutContext<
-    ConsumerMessageType,
-    ReadEventMetadataWithGlobalPosition
-  > = (messagesBatch) =>
-    pool.withConnection(async (connection) => {
-      const activeProcessors = processors.filter((s) => s.isActive);
-
-      if (activeProcessors.length === 0)
-        return {
-          type: 'STOP',
-          reason: 'No active processors',
-        };
-
-      const result = await Promise.allSettled(
-        activeProcessors.map(async (s) => {
-          // TODO: Add here filtering to only pass messages that can be handled by processor
-          return await s.handle(messagesBatch, {
-            connection,
-            execute: connection.execute,
-          });
-        }),
-      );
-
-      return result.some(
-        (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
-      )
-        ? undefined
-        : {
-            type: 'STOP',
-          };
     });
 
   const processorContext = {
@@ -326,6 +298,47 @@ export const sqliteEventStoreConsumer = <
       start = (async () => {
         if (!isRunning) return;
 
+        const processorFloors = new Map<string, ProcessorCheckpoint>();
+
+        const eachBatch: BatchRecordedMessageHandlerWithoutContext<
+          ConsumerMessageType,
+          ReadEventMetadataWithGlobalPosition
+        > = (messagesBatch) =>
+          pool.withConnection(async (connection) => {
+            const activeProcessors = processors.filter((s) => s.isActive);
+
+            if (activeProcessors.length === 0)
+              return {
+                type: 'STOP',
+                reason: 'No active processors',
+              };
+
+            const result = await Promise.allSettled(
+              activeProcessors.map(async (s) => {
+                const floor = processorFloors.get(s.id);
+                const batch =
+                  floor !== undefined
+                    ? messagesBatch.filter((message) => {
+                        const checkpoint = getCheckpoint(message);
+                        return checkpoint !== null && checkpoint > floor;
+                      })
+                    : messagesBatch;
+                return await s.handle(batch, {
+                  connection,
+                  execute: connection.execute,
+                });
+              }),
+            );
+
+            return result.some(
+              (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
+            )
+              ? undefined
+              : {
+                  type: 'STOP',
+                };
+          });
+
         try {
           messagePuller = sqliteEventStoreMessageBatchPuller({
             stopWhen: options.stopWhen,
@@ -343,16 +356,40 @@ export const sqliteEventStoreConsumer = <
             await init();
           }
 
+          let lastMessageCheckpointPromise:
+            Promise<ProcessorCheckpoint | null> | undefined;
+          const resolveLastMessageCheckpoint = () => {
+            if (lastMessageCheckpointPromise === undefined) {
+              lastMessageCheckpointPromise = (async () => {
+                const { currentGlobalPosition } =
+                  await readLastMessageGlobalPosition(pool.execute);
+                return currentGlobalPosition !== null
+                  ? bigIntProcessorCheckpoint(currentGlobalPosition)
+                  : null;
+              })();
+            }
+            return lastMessageCheckpointPromise;
+          };
+
           const startFrom = await pool.withConnection(async (connection) =>
             zipSQLiteEventStoreMessageBatchPullerStartFrom(
               await Promise.all(
                 processors.map(async (o) => {
-                  const result = await o.start({
+                  const position = await o.start({
                     execute: connection.execute,
                     connection,
                   });
 
-                  return result;
+                  if (position === 'END') {
+                    const lastMessageCheckpoint =
+                      await resolveLastMessageCheckpoint();
+                    if (lastMessageCheckpoint !== null) {
+                      processorFloors.set(o.id, lastMessageCheckpoint);
+                      return { lastCheckpoint: lastMessageCheckpoint };
+                    }
+                  }
+
+                  return position;
                 }),
               ),
             ),
