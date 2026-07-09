@@ -10,7 +10,7 @@ import {
   type InMemoryDatabase,
 } from '../../../database';
 import { isErrorConstructor } from '../../../errors';
-import { resolveEventStoreObservability } from '../../../observability';
+import { eventStoreObservability } from '../../../observability';
 import { JSONSerializer } from '../../../serialization';
 import {
   assertFails,
@@ -140,7 +140,7 @@ export const InMemoryProjectionSpec = {
               projections: [projection],
               database,
               eventStore: mockEventStore,
-              observability: resolveEventStoreObservability(undefined),
+              observability: eventStoreObservability(undefined),
             });
           };
 

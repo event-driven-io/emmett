@@ -8,6 +8,7 @@ import {
   EmmettError,
   inMemoryProjector,
   inMemoryReactor,
+  mergeObservabilityOptions,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
@@ -184,9 +185,11 @@ export const eventStoreDBEventStoreConsumer = <
     whenStarted: (): Promise<void> => startedAwaiter.wait,
     processors,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
-      options: InMemoryReactorOptions<MessageType>,
+      processorOptions: InMemoryReactorOptions<MessageType>,
     ): InMemoryProcessor<MessageType> => {
-      const processor = inMemoryReactor(options);
+      const processor = inMemoryReactor(
+        mergeObservabilityOptions(processorOptions, options.observability),
+      );
 
       processors.push(
         // TODO: change that
@@ -200,9 +203,11 @@ export const eventStoreDBEventStoreConsumer = <
       return processor;
     },
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
-      options: InMemoryProjectorOptions<EventType>,
+      processorOptions: InMemoryProjectorOptions<EventType>,
     ): InMemoryProcessor<EventType> => {
-      const processor = inMemoryProjector(options);
+      const processor = inMemoryProjector(
+        mergeObservabilityOptions(processorOptions, options.observability),
+      );
 
       processors.push(
         // TODO: change that

@@ -12,7 +12,7 @@ import {
 } from '../../observability/attributes';
 import {
   commandHandlerCollector,
-  resolveCommandObservability,
+  commandObservability,
 } from './commandHandlerCollector';
 
 const A = EmmettAttributes;
@@ -174,7 +174,7 @@ describe('commandHandlerCollector', () => {
   });
 
   it('works with noop observability', async () => {
-    const o11y = resolveCommandObservability(undefined);
+    const o11y = commandObservability(undefined);
     const collector = commandHandlerCollector(o11y);
     await collector.startScope({ streamName: 'test' }, () => Promise.resolve());
   });
@@ -333,9 +333,9 @@ describe('commandHandlerCollector', () => {
   });
 });
 
-describe('resolveCommandObservability', () => {
+describe('commandObservability', () => {
   it('returns noop tracer, meter, attributeTarget=both when no options', () => {
-    const resolved = resolveCommandObservability(undefined);
+    const resolved = commandObservability(undefined);
     expect(resolved.tracer).toBeDefined();
     expect(resolved.meter).toBeDefined();
     expect(resolved.attributeTarget).toBe('both');
@@ -344,7 +344,7 @@ describe('resolveCommandObservability', () => {
   it('uses provided tracer and meter', () => {
     const tracer = collectingTracer();
     const meter = collectingMeter();
-    const resolved = resolveCommandObservability({
+    const resolved = commandObservability({
       observability: { tracer, meter },
     });
     expect(resolved.tracer).toBe(tracer);
@@ -352,7 +352,7 @@ describe('resolveCommandObservability', () => {
   });
 
   it('uses provided attributeTarget', () => {
-    const resolved = resolveCommandObservability({
+    const resolved = commandObservability({
       observability: { attributeTarget: 'mainSpan' },
     });
     expect(resolved.attributeTarget).toBe('mainSpan');
@@ -360,7 +360,7 @@ describe('resolveCommandObservability', () => {
 
   it('falls back to parent options', () => {
     const tracer = collectingTracer();
-    const resolved = resolveCommandObservability(undefined, {
+    const resolved = commandObservability(undefined, {
       observability: { tracer },
     });
     expect(resolved.tracer).toBe(tracer);
@@ -369,7 +369,7 @@ describe('resolveCommandObservability', () => {
   it('child overrides parent', () => {
     const parentTracer = collectingTracer();
     const childTracer = collectingTracer();
-    const resolved = resolveCommandObservability(
+    const resolved = commandObservability(
       { observability: { tracer: childTracer } },
       { observability: { tracer: parentTracer } },
     );
@@ -377,19 +377,19 @@ describe('resolveCommandObservability', () => {
   });
 
   it('defaults includeMessagePayloads to false', () => {
-    const resolved = resolveCommandObservability(undefined);
+    const resolved = commandObservability(undefined);
     expect(resolved.includeMessagePayloads).toBe(false);
   });
 
   it('uses provided includeMessagePayloads', () => {
-    const resolved = resolveCommandObservability({
+    const resolved = commandObservability({
       observability: { includeMessagePayloads: true },
     });
     expect(resolved.includeMessagePayloads).toBe(true);
   });
 
   it('falls back to parent includeMessagePayloads', () => {
-    const resolved = resolveCommandObservability(undefined, {
+    const resolved = commandObservability(undefined, {
       observability: { includeMessagePayloads: true },
     });
     expect(resolved.includeMessagePayloads).toBe(true);

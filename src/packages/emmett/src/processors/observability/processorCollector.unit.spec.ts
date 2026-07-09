@@ -9,10 +9,11 @@ import {
   EmmettMetrics,
   MessagingSystemName,
 } from '../../observability/attributes';
+import { mergeObservabilityOptions } from '../../observability/options';
 import type { AnyRecordedMessageMetadata } from '../../typing';
 import {
   processorCollector,
-  resolveProcessorObservability,
+  processorObservability,
 } from './processorCollector';
 
 const A = EmmettAttributes;
@@ -263,7 +264,7 @@ describe('processorCollector', () => {
   });
 
   it('works with noop observability', async () => {
-    const o11y = resolveProcessorObservability(undefined);
+    const o11y = processorObservability(undefined);
     const collector = processorCollector(o11y);
     await collector.startScope(
       { processorId: 'p1', type: 'reactor', checkpoint: null },
@@ -273,9 +274,9 @@ describe('processorCollector', () => {
   });
 });
 
-describe('resolveProcessorObservability', () => {
+describe('processorObservability', () => {
   it('returns noop tracer, meter, propagation=links, attributeTarget=both when no options', () => {
-    const resolved = resolveProcessorObservability(undefined);
+    const resolved = processorObservability(undefined);
     expect(resolved.tracer).toBeDefined();
     expect(resolved.meter).toBeDefined();
     expect(resolved.propagation).toBe('links');
@@ -283,41 +284,63 @@ describe('resolveProcessorObservability', () => {
   });
 
   it('uses provided propagation', () => {
-    const resolved = resolveProcessorObservability({
+    const resolved = processorObservability({
       observability: { propagation: 'propagate' },
     });
     expect(resolved.propagation).toBe('propagate');
   });
 
   it('uses provided attributeTarget', () => {
-    const resolved = resolveProcessorObservability({
+    const resolved = processorObservability({
       observability: { attributeTarget: 'currentSpan' },
     });
     expect(resolved.attributeTarget).toBe('currentSpan');
   });
 
   it('falls back to parent', () => {
-    const resolved = resolveProcessorObservability(undefined, {
+    const resolved = processorObservability(undefined, {
       observability: { propagation: 'propagate' },
     });
     expect(resolved.propagation).toBe('propagate');
   });
 
   it('child overrides parent', () => {
-    const resolved = resolveProcessorObservability(
+    const resolved = processorObservability(
       { observability: { propagation: 'propagate' } },
       { observability: { propagation: 'links' } },
     );
     expect(resolved.propagation).toBe('propagate');
   });
 
+  it('uses processor fields after store or consumer observability is merged', () => {
+    const tracer = collectingTracer();
+    const meter = collectingMeter();
+    const options = mergeObservabilityOptions(
+      { observability: { propagation: 'propagate' as const } },
+      {
+        tracer,
+        meter,
+        pollTracing: 'verbose',
+        attributeTarget: 'currentSpan',
+      },
+    );
+
+    const resolved = processorObservability(options);
+
+    expect(resolved.tracer).toBe(tracer);
+    expect(resolved.meter).toBe(meter);
+    expect(resolved.propagation).toBe('propagate');
+    expect(resolved.attributeTarget).toBe('currentSpan');
+    expect('pollTracing' in resolved).toBe(false);
+  });
+
   it('defaults includeMessagePayloads to false', () => {
-    const resolved = resolveProcessorObservability(undefined);
+    const resolved = processorObservability(undefined);
     expect(resolved.includeMessagePayloads).toBe(false);
   });
 
   it('uses provided includeMessagePayloads', () => {
-    const resolved = resolveProcessorObservability({
+    const resolved = processorObservability({
       observability: { includeMessagePayloads: true },
     });
     expect(resolved.includeMessagePayloads).toBe(true);

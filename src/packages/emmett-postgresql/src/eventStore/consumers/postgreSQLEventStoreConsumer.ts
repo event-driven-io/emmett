@@ -9,6 +9,7 @@ import type {
 import {
   asyncAwaiter,
   EmmettError,
+  mergeObservabilityOptions,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
@@ -237,9 +238,11 @@ export const postgreSQLEventStoreConsumer = <
     processors,
     init,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
-      options: PostgreSQLReactorOptions<MessageType>,
+      processorOptions: PostgreSQLReactorOptions<MessageType>,
     ): PostgreSQLProcessor<MessageType> => {
-      const processor = postgreSQLReactor(options);
+      const processor = postgreSQLReactor(
+        mergeObservabilityOptions(processorOptions, options.observability),
+      );
 
       processors.push(
         // TODO: change that
@@ -253,9 +256,11 @@ export const postgreSQLEventStoreConsumer = <
       return processor;
     },
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
-      options: PostgreSQLProjectorOptions<EventType>,
+      processorOptions: PostgreSQLProjectorOptions<EventType>,
     ): PostgreSQLProcessor<EventType> => {
-      const processor = postgreSQLProjector(options);
+      const processor = postgreSQLProjector(
+        mergeObservabilityOptions(processorOptions, options.observability),
+      );
 
       processors.push(
         // TODO: change that
@@ -279,7 +284,7 @@ export const postgreSQLEventStoreConsumer = <
         WorkflowProcessorContext,
       StoredMessage extends AnyEvent | AnyCommand = Output,
     >(
-      options: PostgreSQLWorkflowProcessorOptions<
+      processorOptions: PostgreSQLWorkflowProcessorOptions<
         Input,
         State,
         Output,
@@ -288,7 +293,9 @@ export const postgreSQLEventStoreConsumer = <
         StoredMessage
       >,
     ): PostgreSQLProcessor<Input | Output> => {
-      const processor = postgreSQLWorkflowProcessor(options);
+      const processor = postgreSQLWorkflowProcessor(
+        mergeObservabilityOptions(processorOptions, options.observability),
+      );
 
       processors.push(
         // TODO: change that

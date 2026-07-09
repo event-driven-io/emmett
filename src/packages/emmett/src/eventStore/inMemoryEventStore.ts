@@ -4,10 +4,7 @@ import {
   type InMemoryDatabase,
 } from '../database/inMemoryDatabase';
 import type { EventStoreObservabilityConfig } from '../observability';
-import {
-  eventStoreCollector,
-  resolveEventStoreObservability,
-} from '../observability';
+import { eventStoreCollector, eventStoreObservability } from '../observability';
 import { bigIntProcessorCheckpoint } from '../processors';
 import type { ProjectionRegistration } from '../projections';
 import type {
@@ -85,7 +82,7 @@ export const getInMemoryEventStore = (
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
 
-  const observability = resolveEventStoreObservability(eventStoreOptions);
+  const observability = eventStoreObservability(eventStoreOptions);
   const collector = eventStoreCollector(observability);
 
   // Create the event store object

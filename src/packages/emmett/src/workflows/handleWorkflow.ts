@@ -13,7 +13,7 @@ import {
   type ReadStreamOptions,
 } from '../eventStore';
 import {
-  resolveWorkflowObservability,
+  workflowObservability,
   workflowCollector,
   type WorkflowObservabilityConfig,
 } from '../observability';
@@ -223,7 +223,7 @@ export const WorkflowHandler =
     message: Input | RecordedMessage<Input, MessageMetadataType>,
     handleOptions?: WorkflowHandleOptions<Store>,
   ): Promise<WorkflowHandlerResult<Output, Store>> => {
-    const collector = workflowCollector(resolveWorkflowObservability(options));
+    const collector = workflowCollector(workflowObservability(options));
     const workflowType = options.workflow.name;
     const inputType = (message as { type: string }).type;
     const workflowId = options.getWorkflowId(message) ?? '';

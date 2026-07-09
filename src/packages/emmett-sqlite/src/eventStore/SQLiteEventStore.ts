@@ -12,11 +12,13 @@ import {
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
   type BeforeEventStoreCommitHandler,
+  type EmmettObservabilityConfig,
   type Event,
   type EventStore,
   type EventStoreSession,
   type EventStoreSessionFactory,
   type JSONSerializationOptions,
+  mergeObservabilityOptions,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -96,6 +98,7 @@ export type SQLiteEventStoreOptions<
     SQLiteReadEventMetadata,
     SQLiteProjectionHandlerContext
   >[];
+  observability?: EmmettObservabilityConfig;
   schema?: {
     autoMigration?: 'None' | 'CreateOrUpdate';
   };
@@ -324,7 +327,10 @@ export const getSQLiteEventStore = <
     ): SQLiteEventStoreConsumer<ConsumerEventType> =>
       sqliteEventStoreConsumer<ConsumerEventType, Driver>({
         ...(options ?? {}),
-        ...(consumerOptions ?? {}),
+        ...mergeObservabilityOptions(
+          consumerOptions ?? {},
+          options.observability,
+        ),
         pool,
       }),
 

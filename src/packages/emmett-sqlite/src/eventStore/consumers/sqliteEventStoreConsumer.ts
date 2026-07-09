@@ -9,6 +9,7 @@ import type {
 import {
   asyncAwaiter,
   EmmettError,
+  mergeObservabilityOptions,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
@@ -221,9 +222,11 @@ export const sqliteEventStoreConsumer = <
     processors,
     init,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
-      options: SQLiteReactorOptions<MessageType>,
+      processorOptions: SQLiteReactorOptions<MessageType>,
     ): SQLiteProcessor<MessageType> => {
-      const processor = sqliteReactor(options);
+      const processor = sqliteReactor(
+        mergeObservabilityOptions(processorOptions, options.observability),
+      );
 
       processors.push(
         // TODO: change that
@@ -237,9 +240,11 @@ export const sqliteEventStoreConsumer = <
       return processor;
     },
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
-      options: SQLiteProjectorOptions<EventType>,
+      processorOptions: SQLiteProjectorOptions<EventType>,
     ): SQLiteProcessor<EventType> => {
-      const processor = sqliteProjector(options);
+      const processor = sqliteProjector(
+        mergeObservabilityOptions(processorOptions, options.observability),
+      );
 
       processors.push(
         // TODO: change that
@@ -281,10 +286,15 @@ export const sqliteEventStoreConsumer = <
         schema: { autoMigration: 'None' },
       });
 
-      const processor = sqliteWorkflowProcessor({
-        ...processorOptions,
-        messageStore,
-      });
+      const processor = sqliteWorkflowProcessor(
+        mergeObservabilityOptions(
+          {
+            ...processorOptions,
+            messageStore,
+          },
+          options.observability,
+        ),
+      );
 
       processors.push(
         // TODO: change that

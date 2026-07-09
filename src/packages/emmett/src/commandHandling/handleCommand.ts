@@ -17,7 +17,7 @@ import type { Event } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
 import {
   commandHandlerCollector,
-  resolveCommandObservability,
+  commandObservability,
   type CommandObservabilityConfig,
 } from './observability';
 
@@ -102,9 +102,7 @@ export const CommandHandler =
       | CommandHandlerFunction<State, StreamEvent>[],
     handleOptions?: HandleOptions<Store>,
   ): Promise<CommandHandlerResult<State, StreamEvent, Store>> => {
-    const collector = commandHandlerCollector(
-      resolveCommandObservability(options),
-    );
+    const collector = commandHandlerCollector(commandObservability(options));
     const streamName = (options.mapToStreamId ?? ((id: string) => id))(id);
 
     // TODO: for array-of-handlers we record all types as an

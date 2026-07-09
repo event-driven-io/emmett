@@ -9,10 +9,11 @@ import {
   EmmettMetrics,
   MessagingSystemName,
 } from '../../observability/attributes';
+import { mergeObservabilityOptions } from '../../observability/options';
 import type { AnyRecordedMessageMetadata } from '../../typing';
 import {
   eventStoreCollector,
-  resolveEventStoreObservability,
+  eventStoreObservability,
 } from './eventStoreCollector';
 
 const A = EmmettAttributes;
@@ -210,7 +211,7 @@ describe('eventStoreCollector', () => {
   });
 
   it('works with noop observability', async () => {
-    const o11y = resolveEventStoreObservability(undefined);
+    const o11y = eventStoreObservability(undefined);
     const collector = eventStoreCollector(o11y);
     await collector.instrumentRead('test', () =>
       Promise.resolve({
@@ -219,5 +220,29 @@ describe('eventStoreCollector', () => {
         streamExists: false,
       }),
     );
+  });
+});
+
+describe('eventStoreObservability', () => {
+  it('uses event store fields after broader observability is merged', () => {
+    const tracer = collectingTracer();
+    const meter = collectingMeter();
+    const options = mergeObservabilityOptions(
+      { observability: { attributeTarget: 'currentSpan' as const } },
+      {
+        tracer,
+        meter,
+        pollTracing: 'verbose',
+        propagation: 'propagate',
+      },
+    );
+
+    const resolved = eventStoreObservability(options);
+
+    expect(resolved.tracer).toBe(tracer);
+    expect(resolved.meter).toBe(meter);
+    expect(resolved.attributeTarget).toBe('currentSpan');
+    expect('pollTracing' in resolved).toBe(false);
+    expect('propagation' in resolved).toBe(false);
   });
 });

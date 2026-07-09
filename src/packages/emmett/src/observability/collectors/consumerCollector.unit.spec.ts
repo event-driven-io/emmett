@@ -5,7 +5,7 @@ import {
   type CollectedHistogram,
   type CollectedSpan,
 } from '@event-driven-io/almanac';
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   assertDefined,
   assertEqual,
@@ -16,7 +16,7 @@ import {
   EmmettMetrics,
   MessagingSystemName,
 } from '../attributes';
-import { resolveConsumerObservability } from '../options';
+import { consumerObservability, mergeObservabilityOptions } from '../options';
 import { consumerCollector } from './consumerCollector';
 
 const A = EmmettAttributes;
@@ -276,11 +276,35 @@ describe('consumerCollector', () => {
   });
 
   it('works with noop observability', async () => {
-    const o11y = resolveConsumerObservability(undefined);
+    const o11y = consumerObservability(undefined);
     const collector = consumerCollector(o11y);
     await collector.tracePoll(
       { batchSize: 0, processorCount: 0, empty: true },
       () => Promise.resolve(),
     );
+  });
+});
+
+describe('consumerObservability', () => {
+  it('uses consumer fields after store observability is merged', () => {
+    const tracer = collectingTracer();
+    const meter = collectingMeter();
+    const options = mergeObservabilityOptions(
+      { observability: { pollTracing: 'active' as const } },
+      {
+        tracer,
+        meter,
+        propagation: 'propagate',
+        attributeTarget: 'currentSpan',
+      },
+    );
+
+    const resolved = consumerObservability(options);
+
+    expect(resolved.tracer).toBe(tracer);
+    expect(resolved.meter).toBe(meter);
+    expect(resolved.pollTracing).toBe('active');
+    expect(resolved.attributeTarget).toBe('currentSpan');
+    expect('propagation' in resolved).toBe(false);
   });
 });
