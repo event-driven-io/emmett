@@ -1,11 +1,13 @@
 import type { MessageProcessor } from '../processors';
 import type { Message } from '../typing';
+import type { ConsumerObservabilityConfig } from '../observability';
 
 export type MessageConsumerOptions<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
 > = {
   consumerId?: string;
+  observability?: ConsumerObservabilityConfig;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   processors?: Array<MessageProcessor<ConsumerMessageType, any, any>>;
 };

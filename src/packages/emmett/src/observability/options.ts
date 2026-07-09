@@ -28,7 +28,7 @@ export type ConsumerObservabilityConfig = Pick<
   'tracer' | 'meter' | 'pollTracing' | 'attributeTarget'
 >;
 
-export type WorkflowObservabilityConfig = Pick<
+export type ProcessorObservabilityConfig = Pick<
   EmmettObservabilityConfig,
   | 'tracer'
   | 'meter'
@@ -36,6 +36,8 @@ export type WorkflowObservabilityConfig = Pick<
   | 'attributeTarget'
   | 'includeMessagePayloads'
 >;
+
+export type WorkflowObservabilityConfig = ProcessorObservabilityConfig;
 
 export type ResolvedConsumerObservability = {
   tracer: Tracer;
@@ -52,50 +54,58 @@ export type ResolvedWorkflowObservability = {
   includeMessagePayloads: boolean;
 };
 
-export const resolveConsumerObservability = (
+export const mergeObservabilityOptions = <
+  Config extends Partial<EmmettObservabilityConfig>,
+  Options extends { observability?: Config },
+>(
+  options: Options,
+  defaults: Partial<EmmettObservabilityConfig> | undefined,
+): Options => {
+  const observability =
+    defaults === undefined
+      ? options.observability
+      : options.observability === undefined
+        ? defaults
+        : { ...defaults, ...options.observability };
+  if (observability === options.observability) return options;
+
+  return {
+    ...options,
+    observability,
+  };
+};
+
+export const consumerObservability = (
   options: { observability?: ConsumerObservabilityConfig } | undefined,
   parent?: EmmettObservabilityOptions,
-): ResolvedConsumerObservability => ({
-  tracer:
-    options?.observability?.tracer ??
-    parent?.observability?.tracer ??
-    noopTracer(),
-  meter:
-    options?.observability?.meter ??
-    parent?.observability?.meter ??
-    noopMeter(),
-  pollTracing:
-    options?.observability?.pollTracing ??
-    parent?.observability?.pollTracing ??
-    'off',
-  attributeTarget:
-    options?.observability?.attributeTarget ??
-    parent?.observability?.attributeTarget ??
-    'both',
-});
+): ResolvedConsumerObservability => {
+  const observability = mergeObservabilityOptions(
+    { observability: options?.observability },
+    parent?.observability,
+  ).observability;
 
-export const resolveWorkflowObservability = (
+  return {
+    tracer: observability?.tracer ?? noopTracer(),
+    meter: observability?.meter ?? noopMeter(),
+    pollTracing: observability?.pollTracing ?? 'off',
+    attributeTarget: observability?.attributeTarget ?? 'both',
+  };
+};
+
+export const workflowObservability = (
   options: { observability?: WorkflowObservabilityConfig } | undefined,
   parent?: EmmettObservabilityOptions,
-): ResolvedWorkflowObservability => ({
-  tracer:
-    options?.observability?.tracer ??
-    parent?.observability?.tracer ??
-    noopTracer(),
-  meter:
-    options?.observability?.meter ??
-    parent?.observability?.meter ??
-    noopMeter(),
-  propagation:
-    options?.observability?.propagation ??
-    parent?.observability?.propagation ??
-    'links',
-  attributeTarget:
-    options?.observability?.attributeTarget ??
-    parent?.observability?.attributeTarget ??
-    'both',
-  includeMessagePayloads:
-    options?.observability?.includeMessagePayloads ??
-    parent?.observability?.includeMessagePayloads ??
-    false,
-});
+): ResolvedWorkflowObservability => {
+  const observability = mergeObservabilityOptions(
+    { observability: options?.observability },
+    parent?.observability,
+  ).observability;
+
+  return {
+    tracer: observability?.tracer ?? noopTracer(),
+    meter: observability?.meter ?? noopMeter(),
+    propagation: observability?.propagation ?? 'links',
+    attributeTarget: observability?.attributeTarget ?? 'both',
+    includeMessagePayloads: observability?.includeMessagePayloads ?? false,
+  };
+};

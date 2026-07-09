@@ -29,7 +29,7 @@ export type ResolvedEventStoreObservability = {
   attributeTarget: AttributeTarget;
 };
 
-export const resolveEventStoreObservability = (
+export const eventStoreObservability = (
   options: { observability?: EventStoreObservabilityConfig } | undefined,
   parent?: EmmettObservabilityOptions,
 ): ResolvedEventStoreObservability => ({

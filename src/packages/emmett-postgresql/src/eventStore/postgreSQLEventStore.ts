@@ -25,10 +25,12 @@ import {
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
   type Event,
+  type EmmettObservabilityConfig,
   type EventStore,
   type EventStoreSession,
   type EventStoreSessionFactory,
   type JSONSerializationOptions,
+  mergeObservabilityOptions,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -172,6 +174,7 @@ export type PostgresEventStoreOptions = {
     PostgresReadEventMetadata,
     PostgreSQLProjectionHandlerContext
   >[];
+  observability?: EmmettObservabilityConfig;
   schema?: { autoMigration?: MigrationStyle };
   connectionOptions?: PostgresEventStoreConnectionOptions;
   hooks?: {
@@ -441,10 +444,13 @@ export const getPostgreSQLEventStore = (
     },
 
     consumer: <ConsumerEventType extends Event = Event>(
-      options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
+      consumerOptions?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
     ): PostgreSQLEventStoreConsumer<ConsumerEventType> =>
       postgreSQLEventStoreConsumer<ConsumerEventType>({
-        ...(options ?? {}),
+        ...mergeObservabilityOptions(
+          consumerOptions ?? {},
+          options.observability,
+        ),
         pool,
         connectionString,
       }),

@@ -33,7 +33,7 @@ export type ResolvedCommandObservability = {
   includeMessagePayloads: boolean;
 };
 
-export const resolveCommandObservability = (
+export const commandObservability = (
   options: { observability?: CommandObservabilityConfig } | undefined,
   parent?: EmmettObservabilityOptions,
 ): ResolvedCommandObservability => ({

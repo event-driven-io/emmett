@@ -9,7 +9,7 @@ import {
   EmmettMetrics,
   MessagingSystemName,
 } from '../attributes';
-import { resolveWorkflowObservability } from '../options';
+import { workflowObservability } from '../options';
 import { workflowCollector } from './workflowCollector';
 
 const A = EmmettAttributes;
@@ -139,7 +139,7 @@ describe('workflowCollector', () => {
   });
 
   it('works with noop observability', async () => {
-    const o11y = resolveWorkflowObservability(undefined);
+    const o11y = workflowObservability(undefined);
     const collector = workflowCollector(o11y);
     await collector.startScope(defaultContext, () => Promise.resolve());
   });

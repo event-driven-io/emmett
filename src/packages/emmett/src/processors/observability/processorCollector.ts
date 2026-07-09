@@ -28,15 +28,6 @@ import type {
   RecordedMessage,
 } from '../../typing';
 
-export type ProcessorObservabilityConfig = Pick<
-  EmmettObservabilityConfig,
-  | 'tracer'
-  | 'meter'
-  | 'propagation'
-  | 'attributeTarget'
-  | 'includeMessagePayloads'
->;
-
 export type ResolvedProcessorObservability = {
   tracer: Tracer;
   meter: Meter;
@@ -45,8 +36,8 @@ export type ResolvedProcessorObservability = {
   includeMessagePayloads: boolean;
 };
 
-export const resolveProcessorObservability = (
-  options: { observability?: ProcessorObservabilityConfig } | undefined,
+export const processorObservability = (
+  options: { observability?: Partial<EmmettObservabilityConfig> } | undefined,
   parent?: EmmettObservabilityOptions,
 ): ResolvedProcessorObservability => ({
   tracer:

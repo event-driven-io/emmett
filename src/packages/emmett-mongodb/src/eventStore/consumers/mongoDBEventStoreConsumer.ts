@@ -6,6 +6,7 @@ import type {
 import {
   asyncAwaiter,
   EmmettError,
+  mergeObservabilityOptions,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
@@ -177,9 +178,11 @@ export const mongoDBEventStoreConsumer = <
     whenStarted: (): Promise<void> => startedAwaiter.wait,
     processors,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
-      options: MongoDBProcessorOptions<MessageType>,
+      processorOptions: MongoDBProcessorOptions<MessageType>,
     ): MongoDBProcessor<MessageType> => {
-      const processor = changeStreamReactor(options);
+      const processor = changeStreamReactor(
+        mergeObservabilityOptions(processorOptions, options.observability),
+      );
 
       processors.push(
         // TODO: change that
@@ -193,9 +196,11 @@ export const mongoDBEventStoreConsumer = <
       return processor;
     },
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
-      options: MongoDBProjectorOptions<EventType>,
+      processorOptions: MongoDBProjectorOptions<EventType>,
     ): MongoDBProcessor<EventType> => {
-      const processor = mongoDBProjector(options);
+      const processor = mongoDBProjector(
+        mergeObservabilityOptions(processorOptions, options.observability),
+      );
 
       processors.push(
         // TODO: change that

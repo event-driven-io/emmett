@@ -2,7 +2,10 @@ import { LogEvent, noopScope } from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
 import type { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
-import type { WithObservabilityScope } from '../observability';
+import type {
+  ProcessorObservabilityConfig,
+  WithObservabilityScope,
+} from '../observability';
 import { EmmettAttributes } from '../observability';
 import type { ProjectionDefinition } from '../projections';
 import {
@@ -32,11 +35,7 @@ import {
   type ProcessorCheckpoint,
   type StoreProcessorCheckpointResult,
 } from './checkpoints';
-import {
-  processorCollector,
-  resolveProcessorObservability,
-  type ProcessorObservabilityConfig,
-} from './observability';
+import { processorCollector, processorObservability } from './observability';
 
 export type CurrentMessageProcessorPosition =
   { lastCheckpoint: ProcessorCheckpoint } | 'BEGINNING' | 'END';
@@ -266,7 +265,7 @@ export const reactor = <
     stopAfter,
   } = options;
 
-  const collector = processorCollector(resolveProcessorObservability(options));
+  const collector = processorCollector(processorObservability(options));
 
   const isCustomBatch = 'eachBatch' in options && !!options.eachBatch;
 
