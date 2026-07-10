@@ -1,4 +1,5 @@
 import type { SQLExecutor } from '@event-driven-io/dumbo';
+import type { CurrentMessageProcessorPosition } from '@event-driven-io/emmett';
 import {
   JSONSerializer,
   parseBigIntProcessorCheckpoint,
@@ -8,7 +9,6 @@ import {
   type Event,
   type JSONSerializationOptions,
   type Message,
-  type ProcessorCheckpoint,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
@@ -48,7 +48,7 @@ export type SQLiteEventStoreMessageBatchPullerOptions<
 } & JSONSerializationOptions;
 
 export type SQLiteEventStoreMessageBatchPullerStartFrom =
-  { lastCheckpoint: ProcessorCheckpoint } | 'BEGINNING' | 'END';
+  CurrentMessageProcessorPosition;
 
 export type SQLiteEventStoreMessageBatchPullerStartOptions = {
   startFrom: SQLiteEventStoreMessageBatchPullerStartFrom;
@@ -155,23 +155,4 @@ export const sqliteEventStoreMessageBatchPuller = <
       await start;
     },
   };
-};
-
-export const zipSQLiteEventStoreMessageBatchPullerStartFrom = (
-  options: (SQLiteEventStoreMessageBatchPullerStartFrom | undefined)[],
-): SQLiteEventStoreMessageBatchPullerStartFrom => {
-  if (
-    options.length === 0 ||
-    options.some((o) => o === undefined || o === 'BEGINNING')
-  )
-    return 'BEGINNING';
-
-  if (options.every((o) => o === 'END')) return 'END';
-
-  return options
-    .filter(
-      (o): o is { lastCheckpoint: ProcessorCheckpoint } =>
-        o !== undefined && o !== 'BEGINNING' && o !== 'END',
-    )
-    .sort((a, b) => (a.lastCheckpoint > b.lastCheckpoint ? 1 : -1))[0]!;
 };

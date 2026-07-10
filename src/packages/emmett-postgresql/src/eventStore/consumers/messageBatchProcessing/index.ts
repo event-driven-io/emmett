@@ -1,11 +1,11 @@
 import type { SQLExecutor } from '@event-driven-io/dumbo';
+import type { CurrentMessageProcessorPosition } from '@event-driven-io/emmett';
 import {
   JSONSerializer,
   type AsyncAwaiter,
   type BatchRecordedMessageHandlerWithoutContext,
   type EmmettError,
   type Message,
-  type ProcessorCheckpoint,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { readLastMessageCheckpoint } from '../../schema';
@@ -41,7 +41,7 @@ export type PostgreSQLEventStoreMessageBatchPullerOptions<
 };
 
 export type PostgreSQLEventStoreMessageBatchPullerStartFrom =
-  { lastCheckpoint: ProcessorCheckpoint } | 'BEGINNING' | 'END';
+  CurrentMessageProcessorPosition;
 
 export type PostgreSQLEventStoreMessageBatchPullerStartOptions = {
   startFrom: PostgreSQLEventStoreMessageBatchPullerStartFrom;
@@ -161,23 +161,4 @@ export const postgreSQLEventStoreMessageBatchPuller = <
       await start;
     },
   };
-};
-
-export const zipPostgreSQLEventStoreMessageBatchPullerStartFrom = (
-  options: (PostgreSQLEventStoreMessageBatchPullerStartFrom | undefined)[],
-): PostgreSQLEventStoreMessageBatchPullerStartFrom => {
-  if (
-    options.length === 0 ||
-    options.some((o) => o === undefined || o === 'BEGINNING')
-  )
-    return 'BEGINNING';
-
-  if (options.every((o) => o === 'END')) return 'END';
-
-  return options
-    .filter(
-      (o): o is { lastCheckpoint: ProcessorCheckpoint } =>
-        o !== undefined && o !== 'BEGINNING' && o !== 'END',
-    )
-    .sort((a, b) => (a.lastCheckpoint > b.lastCheckpoint ? 1 : -1))[0]!;
 };

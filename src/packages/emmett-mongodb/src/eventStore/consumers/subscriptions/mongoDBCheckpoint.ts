@@ -1,6 +1,6 @@
 import {
+  CurrentMessageProcessorPosition,
   IllegalStateError,
-  type CurrentMessageProcessorPosition,
   type ProcessorCheckpoint,
 } from '@event-driven-io/emmett';
 
@@ -129,24 +129,12 @@ export const compareTwoTokens = (token1: unknown, token2: unknown) => {
 export const zipMongoDBMessageBatchPullerStartFrom = (
   options: (CurrentMessageProcessorPosition | undefined)[],
 ): CurrentMessageProcessorPosition => {
-  if (
-    options.length === 0 ||
-    options.some((o) => o === undefined || o === 'BEGINNING')
-  ) {
-    return 'BEGINNING';
-  }
-
-  if (options.every((o) => o === 'END')) {
-    return 'END';
-  }
-
-  const positionTokens = options.filter(
-    (o) => o !== undefined && o !== 'BEGINNING' && o !== 'END',
-  );
-
-  const sorted = positionTokens.sort((a, b) => {
-    return compareTwoTokens(a.lastCheckpoint, b.lastCheckpoint);
+  return CurrentMessageProcessorPosition.zip(options, (a, b) => {
+    if (isMongoDBCheckpoint(a) && isMongoDBCheckpoint(b)) {
+      return compareTwoMongoDBCheckpoints(a, b);
+    }
+    throw new IllegalStateError(
+      `Checkpoints are not comparable MongoDB tokens: ${String(a)} vs ${String(b)}`,
+    );
   });
-
-  return sorted[0]!;
 };

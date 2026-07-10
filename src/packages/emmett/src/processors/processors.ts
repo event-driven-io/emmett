@@ -39,6 +39,44 @@ import { processorCollector, processorObservability } from './observability';
 export type CurrentMessageProcessorPosition =
   { lastCheckpoint: ProcessorCheckpoint } | 'BEGINNING' | 'END';
 
+export const CurrentMessageProcessorPosition = {
+  compare: (
+    a: CurrentMessageProcessorPosition,
+    b: CurrentMessageProcessorPosition,
+    compareCheckpoints: (
+      a: ProcessorCheckpoint,
+      b: ProcessorCheckpoint,
+    ) => number = (chkA, chkB) => (chkA > chkB ? 1 : chkA < chkB ? -1 : 0),
+  ) => {
+    if (a === b) return 0;
+
+    if (a === 'BEGINNING') return -1;
+    if (b === 'BEGINNING') return 1;
+
+    if (a === 'END') return 1;
+    if (b === 'END') return -1;
+
+    return compareCheckpoints(a.lastCheckpoint, b.lastCheckpoint);
+  },
+  zip: (
+    checkpoints: (CurrentMessageProcessorPosition | undefined)[],
+    compareCheckpoints?: (
+      a: ProcessorCheckpoint,
+      b: ProcessorCheckpoint,
+    ) => number,
+  ): CurrentMessageProcessorPosition => {
+    if (checkpoints.length === 0) return 'BEGINNING';
+
+    return (
+      checkpoints
+        .map((pos) => (pos === undefined ? 'BEGINNING' : pos))
+        .sort((a, b) =>
+          CurrentMessageProcessorPosition.compare(a, b, compareCheckpoints),
+        )[0] ?? 'BEGINNING'
+    );
+  },
+};
+
 export const wasMessageHandled = <
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,

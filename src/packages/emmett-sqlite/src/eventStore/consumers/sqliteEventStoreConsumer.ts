@@ -9,6 +9,7 @@ import type {
 import {
   asyncAwaiter,
   bigIntProcessorCheckpoint,
+  CurrentMessageProcessorPosition,
   EmmettError,
   getCheckpoint,
   mergeObservabilityOptions,
@@ -34,7 +35,6 @@ import {
   DefaultSQLiteEventStoreProcessorBatchSize,
   DefaultSQLiteEventStoreProcessorPullingFrequencyInMs,
   sqliteEventStoreMessageBatchPuller,
-  zipSQLiteEventStoreMessageBatchPullerStartFrom,
   type SQLiteEventStoreMessageBatchPuller,
 } from './messageBatchProcessing';
 import {
@@ -372,7 +372,7 @@ export const sqliteEventStoreConsumer = <
           };
 
           const startFrom = await pool.withConnection(async (connection) =>
-            zipSQLiteEventStoreMessageBatchPullerStartFrom(
+            CurrentMessageProcessorPosition.zip(
               await Promise.all(
                 processors.map(async (o) => {
                   const position = await o.start({

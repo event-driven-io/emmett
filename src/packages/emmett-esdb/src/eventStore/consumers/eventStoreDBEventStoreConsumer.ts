@@ -5,6 +5,7 @@ import type {
 } from '@event-driven-io/emmett';
 import {
   asyncAwaiter,
+  CurrentMessageProcessorPosition,
   EmmettError,
   inMemoryProjector,
   inMemoryReactor,
@@ -31,7 +32,6 @@ import type { EventStoreDBReadEventMetadata } from '../eventstoreDBEventStore';
 import {
   DefaultEventStoreDBEventStoreProcessorBatchSize,
   eventStoreDBSubscription,
-  zipEventStoreDBEventStoreMessageBatchPullerStartFrom,
   type EventStoreDBSubscription,
 } from './subscriptions';
 
@@ -243,10 +243,9 @@ export const eventStoreDBEventStoreConsumer = <
             await init();
           }
 
-          const startFrom =
-            zipEventStoreDBEventStoreMessageBatchPullerStartFrom(
-              await Promise.all(processors.map((o) => o.start(client))),
-            );
+          const startFrom = CurrentMessageProcessorPosition.zip(
+            await Promise.all(processors.map((o) => o.start(client))),
+          );
 
           await subscription.start({ startFrom, started: startedAwaiter });
         } catch (error) {
