@@ -8,10 +8,9 @@ import type {
 } from '@event-driven-io/emmett';
 import {
   asyncAwaiter,
-  CurrentMessageProcessorPosition,
   EmmettError,
-  getCheckpoint,
   mergeObservabilityOptions,
+  processorStartPositions,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
@@ -300,7 +299,7 @@ export const postgreSQLEventStoreConsumer = <
       start = (async () => {
         if (!isRunning) return;
 
-        const processorFloors = new Map<string, ProcessorCheckpoint>();
+        const startPositions = processorStartPositions();
 
         const eachBatch: BatchRecordedMessageHandlerWithoutContext<
           ConsumerMessageType,
@@ -316,14 +315,10 @@ export const postgreSQLEventStoreConsumer = <
 
           const result = await Promise.allSettled(
             activeProcessors.map(async (s) => {
-              const floor = processorFloors.get(s.id);
-              const batch =
-                floor !== undefined
-                  ? messagesBatch.filter((message) => {
-                      const checkpoint = getCheckpoint(message);
-                      return checkpoint !== null && checkpoint > floor;
-                    })
-                  : messagesBatch;
+              const batch = startPositions.afterStartPosition(
+                s.id,
+                messagesBatch,
+              );
               try {
                 return await s.handle(batch, {
                   connection: {
@@ -389,38 +384,40 @@ export const postgreSQLEventStoreConsumer = <
             return lastMessageCheckpointPromise;
           };
 
-          const startFrom = CurrentMessageProcessorPosition.zip(
-            await Promise.all(
-              processors.map(async (o) => {
-                try {
-                  const position = await o.start({
-                    execute: pool.execute,
-                    connection: {
-                      connectionString: options.connectionString,
-                      pool,
-                    },
-                  });
+          await Promise.all(
+            processors.map(async (o) => {
+              try {
+                const position = await o.start({
+                  execute: pool.execute,
+                  connection: {
+                    connectionString: options.connectionString,
+                    pool,
+                  },
+                });
 
-                  if (position === 'END') {
-                    const lastMessageCheckpoint =
-                      await resolveLastMessageCheckpoint();
-                    if (lastMessageCheckpoint !== null) {
-                      processorFloors.set(o.id, lastMessageCheckpoint);
-                      return { lastCheckpoint: lastMessageCheckpoint };
-                    }
+                if (position === 'END') {
+                  const lastMessageCheckpoint =
+                    await resolveLastMessageCheckpoint();
+                  if (lastMessageCheckpoint !== null) {
+                    startPositions.set(o.id, {
+                      lastCheckpoint: lastMessageCheckpoint,
+                    });
+                    return;
                   }
-
-                  return position;
-                } catch (error) {
-                  console.log(
-                    `Error during processor start position retrieval for processor: ${o.id}. Stopping it.`,
-                    error,
-                  );
-                  throw error;
                 }
-              }),
-            ),
+
+                startPositions.set(o.id, position);
+              } catch (error) {
+                console.log(
+                  `Error during processor start position retrieval for processor: ${o.id}. Stopping it.`,
+                  error,
+                );
+                throw error;
+              }
+            }),
           );
+
+          const startFrom = startPositions.zip();
 
           console.log(
             `Starting message pulling with start position: ${JSONSerializer.serialize(

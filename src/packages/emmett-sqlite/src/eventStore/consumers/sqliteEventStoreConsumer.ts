@@ -9,10 +9,9 @@ import type {
 import {
   asyncAwaiter,
   bigIntProcessorCheckpoint,
-  CurrentMessageProcessorPosition,
   EmmettError,
-  getCheckpoint,
   mergeObservabilityOptions,
+  processorStartPositions,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
@@ -298,7 +297,7 @@ export const sqliteEventStoreConsumer = <
       start = (async () => {
         if (!isRunning) return;
 
-        const processorFloors = new Map<string, ProcessorCheckpoint>();
+        const startPositions = processorStartPositions();
 
         const eachBatch: BatchRecordedMessageHandlerWithoutContext<
           ConsumerMessageType,
@@ -315,14 +314,10 @@ export const sqliteEventStoreConsumer = <
 
             const result = await Promise.allSettled(
               activeProcessors.map(async (s) => {
-                const floor = processorFloors.get(s.id);
-                const batch =
-                  floor !== undefined
-                    ? messagesBatch.filter((message) => {
-                        const checkpoint = getCheckpoint(message);
-                        return checkpoint !== null && checkpoint > floor;
-                      })
-                    : messagesBatch;
+                const batch = startPositions.afterStartPosition(
+                  s.id,
+                  messagesBatch,
+                );
                 return await s.handle(batch, {
                   connection,
                   execute: connection.execute,
@@ -371,32 +366,32 @@ export const sqliteEventStoreConsumer = <
             return lastMessageCheckpointPromise;
           };
 
-          const startFrom = await pool.withConnection(async (connection) =>
-            CurrentMessageProcessorPosition.zip(
-              await Promise.all(
-                processors.map(async (o) => {
-                  const position = await o.start({
-                    execute: connection.execute,
-                    connection,
-                  });
+          await pool.withConnection(async (connection) => {
+            await Promise.all(
+              processors.map(async (o) => {
+                const position = await o.start({
+                  execute: connection.execute,
+                  connection,
+                });
 
-                  if (position === 'END') {
-                    const lastMessageCheckpoint =
-                      await resolveLastMessageCheckpoint();
-                    if (lastMessageCheckpoint !== null) {
-                      processorFloors.set(o.id, lastMessageCheckpoint);
-                      return { lastCheckpoint: lastMessageCheckpoint };
-                    }
+                if (position === 'END') {
+                  const lastMessageCheckpoint =
+                    await resolveLastMessageCheckpoint();
+                  if (lastMessageCheckpoint !== null) {
+                    startPositions.set(o.id, {
+                      lastCheckpoint: lastMessageCheckpoint,
+                    });
+                    return;
                   }
+                }
 
-                  return position;
-                }),
-              ),
-            ),
-          );
+                startPositions.set(o.id, position);
+              }),
+            );
+          });
 
           await messagePuller.start({
-            startFrom,
+            startFrom: startPositions.zip(),
             started: startedAwaiter,
           });
         } catch (error) {
