@@ -1,15 +1,13 @@
-import {
-  assertDeepEqual,
-  bigIntProcessorCheckpoint,
-} from '@event-driven-io/emmett';
 import { describe, it } from 'vitest';
-import { zipPostgreSQLEventStoreMessageBatchPullerStartFrom } from './index';
+import { assertDeepEqual } from '../testing';
+import { bigIntProcessorCheckpoint } from './checkpoints';
+import { CurrentMessageProcessorPosition } from './processors';
 
-void describe('zipPostgreSQLEventStoreMessageBatchPullerStartFrom', () => {
+void describe('CurrentMessageProcessorPosition.zip', () => {
   void it('starts from the earliest checkpoint when processors are seeded differently', () => {
     const earliest = { lastCheckpoint: bigIntProcessorCheckpoint(2n) };
 
-    const result = zipPostgreSQLEventStoreMessageBatchPullerStartFrom([
+    const result = CurrentMessageProcessorPosition.zip([
       { lastCheckpoint: bigIntProcessorCheckpoint(5n) },
       earliest,
       { lastCheckpoint: bigIntProcessorCheckpoint(9n) },
@@ -19,16 +17,13 @@ void describe('zipPostgreSQLEventStoreMessageBatchPullerStartFrom', () => {
   });
 
   void it('starts from END only when every processor starts from END', () => {
-    const result = zipPostgreSQLEventStoreMessageBatchPullerStartFrom([
-      'END',
-      'END',
-    ]);
+    const result = CurrentMessageProcessorPosition.zip(['END', 'END']);
 
     assertDeepEqual(result, 'END');
   });
 
   void it('starts from BEGINNING when any processor starts from BEGINNING', () => {
-    const result = zipPostgreSQLEventStoreMessageBatchPullerStartFrom([
+    const result = CurrentMessageProcessorPosition.zip([
       'BEGINNING',
       { lastCheckpoint: bigIntProcessorCheckpoint(9n) },
     ]);
@@ -37,7 +32,7 @@ void describe('zipPostgreSQLEventStoreMessageBatchPullerStartFrom', () => {
   });
 
   void it('starts from BEGINNING when a processor has no position', () => {
-    const result = zipPostgreSQLEventStoreMessageBatchPullerStartFrom([
+    const result = CurrentMessageProcessorPosition.zip([
       undefined,
       { lastCheckpoint: bigIntProcessorCheckpoint(9n) },
     ]);

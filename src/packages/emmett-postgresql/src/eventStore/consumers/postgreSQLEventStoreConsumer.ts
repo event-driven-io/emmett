@@ -8,6 +8,7 @@ import type {
 } from '@event-driven-io/emmett';
 import {
   asyncAwaiter,
+  CurrentMessageProcessorPosition,
   EmmettError,
   getCheckpoint,
   mergeObservabilityOptions,
@@ -31,7 +32,6 @@ import {
   DefaultPostgreSQLEventStoreProcessorBatchSize,
   DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
   postgreSQLEventStoreMessageBatchPuller,
-  zipPostgreSQLEventStoreMessageBatchPullerStartFrom,
   type PostgreSQLEventStoreMessageBatchPuller,
 } from './messageBatchProcessing';
 import {
@@ -389,7 +389,7 @@ export const postgreSQLEventStoreConsumer = <
             return lastMessageCheckpointPromise;
           };
 
-          const startFrom = zipPostgreSQLEventStoreMessageBatchPullerStartFrom(
+          const startFrom = CurrentMessageProcessorPosition.zip(
             await Promise.all(
               processors.map(async (o) => {
                 try {

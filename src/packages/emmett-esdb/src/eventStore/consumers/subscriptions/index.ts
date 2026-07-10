@@ -1,3 +1,4 @@
+import type { CurrentMessageProcessorPosition } from '@event-driven-io/emmett';
 import {
   asyncRetry,
   getCheckpoint,
@@ -55,8 +56,7 @@ export type EventStoreDBSubscriptionOptions<
   };
 };
 
-export type EventStoreDBSubscriptionStartFrom =
-  { lastCheckpoint: ProcessorCheckpoint } | 'BEGINNING' | 'END';
+export type EventStoreDBSubscriptionStartFrom = CurrentMessageProcessorPosition;
 
 export type EventStoreDBSubscriptionStartOptions = {
   startFrom: EventStoreDBSubscriptionStartFrom;
@@ -305,23 +305,4 @@ export const eventStoreDBSubscription = <
       await start;
     },
   };
-};
-
-export const zipEventStoreDBEventStoreMessageBatchPullerStartFrom = (
-  options: (EventStoreDBSubscriptionStartFrom | undefined)[],
-): EventStoreDBSubscriptionStartFrom => {
-  if (
-    options.length === 0 ||
-    options.some((o) => o === undefined || o === 'BEGINNING')
-  )
-    return 'BEGINNING';
-
-  if (options.every((o) => o === 'END')) return 'END';
-
-  return options
-    .filter(
-      (o): o is { lastCheckpoint: ProcessorCheckpoint } =>
-        o !== undefined && o !== 'BEGINNING' && o !== 'END',
-    )
-    .sort((a, b) => (a.lastCheckpoint > b.lastCheckpoint ? 1 : -1))[0]!;
 };

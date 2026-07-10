@@ -13,8 +13,26 @@ import { bigInt } from '../utils';
 //////////////////////////////////////
 
 export type ProcessorCheckpoint = Brand<string, 'ProcessorCheckpoint'>;
-export const ProcessorCheckpoint = (checkpoint: string): ProcessorCheckpoint =>
-  checkpoint as ProcessorCheckpoint;
+
+export type BEGINNING = 'BEGINNING' & ProcessorCheckpoint;
+export type END = 'BEGINNING' & ProcessorCheckpoint;
+
+export const ProcessorCheckpoint = Object.assign(
+  (checkpoint: string): ProcessorCheckpoint =>
+    checkpoint as ProcessorCheckpoint,
+  {
+    END: 'END',
+    BEGINNING: 'BEGINNING',
+    isBeginning: (
+      checkpoint: ProcessorCheckpoint | undefined,
+    ): checkpoint is BEGINNING =>
+      checkpoint === undefined || checkpoint === 'BEGINNING',
+    isEnd: (checkpoint: ProcessorCheckpoint | undefined): checkpoint is END =>
+      checkpoint === 'END',
+    compare: (a: ProcessorCheckpoint, b: ProcessorCheckpoint) =>
+      a > b ? 1 : -1,
+  } as const,
+);
 
 export const bigIntProcessorCheckpoint = (value: bigint): ProcessorCheckpoint =>
   bigInt.toNormalizedString(value) as ProcessorCheckpoint;
