@@ -8,9 +8,8 @@ import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
-} from '../attributes';
-import { workflowObservability } from '../options';
-import { workflowCollector } from './workflowCollector';
+} from '../../observability';
+import { workflowCollector, workflowObservability } from './workflowCollector';
 
 const A = EmmettAttributes;
 const M = { system: 'messaging.system' };
@@ -137,10 +136,47 @@ describe('workflowCollector', () => {
       'OrderWorkflow',
     );
   });
+});
 
+describe('workflowObservability', () => {
   it('works with noop observability', async () => {
     const o11y = workflowObservability(undefined);
     const collector = workflowCollector(o11y);
     await collector.startScope(defaultContext, () => Promise.resolve());
+  });
+
+  it('returns noop tracer, meter, propagation=links, attributeTarget=both when no options', () => {
+    const resolved = workflowObservability(undefined);
+    expect(resolved.tracer).toBeDefined();
+    expect(resolved.meter).toBeDefined();
+    expect(resolved.propagation).toBe('links');
+    expect(resolved.attributeTarget).toBe('both');
+  });
+
+  it('uses provided propagation and attributeTarget', () => {
+    const resolved = workflowObservability({
+      observability: { propagation: 'propagate', attributeTarget: 'mainSpan' },
+    });
+    expect(resolved.propagation).toBe('propagate');
+    expect(resolved.attributeTarget).toBe('mainSpan');
+  });
+
+  it('falls back to parent', () => {
+    const resolved = workflowObservability(undefined, {
+      observability: { propagation: 'propagate' },
+    });
+    expect(resolved.propagation).toBe('propagate');
+  });
+
+  it('defaults includeMessagePayloads to false', () => {
+    const resolved = workflowObservability(undefined);
+    expect(resolved.includeMessagePayloads).toBe(false);
+  });
+
+  it('uses provided includeMessagePayloads', () => {
+    const resolved = workflowObservability({
+      observability: { includeMessagePayloads: true },
+    });
+    expect(resolved.includeMessagePayloads).toBe(true);
   });
 });

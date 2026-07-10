@@ -3,14 +3,13 @@ import {
   handleInMemoryProjections,
   type InMemoryProjectionDefinition,
 } from '.';
-import { bigIntProcessorCheckpoint } from '../../..';
+import { bigIntProcessorCheckpoint, eventStoreObservability } from '../../..';
 import {
   getInMemoryDatabase,
   type Document,
   type InMemoryDatabase,
 } from '../../../database';
 import { isErrorConstructor } from '../../../errors';
-import { eventStoreObservability } from '../../../observability';
 import { JSONSerializer } from '../../../serialization';
 import {
   assertFails,

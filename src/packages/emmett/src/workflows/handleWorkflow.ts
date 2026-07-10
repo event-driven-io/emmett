@@ -12,11 +12,6 @@ import {
   type ExpectedStreamVersion,
   type ReadStreamOptions,
 } from '../eventStore';
-import {
-  workflowObservability,
-  workflowCollector,
-  type WorkflowObservabilityConfig,
-} from '../observability';
 import type {
   AnyCommand,
   AnyEvent,
@@ -25,6 +20,11 @@ import type {
   RecordedMessage,
 } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
+import {
+  workflowCollector,
+  workflowObservability,
+  type WorkflowObservabilityConfig,
+} from './observability';
 import type {
   WorkflowEvent,
   WorkflowInputMessageMetadata,
