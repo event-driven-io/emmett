@@ -1,11 +1,9 @@
 import { LogEvent, noopScope } from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
+import type { ProcessorObservabilityConfig } from '.';
 import type { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
-import type {
-  ProcessorObservabilityConfig,
-  WithObservabilityScope,
-} from '../observability';
+import type { WithObservabilityScope } from '../observability';
 import { EmmettAttributes } from '../observability';
 import type { ProjectionDefinition } from '../projections';
 import {

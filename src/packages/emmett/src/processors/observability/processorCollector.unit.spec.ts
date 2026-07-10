@@ -1,6 +1,8 @@
 import {
   collectingMeter,
   collectingTracer,
+  noopMeter,
+  noopTracer,
   ObservabilitySpec,
 } from '@event-driven-io/almanac';
 import { describe, expect, it } from 'vitest';
@@ -14,6 +16,7 @@ import type { AnyRecordedMessageMetadata } from '../../typing';
 import {
   processorCollector,
   processorObservability,
+  type ProcessorObservabilityConfig,
 } from './processorCollector';
 
 const A = EmmettAttributes;
@@ -344,5 +347,75 @@ describe('processorObservability', () => {
       observability: { includeMessagePayloads: true },
     });
     expect(resolved.includeMessagePayloads).toBe(true);
+  });
+});
+
+describe('mergeObservabilityOptions', () => {
+  it('applies defaults when options observability is missing', () => {
+    const options: {
+      processorId: string;
+      observability?: ProcessorObservabilityConfig;
+    } = { processorId: 'test' };
+    const tracer = noopTracer();
+    const meter = noopMeter();
+
+    const result = mergeObservabilityOptions(options, { tracer, meter });
+
+    expect(result).not.toBe(options);
+    expect(result.observability).toEqual({ tracer, meter });
+  });
+
+  it('lets options observability override defaults', () => {
+    const defaultTracer = noopTracer();
+    const optionsTracer = noopTracer();
+    const meter = noopMeter();
+    const options: {
+      processorId: string;
+      observability: ProcessorObservabilityConfig;
+    } = {
+      processorId: 'test',
+      observability: {
+        tracer: optionsTracer,
+        propagation: 'propagate' as const,
+      },
+    };
+
+    const result = mergeObservabilityOptions(options, {
+      tracer: defaultTracer,
+      meter,
+      attributeTarget: 'both' as const,
+    });
+
+    expect(result.observability).toEqual({
+      tracer: optionsTracer,
+      meter,
+      attributeTarget: 'both',
+      propagation: 'propagate',
+    });
+  });
+
+  it('merges consumer observability into processor options', () => {
+    const tracer = noopTracer();
+    const meter = noopMeter();
+    const options: {
+      processorId: string;
+      observability: ProcessorObservabilityConfig;
+    } = {
+      processorId: 'test',
+      observability: { propagation: 'propagate' },
+    };
+
+    const result = mergeObservabilityOptions(options, {
+      tracer,
+      meter,
+      pollTracing: 'verbose' as const,
+    });
+
+    expect(result.observability).toEqual({
+      tracer,
+      meter,
+      pollTracing: 'verbose',
+      propagation: 'propagate',
+    });
   });
 });

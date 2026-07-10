@@ -1,17 +1,54 @@
 import {
   LogEvent,
   MessagingAttributes,
+  noopMeter,
   noopScope,
+  noopTracer,
   ObservabilityScope,
+  type AttributeTarget,
+  type Meter,
   type ObservabilityScope as ObservabilityScopeType,
+  type Tracer,
 } from '@event-driven-io/almanac';
 import {
   EmmettAttributes,
   EmmettMetrics,
+  mergeObservabilityOptions,
   MessagingSystemName,
   ScopeTypes,
-} from '../attributes';
-import type { ResolvedConsumerObservability } from '../options';
+  type EmmettObservabilityConfig,
+  type EmmettObservabilityOptions,
+  type PollTracing,
+} from '../../observability';
+
+export type ConsumerObservabilityConfig = Pick<
+  EmmettObservabilityConfig,
+  'tracer' | 'meter' | 'pollTracing' | 'attributeTarget'
+>;
+
+export type ResolvedConsumerObservability = {
+  tracer: Tracer;
+  meter: Meter;
+  pollTracing: PollTracing;
+  attributeTarget: AttributeTarget;
+};
+
+export const consumerObservability = (
+  options: { observability?: ConsumerObservabilityConfig } | undefined,
+  parent?: EmmettObservabilityOptions,
+): ResolvedConsumerObservability => {
+  const observability = mergeObservabilityOptions(
+    { observability: options?.observability },
+    parent?.observability,
+  ).observability;
+
+  return {
+    tracer: observability?.tracer ?? noopTracer(),
+    meter: observability?.meter ?? noopMeter(),
+    pollTracing: observability?.pollTracing ?? 'off',
+    attributeTarget: observability?.attributeTarget ?? 'both',
+  };
+};
 
 export const consumerCollector = (
   observability: ResolvedConsumerObservability,

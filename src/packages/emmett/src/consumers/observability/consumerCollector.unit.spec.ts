@@ -7,17 +7,17 @@ import {
 } from '@event-driven-io/almanac';
 import { describe, expect, it } from 'vitest';
 import {
+  EmmettAttributes,
+  EmmettMetrics,
+  MessagingSystemName,
+  mergeObservabilityOptions,
+} from '../../observability';
+import {
   assertDefined,
   assertEqual,
   assertTrue,
 } from '../../testing/assertions';
-import {
-  EmmettAttributes,
-  EmmettMetrics,
-  MessagingSystemName,
-} from '../attributes';
-import { consumerObservability, mergeObservabilityOptions } from '../options';
-import { consumerCollector } from './consumerCollector';
+import { consumerCollector, consumerObservability } from './consumerCollector';
 
 const A = EmmettAttributes;
 const M = {
@@ -306,5 +306,47 @@ describe('consumerObservability', () => {
     expect(resolved.pollTracing).toBe('active');
     expect(resolved.attributeTarget).toBe('currentSpan');
     expect('propagation' in resolved).toBe(false);
+  });
+  it('returns noop tracer, meter, pollTracing=off, attributeTarget=both when no options', () => {
+    const resolved = consumerObservability(undefined);
+    expect(resolved.tracer).toBeDefined();
+    expect(resolved.meter).toBeDefined();
+    expect(resolved.pollTracing).toBe('off');
+    expect(resolved.attributeTarget).toBe('both');
+  });
+
+  it('uses provided pollTracing', () => {
+    const resolved = consumerObservability({
+      observability: { pollTracing: 'active' },
+    });
+    expect(resolved.pollTracing).toBe('active');
+  });
+
+  it('uses provided pollTracing=verbose', () => {
+    const resolved = consumerObservability({
+      observability: { pollTracing: 'verbose' },
+    });
+    expect(resolved.pollTracing).toBe('verbose');
+  });
+
+  it('falls back to parent pollTracing', () => {
+    const resolved = consumerObservability(undefined, {
+      observability: { pollTracing: 'active' },
+    });
+    expect(resolved.pollTracing).toBe('active');
+  });
+
+  it('uses provided attributeTarget', () => {
+    const resolved = consumerObservability({
+      observability: { attributeTarget: 'mainSpan' },
+    });
+    expect(resolved.attributeTarget).toBe('mainSpan');
+  });
+
+  it('falls back to parent attributeTarget', () => {
+    const resolved = consumerObservability(undefined, {
+      observability: { attributeTarget: 'currentSpan' },
+    });
+    expect(resolved.attributeTarget).toBe('currentSpan');
   });
 });

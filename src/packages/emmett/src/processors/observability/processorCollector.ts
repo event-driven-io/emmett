@@ -28,6 +28,15 @@ import type {
   RecordedMessage,
 } from '../../typing';
 
+export type ProcessorObservabilityConfig = Pick<
+  EmmettObservabilityConfig,
+  | 'tracer'
+  | 'meter'
+  | 'propagation'
+  | 'attributeTarget'
+  | 'includeMessagePayloads'
+>;
+
 export type ResolvedProcessorObservability = {
   tracer: Tracer;
   meter: Meter;

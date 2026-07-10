@@ -3,8 +3,6 @@ import {
   getInMemoryDatabase,
   type InMemoryDatabase,
 } from '../database/inMemoryDatabase';
-import type { EventStoreObservabilityConfig } from '../observability';
-import { eventStoreCollector, eventStoreObservability } from '../observability';
 import { bigIntProcessorCheckpoint } from '../processors';
 import type { ProjectionRegistration } from '../projections';
 import type {
@@ -29,6 +27,11 @@ import type {
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
 import { handleInMemoryProjections } from './projections/inMemory';
 import { downcastRecordedMessages, upcastRecordedMessages } from './versioning';
+import {
+  type EventStoreObservabilityConfig,
+  eventStoreObservability,
+  eventStoreCollector,
+} from './observability';
 
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
 

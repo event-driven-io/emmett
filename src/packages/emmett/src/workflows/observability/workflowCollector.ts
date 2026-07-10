@@ -1,15 +1,58 @@
 import {
   MessagingAttributes,
+  noopMeter,
+  noopTracer,
   ObservabilityScope,
+  type AttributeTarget,
+  type Meter,
   type ObservabilityScope as ObservabilityScopeType,
+  type TracePropagation,
+  type Tracer,
 } from '@event-driven-io/almanac';
 import {
   EmmettAttributes,
   EmmettMetrics,
+  mergeObservabilityOptions,
   MessagingSystemName,
   ScopeTypes,
-} from '../attributes';
-import type { ResolvedWorkflowObservability } from '../options';
+  type EmmettObservabilityConfig,
+  type EmmettObservabilityOptions,
+} from '../../observability';
+
+export type WorkflowObservabilityConfig = Pick<
+  EmmettObservabilityConfig,
+  | 'tracer'
+  | 'meter'
+  | 'propagation'
+  | 'attributeTarget'
+  | 'includeMessagePayloads'
+>;
+
+export type ResolvedWorkflowObservability = {
+  tracer: Tracer;
+  meter: Meter;
+  propagation: TracePropagation;
+  attributeTarget: AttributeTarget;
+  includeMessagePayloads: boolean;
+};
+
+export const workflowObservability = (
+  options: { observability?: WorkflowObservabilityConfig } | undefined,
+  parent?: EmmettObservabilityOptions,
+): ResolvedWorkflowObservability => {
+  const observability = mergeObservabilityOptions(
+    { observability: options?.observability },
+    parent?.observability,
+  ).observability;
+
+  return {
+    tracer: observability?.tracer ?? noopTracer(),
+    meter: observability?.meter ?? noopMeter(),
+    propagation: observability?.propagation ?? 'links',
+    attributeTarget: observability?.attributeTarget ?? 'both',
+    includeMessagePayloads: observability?.includeMessagePayloads ?? false,
+  };
+};
 
 export type WorkflowCollectorContext = {
   workflowId: string;

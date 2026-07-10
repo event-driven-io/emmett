@@ -1,6 +1,5 @@
 import { ObservabilityScope } from '@event-driven-io/almanac';
 import type { InMemoryDatabase } from '../../../database/inMemoryDatabase';
-import type { ResolvedEventStoreObservability } from '../../../observability';
 import type {
   ProjectionDefinition,
   TruncateProjection,
@@ -10,6 +9,7 @@ import type {
   InMemoryProjectionHandlerContext,
   InMemoryReadEventMetadata,
 } from '../../inMemoryEventStore';
+import type { ResolvedEventStoreObservability } from '../../observability';
 
 export const DATABASE_REQUIRED_ERROR_MESSAGE =
   'Database is required in context for InMemory projections';

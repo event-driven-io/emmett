@@ -1,6 +1,6 @@
 import type { MessageProcessor } from '../processors';
 import type { Message } from '../typing';
-import type { ConsumerObservabilityConfig } from '../observability';
+import type { ConsumerObservabilityConfig } from './observability';
 
 export type MessageConsumerOptions<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
