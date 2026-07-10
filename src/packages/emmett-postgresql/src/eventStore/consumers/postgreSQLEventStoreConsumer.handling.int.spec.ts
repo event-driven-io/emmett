@@ -584,42 +584,244 @@ void describe('PostgreSQL event store started consumer', () => {
       },
     );
 
+    void describe('startFrom END across processors in one consumer', () => {
+      void it(
+        'does not flood END processor when mixed with BEGINNING processor in one consumer',
+        withDeadline,
+        async () => {
+          // Given
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+
+          const initialEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+          await eventStore.appendToStream(streamName, initialEvents);
+
+          const newEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+
+          const fromBeginning: GuestStayEvent[] = [];
+          const fromEnd: GuestStayEvent[] = [];
+          let stopAfterPosition: string | undefined = undefined;
+
+          // When
+          const consumer = postgreSQLEventStoreConsumer({
+            connectionString,
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: 'BEGINNING',
+            stopAfter: (event) =>
+              event.metadata.globalPosition === stopAfterPosition,
+            eachMessage: (event) => {
+              fromBeginning.push(event);
+            },
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: 'END',
+            stopAfter: (event) =>
+              event.metadata.globalPosition === stopAfterPosition,
+            eachMessage: (event) => {
+              fromEnd.push(event);
+            },
+          });
+
+          try {
+            const consumerPromise = consumer.start();
+            await consumer.whenStarted();
+
+            const appendResult = await eventStore.appendToStream(
+              streamName,
+              newEvents,
+            );
+            stopAfterPosition = appendResult.lastEventGlobalPosition;
+
+            await consumerPromise;
+
+            // Then the BEGINNING processor sees the whole history,
+            // while the END processor sees only messages appended after start
+            assertThatArray(fromBeginning).containsElementsMatching([
+              ...initialEvents,
+              ...newEvents,
+            ]);
+            assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
+          } finally {
+            await consumer.close();
+          }
+        },
+      );
+
+      void it(
+        'resumes a checkpointed projection from its checkpoint while an END reactor sees only new events',
+        withDeadline,
+        async () => {
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+
+          const initialEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+          const { lastEventGlobalPosition: resumeCheckpoint } =
+            await eventStore.appendToStream(streamName, initialEvents);
+
+          const backlogEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+          await eventStore.appendToStream(streamName, backlogEvents);
+
+          const newEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+
+          const fromResuming: GuestStayEvent[] = [];
+          const fromEnd: GuestStayEvent[] = [];
+          let stopAfterPosition: string | undefined = undefined;
+
+          const consumer = postgreSQLEventStoreConsumer({
+            connectionString,
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: { lastCheckpoint: resumeCheckpoint },
+            stopAfter: (event) =>
+              event.metadata.globalPosition === stopAfterPosition,
+            eachMessage: (event) => {
+              fromResuming.push(event);
+            },
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: 'END',
+            stopAfter: (event) =>
+              event.metadata.globalPosition === stopAfterPosition,
+            eachMessage: (event) => {
+              fromEnd.push(event);
+            },
+          });
+
+          try {
+            const consumerPromise = consumer.start();
+            await consumer.whenStarted();
+
+            const appendResult = await eventStore.appendToStream(
+              streamName,
+              newEvents,
+            );
+            stopAfterPosition = appendResult.lastEventGlobalPosition;
+
+            await consumerPromise;
+
+            assertThatArray(fromResuming).containsOnlyElementsMatching([
+              ...backlogEvents,
+              ...newEvents,
+            ]);
+            assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
+          } finally {
+            await consumer.close();
+          }
+        },
+      );
+
+      void it(
+        'multiple END reactors in one consumer each handle only new events',
+        withDeadline,
+        async () => {
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+
+          await eventStore.appendToStream(streamName, [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ]);
+
+          const newEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+
+          const firstEnd: GuestStayEvent[] = [];
+          const secondEnd: GuestStayEvent[] = [];
+          let stopAfterPosition: string | undefined = undefined;
+
+          const consumer = postgreSQLEventStoreConsumer({
+            connectionString,
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: 'END',
+            stopAfter: (event) =>
+              event.metadata.globalPosition === stopAfterPosition,
+            eachMessage: (event) => {
+              firstEnd.push(event);
+            },
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: 'END',
+            stopAfter: (event) =>
+              event.metadata.globalPosition === stopAfterPosition,
+            eachMessage: (event) => {
+              secondEnd.push(event);
+            },
+          });
+
+          try {
+            const consumerPromise = consumer.start();
+            await consumer.whenStarted();
+
+            const appendResult = await eventStore.appendToStream(
+              streamName,
+              newEvents,
+            );
+            stopAfterPosition = appendResult.lastEventGlobalPosition;
+
+            await consumerPromise;
+
+            assertThatArray(firstEnd).containsOnlyElementsMatching(newEvents);
+            assertThatArray(secondEnd).containsOnlyElementsMatching(newEvents);
+          } finally {
+            await consumer.close();
+          }
+        },
+      );
+    });
+
     void it(
-      'does not flood END processor when mixed with BEGINNING processor in one consumer',
+      'delivers all events appended after starting from END as the stream grows',
       withDeadline,
       async () => {
-        // Given
         const guestId = uuid();
         const otherGuestId = uuid();
         const streamName = `guestStay-${guestId}`;
 
-        const initialEvents: GuestStayEvent[] = [
+        await eventStore.appendToStream(streamName, [
           { type: 'GuestCheckedIn', data: { guestId } },
           { type: 'GuestCheckedOut', data: { guestId } },
-        ];
-        await eventStore.appendToStream(streamName, initialEvents);
+        ]);
 
-        const newEvents: GuestStayEvent[] = [
+        const firstAppend: GuestStayEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+        ];
+        const secondAppend: GuestStayEvent[] = [
           { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
         ];
 
-        const fromBeginning: GuestStayEvent[] = [];
         const fromEnd: GuestStayEvent[] = [];
         let stopAfterPosition: string | undefined = undefined;
 
-        // When
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
-        });
-        consumer.reactor<GuestStayEvent>({
-          processorId: uuid(),
-          startFrom: 'BEGINNING',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
-          eachMessage: (event) => {
-            fromBeginning.push(event);
-          },
         });
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
@@ -635,26 +837,127 @@ void describe('PostgreSQL event store started consumer', () => {
           const consumerPromise = consumer.start();
           await consumer.whenStarted();
 
+          await eventStore.appendToStream(streamName, firstAppend);
           const appendResult = await eventStore.appendToStream(
             streamName,
-            newEvents,
+            secondAppend,
           );
           stopAfterPosition = appendResult.lastEventGlobalPosition;
 
           await consumerPromise;
 
-          // Then the BEGINNING processor sees the whole history,
-          // while the END processor sees only messages appended after start
-          assertThatArray(fromBeginning).containsElementsMatching([
-            ...initialEvents,
-            ...newEvents,
+          assertThatArray(fromEnd).containsOnlyElementsMatching([
+            ...firstAppend,
+            ...secondAppend,
           ]);
-          assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
         } finally {
           await consumer.close();
         }
       },
     );
+
+    (['BEGINNING', 'END'] as const).forEach((startFrom) => {
+      void it(
+        `does not persist a checkpoint across a restart when checkpoints are DISABLED (startFrom ${startFrom})`,
+        withDeadline,
+        async () => {
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const thirdGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+          const processorId = uuid();
+
+          const initialEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+          await eventStore.appendToStream(streamName, initialEvents);
+
+          const firstNewEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+          const secondNewEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+          ];
+
+          const firstRun: GuestStayEvent[] = [];
+          const secondRun: GuestStayEvent[] = [];
+          let stopAfterPosition: string | undefined = undefined;
+
+          const firstConsumer = postgreSQLEventStoreConsumer({
+            connectionString,
+          });
+          firstConsumer.reactor<GuestStayEvent>({
+            processorId,
+            startFrom,
+            checkpoints: 'DISABLED',
+            stopAfter: (event) =>
+              event.metadata.globalPosition === stopAfterPosition,
+            eachMessage: (event) => {
+              firstRun.push(event);
+            },
+          });
+          try {
+            const consumerPromise = firstConsumer.start();
+            await firstConsumer.whenStarted();
+            const appendResult = await eventStore.appendToStream(
+              streamName,
+              firstNewEvents,
+            );
+            stopAfterPosition = appendResult.lastEventGlobalPosition;
+            await consumerPromise;
+          } finally {
+            await firstConsumer.close();
+          }
+
+          stopAfterPosition = undefined;
+
+          const secondConsumer = postgreSQLEventStoreConsumer({
+            connectionString,
+          });
+          secondConsumer.reactor<GuestStayEvent>({
+            processorId,
+            startFrom,
+            checkpoints: 'DISABLED',
+            stopAfter: (event) =>
+              event.metadata.globalPosition === stopAfterPosition,
+            eachMessage: (event) => {
+              secondRun.push(event);
+            },
+          });
+          try {
+            const consumerPromise = secondConsumer.start();
+            await secondConsumer.whenStarted();
+            const appendResult = await eventStore.appendToStream(
+              streamName,
+              secondNewEvents,
+            );
+            stopAfterPosition = appendResult.lastEventGlobalPosition;
+            await consumerPromise;
+          } finally {
+            await secondConsumer.close();
+          }
+
+          const expectedFirstRun =
+            startFrom === 'BEGINNING'
+              ? [...initialEvents, ...firstNewEvents]
+              : firstNewEvents;
+          const expectedSecondRun =
+            startFrom === 'BEGINNING'
+              ? [...initialEvents, ...firstNewEvents, ...secondNewEvents]
+              : secondNewEvents;
+
+          assertThatArray(firstRun).containsOnlyElementsMatching(
+            expectedFirstRun,
+          );
+          assertThatArray(secondRun).containsOnlyElementsMatching(
+            expectedSecondRun,
+          );
+        },
+      );
+    });
 
     void it(
       'handles ONLY events matching canHandle filter',

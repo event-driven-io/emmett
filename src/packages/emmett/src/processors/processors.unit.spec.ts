@@ -540,6 +540,45 @@ void describe('Processors', () => {
       // Then
       assertEqual(storedCheckpoint, bigIntProcessorCheckpoint(1n));
     });
+
+    void it('handles only messages after the resolved checkpoint', async () => {
+      const processorId = uuid();
+      const handledMessages: RecordedMessage[] = [];
+
+      const processor = reactor({
+        processorId,
+        startFrom: { lastCheckpoint: bigIntProcessorCheckpoint(2n) },
+        eachMessage: (message) => {
+          handledMessages.push(message);
+          return Promise.resolve();
+        },
+      });
+
+      const event: TestEvent = { type: 'test', data: { counter: 1 } };
+
+      const recordedEvents: RecordedMessage<
+        TestEvent,
+        ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+      >[] = [1n, 2n, 3n, 4n].map((position) => ({
+        ...event,
+        kind: 'Event',
+        metadata: {
+          streamName: 'test-stream',
+          messageId: uuid(),
+          checkpoint: bigIntProcessorCheckpoint(position),
+          globalPosition: position,
+          streamPosition: position,
+        },
+      }));
+
+      await processor.start({});
+
+      await processor.handle(recordedEvents, {});
+
+      assertEqual(handledMessages.length, 2);
+      assertDeepEqual(handledMessages[0], recordedEvents[2]);
+      assertDeepEqual(handledMessages[1], recordedEvents[3]);
+    });
   });
 
   void describe('start position resolution', () => {
