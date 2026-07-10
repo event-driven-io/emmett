@@ -1,26 +1,23 @@
 import { dumbo, JSONSerializer, type Dumbo } from '@event-driven-io/dumbo';
-import type {
-  AnyCommand,
-  JSONSerializationOptions,
-  MessageHandlerContext,
-  MessageProcessor,
-  WorkflowProcessorContext,
-} from '@event-driven-io/emmett';
 import {
   asyncAwaiter,
+  ConsumerStartPositions,
   EmmettError,
   mergeObservabilityOptions,
-  processorStartPositions,
+  type AnyCommand,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
   type AsyncAwaiter,
   type BatchRecordedMessageHandlerWithoutContext,
+  type JSONSerializationOptions,
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
-  type ProcessorCheckpoint,
+  type MessageHandlerContext,
+  type MessageProcessor,
   type ReadEventMetadataWithGlobalPosition,
+  type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import { v7 as uuid } from 'uuid';
 import {
@@ -299,7 +296,7 @@ export const postgreSQLEventStoreConsumer = <
       start = (async () => {
         if (!isRunning) return;
 
-        const startPositions = processorStartPositions();
+        let startPositions: ConsumerStartPositions = undefined!;
 
         const eachBatch: BatchRecordedMessageHandlerWithoutContext<
           ConsumerMessageType,
@@ -366,67 +363,37 @@ export const postgreSQLEventStoreConsumer = <
             await init();
           }
 
-          let lastMessageCheckpointPromise:
-            Promise<ProcessorCheckpoint | null> | undefined;
-          const resolveLastMessageCheckpoint = () => {
-            if (lastMessageCheckpointPromise === undefined) {
-              lastMessageCheckpointPromise = (async () => {
+          startPositions = await pool.withConnection((connection) =>
+            ConsumerStartPositions.resolve({
+              processors,
+              handlerContext: {
+                execute: pool.execute,
+                connection: {
+                  connectionString: options.connectionString,
+                  pool,
+                },
+              },
+              readLastMessageCheckpoint: async () => {
                 const { currentCheckpoint } = await readLastMessageCheckpoint(
-                  pool.execute,
+                  connection.execute,
                 );
                 return currentCheckpoint !== null
                   ? PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
                       currentCheckpoint,
                     )
                   : null;
-              })();
-            }
-            return lastMessageCheckpointPromise;
-          };
-
-          await Promise.all(
-            processors.map(async (o) => {
-              try {
-                const position = await o.start({
-                  execute: pool.execute,
-                  connection: {
-                    connectionString: options.connectionString,
-                    pool,
-                  },
-                });
-
-                if (position === 'END') {
-                  const lastMessageCheckpoint =
-                    await resolveLastMessageCheckpoint();
-                  if (lastMessageCheckpoint !== null) {
-                    startPositions.set(o.id, {
-                      lastCheckpoint: lastMessageCheckpoint,
-                    });
-                    return;
-                  }
-                }
-
-                startPositions.set(o.id, position);
-              } catch (error) {
-                console.log(
-                  `Error during processor start position retrieval for processor: ${o.id}. Stopping it.`,
-                  error,
-                );
-                throw error;
-              }
+              },
             }),
           );
 
-          const startFrom = startPositions.zip();
-
           console.log(
             `Starting message pulling with start position: ${JSONSerializer.serialize(
-              startFrom,
+              startPositions.earliestPosition,
             )}. Waiting for messages...`,
           );
 
           await messagePuller.start({
-            startFrom,
+            startFrom: startPositions.earliestPosition,
             started: startedAwaiter,
           });
         } catch (error) {

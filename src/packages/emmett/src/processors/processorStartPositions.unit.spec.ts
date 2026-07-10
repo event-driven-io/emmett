@@ -1,8 +1,19 @@
 import { describe, it } from 'vitest';
 import { assertDeepEqual } from '../testing';
-import type { RecordedMessage } from '../typing';
+import type {
+  AnyMessage,
+  MessageHandlerContext,
+  RecordedMessage,
+} from '../typing';
 import { bigIntProcessorCheckpoint } from './checkpoints';
-import { processorStartPositions } from './processorStartPositions';
+import {
+  ConsumerStartPositions,
+  ProcessorStartPositions,
+} from './processorStartPositions';
+import type {
+  CurrentMessageProcessorPosition,
+  MessageProcessor,
+} from './processors';
 
 const messageAt = (checkpoint: bigint): RecordedMessage =>
   ({
@@ -12,7 +23,7 @@ const messageAt = (checkpoint: bigint): RecordedMessage =>
 void describe('processorStartPositions', () => {
   void describe('zip', () => {
     void it('folds to the earliest checkpoint across processors', () => {
-      const startPositions = processorStartPositions();
+      const startPositions = ProcessorStartPositions();
       const earliest = { lastCheckpoint: bigIntProcessorCheckpoint(2n) };
 
       startPositions.set('a', {
@@ -27,7 +38,7 @@ void describe('processorStartPositions', () => {
     });
 
     void it('folds to END only when every processor starts from END', () => {
-      const startPositions = processorStartPositions();
+      const startPositions = ProcessorStartPositions();
 
       startPositions.set('a', 'END');
       startPositions.set('b', 'END');
@@ -36,7 +47,7 @@ void describe('processorStartPositions', () => {
     });
 
     void it('folds to BEGINNING when any processor starts from BEGINNING', () => {
-      const startPositions = processorStartPositions();
+      const startPositions = ProcessorStartPositions();
 
       startPositions.set('a', 'BEGINNING');
       startPositions.set('b', {
@@ -47,15 +58,115 @@ void describe('processorStartPositions', () => {
     });
 
     void it('folds to BEGINNING when there are no processors', () => {
-      const startPositions = processorStartPositions();
+      const startPositions = ProcessorStartPositions();
 
       assertDeepEqual(startPositions.zip(), 'BEGINNING');
     });
   });
 
+  void describe('resolveEndPositions', () => {
+    const processor = (
+      id: string,
+      startFrom: CurrentMessageProcessorPosition,
+    ) =>
+      ({
+        id,
+        start: () => Promise.resolve(startFrom),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as MessageProcessor<AnyMessage, any, MessageHandlerContext>;
+
+    void it('maps END to the resolved tail so zip and afterStartPosition use it', async () => {
+      const tail = bigIntProcessorCheckpoint(5n);
+      const startPositions = await ConsumerStartPositions.resolve<
+        AnyMessage,
+        MessageHandlerContext
+      >({
+        handlerContext: {},
+        processors: [processor('a', 'END')],
+        readLastMessageCheckpoint: () => Promise.resolve(tail),
+      });
+
+      assertDeepEqual(startPositions.earliestPosition, {
+        lastCheckpoint: tail,
+      });
+      assertDeepEqual(
+        startPositions.afterStartPosition('a', [
+          messageAt(4n),
+          messageAt(5n),
+          messageAt(6n),
+        ]),
+        [messageAt(6n)],
+      );
+    });
+
+    void it('replaces END as BEGINNING when the resolver yields null', async () => {
+      const startPositions = await ConsumerStartPositions.resolve<
+        AnyMessage,
+        MessageHandlerContext
+      >({
+        handlerContext: {},
+        processors: [processor('a', 'END')],
+        readLastMessageCheckpoint: () => Promise.resolve(null),
+      });
+
+      assertDeepEqual(startPositions.earliestPosition, 'BEGINNING');
+
+      const messages = [messageAt(1n), messageAt(2n)];
+      assertDeepEqual(
+        startPositions.afterStartPosition('a', messages),
+        messages,
+      );
+    });
+
+    void it('does not call the resolver when no position is END', async () => {
+      let calls = 0;
+      const startPositions = await ConsumerStartPositions.resolve<
+        AnyMessage,
+        MessageHandlerContext
+      >({
+        handlerContext: {},
+        processors: [
+          processor('a', 'BEGINNING'),
+          processor('b', {
+            lastCheckpoint: bigIntProcessorCheckpoint(3n),
+          }),
+        ],
+        readLastMessageCheckpoint: () => {
+          calls++;
+          return Promise.resolve(bigIntProcessorCheckpoint(9n));
+        },
+      });
+
+      assertDeepEqual(calls, 0);
+      assertDeepEqual(startPositions.earliestPosition, 'BEGINNING');
+    });
+
+    void it('calls the resolver exactly once and maps every END entry', async () => {
+      const tail = bigIntProcessorCheckpoint(7n);
+      let calls = 0;
+
+      const startPositions = await ConsumerStartPositions.resolve<
+        AnyMessage,
+        MessageHandlerContext
+      >({
+        handlerContext: {},
+        processors: [processor('a', 'END'), processor('b', 'END')],
+        readLastMessageCheckpoint: () => {
+          calls++;
+          return Promise.resolve(tail);
+        },
+      });
+
+      assertDeepEqual(calls, 1);
+      assertDeepEqual(startPositions.earliestPosition, {
+        lastCheckpoint: tail,
+      });
+    });
+  });
+
   void describe('afterStartPosition', () => {
     void it('drops messages at or below the processor start checkpoint', () => {
-      const startPositions = processorStartPositions();
+      const startPositions = ProcessorStartPositions();
       startPositions.set('a', {
         lastCheckpoint: bigIntProcessorCheckpoint(5n),
       });
@@ -68,7 +179,7 @@ void describe('processorStartPositions', () => {
     });
 
     void it('keeps every message for a BEGINNING processor', () => {
-      const startPositions = processorStartPositions();
+      const startPositions = ProcessorStartPositions();
       startPositions.set('a', 'BEGINNING');
 
       const messages = [messageAt(1n), messageAt(2n)];
@@ -80,7 +191,7 @@ void describe('processorStartPositions', () => {
     });
 
     void it('keeps every message for an END processor with no resolved tail', () => {
-      const startPositions = processorStartPositions();
+      const startPositions = ProcessorStartPositions();
       startPositions.set('a', 'END');
 
       const messages = [messageAt(1n), messageAt(2n)];
@@ -92,7 +203,7 @@ void describe('processorStartPositions', () => {
     });
 
     void it('keeps every message for an unset processor', () => {
-      const startPositions = processorStartPositions();
+      const startPositions = ProcessorStartPositions();
 
       const messages = [messageAt(1n), messageAt(2n)];
 
