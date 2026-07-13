@@ -3,492 +3,140 @@ documentationType: how-to-guide
 outline: deep
 ---
 
-# Testing Patterns
+# Testing {#testing}
 
-::: warning
-We created this page with the help of the GenAI tool.
+**Tests are first-class citizens in Emmett.** Once your business logic is a set of functions returning events, testing turns into a repeatable pattern you can apply from a single decision up to the whole running API. This guide shows you how, at three levels: the business logic on its own, the HTTP API against an in-memory store, and the whole slice end-to-end against a real database. Read models get their own section too.
 
-We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
+No matter which level you pick, the shape stays the same:
+
+::: tip
+
+- **GIVEN** the events already recorded,
+- **WHEN** you run a command or a request,
+- **THEN** you assert the new events, or the error.
+
 :::
 
-Emmett provides comprehensive testing utilities for event-sourced applications. This guide covers unit testing, integration testing, and end-to-end testing strategies.
-
-## Testing Philosophy
-
-Event Sourcing enables a powerful testing pattern:
-
-- **GIVEN** a set of events that have occurred
-- **WHEN** a command is executed
-- **THEN** specific events are produced (or errors thrown)
-
-This pattern applies at every level: unit tests, integration tests, and E2E tests.
-
-## Unit Testing with DeciderSpecification
-
-The `DeciderSpecification` provides a BDD-style API for testing business logic in isolation.
-
-### Basic Usage
-
-```typescript
-import { DeciderSpecification } from '@event-driven-io/emmett';
-import { decide, evolve, initialState } from './shoppingCart';
-
-describe('Shopping Cart', () => {
-  const spec = DeciderSpecification.for({
-    decide,
-    evolve,
-    initialState,
-  });
-
-  it('adds product to empty cart', () =>
-    spec([]) // GIVEN: no prior events
-      .when({
-        type: 'AddProductItem',
-        data: { productId: 'shoes-1', quantity: 2, price: 99.99 },
-      })
-      .then([
-        {
-          type: 'ProductItemAdded',
-          data: { productId: 'shoes-1', quantity: 2, price: 99.99 },
-        },
-      ]));
-});
-```
-
-### Testing with Prior Events
-
-```typescript
-it('confirms cart with items', () =>
-  spec([
-    // GIVEN: these events have occurred
-    {
-      type: 'ProductItemAdded',
-      data: { productId: 'shoes-1', quantity: 1, price: 99.99 },
-    },
-  ])
-    .when({
-      type: 'ConfirmShoppingCart',
-      data: { now: new Date('2024-01-15') },
-    })
-    .then([
-      {
-        type: 'ShoppingCartConfirmed',
-        data: { confirmedAt: new Date('2024-01-15') },
-      },
-    ]));
-```
-
-### Testing Errors
-
-```typescript
-it('rejects adding to confirmed cart', () =>
-  spec([
-    {
-      type: 'ProductItemAdded',
-      data: { productId: 'p1', quantity: 1, price: 10 },
-    },
-    { type: 'ShoppingCartConfirmed', data: { confirmedAt: new Date() } },
-  ])
-    .when({
-      type: 'AddProductItem',
-      data: { productId: 'p2', quantity: 1, price: 20 },
-    })
-    .thenThrows(IllegalStateError));
-```
-
-### Testing No-Op Scenarios
-
-```typescript
-it('ignores duplicate product removal', () =>
-  spec([
-    {
-      type: 'ProductItemAdded',
-      data: { productId: 'p1', quantity: 1, price: 10 },
-    },
-    { type: 'ProductItemRemoved', data: { productId: 'p1' } },
-  ])
-    .when({
-      type: 'RemoveProductItem',
-      data: { productId: 'p1' },
-    })
-    .thenNothingHappened());
-```
-
-## Integration Testing with ApiSpecification
-
-Test your API endpoints with in-memory event store for fast, isolated tests.
-
-### Setup
-
-```typescript
-import { ApiSpecification } from '@event-driven-io/emmett-expressjs';
-import { getInMemoryEventStore } from '@event-driven-io/emmett';
-import { shoppingCartApi, getApplication } from './api';
-
-describe('Shopping Cart API', () => {
-  let given: ApiSpecification;
-
-  beforeAll(() => {
-    const eventStore = getInMemoryEventStore();
-
-    given = ApiSpecification.for(() =>
-      getApplication({
-        apis: [
-          shoppingCartApi(
-            eventStore,
-            () => Promise.resolve(100), // Mock price lookup
-          ),
-        ],
-      }),
-    );
-  });
-});
-```
-
-### Testing Endpoints
-
-```typescript
-import {
-  existingStream,
-  expectResponse,
-  expectEvents,
-} from '@event-driven-io/emmett-expressjs';
-
-it('adds product item', () =>
-  given(
-    existingStream('shopping_cart-123', [
-      // Cart already exists with one item
-      {
-        type: 'ProductItemAdded',
-        data: { productId: 'p1', quantity: 1, price: 50 },
-      },
-    ]),
-  )
-    .when((request) =>
-      request
-        .post('/clients/client-1/shopping-carts/123/product-items')
-        .send({ productId: 'shoes-1', quantity: 2 }),
-    )
-    .then([
-      expectResponse(200),
-      expectEvents('shopping_cart-123', [
-        {
-          type: 'ProductItemAdded',
-          data: {
-            productId: 'shoes-1',
-            quantity: 2,
-            price: 100, // From mock
-          },
-        },
-      ]),
-    ]));
-```
-
-### Testing Error Responses
-
-```typescript
-it('returns 404 for non-existent cart', () =>
-  given() // No existing streams
-    .when((request) => request.get('/clients/client-1/shopping-carts/999'))
-    .then([expectResponse(404)]));
-
-it('returns 409 for version conflict', () =>
-  given(
-    existingStream('shopping_cart-123', [
-      {
-        type: 'ProductItemAdded',
-        data: { productId: 'p1', quantity: 1, price: 50 },
-      },
-    ]),
-  )
-    .when((request) =>
-      request
-        .post('/clients/client-1/shopping-carts/123/product-items')
-        .set('If-Match', '"0"') // Wrong version
-        .send({ productId: 'p2', quantity: 1 }),
-    )
-    .then([expectResponse(412)])); // Precondition Failed
-```
-
-## E2E Testing with Real Database
-
-Test against real infrastructure using TestContainers.
-
-### PostgreSQL Setup
-
-```typescript
-import { ApiE2ESpecification } from '@event-driven-io/emmett-expressjs';
-import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
-
-describe('Shopping Cart API (E2E)', () => {
-  let postgres: StartedPostgreSqlContainer;
-  let given: ApiE2ESpecification;
-
-  beforeAll(async () => {
-    // Start PostgreSQL container
-    postgres = await new PostgreSqlContainer().start();
-
-    const eventStore = getPostgreSQLEventStore(postgres.getConnectionUri());
-
-    given = ApiE2ESpecification.for(() =>
-      getApplication({
-        apis: [shoppingCartApi(eventStore, getProductPrice)],
-      }),
-    );
-  });
-
-  afterAll(async () => {
-    await eventStore.close();
-    await postgres.stop();
-  });
-});
-```
-
-### E2E Test Examples
-
-```typescript
-it('completes full shopping flow', async () => {
-  const clientId = 'client-123';
-  const cartId = 'cart-456';
-
-  // Add first item
-  await given()
-    .when((request) =>
-      request
-        .post(`/clients/${clientId}/shopping-carts/${cartId}/product-items`)
-        .send({ productId: 'shoes-1', quantity: 2 }),
-    )
-    .then([expectResponse(200)]);
-
-  // Add second item
-  await given()
-    .when((request) =>
-      request
-        .post(`/clients/${clientId}/shopping-carts/${cartId}/product-items`)
-        .send({ productId: 'shirt-1', quantity: 1 }),
-    )
-    .then([expectResponse(200)]);
-
-  // Confirm cart
-  await given()
-    .when((request) =>
-      request.post(`/clients/${clientId}/shopping-carts/${cartId}/confirm`),
-    )
-    .then([expectResponse(200)]);
-
-  // Verify final state
-  await given()
-    .when((request) =>
-      request.get(`/clients/${clientId}/shopping-carts/${cartId}`),
-    )
-    .then([
-      expectResponse(200, {
-        body: {
-          status: 'Confirmed',
-          productItems: expect.arrayContaining([
-            expect.objectContaining({ productId: 'shoes-1', quantity: 2 }),
-            expect.objectContaining({ productId: 'shirt-1', quantity: 1 }),
-          ]),
-        },
-      }),
-    ]);
-});
-```
-
-## Testing Projections
-
-Test that events correctly update read models.
-
-### PostgreSQL Projection Testing
-
-```typescript
-import {
-  PostgreSQLProjectionSpec,
-  expectPongoDocuments,
-  eventsInStream,
-  newEventsInStream,
-} from '@event-driven-io/emmett-postgresql';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
-
-describe('Shopping Cart Summary Projection', () => {
-  let postgres: StartedPostgreSqlContainer;
-  let given: PostgreSQLProjectionSpec<ShoppingCartEvent>;
-
-  beforeAll(async () => {
-    postgres = await new PostgreSqlContainer().start();
-
-    given = PostgreSQLProjectionSpec.for({
-      projection: shoppingCartSummaryProjection,
-      connectionString: postgres.getConnectionUri(),
-    });
-  });
-
-  it('creates summary on first product', () =>
-    given([])
-      .when([
-        {
-          type: 'ProductItemAdded',
-          data: { productId: 'shoes', quantity: 2, price: 100 },
-          metadata: { streamName: 'cart-123' },
-        },
-      ])
-      .then(
-        expectPongoDocuments
-          .fromCollection<ShoppingCartSummary>('shopping_cart_summary')
-          .withId('cart-123')
-          .toBeEqual({
-            productItemsCount: 2,
-            totalAmount: 200,
-          }),
-      ));
-
-  it('updates summary on additional products', () =>
-    given(
-      eventsInStream('cart-123', [
-        {
-          type: 'ProductItemAdded',
-          data: { productId: 'shoes', quantity: 2, price: 100 },
-        },
-      ]),
-    )
-      .when(
-        newEventsInStream('cart-123', [
-          {
-            type: 'ProductItemAdded',
-            data: { productId: 'shirt', quantity: 1, price: 50 },
-          },
-        ]),
-      )
-      .then(
-        expectPongoDocuments
-          .fromCollection<ShoppingCartSummary>('shopping_cart_summary')
-          .withId('cart-123')
-          .toBeEqual({
-            productItemsCount: 3,
-            totalAmount: 250,
-          }),
-      ));
-
-  it('removes document on cart confirmation', () =>
-    given(
-      eventsInStream('cart-123', [
-        {
-          type: 'ProductItemAdded',
-          data: { productId: 'shoes', quantity: 1, price: 100 },
-        },
-      ]),
-    )
-      .when(
-        newEventsInStream('cart-123', [
-          { type: 'ShoppingCartConfirmed', data: { confirmedAt: new Date() } },
-        ]),
-      )
-      .then(
-        expectPongoDocuments
-          .fromCollection<ShoppingCartSummary>('shopping_cart_summary')
-          .withId('cart-123')
-          .notToExist(),
-      ));
-});
-```
-
-## Test Organization
-
-### Recommended Structure
-
-```
-src/
-├── domain/
-│   ├── shoppingCart.ts          # Business logic
-│   └── shoppingCart.spec.ts     # Unit tests
-├── api/
-│   ├── shoppingCartApi.ts       # API routes
-│   └── shoppingCartApi.int.spec.ts  # Integration tests
-├── projections/
-│   ├── cartSummary.ts           # Projection logic
-│   └── cartSummary.spec.ts      # Projection tests
-└── e2e/
-    └── shopping.e2e.spec.ts     # E2E tests
-```
-
-### Test Pyramid for Event Sourcing
-
-```
-        /\
-       /  \     E2E Tests (few, slow, real infra)
-      /----\
-     /      \   Integration Tests (more, faster, mocked deps)
-    /--------\
-   /          \ Unit Tests (many, fast, pure functions)
-  /------------\
-```
-
-## Best Practices
-
-### 1. Test Business Logic First
-
-```typescript
-// ✅ Good: Focus on business rules
-spec([
-  {
-    type: 'ProductItemAdded',
-    data: { productId: 'p1', quantity: 10, price: 5 },
-  },
-])
-  .when({ type: 'ConfirmShoppingCart', data: { now: new Date() } })
-  .then([{ type: 'ShoppingCartConfirmed', data: expect.any(Object) }]);
-```
-
-### 2. Use Meaningful Test Data
-
-```typescript
-// ✅ Good: Clear, realistic data
-const clientId = 'client-premium-123';
-const expensiveProduct = {
-  productId: 'luxury-watch',
-  quantity: 1,
-  price: 5000,
-};
-
-// ❌ Bad: Meaningless data
-const x = { productId: 'p1', quantity: 1, price: 1 };
-```
-
-### 3. Test Edge Cases
-
-```typescript
-describe('edge cases', () => {
-  it('handles zero quantity', () => /* ... */);
-  it('handles maximum quantity', () => /* ... */);
-  it('handles concurrent modifications', () => /* ... */);
-  it('handles network failures', () => /* ... */);
-});
-```
-
-### 4. Isolate Tests
-
-```typescript
-// ✅ Good: Each test is independent
-beforeEach(() => {
-  cartId = `cart-${uuid()}`;
-});
-
-// ❌ Bad: Tests depend on each other
-let cartId = 'shared-cart'; // Mutations leak between tests
-```
-
-## Further Reading
+The helpers change; the pattern doesn't. For the thinking behind it, read [Behaviour-Driven Design is more than tests](https://event-driven.io/en/behaviour_driven_design_is_not_about_tests/).
 
+## Test Business Logic {#business-logic}
+
+**Business logic is where your rules live**, and in Emmett it's a plain function: `decide` takes the current state and a command, and returns events. No I/O, no framework, nothing to mock. That makes it the cheapest thing to test, so this is where most of your tests belong. Set up a `DeciderSpecification` once with your `decide`, `evolve`, and `initialState`:
+
+<<< @/snippets/gettingStarted/businessLogic.unit.spec.ts#unit-spec
+
+For each command, three questions cover it: does it produce the right events when the rule allows the action, does it say no when the rule forbids it, and does it stay quiet when there's nothing to do? That's three tests, each named after the rule it guards.
+
+### Assert the events it produces {#assert-events}
+
+Give it a state through the `given` events, run the command, and check what comes back. Assert the events, not the state the decision saw. The events are what the rest of your system reacts to; the state is just how the decision got there.
+
+<<< @/snippets/gettingStarted/businessLogic.unit.spec.ts#unit-events
+
+### Assert the rule it enforces {#assert-error}
+
+A rule isn't proven until you show it saying no. Set up a state that should reject the command, then assert the exact error, not merely that something threw. That same error becomes the caller's `403` later, so it's worth pinning down. `thenThrows` takes the error type, a check on the message, or both:
+
+<<< @/snippets/gettingStarted/businessLogic.unit.spec.ts#unit-error
+
+### Assert it stays quiet {#assert-noop}
+
+Some commands are valid but have nothing to add, like removing an item that's already gone. Returning no events for those is what keeps a command safe to send twice. Assert that path with `thenNothingHappened()`.
+
+## Test the API In-Memory {#api-in-memory}
+
+**A lot happens between the request and the decision.** The request gets mapped to a command, validated, run through middleware, and its result turned into a status code. None of that is visible to a unit test, so let's cover it, still in memory, so the tests stay fast enough to run continuously.
+
+`ApiSpecification` gives you the same given/when/then, this time over HTTP. Point it at the seams the unit tests can't reach, and leave the rule-by-rule coverage to them.
+
+### Set up the specification {#api-setup}
+
+Inject the in-memory store and stub what the slice reaches for (the price lookup and the clock), so the results are deterministic:
+
+<<< @/snippets/gettingStarted/webApi/apiBDDIntGiven.ts#given
+
+### Assert the response and the new events {#api-assert}
+
+`existingStream` seeds the stream, `when` sends the request, and `then` checks both sides of the outcome at once: the status the caller gets, and the events that land in the store.
+
+<<< @/snippets/gettingStarted/webApi/apiBDDIntTest.ts#test
+
+### Assert the failure the caller sees {#api-error}
+
+The unit test already showed the rule throws. Here you show the throw turning into the right HTTP contract: `getApplication` maps `IllegalStateError` to a `403` with a [Problem Details](https://www.rfc-editor.org/rfc/rfc9457.html) body. Assert it with `expectError`:
+
+<<< @/snippets/gettingStarted/webApi/apiBDD.int.spec.ts#int-error
+
+## Test End-to-End Against PostgreSQL {#e2e}
+
+**In-memory is great for a fast loop, but it never touches a real database.** Serialisation and queries only run for real against the actual store, and that's exactly where surprises hide. So keep a small end-to-end set for the flows that matter most, and treat the API as a black box.
+
+### Start a database container {#e2e-container}
+
+Spin up PostgreSQL in a throwaway container with [TestContainers](https://node.testcontainers.org/), which randomises the port and cleans up after itself. Start one for the whole suite and reuse it, since the store keeps a connection pool, then close both in `afterAll`:
+
+<<< @/snippets/gettingStarted/webApi/apiBDDE2EGiven.ts#test-container
+
+### Point the specification at it {#e2e-spec}
+
+It's the same `getApplication` as before, now backed by the container's store. That's the nice part: you're re-running a known slice against real infrastructure, not writing it twice.
+
+<<< @/snippets/gettingStarted/webApi/apiBDDE2EGiven.ts#given
+
+### Drive it through HTTP {#e2e-test}
+
+Setup runs through requests too, so you assert only the responses. Here we open a cart with a product, then confirm it:
+
+<<< @/snippets/gettingStarted/webApi/apiBDDE2ETest.ts#test
+
+## Test Projections {#projections}
+
+**Projections earn their keep in a real database**, so that's the only honest place to test them. Serialisation and querying are the whole point, and an in-memory fake would paper over both. Assert the stored document as the read model evolves: the first event creates it, later events add to it, and a terminal event clears it. `PostgreSQLProjectionSpec` keeps the same given/when/then, this time over Pongo documents:
+
+<<< ./projections/testingProjections.snippet.ts#testing-projection
+
+That's the shape. For deletion and multi-stream projections, see [Test a Projection](/guides/projections#test) in the Read Models guide.
+
+## Choose the Right Level {#choose-level}
+
+**The proportion between the levels is up to you**, but one rule keeps it honest: put each test at the lowest level that can fail for the reason you care about.
+
+- A **business rule** breaks in the decision, so test it as a unit. Most of your tests live here.
+- **Wiring** (mapping, validation, status codes, concurrency) breaks above the decision, so test it in-memory.
+- **Serialisation and queries** break against the database, so keep a lean end-to-end and projection set for those.
+
+Cover each concern once. Running the same scenario through all three levels buys the same confidence three times over, and you'll pay for it again on every future change. Once the in-memory tests are this cheap, you can lean on them; [Martin Thwaites makes that case well](https://www.youtube.com/watch?v=prLRI3VEVq4).
+
+## Best Practices {#best-practices}
+
+### Assert Behaviour, Not State {#best-practices-behaviour}
+
+Check the events a decision returns and the documents a projection writes, never the intermediate state the code built along the way. Events and documents are the contract other code depends on; internal state is free to change under a refactor, and your tests shouldn't break when it does.
+
+### Make Time and External Data Injectable {#best-practices-inject-dependencies}
+
+Route the current time through command metadata and inject dependencies like the price lookup, so a test can fix them. The specifications above pass `() => now` and `() => Promise.resolve(unitPrice)`, which is why the expected `addedAt` and totals come out as exact values.
+
+### Give Every Test Its Own Stream {#best-practices-isolate}
+
+Share the container and store across a suite, but give each test a fresh stream id from `randomUUID` in `beforeEach`, so no test can see another's events. The [integration spec](https://github.com/event-driven-io/emmett/blob/main/src/docs/snippets/gettingStarted/webApi/apiBDD.int.spec.ts) shows the pattern.
+
+## Troubleshooting {#troubleshooting}
+
+### A Timestamp Assertion Fails By Milliseconds {#troubleshooting-timestamps}
+
+The decision is reading the wall clock instead of an injected time. Route time through command metadata and inject a fixed clock into the API setup, as [Make Time and External Data Injectable](#best-practices-inject-dependencies) shows, and the expected value lands exactly.
+
+### The Suite Is Slow {#troubleshooting-containers}
+
+A container is starting per test. Start one in `beforeAll`, reuse it, and give each test a fresh stream id instead. Close the store and stop the container in `afterAll` so connections get released.
+
+## Further Readings {#readings}
+
+- [Getting Started - Unit Testing](/getting-started#unit-testing)
+- [Command Handling](/guides/command-handling) - the handler these tests exercise
+- [Read Models](/guides/projections) - testing projections in detail
+- [API Reference: Decider](/api-reference/decider) - the specification helpers
+- [Behaviour-Driven Design is more than tests](https://event-driven.io/en/behaviour_driven_design_is_not_about_tests/)
 - [Testing Event Sourcing, Emmett edition](https://event-driven.io/en/testing_event_sourcing_emmett_edition/)
-- [Getting Started - Testing Section](/getting-started#unit-testing)
 - [Building Operable Software with TDD](https://www.youtube.com/watch?v=prLRI3VEVq4)
-
-## See Also
-
-- [Getting Started](/getting-started) - Full tutorial including testing
-- [Read Models Guide](/guides/projections) - Testing projections in detail
-- [API Reference: DeciderSpecification](/api-reference/decider)
