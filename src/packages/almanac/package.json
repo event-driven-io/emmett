@@ -51,6 +51,16 @@
         "default": "./dist/otel.cjs"
       }
     },
+    "./otel-node": {
+      "import": {
+        "types": "./dist/otel-node.d.ts",
+        "default": "./dist/otel-node.js"
+      },
+      "require": {
+        "types": "./dist/otel-node.d.cts",
+        "default": "./dist/otel-node.cjs"
+      }
+    },
     "./pino": {
       "import": {
         "types": "./dist/pino.d.ts",
@@ -82,6 +92,7 @@
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/api-logs": "^0.218.0",
     "@opentelemetry/instrumentation-pino": "^0.64.0",
+    "@opentelemetry/sdk-node": ">=0.215.0 <0.219.0",
     "pino": "^10.3.1"
   },
   "peerDependenciesMeta": {
@@ -92,6 +103,9 @@
       "optional": true
     },
     "@opentelemetry/instrumentation-pino": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-node": {
       "optional": true
     },
     "pino": {
@@ -106,7 +120,7 @@
   },
   "devDependencies": {
     "@opentelemetry/context-async-hooks": "^2.7.0",
+    "@opentelemetry/sdk-node": "^0.218.0",
     "pino-test": "^2.0.0"
-  },
-  "dependencies": {}
+  }
 }
