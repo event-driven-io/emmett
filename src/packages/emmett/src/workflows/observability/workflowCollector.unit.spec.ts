@@ -1,13 +1,16 @@
 import {
   collectingMeter,
   collectingTracer,
+  LogEvent,
+  noopLogger,
   ObservabilitySpec,
 } from '@event-driven-io/almanac';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
+  setDefaultObservability,
 } from '../../observability';
 import { workflowCollector, workflowObservability } from './workflowCollector';
 
@@ -21,6 +24,8 @@ const defaultContext = {
 };
 
 const given = ObservabilitySpec.for();
+
+afterEach(() => setDefaultObservability(undefined));
 
 describe('workflowCollector', () => {
   it('creates workflow.handle scope with emmett.scope.type=workflow and emmett.scope.main=true', async () => {
@@ -121,6 +126,7 @@ describe('workflowCollector', () => {
     const obs = {
       tracer: collectingTracer(),
       meter,
+      logger: noopLogger,
       propagation: 'links' as const,
       attributeTarget: 'both' as const,
       includeMessagePayloads: false,
@@ -139,6 +145,27 @@ describe('workflowCollector', () => {
 });
 
 describe('workflowObservability', () => {
+  it('uses default observability when handling a workflow', async () => {
+    await given((observability) => {
+      setDefaultObservability(observability);
+      return workflowCollector(workflowObservability(undefined));
+    })
+      .when((collector) =>
+        collector.startScope(defaultContext, (scope) => {
+          scope.log(LogEvent.info('using global observability'));
+          return Promise.resolve();
+        }),
+      )
+      .then(({ spans, metrics }) => {
+        spans
+          .haveSpanNamed('workflow.handle')
+          .logged('info', 'using global observability');
+        metrics
+          .haveHistogramNamed(EmmettMetrics.workflow.processingDuration)
+          .hasValueAtLeast(0);
+      });
+  });
+
   it('works with noop observability', async () => {
     const o11y = workflowObservability(undefined);
     const collector = workflowCollector(o11y);
@@ -163,7 +190,7 @@ describe('workflowObservability', () => {
 
   it('falls back to parent', () => {
     const resolved = workflowObservability(undefined, {
-      observability: { propagation: 'propagate' },
+      propagation: 'propagate',
     });
     expect(resolved.propagation).toBe('propagate');
   });

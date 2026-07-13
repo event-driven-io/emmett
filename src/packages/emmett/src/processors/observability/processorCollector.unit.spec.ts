@@ -1,25 +1,26 @@
 import {
   collectingMeter,
   collectingTracer,
-  noopMeter,
-  noopTracer,
+  LogEvent,
+  noopLogger,
   ObservabilitySpec,
 } from '@event-driven-io/almanac';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setDefaultObservability } from '../../observability';
 import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
 } from '../../observability/attributes';
-import { mergeObservabilityOptions } from '../../observability/options';
 import type { AnyRecordedMessageMetadata } from '../../typing';
 import {
   processorCollector,
   processorObservability,
-  type ProcessorObservabilityConfig,
 } from './processorCollector';
 
 const A = EmmettAttributes;
+
+afterEach(() => setDefaultObservability(undefined));
 const M = {
   system: 'messaging.system',
   batchMessageCount: 'messaging.batch.message_count',
@@ -222,6 +223,7 @@ describe('processorCollector', () => {
     const obs = {
       tracer,
       meter,
+      logger: noopLogger,
       propagation: 'links' as const,
       attributeTarget: 'both' as const,
       includeMessagePayloads: false,
@@ -250,6 +252,7 @@ describe('processorCollector', () => {
     const obs = {
       tracer: collectingTracer(),
       meter,
+      logger: noopLogger,
       propagation: 'links' as const,
       attributeTarget: 'both' as const,
       includeMessagePayloads: false,
@@ -278,6 +281,65 @@ describe('processorCollector', () => {
 });
 
 describe('processorObservability', () => {
+  it('uses default observability when handling a batch', async () => {
+    await given((observability) => {
+      setDefaultObservability(observability);
+      return processorCollector(processorObservability(undefined));
+    })
+      .when((collector) =>
+        collector.startScope(
+          { processorId: 'p1', type: 'reactor', checkpoint: null },
+          [],
+          (scope) => {
+            scope.log(LogEvent.info('using global observability'));
+            return Promise.resolve();
+          },
+        ),
+      )
+      .then(({ spans, metrics }) => {
+        spans
+          .haveSpanNamed('processor.handle')
+          .logged('info', 'using global observability');
+        metrics
+          .haveHistogramNamed(EmmettMetrics.processor.processingDuration)
+          .hasValueAtLeast(0);
+      });
+  });
+
+  it('applies default, parent and processor observability in order', () => {
+    const defaultTracer = collectingTracer();
+    const parentTracer = collectingTracer();
+    const meter = collectingMeter();
+    const defaultLogger = () => {};
+    const processorLogger = () => {};
+    setDefaultObservability({
+      tracer: defaultTracer,
+      meter,
+      logger: defaultLogger,
+      propagation: 'links',
+      includeMessagePayloads: false,
+    });
+
+    const configured = processorObservability(
+      {
+        observability: {
+          logger: processorLogger,
+          includeMessagePayloads: true,
+        },
+      },
+      { tracer: parentTracer, propagation: 'propagate' },
+    );
+
+    expect(configured).toEqual({
+      tracer: parentTracer,
+      meter,
+      logger: processorLogger,
+      propagation: 'propagate',
+      attributeTarget: 'both',
+      includeMessagePayloads: true,
+    });
+  });
+
   it('returns noop tracer, meter, propagation=links, attributeTarget=both when no options', () => {
     const resolved = processorObservability(undefined);
     expect(resolved.tracer).toBeDefined();
@@ -302,7 +364,7 @@ describe('processorObservability', () => {
 
   it('falls back to parent', () => {
     const resolved = processorObservability(undefined, {
-      observability: { propagation: 'propagate' },
+      propagation: 'propagate',
     });
     expect(resolved.propagation).toBe('propagate');
   });
@@ -310,7 +372,7 @@ describe('processorObservability', () => {
   it('child overrides parent', () => {
     const resolved = processorObservability(
       { observability: { propagation: 'propagate' } },
-      { observability: { propagation: 'links' } },
+      { propagation: 'links' },
     );
     expect(resolved.propagation).toBe('propagate');
   });
@@ -318,8 +380,8 @@ describe('processorObservability', () => {
   it('uses processor fields after store or consumer observability is merged', () => {
     const tracer = collectingTracer();
     const meter = collectingMeter();
-    const options = mergeObservabilityOptions(
-      { observability: { propagation: 'propagate' as const } },
+    const resolved = processorObservability(
+      { observability: { propagation: 'propagate' } },
       {
         tracer,
         meter,
@@ -327,8 +389,6 @@ describe('processorObservability', () => {
         attributeTarget: 'currentSpan',
       },
     );
-
-    const resolved = processorObservability(options);
 
     expect(resolved.tracer).toBe(tracer);
     expect(resolved.meter).toBe(meter);
@@ -347,75 +407,5 @@ describe('processorObservability', () => {
       observability: { includeMessagePayloads: true },
     });
     expect(resolved.includeMessagePayloads).toBe(true);
-  });
-});
-
-describe('mergeObservabilityOptions', () => {
-  it('applies defaults when options observability is missing', () => {
-    const options: {
-      processorId: string;
-      observability?: ProcessorObservabilityConfig;
-    } = { processorId: 'test' };
-    const tracer = noopTracer();
-    const meter = noopMeter();
-
-    const result = mergeObservabilityOptions(options, { tracer, meter });
-
-    expect(result).not.toBe(options);
-    expect(result.observability).toEqual({ tracer, meter });
-  });
-
-  it('lets options observability override defaults', () => {
-    const defaultTracer = noopTracer();
-    const optionsTracer = noopTracer();
-    const meter = noopMeter();
-    const options: {
-      processorId: string;
-      observability: ProcessorObservabilityConfig;
-    } = {
-      processorId: 'test',
-      observability: {
-        tracer: optionsTracer,
-        propagation: 'propagate' as const,
-      },
-    };
-
-    const result = mergeObservabilityOptions(options, {
-      tracer: defaultTracer,
-      meter,
-      attributeTarget: 'both' as const,
-    });
-
-    expect(result.observability).toEqual({
-      tracer: optionsTracer,
-      meter,
-      attributeTarget: 'both',
-      propagation: 'propagate',
-    });
-  });
-
-  it('merges consumer observability into processor options', () => {
-    const tracer = noopTracer();
-    const meter = noopMeter();
-    const options: {
-      processorId: string;
-      observability: ProcessorObservabilityConfig;
-    } = {
-      processorId: 'test',
-      observability: { propagation: 'propagate' },
-    };
-
-    const result = mergeObservabilityOptions(options, {
-      tracer,
-      meter,
-      pollTracing: 'verbose' as const,
-    });
-
-    expect(result.observability).toEqual({
-      tracer,
-      meter,
-      pollTracing: 'verbose',
-      propagation: 'propagate',
-    });
   });
 });

@@ -1,4 +1,4 @@
-import type { ObservabilityConfig } from '@event-driven-io/almanac';
+import type { Observability } from '@event-driven-io/almanac';
 import express, { Router, type Application } from 'express';
 import 'express-async-errors';
 import http from 'http';
@@ -17,7 +17,7 @@ export type ApplicationOptions = {
   disableJsonMiddleware?: boolean;
   disableUrlEncodingMiddleware?: boolean;
   disableProblemDetailsMiddleware?: boolean;
-  observability?: ObservabilityConfig<string>;
+  observability?: Partial<Observability<string>>;
 };
 
 export const getApplication = (options: ApplicationOptions) => {

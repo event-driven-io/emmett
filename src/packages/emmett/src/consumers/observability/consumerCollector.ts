@@ -1,11 +1,13 @@
 import {
   LogEvent,
   MessagingAttributes,
+  noopLogger,
   noopMeter,
   noopScope,
   noopTracer,
   ObservabilityScope,
   type AttributeTarget,
+  type Logger,
   type Meter,
   type ObservabilityScope as ObservabilityScopeType,
   type Tracer,
@@ -13,38 +15,39 @@ import {
 import {
   EmmettAttributes,
   EmmettMetrics,
-  mergeObservabilityOptions,
   MessagingSystemName,
   ScopeTypes,
   type EmmettObservabilityConfig,
-  type EmmettObservabilityOptions,
   type PollTracing,
 } from '../../observability';
+import { mergeDefaultObservability } from '../../observability/defaultObservability';
 
 export type ConsumerObservabilityConfig = Pick<
   EmmettObservabilityConfig,
-  'tracer' | 'meter' | 'pollTracing' | 'attributeTarget'
+  'tracer' | 'meter' | 'logger' | 'pollTracing' | 'attributeTarget'
 >;
 
 export type ResolvedConsumerObservability = {
   tracer: Tracer;
   meter: Meter;
+  logger: Logger;
   pollTracing: PollTracing;
   attributeTarget: AttributeTarget;
 };
 
 export const consumerObservability = (
   options: { observability?: ConsumerObservabilityConfig } | undefined,
-  parent?: EmmettObservabilityOptions,
+  parent?: EmmettObservabilityConfig,
 ): ResolvedConsumerObservability => {
-  const observability = mergeObservabilityOptions(
-    { observability: options?.observability },
-    parent?.observability,
-  ).observability;
+  const observability = mergeDefaultObservability(
+    parent,
+    options?.observability,
+  );
 
   return {
     tracer: observability?.tracer ?? noopTracer(),
     meter: observability?.meter ?? noopMeter(),
+    logger: observability?.logger ?? noopLogger,
     pollTracing: observability?.pollTracing ?? 'off',
     attributeTarget: observability?.attributeTarget ?? 'both',
   };

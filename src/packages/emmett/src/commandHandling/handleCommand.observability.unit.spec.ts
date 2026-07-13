@@ -3,11 +3,12 @@ import {
   ObservabilitySpec,
 } from '@event-driven-io/almanac';
 import { v4 as uuid } from 'uuid';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ExpectedVersionConflictError,
   getInMemoryEventStore,
 } from '../eventStore';
+import { setDefaultObservability } from '../observability';
 import { EmmettAttributes, EmmettMetrics } from '../observability/attributes';
 import { assertEqual, assertNotEqual, assertUndefined } from '../testing';
 import type { Event } from '../typing';
@@ -18,6 +19,25 @@ type Cart = { count: number };
 
 describe('handler observability', () => {
   const given = ObservabilitySpec.for();
+
+  afterEach(() => setDefaultObservability(undefined));
+
+  it('uses default observability without handler configuration', () =>
+    given((observability) => {
+      setDefaultObservability(observability);
+      return CommandHandler<Cart, ItemAdded>({
+        evolve: (state) => state,
+        initialState: () => ({ count: 0 }),
+      });
+    })
+      .when((handler) =>
+        handler(getInMemoryEventStore(), uuid(), () => [
+          { type: 'ItemAdded', data: { productId: 'p1' } },
+        ]),
+      )
+      .then(({ spans }) => {
+        spans.haveSpanNamed('command.handle');
+      }));
 
   void describe('observability propagation', () => {
     void it('stamps correlationId, causationId, traceId and spanId from handle options onto produced events', () => {

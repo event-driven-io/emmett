@@ -4,7 +4,7 @@ import {
   bigIntProcessorCheckpoint,
   ConsumerStartPositions,
   EmmettError,
-  mergeObservabilityOptions,
+  mergeObservability,
   type AnyCommand,
   type AnyEvent,
   type AnyMessage,
@@ -192,9 +192,13 @@ export const sqliteEventStoreConsumer = <
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       processorOptions: SQLiteReactorOptions<MessageType>,
     ): SQLiteProcessor<MessageType> => {
-      const processor = sqliteReactor(
-        mergeObservabilityOptions(processorOptions, options.observability),
-      );
+      const processor = sqliteReactor({
+        ...processorOptions,
+        observability: mergeObservability(
+          options.observability,
+          processorOptions.observability,
+        ),
+      });
 
       processors.push(
         // TODO: change that
@@ -210,9 +214,13 @@ export const sqliteEventStoreConsumer = <
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
       processorOptions: SQLiteProjectorOptions<EventType>,
     ): SQLiteProcessor<EventType> => {
-      const processor = sqliteProjector(
-        mergeObservabilityOptions(processorOptions, options.observability),
-      );
+      const processor = sqliteProjector({
+        ...processorOptions,
+        observability: mergeObservability(
+          options.observability,
+          processorOptions.observability,
+        ),
+      });
 
       processors.push(
         // TODO: change that
@@ -254,15 +262,14 @@ export const sqliteEventStoreConsumer = <
         schema: { autoMigration: 'None' },
       });
 
-      const processor = sqliteWorkflowProcessor(
-        mergeObservabilityOptions(
-          {
-            ...processorOptions,
-            messageStore,
-          },
+      const processor = sqliteWorkflowProcessor({
+        ...processorOptions,
+        messageStore,
+        observability: mergeObservability(
           options.observability,
+          processorOptions.observability,
         ),
-      );
+      });
 
       processors.push(
         // TODO: change that

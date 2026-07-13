@@ -18,7 +18,7 @@ import {
   type EventStoreSession,
   type EventStoreSessionFactory,
   type JSONSerializationOptions,
-  mergeObservabilityOptions,
+  mergeObservability,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -327,9 +327,10 @@ export const getSQLiteEventStore = <
     ): SQLiteEventStoreConsumer<ConsumerEventType> =>
       sqliteEventStoreConsumer<ConsumerEventType, Driver>({
         ...(options ?? {}),
-        ...mergeObservabilityOptions(
-          consumerOptions ?? {},
+        ...consumerOptions,
+        observability: mergeObservability(
           options.observability,
+          consumerOptions?.observability,
         ),
         pool,
       }),

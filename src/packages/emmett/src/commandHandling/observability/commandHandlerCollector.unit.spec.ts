@@ -1,10 +1,12 @@
 import {
   collectingMeter,
   collectingTracer,
+  LogEvent,
   MessagingAttributes,
   ObservabilitySpec,
 } from '@event-driven-io/almanac';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setDefaultObservability } from '../../observability';
 import {
   EmmettAttributes,
   EmmettMetrics,
@@ -19,6 +21,8 @@ const A = EmmettAttributes;
 const M = MessagingAttributes;
 
 const given = ObservabilitySpec.for();
+
+afterEach(() => setDefaultObservability(undefined));
 
 describe('commandHandlerCollector', () => {
   it('creates a span named command.handle with emmett.scope.type=command and emmett.scope.main=true', async () => {
@@ -334,6 +338,27 @@ describe('commandHandlerCollector', () => {
 });
 
 describe('commandObservability', () => {
+  it('uses default observability when handling a command', async () => {
+    await given((observability) => {
+      setDefaultObservability(observability);
+      return commandHandlerCollector(commandObservability(undefined));
+    })
+      .when((collector) =>
+        collector.startScope({ streamName: 'orders-1' }, (scope) => {
+          scope.log(LogEvent.info('using global observability'));
+          return Promise.resolve();
+        }),
+      )
+      .then(({ spans, metrics }) => {
+        spans
+          .haveSpanNamed('command.handle')
+          .logged('info', 'using global observability');
+        metrics
+          .haveHistogramNamed(EmmettMetrics.command.handlingDuration)
+          .hasValueAtLeast(0);
+      });
+  });
+
   it('returns noop tracer, meter, attributeTarget=both when no options', () => {
     const resolved = commandObservability(undefined);
     expect(resolved.tracer).toBeDefined();
@@ -361,7 +386,7 @@ describe('commandObservability', () => {
   it('falls back to parent options', () => {
     const tracer = collectingTracer();
     const resolved = commandObservability(undefined, {
-      observability: { tracer },
+      tracer,
     });
     expect(resolved.tracer).toBe(tracer);
   });
@@ -371,7 +396,7 @@ describe('commandObservability', () => {
     const childTracer = collectingTracer();
     const resolved = commandObservability(
       { observability: { tracer: childTracer } },
-      { observability: { tracer: parentTracer } },
+      { tracer: parentTracer },
     );
     expect(resolved.tracer).toBe(childTracer);
   });
@@ -390,7 +415,7 @@ describe('commandObservability', () => {
 
   it('falls back to parent includeMessagePayloads', () => {
     const resolved = commandObservability(undefined, {
-      observability: { includeMessagePayloads: true },
+      includeMessagePayloads: true,
     });
     expect(resolved.includeMessagePayloads).toBe(true);
   });

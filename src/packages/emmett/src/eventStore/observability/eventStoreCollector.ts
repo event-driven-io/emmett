@@ -1,8 +1,10 @@
 import {
   MessagingAttributes,
+  noopLogger,
   noopMeter,
   noopTracer,
   type AttributeTarget,
+  type Logger,
   type Meter,
   type Tracer,
 } from '@event-driven-io/almanac';
@@ -12,38 +14,38 @@ import {
   EmmettMetrics,
   MessagingSystemName,
   type EmmettObservabilityConfig,
-  type EmmettObservabilityOptions,
 } from '../../observability';
+import { mergeDefaultObservability } from '../../observability/defaultObservability';
 import type { AnyReadEventMetadata, Event, ReadEvent } from '../../typing';
 
 export type EventStoreObservabilityConfig = Pick<
   EmmettObservabilityConfig,
-  'tracer' | 'meter' | 'attributeTarget'
+  'tracer' | 'meter' | 'logger' | 'attributeTarget'
 >;
 
 export type ResolvedEventStoreObservability = {
   tracer: Tracer;
   meter: Meter;
+  logger: Logger;
   attributeTarget: AttributeTarget;
 };
 
 export const eventStoreObservability = (
   options: { observability?: EventStoreObservabilityConfig } | undefined,
-  parent?: EmmettObservabilityOptions,
-): ResolvedEventStoreObservability => ({
-  tracer:
-    options?.observability?.tracer ??
-    parent?.observability?.tracer ??
-    noopTracer(),
-  meter:
-    options?.observability?.meter ??
-    parent?.observability?.meter ??
-    noopMeter(),
-  attributeTarget:
-    options?.observability?.attributeTarget ??
-    parent?.observability?.attributeTarget ??
-    'both',
-});
+  parent?: EmmettObservabilityConfig,
+): ResolvedEventStoreObservability => {
+  const observability = mergeDefaultObservability(
+    parent,
+    options?.observability,
+  );
+
+  return {
+    tracer: observability?.tracer ?? noopTracer(),
+    meter: observability?.meter ?? noopMeter(),
+    logger: observability?.logger ?? noopLogger,
+    attributeTarget: observability?.attributeTarget ?? 'both',
+  };
+};
 
 export const eventStoreCollector = (
   observability: ResolvedEventStoreObservability,

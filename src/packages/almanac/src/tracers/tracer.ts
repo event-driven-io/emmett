@@ -10,6 +10,8 @@ export type Tracer = {
   ): Promise<T>;
 };
 
-export const noopTracer = (): Tracer => ({
+const noTracing: Tracer = {
   startSpan: async (_name, fn, _options?) => fn(noopSpan),
-});
+};
+
+export const noopTracer = (): Tracer => noTracing;
