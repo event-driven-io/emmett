@@ -78,6 +78,7 @@ void describe('ShoppingCart', () => {
   });
 
   void describe('When confirmed', () => {
+    // #region int-error
     void it('should not add products', () => {
       return given(
         existingStream(shoppingCartId, [
@@ -109,6 +110,7 @@ void describe('ShoppingCart', () => {
           }),
         );
     });
+    // #endregion int-error
   });
 
   const oldTime = new Date();

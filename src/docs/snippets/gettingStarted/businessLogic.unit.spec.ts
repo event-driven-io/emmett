@@ -7,14 +7,17 @@ import { DeciderSpecification } from '@event-driven-io/emmett';
 import { randomUUID } from 'node:crypto';
 import type { PricedProductItem } from './events';
 
+// #region unit-spec
 const given = DeciderSpecification.for({
   decide,
   evolve,
   initialState: initialState,
 });
+// #endregion unit-spec
 
 void describe('ShoppingCart', () => {
   void describe('When empty', () => {
+    // #region unit-events
     void it('should add product item', () => {
       given([])
         .when({
@@ -36,6 +39,7 @@ void describe('ShoppingCart', () => {
           },
         ]);
     });
+    // #endregion unit-events
   });
 
   void describe('When opened', () => {
@@ -68,6 +72,7 @@ void describe('ShoppingCart', () => {
   });
 
   void describe('When confirmed', () => {
+    // #region unit-error
     void it('should not add products', () => {
       given([
         {
@@ -95,6 +100,7 @@ void describe('ShoppingCart', () => {
           (error: Error) => error.message === 'Shopping Cart already closed',
         );
     });
+    // #endregion unit-error
   });
 
   const getRandomProduct = (): PricedProductItem => {
