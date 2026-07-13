@@ -1,10 +1,12 @@
 import {
   LogEvent,
   MessagingAttributes,
+  noopLogger,
   noopMeter,
   noopTracer,
   ObservabilityScope,
   type AttributeTarget,
+  type Logger,
   type Meter,
   type ObservabilityScope as ObservabilityScopeType,
   type Tracer,
@@ -15,45 +17,40 @@ import {
   MessagingSystemName,
   ScopeTypes,
 } from '../../observability/attributes';
-import type {
-  EmmettObservabilityConfig,
-  EmmettObservabilityOptions,
-} from '../../observability/options';
+import { mergeDefaultObservability } from '../../observability/defaultObservability';
+import type { EmmettObservabilityConfig } from '../../observability/options';
 import type { Event } from '../../typing';
 
 export type CommandObservabilityConfig = Pick<
   EmmettObservabilityConfig,
-  'tracer' | 'meter' | 'attributeTarget' | 'includeMessagePayloads'
+  'tracer' | 'meter' | 'logger' | 'attributeTarget' | 'includeMessagePayloads'
 >;
 
 export type ResolvedCommandObservability = {
   tracer: Tracer;
   meter: Meter;
+  logger: Logger;
   attributeTarget: AttributeTarget;
   includeMessagePayloads: boolean;
 };
 
 export const commandObservability = (
   options: { observability?: CommandObservabilityConfig } | undefined,
-  parent?: EmmettObservabilityOptions,
-): ResolvedCommandObservability => ({
-  tracer:
-    options?.observability?.tracer ??
-    parent?.observability?.tracer ??
-    noopTracer(),
-  meter:
-    options?.observability?.meter ??
-    parent?.observability?.meter ??
-    noopMeter(),
-  attributeTarget:
-    options?.observability?.attributeTarget ??
-    parent?.observability?.attributeTarget ??
-    'both',
-  includeMessagePayloads:
-    options?.observability?.includeMessagePayloads ??
-    parent?.observability?.includeMessagePayloads ??
-    false,
-});
+  parent?: EmmettObservabilityConfig,
+): ResolvedCommandObservability => {
+  const observability = mergeDefaultObservability(
+    parent,
+    options?.observability,
+  );
+
+  return {
+    tracer: observability?.tracer ?? noopTracer(),
+    meter: observability?.meter ?? noopMeter(),
+    logger: observability?.logger ?? noopLogger,
+    attributeTarget: observability?.attributeTarget ?? 'both',
+    includeMessagePayloads: observability?.includeMessagePayloads ?? false,
+  };
+};
 
 export type CommandHandlerCollectorContext = {
   streamName: string;

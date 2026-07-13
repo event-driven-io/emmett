@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { alwaysSample, neverSample } from '../configuration/options';
-import { LogEvent } from '../loggers/logger';
+import { LogEvent, noopLogger, type AnyLogEvent } from '../loggers/logger';
 import { collectingTracer } from '../testing';
+import { noopTracer } from '../tracers';
 import type { ScopeObservability } from './scope';
 import { ObservabilityScope } from './scope';
 
@@ -86,26 +87,127 @@ describe('ObservabilityScope', () => {
     expect(tracer.spans[1]!.attributes).toHaveProperty('x', 1);
   });
 
-  it('record delegates to underlying span', async () => {
+  it('log writes to the configured logger with span context', async () => {
     const tracer = collectingTracer();
-    const o11y = defaultObservability({ tracer });
+    const logs: AnyLogEvent[] = [];
+    const o11y = defaultObservability({
+      tracer,
+      logger: (log) => logs.push(log),
+    });
 
     await ObservabilityScope(o11y).startScope('root', (scope) => {
       scope.log(LogEvent.info({ key: 'val' }, 'test'));
       return Promise.resolve();
     });
 
+    expect(logs).toMatchObject([
+      {
+        metadata: {
+          level: 'info',
+          traceId: tracer.spans[0]!.ownContext.traceId,
+          spanId: tracer.spans[0]!.ownContext.spanId,
+        },
+        data: { attributes: { key: 'val' }, body: 'test' },
+      },
+    ]);
+    expect(tracer.spans[0]!.logs).toEqual([]);
+  });
+
+  it('log uses the active span logger when no logger is configured', async () => {
+    const tracer = collectingTracer();
+    const o11y = defaultObservability({ tracer });
+
+    await ObservabilityScope(o11y).startScope('root', (scope) => {
+      scope.log(LogEvent.info('test'));
+      return Promise.resolve();
+    });
+
     expect(tracer.spans[0]!.logs).toMatchObject([
       {
-        metadata: { level: 'info' },
-        data: { attributes: { key: 'val' }, body: 'test' },
+        data: { body: 'test' },
+        metadata: tracer.spans[0]!.ownContext,
       },
     ]);
   });
 
-  it('record.error delegates to underlying span', async () => {
+  it('an explicitly disabled logger suppresses active span logs', async () => {
     const tracer = collectingTracer();
-    const o11y = defaultObservability({ tracer });
+    const o11y = defaultObservability({ tracer, logger: noopLogger });
+
+    await ObservabilityScope(o11y).startScope('root', (scope) => {
+      scope.log(LogEvent.info('test'));
+      return Promise.resolve();
+    });
+
+    expect(tracer.spans[0]!.logs).toEqual([]);
+  });
+
+  it('log preserves explicit event context over span context', async () => {
+    const tracer = collectingTracer();
+    const logs: AnyLogEvent[] = [];
+    const o11y = defaultObservability({
+      tracer,
+      logger: (log) => logs.push(log),
+    });
+
+    await ObservabilityScope(o11y).startScope('root', (scope) => {
+      scope.log(
+        LogEvent.info('test', {
+          traceId: 'explicit-trace',
+          spanId: 'explicit-span',
+        }),
+      );
+      return Promise.resolve();
+    });
+
+    expect(logs[0]!.metadata.traceId).toBe('explicit-trace');
+    expect(logs[0]!.metadata.spanId).toBe('explicit-span');
+  });
+
+  it('log with noop tracer does not stamp empty context ids', async () => {
+    const logs: AnyLogEvent[] = [];
+    const o11y = defaultObservability({
+      tracer: noopTracer(),
+      logger: (log) => logs.push(log),
+    });
+
+    await ObservabilityScope(o11y).startScope('root', (scope) => {
+      scope.log(LogEvent.info('test'));
+      return Promise.resolve();
+    });
+
+    expect(logs).toHaveLength(1);
+    expect(logs[0]!.metadata.traceId).toBeUndefined();
+    expect(logs[0]!.metadata.spanId).toBeUndefined();
+  });
+
+  it('sampled out scopes still use the configured logger without span context', async () => {
+    const tracer = collectingTracer();
+    const logs: AnyLogEvent[] = [];
+    const o11y = defaultObservability({
+      tracer,
+      sampler: neverSample,
+      logger: (log) => logs.push(log),
+    });
+
+    await ObservabilityScope(o11y).startScope('root', (scope) => {
+      scope.log(LogEvent.info('test'));
+      return Promise.resolve();
+    });
+
+    expect(tracer.spans).toHaveLength(0);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]!.metadata.traceId).toBeUndefined();
+    expect(logs[0]!.metadata.spanId).toBeUndefined();
+  });
+
+  it('log.error writes to the configured logger', async () => {
+    const tracer = collectingTracer();
+    const logs: AnyLogEvent[] = [];
+    const o11y = defaultObservability({
+      tracer,
+      logger: (log) => logs.push(log),
+    });
     const error = new Error('boom');
 
     await ObservabilityScope(o11y).startScope('root', (scope) => {
@@ -113,7 +215,7 @@ describe('ObservabilityScope', () => {
       return Promise.resolve();
     });
 
-    expect(tracer.spans[0]!.logs).toMatchObject([
+    expect(logs).toMatchObject([
       { metadata: { level: 'error' }, data: { error, body: 'boom' } },
     ]);
   });

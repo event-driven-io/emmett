@@ -6,7 +6,7 @@ import type {
 import {
   asyncAwaiter,
   EmmettError,
-  mergeObservabilityOptions,
+  mergeObservability,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
@@ -180,9 +180,13 @@ export const mongoDBEventStoreConsumer = <
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       processorOptions: MongoDBProcessorOptions<MessageType>,
     ): MongoDBProcessor<MessageType> => {
-      const processor = changeStreamReactor(
-        mergeObservabilityOptions(processorOptions, options.observability),
-      );
+      const processor = changeStreamReactor<MessageType>({
+        ...processorOptions,
+        observability: mergeObservability(
+          options.observability,
+          processorOptions.observability,
+        ),
+      });
 
       processors.push(
         // TODO: change that
@@ -198,9 +202,13 @@ export const mongoDBEventStoreConsumer = <
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
       processorOptions: MongoDBProjectorOptions<EventType>,
     ): MongoDBProcessor<EventType> => {
-      const processor = mongoDBProjector(
-        mergeObservabilityOptions(processorOptions, options.observability),
-      );
+      const processor = mongoDBProjector({
+        ...processorOptions,
+        observability: mergeObservability(
+          options.observability,
+          processorOptions.observability,
+        ),
+      });
 
       processors.push(
         // TODO: change that

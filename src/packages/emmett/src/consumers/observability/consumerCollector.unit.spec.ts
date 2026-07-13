@@ -2,15 +2,19 @@ import {
   ObservabilitySpec,
   collectingMeter,
   collectingTracer,
+  LogEvent,
+  noopLogger,
   type CollectedHistogram,
   type CollectedSpan,
+  type CollectingTracer,
+  type Logger,
 } from '@event-driven-io/almanac';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
-  mergeObservabilityOptions,
+  setDefaultObservability,
 } from '../../observability';
 import {
   assertDefined,
@@ -20,12 +24,25 @@ import {
 import { consumerCollector, consumerObservability } from './consumerCollector';
 
 const A = EmmettAttributes;
+
+afterEach(() => setDefaultObservability(undefined));
 const M = {
   system: 'messaging.system',
   operationType: 'messaging.operation.type',
 };
 
 const given = ObservabilitySpec.for();
+
+const spanLogger =
+  (tracer: CollectingTracer): Logger =>
+  (log) => {
+    const span = tracer.spans.find(
+      (s) =>
+        s.ownContext.traceId === log.metadata.traceId &&
+        s.ownContext.spanId === log.metadata.spanId,
+    );
+    span?.logs.push(log);
+  };
 
 describe('consumerCollector', () => {
   it('tracePoll does not create a span when pollTracing=off', async () => {
@@ -45,6 +62,7 @@ describe('consumerCollector', () => {
     const result = await consumerCollector({
       tracer: collectingTracer(),
       meter: collectingMeter(),
+      logger: noopLogger,
       pollTracing: 'off',
       attributeTarget: 'both',
     }).tracePoll({ batchSize: 5, processorCount: 1, empty: false }, () =>
@@ -70,13 +88,24 @@ describe('consumerCollector', () => {
     await given((config) =>
       consumerCollector({ ...config, pollTracing: 'active' as const }),
     )
-      .when((collector) =>
-        collector.tracePoll(
+      .when(async (collector) => {
+        await collector.tracePoll(
           { batchSize: 3, processorCount: 1, empty: false },
-          () => Promise.resolve(),
-        ),
-      )
-      .then(({ spans }) => spans.haveSpanNamed('consumer.poll'));
+          (scope) => {
+            scope.log(LogEvent.info('using global observability'));
+            return Promise.resolve();
+          },
+        );
+        collector.recordPollMetrics(1);
+      })
+      .then(({ spans, metrics }) => {
+        spans
+          .haveSpanNamed('consumer.poll')
+          .logged('info', 'using global observability');
+        metrics
+          .haveHistogramNamed(EmmettMetrics.consumer.pollDuration)
+          .hasValue(1);
+      });
   });
 
   it('tracePoll creates consumer.poll span with emmett.scope.type=consumer and emmett.scope.main=true', async () => {
@@ -230,6 +259,7 @@ describe('consumerCollector', () => {
     const collector = consumerCollector({
       tracer,
       meter,
+      logger: spanLogger(tracer),
       pollTracing: 'verbose',
       attributeTarget: 'both',
     });
@@ -262,6 +292,7 @@ describe('consumerCollector', () => {
     const collector = consumerCollector({
       tracer: collectingTracer(),
       meter,
+      logger: noopLogger,
       pollTracing: 'off',
       attributeTarget: 'both',
     });
@@ -286,11 +317,25 @@ describe('consumerCollector', () => {
 });
 
 describe('consumerObservability', () => {
+  it('uses default observability when polling', async () => {
+    await given((observability) => {
+      setDefaultObservability({ ...observability, pollTracing: 'active' });
+      return consumerCollector(consumerObservability(undefined));
+    })
+      .when((collector) =>
+        collector.tracePoll(
+          { batchSize: 3, processorCount: 1, empty: false },
+          () => Promise.resolve(),
+        ),
+      )
+      .then(({ spans }) => spans.haveSpanNamed('consumer.poll'));
+  });
+
   it('uses consumer fields after store observability is merged', () => {
     const tracer = collectingTracer();
     const meter = collectingMeter();
-    const options = mergeObservabilityOptions(
-      { observability: { pollTracing: 'active' as const } },
+    const resolved = consumerObservability(
+      { observability: { pollTracing: 'active' } },
       {
         tracer,
         meter,
@@ -299,14 +344,13 @@ describe('consumerObservability', () => {
       },
     );
 
-    const resolved = consumerObservability(options);
-
     expect(resolved.tracer).toBe(tracer);
     expect(resolved.meter).toBe(meter);
     expect(resolved.pollTracing).toBe('active');
     expect(resolved.attributeTarget).toBe('currentSpan');
     expect('propagation' in resolved).toBe(false);
   });
+
   it('returns noop tracer, meter, pollTracing=off, attributeTarget=both when no options', () => {
     const resolved = consumerObservability(undefined);
     expect(resolved.tracer).toBeDefined();
@@ -331,7 +375,7 @@ describe('consumerObservability', () => {
 
   it('falls back to parent pollTracing', () => {
     const resolved = consumerObservability(undefined, {
-      observability: { pollTracing: 'active' },
+      pollTracing: 'active',
     });
     expect(resolved.pollTracing).toBe('active');
   });
@@ -345,7 +389,7 @@ describe('consumerObservability', () => {
 
   it('falls back to parent attributeTarget', () => {
     const resolved = consumerObservability(undefined, {
-      observability: { attributeTarget: 'currentSpan' },
+      attributeTarget: 'currentSpan',
     });
     expect(resolved.attributeTarget).toBe('currentSpan');
   });

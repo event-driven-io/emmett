@@ -1,15 +1,16 @@
 import {
   collectingMeter,
   collectingTracer,
+  noopLogger,
   ObservabilitySpec,
 } from '@event-driven-io/almanac';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setDefaultObservability } from '../../observability';
 import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
 } from '../../observability/attributes';
-import { mergeObservabilityOptions } from '../../observability/options';
 import type { AnyRecordedMessageMetadata } from '../../typing';
 import {
   eventStoreCollector,
@@ -17,6 +18,8 @@ import {
 } from './eventStoreCollector';
 
 const A = EmmettAttributes;
+
+afterEach(() => setDefaultObservability(undefined));
 const M = {
   system: 'messaging.system',
   operationType: 'messaging.operation.type',
@@ -99,6 +102,7 @@ describe('eventStoreCollector', () => {
     const obs = {
       tracer: collectingTracer(),
       meter,
+      logger: noopLogger,
       attributeTarget: 'both' as const,
     };
     await eventStoreCollector(obs).instrumentRead('test', () =>
@@ -123,6 +127,7 @@ describe('eventStoreCollector', () => {
     const obs = {
       tracer: collectingTracer(),
       meter,
+      logger: noopLogger,
       attributeTarget: 'both' as const,
     };
     await expect(
@@ -144,6 +149,7 @@ describe('eventStoreCollector', () => {
     const obs = {
       tracer: collectingTracer(),
       meter,
+      logger: noopLogger,
       attributeTarget: 'both' as const,
     };
     await eventStoreCollector(obs).instrumentRead('test', () =>
@@ -164,6 +170,7 @@ describe('eventStoreCollector', () => {
     const obs = {
       tracer: collectingTracer(),
       meter,
+      logger: noopLogger,
       attributeTarget: 'both' as const,
     };
     await eventStoreCollector(obs).instrumentRead('test', () =>
@@ -185,6 +192,7 @@ describe('eventStoreCollector', () => {
     const obs = {
       tracer: collectingTracer(),
       meter,
+      logger: noopLogger,
       attributeTarget: 'both' as const,
     };
     const events = makeEvents(['OrderPlaced', 'ItemAdded']);
@@ -224,11 +232,33 @@ describe('eventStoreCollector', () => {
 });
 
 describe('eventStoreObservability', () => {
+  it('uses default observability when reading a stream', async () => {
+    await given((observability) => {
+      setDefaultObservability(observability);
+      return eventStoreCollector(eventStoreObservability(undefined));
+    })
+      .when((collector) =>
+        collector.instrumentRead('orders-1', () =>
+          Promise.resolve({
+            events: [],
+            currentStreamVersion: 0n,
+            streamExists: false,
+          }),
+        ),
+      )
+      .then(({ spans, metrics }) => {
+        spans.haveSpanNamed('eventStore.readStream');
+        metrics
+          .haveHistogramNamed(EmmettMetrics.stream.readingDuration)
+          .hasValueAtLeast(0);
+      });
+  });
+
   it('uses event store fields after broader observability is merged', () => {
     const tracer = collectingTracer();
     const meter = collectingMeter();
-    const options = mergeObservabilityOptions(
-      { observability: { attributeTarget: 'currentSpan' as const } },
+    const resolved = eventStoreObservability(
+      { observability: { attributeTarget: 'currentSpan' } },
       {
         tracer,
         meter,
@@ -236,8 +266,6 @@ describe('eventStoreObservability', () => {
         propagation: 'propagate',
       },
     );
-
-    const resolved = eventStoreObservability(options);
 
     expect(resolved.tracer).toBe(tracer);
     expect(resolved.meter).toBe(meter);

@@ -16,8 +16,10 @@ export type Meter = {
   gauge(name: string): Gauge;
 };
 
-export const noopMeter = (): Meter => ({
+const noMetrics: Meter = {
   counter: () => ({ add: () => {} }),
   histogram: () => ({ record: () => {} }),
   gauge: () => ({ record: () => {} }),
-});
+};
+
+export const noopMeter = (): Meter => noMetrics;

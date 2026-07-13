@@ -26,7 +26,7 @@ import {
   type SingleMessageHandlerResult,
   type SingleRecordedMessageHandlerWithContext,
 } from '../typing';
-import { onShutdown } from '../utils/shutdown';
+import { onShutdown } from '../utils/lifecycle';
 import {
   getCheckpoint,
   type Checkpointer,

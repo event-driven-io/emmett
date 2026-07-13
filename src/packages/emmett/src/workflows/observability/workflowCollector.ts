@@ -1,9 +1,11 @@
 import {
   MessagingAttributes,
+  noopLogger,
   noopMeter,
   noopTracer,
   ObservabilityScope,
   type AttributeTarget,
+  type Logger,
   type Meter,
   type ObservabilityScope as ObservabilityScopeType,
   type TracePropagation,
@@ -12,17 +14,17 @@ import {
 import {
   EmmettAttributes,
   EmmettMetrics,
-  mergeObservabilityOptions,
   MessagingSystemName,
   ScopeTypes,
   type EmmettObservabilityConfig,
-  type EmmettObservabilityOptions,
 } from '../../observability';
+import { mergeDefaultObservability } from '../../observability/defaultObservability';
 
 export type WorkflowObservabilityConfig = Pick<
   EmmettObservabilityConfig,
   | 'tracer'
   | 'meter'
+  | 'logger'
   | 'propagation'
   | 'attributeTarget'
   | 'includeMessagePayloads'
@@ -31,6 +33,7 @@ export type WorkflowObservabilityConfig = Pick<
 export type ResolvedWorkflowObservability = {
   tracer: Tracer;
   meter: Meter;
+  logger: Logger;
   propagation: TracePropagation;
   attributeTarget: AttributeTarget;
   includeMessagePayloads: boolean;
@@ -38,16 +41,17 @@ export type ResolvedWorkflowObservability = {
 
 export const workflowObservability = (
   options: { observability?: WorkflowObservabilityConfig } | undefined,
-  parent?: EmmettObservabilityOptions,
+  parent?: EmmettObservabilityConfig,
 ): ResolvedWorkflowObservability => {
-  const observability = mergeObservabilityOptions(
-    { observability: options?.observability },
-    parent?.observability,
-  ).observability;
+  const observability = mergeDefaultObservability(
+    parent,
+    options?.observability,
+  );
 
   return {
     tracer: observability?.tracer ?? noopTracer(),
     meter: observability?.meter ?? noopMeter(),
+    logger: observability?.logger ?? noopLogger,
     propagation: observability?.propagation ?? 'links',
     attributeTarget: observability?.attributeTarget ?? 'both',
     includeMessagePayloads: observability?.includeMessagePayloads ?? false,

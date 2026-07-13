@@ -1,9 +1,11 @@
 import {
   MessagingAttributes,
+  noopLogger,
   noopMeter,
   noopTracer,
   ObservabilityScope,
   type AttributeTarget,
+  type Logger,
   type Meter,
   type ObservabilityScope as ObservabilityScopeType,
   type SpanContext,
@@ -18,10 +20,8 @@ import {
   MessagingSystemName,
   ScopeTypes,
 } from '../../observability/attributes';
-import type {
-  EmmettObservabilityConfig,
-  EmmettObservabilityOptions,
-} from '../../observability/options';
+import { mergeDefaultObservability } from '../../observability/defaultObservability';
+import type { EmmettObservabilityConfig } from '../../observability/options';
 import type {
   AnyReadEventMetadata,
   Message,
@@ -32,6 +32,7 @@ export type ProcessorObservabilityConfig = Pick<
   EmmettObservabilityConfig,
   | 'tracer'
   | 'meter'
+  | 'logger'
   | 'propagation'
   | 'attributeTarget'
   | 'includeMessagePayloads'
@@ -40,36 +41,30 @@ export type ProcessorObservabilityConfig = Pick<
 export type ResolvedProcessorObservability = {
   tracer: Tracer;
   meter: Meter;
+  logger: Logger;
   propagation: TracePropagation;
   attributeTarget: AttributeTarget;
   includeMessagePayloads: boolean;
 };
 
 export const processorObservability = (
-  options: { observability?: Partial<EmmettObservabilityConfig> } | undefined,
-  parent?: EmmettObservabilityOptions,
-): ResolvedProcessorObservability => ({
-  tracer:
-    options?.observability?.tracer ??
-    parent?.observability?.tracer ??
-    noopTracer(),
-  meter:
-    options?.observability?.meter ??
-    parent?.observability?.meter ??
-    noopMeter(),
-  propagation:
-    options?.observability?.propagation ??
-    parent?.observability?.propagation ??
-    'links',
-  attributeTarget:
-    options?.observability?.attributeTarget ??
-    parent?.observability?.attributeTarget ??
-    'both',
-  includeMessagePayloads:
-    options?.observability?.includeMessagePayloads ??
-    parent?.observability?.includeMessagePayloads ??
-    false,
-});
+  options: { observability?: ProcessorObservabilityConfig } | undefined,
+  parent?: EmmettObservabilityConfig,
+): ResolvedProcessorObservability => {
+  const observability = mergeDefaultObservability(
+    parent,
+    options?.observability,
+  );
+
+  return {
+    tracer: observability?.tracer ?? noopTracer(),
+    meter: observability?.meter ?? noopMeter(),
+    logger: observability?.logger ?? noopLogger,
+    propagation: observability?.propagation ?? 'links',
+    attributeTarget: observability?.attributeTarget ?? 'both',
+    includeMessagePayloads: observability?.includeMessagePayloads ?? false,
+  };
+};
 
 export type ProcessorCollectorContext = {
   processorId: string;

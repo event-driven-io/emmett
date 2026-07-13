@@ -1,5 +1,7 @@
 import { scopeAttributes, type AttributeTarget } from '../attributes';
 import { alwaysSample, type Sampler } from '../configuration';
+import type { LogEvent } from '../loggers';
+import { noopLogger } from '../loggers';
 import type {
   ActiveSpan,
   Logger,
@@ -8,7 +10,8 @@ import type {
   TracePropagation,
   Tracer,
 } from '../tracers';
-import { noopLogger, noopSpan } from '../tracers';
+import { noopSpan, noopTracer } from '../tracers';
+import { logEventForSpan } from '../tracers/spanLogEvent';
 
 export type SetAttributesOptions = {
   target?: AttributeTarget;
@@ -38,10 +41,28 @@ export type ObservabilityScope = {
 
 export type ScopeObservability = {
   tracer: Tracer;
+  logger?: Logger;
   sampler?: Sampler;
   attributeTarget?: AttributeTarget;
   attributePrefix?: string;
   propagation?: TracePropagation;
+};
+
+const hasSpanContext = (context: SpanContext): boolean =>
+  context.traceId !== '' && context.spanId !== '';
+
+const logForScope = (
+  span: ActiveSpan,
+  logger: Logger | undefined,
+  event: LogEvent,
+): void => {
+  if (logger === undefined) {
+    span.log(event);
+    return;
+  }
+
+  const context = span.spanContext();
+  logger(hasSpanContext(context) ? logEventForSpan(event, context) : event);
 };
 
 const makeScope = (
@@ -82,10 +103,15 @@ const makeScope = (
         propagation: childOpts?.propagation ?? observability.propagation,
       },
     ),
-  log: span.log,
+  log: (event) => logForScope(span, observability.logger, event),
   addLink: (link) => span.addLink(link),
   spanContext: () => span.spanContext(),
 });
+
+const makeNoTraceScope = (
+  observability: ScopeObservability,
+): ObservabilityScope =>
+  makeScope(noopSpan, noopSpan, { ...observability, tracer: noopTracer() });
 
 export const noopScope: ObservabilityScope = {
   setAttributes: () => {},
@@ -112,7 +138,7 @@ export const ObservabilityScope = (
       const mergedAttrs = { ...defaultAttrs, ...(options?.attributes ?? {}) };
 
       if (!sampler.shouldSample(name, mergedAttrs)) {
-        return fn(noopScope);
+        return fn(makeNoTraceScope(observability));
       }
 
       return observability.tracer.startSpan(

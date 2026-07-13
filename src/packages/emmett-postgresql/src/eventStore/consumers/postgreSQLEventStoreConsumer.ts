@@ -3,7 +3,7 @@ import {
   asyncAwaiter,
   ConsumerStartPositions,
   EmmettError,
-  mergeObservabilityOptions,
+  mergeObservability,
   type AnyCommand,
   type AnyEvent,
   type AnyMessage,
@@ -201,9 +201,13 @@ export const postgreSQLEventStoreConsumer = <
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       processorOptions: PostgreSQLReactorOptions<MessageType>,
     ): PostgreSQLProcessor<MessageType> => {
-      const processor = postgreSQLReactor(
-        mergeObservabilityOptions(processorOptions, options.observability),
-      );
+      const processor = postgreSQLReactor({
+        ...processorOptions,
+        observability: mergeObservability(
+          options.observability,
+          processorOptions.observability,
+        ),
+      });
 
       processors.push(
         // TODO: change that
@@ -219,9 +223,13 @@ export const postgreSQLEventStoreConsumer = <
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
       processorOptions: PostgreSQLProjectorOptions<EventType>,
     ): PostgreSQLProcessor<EventType> => {
-      const processor = postgreSQLProjector(
-        mergeObservabilityOptions(processorOptions, options.observability),
-      );
+      const processor = postgreSQLProjector({
+        ...processorOptions,
+        observability: mergeObservability(
+          options.observability,
+          processorOptions.observability,
+        ),
+      });
 
       processors.push(
         // TODO: change that
@@ -254,9 +262,13 @@ export const postgreSQLEventStoreConsumer = <
         StoredMessage
       >,
     ): PostgreSQLProcessor<Input | Output> => {
-      const processor = postgreSQLWorkflowProcessor(
-        mergeObservabilityOptions(processorOptions, options.observability),
-      );
+      const processor = postgreSQLWorkflowProcessor({
+        ...processorOptions,
+        observability: mergeObservability(
+          options.observability,
+          processorOptions.observability,
+        ),
+      });
 
       processors.push(
         // TODO: change that

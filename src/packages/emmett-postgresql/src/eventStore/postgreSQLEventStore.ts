@@ -30,7 +30,7 @@ import {
   type EventStoreSession,
   type EventStoreSessionFactory,
   type JSONSerializationOptions,
-  mergeObservabilityOptions,
+  mergeObservability,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -447,9 +447,10 @@ export const getPostgreSQLEventStore = (
       consumerOptions?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
     ): PostgreSQLEventStoreConsumer<ConsumerEventType> =>
       postgreSQLEventStoreConsumer<ConsumerEventType>({
-        ...mergeObservabilityOptions(
-          consumerOptions ?? {},
+        ...consumerOptions,
+        observability: mergeObservability(
           options.observability,
+          consumerOptions?.observability,
         ),
         pool,
         connectionString,

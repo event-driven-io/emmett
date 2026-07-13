@@ -1,3 +1,4 @@
+export * from './otel';
 export * from './otelLogger';
 export * from './otelMeter';
 export * from './otelTesting';
