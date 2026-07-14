@@ -203,3 +203,74 @@ void describe('InMemory Projections', () => {
       );
   });
 });
+
+// #region coping-projection
+type CartTotal = { totalAmount: number };
+
+const evolveCartTotal = (
+  document: CartTotal,
+  { type, data: event }: ProductItemAdded | DiscountApplied,
+): CartTotal => {
+  switch (type) {
+    case 'ProductItemAdded':
+      return {
+        totalAmount:
+          document.totalAmount +
+          event.productItem.price * event.productItem.quantity,
+      };
+    case 'DiscountApplied':
+      // the discount is already recorded: don't throw if it overshoots,
+      // clamp the total to zero and keep the read model sane
+      return {
+        totalAmount: Math.max(
+          (document.totalAmount * (100 - event.percent)) / 100,
+          0,
+        ),
+      };
+    default:
+      return document;
+  }
+};
+
+const cartTotalProjection = inMemorySingleStreamProjection({
+  collectionName: 'cart_totals',
+  canHandle: ['ProductItemAdded', 'DiscountApplied'],
+  initialState: (): CartTotal => ({ totalAmount: 0 }),
+  evolve: evolveCartTotal,
+});
+// #endregion coping-projection
+
+void describe('InMemory projection coping with drift', () => {
+  let given: ReturnType<
+    typeof InMemoryProjectionSpec.for<ProductItemAdded | DiscountApplied>
+  >;
+  let shoppingCartId: string;
+
+  beforeEach(() => {
+    shoppingCartId = `shoppingCart:${uuid()}`;
+    given = InMemoryProjectionSpec.for({ projection: cartTotalProjection });
+  });
+
+  void it('clamps an overshooting discount instead of throwing', () =>
+    given(
+      eventsInStream(shoppingCartId, [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { price: 100, productId: 'shoes', quantity: 1 },
+          },
+        },
+      ]),
+    )
+      .when(
+        newEventsInStream(shoppingCartId, [
+          { type: 'DiscountApplied', data: { percent: 150, couponId: uuid() } },
+        ]),
+      )
+      .then(
+        expectInMemoryDocuments
+          .fromCollection<CartTotal>('cart_totals')
+          .withId(shoppingCartId)
+          .toBeEqual({ totalAmount: 0 }),
+      ));
+});

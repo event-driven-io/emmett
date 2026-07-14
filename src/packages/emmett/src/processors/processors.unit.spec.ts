@@ -1,5 +1,6 @@
 import { v7 as uuid } from 'uuid';
-import { describe, it } from 'vitest';
+import { beforeEach, describe, it } from 'vitest';
+import { EmmettError } from '../errors';
 import {
   assertDeepEqual,
   assertEqual,
@@ -13,7 +14,7 @@ import {
   type Checkpointer,
   type ProcessorCheckpoint,
 } from './checkpoints';
-import { projector, reactor } from './processors';
+import { MessageProcessor, projector, reactor } from './processors';
 
 type TestEvent = Event<'test', { counter: number }>;
 
@@ -578,6 +579,92 @@ void describe('Processors', () => {
       assertEqual(handledMessages.length, 2);
       assertDeepEqual(handledMessages[0], recordedEvents[2]);
       assertDeepEqual(handledMessages[1], recordedEvents[3]);
+    });
+  });
+
+  void describe('skipping and stopping from a reactor', () => {
+    type OrderPlaced = Event<'OrderPlaced', { amount: number }>;
+
+    let charged: number[];
+    beforeEach(() => {
+      charged = [];
+    });
+
+    // the payment gateway the reactor calls on the critical revenue path
+    const chargeCustomer = (amount: number): Promise<void> => {
+      if (amount === 999) return Promise.reject(new Error('gateway timeout'));
+      charged.push(amount);
+      return Promise.resolve();
+    };
+
+    const paymentReactor = (processorId: string) => {
+      // #region reactor-skip-stop
+      const { skip, stop } = MessageProcessor.result;
+
+      return reactor<OrderPlaced>({
+        processorId,
+        canHandle: ['OrderPlaced'],
+        eachMessage: async (message) => {
+          const { amount } = message.data;
+
+          // a free order has nothing to charge: skip it, the reactor rolls on
+          if (amount === 0) return skip({ reason: 'free order' });
+
+          try {
+            await chargeCustomer(amount);
+          } catch {
+            // charging is a critical path: a lost charge must not be skipped,
+            // so stop the reactor and resume here once the problem is fixed
+            return stop({
+              reason: 'charge failed on the critical path',
+              error: new EmmettError('payment charge failed'),
+            });
+          }
+        },
+      });
+      // #endregion reactor-skip-stop
+    };
+
+    const orders = (
+      amounts: number[],
+    ): RecordedMessage<
+      OrderPlaced,
+      ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+    >[] =>
+      amounts.map((amount, i) => ({
+        type: 'OrderPlaced',
+        kind: 'Event',
+        data: { amount },
+        metadata: {
+          streamName: 'orders',
+          messageId: uuid(),
+          checkpoint: bigIntProcessorCheckpoint(BigInt(i + 1)),
+          globalPosition: BigInt(i + 1),
+          streamPosition: BigInt(i + 1),
+        },
+      }));
+
+    void it('skips a message with nothing to do and keeps processing', async () => {
+      const processor = paymentReactor(uuid());
+      await processor.start();
+
+      await processor.handle(orders([0, 100]), {});
+
+      // the free order is skipped, so the reactor stays active and charges the next
+      assertEqual(processor.isActive, true);
+      assertDeepEqual(charged, [100]);
+    });
+
+    void it('stops the reactor when the critical path fails', async () => {
+      const processor = paymentReactor(uuid());
+      await processor.start();
+
+      const result = await processor.handle(orders([999, 100]), {});
+
+      // the stop halts the reactor, so the order after the failure never charges
+      assertMatches(result, { type: 'STOP' });
+      assertEqual(processor.isActive, false);
+      assertDeepEqual(charged, []);
     });
   });
 
