@@ -415,12 +415,14 @@ const completeGroupCheckout = (
     : finished(groupCheckoutId, state.guestStayAccountIds, now);
 };
 
+// #region timeout-failure-event
 const timedOut = (
   command: TimeoutGroupCheckout,
   state: GroupCheckout,
 ): GroupCheckoutTimedOut | [] => {
   if (state.status === 'NotExisting' || state.status === 'Finished') return [];
 
+  // running past the deadline is a different failure: give it its own event
   return {
     type: 'GroupCheckoutTimedOut',
     data: {
@@ -441,12 +443,15 @@ const timedOut = (
     },
   };
 };
+// #endregion timeout-failure-event
 
+// #region return-failure-event
 const finished = (
   groupCheckoutId: string,
   guestStayAccounts: Map<string, GuestStayStatus>,
   now: Date,
 ): GroupCheckoutCompleted | GroupCheckoutFailed => {
+  // every guest checked out: the group checkout completed
   return areAllCompleted(guestStayAccounts)
     ? {
         type: 'GroupCheckoutCompleted',
@@ -456,7 +461,8 @@ const finished = (
           completedAt: now,
         },
       }
-    : {
+    : // some guest could not check out: record the failure as its own event
+      {
         type: 'GroupCheckoutFailed',
         data: {
           groupCheckoutId,
@@ -472,6 +478,7 @@ const finished = (
         },
       };
 };
+// #endregion return-failure-event
 
 export const isAlreadyClosed = (status: GuestStayStatus | undefined) =>
   status === GuestStayStatus.Completed || status === GuestStayStatus.Failed;
