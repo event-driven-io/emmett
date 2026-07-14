@@ -299,6 +299,7 @@ const pmsApi: PmsApi = {
   },
 };
 
+// #region failure-as-event
 const checkoutFromPms = async (
   checkOut: CheckOut,
 ): Promise<GuestCheckedOut | GuestCheckoutFailed> => {
@@ -307,11 +308,13 @@ const checkoutFromPms = async (
   try {
     await pmsApi.releaseRoom(parseGuestStayAccountId(guestStayAccountId));
 
+    // the room was released: record the success as an event
     return {
       type: 'GuestCheckedOut',
       data: { guestStayAccountId, groupCheckoutId, checkedOutAt: new Date() },
     };
   } catch (err) {
+    // the call failed: record the failure as an event instead of throwing
     const error = err instanceof Error ? err : new Error('Unknown error');
     return {
       type: 'GuestCheckoutFailed',
@@ -326,6 +329,7 @@ const checkoutFromPms = async (
     };
   }
 };
+// #endregion failure-as-event
 
 ////////////////////////////////////////////
 ////////// Workflow Processor
