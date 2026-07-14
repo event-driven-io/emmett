@@ -3,411 +3,102 @@ documentationType: how-to-guide
 outline: deep
 ---
 
-# Error Handling
+# Error Handling {#error-handling}
 
-::: warning
-We created this page with the help of the GenAI tool.
+An event-sourced system has two ways to signal that something went wrong: record it as an event, or raise an error. This guide shows when to reach for each, how a raised error becomes an HTTP response, and how to map your own error types. The rule to start from: model expected business outcomes as events, and keep errors for broken invariants and bad input.
 
-We're currently double-checking it to ensure the information is 100% correct and free of hallucinations.
-:::
+## Model Expected Failures as Events {#failures-as-events}
 
-Emmett provides a structured approach to error handling with built-in error types and HTTP Problem Details support.
+A negative business outcome is still a fact about what happened. A checkout that could not complete, a payment the bank declined, a booking that clashed with another: each is worth recording, and later projections, workflows, and analytics all want to see it. Give it its own event type next to the success one, and let the decision return whichever fits the outcome.
 
-## Built-in Error Types
+This output handler releases a room through an external property-management system. On success it returns `GuestCheckedOut`; when the call fails it returns `GuestCheckoutFailed` instead of throwing, so the failure is captured as a fact the workflow can act on:
 
-Emmett includes several error types that map to common scenarios:
+<<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#failure-as-event
 
-| Error Type          | HTTP Status | Use Case                |
-| ------------------- | ----------- | ----------------------- |
-| `ValidationError`   | 400         | Invalid input data      |
-| `IllegalStateError` | 403         | Business rule violation |
-| `NotFoundError`     | 404         | Resource doesn't exist  |
-| `ConcurrencyError`  | 412         | Version conflict        |
+Returning different event types keeps the failure inside the normal flow of events. A workflow can then compensate, a projection can count failed checkouts, and nothing has to catch an exception to notice that something went wrong.
 
-### ValidationError
+## Throw for Broken Invariants {#throw-invariants}
 
-Use when request data fails validation:
+Keep exceptions for the cases a command should never have reached: an illegal state transition or invalid input. Throw before building any event, so a bad command never records one.
 
-```typescript
-import { ValidationError } from '@event-driven-io/emmett';
+Emmett ships error types for the common cases, each carrying an HTTP status code used when the error reaches the web layer:
 
-const addProduct = (command: AddProductItem, state: ShoppingCart) => {
-  if (command.data.quantity <= 0) {
-    throw new ValidationError('Quantity must be positive');
-  }
+| Error type          | Status | Raise it when                                              |
+| ------------------- | ------ | ---------------------------------------------------------- |
+| `ValidationError`   | 400    | The command carries invalid input                          |
+| `IllegalStateError` | 403    | The command violates a business rule or illegal transition |
+| `NotFoundError`     | 404    | The state the command needs does not exist                 |
+| `ConcurrencyError`  | 412    | The stream version no longer matches                       |
 
-  if (command.data.price < 0) {
-    throw new ValidationError('Price cannot be negative');
-  }
+`ValidationError` and `IllegalStateError` take a message string. `NotFoundError` takes `{ id, type, message? }`. `ConcurrencyError` exposes `current` and `expected` versions; Emmett throws its subclass `ExpectedVersionConflictError` on a failed optimistic-concurrency check, covered in [Guard Against Concurrency Conflicts](#concurrency).
 
-  // Process valid command...
-};
-```
+Guard an invalid transition by throwing before the event is built:
 
-### IllegalStateError
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#confirm-decision
 
-Use when an operation violates business rules:
+Reject bad input the same way:
 
-```typescript
-import { IllegalStateError } from '@event-driven-io/emmett';
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#validation-error-decision
 
-const confirmCart = (command: ConfirmCart, state: ShoppingCart) => {
-  if (state.status === 'Confirmed') {
-    throw new IllegalStateError('Cart is already confirmed');
-  }
+The command handler runs inside the request, so an error thrown here unwinds to the web layer, where it becomes a [Problem Details](#problem-details) response. See [Command Handling](/guides/command-handling#decision) for writing decisions in full.
 
-  if (state.status === 'Cancelled') {
-    throw new IllegalStateError('Cannot confirm a cancelled cart');
-  }
+## Never Throw Inside Reactors and Workflows {#no-throw-async}
 
-  if (state.items.length === 0) {
-    throw new IllegalStateError('Cannot confirm an empty cart');
-  }
+An error thrown inside an asynchronous message handler, a projection, a reactor, or a workflow output handler, is not wrapped in a request. It propagates up and stops the processor, so the handler makes no further progress and later events go unprocessed. Two options keep processing under control.
 
-  return { type: 'ShoppingCartConfirmed', data: { confirmedAt: new Date() } };
-};
-```
+The first is to return a failure event, as [Model Expected Failures as Events](#failures-as-events) shows. The second is to return a handler result. Returning an `EmmettError` tells the processor to stop deliberately, with a reason, rather than crash:
 
-### NotFoundError
+<<< @./../packages/emmett/src/workflows/workflowProcessor.unit.spec.ts#handler-error-stops
 
-Use when a requested resource doesn't exist:
+The processor returns `{ type: 'STOP' }` and halts cleanly. A handler can also return `{ type: 'SKIP', reason }` to pass over a message it cannot act on, or `{ type: 'ACK' }` to accept it. See [Workflows & Sagas](/guides/workflows) for the wider pattern.
 
-```typescript
-import { NotFoundError } from '@event-driven-io/emmett';
+## Map Errors to Problem Details {#problem-details}
 
-const getCart = async (cartId: string) => {
-  const result = await eventStore.readStream(`shopping_cart-${cartId}`);
-
-  if (result.events.length === 0) {
-    throw new NotFoundError(`Shopping cart ${cartId} not found`);
-  }
-
-  return rebuildState(result.events);
-};
-```
-
-### ConcurrencyError
-
-Thrown automatically by event stores on version conflicts, but you can also throw manually:
-
-```typescript
-import { ConcurrencyError } from '@event-driven-io/emmett';
-
-const updateCart = async (cartId: string, expectedVersion: bigint) => {
-  const { currentStreamVersion } = await eventStore.readStream(streamName);
-
-  if (currentStreamVersion !== expectedVersion) {
-    throw new ConcurrencyError(currentStreamVersion, expectedVersion);
-  }
-};
-```
-
-## Problem Details (RFC 9457)
-
-Emmett's Express.js integration automatically converts errors to [Problem Details](https://www.rfc-editor.org/rfc/rfc9457.html) format:
+Behind `emmett-expressjs`, `getApplication` installs middleware that turns a thrown error into an [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457.html) response. An `IllegalStateError` becomes a 403:
 
 ```json
 {
   "type": "about:blank",
-  "title": "Illegal State",
+  "title": "Forbidden",
   "status": 403,
-  "detail": "Cannot confirm an empty cart"
+  "detail": "Cannot confirm an empty shopping cart"
 }
 ```
 
-### Default Error Mapping
+The status comes from the error's code, the title from that HTTP status, and the detail from the error message. Emmett's built-in errors carry their status code, so they map without any configuration: `ValidationError` to 400, `IllegalStateError` to 403, `NotFoundError` to 404, `ConcurrencyError` to 412. Anything else becomes a 500.
 
-The `getApplication` function sets up automatic error-to-status mapping:
+### Map Your Own Errors {#custom-mapping}
 
-```typescript
-import { getApplication } from '@event-driven-io/emmett-expressjs';
+Pass `mapError` to `getApplication` to translate custom error types. Return a `ProblemDocument` to set the response, or `undefined` to fall back to the default mapping:
 
-const app = getApplication({
-  apis: [shoppingCartApi],
-});
+<<< @/snippets/errorHandling/customErrorMapping.ts#custom-error-mapping
 
-// Errors automatically map to HTTP statuses:
-// ValidationError → 400
-// IllegalStateError → 403
-// NotFoundError → 404
-// ConcurrencyError → 412
-```
+For returning Problem responses directly from a route with helpers such as `NotFound` and `BadRequest`, see the [Express.js Integration](/frameworks/expressjs#response-helpers) guide.
 
-### Custom Error Mapping
+## Guard Against Concurrency Conflicts {#concurrency}
 
-Add your own error types with custom mappings:
+A failed optimistic-concurrency check throws `ExpectedVersionConflictError`, a `ConcurrencyError` with status 412. Over HTTP it surfaces as `412 Precondition Failed` through the ETag round-trip: the client sends the version it last saw in an `If-Match` header, and the append succeeds only if the stream still matches. For wiring the version through ETags and retrying on conflict, see [Control Concurrency](/guides/command-handling#concurrency) in the Command Handling guide.
 
-```typescript
-import {
-  getApplication,
-  problemDetails,
-} from '@event-driven-io/emmett-expressjs';
+## Why Not Railway-Oriented Programming {#railway}
 
-class InsufficientFundsError extends Error {
-  constructor(
-    public readonly required: number,
-    public readonly available: number,
-  ) {
-    super(`Insufficient funds: need ${required}, have ${available}`);
-  }
-}
+Some languages model failures with a result type threaded through every step, an approach known as railway-oriented programming. In JavaScript and TypeScript it is a poorer fit, because the language already throws and any call might, so a result type sits alongside exceptions rather than replacing them. Scott Wlaschin, who popularised the pattern, [makes the same case against leaning on it too hard](https://fsharpforfunandprofit.com/posts/against-railway-oriented-programming/).
 
-const app = getApplication({
-  apis: [shoppingCartApi],
-  problemDetails: {
-    mapError: (error) => {
-      if (error instanceof InsufficientFundsError) {
-        return {
-          status: 402, // Payment Required
-          title: 'Insufficient Funds',
-          detail: error.message,
-          required: error.required,
-          available: error.available,
-        };
-      }
-      return undefined; // Use default mapping
-    },
-  },
-});
-```
+Emmett does not force either style. Throw for a broken invariant and let the Problem Details middleware map it, or return a value, a failure event or a handler `ACK` / `SKIP` / `STOP` result, where returning reads better. Choose per case; Emmett will not tell you how to live.
 
-## Error Handling in Routes
+## Testing Error Scenarios {#testing}
 
-### Using Response Helpers
+Assert a thrown rule with `thenThrows`, checking the error type, the message, or both:
 
-```typescript
-import {
-  on,
-  ok,
-  notFound,
-  badRequest,
-  forbidden,
-} from '@event-driven-io/emmett-expressjs';
+<<< @/snippets/gettingStarted/businessLogic.unit.spec.ts#unit-error
 
-router.get(
-  '/carts/:cartId',
-  on(async (request) => {
-    const cartId = request.params.cartId;
+At the HTTP layer, assert the Problem Details response with `expectError`. See [Testing](/guides/testing#assert-error) for both levels in full.
 
-    if (!cartId) {
-      return badRequest({ detail: 'Cart ID is required' });
-    }
+## Further Reading {#readings}
 
-    const cart = await getCart(cartId);
-
-    if (!cart) {
-      return notFound({ detail: `Cart ${cartId} not found` });
-    }
-
-    if (cart.status === 'Private') {
-      return forbidden({ detail: 'Access denied' });
-    }
-
-    return ok(cart);
-  }),
-);
-```
-
-### Available Response Helpers
-
-| Helper                        | Status | Use Case            |
-| ----------------------------- | ------ | ------------------- |
-| `ok(body)`                    | 200    | Successful response |
-| `created(body, location)`     | 201    | Resource created    |
-| `noContent()`                 | 204    | Success, no body    |
-| `badRequest(problem)`         | 400    | Invalid request     |
-| `forbidden(problem)`          | 403    | Not allowed         |
-| `notFound(problem)`           | 404    | Not found           |
-| `conflict(problem)`           | 409    | State conflict      |
-| `preconditionFailed(problem)` | 412    | Version mismatch    |
-
-### Throwing vs Returning
-
-Both approaches work. Choose based on context:
-
-```typescript
-// Throwing - cleaner for deep business logic
-const decide = (command, state) => {
-  if (state.status === 'Closed') {
-    throw new IllegalStateError('Cart is closed');
-  }
-  // ...
-};
-
-// Returning - cleaner for HTTP layer
-router.get(
-  '/carts/:id',
-  on(async (request) => {
-    const cart = await findCart(request.params.id);
-    if (!cart) {
-      return notFound({ detail: 'Cart not found' });
-    }
-    return ok(cart);
-  }),
-);
-```
-
-## Optimistic Concurrency
-
-### Using ETags
-
-Express.js integration supports ETag-based concurrency:
-
-```typescript
-// Client sends: If-Match: "5"
-router.post(
-  '/carts/:cartId/confirm',
-  on(async (request) => {
-    const cartId = request.params.cartId;
-    const expectedVersion = getExpectedVersionFromRequest(request);
-
-    await handle(
-      cartId,
-      {
-        type: 'ConfirmShoppingCart',
-        data: { confirmedAt: new Date() },
-      },
-      { expectedStreamVersion: expectedVersion },
-    );
-
-    // Returns ETag: "6" in response
-    return ok({ status: 'Confirmed' });
-  }),
-);
-```
-
-### Handling Version Conflicts
-
-```typescript
-try {
-  await eventStore.appendToStream(streamName, events, {
-    expectedStreamVersion: 5n,
-  });
-} catch (error) {
-  if (error instanceof ConcurrencyError) {
-    // Handle conflict - maybe retry with fresh state
-    console.log(`Expected ${error.expected}, but was ${error.actual}`);
-  }
-  throw error;
-}
-```
-
-## Testing Error Scenarios
-
-### Unit Tests
-
-```typescript
-import { DeciderSpecification } from '@event-driven-io/emmett';
-
-describe('Shopping Cart Errors', () => {
-  const spec = DeciderSpecification.for(shoppingCartDecider);
-
-  it('rejects adding to confirmed cart', () =>
-    spec([
-      {
-        type: 'ProductItemAdded',
-        data: { productId: 'p1', quantity: 1, price: 10 },
-      },
-      { type: 'ShoppingCartConfirmed', data: { confirmedAt: new Date() } },
-    ])
-      .when({
-        type: 'AddProductItem',
-        data: { productId: 'p2', quantity: 1, price: 20 },
-      })
-      .thenThrows(IllegalStateError));
-
-  it('rejects negative quantity', () =>
-    spec([])
-      .when({
-        type: 'AddProductItem',
-        data: { productId: 'p1', quantity: -1, price: 10 },
-      })
-      .thenThrows(ValidationError));
-});
-```
-
-### Integration Tests
-
-```typescript
-import { expectResponse } from '@event-driven-io/emmett-expressjs';
-
-it('returns 404 for missing cart', () =>
-  given()
-    .when((request) => request.get('/carts/nonexistent'))
-    .then([expectResponse(404)]));
-
-it('returns 412 for version conflict', () =>
-  given(existingStream('cart-123', [someEvent]))
-    .when((request) =>
-      request
-        .post('/carts/123/items')
-        .set('If-Match', '"999"') // Wrong version
-        .send({ productId: 'p1', quantity: 1 }),
-    )
-    .then([expectResponse(412)]));
-```
-
-## Best Practices
-
-### 1. Be Specific with Error Messages
-
-```typescript
-// ✅ Good: Specific, actionable
-throw new ValidationError(
-  `Quantity must be between 1 and 100, got ${quantity}`,
-);
-
-// ❌ Bad: Vague
-throw new ValidationError('Invalid quantity');
-```
-
-### 2. Use Appropriate Error Types
-
-```typescript
-// ✅ Good: Correct type for scenario
-if (!product) throw new NotFoundError(`Product ${id} not found`);
-if (cart.isClosed) throw new IllegalStateError('Cart is closed');
-if (quantity < 0) throw new ValidationError('Quantity must be positive');
-
-// ❌ Bad: Wrong type
-throw new Error('Something went wrong'); // Too generic
-```
-
-### 3. Don't Expose Internal Details
-
-```typescript
-// ✅ Good: Safe for clients
-return badRequest({ detail: 'Invalid product ID format' });
-
-// ❌ Bad: Exposes internals
-return badRequest({ detail: `SQL Error: ${sqlError.message}` });
-```
-
-### 4. Log Errors Appropriately
-
-```typescript
-router.post(
-  '/carts/:id/items',
-  on(async (request) => {
-    try {
-      await handle(/* ... */);
-      return ok({ success: true });
-    } catch (error) {
-      if (error instanceof ValidationError) {
-        // Don't log validation errors - they're expected
-        throw error;
-      }
-
-      // Log unexpected errors
-      console.error('Unexpected error:', error);
-      throw error;
-    }
-  }),
-);
-```
-
-## See Also
-
-- [Express.js Integration](/frameworks/expressjs) - Full HTTP error handling
-- [Testing Patterns](/guides/testing) - Testing error scenarios
-- [API Reference: Event Store](/api-reference/eventstore) - Concurrency errors
+- [Command Handling](/guides/command-handling) - writing decisions that throw or return events
+- [Workflows & Sagas](/guides/workflows) - handling failures across streams
+- [Testing](/guides/testing) - asserting errors and Problem Details responses
+- [Express.js Integration](/frameworks/expressjs) - response helpers and Problem Details
+- [API Reference: Event Store](/api-reference/eventstore) - concurrency errors
+- [Against Railway-Oriented Programming](https://fsharpforfunandprofit.com/posts/against-railway-oriented-programming/)
+- [Problem Details for HTTP APIs (RFC 9457)](https://www.rfc-editor.org/rfc/rfc9457.html)
