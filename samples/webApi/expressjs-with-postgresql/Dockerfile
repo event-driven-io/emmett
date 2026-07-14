@@ -51,4 +51,4 @@ EXPOSE 3000
 
 # sets entry point command to automatically
 # run application on `docker run`
-ENTRYPOINT ["node", "./dist/index.js"]
+ENTRYPOINT ["node", "--import", "@opentelemetry/instrumentation/hook.mjs", "--import", "./dist/register.js", "./dist/index.js"]

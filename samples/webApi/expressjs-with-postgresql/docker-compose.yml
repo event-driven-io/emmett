@@ -8,6 +8,7 @@ services:
     profiles: [app]
     environment:
       - POSTGRESQL_CONNECTION_STRING=postgresql://postgres@postgres:5432/postgres
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
     networks:
       - postgresql_network
     ports:

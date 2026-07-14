@@ -146,7 +146,7 @@ Only `commandHandlerCollector` is wired here. The others exist in Emmett but nee
 
 ### Customising
 
-The observability setup lives in [src/telemetry.ts](src/telemetry.ts). Change `OTEL_EXPORTER_OTLP_ENDPOINT` to point at a different collector, or pass additional instrumentations to `setupOtel()`.
+The observability setup lives in [src/register.ts](src/register.ts). It uses the standard OpenTelemetry environment variables, including `OTEL_SERVICE_NAME` and `OTEL_EXPORTER_OTLP_ENDPOINT`; application-specific instrumentations are passed directly to `otel()`.
 
 ## Running inside Docker
 

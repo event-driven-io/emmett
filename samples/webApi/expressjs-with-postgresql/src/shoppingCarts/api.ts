@@ -1,10 +1,10 @@
 import {
   assertNotEmptyString,
   assertPositiveNumber,
-  type EventStore,
+  CommandHandler,
   type EventsPublisher,
+  type EventStore,
 } from '@event-driven-io/emmett';
-import { CommandHandler } from '../telemetry';
 import {
   NoContent,
   NotFound,
@@ -31,6 +31,8 @@ import { evolve, initialState } from './shoppingCart';
 export const getShoppingCartId = (clientId: string) =>
   `shopping_cart:${assertNotEmptyString(clientId)}:current`;
 
+const handle = CommandHandler({ evolve, initialState });
+
 export const shoppingCartApi =
   (
     eventStore: EventStore,
@@ -40,7 +42,6 @@ export const shoppingCartApi =
     getCurrentTime: () => Date,
   ): WebApiSetup =>
   (router: Router) => {
-    const handle = CommandHandler({ evolve, initialState });
     // Add Product Item
     router.post(
       '/clients/:clientId/shopping-carts/current/product-items',

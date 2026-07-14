@@ -1,6 +1,8 @@
 import {
   getInMemoryEventStore,
   getInMemoryMessageBus,
+  ObservabilitySpec,
+  setDefaultObservability,
   type EventStore,
 } from '@event-driven-io/emmett';
 import {
@@ -12,7 +14,7 @@ import {
   getApplication,
 } from '@event-driven-io/emmett-expressjs';
 import { randomUUID } from 'node:crypto';
-import { beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 import { shoppingCartApi } from './api';
 import { type PricedProductItem, type ShoppingCartEvent } from './shoppingCart';
 
@@ -23,10 +25,31 @@ const getUnitPrice = (_productId: string) => {
 void describe('ShoppingCart', () => {
   let clientId: string;
   let shoppingCartId: string;
+
   beforeEach(() => {
     clientId = randomUUID();
     shoppingCartId = `shopping_cart:${clientId}:current`;
   });
+
+  afterEach(() => setDefaultObservability(undefined));
+
+  void it('uses the application observability by default', () =>
+    ObservabilitySpec.for()((observability) => {
+      setDefaultObservability(observability);
+      return given();
+    })
+      .when((specification) =>
+        specification
+          .when((request) =>
+            request
+              .post(`/clients/${clientId}/shopping-carts/current/product-items`)
+              .send(productItem),
+          )
+          .then(expectResponse(204)),
+      )
+      .then(({ spans }) => {
+        spans.haveSpanNamed('command.handle');
+      }));
 
   void describe('When empty', () => {
     void it('should add product item', () => {
