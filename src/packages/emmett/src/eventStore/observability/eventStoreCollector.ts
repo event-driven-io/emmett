@@ -11,11 +11,9 @@ import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
-} from '../../observability/attributes';
-import type {
-  EmmettObservabilityConfig,
-  EmmettObservabilityOptions,
-} from '../../observability/options';
+  type EmmettObservabilityConfig,
+  type EmmettObservabilityOptions,
+} from '../../observability';
 import type { AnyReadEventMetadata, Event, ReadEvent } from '../../typing';
 
 export type EventStoreObservabilityConfig = Pick<
