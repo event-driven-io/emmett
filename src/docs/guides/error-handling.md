@@ -60,11 +60,11 @@ The first is to return a failure event, as [Return a Failure Event](#failures-as
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#failure-as-event
 
-The second is to return a handler result. Returning an `EmmettError` tells the processor to stop deliberately, with a reason, rather than crash:
+The second is to catch the error and return a handler result. `MessageProcessor.result`, from `@event-driven-io/emmett`, gives you `skip` and `stop`. `skip` passes over a single message and lets the reactor carry on; `stop` halts the whole reactor, so a later run resumes from the same point. Reach for `skip` in the ordinary case, and reserve `stop` for a critical path where continuing past the failure would do more harm than halting. Here a free order has nothing to charge, so the reactor skips it, while a failed charge sits on the revenue path, so it stops rather than let the pipeline drop a charge:
 
-<<< @./../packages/emmett/src/workflows/workflowProcessor.unit.spec.ts#handler-error-stops
+<<< @./../packages/emmett/src/processors/processors.unit.spec.ts#reactor-skip-stop
 
-The processor returns `{ type: 'STOP' }` and halts cleanly. A handler can also return `{ type: 'SKIP', reason }` to pass over a message it cannot act on, or `{ type: 'ACK' }` to accept it. See [Workflows & Sagas](/guides/workflows) for the wider pattern.
+Returning nothing accepts the message and moves on. See [Workflows & Sagas](/guides/workflows) for the wider pattern.
 
 ### Never Reject an Event in a Projection {#projection-errors}
 
@@ -72,7 +72,7 @@ A projection is a special case. It builds a read model from events that are alre
 
 So accept the event and build the best read model you can from it. Skip a duplicate, fall back to a default, clamp a value back into range, whatever keeps the read model sensible and moving. Here a discount is already a fact, so rather than throw when the running total would go negative, the projection clamps it to zero and carries on:
 
-<<< @/snippets/errorHandling/copingProjection.ts#coping-projection
+<<< @./../packages/emmett/src/eventStore/projections/inMemory/inMemoryProjection.unit.spec.ts#coping-projection
 
 The read model stays consistent and the processor keeps running. A total that drifts below zero is a sign that a rule is missing upstream, so fix it in the decision that records the event, not in the projection that reads it.
 
@@ -95,7 +95,7 @@ The status comes from the error's code, the title from that HTTP status, and the
 
 Pass `mapError` to `getApplication` to translate custom error types. Return a `ProblemDocument` to set the response, or `undefined` to fall back to the default mapping:
 
-<<< @/snippets/errorHandling/customErrorMapping.ts#custom-error-mapping
+<<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#custom-error-mapping
 
 For returning Problem responses directly from a route with helpers such as `NotFound` and `BadRequest`, see the [Express.js Integration](/frameworks/expressjs#response-helpers) guide.
 

@@ -719,16 +719,13 @@ void describe('Workflow Processor', () => {
         workflowId: groupCheckoutId,
       });
 
-      // #region handler-error-stops
       const processor = workflowProcessor({
         ...workflowOptions,
         outputHandler: {
           canHandle: ['CheckOut'],
-          // return an EmmettError to stop the processor; throwing would crash it
           eachMessage: () => new EmmettError('routing failed'),
         },
       });
-      // #endregion handler-error-stops
 
       const outputMessage = recordedOutput<CheckOut>(
         {
