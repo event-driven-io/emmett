@@ -1,3 +1,4 @@
+import { equal, ok } from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import { IllegalStateError, ValidationError } from '../errors';
 import {
@@ -352,4 +353,22 @@ void describe('DeciderSpecification with null event properties', () => {
         },
       ]);
   });
+
+  // #region assertion-callback
+  void it('asserts events with a custom check', () => {
+    givenCart([{ type: 'ProductItemAdded', data: { productItem: shoes } }])
+      .when({
+        type: 'RemoveProductItem',
+        data: { productItem: shoes, removedBy: 'user-456' },
+      })
+      // the callback receives the produced events; assert them however you
+      // need, here with node:assert, including checks an exact list can't state
+      .then((events) => {
+        equal(events.length, 1);
+        const [event] = events;
+        ok(event?.type === 'ProductItemRemoved');
+        ok(event.data.productItem.price > 0);
+      });
+  });
+  // #endregion assertion-callback
 });
