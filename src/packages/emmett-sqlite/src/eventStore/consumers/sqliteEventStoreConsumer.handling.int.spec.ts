@@ -7,7 +7,7 @@ import {
 } from '@event-driven-io/dumbo/sqlite3';
 import {
   assertThatArray,
-  bigIntProcessorCheckpoint,
+  asyncAwaiter,
   type Event,
 } from '@event-driven-io/emmett';
 import fs from 'fs';
@@ -168,7 +168,7 @@ void describe('SQLite event store started consumer', () => {
         // Given
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: string | undefined = undefined;
+        const resultReachedEnd = asyncAwaiter();
 
         // When
         const consumer = sqliteEventStoreConsumer({
@@ -177,10 +177,13 @@ void describe('SQLite event store started consumer', () => {
         });
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
             result.push(event);
+            if (
+              event.type === 'GuestCheckedOut' &&
+              event.data.guestId === guestId
+            )
+              resultReachedEnd.resolve();
           },
         });
 
@@ -191,20 +194,18 @@ void describe('SQLite event store started consumer', () => {
           { type: 'GuestCheckedOut', data: { guestId } },
         ];
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await resultReachedEnd.wait;
 
           assertThatArray(result).containsElementsMatching(events);
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -231,7 +232,7 @@ void describe('SQLite event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: string | undefined = undefined;
+        const resultReachedEnd = asyncAwaiter();
 
         // When
         const consumer = sqliteEventStoreConsumer({
@@ -243,27 +244,28 @@ void describe('SQLite event store started consumer', () => {
           startFrom: {
             lastCheckpoint: startPosition,
           },
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
             result.push(event);
+            if (
+              event.type === 'GuestCheckedOut' &&
+              event.data.guestId === otherGuestId
+            )
+              resultReachedEnd.resolve();
           },
         });
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await resultReachedEnd.wait;
 
           assertThatArray(result).containsOnlyElementsMatching(events);
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -290,7 +292,7 @@ void describe('SQLite event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: string | undefined = undefined;
+        const resultReachedEnd = asyncAwaiter();
 
         // When
         const consumer = sqliteEventStoreConsumer({
@@ -300,23 +302,23 @@ void describe('SQLite event store started consumer', () => {
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           startFrom: 'CURRENT',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
             result.push(event);
+            if (
+              event.type === 'GuestCheckedOut' &&
+              event.data.guestId === otherGuestId
+            )
+              resultReachedEnd.resolve();
           },
         });
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await resultReachedEnd.wait;
 
           assertThatArray(result).containsElementsMatching([
             ...initialEvents,
@@ -324,6 +326,7 @@ void describe('SQLite event store started consumer', () => {
           ]);
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -351,7 +354,8 @@ void describe('SQLite event store started consumer', () => {
 
           const fromBeginning: GuestStayEvent[] = [];
           const fromEnd: GuestStayEvent[] = [];
-          let stopAfterPosition: string | undefined = undefined;
+          const beginningReachedEnd = asyncAwaiter();
+          const endReachedEnd = asyncAwaiter();
 
           // When
           const consumer = sqliteEventStoreConsumer({
@@ -361,33 +365,36 @@ void describe('SQLite event store started consumer', () => {
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             startFrom: 'BEGINNING',
-            stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
             eachMessage: (event) => {
               fromBeginning.push(event);
+              if (
+                event.type === 'GuestCheckedOut' &&
+                event.data.guestId === otherGuestId
+              )
+                beginningReachedEnd.resolve();
             },
           });
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             startFrom: 'END',
-            stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
             eachMessage: (event) => {
               fromEnd.push(event);
+              if (
+                event.type === 'GuestCheckedOut' &&
+                event.data.guestId === otherGuestId
+              )
+                endReachedEnd.resolve();
             },
           });
 
+          let consumerPromise: Promise<void> | undefined;
           try {
-            const consumerPromise = consumer.start();
+            consumerPromise = consumer.start();
             await consumer.whenStarted();
 
-            const appendResult = await eventStore.appendToStream(
-              streamName,
-              newEvents,
-            );
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
+            await eventStore.appendToStream(streamName, newEvents);
 
-            await consumerPromise;
+            await Promise.all([beginningReachedEnd.wait, endReachedEnd.wait]);
 
             // Then the BEGINNING processor sees the whole history,
             // while the END processor sees only messages appended after start
@@ -398,6 +405,7 @@ void describe('SQLite event store started consumer', () => {
             assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
           } finally {
             await consumer.close();
+            await consumerPromise;
           }
         },
       );
@@ -430,7 +438,8 @@ void describe('SQLite event store started consumer', () => {
 
           const fromResuming: GuestStayEvent[] = [];
           const fromEnd: GuestStayEvent[] = [];
-          let stopAfterPosition: string | undefined = undefined;
+          const resumingReachedEnd = asyncAwaiter();
+          const endReachedEnd = asyncAwaiter();
 
           const consumer = sqliteEventStoreConsumer({
             driver: sqlite3EventStoreDriver,
@@ -439,33 +448,36 @@ void describe('SQLite event store started consumer', () => {
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             startFrom: { lastCheckpoint: resumeCheckpoint },
-            stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
             eachMessage: (event) => {
               fromResuming.push(event);
+              if (
+                event.type === 'GuestCheckedOut' &&
+                event.data.guestId === guestId
+              )
+                resumingReachedEnd.resolve();
             },
           });
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             startFrom: 'END',
-            stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
             eachMessage: (event) => {
               fromEnd.push(event);
+              if (
+                event.type === 'GuestCheckedOut' &&
+                event.data.guestId === guestId
+              )
+                endReachedEnd.resolve();
             },
           });
 
+          let consumerPromise: Promise<void> | undefined;
           try {
-            const consumerPromise = consumer.start();
+            consumerPromise = consumer.start();
             await consumer.whenStarted();
 
-            const appendResult = await eventStore.appendToStream(
-              streamName,
-              newEvents,
-            );
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
+            await eventStore.appendToStream(streamName, newEvents);
 
-            await consumerPromise;
+            await Promise.all([resumingReachedEnd.wait, endReachedEnd.wait]);
 
             assertThatArray(fromResuming).containsOnlyElementsMatching([
               ...backlogEvents,
@@ -474,6 +486,7 @@ void describe('SQLite event store started consumer', () => {
             assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
           } finally {
             await consumer.close();
+            await consumerPromise;
           }
         },
       );
@@ -498,7 +511,8 @@ void describe('SQLite event store started consumer', () => {
 
           const firstEnd: GuestStayEvent[] = [];
           const secondEnd: GuestStayEvent[] = [];
-          let stopAfterPosition: string | undefined = undefined;
+          const firstReachedEnd = asyncAwaiter();
+          const secondReachedEnd = asyncAwaiter();
 
           const consumer = sqliteEventStoreConsumer({
             driver: sqlite3EventStoreDriver,
@@ -507,38 +521,42 @@ void describe('SQLite event store started consumer', () => {
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             startFrom: 'END',
-            stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
             eachMessage: (event) => {
               firstEnd.push(event);
+              if (
+                event.type === 'GuestCheckedOut' &&
+                event.data.guestId === otherGuestId
+              )
+                firstReachedEnd.resolve();
             },
           });
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             startFrom: 'END',
-            stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
             eachMessage: (event) => {
               secondEnd.push(event);
+              if (
+                event.type === 'GuestCheckedOut' &&
+                event.data.guestId === otherGuestId
+              )
+                secondReachedEnd.resolve();
             },
           });
 
+          let consumerPromise: Promise<void> | undefined;
           try {
-            const consumerPromise = consumer.start();
+            consumerPromise = consumer.start();
             await consumer.whenStarted();
 
-            const appendResult = await eventStore.appendToStream(
-              streamName,
-              newEvents,
-            );
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
+            await eventStore.appendToStream(streamName, newEvents);
 
-            await consumerPromise;
+            await Promise.all([firstReachedEnd.wait, secondReachedEnd.wait]);
 
             assertThatArray(firstEnd).containsOnlyElementsMatching(newEvents);
             assertThatArray(secondEnd).containsOnlyElementsMatching(newEvents);
           } finally {
             await consumer.close();
+            await consumerPromise;
           }
         },
       );
@@ -565,7 +583,7 @@ void describe('SQLite event store started consumer', () => {
         ];
 
         const fromEnd: GuestStayEvent[] = [];
-        let stopAfterPosition: string | undefined = undefined;
+        const reachedEnd = asyncAwaiter();
 
         const consumer = sqliteEventStoreConsumer({
           driver: sqlite3EventStoreDriver,
@@ -574,25 +592,25 @@ void describe('SQLite event store started consumer', () => {
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           startFrom: 'END',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
             fromEnd.push(event);
+            if (
+              event.type === 'GuestCheckedOut' &&
+              event.data.guestId === otherGuestId
+            )
+              reachedEnd.resolve();
           },
         });
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
           await consumer.whenStarted();
 
           await eventStore.appendToStream(streamName, firstAppend);
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            secondAppend,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, secondAppend);
 
-          await consumerPromise;
+          await reachedEnd.wait;
 
           assertThatArray(fromEnd).containsOnlyElementsMatching([
             ...firstAppend,
@@ -600,6 +618,7 @@ void describe('SQLite event store started consumer', () => {
           ]);
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -632,7 +651,8 @@ void describe('SQLite event store started consumer', () => {
 
           const firstRun: GuestStayEvent[] = [];
           const secondRun: GuestStayEvent[] = [];
-          let stopAfterPosition: string | undefined = undefined;
+          const firstRunReachedEnd = asyncAwaiter();
+          const secondRunReachedEnd = asyncAwaiter();
 
           const firstConsumer = sqliteEventStoreConsumer({
             driver: sqlite3EventStoreDriver,
@@ -642,26 +662,25 @@ void describe('SQLite event store started consumer', () => {
             processorId,
             startFrom,
             checkpoints: 'DISABLED',
-            stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
             eachMessage: (event) => {
               firstRun.push(event);
+              if (
+                event.type === 'GuestCheckedOut' &&
+                event.data.guestId === otherGuestId
+              )
+                firstRunReachedEnd.resolve();
             },
           });
+          let firstConsumerPromise: Promise<void> | undefined;
           try {
-            const consumerPromise = firstConsumer.start();
+            firstConsumerPromise = firstConsumer.start();
             await firstConsumer.whenStarted();
-            const appendResult = await eventStore.appendToStream(
-              streamName,
-              firstNewEvents,
-            );
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
-            await consumerPromise;
+            await eventStore.appendToStream(streamName, firstNewEvents);
+            await firstRunReachedEnd.wait;
           } finally {
             await firstConsumer.close();
+            await firstConsumerPromise;
           }
-
-          stopAfterPosition = undefined;
 
           const secondConsumer = sqliteEventStoreConsumer({
             driver: sqlite3EventStoreDriver,
@@ -671,23 +690,24 @@ void describe('SQLite event store started consumer', () => {
             processorId,
             startFrom,
             checkpoints: 'DISABLED',
-            stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
             eachMessage: (event) => {
               secondRun.push(event);
+              if (
+                event.type === 'GuestCheckedOut' &&
+                event.data.guestId === thirdGuestId
+              )
+                secondRunReachedEnd.resolve();
             },
           });
+          let secondConsumerPromise: Promise<void> | undefined;
           try {
-            const consumerPromise = secondConsumer.start();
+            secondConsumerPromise = secondConsumer.start();
             await secondConsumer.whenStarted();
-            const appendResult = await eventStore.appendToStream(
-              streamName,
-              secondNewEvents,
-            );
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
-            await consumerPromise;
+            await eventStore.appendToStream(streamName, secondNewEvents);
+            await secondRunReachedEnd.wait;
           } finally {
             await secondConsumer.close();
+            await secondConsumerPromise;
           }
 
           const expectedFirstRun =
@@ -732,6 +752,7 @@ void describe('SQLite event store started consumer', () => {
 
         let result: GuestStayEvent[] = [];
         let stopAfterPosition: string | undefined = startPosition;
+        const restartReachedEnd = asyncAwaiter();
 
         // When
         const consumer = sqliteEventStoreConsumer({
@@ -745,6 +766,11 @@ void describe('SQLite event store started consumer', () => {
             event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
             result.push(event);
+            if (
+              event.type === 'GuestCheckedOut' &&
+              event.data.guestId === otherGuestId
+            )
+              restartReachedEnd.resolve();
           },
         });
 
@@ -755,20 +781,18 @@ void describe('SQLite event store started consumer', () => {
 
         stopAfterPosition = undefined;
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await restartReachedEnd.wait;
 
           assertThatArray(result).containsOnlyElementsMatching(events);
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -796,6 +820,7 @@ void describe('SQLite event store started consumer', () => {
 
         let result: GuestStayEvent[] = [];
         let stopAfterPosition: string | undefined = startPosition;
+        const newConsumerReachedEnd = asyncAwaiter();
 
         const processorOptions: SQLiteReactorOptions<GuestStayEvent> = {
           processorId: uuid(),
@@ -804,6 +829,11 @@ void describe('SQLite event store started consumer', () => {
             event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
             result.push(event);
+            if (
+              event.type === 'GuestCheckedOut' &&
+              event.data.guestId === otherGuestId
+            )
+              newConsumerReachedEnd.resolve();
           },
         };
 
@@ -830,20 +860,18 @@ void describe('SQLite event store started consumer', () => {
         });
         newConsumer.reactor<GuestStayEvent>(processorOptions);
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = newConsumer.start();
+          consumerPromise = newConsumer.start();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await newConsumerReachedEnd.wait;
 
           assertThatArray(result).containsOnlyElementsMatching(events);
         } finally {
           await newConsumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -869,7 +897,7 @@ void describe('SQLite event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: string | undefined = undefined;
+        const reachedEnd = asyncAwaiter();
 
         // When
         const consumer = sqliteEventStoreConsumer({
@@ -879,30 +907,31 @@ void describe('SQLite event store started consumer', () => {
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           startFrom: 'END',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
             result.push(event);
+            if (
+              event.type === 'GuestCheckedOut' &&
+              event.data.guestId === otherGuestId
+            )
+              reachedEnd.resolve();
           },
         });
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
           await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await reachedEnd.wait;
 
           assertThatArray(result).containsOnlyElementsMatching(events);
         } catch (error) {
           console.log(error);
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -921,7 +950,7 @@ void describe('SQLite event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: string | undefined = undefined;
+        const reachedEnd = asyncAwaiter();
 
         // When
         const consumer = sqliteEventStoreConsumer({
@@ -931,28 +960,29 @@ void describe('SQLite event store started consumer', () => {
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           startFrom: 'END',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
             result.push(event);
+            if (
+              event.type === 'GuestCheckedOut' &&
+              event.data.guestId === guestId
+            )
+              reachedEnd.resolve();
           },
         });
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
           await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await reachedEnd.wait;
 
           assertThatArray(result).containsElementsMatching(events);
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -979,7 +1009,8 @@ void describe('SQLite event store started consumer', () => {
         ];
 
         let result: GuestStayEvent[] = [];
-        let stopAfterPosition: string | undefined = undefined;
+        const firstRunReachedEnd = asyncAwaiter();
+        const secondRunReachedEnd = asyncAwaiter();
 
         const consumer = sqliteEventStoreConsumer({
           driver: sqlite3EventStoreDriver,
@@ -988,10 +1019,14 @@ void describe('SQLite event store started consumer', () => {
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           startFrom: 'END',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
             result.push(event);
+            if (event.type === 'GuestCheckedOut') {
+              if (event.data.guestId === otherGuestId)
+                firstRunReachedEnd.resolve();
+              if (event.data.guestId === thirdGuestId)
+                secondRunReachedEnd.resolve();
+            }
           },
         });
 
@@ -999,37 +1034,31 @@ void describe('SQLite event store started consumer', () => {
         const firstConsumerPromise = consumer.start();
         await consumer.whenStarted();
 
-        const firstAppend = await eventStore.appendToStream(
-          streamName,
-          firstBatch,
-        );
-        stopAfterPosition = firstAppend.lastEventGlobalPosition;
-        await firstConsumerPromise;
+        await eventStore.appendToStream(streamName, firstBatch);
+        await firstRunReachedEnd.wait;
         await consumer.stop();
+        await firstConsumerPromise;
 
         // Run 2: restart and process second batch only
         result = [];
-        stopAfterPosition = undefined;
 
         const secondBatch: GuestStayEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
           { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
         ];
 
+        let secondConsumerPromise: Promise<void> | undefined;
         try {
-          const secondConsumerPromise = consumer.start();
+          secondConsumerPromise = consumer.start();
 
-          const secondAppend = await eventStore.appendToStream(
-            streamName,
-            secondBatch,
-          );
-          stopAfterPosition = secondAppend.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, secondBatch);
 
-          await secondConsumerPromise;
+          await secondRunReachedEnd.wait;
 
           assertThatArray(result).containsOnlyElementsMatching(secondBatch);
         } finally {
           await consumer.close();
+          await secondConsumerPromise;
         }
       },
     );
@@ -1040,9 +1069,11 @@ void describe('SQLite event store started consumer', () => {
       async () => {
         // Given
         const concurrentStreams = 1000;
+        const expectedCount = concurrentStreams * 2;
         const projectionResult: GuestStayEvent[] = [];
         const forwarderResult: GuestStayEvent[] = [];
-        let stopAfterPosition: string | undefined = undefined;
+        const projectionReachedEnd = asyncAwaiter();
+        const forwarderReachedEnd = asyncAwaiter();
 
         const consumer = sqliteEventStoreConsumer({
           driver: sqlite3EventStoreDriver,
@@ -1056,65 +1087,55 @@ void describe('SQLite event store started consumer', () => {
 
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
-          stopAfter: (event) =>
-            guestIds.includes(event.data.guestId) &&
-            event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
-            if (guestIds.includes(event.data.guestId))
+            if (guestIds.includes(event.data.guestId)) {
               projectionResult.push(event);
+              if (projectionResult.length === expectedCount)
+                projectionReachedEnd.resolve();
+            }
           },
         });
 
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
-          stopAfter: (event) =>
-            guestIds.includes(event.data.guestId) &&
-            event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
-            if (guestIds.includes(event.data.guestId))
+            if (guestIds.includes(event.data.guestId)) {
               forwarderResult.push(event);
+              if (forwarderResult.length === expectedCount)
+                forwarderReachedEnd.resolve();
+            }
           },
         });
 
         // When
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
 
-          const appendResults = await Promise.all(
-            guestIds.map(async (guestId) => {
-              try {
-                const result = await eventStore.appendToStream(
-                  `guestStay-${guestId}`,
-                  [
-                    { type: 'GuestCheckedIn', data: { guestId } },
-                    { type: 'GuestCheckedOut', data: { guestId } },
-                  ],
-                );
-                return result.lastEventGlobalPosition;
-              } catch (error) {
-                return error;
-              }
-            }),
+          await Promise.all(
+            guestIds.map((guestId) =>
+              eventStore
+                .appendToStream(`guestStay-${guestId}`, [
+                  { type: 'GuestCheckedIn', data: { guestId } },
+                  { type: 'GuestCheckedOut', data: { guestId } },
+                ])
+                .catch(() => undefined),
+            ),
           );
 
-          stopAfterPosition = appendResults
-            .filter((r) => !(r instanceof Error))
-            .map((r) => r as string)
-            .reduce(
-              (max, r) => (r > max ? r : max),
-              bigIntProcessorCheckpoint(0n),
-            );
-
-          await consumerPromise;
+          await Promise.all([
+            projectionReachedEnd.wait,
+            forwarderReachedEnd.wait,
+          ]);
 
           // Then
-          const expectedCount = concurrentStreams * 2;
           assertThatArray(projectionResult).hasSize(expectedCount);
           assertThatArray(forwarderResult).hasSize(expectedCount);
         } catch (error) {
           console.log(error);
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
