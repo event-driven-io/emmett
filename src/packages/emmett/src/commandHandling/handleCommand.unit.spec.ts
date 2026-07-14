@@ -302,6 +302,7 @@ void describe('Command Handler', () => {
       data: { now: new Date() },
     };
 
+    // #region idempotent-resend
     // cancel once
     const { nextExpectedStreamVersion: cancelledVersion } = await handleCommand(
       eventStore,
@@ -309,11 +310,13 @@ void describe('Command Handler', () => {
       (state) => cancel(cancelCart, state),
     );
 
-    // cancelling an already-cancelled cart is a no-op, so nothing is appended
+    // resending the same command is a no-op: the cart is already cancelled,
+    // so the decision returns [] and nothing is appended
     const { newEvents, nextExpectedStreamVersion, createdNewStream } =
       await handleCommand(eventStore, shoppingCartId, (state) =>
         cancel(cancelCart, state),
       );
+    // #endregion idempotent-resend
 
     assertThatArray(newEvents).isEmpty();
     assertFalse(createdNewStream);

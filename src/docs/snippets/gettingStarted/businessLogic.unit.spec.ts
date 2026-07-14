@@ -3,11 +3,12 @@ import { decide } from './businessLogic';
 import { evolve, initialState } from './shoppingCart';
 
 // #region getting-started-unit-tests
-import { DeciderSpecification } from '@event-driven-io/emmett';
 import { randomUUID } from 'node:crypto';
 import type { PricedProductItem } from './events';
 
 // #region unit-spec
+import { DeciderSpecification } from '@event-driven-io/emmett';
+
 const given = DeciderSpecification.for({
   decide,
   evolve,

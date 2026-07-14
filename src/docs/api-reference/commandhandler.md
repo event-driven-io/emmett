@@ -128,6 +128,15 @@ The default policy retries only on `ExpectedVersionConflictError`:
 
 <<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#custom-retry
 
+## Idempotence {#idempotence}
+
+Re-running a command does not duplicate its effect. Two behaviours combine:
+
+- A decision returns an empty array once its outcome is already present in the state, so a repeat appends nothing. See [Decisions](#decisions).
+- Optimistic concurrency rejects a stale write. A retry carrying the version from before the first append, or `STREAM_DOES_NOT_EXIST` for a creation, fails with `ExpectedVersionConflictError` rather than appending twice. See [Optimistic Concurrency](#optimistic-concurrency).
+
+The handler keeps no deduplication store and no idempotency key; idempotence comes from the decision and the expected version.
+
 ## Error Handling
 
 A decision throws to reject a command; the handler appends nothing and propagates the error unchanged. A version conflict is thrown by the append.

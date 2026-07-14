@@ -83,6 +83,20 @@ For a different backoff, or to retry on errors other than version conflicts, pas
 
 <<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#custom-retry
 
+## Make It Idempotent {#idempotence}
+
+**The same command can reach the handler twice.** A shopper double-clicks "Add to cart", a request times out and the browser sends it again, a [retry](#retry) re-runs it after a conflict. Handling it twice shouldn't add the product twice, and two things you already have keep it safe.
+
+First, a decision that returns `[]` once its outcome is already in the state. Cancelling a cart that is already cancelled, for instance, has nothing left to do:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#empty-array-no-op
+
+Resending the command is then a no-op: the second call appends nothing and returns the version unchanged.
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#idempotent-resend
+
+Second, [optimistic concurrency](#concurrency). When you carry the version, a duplicate write that lost the race fails with `ExpectedVersionConflictError` instead of appending twice, and `STREAM_DOES_NOT_EXIST` makes stream creation happen exactly once. The no-op decision and the version guard together make a resent command safe.
+
 ## Integrate with Express {#express}
 
 `emmett-expressjs` wraps a handler with `on`. Fetch any data the decision needs, such as the unit price, before calling the handler and pass it into the command, which keeps the decision pure. The first write creates the stream:
