@@ -7,7 +7,7 @@ export default defineConfig({
   minify: true,
   target: 'esnext',
   outDir: 'dist',
-  entry: ['src/index.ts'],
+  entry: ['src/index.ts', 'src/register.ts'],
   sourcemap: true,
   deps: {
     skipNodeModulesBundle: true,
