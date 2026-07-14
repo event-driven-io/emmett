@@ -29,6 +29,23 @@ Events from multiple streams combine into documents with custom IDs.
 
 <<< ./projections/multiStreamProjection.snippet.ts#multi-stream-projection{11,15}
 
+### With Raw SQL {#raw-sql}
+
+A raw SQL projection maintains a relational table instead of a JSONB document. Use `postgreSQLRawSQLProjection` for PostgreSQL, `sqliteRawSQLProjection` for SQLite.
+
+**Use when:** your read model is relational, you need SQL joins or aggregates, or a report reads from an existing table.
+
+You structure it with four parts:
+
+- `name` identifies the projection.
+- `canHandle` lists the event types it processes; the rest are ignored.
+- `init` runs once to create or migrate the table. Write it as `CREATE TABLE IF NOT EXISTS` so it stays safe to run again on restart.
+- `evolve` returns the SQL to run for each event. That can be an `INSERT` for the first event and an `UPDATE` or `DELETE` for later ones, or a single upsert (`INSERT ... ON CONFLICT ... DO UPDATE`) keyed on the row id when you'd rather not branch on whether the row exists yet.
+
+Build the statements with the `SQL` tagged template: wrap table and column names in `SQL.identifier(...)`, and interpolate values as `${value}` so they bind as parameters rather than concatenate into the string. Derive the row id from the event, the same way a Pongo projection derives its document id:
+
+<<< ./projections/testingProjections.snippet.ts#raw-sql-projection
+
 ## Inline vs. Async Registration {#inline-vs-async}
 
 ### Inline Projections {#inline}
@@ -92,6 +109,12 @@ Wire Pongo queries into your Express route handlers to serve the read models:
 Projection tests should run against a real database. Both querying behaviour and JSON serialisation can surprise you, so in-memory fakes won't give you enough confidence. Use `PostgreSQLProjectionSpec` with a test container for BDD-style given/when/then tests:
 
 <<< ./projections/testingProjections.snippet.ts#testing-projection
+
+Raw SQL projections test the same way. Keep the given/when/then and assert the queried rows with `expectSQL`:
+
+<<< ./projections/testingProjections.snippet.ts#raw-sql-projection-test
+
+Emmett processes each event once, but a projection is safer when handling the same event twice leaves the same result. Replay the events with `{ numberOfTimes }` to check that a repeat changes nothing. See [Assert it handles duplicates](/guides/testing#projection-idempotent) in the testing guide.
 
 ## Best Practices {#best-practices}
 

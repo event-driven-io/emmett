@@ -95,7 +95,15 @@ Setup runs through requests too, so you assert only the responses. Here we open 
 
 <<< ./projections/testingProjections.snippet.ts#testing-projection
 
-That's the shape. For deletion and multi-stream projections, see [Test a Projection](/guides/projections#test) in the Read Models guide.
+The same spec ships for every store: swap `PostgreSQLProjectionSpec` for `SQLiteProjectionSpec`, `MongoDBInlineProjectionSpec`, or `InMemoryProjectionSpec` (no container, so it runs at unit speed). The given/when/then doesn't change.
+
+### Assert it handles duplicates {#projection-idempotent}
+
+Emmett processes each event exactly once today: inline projections run inside the append transaction, async ones through transactional checkpointing. Even so, keeping a projection idempotent is worth it. Emmett may later add consumers, such as ones backed by Kafka, RabbitMQ, or SQS, that deliver an event more than once, and a projection that double-counts on the second pass would be a latent bug. Replay the same events with `{ numberOfTimes }` to prove yours holds. Here a discount guarded by its coupon id is handled twice and applied once:
+
+<<< ./projections/testingProjections.snippet.ts#idempotent-projection
+
+For raw SQL projections, deletion, and multi-stream projections, see [Test a Projection](/guides/projections#test) in the Read Models guide.
 
 ## Choose the Right Level {#choose-level}
 
