@@ -33,6 +33,14 @@ Give it a state through the `given` events, run the command, and check what come
 
 <<< @/snippets/gettingStarted/businessLogic.unit.spec.ts#unit-events
 
+Emmett matches each expected event against the produced events, comparing the fields you write and ignoring any you leave out. The two lists must also hold the same number of events. We recommend writing every field, as the test above does. This is why Emmett favours deterministic decisions and projections: inject the time and other inputs instead of reading them inside the logic, and each field takes a known value you can assert, the way the injected `now` fixes `addedAt` here (see [Make Time and External Data Injectable](#best-practices-inject-dependencies)). Leave a field out only when its value is deliberately non-deterministic, such as a timestamp the logic assigns that you chose not to pass in.
+
+### Assert with a custom check {#assert-callback}
+
+Some checks don't fit a fixed list: a computed total, a value in a range, a rule across several events. For those, pass `then` a callback. It receives the events, and you can assert them with Emmett's built-in assertions or your preferred library, such as `node:assert`, Vitest, or Jest. The test fails if the callback throws or returns an `Error`:
+
+<<< @./../packages/emmett/src/testing/deciderSpecification.unit.spec.ts#assertion-callback
+
 ### Assert the rule it enforces {#assert-error}
 
 A rule isn't proven until you show it saying no. Set up a state that should reject the command, then assert the exact error, not merely that something threw. That same error becomes the caller's `403` later, so it's worth pinning down. `thenThrows` takes the error type, a check on the message, or both:
@@ -63,7 +71,7 @@ Inject the in-memory store and stub what the slice reaches for (the price lookup
 
 ### Assert the failure the caller sees {#api-error}
 
-The unit test already showed the rule throws. Here you show the throw turning into the right HTTP contract: `getApplication` maps `IllegalStateError` to a `403` with a [Problem Details](https://www.rfc-editor.org/rfc/rfc9457.html) body. Assert it with `expectError`:
+The unit test already showed the rule throws. Here you show the throw turning into the right HTTP contract: `getApplication` maps `IllegalStateError` to a `403` with a [Problem Details](https://www.rfc-editor.org/rfc/rfc9457.html) body. Assert it with `expectError`, from `@event-driven-io/emmett-expressjs` alongside the helpers above:
 
 <<< @/snippets/gettingStarted/webApi/apiBDD.int.spec.ts#int-error
 
