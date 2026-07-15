@@ -17,7 +17,7 @@ import {
   MessagingSystemName,
   ScopeTypes,
 } from '../../observability/attributes';
-import { mergeDefaultObservability } from '../../observability/defaultObservability';
+import { mergeWithDefaultObservability } from '../../observability/defaultObservability';
 import type { EmmettObservabilityConfig } from '../../observability/options';
 import type { Event } from '../../typing';
 
@@ -38,7 +38,7 @@ export const commandObservability = (
   options: { observability?: CommandObservabilityConfig } | undefined,
   parent?: EmmettObservabilityConfig,
 ): ResolvedCommandObservability => {
-  const observability = mergeDefaultObservability(
+  const observability = mergeWithDefaultObservability(
     parent,
     options?.observability,
   );

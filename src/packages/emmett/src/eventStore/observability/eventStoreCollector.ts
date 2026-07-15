@@ -15,7 +15,7 @@ import {
   MessagingSystemName,
   type EmmettObservabilityConfig,
 } from '../../observability';
-import { mergeDefaultObservability } from '../../observability/defaultObservability';
+import { mergeWithDefaultObservability } from '../../observability/defaultObservability';
 import type { AnyReadEventMetadata, Event, ReadEvent } from '../../typing';
 
 export type EventStoreObservabilityConfig = Pick<
@@ -34,7 +34,7 @@ export const eventStoreObservability = (
   options: { observability?: EventStoreObservabilityConfig } | undefined,
   parent?: EmmettObservabilityConfig,
 ): ResolvedEventStoreObservability => {
-  const observability = mergeDefaultObservability(
+  const observability = mergeWithDefaultObservability(
     parent,
     options?.observability,
   );
