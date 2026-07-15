@@ -24,6 +24,9 @@ export const EmmettAttributes = {
       batchSize: 'emmett.eventstore.append.batch_size',
       status: 'emmett.eventstore.append.status',
     },
+    aggregate: {
+      status: 'emmett.eventstore.aggregate.status',
+    },
   },
   event: {
     type: 'emmett.event.type',
@@ -69,6 +72,7 @@ export const EmmettMetrics = {
     readingSize: 'emmett.stream.reading.size',
     appendingDuration: 'emmett.stream.appending.duration',
     appendingSize: 'emmett.stream.appending.size',
+    aggregatingDuration: 'emmett.stream.aggregating.duration',
   },
   processor: {
     processingDuration: 'emmett.processor.processing.duration',

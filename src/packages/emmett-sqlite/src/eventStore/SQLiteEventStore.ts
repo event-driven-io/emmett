@@ -214,40 +214,42 @@ export const getSQLiteEventStore = <
         EventPayloadType
       >,
     ): Promise<AggregateStreamResult<State>> {
-      await ensureSchemaExists();
-      const { evolve, initialState, read } = options;
+      return collector.instrumentAggregate(streamName, async () => {
+        await ensureSchemaExists();
+        const { evolve, initialState, read } = options;
 
-      const expectedStreamVersion = read?.expectedStreamVersion;
+        const expectedStreamVersion = read?.expectedStreamVersion;
 
-      let state = initialState();
+        let state = initialState();
 
-      if (typeof streamName !== 'string') {
-        throw new Error('Stream name is not string');
-      }
+        if (typeof streamName !== 'string') {
+          throw new Error('Stream name is not string');
+        }
 
-      const result = await this.readStream<EventType, EventPayloadType>(
-        streamName,
-        read,
-      );
+        const result = await this.readStream<EventType, EventPayloadType>(
+          streamName,
+          read,
+        );
 
-      const currentStreamVersion = result.currentStreamVersion;
+        const currentStreamVersion = result.currentStreamVersion;
 
-      assertExpectedVersionMatchesCurrent(
-        currentStreamVersion,
-        expectedStreamVersion,
-        SQLiteEventStoreDefaultStreamVersion,
-      );
+        assertExpectedVersionMatchesCurrent(
+          currentStreamVersion,
+          expectedStreamVersion,
+          SQLiteEventStoreDefaultStreamVersion,
+        );
 
-      for (const event of result.events) {
-        if (!event) continue;
-        state = evolve(state, event);
-      }
+        for (const event of result.events) {
+          if (!event) continue;
+          state = evolve(state, event);
+        }
 
-      return {
-        currentStreamVersion: currentStreamVersion,
-        state,
-        streamExists: result.streamExists,
-      };
+        return {
+          currentStreamVersion: currentStreamVersion,
+          state,
+          streamExists: result.streamExists,
+        };
+      });
     },
 
     readStream: async <

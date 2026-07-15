@@ -19,6 +19,7 @@ import {
   type EventStoreObservabilityConfig,
   type EventStore,
   type ExpectedStreamVersion,
+  type ProcessorCheckpoint,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
@@ -112,41 +113,80 @@ export const getEventStoreDBEventStore = (
         EventPayloadType
       >,
     ): Promise<AggregateStreamResultWithGlobalPosition<State>> {
-      const { evolve, initialState, read } = options;
+      return collector.instrumentAggregate(streamName, async () => {
+        const { evolve, initialState, read } = options;
 
-      const expectedStreamVersion = read?.expectedStreamVersion;
+        const expectedStreamVersion = read?.expectedStreamVersion;
+        let state = initialState();
 
-      let state = initialState();
+        const readResult = await collector.instrumentRead<
+          EventType,
+          EventStoreDBReadEventMetadata
+        >(streamName, async () => {
+          const events: ReadEvent<EventType, EventStoreDBReadEventMetadata>[] =
+            [];
+          let currentStreamVersion: bigint =
+            EventStoreDBEventStoreDefaultStreamVersion;
 
-      const result = await this.readStream<EventType, EventPayloadType>(
-        streamName,
-        read,
-      );
+          try {
+            for await (const resolvedEvent of eventStore.readStream<EventPayloadType>(
+              streamName,
+              toEventStoreDBReadOptions(read),
+            )) {
+              const { event } = resolvedEvent;
+              if (!event) continue;
 
-      assertExpectedVersionMatchesCurrent(
-        result.currentStreamVersion,
-        expectedStreamVersion,
-        EventStoreDBEventStoreDefaultStreamVersion,
-      );
+              const readEvent = upcastRecordedMessage(
+                mapFromESDBEvent<EventPayloadType>(resolvedEvent),
+                read?.schema?.versioning,
+              );
 
-      for (const event of result.events) {
-        state = evolve(state, event);
-      }
-
-      const lastEvent = result.events[result.events.length - 1];
-
-      return result.streamExists && lastEvent
-        ? {
-            currentStreamVersion: result.currentStreamVersion,
-            lastEventGlobalPosition: lastEvent.metadata.checkpoint!,
-            state,
-            streamExists: true,
+              events.push(readEvent);
+              currentStreamVersion = event.revision;
+            }
+          } catch (error) {
+            if (!(error instanceof StreamNotFoundError)) {
+              throw error;
+            }
           }
-        : {
-            currentStreamVersion: result.currentStreamVersion,
-            state,
-            streamExists: false,
+
+          return {
+            currentStreamVersion,
+            events,
+            streamExists: events.length > 0,
           };
+        });
+
+        assertExpectedVersionMatchesCurrent(
+          readResult.currentStreamVersion,
+          expectedStreamVersion,
+          EventStoreDBEventStoreDefaultStreamVersion,
+        );
+
+        for (const event of readResult.events) {
+          state = evolve(state, event);
+        }
+
+        const lastEvent =
+          readResult.events.length > 0
+            ? readResult.events[readResult.events.length - 1]
+            : undefined;
+        const lastEventGlobalPosition: ProcessorCheckpoint | undefined =
+          lastEvent?.metadata.checkpoint ?? undefined;
+
+        return readResult.streamExists
+          ? {
+              currentStreamVersion: readResult.currentStreamVersion,
+              lastEventGlobalPosition: lastEventGlobalPosition!,
+              state,
+              streamExists: true,
+            }
+          : {
+              currentStreamVersion: readResult.currentStreamVersion,
+              state,
+              streamExists: false,
+            };
+      });
     },
 
     readStream: async <

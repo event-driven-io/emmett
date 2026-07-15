@@ -317,18 +317,20 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       EventPayloadType
     >,
   ): Promise<AggregateStreamResult<State>> {
-    const stream = await this.readStream<EventType, EventPayloadType>(
-      streamName,
-      options?.read,
-    );
-    const { evolve, initialState } = options;
+    return this.collector.instrumentAggregate(streamName, async () => {
+      const stream = await this.readStream<EventType, EventPayloadType>(
+        streamName,
+        options?.read,
+      );
+      const { evolve, initialState } = options;
 
-    const state = stream.events.reduce(evolve, initialState());
-    return {
-      state,
-      currentStreamVersion: stream.currentStreamVersion,
-      streamExists: stream.streamExists,
-    };
+      const state = stream.events.reduce(evolve, initialState());
+      return {
+        state,
+        currentStreamVersion: stream.currentStreamVersion,
+        streamExists: stream.streamExists,
+      };
+    });
   }
 
   async appendToStream<

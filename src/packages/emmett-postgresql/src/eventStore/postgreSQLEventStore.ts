@@ -357,34 +357,36 @@ export const getPostgreSQLEventStore = (
         EventPayloadType
       >,
     ): Promise<AggregateStreamResult<State>> {
-      const { evolve, initialState, read } = options;
+      return collector.instrumentAggregate(streamName, async () => {
+        const { evolve, initialState, read } = options;
 
-      const expectedStreamVersion = read?.expectedStreamVersion;
+        const expectedStreamVersion = read?.expectedStreamVersion;
 
-      let state = initialState();
+        let state = initialState();
 
-      const result = await this.readStream<EventType, EventPayloadType>(
-        streamName,
-        read,
-      );
-      const currentStreamVersion = result.currentStreamVersion;
+        const result = await this.readStream<EventType, EventPayloadType>(
+          streamName,
+          read,
+        );
+        const currentStreamVersion = result.currentStreamVersion;
 
-      assertExpectedVersionMatchesCurrent(
-        currentStreamVersion,
-        expectedStreamVersion,
-        PostgreSQLEventStoreDefaultStreamVersion,
-      );
+        assertExpectedVersionMatchesCurrent(
+          currentStreamVersion,
+          expectedStreamVersion,
+          PostgreSQLEventStoreDefaultStreamVersion,
+        );
 
-      for (const event of result.events) {
-        if (!event) continue;
-        state = evolve(state, event);
-      }
+        for (const event of result.events) {
+          if (!event) continue;
+          state = evolve(state, event);
+        }
 
-      return {
-        currentStreamVersion: currentStreamVersion,
-        state,
-        streamExists: result.streamExists,
-      };
+        return {
+          currentStreamVersion: currentStreamVersion,
+          state,
+          streamExists: result.streamExists,
+        };
+      });
     },
 
     readStream: async <

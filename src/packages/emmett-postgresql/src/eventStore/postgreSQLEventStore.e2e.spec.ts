@@ -249,6 +249,15 @@ void describe('EventStoreDBEventStore', () => {
         ],
       );
       await observedEventStore.readStream(observedShoppingCartId);
+      await observedEventStore.aggregateStream<
+        { productItemsCount: number },
+        ShoppingCartEvent
+      >(observedShoppingCartId, {
+        initialState: () => ({ productItemsCount: 0 }),
+        evolve: (state: { productItemsCount: number }) => ({
+          productItemsCount: state.productItemsCount + 1,
+        }),
+      });
 
       assertEqual(
         true,
@@ -257,6 +266,15 @@ void describe('EventStoreDBEventStore', () => {
       assertEqual(
         true,
         tracer.spans.some((span) => span.name === 'eventStore.readStream'),
+      );
+      assertEqual(
+        2,
+        tracer.spans.filter((span) => span.name === 'eventStore.readStream')
+          .length,
+      );
+      assertEqual(
+        true,
+        tracer.spans.some((span) => span.name === 'eventStore.aggregateStream'),
       );
       assertEqual(
         true,
