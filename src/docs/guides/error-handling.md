@@ -125,9 +125,9 @@ Give the document an explicit `type` URI whenever you set your own `title`. Unde
 
 For returning Problem responses directly from a route with helpers such as `NotFound` and `BadRequest`, see the [Express.js Integration](/frameworks/expressjs#response-helpers) guide.
 
-## Why Not Railway-Oriented Programming {#railway}
+## Why Not Returning Result {#result}
 
-You have now seen both styles: return a value, or throw. Some languages fold failures into the return value at every step, threading a result type through the whole flow, an approach known as railway-oriented programming. In JavaScript and TypeScript it is less ergonomic, because the language already throws and any call might, so a result type sits alongside exceptions rather than replacing them. Scott Wlaschin, who popularised the pattern, [makes the same case against leaning on it too hard](https://fsharpforfunandprofit.com/posts/against-railway-oriented-programming/).
+You have now seen both styles: return a value, or throw. Some languages fold failures into the return value at every step, threading a `Result` type through the whole flow, an approach known as [railway-oriented programming](https://fsharpforfunandprofit.com/rop/). In JavaScript and TypeScript it is less ergonomic, because the language already throws and any call might, so a result type sits alongside exceptions rather than replacing them. Scott Wlaschin, who popularised the pattern, [makes the same case against leaning on it too hard](https://fsharpforfunandprofit.com/posts/against-railway-oriented-programming/).
 
 Emmett does not force either style, and returning a failure event already gives you what a result type reaches for: a failure carried as a value rather than thrown. Distinct event types go further than a result's two tracks. Each failure mode is a named, recorded fact, which is far more observable, and downstream code can react to each outcome on its own terms instead of branching on a binary success or error, as [Give Each Failure Its Own Event](#distinct-failures) showed. Throw for a broken invariant and let the Problem Details middleware map it, or return a value, a failure event or a handler `ACK` / `SKIP` / `STOP` result, where returning reads better. Reach for whichever fits the case at hand.
 
