@@ -20,7 +20,7 @@ import {
   MessagingSystemName,
   ScopeTypes,
 } from '../../observability/attributes';
-import { mergeDefaultObservability } from '../../observability/defaultObservability';
+import { mergeWithDefaultObservability } from '../../observability/defaultObservability';
 import type { EmmettObservabilityConfig } from '../../observability/options';
 import type {
   AnyReadEventMetadata,
@@ -51,7 +51,7 @@ export const processorObservability = (
   options: { observability?: ProcessorObservabilityConfig } | undefined,
   parent?: EmmettObservabilityConfig,
 ): ResolvedProcessorObservability => {
-  const observability = mergeDefaultObservability(
+  const observability = mergeWithDefaultObservability(
     parent,
     options?.observability,
   );

@@ -18,7 +18,7 @@ import {
   ScopeTypes,
   type EmmettObservabilityConfig,
 } from '../../observability';
-import { mergeDefaultObservability } from '../../observability/defaultObservability';
+import { mergeWithDefaultObservability } from '../../observability/defaultObservability';
 
 export type WorkflowObservabilityConfig = Pick<
   EmmettObservabilityConfig,
@@ -43,7 +43,7 @@ export const workflowObservability = (
   options: { observability?: WorkflowObservabilityConfig } | undefined,
   parent?: EmmettObservabilityConfig,
 ): ResolvedWorkflowObservability => {
-  const observability = mergeDefaultObservability(
+  const observability = mergeWithDefaultObservability(
     parent,
     options?.observability,
   );

@@ -6,13 +6,19 @@ declare global {
     EmmettObservabilityConfig | undefined;
 }
 
-export const setDefaultObservability = (
+export function setupObservability(
+  observability: EmmettObservabilityConfig,
+): EmmettObservabilityConfig;
+export function setupObservability(observability: undefined): undefined;
+export function setupObservability(
   observability: EmmettObservabilityConfig | undefined,
-): void => {
+): EmmettObservabilityConfig | undefined {
   globalThis.eventDrivenIoEmmettDefaultObservability = observability;
-};
 
-export const mergeDefaultObservability = (
+  return observability;
+}
+
+export const mergeWithDefaultObservability = (
   parent: EmmettObservabilityConfig | undefined,
   local: EmmettObservabilityConfig | undefined,
 ) =>

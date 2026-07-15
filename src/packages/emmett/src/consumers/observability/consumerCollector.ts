@@ -20,7 +20,7 @@ import {
   type EmmettObservabilityConfig,
   type PollTracing,
 } from '../../observability';
-import { mergeDefaultObservability } from '../../observability/defaultObservability';
+import { mergeWithDefaultObservability } from '../../observability/defaultObservability';
 
 export type ConsumerObservabilityConfig = Pick<
   EmmettObservabilityConfig,
@@ -39,7 +39,7 @@ export const consumerObservability = (
   options: { observability?: ConsumerObservabilityConfig } | undefined,
   parent?: EmmettObservabilityConfig,
 ): ResolvedConsumerObservability => {
-  const observability = mergeDefaultObservability(
+  const observability = mergeWithDefaultObservability(
     parent,
     options?.observability,
   );
