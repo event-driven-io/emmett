@@ -1,7 +1,7 @@
 import { LogEvent, noopScope } from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
 import type { ProcessorObservabilityConfig } from '.';
-import type { EmmettError } from '../errors';
+import { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
 import type { WithObservabilityScope } from '../observability';
 import { EmmettAttributes } from '../observability';
@@ -27,6 +27,7 @@ import {
   type SingleRecordedMessageHandlerWithContext,
 } from '../typing';
 import { onShutdown } from '../utils/lifecycle';
+import { asyncAwaiter } from '../utils/promises';
 import {
   getCheckpoint,
   type Checkpointer,
@@ -107,6 +108,35 @@ export const MessageProcessorType = {
   REACTOR: 'reactor' as MessageProcessorType,
 };
 
+export type WaitOptions = {
+  /**
+   * Maximum time to wait, in milliseconds. When it elapses before the
+   * awaited point is reached, the returned promise rejects with a descriptive
+   * {@link EmmettError} instead of hanging. Omit to wait indefinitely.
+   */
+  timeout?: number;
+};
+
+const raceWithTimeout = (
+  wait: Promise<void>,
+  timeout: number | undefined,
+  timeoutMessage: () => string,
+): Promise<void> => {
+  if (timeout === undefined) return wait;
+
+  let timer: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<void>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new EmmettError(timeoutMessage())),
+      timeout,
+    );
+  });
+
+  return Promise.race([wait, timeoutPromise]).finally(() =>
+    clearTimeout(timer),
+  );
+};
+
 export type MessageProcessor<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -122,6 +152,16 @@ export type MessageProcessor<
   ) => Promise<CurrentMessageProcessorPosition | undefined>;
   close: (closeOptions?: Partial<HandlerContext>) => Promise<void>;
   isActive: boolean;
+  /**
+   * Resolves once the processor has stored a checkpoint at or past the given
+   * one. Resolves immediately when that point was already reached, so it never
+   * races an append that has already been processed. Rejects on
+   * {@link WaitOptions.timeout}.
+   */
+  whenProcessed: (
+    checkpoint: ProcessorCheckpoint,
+    options?: WaitOptions,
+  ) => Promise<void>;
   handle: BatchRecordedMessageHandlerWithContext<
     MessageType,
     MessageMetadataType,
@@ -387,6 +427,41 @@ export const reactor = <
   let lastCheckpoint: ProcessorCheckpoint | null = null;
   let closeSignal: (() => void) | null = null;
 
+  const checkpointWaiters = new Set<{
+    target: ProcessorCheckpoint;
+    resolve: () => void;
+  }>();
+
+  const hasProcessed = (target: ProcessorCheckpoint): boolean =>
+    lastCheckpoint !== null && lastCheckpoint >= target;
+
+  const notifyCheckpointWaiters = () => {
+    for (const waiter of checkpointWaiters) {
+      if (hasProcessed(waiter.target)) {
+        checkpointWaiters.delete(waiter);
+        waiter.resolve();
+      }
+    }
+  };
+
+  const whenProcessed = (
+    checkpoint: ProcessorCheckpoint,
+    options?: WaitOptions,
+  ): Promise<void> => {
+    if (hasProcessed(checkpoint)) return Promise.resolve();
+
+    const awaiter = asyncAwaiter<void>();
+    const waiter = { target: checkpoint, resolve: awaiter.resolve };
+    checkpointWaiters.add(waiter);
+
+    return raceWithTimeout(
+      awaiter.wait,
+      options?.timeout,
+      () =>
+        `Processor ${processorId} with instance id ${instanceId} did not process checkpoint ${checkpoint} within ${options!.timeout}ms (last processed checkpoint: ${lastCheckpoint ?? 'none'})`,
+    ).finally(() => checkpointWaiters.delete(waiter));
+  };
+
   const init = async (
     initOptions: WithObservabilityScope<Partial<HandlerContext>>,
   ): Promise<void> => {
@@ -555,6 +630,7 @@ export const reactor = <
     get isActive() {
       return isActive;
     },
+    whenProcessed,
     handle: async (
       messages: RecordedMessage<MessageType, MessageMetadataType>[],
       partialContext: Partial<HandlerContext>,
@@ -645,6 +721,7 @@ export const reactor = <
                   if (storeCheckpointResult.success) {
                     // TODO: Add correct handling of the storing checkpoint
                     lastCheckpoint = storeCheckpointResult.newCheckpoint;
+                    notifyCheckpointWaiters();
                   }
                 }
 

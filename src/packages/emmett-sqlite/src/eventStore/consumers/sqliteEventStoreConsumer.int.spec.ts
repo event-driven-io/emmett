@@ -31,6 +31,7 @@ void describe('SQLite event store consumer', () => {
     close: () => Promise.resolve(),
     handle: () => Promise.resolve(),
     isActive: false,
+    whenProcessed: () => Promise.resolve(),
   };
 
   let connection: SQLite3Connection;
