@@ -36,6 +36,7 @@ void describe('mongoDB event store consumer', () => {
     start: () => Promise.resolve('BEGINNING'),
     close: () => Promise.resolve(),
     handle: () => Promise.resolve(),
+    whenProcessed: () => Promise.resolve(),
     isActive: false,
   };
 

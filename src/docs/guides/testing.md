@@ -113,6 +113,22 @@ Emmett processes each event exactly once today: inline projections run inside th
 
 For raw SQL projections, deletion, and multi-stream projections, see [Test a Projection](/guides/projections#test) in the Read Models guide.
 
+## Test Async Consumers {#async-consumers}
+
+**An async consumer runs in the background, so a test has to wait for it to process what the test appended before asserting.** The unreliable ways to wait are a fixed `sleep`, which is either flaky or slow, and a stop condition that closes over a position assigned after the append, which races the poller and hangs when the poller wins. Wait on the consumer's own progress instead.
+
+Start the consumer, append, and let `whenCaughtUp` resolve once every processor has reached the store's tail as of the call. It observes committed checkpoints, so it resolves the moment processing catches up and never hangs on an append it has already passed:
+
+<<< ./consumers/testingConsumers.snippet.ts#await-caught-up
+
+When you care about one precise point rather than the whole tail, wait for the position the append returned:
+
+<<< ./consumers/testingConsumers.snippet.ts#await-processed
+
+Both waits observe checkpoints rather than a message callback, so they work for projectors too, which have no `eachMessage` to hook. Bound them with a `timeout` so a consumer that never catches up fails fast with a descriptive error instead of hanging until the test runner kills it:
+
+<<< ./consumers/testingConsumers.snippet.ts#with-timeout
+
 ## Choose the Right Level {#choose-level}
 
 **The proportion between the levels is up to you**, but one rule keeps it honest: put each test at the lowest level that can fail for the reason you care about.
@@ -137,6 +153,10 @@ Route the current time through command metadata and inject dependencies like the
 
 Share the container and store across a suite, but give each test a fresh stream id from `randomUUID` in `beforeEach`, so no test can see another's events. The [integration spec](https://github.com/event-driven-io/emmett/blob/main/src/docs/snippets/gettingStarted/webApi/apiBDD.int.spec.ts) shows the pattern.
 
+### Wait for a Point, Don't Race a Stop {#best-practices-wait}
+
+When a test drives an async consumer, wait on `whenCaughtUp` or `whenProcessed`, not on a stop condition that closes over a position assigned after `appendToStream`. The awaiters observe committed progress, so they resolve as soon as processing catches up and can't miss an append they already passed. A stop that races a late position is the classic source of a consumer test that passes locally and times out on CI.
+
 ## Troubleshooting {#troubleshooting}
 
 ### A Timestamp Assertion Fails By Milliseconds {#troubleshooting-timestamps}
@@ -146,6 +166,10 @@ The decision is reading the wall clock instead of an injected time. Route time t
 ### The Suite Is Slow {#troubleshooting-containers}
 
 A container is starting per test. Start one in `beforeAll`, reuse it, and give each test a fresh stream id instead. Close the store and stop the container in `afterAll` so connections get released.
+
+### A Consumer Test Hangs or Times Out {#troubleshooting-consumer-hang}
+
+The test is waiting on something the consumer never reaches. Replace any `sleep` or position-racing stop with `whenCaughtUp`, and pass a `timeout` so the wait rejects with a message naming the processor and the checkpoint it stopped at instead of hanging until the runner kills it. If a processor deliberately does not persist checkpoints, for example one resuming from an explicit in-memory position, its progress is invisible to `whenCaughtUp`; wait on a message from its handler instead.
 
 ## Further Readings {#readings}
 

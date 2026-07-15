@@ -6,6 +6,7 @@ import {
   assertEqual,
   assertMatches,
   assertOk,
+  assertRejects,
 } from '../testing';
 import type { Event, ReadEventMetadata, RecordedMessage } from '../typing';
 import { isString } from '../validation';
@@ -579,6 +580,101 @@ void describe('Processors', () => {
       assertEqual(handledMessages.length, 2);
       assertDeepEqual(handledMessages[0], recordedEvents[2]);
       assertDeepEqual(handledMessages[1], recordedEvents[3]);
+    });
+  });
+
+  void describe('waiting until a processor catches up to appended messages', () => {
+    const positionCheckpointer = (): Checkpointer<
+      TestEvent,
+      ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+    > => ({
+      read: () => Promise.resolve({ lastCheckpoint: null }),
+      store: (options) =>
+        Promise.resolve({
+          success: true,
+          newCheckpoint: bigIntProcessorCheckpoint(
+            options.message.metadata.globalPosition,
+          ),
+        }),
+    });
+
+    const recordedEvent = (
+      position: bigint,
+    ): RecordedMessage<
+      TestEvent,
+      ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+    > => ({
+      type: 'test',
+      kind: 'Event',
+      data: { counter: Number(position) },
+      metadata: {
+        streamName: 'test-stream',
+        messageId: uuid(),
+        checkpoint: bigIntProcessorCheckpoint(position),
+        globalPosition: position,
+        streamPosition: position,
+      },
+    });
+
+    void it('lets a test wait for its appended messages to be processed before asserting', async () => {
+      // Given
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => Promise.resolve(),
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+
+      let resolved = false;
+      const whenProcessed = processor
+        .whenProcessed(bigIntProcessorCheckpoint(2n))
+        .then(() => {
+          resolved = true;
+        });
+
+      // When - not yet at the target
+      await processor.handle([recordedEvent(1n)], {});
+      await Promise.resolve();
+
+      // Then
+      assertEqual(resolved, false);
+
+      // When - reaching the target
+      await processor.handle([recordedEvent(2n)], {});
+      await whenProcessed;
+
+      // Then
+      assertEqual(resolved, true);
+    });
+
+    void it('does not hang when the messages were already processed before the wait', async () => {
+      // Given
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => Promise.resolve(),
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+      await processor.handle([recordedEvent(5n)], {});
+
+      // When / Then - resolves without any further handling
+      await processor.whenProcessed(bigIntProcessorCheckpoint(3n));
+    });
+
+    void it('fails fast with a clear error instead of hanging when the processor never catches up', async () => {
+      // Given
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => Promise.resolve(),
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+
+      // When / Then
+      await assertRejects(
+        processor.whenProcessed(bigIntProcessorCheckpoint(2n), { timeout: 20 }),
+        (error: EmmettError) => error instanceof EmmettError,
+      );
     });
   });
 
