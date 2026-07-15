@@ -58,7 +58,7 @@ Not every error the handler raises has to reach the caller. Some are transient: 
 
 <<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#retry-on-conflict{5}
 
-`retry` sits on the handler config, or on a single call as here, so recovery covers every command or just the one in hand. `{ onVersionConflict: true }` is the shorthand for the built-in policy: a bounded run of attempts, each after a longer pause, retrying only the version conflict and giving up once the attempts run out, so a write that stays stuck still surfaces rather than looping. Pass a count in place of `true`, as in `{ onVersionConflict: 5 }`, to keep that policy but change how many attempts it makes.
+`retry` sits on the handler config, or on a single call as here, so recovery covers every command or just the one in hand. `{ onVersionConflict: true }` is the shorthand for the built-in policy: a bounded run of attempts, each after a longer pause, retrying only the version conflict and giving up once the attempts run out, so a write that stays stuck still surfaces rather than looping. Pass a count in place of `true`, as in `{ onVersionConflict: 5 }`, to keep that policy but change how many attempts it makes. For the exact backoff figures and every form `retry` accepts, see [Retry](/api-reference/commandhandler#retry) in the reference.
 
 Each attempt re-runs the decision from the top, so the same command reaches your logic again. That is safe when the decision only reads state and returns events, and unsafe when it performs I/O, which then fires on every attempt. Keep the decision pure, as [Keep the Decision Pure](/guides/command-handling#keep-pure) shows, and the [idempotence](/guides/command-handling#idempotence) that makes a resent command safe covers a retried one too.
 
@@ -84,7 +84,7 @@ Returning nothing accepts the message and moves on. See [Workflows & Sagas](/gui
 
 ### Never Reject an Event in a Projection {#projection-errors}
 
-A projection is a special case. It builds a read model from events that are already recorded, and a recorded event is a fact: the projection only interprets it, so it has nothing to reject. If an event carries a value the read model did not expect, throwing does not undo it. The check that should have stopped it belongs in the [business logic](#throw-invariants), before the event was ever recorded; by the time the projection runs, it is too late.
+A projection is a special case. It builds a [read model](/guides/projections) from events that are already recorded, and a recorded event is a fact: the projection only interprets it, so it has nothing to reject. If an event carries a value the read model did not expect, throwing does not undo it. The check that should have stopped it belongs in the [business logic](#throw-invariants), before the event was ever recorded; by the time the projection runs, it is too late.
 
 So accept the event and build the best read model you can from it. Skip a duplicate, fall back to a default, clamp a value back into range, whatever keeps the read model sensible and moving. Here a discount is already a fact, so rather than throw when the running total would go negative, the projection clamps it to zero and carries on:
 
