@@ -79,9 +79,7 @@ export type ClosedShoppingCart = {
 };
 
 export type ShoppingCart =
-  | EmptyShoppingCart
-  | OpenedShoppingCart
-  | ClosedShoppingCart;
+  EmptyShoppingCart | OpenedShoppingCart | ClosedShoppingCart;
 
 export type ProductItems = Map<string, number>;
 
