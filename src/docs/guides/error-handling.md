@@ -54,13 +54,13 @@ Over HTTP this surfaces as `412 Precondition Failed` through an ETag round-trip:
 
 ## Never Throw in Asynchronous Event Handlers {#no-throw-async}
 
-Whether throwing is safe depends on what sits above the code to catch it. A command handler behind an HTTP endpoint, its usual home, has the request: a thrown error unwinds into a response. Asynchronous handlers, the projections, reactors, and workflows that react to events, have nothing above them. A throw propagates up, stops the processor, and leaves later events unhandled. The endpoint is only the usual home, not a rule: a command handler run from a reactor loses the same safety net. Instead of throwing, turn the problem into data, in one of two ways.
+Whether throwing is safe depends on what sits above the code to catch it. A command handler behind an HTTP endpoint, its usual home, has the request: a thrown error unwinds into a response. Asynchronous handlers, the projections, reactors, and workflows that react to events, have nothing above them. A throw propagates up, stops the processor, and leaves later events unhandled. The endpoint is only the usual home, not a rule: a command handler run from a reactor loses the same safety net. Instead of throwing, turn the problem into data. You have two ways to do that.
 
-The first is to return a failure event, as [Return a Failure Event](#failures-as-events) showed. This reactor releases a room through an external property-management system; when the call fails it returns `GuestCheckoutFailed` instead of throwing, so the workflow keeps running and can compensate:
+Return a failure event, as [Return a Failure Event](#failures-as-events) showed. This reactor releases a room through an external property-management system; when the call fails it returns `GuestCheckoutFailed` instead of throwing, so the workflow keeps running and can compensate:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#failure-as-event
 
-The second is to catch the error and return a handler result. `MessageProcessor.result`, from `@event-driven-io/emmett`, gives you `skip` and `stop`. `skip` passes over a single message and lets the reactor carry on; `stop` halts the whole reactor, so a later run resumes from the same point. Reach for `skip` in the ordinary case, and reserve `stop` for a critical path where continuing past the failure would do more harm than halting. Here a free order has nothing to charge, so the reactor skips it, while a failed charge sits on the revenue path, so it stops rather than let the pipeline drop a charge:
+Or catch the error and return a handler result. `MessageProcessor.result`, from `@event-driven-io/emmett`, gives you `skip` and `stop`. `skip` passes over a single message and lets the reactor carry on; `stop` halts the whole reactor, so a later run resumes from the same point. Reach for `skip` in the ordinary case, and reserve `stop` for a critical path where continuing past the failure would do more harm than halting. Here a free order has nothing to charge, so the reactor skips it, while a failed charge sits on the revenue path, so it stops rather than let the pipeline drop a charge:
 
 <<< @./../packages/emmett/src/processors/processors.unit.spec.ts#reactor-skip-stop
 
@@ -93,9 +93,19 @@ The status comes from the error's code, the title from that HTTP status, and the
 
 ### Map Your Own Errors {#custom-mapping}
 
-Pass `mapError` to `getApplication` to translate custom error types. Return a `ProblemDocument` to set the response, or `undefined` to fall back to the default mapping:
+The default mapping reads a numeric `errorCode` off the error it caught, so the shortest route to your own status is to carry one. Derive from `EmmettError` and hand the code to its constructor:
+
+<<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#derive-emmett-error
+
+The base class is a convenience rather than a requirement. Any error with a numeric `errorCode` maps the same way, which keeps your own hierarchy free of Emmett:
+
+<<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#error-with-code
+
+For an error you cannot change, one thrown by a library you do not own, pass `mapError` to `getApplication`. Return a `ProblemDocument` to shape the response, or `undefined` to fall back to the default mapping:
 
 <<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#custom-error-mapping
+
+Give the document an explicit `type` URI whenever you set your own `title`. Under the default `about:blank` type, Problem Details replaces the title with the standard reason phrase for the status, and your wording is lost.
 
 For returning Problem responses directly from a route with helpers such as `NotFound` and `BadRequest`, see the [Express.js Integration](/frameworks/expressjs#response-helpers) guide.
 
@@ -121,7 +131,7 @@ If a read model stops updating and later events go unhandled, an asynchronous ha
 
 ### A Custom Error Returns 500 {#custom-error-500}
 
-If your own error type comes back as a 500 rather than the status you intended, the default mapping found no status on it. A plain `Error` carries none, so it falls through to 500. Return a `ProblemDocument` for it from `mapError`, or have it extend `EmmettError` with the right code, as [Map Your Own Errors](#custom-mapping) shows.
+If your own error type comes back as a 500 rather than the status you intended, the default mapping found no status on it. A plain `Error` carries none, so it falls through to 500. Give the error a numeric `errorCode`, either through `EmmettError` or as a field of its own, or return a `ProblemDocument` for it from `mapError`, as [Map Your Own Errors](#custom-mapping) shows.
 
 ## Further Readings {#readings}
 

@@ -319,6 +319,8 @@ const givenCart = DeciderSpecification.for({
   initialState: cartInitialState,
 });
 
+const shoppingCartId = 'shoppingCart-123';
+
 const shoes: PricedProductItem = {
   productId: 'shoes-123',
   quantity: 1,
@@ -327,39 +329,54 @@ const shoes: PricedProductItem = {
 
 void describe('DeciderSpecification with null event properties', () => {
   void it('handles system removal where removedBy is null', () => {
-    givenCart([{ type: 'ProductItemAdded', data: { productItem: shoes } }])
+    givenCart([
+      {
+        type: 'ProductItemAdded',
+        data: { shoppingCartId, productItem: shoes },
+      },
+    ])
       .when({
         type: 'RemoveProductItem',
-        data: { productItem: shoes, removedBy: null },
+        data: { shoppingCartId, productItem: shoes, removedBy: null },
       })
       .then([
         {
           type: 'ProductItemRemoved',
-          data: { productItem: shoes, removedBy: null },
+          data: { shoppingCartId, productItem: shoes, removedBy: null },
         },
       ]);
   });
 
   void it('handles user removal where removedBy is set', () => {
-    givenCart([{ type: 'ProductItemAdded', data: { productItem: shoes } }])
+    givenCart([
+      {
+        type: 'ProductItemAdded',
+        data: { shoppingCartId, productItem: shoes },
+      },
+    ])
       .when({
         type: 'RemoveProductItem',
-        data: { productItem: shoes, removedBy: 'user-456' },
+        data: { shoppingCartId, productItem: shoes, removedBy: 'user-456' },
       })
       .then([
         {
           type: 'ProductItemRemoved',
-          data: { productItem: shoes, removedBy: 'user-456' },
+          data: { shoppingCartId, productItem: shoes, removedBy: 'user-456' },
         },
       ]);
   });
 
   // #region assertion-callback
   void it('asserts events with a custom check', () => {
-    givenCart([{ type: 'ProductItemAdded', data: { productItem: shoes } }])
+    givenCart([
+      {
+        type: 'ProductItemAdded',
+        data: { shoppingCartId, productItem: shoes },
+      },
+    ])
       .when({
         type: 'RemoveProductItem',
-        data: { productItem: shoes, removedBy: 'user-456' },
+        data: { shoppingCartId, productItem: shoes, removedBy: 'user-456' },
       })
       // the callback receives the produced events; assert them however you
       // need, here with node:assert, including checks an exact list can't state

@@ -88,6 +88,7 @@ void describe('InMemory Projections', () => {
         {
           type: 'ProductItemAdded',
           data: {
+            shoppingCartId,
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
           },
           metadata: {
@@ -115,6 +116,7 @@ void describe('InMemory Projections', () => {
         eventInStream(shoppingCartId, {
           type: 'ProductItemAdded',
           data: {
+            shoppingCartId,
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
           },
         }),
@@ -140,6 +142,7 @@ void describe('InMemory Projections', () => {
         {
           type: 'ProductItemAdded',
           data: {
+            shoppingCartId,
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
           },
         },
@@ -149,7 +152,7 @@ void describe('InMemory Projections', () => {
         newEventsInStream(shoppingCartId, [
           {
             type: 'DiscountApplied',
-            data: { percent: 10, couponId },
+            data: { shoppingCartId, percent: 10, couponId },
           },
         ]),
       )
@@ -175,6 +178,7 @@ void describe('InMemory Projections', () => {
         {
           type: 'ProductItemAdded',
           data: {
+            shoppingCartId,
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
           },
         },
@@ -184,7 +188,7 @@ void describe('InMemory Projections', () => {
         newEventsInStream(shoppingCartId, [
           {
             type: 'DiscountApplied',
-            data: { percent: 10, couponId },
+            data: { shoppingCartId, percent: 10, couponId },
           },
         ]),
         { numberOfTimes: 2 },
@@ -205,38 +209,43 @@ void describe('InMemory Projections', () => {
 });
 
 // #region coping-projection
-type CartTotal = { totalAmount: number };
+type CartTotal = { cartId: string; totalAmount: number };
 
-const evolveCartTotal = (
-  document: CartTotal,
-  { type, data: event }: ProductItemAdded | DiscountApplied,
-): CartTotal => {
-  switch (type) {
-    case 'ProductItemAdded':
-      return {
-        totalAmount:
-          document.totalAmount +
-          event.productItem.price * event.productItem.quantity,
-      };
-    case 'DiscountApplied':
-      // the discount is already recorded: don't throw if it overshoots,
-      // clamp the total to zero and keep the read model sane
-      return {
-        totalAmount: Math.max(
-          (document.totalAmount * (100 - event.percent)) / 100,
-          0,
-        ),
-      };
-    default:
-      return document;
-  }
-};
-
-const cartTotalProjection = inMemorySingleStreamProjection({
+const cartTotalProjection = inMemorySingleStreamProjection<
+  CartTotal,
+  ProductItemAdded | DiscountApplied
+>({
   collectionName: 'cart_totals',
   canHandle: ['ProductItemAdded', 'DiscountApplied'],
-  initialState: (): CartTotal => ({ totalAmount: 0 }),
-  evolve: evolveCartTotal,
+  initialState: () => ({ cartId: '', totalAmount: 0 }),
+  evolve: (
+    document: CartTotal,
+    { type, data }: ProductItemAdded | DiscountApplied,
+  ): CartTotal => {
+    switch (type) {
+      case 'ProductItemAdded':
+        return {
+          ...document,
+          cartId: data.shoppingCartId,
+          totalAmount:
+            document.totalAmount +
+            data.productItem.price * data.productItem.quantity,
+        };
+      case 'DiscountApplied':
+        // the discount is already recorded: don't throw if it overshoots,
+        // clamp the total to zero and keep the read model sane
+        return {
+          ...document,
+          cartId: data.shoppingCartId,
+          totalAmount: Math.max(
+            (document.totalAmount * (100 - data.percent)) / 100,
+            0,
+          ),
+        };
+      default:
+        return document;
+    }
+  },
 });
 // #endregion coping-projection
 
@@ -257,6 +266,7 @@ void describe('InMemory projection coping with drift', () => {
         {
           type: 'ProductItemAdded',
           data: {
+            shoppingCartId,
             productItem: { price: 100, productId: 'shoes', quantity: 1 },
           },
         },
@@ -264,13 +274,16 @@ void describe('InMemory projection coping with drift', () => {
     )
       .when(
         newEventsInStream(shoppingCartId, [
-          { type: 'DiscountApplied', data: { percent: 150, couponId: uuid() } },
+          {
+            type: 'DiscountApplied',
+            data: { shoppingCartId, percent: 150, couponId: uuid() },
+          },
         ]),
       )
       .then(
         expectInMemoryDocuments
           .fromCollection<CartTotal>('cart_totals')
           .withId(shoppingCartId)
-          .toBeEqual({ totalAmount: 0 }),
+          .toBeEqual({ cartId: shoppingCartId, totalAmount: 0 }),
       ));
 });

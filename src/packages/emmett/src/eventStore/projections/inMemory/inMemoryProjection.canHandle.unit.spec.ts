@@ -88,18 +88,19 @@ void describe('InMemory handleProjections canHandle filtering', () => {
         eventInStream(shoppingCartId, {
           type: 'ProductItemAdded',
           data: {
+            shoppingCartId,
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
           },
         }),
         // not in canHandle: must be filtered out before reaching evolve
         eventInStream(shoppingCartId, {
           type: 'DiscountApplied',
-          data: { percent: 10, couponId },
+          data: { shoppingCartId, percent: 10, couponId },
         }),
         // not in canHandle: must be filtered out before reaching evolve
         eventInStream(shoppingCartId, {
           type: 'ShoppingCartConfirmed',
-          data: { confirmedAt: new Date() },
+          data: { shoppingCartId, confirmedAt: new Date() },
         }),
       ])
       .then(

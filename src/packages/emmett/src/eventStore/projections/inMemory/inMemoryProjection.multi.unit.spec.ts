@@ -37,6 +37,7 @@ void describe('InMemory Multi-Stream Projections', () => {
         {
           type: 'ProductItemAdded',
           data: {
+            shoppingCartId,
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
           },
           metadata: {
@@ -63,6 +64,7 @@ void describe('InMemory Multi-Stream Projections', () => {
         eventInStream(shoppingCartId, {
           type: 'ProductItemAdded',
           data: {
+            shoppingCartId,
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
           },
         }),
@@ -87,6 +89,7 @@ void describe('InMemory Multi-Stream Projections', () => {
         {
           type: 'ProductItemAdded',
           data: {
+            shoppingCartId,
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
           },
         },
@@ -97,6 +100,7 @@ void describe('InMemory Multi-Stream Projections', () => {
           {
             type: 'ProductItemAdded',
             data: {
+              shoppingCartId: otherShoppingCartId,
               productItem: { price: 30, productId: 'shoes', quantity: 30 },
             },
           },
@@ -121,6 +125,7 @@ void describe('InMemory Multi-Stream Projections', () => {
         {
           type: 'ProductItemAdded',
           data: {
+            shoppingCartId,
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
           },
         },
@@ -131,6 +136,7 @@ void describe('InMemory Multi-Stream Projections', () => {
           {
             type: 'ProductItemAdded',
             data: {
+              shoppingCartId,
               productItem: { price: 100, productId: 'shoes', quantity: 100 },
             },
           },
@@ -156,6 +162,7 @@ void describe('InMemory Multi-Stream Projections', () => {
         {
           type: 'ProductItemAdded',
           data: {
+            shoppingCartId,
             productItem: { price: 100, productId: 'shoes', quantity: 100 },
           },
         },
@@ -166,6 +173,7 @@ void describe('InMemory Multi-Stream Projections', () => {
           {
             type: 'ShoppingCartConfirmed',
             data: {
+              shoppingCartId,
               confirmedAt: new Date(),
             },
           },
