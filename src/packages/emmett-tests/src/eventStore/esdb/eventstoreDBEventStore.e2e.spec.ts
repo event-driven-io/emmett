@@ -1,5 +1,9 @@
 //import { streamTransformations, type Event } from '@event-driven-io/emmett';
-import { assertEqual, collectingTracer } from '@event-driven-io/emmett';
+import {
+  assertEqual,
+  collectingTracer,
+  type Event,
+} from '@event-driven-io/emmett';
 import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import {
@@ -50,6 +54,15 @@ describe('EventStoreDBEventStore', () => {
         { type: 'Observed', data: { observed: true } },
       ]);
       await eventStore.readStream(streamName);
+      await eventStore.aggregateStream<{ observed: number }, Event>(
+        streamName,
+        {
+          initialState: () => ({ observed: 0 }),
+          evolve: (state: { observed: number }) => ({
+            observed: state.observed + 1,
+          }),
+        },
+      );
 
       assertEqual(
         true,
@@ -58,6 +71,15 @@ describe('EventStoreDBEventStore', () => {
       assertEqual(
         true,
         tracer.spans.some((span) => span.name === 'eventStore.readStream'),
+      );
+      assertEqual(
+        2,
+        tracer.spans.filter((span) => span.name === 'eventStore.readStream')
+          .length,
+      );
+      assertEqual(
+        true,
+        tracer.spans.some((span) => span.name === 'eventStore.aggregateStream'),
       );
     } finally {
       await releaseSharedEventStoreDBTestContainer();

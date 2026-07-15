@@ -104,22 +104,24 @@ export const getInMemoryEventStore = (
         EventPayloadType
       >,
     ): Promise<AggregateStreamResult<State>> {
-      const { evolve, initialState, read } = options;
+      return collector.instrumentAggregate(streamName, async () => {
+        const { evolve, initialState, read } = options;
 
-      const result = await this.readStream<EventType, EventPayloadType>(
-        streamName,
-        read,
-      );
+        const result = await this.readStream<EventType, EventPayloadType>(
+          streamName,
+          read,
+        );
 
-      const events = result?.events ?? [];
+        const events = result?.events ?? [];
 
-      const state = events.reduce((s, e) => evolve(s, e), initialState());
+        const state = events.reduce((s, e) => evolve(s, e), initialState());
 
-      return {
-        currentStreamVersion: BigInt(events.length),
-        state,
-        streamExists: result.streamExists,
-      };
+        return {
+          currentStreamVersion: BigInt(events.length),
+          state,
+          streamExists: result.streamExists,
+        };
+      });
     },
 
     readStream: <

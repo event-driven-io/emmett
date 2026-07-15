@@ -97,6 +97,32 @@ describe('eventStoreCollector', () => {
       );
   });
 
+  it('instrumentAggregate creates eventStore.aggregateStream span with attributes', async () => {
+    await given((config) => eventStoreCollector(config))
+      .when((collector) =>
+        collector.instrumentAggregate('orders-123', () =>
+          Promise.resolve({
+            currentStreamVersion: 3n,
+            state: { total: 42 },
+            streamExists: true,
+          }),
+        ),
+      )
+      .then(({ spans, metrics }) => {
+        spans.haveSpanNamed('eventStore.aggregateStream').hasAttributes({
+          [A.eventStore.operation]: 'aggregateStream',
+          [A.stream.name]: 'orders-123',
+          [A.eventStore.aggregate.status]: 'success',
+          [A.stream.versionAfter]: 3,
+          [M.operationType]: 'process',
+          [M.system]: MessagingSystemName,
+        });
+        metrics
+          .haveHistogramNamed(EmmettMetrics.stream.aggregatingDuration)
+          .hasValueAtLeast(0);
+      });
+  });
+
   it('instrumentRead records stream.reading.duration histogram on success', async () => {
     const meter = collectingMeter();
     const obs = {

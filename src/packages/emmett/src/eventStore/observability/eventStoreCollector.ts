@@ -8,7 +8,11 @@ import {
   type Meter,
   type Tracer,
 } from '@event-driven-io/almanac';
-import type { AppendToStreamResult, ReadStreamResult } from '..';
+import type {
+  AggregateStreamResult,
+  AppendToStreamResult,
+  ReadStreamResult,
+} from '..';
 import {
   EmmettAttributes,
   EmmettMetrics,
@@ -69,6 +73,9 @@ export const eventStoreCollector = (
   );
   const eventAppendingCount = observability.meter.counter(
     EmmettMetrics.event.appendingCount,
+  );
+  const streamAggregatingDuration = observability.meter.histogram(
+    EmmettMetrics.stream.aggregatingDuration,
   );
 
   return {
@@ -166,6 +173,43 @@ export const eventStoreCollector = (
           } finally {
             streamAppendingDuration.record(Date.now() - start, {
               [A.eventStore.append.status]: status,
+            });
+          }
+        },
+      );
+    },
+
+    instrumentAggregate: <Result extends AggregateStreamResult<unknown>>(
+      streamName: string,
+      fn: () => Promise<Result>,
+    ): Promise<Result> => {
+      const start = Date.now();
+      return observability.tracer.startSpan(
+        'eventStore.aggregateStream',
+        async (span) => {
+          span.setAttributes({
+            [A.eventStore.operation]: 'aggregateStream',
+            [A.stream.name]: streamName,
+            [M.operation.type]: 'process',
+            [M.destination.name]: streamName,
+            [M.system]: MessagingSystemName,
+          });
+
+          let status = 'success';
+          try {
+            const result = await fn();
+            span.setAttributes({
+              [A.eventStore.aggregate.status]: status,
+              [A.stream.versionAfter]: Number(result.currentStreamVersion),
+            });
+            return result;
+          } catch (err) {
+            status = 'failure';
+            span.setAttributes({ [A.eventStore.aggregate.status]: status });
+            throw err;
+          } finally {
+            streamAggregatingDuration.record(Date.now() - start, {
+              [A.eventStore.aggregate.status]: status,
             });
           }
         },

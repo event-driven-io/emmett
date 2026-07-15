@@ -13,6 +13,7 @@ import {
   EmmettMetrics,
   MessagingSystemName,
 } from '../../observability';
+import type { Event } from '../../typing';
 import { workflowCollector, workflowObservability } from './workflowCollector';
 
 describe('workflowCollector with OTel', () => {
@@ -86,11 +87,18 @@ describe('workflowCollector with OTel', () => {
       { type: 'OrderPlaced', data: { orderId: 'orders-1' } },
     ]);
     const readResult = await store.readStream('orders-1');
+    await store.aggregateStream<{ orders: number }, Event>('orders-1', {
+      initialState: () => ({ orders: 0 }),
+      evolve: (state: { orders: number }) => ({ orders: state.orders + 1 }),
+    });
 
     expect(readResult.events).toHaveLength(1);
 
     const spans = exporter.getFinishedSpans();
-    expect(spans).toHaveLength(2);
+    expect(spans).toHaveLength(4);
+    expect(
+      spans.filter((span) => span.name === 'eventStore.readStream'),
+    ).toHaveLength(2);
 
     otelAssertions
       .spans(spans)
@@ -116,6 +124,18 @@ describe('workflowCollector with OTel', () => {
         [EmmettAttributes.eventStore.read.status]: 'success',
         [EmmettAttributes.eventStore.read.eventCount]: 1,
         'messaging.operation.type': 'receive',
+        'messaging.destination.name': 'orders-1',
+        'messaging.system': MessagingSystemName,
+      });
+
+    otelAssertions
+      .spans(spans)
+      .haveSpanNamed('eventStore.aggregateStream')
+      .hasAttributes({
+        [EmmettAttributes.eventStore.operation]: 'aggregateStream',
+        [EmmettAttributes.stream.name]: 'orders-1',
+        [EmmettAttributes.eventStore.aggregate.status]: 'success',
+        'messaging.operation.type': 'process',
         'messaging.destination.name': 'orders-1',
         'messaging.system': MessagingSystemName,
       });

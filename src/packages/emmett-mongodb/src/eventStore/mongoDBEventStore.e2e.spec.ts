@@ -147,6 +147,15 @@ void describe('MongoDBEventStore', () => {
       { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
     );
     await observedEventStore.readStream(streamName);
+    await observedEventStore.aggregateStream<
+      { productItemsCount: number },
+      ShoppingCartEvent
+    >(streamName, {
+      initialState: () => ({ productItemsCount: 0 }),
+      evolve: (state: { productItemsCount: number }) => ({
+        productItemsCount: state.productItemsCount + 1,
+      }),
+    });
 
     assertEqual(
       true,
@@ -155,6 +164,15 @@ void describe('MongoDBEventStore', () => {
     assertEqual(
       true,
       tracer.spans.some((span) => span.name === 'eventStore.readStream'),
+    );
+    assertEqual(
+      2,
+      tracer.spans.filter((span) => span.name === 'eventStore.readStream')
+        .length,
+    );
+    assertEqual(
+      true,
+      tracer.spans.some((span) => span.name === 'eventStore.aggregateStream'),
     );
     assertEqual(
       true,

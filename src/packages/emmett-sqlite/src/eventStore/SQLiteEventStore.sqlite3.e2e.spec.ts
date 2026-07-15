@@ -327,6 +327,15 @@ void describe('SQLiteEventStore', () => {
         { type: 'ProductItemAdded', data: { productItem } },
       ]);
       await eventStore.readStream(shoppingCartId);
+      await eventStore.aggregateStream<
+        { productItemsCount: number },
+        ProductItemAdded
+      >(shoppingCartId, {
+        initialState: () => ({ productItemsCount: 0 }),
+        evolve: (state: { productItemsCount: number }) => ({
+          productItemsCount: state.productItemsCount + 1,
+        }),
+      });
 
       assertEqual(
         true,
@@ -335,6 +344,15 @@ void describe('SQLiteEventStore', () => {
       assertEqual(
         true,
         tracer.spans.some((span) => span.name === 'eventStore.readStream'),
+      );
+      assertEqual(
+        2,
+        tracer.spans.filter((span) => span.name === 'eventStore.readStream')
+          .length,
+      );
+      assertEqual(
+        true,
+        tracer.spans.some((span) => span.name === 'eventStore.aggregateStream'),
       );
       assertEqual(
         true,
