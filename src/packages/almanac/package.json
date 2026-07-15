@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/almanac",
   "type": "module",
-  "version": "0.1.0-beta.26",
+  "version": "0.1.0-beta.27",
   "description": "Almanac - Opinionated observability for event-driven systems",
   "scripts": {
     "build": "tsdown",
