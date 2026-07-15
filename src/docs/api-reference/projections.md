@@ -452,4 +452,5 @@ const handle = async (events, context) => {
 - [Read Models Guide](/guides/projections) - Detailed patterns and strategies
 - [PostgreSQL Event Store](/event-stores/postgresql) - Pongo projections
 - [Testing Patterns](/guides/testing) - Testing projections
+- [Error Handling](/guides/error-handling#projection-errors) - Why a projection copes with an event instead of throwing
 - [Writing and testing event-driven projections](https://event-driven.io/en/emmett_projections_testing/)

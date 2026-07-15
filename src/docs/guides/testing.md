@@ -43,7 +43,7 @@ Some checks don't fit a fixed list: a computed total, a value in a range, a rule
 
 ### Assert the rule it enforces {#assert-error}
 
-A rule isn't proven until you show it saying no. Set up a state that should reject the command, then assert the exact error, not merely that something threw. That same error becomes the caller's `403` later, so it's worth pinning down. `thenThrows` takes the error type, a check on the message, or both:
+A rule isn't proven until you show it saying no. Set up a state that should reject the command, then assert the exact error, not merely that something threw. That same error becomes the caller's [`403`](/guides/error-handling#problem-details) later, so it's worth pinning down. `thenThrows` takes the error type, a check on the message, or both:
 
 <<< @/snippets/gettingStarted/businessLogic.unit.spec.ts#unit-error
 

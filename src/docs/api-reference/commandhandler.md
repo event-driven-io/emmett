@@ -114,7 +114,7 @@ With no `expectedStreamVersion` passed, the handler expects the version it read 
 - `{ onVersionConflict: number }` applies the default policy with a different retry count.
 - `AsyncRetryOptions` is a full custom policy, including its own `shouldRetryError`.
 
-Left `undefined`, retries are disabled. A per-call `retry` in the handle options overrides the handler-level policy.
+Left `undefined`, retries are disabled. A per-call `retry` in the handle options overrides the handler-level policy. For deciding which errors are transient enough to retry, see [Retry a Transient Failure](/guides/error-handling#retry) in the Error Handling guide.
 
 The default policy retries only on `ExpectedVersionConflictError`:
 
