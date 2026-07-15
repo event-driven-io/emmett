@@ -42,9 +42,9 @@
   },
   "homepage": "https://github.com/event-driven-io/emmett#readme",
   "dependencies": {
-    "@event-driven-io/emmett": "0.43.0-beta.15",
-    "@event-driven-io/emmett-expressjs": "0.43.0-beta.15",
-    "@event-driven-io/emmett-postgresql": "0.43.0-beta.15",
+    "@event-driven-io/emmett": "0.43.0-beta.29",
+    "@event-driven-io/emmett-expressjs": "0.43.0-beta.29",
+    "@event-driven-io/emmett-postgresql": "0.43.0-beta.29",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/exporter-logs-otlp-proto": "^0.215.0",
     "@opentelemetry/exporter-metrics-otlp-proto": "^0.215.0",
