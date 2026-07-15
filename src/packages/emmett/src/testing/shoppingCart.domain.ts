@@ -13,22 +13,23 @@ export type ShoppingCart = {
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
-  { productItem: PricedProductItem }
+  { shoppingCartId: string; productItem: PricedProductItem }
 >;
 export type DiscountApplied = Event<
   'DiscountApplied',
-  { percent: number; couponId: string }
+  { shoppingCartId: string; percent: number; couponId: string }
 >;
 export type ProductItemRemoved = Event<
   'ProductItemRemoved',
   {
+    shoppingCartId: string;
     productItem: PricedProductItem;
     removedBy: string | null; // null = system removal (out of stock, expired)
   }
 >;
 export type ShoppingCartConfirmed = Event<
   'ShoppingCartConfirmed',
-  { confirmedAt: Date }
+  { shoppingCartId: string; confirmedAt: Date }
 >;
 
 export type ShoppingCartEvent =
@@ -110,6 +111,7 @@ export const initialState = (): ShoppingCart => {
 export type RemoveProductItem = Command<
   'RemoveProductItem',
   {
+    shoppingCartId: string;
     productItem: PricedProductItem;
     removedBy: string | null; // null = system removal (out of stock, expired)
   }
