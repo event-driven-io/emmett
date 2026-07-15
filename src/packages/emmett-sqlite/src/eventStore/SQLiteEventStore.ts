@@ -3,9 +3,12 @@ import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   assertExpectedVersionMatchesCurrent,
   bigIntProcessorCheckpoint,
+  eventStoreCollector,
+  eventStoreObservability,
   ExpectedVersionConflictError,
   JSONSerializer,
   NO_CONCURRENCY_CHECK,
+  ObservabilityScope,
   noopScope,
   type AggregateStreamOptions,
   type AggregateStreamResult,
@@ -149,6 +152,9 @@ export const getSQLiteEventStore = <
   const inlineProjections = (options.projections ?? [])
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
+  const observability = eventStoreObservability(options);
+  const collector = eventStoreCollector(observability);
+  const { startScope } = ObservabilityScope(observability);
 
   const onBeforeCommitHook = options.hooks?.onBeforeCommit;
 
@@ -219,10 +225,9 @@ export const getSQLiteEventStore = <
         throw new Error('Stream name is not string');
       }
 
-      const result = await readStream<EventType, EventPayloadType>(
-        pool.execute,
+      const result = await this.readStream<EventType, EventPayloadType>(
         streamName,
-        { ...read, serializer: read?.serialization?.serializer ?? serializer },
+        read,
       );
 
       const currentStreamVersion = result.currentStreamVersion;
@@ -253,14 +258,19 @@ export const getSQLiteEventStore = <
       readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
-    > => {
-      await ensureSchemaExists();
+    > =>
+      collector.instrumentRead(streamName, async () => {
+        await ensureSchemaExists();
 
-      return readStream<EventType, EventPayloadType>(pool.execute, streamName, {
-        ...readOptions,
-        serializer: options.serialization?.serializer ?? serializer,
-      });
-    },
+        return readStream<EventType, EventPayloadType>(
+          pool.execute,
+          streamName,
+          {
+            ...readOptions,
+            serializer: options.serialization?.serializer ?? serializer,
+          },
+        );
+      }),
 
     appendToStream: async <
       EventType extends Event,
@@ -269,50 +279,56 @@ export const getSQLiteEventStore = <
       streamName: string,
       events: EventType[],
       appendOptions?: AppendToStreamOptions<EventType, EventPayloadType>,
-    ): Promise<AppendToStreamResultWithGlobalPosition> => {
-      await ensureSchemaExists();
-      // TODO: This has to be smarter when we introduce urn-based resolution
-      const [firstPart, ...rest] = streamName.split('-');
+    ): Promise<AppendToStreamResultWithGlobalPosition> =>
+      collector.instrumentAppend(streamName, events, async () => {
+        await ensureSchemaExists();
+        // TODO: This has to be smarter when we introduce urn-based resolution
+        const [firstPart, ...rest] = streamName.split('-');
 
-      const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
+        const streamType =
+          firstPart && rest.length > 0 ? firstPart : unknownTag;
 
-      const appendResult = await pool.withConnection(
-        (connection) =>
-          appendToStream(connection, streamName, streamType, events, {
-            ...(appendOptions as AppendToStreamOptions),
-            onBeforeCommit: async (messages, context) => {
-              if (inlineProjections.length > 0)
-                await handleProjections({
-                  projections: inlineProjections,
-                  events: messages,
-                  execute: context.connection.execute,
-                  connection: context.connection,
-                  driverType: options.driver.driverType,
-                  observabilityScope: noopScope,
-                });
+        const appendResult = await pool.withConnection(
+          (connection) =>
+            appendToStream(connection, streamName, streamType, events, {
+              ...(appendOptions as AppendToStreamOptions),
+              onBeforeCommit: async (messages, context) => {
+                if (inlineProjections.length > 0)
+                  await startScope(
+                    'eventStore.inlineProjection',
+                    (observabilityScope) =>
+                      handleProjections({
+                        projections: inlineProjections,
+                        events: messages,
+                        execute: context.connection.execute,
+                        connection: context.connection,
+                        driverType: options.driver.driverType,
+                        observabilityScope,
+                      }),
+                  );
 
-              if (onBeforeCommitHook)
-                await onBeforeCommitHook(messages, context);
-            },
-          }),
-        { readonly: false },
-      );
-
-      if (!appendResult.success)
-        throw new ExpectedVersionConflictError(
-          -1n, //TODO: Return actual version in case of error
-          appendOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
+                if (onBeforeCommitHook)
+                  await onBeforeCommitHook(messages, context);
+              },
+            }),
+          { readonly: false },
         );
 
-      return {
-        nextExpectedStreamVersion: appendResult.nextStreamPosition,
-        lastEventGlobalPosition: bigIntProcessorCheckpoint(
-          appendResult.lastGlobalPosition,
-        ),
-        createdNewStream:
-          appendResult.nextStreamPosition >= BigInt(events.length),
-      };
-    },
+        if (!appendResult.success)
+          throw new ExpectedVersionConflictError(
+            -1n, //TODO: Return actual version in case of error
+            appendOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
+          );
+
+        return {
+          nextExpectedStreamVersion: appendResult.nextStreamPosition,
+          lastEventGlobalPosition: bigIntProcessorCheckpoint(
+            appendResult.lastGlobalPosition,
+          ),
+          createdNewStream:
+            appendResult.nextStreamPosition >= BigInt(events.length),
+        };
+      }),
 
     async streamExists(
       streamName: string,

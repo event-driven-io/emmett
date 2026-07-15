@@ -16,8 +16,11 @@ import type {
 import {
   assertExpectedVersionMatchesCurrent,
   downcastRecordedMessages,
+  eventStoreCollector,
+  eventStoreObservability,
   ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
+  ObservabilityScope,
   noopScope,
   unknownTag,
   type AggregateStreamOptions,
@@ -221,6 +224,9 @@ export const getPostgreSQLEventStore = (
   const inlineProjections = (options.projections ?? [])
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
+  const observability = eventStoreObservability(options);
+  const collector = eventStoreCollector(observability);
+  const { startScope } = ObservabilityScope(observability);
 
   const migrate = async (migrationOptions?: CreateEventStoreSchemaOptions) => {
     if (!migrateSchema) {
@@ -278,17 +284,22 @@ export const getPostgreSQLEventStore = (
   const beforeCommitHook: AppendToStreamBeforeCommitHook | undefined =
     inlineProjections.length > 0
       ? async (events, { transaction }) =>
-          handleProjections({
-            projections: inlineProjections,
-            // TODO: Add proper handling of global data
-            // Currently it's not available as append doesn't return array of global position but just the last one
-            events: events as ReadEvent<Event, PostgresReadEventMetadata>[],
-            ...(await transactionToPostgreSQLProjectionHandlerContext(
-              connectionString,
-              pool,
-              transaction,
-            )),
-          })
+          startScope(
+            'eventStore.inlineProjection',
+            async (observabilityScope) =>
+              handleProjections({
+                projections: inlineProjections,
+                // TODO: Add proper handling of global data
+                // Currently it's not available as append doesn't return array of global position but just the last one
+                events: events as ReadEvent<Event, PostgresReadEventMetadata>[],
+                ...(await transactionToPostgreSQLProjectionHandlerContext(
+                  connectionString,
+                  pool,
+                  transaction,
+                )),
+                observabilityScope,
+              }),
+          )
       : undefined;
 
   return {
@@ -382,13 +393,18 @@ export const getPostgreSQLEventStore = (
     >(
       streamName: string,
       readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
-    ): Promise<ReadStreamResult<EventType, PostgresReadEventMetadata>> => {
-      await ensureSchemaExists();
-      return readStream<EventType, EventPayloadType>(pool.execute, streamName, {
-        ...readOptions,
-        serialization: options.serialization ?? readOptions?.serialization,
-      });
-    },
+    ): Promise<ReadStreamResult<EventType, PostgresReadEventMetadata>> =>
+      collector.instrumentRead(streamName, async () => {
+        await ensureSchemaExists();
+        return readStream<EventType, EventPayloadType>(
+          pool.execute,
+          streamName,
+          {
+            ...readOptions,
+            serialization: options.serialization ?? readOptions?.serialization,
+          },
+        );
+      }),
 
     appendToStream: async <
       EventType extends Event,
@@ -397,43 +413,45 @@ export const getPostgreSQLEventStore = (
       streamName: string,
       events: EventType[],
       appendOptions?: AppendToStreamOptions<EventType, EventPayloadType>,
-    ): Promise<AppendToStreamResultWithGlobalPosition> => {
-      await ensureSchemaExists();
-      // TODO: This has to be smarter when we introduce urn-based resolution
-      const [firstPart, ...rest] = streamName.split('-');
+    ): Promise<AppendToStreamResultWithGlobalPosition> =>
+      collector.instrumentAppend(streamName, events, async () => {
+        await ensureSchemaExists();
+        // TODO: This has to be smarter when we introduce urn-based resolution
+        const [firstPart, ...rest] = streamName.split('-');
 
-      const streamType = firstPart && rest.length > 0 ? firstPart : unknownTag;
+        const streamType =
+          firstPart && rest.length > 0 ? firstPart : unknownTag;
 
-      const appendResult = await pool.withConnection(async (connection) =>
-        appendToStream(
-          // TODO: Fix this when introducing more drivers
-          connection as PgConnection,
-          streamName,
-          streamType,
-          downcastRecordedMessages(events, appendOptions?.schema?.versioning),
-          {
-            ...(appendOptions as AppendToStreamOptions),
-            beforeCommitHook,
-          },
-        ),
-      );
-
-      if (!appendResult.success)
-        throw new ExpectedVersionConflictError(
-          -1n, //TODO: Return actual version in case of error
-          appendOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
+        const appendResult = await pool.withConnection(async (connection) =>
+          appendToStream(
+            // TODO: Fix this when introducing more drivers
+            connection as PgConnection,
+            streamName,
+            streamType,
+            downcastRecordedMessages(events, appendOptions?.schema?.versioning),
+            {
+              ...(appendOptions as AppendToStreamOptions),
+              beforeCommitHook,
+            },
+          ),
         );
 
-      return {
-        nextExpectedStreamVersion: appendResult.nextStreamPosition,
-        lastEventGlobalPosition:
-          PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
-            appendResult.checkpoints[appendResult.checkpoints.length - 1]!,
-          ),
-        createdNewStream:
-          appendResult.nextStreamPosition >= BigInt(events.length),
-      };
-    },
+        if (!appendResult.success)
+          throw new ExpectedVersionConflictError(
+            -1n, //TODO: Return actual version in case of error
+            appendOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
+          );
+
+        return {
+          nextExpectedStreamVersion: appendResult.nextStreamPosition,
+          lastEventGlobalPosition:
+            PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
+              appendResult.checkpoints[appendResult.checkpoints.length - 1]!,
+            ),
+          createdNewStream:
+            appendResult.nextStreamPosition >= BigInt(events.length),
+        };
+      }),
 
     streamExists: async (
       streamName: string,

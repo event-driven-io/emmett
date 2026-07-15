@@ -1,11 +1,13 @@
 //import { streamTransformations, type Event } from '@event-driven-io/emmett';
+import { assertEqual, collectingTracer } from '@event-driven-io/emmett';
 import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
 import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import {
   getSharedEventStoreDBTestContainer,
   releaseSharedEventStoreDBTestContainer,
 } from '@event-driven-io/emmett-testcontainers';
-import { describe } from 'vitest';
+import { describe, it } from 'vitest';
+import { v4 as uuid } from 'uuid';
 import {
   testAggregateStream,
   testStreamExists,
@@ -34,6 +36,33 @@ describe('EventStoreDBEventStore', () => {
   });
 
   testStreamExists(eventStoreFactory, { teardownHook });
+
+  it('records observability spans while appending and reading with ESDB storage', async () => {
+    const tracer = collectingTracer();
+    const container = await getSharedEventStoreDBTestContainer();
+    const eventStore = getEventStoreDBEventStore(container.getClient(), {
+      observability: { tracer },
+    });
+    const streamName = `observed-${uuid()}`;
+
+    try {
+      await eventStore.appendToStream(streamName, [
+        { type: 'Observed', data: { observed: true } },
+      ]);
+      await eventStore.readStream(streamName);
+
+      assertEqual(
+        true,
+        tracer.spans.some((span) => span.name === 'eventStore.appendToStream'),
+      );
+      assertEqual(
+        true,
+        tracer.spans.some((span) => span.name === 'eventStore.readStream'),
+      );
+    } finally {
+      await releaseSharedEventStoreDBTestContainer();
+    }
+  });
 
   // void it.skip('Successful subscription and processing of events', async () => {
   //   const eventStore = await eventStoreFactory();

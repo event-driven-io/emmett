@@ -2,6 +2,7 @@ import {
   assertDeepEqual,
   assertEqual,
   assertIsNotNull,
+  collectingTracer,
   projections,
   type Event,
   type ReadEvent,
@@ -210,6 +211,63 @@ void describe('EventStoreDBEventStore', () => {
     );
 
     assertEqual(3, handledEventsInCustomProjection.length);
+  });
+
+  void it('should record observability while appending, reading, and handling inline projections', async () => {
+    const tracer = collectingTracer();
+    let projectionTraceId = '';
+    const projectionName = `postgres_observability_projection_${uuid().replaceAll(
+      '-',
+      '_',
+    )}`;
+    const observedEventStore = getPostgreSQLEventStore(connectionString, {
+      observability: { tracer },
+      projections: projections.inline([
+        postgreSQLProjection<ShoppingCartEvent>({
+          name: projectionName,
+          canHandle: ['ProductItemAdded'],
+          handle: (events, context) => {
+            projectionTraceId =
+              context.observabilityScope.spanContext().traceId;
+            handledEventsInCustomProjection.push(...events);
+          },
+        }),
+      ]),
+    });
+
+    try {
+      const observedShoppingCartId = `shopping_cart-${uuid()}`;
+
+      await observedEventStore.appendToStream<ShoppingCartEvent>(
+        observedShoppingCartId,
+        [
+          {
+            type: 'ProductItemAdded',
+            data: { productItem },
+            metadata: { clientId },
+          },
+        ],
+      );
+      await observedEventStore.readStream(observedShoppingCartId);
+
+      assertEqual(
+        true,
+        tracer.spans.some((span) => span.name === 'eventStore.appendToStream'),
+      );
+      assertEqual(
+        true,
+        tracer.spans.some((span) => span.name === 'eventStore.readStream'),
+      );
+      assertEqual(
+        true,
+        tracer.spans.some(
+          (span) => span.name === 'eventStore.inlineProjection',
+        ),
+      );
+      assertEqual(true, projectionTraceId !== '');
+    } finally {
+      await observedEventStore.close();
+    }
   });
 
   void describe('upcasting', () => {

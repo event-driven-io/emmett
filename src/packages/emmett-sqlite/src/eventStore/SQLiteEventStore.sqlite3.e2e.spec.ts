@@ -5,6 +5,8 @@ import {
   assertEqual,
   assertIsNotNull,
   assertThrowsAsync,
+  collectingTracer,
+  projections,
   type Event,
 } from '@event-driven-io/emmett';
 import fs from 'fs';
@@ -27,6 +29,7 @@ import {
   type SQLiteEventStore,
   type SQLiteEventStoreOptions,
 } from './SQLiteEventStore';
+import { sqliteProjection } from './projections';
 
 void describe('SQLiteEventStore', () => {
   const testDatabasePath = path.resolve(
@@ -287,6 +290,62 @@ void describe('SQLiteEventStore', () => {
     ]);
 
     assertEqual(savedEvents.length, 1);
+  });
+
+  void it('should record observability while appending, reading, and handling inline projections', async () => {
+    const tracer = collectingTracer();
+    let projectionTraceId = '';
+
+    const eventStore = getSQLiteEventStore({
+      driver: sqlite3EventStoreDriver,
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+      },
+      fileName,
+      observability: { tracer },
+      projections: projections.inline([
+        sqliteProjection<ProductItemAdded>({
+          name: 'sqlite_observability_projection',
+          canHandle: ['ProductItemAdded'],
+          handle: (_events, context) => {
+            projectionTraceId =
+              context.observabilityScope.spanContext().traceId;
+          },
+        }),
+      ]),
+    });
+
+    try {
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 10,
+        price: 3,
+      };
+      const shoppingCartId = `shopping_cart-${uuid()}`;
+
+      await eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
+        { type: 'ProductItemAdded', data: { productItem } },
+      ]);
+      await eventStore.readStream(shoppingCartId);
+
+      assertEqual(
+        true,
+        tracer.spans.some((span) => span.name === 'eventStore.appendToStream'),
+      );
+      assertEqual(
+        true,
+        tracer.spans.some((span) => span.name === 'eventStore.readStream'),
+      );
+      assertEqual(
+        true,
+        tracer.spans.some(
+          (span) => span.name === 'eventStore.inlineProjection',
+        ),
+      );
+      assertEqual(true, projectionTraceId !== '');
+    } finally {
+      await eventStore.close();
+    }
   });
 });
 

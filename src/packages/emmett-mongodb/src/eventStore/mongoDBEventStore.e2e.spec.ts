@@ -3,6 +3,8 @@ import {
   assertEqual,
   assertIsNotNull,
   assertTrue,
+  collectingTracer,
+  projections,
   STREAM_DOES_NOT_EXIST,
   type Event,
 } from '@event-driven-io/emmett';
@@ -111,6 +113,54 @@ void describe('MongoDBEventStore', () => {
     );
     assertIsNotNull(stream);
     assertEqual(3n, stream.metadata.streamPosition);
+  });
+
+  void it('should record observability while appending, reading, and handling inline projections', async () => {
+    const tracer = collectingTracer();
+    let projectionTraceId = '';
+    const streamType = 'shopping_cart';
+    const shoppingCartId = uuid();
+    const streamName = toStreamName(streamType, shoppingCartId);
+    const observedEventStore = getMongoDBEventStore({
+      client,
+      observability: { tracer },
+      projections: projections.inline([
+        {
+          name: `mongo_observability_projection_${uuid()}`,
+          canHandle: ['ProductItemAdded'],
+          handle: (_events, context) => {
+            projectionTraceId =
+              context.observabilityScope.spanContext().traceId;
+          },
+        },
+      ]),
+    });
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await observedEventStore.appendToStream<ShoppingCartEvent>(
+      streamName,
+      [{ type: 'ProductItemAdded', data: { productItem } }],
+      { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+    );
+    await observedEventStore.readStream(streamName);
+
+    assertEqual(
+      true,
+      tracer.spans.some((span) => span.name === 'eventStore.appendToStream'),
+    );
+    assertEqual(
+      true,
+      tracer.spans.some((span) => span.name === 'eventStore.readStream'),
+    );
+    assertEqual(
+      true,
+      tracer.spans.some((span) => span.name === 'eventStore.inlineProjection'),
+    );
+    assertEqual(true, projectionTraceId !== '');
   });
 
   void it('should only return a subset of stream events based on expectedStreamVersion', async () => {

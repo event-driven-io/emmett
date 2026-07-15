@@ -1,11 +1,10 @@
-import {
-  noopScope,
-  type CanHandle,
-  type Event,
-  type ProjectionDefinition,
-  type ProjectionHandler,
-  type ProjectionHandlerContext,
-  type ReadEvent,
+import type {
+  CanHandle,
+  Event,
+  ProjectionDefinition,
+  ProjectionHandler,
+  ProjectionHandlerContext,
+  ReadEvent,
 } from '@event-driven-io/emmett';
 import type { Collection, Document, UpdateFilter } from 'mongodb';
 import type {
@@ -62,7 +61,10 @@ export type InlineProjectionHandlerOptions<
   client: {
     //todo: add client here
   };
-};
+} & Pick<
+  MongoDBProjectionInlineHandlerContext<EventType, EventMetaDataType>,
+  'observabilityScope'
+>;
 
 export const handleInlineProjections = async <
   EventType extends Event = Event,
@@ -91,7 +93,7 @@ export const handleInlineProjections = async <
       streamId,
       collection,
       updates: update,
-      observabilityScope: noopScope,
+      observabilityScope: options.observabilityScope,
     });
   }
 };
