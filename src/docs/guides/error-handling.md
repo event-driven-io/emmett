@@ -50,7 +50,23 @@ Reach for your own type when none of these fits, and [Map Your Own Errors](#cust
 
 A decision hands its events, or its error, to the command handler. The handler loads the stream, runs the decision, and appends the result under an optimistic-concurrency check, and that check is the one error the handler raises on its own. When the stream has moved on since you read it, the append throws `ExpectedVersionConflictError`, a `ConcurrencyError` with status 412. It exposes the `current` and `expected` versions so you can see how far apart they drifted.
 
-Over HTTP this surfaces as `412 Precondition Failed` through an ETag round-trip: the client sends the version it last saw in an `If-Match` header, and the append succeeds only if the stream still matches. For wiring the version through ETags and retrying on conflict, see [Control Concurrency](/guides/command-handling#concurrency) in the Command Handling guide.
+Over HTTP this surfaces as `412 Precondition Failed` through an ETag round-trip: the client sends the version it last saw in an `If-Match` header, and the append succeeds only if the stream still matches. For wiring the version through ETags, see [Control Concurrency](/guides/command-handling#concurrency) in the Command Handling guide.
+
+## Retry a Transient Failure {#retry}
+
+Not every error the handler raises has to reach the caller. Some are transient: run the same command again and it goes through. The version conflict from the last section is the clearest case. The append lost an optimistic-concurrency race, so the events it collided with are already in the stream, and re-running the handler rebuilds the state from them before appending on top. Set `retry` and Emmett does that for you, re-running the whole handler when the append throws `ExpectedVersionConflictError`:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#retry-on-conflict{5}
+
+`retry` sits on the handler config, or on a single call as here, so recovery covers every command or just the one in hand. `{ onVersionConflict: true }` is the shorthand for the built-in policy: a bounded run of attempts, each after a longer pause, retrying only the version conflict and giving up once the attempts run out, so a write that stays stuck still surfaces rather than looping. Pass a count in place of `true`, as in `{ onVersionConflict: 5 }`, to keep that policy but change how many attempts it makes.
+
+Each attempt re-runs the decision from the top, so the same command reaches your logic again. That is safe when the decision only reads state and returns events, and unsafe when it performs I/O, which then fires on every attempt. Keep the decision pure, as [Keep the Decision Pure](/guides/command-handling#keep-pure) shows, and the [idempotence](/guides/command-handling#idempotence) that makes a resent command safe covers a retried one too.
+
+A version conflict is not the only transient failure. A read model briefly unreachable, a session dropped mid-append: these clear on a retry too, while a broken invariant or invalid input would fail the same way every time and should surface at once. Pass a full policy with a `shouldRetryError` predicate to decide which errors earn another attempt:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#custom-retry{8}
+
+The predicate runs on each thrown error: return `true` and the attempt repeats under the given `retries` and backoff, return `false` and the error unwinds straight away. Match the types you know are transient, here a `DatabaseConnectionError` from your own infrastructure, and let a `ValidationError` or `IllegalStateError` fall through. The wider it reaches, the more paths re-run the decision, so the same purity caution holds.
 
 ## Never Throw in Asynchronous Event Handlers {#no-throw-async}
 
