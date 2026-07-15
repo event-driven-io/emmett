@@ -175,6 +175,8 @@ const handleCommand = CommandHandler<ShoppingCart, ShoppingCartEvent>({
   initialState,
 });
 
+class TransientDatabaseConnectionError extends Error {}
+
 void describe('Command Handler', () => {
   const eventStore = getInMemoryEventStore();
 
@@ -517,7 +519,8 @@ void describe('Command Handler', () => {
         retries: 5,
         minTimeout: 50,
         factor: 2,
-        shouldRetryError: (error) => error instanceof ConcurrencyError,
+        shouldRetryError: (error) =>
+          error instanceof TransientDatabaseConnectionError,
       },
     });
     // #endregion custom-retry
