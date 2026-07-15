@@ -11,23 +11,23 @@ When something goes wrong, your business logic makes one choice: record the outc
 
 Start in the business logic, where a decision faces a negative outcome. A checkout that could not complete, a payment the bank declined, a booking that clashed with another: each is a fact about what happened, and the recommended default is to record it as its own event type, next to the success one. The decision then returns whichever event fits:
 
-<<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#return-failure-event
+<<< @./../packages/emmett-tests/src/errorHandling/failureEvents.unit.spec.ts#return-failure-event{9-11}
 
 Returning different event types keeps the failure inside the normal flow of events. A projection can count failed checkouts, a workflow can compensate, and nothing downstream has to catch an exception to notice that something went wrong.
 
 ### Give Each Failure Its Own Event {#distinct-failures}
 
-When a decision can fail in more than one way, give each mode its own event rather than folding them into a single generic error. A group checkout does not only fail when a guest's checkout is rejected; it can also run past its deadline with guests still pending. That timeout is a different fact, so a separate decision records it as `GroupCheckoutTimedOut`:
+When a decision can fail in more than one way, give each mode its own event rather than folding them into a single generic rejection with a reason field. A coupon does not only fail because it lapsed; it can also have been used already, or the cart can sit below the coupon's minimum. Each is a different fact, so each gets its own event:
 
-<<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#timeout-failure-event
+<<< @./../packages/emmett-tests/src/errorHandling/failureEvents.unit.spec.ts#distinct-failure-events{5-8}
 
-The workflow now has two failure events, `GroupCheckoutFailed` and `GroupCheckoutTimedOut`, each carrying the data its handler needs: the timeout lists which checkouts were still pending, the rejection lists which ones failed. A consumer can tell them apart and react to each on its own terms, retrying after a timeout and refunding after a rejection.
+Every _failure_ event carries the data its own handler needs, which a shared `CouponRejected` could not: `CouponAlreadyUsed` carries when the coupon was first applied, `CartBelowCouponMinimum` carries both the cart total and the minimum it missed. A consumer can tell them apart and react to each on its own terms, emailing a fresh coupon after an expiry and suggesting more items after a near miss.
 
 ## Throw for Broken Invariants {#throw-invariants}
 
 Returning an event fits an outcome the business expects. A broken rule is different: a command that should never have been issued, such as an illegal state transition or invalid input. Throw before building any event, so a bad command never records one.
 
-Emmett ships error types for the common cases, each carrying an HTTP status code used later when the error reaches the web layer:
+Throw whatever error type you like: your own class, a plain `Error`, one from a library. Emmett does not require its own. Yet, it ships is a set of error types for the common cases, each carrying a HTTP-based error code, so that an error thrown deep in a decision maps to the right response by convention rather than by wiring:
 
 | Error type          | Status | Raise it when                                              |
 | ------------------- | ------ | ---------------------------------------------------------- |
@@ -38,13 +38,13 @@ Emmett ships error types for the common cases, each carrying an HTTP status code
 
 Guard an invalid transition by throwing before the event is built:
 
-<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#confirm-decision
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#confirm-decision{8-9}
 
 Reject bad input the same way:
 
-<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#validation-error-decision
+<<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#validation-error-decision{6-7}
 
-`ValidationError` and `IllegalStateError` take a message string. `NotFoundError` takes `{ id, type, message? }`. See [Command Handling](/guides/command-handling#decision) for writing decisions in full.
+Reach for your own type when none of these fits, and [Map Your Own Errors](#custom-mapping) shows how to give it a status. See [Command Handling](/guides/command-handling#decision) for writing decisions in full.
 
 ## Guard Concurrency in the Command Handler {#concurrency}
 
@@ -56,13 +56,13 @@ Over HTTP this surfaces as `412 Precondition Failed` through an ETag round-trip:
 
 Whether throwing is safe depends on what sits above the code to catch it. A command handler behind an HTTP endpoint, its usual home, has the request: a thrown error unwinds into a response. Asynchronous handlers, the projections, reactors, and workflows that react to events, have nothing above them. A throw propagates up, stops the processor, and leaves later events unhandled. The endpoint is only the usual home, not a rule: a command handler run from a reactor loses the same safety net. Instead of throwing, turn the problem into data. You have two ways to do that.
 
-Return a failure event, as [Return a Failure Event](#failures-as-events) showed. This reactor releases a room through an external property-management system; when the call fails it returns `GuestCheckoutFailed` instead of throwing, so the workflow keeps running and can compensate:
+Return a failure event, as [Return a Failure Event](#failures-as-events) showed. This reactor charges an order through an external payment gateway; when the gateway declines, it appends `PaymentFailed` instead of throwing, so the reactor keeps running and a workflow can compensate:
 
-<<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#failure-as-event
+<<< @./../packages/emmett-tests/src/errorHandling/reactorErrors.features.ts#failure-as-event{15,27}
 
-Or catch the error and return a handler result. `MessageProcessor.result`, from `@event-driven-io/emmett`, gives you `skip` and `stop`. `skip` passes over a single message and lets the reactor carry on; `stop` halts the whole reactor, so a later run resumes from the same point. Reach for `skip` in the ordinary case, and reserve `stop` for a critical path where continuing past the failure would do more harm than halting. Here a free order has nothing to charge, so the reactor skips it, while a failed charge sits on the revenue path, so it stops rather than let the pipeline drop a charge:
+Or catch the error and return a handler result. `MessageProcessor.result` gives you `skip` and `stop`. `skip` passes over a single message and lets the reactor carry on; `stop` halts the whole reactor, so a later run resumes from the same point. Reach for `skip` in the ordinary case, and reserve `stop` for a critical path where continuing past the failure would do more harm than halting. Here a free order has nothing to charge, so the reactor skips it, while a failed charge sits on the revenue path, so it stops rather than let the pipeline drop a charge:
 
-<<< @./../packages/emmett/src/processors/processors.unit.spec.ts#reactor-skip-stop
+<<< @./../packages/emmett-tests/src/errorHandling/reactorErrors.features.ts#reactor-skip-stop{3,12,19}
 
 Returning nothing accepts the message and moves on. See [Workflows & Sagas](/guides/workflows) for the wider pattern.
 
@@ -72,7 +72,7 @@ A projection is a special case. It builds a read model from events that are alre
 
 So accept the event and build the best read model you can from it. Skip a duplicate, fall back to a default, clamp a value back into range, whatever keeps the read model sensible and moving. Here a discount is already a fact, so rather than throw when the running total would go negative, the projection clamps it to zero and carries on:
 
-<<< @./../packages/emmett/src/eventStore/projections/inMemory/inMemoryProjection.unit.spec.ts#coping-projection
+<<< @./../packages/emmett/src/eventStore/projections/inMemory/inMemoryProjection.unit.spec.ts#coping-projection{29-32}
 
 The read model stays consistent and the processor keeps running. A total that drifts below zero is a sign that a rule is missing upstream, so fix it in the decision that records the event, not in the projection that reads it.
 
@@ -95,15 +95,15 @@ The status comes from the error's code, the title from that HTTP status, and the
 
 The default mapping reads a numeric `errorCode` off the error it caught, so the shortest route to your own status is to carry one. Derive from `EmmettError` and hand the code to its constructor:
 
-<<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#derive-emmett-error
+<<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#derive-emmett-error{5}
 
 The base class is a convenience rather than a requirement. Any error with a numeric `errorCode` maps the same way, which keeps your own hierarchy free of Emmett:
 
-<<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#error-with-code
+<<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#error-with-code{3}
 
 For an error you cannot change, one thrown by a library you do not own, pass `mapError` to `getApplication`. Return a `ProblemDocument` to shape the response, or `undefined` to fall back to the default mapping:
 
-<<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#custom-error-mapping
+<<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#custom-error-mapping{20,22}
 
 Give the document an explicit `type` URI whenever you set your own `title`. Under the default `about:blank` type, Problem Details replaces the title with the standard reason phrase for the status, and your wording is lost.
 
@@ -119,7 +119,7 @@ Emmett does not force either style, and returning a failure event already gives 
 
 Assert a thrown rule with `thenThrows`, checking the error type, the message, or both:
 
-<<< @/snippets/gettingStarted/businessLogic.unit.spec.ts#unit-error
+<<< @/snippets/gettingStarted/businessLogic.unit.spec.ts#unit-error{24-26}
 
 At the HTTP layer, assert the Problem Details response with `expectError`. See [Testing](/guides/testing#assert-error) for both levels in full.
 
