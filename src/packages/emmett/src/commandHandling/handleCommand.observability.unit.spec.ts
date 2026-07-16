@@ -8,7 +8,7 @@ import {
   ExpectedVersionConflictError,
   getInMemoryEventStore,
 } from '../eventStore';
-import { setDefaultObservability } from '../observability';
+import { setupEmmettObservability } from '../observability';
 import { EmmettAttributes, EmmettMetrics } from '../observability/attributes';
 import { assertEqual, assertNotEqual, assertUndefined } from '../testing';
 import type { Event } from '../typing';
@@ -20,11 +20,11 @@ type Cart = { count: number };
 describe('handler observability', () => {
   const given = ObservabilitySpec.for();
 
-  afterEach(() => setDefaultObservability(undefined));
+  afterEach(() => setupEmmettObservability(undefined));
 
   it('uses default observability without handler configuration', () =>
     given((observability) => {
-      setDefaultObservability(observability);
+      setupEmmettObservability(observability);
       return CommandHandler<Cart, ItemAdded>({
         evolve: (state) => state,
         initialState: () => ({ count: 0 }),

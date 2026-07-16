@@ -58,6 +58,16 @@
         "types": "./dist/otel.d.cts",
         "default": "./dist/otel.cjs"
       }
+    },
+    "./otel-node": {
+      "import": {
+        "types": "./dist/otel-node.d.ts",
+        "default": "./dist/otel-node.js"
+      },
+      "require": {
+        "types": "./dist/otel-node.d.cts",
+        "default": "./dist/otel-node.cjs"
+      }
     }
   },
   "typesVersions": {
@@ -67,6 +77,9 @@
       ],
       "otel": [
         "./dist/otel.d.ts"
+      ],
+      "otel-node": [
+        "./dist/otel-node.d.ts"
       ]
     }
   },
@@ -87,6 +100,7 @@
   "peerDependencies": {
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/instrumentation": ">=0.215.0 <0.219.0",
+    "@opentelemetry/sdk-node": ">=0.215.0 <0.219.0",
     "commander": "^14.0.3",
     "uuid": "^14.0.0"
   },
@@ -96,10 +110,14 @@
     },
     "@opentelemetry/instrumentation": {
       "optional": true
+    },
+    "@opentelemetry/sdk-node": {
+      "optional": true
     }
   },
   "optionalDependencies": {
     "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/instrumentation": ">=0.215.0 <0.219.0"
+    "@opentelemetry/instrumentation": ">=0.215.0 <0.219.0",
+    "@opentelemetry/sdk-node": ">=0.215.0 <0.219.0"
   }
 }

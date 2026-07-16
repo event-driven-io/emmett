@@ -1,3 +1,4 @@
+export * from './defaultObservability';
 export {
   mergeObservability,
   observability,
