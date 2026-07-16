@@ -261,6 +261,61 @@ describe('handler observability', () => {
             });
         });
     });
+
+    void it('preserves append operation attributes and links while nesting append under command handling', async () => {
+      const externalParent = {
+        traceId: 'external-command-trace',
+        spanId: 'external-command-span',
+      };
+      const appendLink = {
+        traceId: 'linked-trace',
+        spanId: 'linked-span',
+      };
+      const streamId = uuid();
+      const event: ItemAdded = {
+        type: 'ItemAdded',
+        data: { productId: 'p1' },
+      };
+
+      return given((observability) => ({
+        eventStore: getInMemoryEventStore({ observability }),
+        handler: CommandHandler<Cart, ItemAdded>({
+          evolve: (state) => state,
+          initialState: () => ({ count: 0 }),
+          observability,
+        }),
+      }))
+        .when(({ eventStore, handler }) =>
+          handler(eventStore, streamId, () => [event], {
+            observability: {
+              parent: externalParent,
+              attributes: { 'test.append.option': 'kept' },
+              links: [appendLink],
+            },
+          }),
+        )
+        .then(({ spans }) => {
+          const commandSpan = spans
+            .hasSingleSpanNamed('command.handle')
+            .hasParent(externalParent);
+
+          commandSpan
+            .hasChildNamed('eventStore.appendToStream')
+            .hasAttributes({
+              'test.append.option': 'kept',
+              [EmmettAttributes.eventStore.operation]: 'appendToStream',
+              [EmmettAttributes.stream.name]: streamId,
+              [EmmettAttributes.eventStore.append.batchSize]: 1,
+              [EmmettAttributes.eventStore.append.status]: 'success',
+              [EmmettAttributes.stream.versionAfter]: 1,
+              [MessagingAttributes.operation.type]: 'send',
+              [MessagingAttributes.batch.messageCount]: 1,
+              [MessagingAttributes.destination.name]: streamId,
+              [MessagingAttributes.system]: MessagingSystemName,
+            })
+            .hasCreationLinks([appendLink]);
+        });
+    });
   });
 
   void describe('command type', () => {

@@ -1,5 +1,9 @@
+import type {
+  ObservabilityContextGenerator,
+  ObservabilityScope,
+} from '@event-driven-io/almanac';
 import { EmmettError } from '../errors';
-import type { EventStore } from '../eventStore';
+import type { AppendToStreamOptions, EventStore } from '../eventStore';
 import type { MessageProcessor } from '../processors';
 import {
   MessageProcessorType,
@@ -18,6 +22,7 @@ import type {
   MessageTypeOf,
   RecordedMessage,
 } from '../typing';
+import { withOperationScope } from '../observability';
 import {
   WorkflowHandler,
   workflowStreamName,
@@ -240,7 +245,9 @@ export const workflowProcessor = <
         const result = await handle(
           context.connection.messageStore,
           message as RecordedMessage<Input, MetaDataType>,
-          { observability: { scope: context.observabilityScope } },
+          {
+            observability: withOperationScope(context.observabilityScope),
+          },
         );
 
         // Check stopAfter on output messages
@@ -307,22 +314,14 @@ export const workflowProcessor = <
           },
         }));
 
-        const { traceId, spanId } = context.observabilityScope.spanContext();
-        const metadata = recordedMessage.metadata as Record<string, unknown>;
         await context.connection.messageStore.appendToStream(
           streamName,
           inputTaggedMessages as unknown as Event[],
-          {
-            correlationId:
-              getString(metadata.correlationId) ??
-              observability.contextGenerator.generateCorrelationId(),
-            causationId:
-              getString(metadata.messageId) ??
-              observability.contextGenerator.generateCausationId(),
-            traceId,
-            spanId,
-            observability: { scope: context.observabilityScope },
-          },
+          appendOptionsFromHandledOutput(
+            recordedMessage,
+            context.observabilityScope,
+            observability.contextGenerator,
+          ),
         );
 
         return;
@@ -333,5 +332,26 @@ export const workflowProcessor = <
   });
 };
 
-const getString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value !== '' ? value : undefined;
+const appendOptionsFromHandledOutput = <
+  MessageType extends AnyEvent | AnyCommand,
+  MessageMetadataType extends AnyRecordedMessageMetadata,
+>(
+  message: RecordedMessage<MessageType, MessageMetadataType>,
+  scope: ObservabilityScope,
+  contextGenerator: ObservabilityContextGenerator,
+): AppendToStreamOptions<Event> => {
+  const { traceId, spanId } = scope.spanContext();
+  const metadata = message.metadata as {
+    readonly messageId: string;
+    readonly correlationId?: string;
+  };
+
+  return {
+    correlationId:
+      metadata.correlationId ?? contextGenerator.generateCorrelationId(),
+    causationId: metadata.messageId,
+    traceId,
+    spanId,
+    observability: withOperationScope(scope),
+  };
+};

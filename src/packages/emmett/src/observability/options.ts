@@ -43,9 +43,8 @@ export const withOperationScope = (
   options?: OperationObservabilityOptions,
 ): OperationObservabilityOptions => {
   if (!options) return { scope };
-  if (options.scope || options.parent) return options;
 
-  const { parent: _parent, ...scopeOptions } = options;
+  const { parent: _parent, scope: _scope, ...scopeOptions } = options;
 
   return {
     ...scopeOptions,

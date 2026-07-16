@@ -19,6 +19,7 @@ import type {
   RecordedMessage,
 } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
+import { withOperationScope } from '../observability';
 import {
   workflowCollector,
   workflowObservability,
@@ -228,15 +229,17 @@ export const WorkflowHandler =
     const inputType = (message as { type: string }).type;
     const workflowId = options.getWorkflowId(message) ?? '';
     const sourceMetadata =
-      'metadata' in message && message.metadata
-        ? (message.metadata as Record<string, unknown>)
+      'metadata' in message &&
+      message.metadata &&
+      'messageId' in message.metadata
+        ? (message.metadata as MessageMetadataType)
         : undefined;
     const inputMessageId =
-      getString(sourceMetadata?.messageId) ??
+      sourceMetadata?.messageId ??
       observability.contextGenerator.generateMessageId();
     const correlationId =
       handleOptions?.correlationId ??
-      getString(sourceMetadata?.correlationId) ??
+      sourceMetadata?.correlationId ??
       observability.contextGenerator.generateCorrelationId();
     const causationId = handleOptions?.causationId ?? inputMessageId;
 
@@ -315,7 +318,10 @@ export const WorkflowHandler =
                     causationId,
                     traceId,
                     spanId,
-                    observability: { scope },
+                    observability: withOperationScope(
+                      scope,
+                      handleOptions?.observability,
+                    ),
                   },
                 );
 
@@ -345,7 +351,7 @@ export const WorkflowHandler =
               >(streamName, {
                 evolve: wrappedEvolve,
                 initialState: wrappedInitialState,
-                observability: { scope },
+                observability: withOperationScope(scope),
                 read: {
                   ...(handleOptions as ReadStreamOptions<
                     WorkflowEvent<Input | Output>,
@@ -450,7 +456,10 @@ export const WorkflowHandler =
                   causationId,
                   traceId,
                   spanId,
-                  observability: { scope },
+                  observability: withOperationScope(
+                    scope,
+                    handleOptions?.observability,
+                  ),
                 },
               );
 
@@ -485,6 +494,3 @@ const withSession = <EventStoreType extends EventStore, T = unknown>(
 
   return sessionFactory.withSession(callback);
 };
-
-const getString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value !== '' ? value : undefined;

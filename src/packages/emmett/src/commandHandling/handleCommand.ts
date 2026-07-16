@@ -13,7 +13,10 @@ import {
 import type { JSONSerializationOptions } from '../serialization';
 import type { Event } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
-import type { OperationObservabilityOptions } from '../observability';
+import {
+  withOperationScope,
+  type OperationObservabilityOptions,
+} from '../observability';
 import {
   commandHandlerCollector,
   commandObservability,
@@ -145,7 +148,7 @@ export const CommandHandler =
               >(streamName, {
                 evolve,
                 initialState,
-                observability: { scope },
+                observability: withOperationScope(scope),
                 read: {
                   schema: options.schema,
                   serialization: options.serialization,
@@ -224,7 +227,10 @@ export const CommandHandler =
                   ...(causationId ? { causationId } : {}),
                   traceId,
                   spanId,
-                  observability: { scope },
+                  observability: withOperationScope(
+                    scope,
+                    appendOptionsFromHandle?.observability,
+                  ),
                 },
               );
 
@@ -310,6 +316,7 @@ const toAppendOptions = <
     ...(options.causationId ? { causationId: options.causationId } : {}),
     ...(options.traceId ? { traceId: options.traceId } : {}),
     ...(options.spanId ? { spanId: options.spanId } : {}),
+    ...(options.observability ? { observability: options.observability } : {}),
   };
 };
 
