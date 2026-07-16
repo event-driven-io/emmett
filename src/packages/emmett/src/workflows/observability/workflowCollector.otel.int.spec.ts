@@ -6,6 +6,7 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { otelAssertions, otelTracer } from '@event-driven-io/almanac/otel';
+import { MessagingAttributes } from '@event-driven-io/almanac';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { getInMemoryEventStore } from '../../eventStore';
 import {
@@ -17,6 +18,7 @@ import type { Event } from '../../typing';
 import { workflowCollector, workflowObservability } from './workflowCollector';
 
 describe('workflowCollector with OTel', () => {
+  const M = MessagingAttributes;
   const exporter = new InMemorySpanExporter();
   const provider = new BasicTracerProvider({
     spanProcessors: [new SimpleSpanProcessor(exporter)],
@@ -65,7 +67,7 @@ describe('workflowCollector with OTel', () => {
         [EmmettAttributes.workflow.inputType]: 'GuestCheckedOut',
         [EmmettAttributes.workflow.stateRebuildEventCount]: 2,
         [EmmettAttributes.workflow.outputsCount]: 1,
-        'messaging.system': MessagingSystemName,
+        [M.system]: MessagingSystemName,
       });
     expect(
       spans[0]!.attributes[EmmettAttributes.workflow.outputs],
@@ -109,10 +111,10 @@ describe('workflowCollector with OTel', () => {
         [EmmettAttributes.eventStore.append.batchSize]: 1,
         [EmmettAttributes.eventStore.append.status]: 'success',
         [EmmettAttributes.stream.versionAfter]: 1,
-        'messaging.operation.type': 'send',
-        'messaging.batch.message_count': 1,
-        'messaging.destination.name': 'orders-1',
-        'messaging.system': MessagingSystemName,
+        [M.operation.type]: 'send',
+        [M.batch.messageCount]: 1,
+        [M.destination.name]: 'orders-1',
+        [M.system]: MessagingSystemName,
       });
 
     otelAssertions
@@ -123,9 +125,9 @@ describe('workflowCollector with OTel', () => {
         [EmmettAttributes.stream.name]: 'orders-1',
         [EmmettAttributes.eventStore.read.status]: 'success',
         [EmmettAttributes.eventStore.read.eventCount]: 1,
-        'messaging.operation.type': 'receive',
-        'messaging.destination.name': 'orders-1',
-        'messaging.system': MessagingSystemName,
+        [M.operation.type]: 'receive',
+        [M.destination.name]: 'orders-1',
+        [M.system]: MessagingSystemName,
       });
 
     otelAssertions
@@ -135,9 +137,9 @@ describe('workflowCollector with OTel', () => {
         [EmmettAttributes.eventStore.operation]: 'aggregateStream',
         [EmmettAttributes.stream.name]: 'orders-1',
         [EmmettAttributes.eventStore.aggregate.status]: 'success',
-        'messaging.operation.type': 'process',
-        'messaging.destination.name': 'orders-1',
-        'messaging.system': MessagingSystemName,
+        [M.operation.type]: 'process',
+        [M.destination.name]: 'orders-1',
+        [M.system]: MessagingSystemName,
       });
   });
 });

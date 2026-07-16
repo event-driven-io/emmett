@@ -1,13 +1,19 @@
 import {
+  MessagingAttributes,
+  ObservabilitySpec,
+} from '@event-driven-io/almanac';
+import {
   assertDeepEqual,
   assertEqual,
   assertIsNotNull,
   assertTrue,
-  collectingTracer,
+  EmmettAttributes,
+  MessagingSystemName,
   projections,
   STREAM_DOES_NOT_EXIST,
   type Event,
 } from '@event-driven-io/emmett';
+import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient, type Collection } from 'mongodb';
 import { afterAll, beforeAll, describe, it } from 'vitest';
@@ -20,9 +26,9 @@ import {
   type EventStream,
   type MongoDBEventStore,
 } from './';
-import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('MongoDBEventStore', () => {
+  const M = MessagingAttributes;
   let mongodb: StartedMongoDBContainer;
   let eventStore: MongoDBEventStore;
   let client: MongoClient;
@@ -115,70 +121,187 @@ void describe('MongoDBEventStore', () => {
     assertEqual(3n, stream.metadata.streamPosition);
   });
 
-  void it('should record observability while appending, reading, and handling inline projections', async () => {
-    const tracer = collectingTracer();
-    let projectionTraceId = '';
+  void it('should record observability while appending', async () => {
+    const given = ObservabilitySpec.for();
     const streamType = 'shopping_cart';
     const shoppingCartId = uuid();
     const streamName = toStreamName(streamType, shoppingCartId);
-    const observedEventStore = getMongoDBEventStore({
-      client,
-      observability: { tracer },
-      projections: projections.inline([
-        {
-          name: `mongo_observability_projection_${uuid()}`,
-          canHandle: ['ProductItemAdded'],
-          handle: (_events, context) => {
-            projectionTraceId =
-              context.observabilityScope.spanContext().traceId;
-          },
-        },
-      ]),
-    });
     const productItem: PricedProductItem = {
       productId: '123',
       quantity: 10,
       price: 3,
     };
 
-    await observedEventStore.appendToStream<ShoppingCartEvent>(
-      streamName,
-      [{ type: 'ProductItemAdded', data: { productItem } }],
-      { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
-    );
-    await observedEventStore.readStream(streamName);
-    await observedEventStore.aggregateStream<
-      { productItemsCount: number },
-      ShoppingCartEvent
-    >(streamName, {
-      initialState: () => ({ productItemsCount: 0 }),
-      evolve: (state: { productItemsCount: number }) => ({
-        productItemsCount: state.productItemsCount + 1,
+    await given((observability) => ({
+      eventStore: getMongoDBEventStore({
+        client,
+        observability,
       }),
-    });
+    }))
+      .when(async ({ eventStore }) => {
+        await eventStore.appendToStream<ShoppingCartEvent>(
+          streamName,
+          [{ type: 'ProductItemAdded', data: { productItem } }],
+          { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+        );
+      })
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'appendToStream',
+          [EmmettAttributes.stream.name]: streamName,
+          [EmmettAttributes.eventStore.append.batchSize]: 1,
+          [EmmettAttributes.eventStore.append.status]: 'success',
+          [EmmettAttributes.stream.versionAfter]: 1,
+          [M.operation.type]: 'send',
+          [M.batch.messageCount]: 1,
+          [M.destination.name]: streamName,
+          [M.system]: MessagingSystemName,
+        });
+      });
+  });
 
-    assertEqual(
-      true,
-      tracer.spans.some((span) => span.name === 'eventStore.appendToStream'),
-    );
-    assertEqual(
-      true,
-      tracer.spans.some((span) => span.name === 'eventStore.readStream'),
-    );
-    assertEqual(
-      2,
-      tracer.spans.filter((span) => span.name === 'eventStore.readStream')
-        .length,
-    );
-    assertEqual(
-      true,
-      tracer.spans.some((span) => span.name === 'eventStore.aggregateStream'),
-    );
-    assertEqual(
-      true,
-      tracer.spans.some((span) => span.name === 'eventStore.inlineProjection'),
-    );
-    assertEqual(true, projectionTraceId !== '');
+  void it('should record observability while reading', async () => {
+    const given = ObservabilitySpec.for();
+    const streamType = 'shopping_cart';
+    const shoppingCartId = uuid();
+    const streamName = toStreamName(streamType, shoppingCartId);
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given(async (observability) => {
+      const eventStore = getMongoDBEventStore({
+        client,
+        observability,
+      });
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        streamName,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+        { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+      );
+      return {
+        eventStore,
+      };
+    })
+      .when(async ({ eventStore }) => {
+        await eventStore.readStream(streamName);
+      })
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'readStream',
+          [EmmettAttributes.stream.name]: streamName,
+          [EmmettAttributes.eventStore.read.status]: 'success',
+          [EmmettAttributes.eventStore.read.eventCount]: 1,
+          [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
+          [M.operation.type]: 'receive',
+          [M.destination.name]: streamName,
+          [M.system]: MessagingSystemName,
+        });
+      });
+  });
+
+  void it('should record observability while handling inline projections', async () => {
+    const given = ObservabilitySpec.for();
+    let projectionTraceId = '';
+    const streamType = 'shopping_cart';
+    const shoppingCartId = uuid();
+    const streamName = toStreamName(streamType, shoppingCartId);
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given((observability) => ({
+      eventStore: getMongoDBEventStore({
+        client,
+        observability,
+        projections: projections.inline([
+          {
+            name: `mongo_observability_projection_${uuid()}`,
+            canHandle: ['ProductItemAdded'],
+            handle: (_events, context) => {
+              projectionTraceId =
+                context.observabilityScope.spanContext().traceId;
+            },
+          },
+        ]),
+      }),
+    }))
+      .when(async ({ eventStore }) => {
+        await eventStore.appendToStream<ShoppingCartEvent>(
+          streamName,
+          [{ type: 'ProductItemAdded', data: { productItem } }],
+          { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+        );
+      })
+      .then(({ spans }) => {
+        spans
+          .hasSingleSpanNamed('eventStore.inlineProjection')
+          .hasTraceId(projectionTraceId);
+      });
+  });
+
+  void it('should record observability while aggregating stream', async () => {
+    const given = ObservabilitySpec.for();
+    const streamType = 'shopping_cart';
+    const shoppingCartId = uuid();
+    const streamName = toStreamName(streamType, shoppingCartId);
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given(async (observability) => {
+      const eventStore = getMongoDBEventStore({
+        client,
+        observability,
+      });
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        streamName,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+        { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+      );
+      return {
+        eventStore,
+      };
+    })
+      .when(async ({ eventStore }) => {
+        await eventStore.aggregateStream<
+          { productItemsCount: number },
+          ShoppingCartEvent
+        >(streamName, {
+          initialState: () => ({ productItemsCount: 0 }),
+          evolve: (state: { productItemsCount: number }) => ({
+            productItemsCount: state.productItemsCount + 1,
+          }),
+        });
+      })
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.aggregateStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'aggregateStream',
+          [EmmettAttributes.stream.name]: streamName,
+          [EmmettAttributes.eventStore.aggregate.status]: 'success',
+          [EmmettAttributes.stream.versionAfter]: 1,
+          [M.operation.type]: 'process',
+          [M.destination.name]: streamName,
+          [M.system]: MessagingSystemName,
+        });
+
+        spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'readStream',
+          [EmmettAttributes.stream.name]: streamName,
+          [EmmettAttributes.eventStore.read.status]: 'success',
+          [EmmettAttributes.eventStore.read.eventCount]: 1,
+          [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
+          [M.operation.type]: 'receive',
+          [M.destination.name]: streamName,
+          [M.system]: MessagingSystemName,
+        });
+      });
   });
 
   void it('should only return a subset of stream events based on expectedStreamVersion', async () => {

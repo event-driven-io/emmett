@@ -1,11 +1,16 @@
 import { InMemorySQLiteDatabase } from '@event-driven-io/dumbo/sqlite3';
+import {
+  MessagingAttributes,
+  ObservabilitySpec,
+} from '@event-driven-io/almanac';
 import type { ExpectedVersionConflictError } from '@event-driven-io/emmett';
 import {
   assertDeepEqual,
   assertEqual,
   assertIsNotNull,
   assertThrowsAsync,
-  collectingTracer,
+  EmmettAttributes,
+  MessagingSystemName,
   projections,
   type Event,
 } from '@event-driven-io/emmett';
@@ -32,6 +37,7 @@ import {
 import { sqliteProjection } from './projections';
 
 void describe('SQLiteEventStore', () => {
+  const M = MessagingAttributes;
   const testDatabasePath = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
     '..',
@@ -292,78 +298,203 @@ void describe('SQLiteEventStore', () => {
     assertEqual(savedEvents.length, 1);
   });
 
-  void it('should record observability while appending, reading, and handling inline projections', async () => {
-    const tracer = collectingTracer();
-    let projectionTraceId = '';
+  void it('should record observability while appending', async () => {
+    const given = ObservabilitySpec.for();
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
 
-    const eventStore = getSQLiteEventStore({
-      driver: sqlite3EventStoreDriver,
-      schema: {
-        autoMigration: 'CreateOrUpdate',
-      },
-      fileName,
-      observability: { tracer },
-      projections: projections.inline([
-        sqliteProjection<ProductItemAdded>({
-          name: 'sqlite_observability_projection',
-          canHandle: ['ProductItemAdded'],
-          handle: (_events, context) => {
-            projectionTraceId =
-              context.observabilityScope.spanContext().traceId;
-          },
-        }),
-      ]),
-    });
+    await given((observability) => ({
+      eventStore: getSQLiteEventStore({
+        driver: sqlite3EventStoreDriver,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+        },
+        fileName,
+        observability,
+      }),
+    }))
+      .when(async ({ eventStore }) => {
+        try {
+          await eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
+            { type: 'ProductItemAdded', data: { productItem } },
+          ]);
+        } finally {
+          await eventStore.close();
+        }
+      })
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'appendToStream',
+          [EmmettAttributes.stream.name]: shoppingCartId,
+          [EmmettAttributes.eventStore.append.batchSize]: 1,
+          [EmmettAttributes.eventStore.append.status]: 'success',
+          [EmmettAttributes.stream.versionAfter]: 1,
+          [M.operation.type]: 'send',
+          [M.batch.messageCount]: 1,
+          [M.destination.name]: shoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
+      });
+  });
 
-    try {
-      const productItem: PricedProductItem = {
-        productId: '123',
-        quantity: 10,
-        price: 3,
-      };
-      const shoppingCartId = `shopping_cart-${uuid()}`;
+  void it('should record observability while reading', async () => {
+    const given = ObservabilitySpec.for();
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
 
+    await given(async (observability) => {
+      const eventStore = getSQLiteEventStore({
+        driver: sqlite3EventStoreDriver,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+        },
+        fileName,
+        observability,
+      });
       await eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
         { type: 'ProductItemAdded', data: { productItem } },
       ]);
-      await eventStore.readStream(shoppingCartId);
-      await eventStore.aggregateStream<
-        { productItemsCount: number },
-        ProductItemAdded
-      >(shoppingCartId, {
-        initialState: () => ({ productItemsCount: 0 }),
-        evolve: (state: { productItemsCount: number }) => ({
-          productItemsCount: state.productItemsCount + 1,
-        }),
+      return {
+        eventStore,
+      };
+    })
+      .when(async ({ eventStore }) => {
+        try {
+          await eventStore.readStream(shoppingCartId);
+        } finally {
+          await eventStore.close();
+        }
+      })
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'readStream',
+          [EmmettAttributes.stream.name]: shoppingCartId,
+          [EmmettAttributes.eventStore.read.status]: 'success',
+          [EmmettAttributes.eventStore.read.eventCount]: 1,
+          [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
+          [M.operation.type]: 'receive',
+          [M.destination.name]: shoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
       });
+  });
 
-      assertEqual(
-        true,
-        tracer.spans.some((span) => span.name === 'eventStore.appendToStream'),
-      );
-      assertEqual(
-        true,
-        tracer.spans.some((span) => span.name === 'eventStore.readStream'),
-      );
-      assertEqual(
-        2,
-        tracer.spans.filter((span) => span.name === 'eventStore.readStream')
-          .length,
-      );
-      assertEqual(
-        true,
-        tracer.spans.some((span) => span.name === 'eventStore.aggregateStream'),
-      );
-      assertEqual(
-        true,
-        tracer.spans.some(
-          (span) => span.name === 'eventStore.inlineProjection',
-        ),
-      );
-      assertEqual(true, projectionTraceId !== '');
-    } finally {
-      await eventStore.close();
-    }
+  void it('should record observability while handling inline projections', async () => {
+    const given = ObservabilitySpec.for();
+    let projectionTraceId = '';
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given((observability) => ({
+      eventStore: getSQLiteEventStore({
+        driver: sqlite3EventStoreDriver,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+        },
+        fileName,
+        observability,
+        projections: projections.inline([
+          sqliteProjection<ProductItemAdded>({
+            name: 'sqlite_observability_projection',
+            canHandle: ['ProductItemAdded'],
+            handle: (_events, context) => {
+              projectionTraceId =
+                context.observabilityScope.spanContext().traceId;
+            },
+          }),
+        ]),
+      }),
+    }))
+      .when(async ({ eventStore }) => {
+        try {
+          await eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
+            { type: 'ProductItemAdded', data: { productItem } },
+          ]);
+        } finally {
+          await eventStore.close();
+        }
+      })
+      .then(({ spans }) => {
+        spans
+          .hasSingleSpanNamed('eventStore.inlineProjection')
+          .hasTraceId(projectionTraceId);
+      });
+  });
+
+  void it('should record observability while aggregating stream', async () => {
+    const given = ObservabilitySpec.for();
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given(async (observability) => {
+      const eventStore = getSQLiteEventStore({
+        driver: sqlite3EventStoreDriver,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+        },
+        fileName,
+        observability,
+      });
+      await eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
+        { type: 'ProductItemAdded', data: { productItem } },
+      ]);
+      return {
+        eventStore,
+      };
+    })
+      .when(async ({ eventStore }) => {
+        try {
+          await eventStore.aggregateStream<
+            { productItemsCount: number },
+            ProductItemAdded
+          >(shoppingCartId, {
+            initialState: () => ({ productItemsCount: 0 }),
+            evolve: (state: { productItemsCount: number }) => ({
+              productItemsCount: state.productItemsCount + 1,
+            }),
+          });
+        } finally {
+          await eventStore.close();
+        }
+      })
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.aggregateStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'aggregateStream',
+          [EmmettAttributes.stream.name]: shoppingCartId,
+          [EmmettAttributes.eventStore.aggregate.status]: 'success',
+          [EmmettAttributes.stream.versionAfter]: 1,
+          [M.operation.type]: 'process',
+          [M.destination.name]: shoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
+
+        spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'readStream',
+          [EmmettAttributes.stream.name]: shoppingCartId,
+          [EmmettAttributes.eventStore.read.status]: 'success',
+          [EmmettAttributes.eventStore.read.eventCount]: 1,
+          [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
+          [M.operation.type]: 'receive',
+          [M.destination.name]: shoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
+      });
   });
 });
 

@@ -1,8 +1,13 @@
 import {
+  MessagingAttributes,
+  ObservabilitySpec,
+} from '@event-driven-io/almanac';
+import {
   assertDeepEqual,
   assertEqual,
   assertIsNotNull,
-  collectingTracer,
+  EmmettAttributes,
+  MessagingSystemName,
   projections,
   type Event,
   type ReadEvent,
@@ -28,6 +33,7 @@ import { pongoSingleStreamProjection } from './projections/pongo/pongoProjection
 import { pgDriver } from '@event-driven-io/pongo/pg';
 
 void describe('EventStoreDBEventStore', () => {
+  const M = MessagingAttributes;
   let postgres: StartedPostgreSqlContainer;
   let eventStore: PostgresEventStore;
   let connectionString: string;
@@ -213,32 +219,53 @@ void describe('EventStoreDBEventStore', () => {
     assertEqual(3, handledEventsInCustomProjection.length);
   });
 
-  void it('should record observability while appending, reading, and handling inline projections', async () => {
-    const tracer = collectingTracer();
-    let projectionTraceId = '';
-    const projectionName = `postgres_observability_projection_${uuid().replaceAll(
-      '-',
-      '_',
-    )}`;
-    const observedEventStore = getPostgreSQLEventStore(connectionString, {
-      observability: { tracer },
-      projections: projections.inline([
-        postgreSQLProjection<ShoppingCartEvent>({
-          name: projectionName,
-          canHandle: ['ProductItemAdded'],
-          handle: (events, context) => {
-            projectionTraceId =
-              context.observabilityScope.spanContext().traceId;
-            handledEventsInCustomProjection.push(...events);
-          },
-        }),
-      ]),
-    });
+  void it('should record observability while appending', async () => {
+    const given = ObservabilitySpec.for();
+    const observedShoppingCartId = `shopping_cart-${uuid()}`;
 
-    try {
-      const observedShoppingCartId = `shopping_cart-${uuid()}`;
+    await given((observability) => ({
+      eventStore: getPostgreSQLEventStore(connectionString, { observability }),
+    }))
+      .when(async ({ eventStore }) => {
+        try {
+          await eventStore.appendToStream<ShoppingCartEvent>(
+            observedShoppingCartId,
+            [
+              {
+                type: 'ProductItemAdded',
+                data: { productItem },
+                metadata: { clientId },
+              },
+            ],
+          );
+        } finally {
+          await eventStore.close();
+        }
+      })
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'appendToStream',
+          [EmmettAttributes.stream.name]: observedShoppingCartId,
+          [EmmettAttributes.eventStore.append.batchSize]: 1,
+          [EmmettAttributes.eventStore.append.status]: 'success',
+          [EmmettAttributes.stream.versionAfter]: 1,
+          [M.operation.type]: 'send',
+          [M.batch.messageCount]: 1,
+          [M.destination.name]: observedShoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
+      });
+  });
 
-      await observedEventStore.appendToStream<ShoppingCartEvent>(
+  void it('should record observability while reading', async () => {
+    const given = ObservabilitySpec.for();
+    const observedShoppingCartId = `shopping_cart-${uuid()}`;
+
+    await given(async (observability) => {
+      const eventStore = getPostgreSQLEventStore(connectionString, {
+        observability,
+      });
+      await eventStore.appendToStream<ShoppingCartEvent>(
         observedShoppingCartId,
         [
           {
@@ -248,44 +275,138 @@ void describe('EventStoreDBEventStore', () => {
           },
         ],
       );
-      await observedEventStore.readStream(observedShoppingCartId);
-      await observedEventStore.aggregateStream<
-        { productItemsCount: number },
-        ShoppingCartEvent
-      >(observedShoppingCartId, {
-        initialState: () => ({ productItemsCount: 0 }),
-        evolve: (state: { productItemsCount: number }) => ({
-          productItemsCount: state.productItemsCount + 1,
-        }),
+      return {
+        eventStore,
+      };
+    })
+      .when(async ({ eventStore }) => {
+        try {
+          await eventStore.readStream(observedShoppingCartId);
+        } finally {
+          await eventStore.close();
+        }
+      })
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'readStream',
+          [EmmettAttributes.stream.name]: observedShoppingCartId,
+          [EmmettAttributes.eventStore.read.status]: 'success',
+          [EmmettAttributes.eventStore.read.eventCount]: 1,
+          [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
+          [M.operation.type]: 'receive',
+          [M.destination.name]: observedShoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
       });
+  });
 
-      assertEqual(
-        true,
-        tracer.spans.some((span) => span.name === 'eventStore.appendToStream'),
+  void it('should record observability while handling inline projections', async () => {
+    const given = ObservabilitySpec.for();
+    let projectionTraceId = '';
+    const projectionName = `postgres_observability_projection_${uuid().replaceAll(
+      '-',
+      '_',
+    )}`;
+    const observedShoppingCartId = `shopping_cart-${uuid()}`;
+
+    await given((observability) => ({
+      eventStore: getPostgreSQLEventStore(connectionString, {
+        observability,
+        projections: projections.inline([
+          postgreSQLProjection<ShoppingCartEvent>({
+            name: projectionName,
+            canHandle: ['ProductItemAdded'],
+            handle: (events, context) => {
+              projectionTraceId =
+                context.observabilityScope.spanContext().traceId;
+              handledEventsInCustomProjection.push(...events);
+            },
+          }),
+        ]),
+      }),
+    }))
+      .when(async ({ eventStore }) => {
+        try {
+          await eventStore.appendToStream<ShoppingCartEvent>(
+            observedShoppingCartId,
+            [
+              {
+                type: 'ProductItemAdded',
+                data: { productItem },
+                metadata: { clientId },
+              },
+            ],
+          );
+        } finally {
+          await eventStore.close();
+        }
+      })
+      .then(({ spans }) => {
+        spans
+          .hasSingleSpanNamed('eventStore.inlineProjection')
+          .hasTraceId(projectionTraceId);
+      });
+  });
+
+  void it('should record observability while aggregating stream', async () => {
+    const given = ObservabilitySpec.for();
+    const observedShoppingCartId = `shopping_cart-${uuid()}`;
+
+    await given(async (observability) => {
+      const eventStore = getPostgreSQLEventStore(connectionString, {
+        observability,
+      });
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        observedShoppingCartId,
+        [
+          {
+            type: 'ProductItemAdded',
+            data: { productItem },
+            metadata: { clientId },
+          },
+        ],
       );
-      assertEqual(
-        true,
-        tracer.spans.some((span) => span.name === 'eventStore.readStream'),
-      );
-      assertEqual(
-        2,
-        tracer.spans.filter((span) => span.name === 'eventStore.readStream')
-          .length,
-      );
-      assertEqual(
-        true,
-        tracer.spans.some((span) => span.name === 'eventStore.aggregateStream'),
-      );
-      assertEqual(
-        true,
-        tracer.spans.some(
-          (span) => span.name === 'eventStore.inlineProjection',
-        ),
-      );
-      assertEqual(true, projectionTraceId !== '');
-    } finally {
-      await observedEventStore.close();
-    }
+      return {
+        eventStore,
+      };
+    })
+      .when(async ({ eventStore }) => {
+        try {
+          await eventStore.aggregateStream<
+            { productItemsCount: number },
+            ShoppingCartEvent
+          >(observedShoppingCartId, {
+            initialState: () => ({ productItemsCount: 0 }),
+            evolve: (state: { productItemsCount: number }) => ({
+              productItemsCount: state.productItemsCount + 1,
+            }),
+          });
+        } finally {
+          await eventStore.close();
+        }
+      })
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.aggregateStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'aggregateStream',
+          [EmmettAttributes.stream.name]: observedShoppingCartId,
+          [EmmettAttributes.eventStore.aggregate.status]: 'success',
+          [EmmettAttributes.stream.versionAfter]: 1,
+          [M.operation.type]: 'process',
+          [M.destination.name]: observedShoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
+
+        spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'readStream',
+          [EmmettAttributes.stream.name]: observedShoppingCartId,
+          [EmmettAttributes.eventStore.read.status]: 'success',
+          [EmmettAttributes.eventStore.read.eventCount]: 1,
+          [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
+          [M.operation.type]: 'receive',
+          [M.destination.name]: observedShoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
+      });
   });
 
   void describe('upcasting', () => {

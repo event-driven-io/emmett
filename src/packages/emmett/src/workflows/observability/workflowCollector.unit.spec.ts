@@ -34,7 +34,7 @@ describe('workflowCollector', () => {
         collector.startScope(defaultContext, () => Promise.resolve()),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('workflow.handle').hasAttributes({
+        spans.hasSingleSpanNamed('workflow.handle').hasAttributes({
           [A.scope.type]: 'workflow',
           'emmett.scope.main': true,
         }),
@@ -54,7 +54,7 @@ describe('workflowCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('workflow.handle').hasAttributes({
+        spans.hasSingleSpanNamed('workflow.handle').hasAttributes({
           [A.workflow.id]: 'wf-42',
           [A.workflow.type]: 'ShippingWorkflow',
           [A.workflow.inputType]: 'ShipOrder',
@@ -72,7 +72,7 @@ describe('workflowCollector', () => {
         }),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('workflow.handle').hasAttributes({
+        spans.hasSingleSpanNamed('workflow.handle').hasAttributes({
           [A.workflow.outputs]: ['OrderShipped', 'NotificationSent'],
           [A.workflow.outputsCount]: 2,
         }),
@@ -101,7 +101,7 @@ describe('workflowCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('workflow.handle')
+          .hasSingleSpanNamed('workflow.handle')
           .hasAttribute(M.system, MessagingSystemName),
       );
   });
@@ -116,7 +116,7 @@ describe('workflowCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('workflow.handle')
+          .hasSingleSpanNamed('workflow.handle')
           .hasAttribute(A.workflow.stateRebuildEventCount, 7),
       );
   });
@@ -158,7 +158,7 @@ describe('workflowObservability', () => {
       )
       .then(({ spans, metrics }) => {
         spans
-          .haveSpanNamed('workflow.handle')
+          .hasSingleSpanNamed('workflow.handle')
           .logged('info', 'using global observability');
         metrics
           .haveHistogramNamed(EmmettMetrics.workflow.processingDuration)

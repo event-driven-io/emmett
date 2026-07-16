@@ -36,7 +36,7 @@ describe('handler observability', () => {
         ]),
       )
       .then(({ spans }) => {
-        spans.haveSpanNamed('command.handle');
+        spans.hasSingleSpanNamed('command.handle');
       }));
 
   void describe('observability propagation', () => {
@@ -84,7 +84,7 @@ describe('handler observability', () => {
           assertNotEqual(expectedTraceId, traceId);
 
           spans
-            .haveSpanNamed('command.handle')
+            .hasSingleSpanNamed('command.handle')
             .hasParent({ traceId: expectedTraceId, spanId: expectedSpanId })
             .hasAttribute(
               MessagingAttributes.message.correlationId,
@@ -134,7 +134,7 @@ describe('handler observability', () => {
           expect(traceId).toBeTypeOf('string');
 
           spans
-            .haveSpanNamed('command.handle')
+            .hasSingleSpanNamed('command.handle')
             .hasNoParent()
             .hasAttributes({
               [MessagingAttributes.message.correlationId]: correlationId,
@@ -171,7 +171,7 @@ describe('handler observability', () => {
           expect(traceId).toBeTypeOf('string');
 
           spans
-            .haveSpanNamed('command.handle')
+            .hasSingleSpanNamed('command.handle')
             .hasNoParent()
             .hasAttributes({
               [MessagingAttributes.message.correlationId]: correlationId,
@@ -198,7 +198,7 @@ describe('handler observability', () => {
         )
         .then(({ spans }) => {
           spans
-            .haveSpanNamed('command.handle')
+            .hasSingleSpanNamed('command.handle')
             .hasAttribute(EmmettAttributes.command.type, 'AddItem');
         });
     });
@@ -219,7 +219,7 @@ describe('handler observability', () => {
         )
         .then(({ spans }) => {
           spans
-            .haveSpanNamed('command.handle')
+            .hasSingleSpanNamed('command.handle')
             .hasAttribute(EmmettAttributes.command.type, 'PlaceOrder');
         });
     });
@@ -241,7 +241,7 @@ describe('handler observability', () => {
         )
         .then(({ spans }) => {
           spans
-            .haveSpanNamed('command.handle')
+            .hasSingleSpanNamed('command.handle')
             .hasAttribute(EmmettAttributes.command.type, 'addItem');
         });
     });
@@ -266,7 +266,7 @@ describe('handler observability', () => {
         )
         .then(({ spans }) => {
           spans
-            .haveSpanNamed('command.handle')
+            .hasSingleSpanNamed('command.handle')
             .hasAttribute(EmmettAttributes.command.type, [
               'addItem',
               'addAnotherItem',
@@ -287,7 +287,7 @@ describe('handler observability', () => {
         )
         .then(({ spans }) => {
           spans
-            .haveSpanNamed('command.handle')
+            .hasSingleSpanNamed('command.handle')
             .hasAttribute(EmmettAttributes.command.type, undefined);
         });
     });
@@ -310,7 +310,7 @@ describe('handler observability', () => {
           ]),
         )
         .then(({ spans }) => {
-          spans.haveSpanNamed('command.handle').hasAttributes({
+          spans.hasSingleSpanNamed('command.handle').hasAttributes({
             [EmmettAttributes.stream.name]: streamId,
             [EmmettAttributes.command.status]: 'success',
             [EmmettAttributes.command.eventTypes]: ['ItemAdded'],
@@ -430,7 +430,7 @@ describe('handler observability', () => {
           }),
         )
         .thenThrows(({ spans, error }) => {
-          spans.haveSpanNamed('command.handle').hasAttributes({
+          spans.hasSingleSpanNamed('command.handle').hasAttributes({
             [EmmettAttributes.command.status]: 'failure',
             error: true,
             'exception.message': 'business rule violated',
@@ -465,7 +465,7 @@ describe('handler observability', () => {
           );
         })
         .thenThrows(({ spans, error }) => {
-          spans.haveSpanNamed('command.handle').hasAttributes({
+          spans.hasSingleSpanNamed('command.handle').hasAttributes({
             [EmmettAttributes.command.status]: 'failure',
             error: true,
             'exception.type': 'ExpectedVersionConflictError',

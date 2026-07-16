@@ -36,7 +36,7 @@ describe('processors observability wiring', () => {
       })
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('processor.message.OrderPlaced')
+          .hasSingleSpanNamed('processor.message.OrderPlaced')
           .hasParent({ traceId: 'trace-A', spanId: 'span-x' }),
       );
   });
@@ -55,7 +55,7 @@ describe('processors observability wiring', () => {
         await reactor.close({});
       })
       .then(({ spans }) =>
-        spans.haveSpanNamed('processor.message.OrderPlaced').hasNoParent(),
+        spans.hasSingleSpanNamed('processor.message.OrderPlaced').hasNoParent(),
       );
   });
 
@@ -82,7 +82,7 @@ describe('processors observability wiring', () => {
       })
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('processor.handle')
+          .hasSingleSpanNamed('processor.handle')
           .hasCreationLinks([{ traceId: 'trace-A', spanId: 'span-x' }]),
       );
   });
@@ -112,7 +112,7 @@ describe('processors observability wiring', () => {
       })
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('processor.message.OrderPlaced')
+          .hasSingleSpanNamed('processor.message.OrderPlaced')
           .hasPropagation('propagate')
           .hasParent({ traceId: 'trace-A', spanId: 'span-x' }),
       );
@@ -136,7 +136,7 @@ describe('processors observability wiring', () => {
       })
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('processor.handle')
+          .hasSingleSpanNamed('processor.handle')
           .logged(
             'error',
             'Error during message processing for processor test with instance id test. Stopping the processor.',

@@ -5,6 +5,7 @@ type SpanAssertions = {
   exists(): SpanAssertions;
   hasAttribute(key: string, value: unknown): SpanAssertions;
   hasAttributes(attrs: Record<string, unknown>): SpanAssertions;
+  hasTraceId(traceId: string): SpanAssertions;
   hasParent(ctx: { traceId: string; spanId: string }): SpanAssertions;
   hasNoParent(): SpanAssertions;
   hasPropagation(p: TracePropagation): SpanAssertions;
@@ -21,9 +22,16 @@ type SpanAssertions = {
 };
 
 export type SpanCollectionAssertions = {
-  haveSpanNamed(name: string): SpanAssertions;
+  hasSingleSpanNamed(name: string): SpanAssertions;
+  haveSpansNamed(name: string): SpanGroupAssertions;
   containSpanNamed(name: string): SpanCollectionAssertions;
   haveNoSpans(): void;
+};
+
+type SpanGroupAssertions = {
+  hasCount(count: number): SpanGroupAssertions;
+  haveAttribute(key: string, value: unknown): SpanGroupAssertions;
+  haveAttributes(attrs: Record<string, unknown>): SpanGroupAssertions;
 };
 
 export const assertThatSpan = (
@@ -54,6 +62,17 @@ export const assertThatSpan = (
       for (const [key, value] of Object.entries(attrs)) {
         self.hasAttribute(key, value);
       }
+      return self;
+    },
+    hasTraceId(traceId) {
+      if (!span)
+        throw new Error(
+          'Expected span to have trace id but span was not found',
+        );
+      if (span.ownContext.traceId !== traceId)
+        throw new Error(
+          `Expected span "${span.name}" trace id to be "${traceId}", got "${span.ownContext.traceId}"`,
+        );
       return self;
     },
     hasParent(ctx) {
@@ -161,13 +180,46 @@ export const assertThatSpans = (
   spans: CollectedSpan[],
 ): SpanCollectionAssertions => {
   const self: SpanCollectionAssertions = {
-    haveSpanNamed(name) {
-      const span = spans.find((s) => s.name === name);
-      if (!span)
+    hasSingleSpanNamed(name) {
+      const found = spans.filter((s) => s.name === name);
+      if (found.length === 0)
         throw new Error(
           `Expected span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
         );
-      return assertThatSpan(span);
+      if (found.length > 1)
+        throw new Error(
+          `Expected exactly one span named "${name}" but found ${found.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
+        );
+      return assertThatSpan(found[0]);
+    },
+    haveSpansNamed(name) {
+      const found = spans.filter((s) => s.name === name);
+      const group: SpanGroupAssertions = {
+        hasCount(count) {
+          if (found.length !== count)
+            throw new Error(
+              `Expected ${count} span(s) named "${name}" but found ${found.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
+            );
+          return group;
+        },
+        haveAttribute(key, value) {
+          if (found.length === 0)
+            throw new Error(
+              `Expected span(s) named "${name}" to have attribute "${key}" but none were found. All spans: [${spans.map((s) => s.name).join(', ')}]`,
+            );
+          for (const span of found) {
+            assertThatSpan(span).hasAttribute(key, value);
+          }
+          return group;
+        },
+        haveAttributes(attrs) {
+          for (const [key, value] of Object.entries(attrs)) {
+            group.haveAttribute(key, value);
+          }
+          return group;
+        },
+      };
+      return group;
     },
     containSpanNamed(name) {
       const span = spans.find((s) => s.name === name);

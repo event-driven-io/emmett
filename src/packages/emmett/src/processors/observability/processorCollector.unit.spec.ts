@@ -48,7 +48,7 @@ describe('processorCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('processor.handle').hasAttributes({
+        spans.hasSingleSpanNamed('processor.handle').hasAttributes({
           [A.scope.type]: 'processor',
           'emmett.scope.main': true,
         }),
@@ -66,7 +66,7 @@ describe('processorCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('processor.handle').hasAttributes({
+        spans.hasSingleSpanNamed('processor.handle').hasAttributes({
           [A.processor.id]: 'my-processor',
           [A.processor.type]: 'projector',
           [A.processor.batchSize]: 2,
@@ -85,7 +85,7 @@ describe('processorCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('processor.handle').hasAttributes({
+        spans.hasSingleSpanNamed('processor.handle').hasAttributes({
           [M.system]: MessagingSystemName,
           [M.batchMessageCount]: 1,
         }),
@@ -108,7 +108,7 @@ describe('processorCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('processor.handle')
+          .hasSingleSpanNamed('processor.handle')
           .hasAttribute(A.processor.eventTypes, ['OrderPlaced', 'ItemAdded']),
       );
   });
@@ -129,7 +129,7 @@ describe('processorCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('processor.handle').hasCreationLinks([
+        spans.hasSingleSpanNamed('processor.handle').hasCreationLinks([
           { traceId: 'trace-A', spanId: 'span-x' },
           { traceId: 'trace-B', spanId: 'span-y' },
         ]),
@@ -153,7 +153,7 @@ describe('processorCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('processor.handle').hasCreationLinks([
+        spans.hasSingleSpanNamed('processor.handle').hasCreationLinks([
           { traceId: 'trace-1', spanId: 'span-1' },
           { traceId: 'trace-2', spanId: 'span-2' },
         ]),
@@ -210,10 +210,12 @@ describe('processorCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('processor.message.OrderPlaced').hasAttributes({
-          [M.operationType]: 'process',
-          [M.messageId]: 'msg-42',
-        }),
+        spans
+          .hasSingleSpanNamed('processor.message.OrderPlaced')
+          .hasAttributes({
+            [M.operationType]: 'process',
+            [M.messageId]: 'msg-42',
+          }),
       );
   });
 
@@ -298,7 +300,7 @@ describe('processorObservability', () => {
       )
       .then(({ spans, metrics }) => {
         spans
-          .haveSpanNamed('processor.handle')
+          .hasSingleSpanNamed('processor.handle')
           .logged('info', 'using global observability');
         metrics
           .haveHistogramNamed(EmmettMetrics.processor.processingDuration)
