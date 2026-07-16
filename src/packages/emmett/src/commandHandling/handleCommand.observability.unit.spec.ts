@@ -1,7 +1,7 @@
 import {
   MessagingAttributes,
   ObservabilitySpec,
-  testTraceContextGenerator,
+  testObservabilityContextGenerator,
 } from '@event-driven-io/almanac';
 import { v4 as uuid } from 'uuid';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -31,7 +31,7 @@ describe('handler observability', () => {
     const eventStore = getInMemoryEventStore();
     const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
     const streamId = uuid();
-    const context = testTraceContextGenerator({
+    const context = testObservabilityContextGenerator({
       traceIds: 'generated-trace-1',
       spanIds: 'generated-span-1',
       correlationIds: 'flow-1',
@@ -47,7 +47,7 @@ describe('handler observability', () => {
         });
       },
       {
-        traceContextGenerator: context,
+        contextGenerator: context,
       },
     )
       .when((handler) =>
@@ -92,7 +92,7 @@ describe('handler observability', () => {
       const expectedTraceId = 'exp-trace-1';
       const generatedSpanId = 'generated-span-2';
       const generatedTraceId = 'generated-trace-2';
-      const context = testTraceContextGenerator({
+      const context = testObservabilityContextGenerator({
         traceIds: generatedTraceId,
         spanIds: generatedSpanId,
         correlationIds: 'flow-1',
@@ -114,7 +114,7 @@ describe('handler observability', () => {
             observability,
           }),
         {
-          traceContextGenerator: context,
+          contextGenerator: context,
         },
       )
         .when(async (handler) =>
@@ -156,7 +156,7 @@ describe('handler observability', () => {
       const streamId = uuid();
       const generatedSpanId = 'generated-span-3';
       const generatedTraceId = 'generated-trace-3';
-      const context = testTraceContextGenerator({
+      const context = testObservabilityContextGenerator({
         traceIds: generatedTraceId,
         spanIds: generatedSpanId,
         correlationIds: 'flow-2',
@@ -178,7 +178,7 @@ describe('handler observability', () => {
             observability,
           }),
         {
-          traceContextGenerator: context,
+          contextGenerator: context,
         },
       )
         .when(async (handler) =>
@@ -214,7 +214,7 @@ describe('handler observability', () => {
       const streamId = uuid();
       const generatedSpanId = 'generated-span-4';
       const generatedTraceId = 'generated-trace-4';
-      const context = testTraceContextGenerator({
+      const context = testObservabilityContextGenerator({
         traceIds: generatedTraceId,
         spanIds: generatedSpanId,
         correlationIds: 'flow-3',
@@ -234,7 +234,7 @@ describe('handler observability', () => {
             observability,
           }),
         {
-          traceContextGenerator: context,
+          contextGenerator: context,
         },
       )
         .when(async (handler) =>

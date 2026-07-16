@@ -3,6 +3,7 @@ import type { EventStore } from '../eventStore';
 import type { MessageProcessor } from '../processors';
 import {
   MessageProcessorType,
+  processorObservability,
   reactor,
   type BaseMessageProcessorOptions,
 } from '../processors';
@@ -204,6 +205,7 @@ export const workflowProcessor = <
   >,
 ): MessageProcessor<Input, MetaDataType, HandlerContext> => {
   const { workflow, ...rest } = options;
+  const observability = processorObservability(options);
 
   const inputs = [...options.inputs.commands, ...options.inputs.events];
   let canHandle = inputs;
@@ -238,7 +240,7 @@ export const workflowProcessor = <
         const result = await handle(
           context.connection.messageStore,
           message as RecordedMessage<Input, MetaDataType>,
-          context,
+          { observability: { scope: context.observabilityScope } },
         );
 
         // Check stopAfter on output messages
@@ -305,9 +307,22 @@ export const workflowProcessor = <
           },
         }));
 
+        const { traceId, spanId } = context.observabilityScope.spanContext();
+        const metadata = recordedMessage.metadata as Record<string, unknown>;
         await context.connection.messageStore.appendToStream(
           streamName,
           inputTaggedMessages as unknown as Event[],
+          {
+            correlationId:
+              getString(metadata.correlationId) ??
+              observability.contextGenerator.generateCorrelationId(),
+            causationId:
+              getString(metadata.messageId) ??
+              observability.contextGenerator.generateCausationId(),
+            traceId,
+            spanId,
+            observability: { scope: context.observabilityScope },
+          },
         );
 
         return;
@@ -317,3 +332,6 @@ export const workflowProcessor = <
     },
   });
 };
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === 'string' && value !== '' ? value : undefined;

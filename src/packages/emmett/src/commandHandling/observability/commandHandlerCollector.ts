@@ -1,6 +1,7 @@
 import {
   LogEvent,
   MessagingAttributes,
+  defaultObservabilityContextGenerator,
   noopLogger,
   noopMeter,
   noopTracer,
@@ -9,6 +10,7 @@ import {
   type Logger,
   type Meter,
   type ObservabilityScope,
+  type ObservabilityContextGenerator,
   type Tracer,
 } from '@event-driven-io/almanac';
 import {
@@ -27,7 +29,12 @@ import type { Event } from '../../typing';
 
 export type CommandObservabilityConfig = Pick<
   EmmettObservabilityConfig,
-  'tracer' | 'meter' | 'logger' | 'attributeTarget' | 'includeMessagePayloads'
+  | 'tracer'
+  | 'meter'
+  | 'logger'
+  | 'attributeTarget'
+  | 'includeMessagePayloads'
+  | 'contextGenerator'
 >;
 
 export type ResolvedCommandObservability = {
@@ -36,6 +43,7 @@ export type ResolvedCommandObservability = {
   logger: Logger;
   attributeTarget: AttributeTarget;
   includeMessagePayloads: boolean;
+  contextGenerator: ObservabilityContextGenerator;
 };
 
 export const commandObservability = (
@@ -53,6 +61,8 @@ export const commandObservability = (
     logger: observability?.logger ?? noopLogger,
     attributeTarget: observability?.attributeTarget ?? 'both',
     includeMessagePayloads: observability?.includeMessagePayloads ?? false,
+    contextGenerator:
+      observability?.contextGenerator ?? defaultObservabilityContextGenerator,
   };
 };
 

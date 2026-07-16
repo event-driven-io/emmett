@@ -4,11 +4,14 @@ import type {
   LogLevel,
   SpanLink,
   StartSpanOptions,
-  TraceContextGenerator,
+  ObservabilityContextGenerator,
   Tracer,
 } from '../../tracers';
 import { logger } from '../../loggers/logger';
-import { defaultTraceContextGenerator, noopLogger } from '../../tracers';
+import {
+  defaultObservabilityContextGenerator,
+  noopLogger,
+} from '../../tracers';
 import { logEventForSpan } from '../../tracers/spanLogEvent';
 import { createConsoleSpanLogSink } from './consoleSpanLogSink';
 import type { ConsoleFormat } from './consoleSpanLogger';
@@ -17,14 +20,14 @@ export type ConsoleTracerOptions = {
   mode?: ConsoleFormat;
   suppressLogs?: boolean;
   logLevel?: LogLevel;
-  traceContextGenerator?: TraceContextGenerator;
+  contextGenerator?: ObservabilityContextGenerator;
 };
 
 export const consoleTracer = (options?: ConsoleTracerOptions): Tracer => {
   const mode = options?.mode ?? 'compact';
   const suppressLogs = options?.suppressLogs ?? false;
-  const traceContextGenerator =
-    options?.traceContextGenerator ?? defaultTraceContextGenerator;
+  const contextGenerator =
+    options?.contextGenerator ?? defaultObservabilityContextGenerator;
   const sink = createConsoleSpanLogSink(mode);
   const log = suppressLogs
     ? noopLogger
@@ -39,8 +42,8 @@ export const consoleTracer = (options?: ConsoleTracerOptions): Tracer => {
       fn: (span: ActiveSpan) => Promise<T>,
       spanOptions?: StartSpanOptions,
     ): Promise<T> => {
-      const traceId = traceContextGenerator.generateTraceId();
-      const spanId = traceContextGenerator.generateSpanId();
+      const traceId = contextGenerator.generateTraceId();
+      const spanId = contextGenerator.generateSpanId();
       const context = { traceId, spanId };
       const startMs = Date.now();
       const attributes: Record<string, unknown> = {

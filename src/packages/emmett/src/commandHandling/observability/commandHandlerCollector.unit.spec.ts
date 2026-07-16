@@ -4,6 +4,7 @@ import {
   LogEvent,
   MessagingAttributes,
   ObservabilitySpec,
+  testObservabilityContextGenerator,
 } from '@event-driven-io/almanac';
 import { afterEach, describe, expect, it } from 'vitest';
 import { setupEmmettObservability } from '../../observability';
@@ -387,6 +388,18 @@ describe('commandObservability', () => {
       observability: { attributeTarget: 'mainSpan' },
     });
     expect(resolved.attributeTarget).toBe('mainSpan');
+  });
+
+  it('uses provided contextGenerator', () => {
+    const contextGenerator = testObservabilityContextGenerator({
+      traceIds: 'trace',
+      spanIds: 'span',
+    });
+    const resolved = commandObservability({
+      observability: { contextGenerator },
+    });
+
+    expect(resolved.contextGenerator).toBe(contextGenerator);
   });
 
   it('falls back to parent options', () => {

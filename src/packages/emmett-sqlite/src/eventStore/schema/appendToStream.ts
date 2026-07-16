@@ -45,6 +45,7 @@ export const appendToStream = async <MessageType extends Message>(
   messages: MessageType[],
   options?: AppendToStreamOptions & {
     partition?: string;
+    messageIdGenerator?: () => string;
     onBeforeCommit?: BeforeEventStoreCommitHandler<
       SQLiteEventStore,
       { connection: AnySQLiteConnection }
@@ -70,7 +71,7 @@ export const appendToStream = async <MessageType extends Message>(
         kind: m.kind ?? 'Event',
         metadata: {
           streamName,
-          messageId: uuid(),
+          messageId: options?.messageIdGenerator?.() ?? uuid(),
           streamPosition: BigInt(i + 1),
           ...('metadata' in m ? (m.metadata ?? {}) : {}),
         },

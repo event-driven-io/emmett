@@ -1,9 +1,11 @@
 import {
   collectingMeter,
   collectingTracer,
+  defaultObservabilityContextGenerator,
   LogEvent,
   noopLogger,
   ObservabilitySpec,
+  testObservabilityContextGenerator,
   type CollectedHistogram,
   type CollectedSpan,
   type CollectingTracer,
@@ -65,6 +67,7 @@ describe('consumerCollector', () => {
       meter: collectingMeter(),
       logger: noopLogger,
       pollTracing: 'off',
+      contextGenerator: defaultObservabilityContextGenerator,
       attributeTarget: 'both',
     }).tracePoll({ batchSize: 5, processorCount: 1, empty: false }, () =>
       Promise.resolve(42),
@@ -279,6 +282,7 @@ describe('consumerCollector', () => {
       meter,
       logger: spanLogger(tracer),
       pollTracing: 'verbose',
+      contextGenerator: defaultObservabilityContextGenerator,
       attributeTarget: 'both',
     });
 
@@ -312,6 +316,7 @@ describe('consumerCollector', () => {
       meter,
       logger: noopLogger,
       pollTracing: 'off',
+      contextGenerator: defaultObservabilityContextGenerator,
       attributeTarget: 'both',
     });
 
@@ -361,11 +366,16 @@ describe('consumerObservability', () => {
   it('uses consumer fields after store observability is merged', () => {
     const tracer = collectingTracer();
     const meter = collectingMeter();
+    const contextGenerator = testObservabilityContextGenerator({
+      traceIds: 'trace',
+      spanIds: 'span',
+    });
     const resolved = consumerObservability(
       { observability: { pollTracing: 'active' } },
       {
         tracer,
         meter,
+        contextGenerator,
         propagation: 'propagate',
         attributeTarget: 'currentSpan',
       },
@@ -373,6 +383,7 @@ describe('consumerObservability', () => {
 
     expect(resolved.tracer).toBe(tracer);
     expect(resolved.meter).toBe(meter);
+    expect(resolved.contextGenerator).toBe(contextGenerator);
     expect(resolved.pollTracing).toBe('active');
     expect(resolved.attributeTarget).toBe('currentSpan');
     expect('propagation' in resolved).toBe(false);

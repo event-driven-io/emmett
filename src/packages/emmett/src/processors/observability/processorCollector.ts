@@ -1,4 +1,5 @@
 import {
+  defaultObservabilityContextGenerator,
   MessagingAttributes,
   noopLogger,
   noopMeter,
@@ -9,6 +10,7 @@ import {
   type Meter,
   type ObservabilityScope,
   type SpanLink,
+  type ObservabilityContextGenerator,
   type TracePropagation,
   type Tracer,
 } from '@event-driven-io/almanac';
@@ -33,6 +35,7 @@ export type ProcessorObservabilityConfig = Pick<
   | 'meter'
   | 'logger'
   | 'propagation'
+  | 'contextGenerator'
   | 'attributeTarget'
   | 'includeMessagePayloads'
 >;
@@ -42,6 +45,7 @@ export type ResolvedProcessorObservability = {
   meter: Meter;
   logger: Logger;
   propagation: TracePropagation;
+  contextGenerator: ObservabilityContextGenerator;
   attributeTarget: AttributeTarget;
   includeMessagePayloads: boolean;
 };
@@ -60,6 +64,8 @@ export const processorObservability = (
     meter: observability?.meter ?? noopMeter(),
     logger: observability?.logger ?? noopLogger,
     propagation: observability?.propagation ?? 'links',
+    contextGenerator:
+      observability?.contextGenerator ?? defaultObservabilityContextGenerator,
     attributeTarget: observability?.attributeTarget ?? 'both',
     includeMessagePayloads: observability?.includeMessagePayloads ?? false,
   };

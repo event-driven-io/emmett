@@ -8,7 +8,7 @@ import {
   vi,
 } from 'vitest';
 import { LogEvent } from '../../loggers/logger';
-import { testTraceContextGenerator } from '../../testing';
+import { testObservabilityContextGenerator } from '../../testing';
 import { consoleTracer } from './consoleTracer';
 
 type OtlpSpan = {
@@ -53,7 +53,7 @@ describe('consoleTracer', () => {
 
   it('span summary includes traceId and spanId from the configured generator', async () => {
     const tracer = consoleTracer({
-      traceContextGenerator: testTraceContextGenerator({
+      contextGenerator: testObservabilityContextGenerator({
         traceIds: 'a'.repeat(32),
         spanIds: 'b'.repeat(16),
       }),
@@ -120,7 +120,7 @@ describe('consoleTracer', () => {
     it('logs carry the span trace_id and span_id', async () => {
       const tracer = consoleTracer({
         logLevel: 'info',
-        traceContextGenerator: testTraceContextGenerator({
+        contextGenerator: testObservabilityContextGenerator({
           traceIds: 'c'.repeat(32),
           spanIds: 'd'.repeat(16),
         }),

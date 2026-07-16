@@ -166,6 +166,7 @@ export const appendToStream = (
   messages: Message[],
   options?: AppendToStreamOptions & {
     partition?: string;
+    messageIdGenerator?: () => string;
     beforeCommitHook?: AppendToStreamBeforeCommitHook;
   },
 ): Promise<AppendToStreamResult> =>
@@ -184,7 +185,7 @@ export const appendToStream = (
         ...e,
         kind: e.kind ?? 'Event',
         metadata: {
-          messageId: uuid(),
+          messageId: options?.messageIdGenerator?.() ?? uuid(),
           ...('metadata' in e ? (e.metadata ?? {}) : {}),
         },
       })) as RecordedMessage[];

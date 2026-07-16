@@ -1,7 +1,11 @@
 import type { AttributeTarget } from '../attributes';
 import type { Logger } from '../loggers';
 import type { Meter } from '../meters';
-import type { TracePropagation, Tracer } from '../tracers';
+import type {
+  ObservabilityContextGenerator,
+  TracePropagation,
+  Tracer,
+} from '../tracers';
 
 export const DISABLED = 'DISABLED' as const;
 
@@ -14,6 +18,7 @@ export type Observability<Prefix extends string = 'almanac'> = {
   meter: Meter;
   logger: Logger;
   propagation?: TracePropagation;
+  contextGenerator?: ObservabilityContextGenerator;
   attributeTarget?: AttributeTarget;
   attributePrefix?: Prefix;
   sampler?: Sampler;

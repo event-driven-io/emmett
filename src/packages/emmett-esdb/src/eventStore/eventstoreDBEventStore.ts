@@ -98,7 +98,8 @@ export const getEventStoreDBEventStore = (
   eventStore: EventStoreDBClient,
   storeOptions?: EventStoreDBEventStoreOptions,
 ): EventStoreDBEventStore => {
-  const collector = eventStoreCollector(eventStoreObservability(storeOptions));
+  const observability = eventStoreObservability(storeOptions);
+  const collector = eventStoreCollector(observability);
 
   return {
     async aggregateStream<
@@ -269,7 +270,25 @@ export const getEventStoreDBEventStore = (
               events,
               options?.schema?.versioning,
             );
-            const serializedEvents = eventsToStore.map(jsonEvent);
+            const serializedEvents = eventsToStore.map((event) => {
+              const metadata =
+                'metadata' in event && event.metadata
+                  ? (event.metadata as Record<string, unknown>)
+                  : {};
+              const messageId =
+                typeof metadata.messageId === 'string'
+                  ? metadata.messageId
+                  : observability.contextGenerator.generateMessageId();
+
+              return jsonEvent({
+                ...event,
+                id: messageId,
+                metadata: {
+                  messageId,
+                  ...metadata,
+                },
+              });
+            });
 
             const expectedRevision = toExpectedRevision(
               options?.expectedStreamVersion,

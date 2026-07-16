@@ -1,4 +1,5 @@
 import {
+  defaultObservabilityContextGenerator,
   LogEvent,
   MessagingAttributes,
   noopLogger,
@@ -10,6 +11,7 @@ import {
   type Logger,
   type Meter,
   type ObservabilityScope,
+  type ObservabilityContextGenerator,
   type Tracer,
 } from '@event-driven-io/almanac';
 import {
@@ -24,7 +26,12 @@ import { mergeWithDefaultObservability } from '../../observability/defaultObserv
 
 export type ConsumerObservabilityConfig = Pick<
   EmmettObservabilityConfig,
-  'tracer' | 'meter' | 'logger' | 'pollTracing' | 'attributeTarget'
+  | 'tracer'
+  | 'meter'
+  | 'logger'
+  | 'pollTracing'
+  | 'contextGenerator'
+  | 'attributeTarget'
 >;
 
 export type ResolvedConsumerObservability = {
@@ -32,6 +39,7 @@ export type ResolvedConsumerObservability = {
   meter: Meter;
   logger: Logger;
   pollTracing: PollTracing;
+  contextGenerator: ObservabilityContextGenerator;
   attributeTarget: AttributeTarget;
 };
 
@@ -49,6 +57,8 @@ export const consumerObservability = (
     meter: observability?.meter ?? noopMeter(),
     logger: observability?.logger ?? noopLogger,
     pollTracing: observability?.pollTracing ?? 'off',
+    contextGenerator:
+      observability?.contextGenerator ?? defaultObservabilityContextGenerator,
     attributeTarget: observability?.attributeTarget ?? 'both',
   };
 };

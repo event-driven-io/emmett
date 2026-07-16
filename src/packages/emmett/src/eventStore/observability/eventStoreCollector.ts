@@ -1,4 +1,5 @@
 import {
+  defaultObservabilityContextGenerator,
   MessagingAttributes,
   noopLogger,
   noopMeter,
@@ -8,6 +9,7 @@ import {
   type Logger,
   type Meter,
   type ObservabilityScope,
+  type ObservabilityContextGenerator,
   type Tracer,
 } from '@event-driven-io/almanac';
 import type {
@@ -28,13 +30,14 @@ import type { AnyReadEventMetadata, Event, ReadEvent } from '../../typing';
 
 export type EventStoreObservabilityConfig = Pick<
   EmmettObservabilityConfig,
-  'tracer' | 'meter' | 'logger' | 'attributeTarget'
+  'tracer' | 'meter' | 'logger' | 'contextGenerator' | 'attributeTarget'
 >;
 
 export type ResolvedEventStoreObservability = {
   tracer: Tracer;
   meter: Meter;
   logger: Logger;
+  contextGenerator: ObservabilityContextGenerator;
   attributeTarget: AttributeTarget;
   attributePrefix?: 'emmett';
 };
@@ -52,6 +55,8 @@ export const eventStoreObservability = (
     tracer: observability?.tracer ?? noopTracer(),
     meter: observability?.meter ?? noopMeter(),
     logger: observability?.logger ?? noopLogger,
+    contextGenerator:
+      observability?.contextGenerator ?? defaultObservabilityContextGenerator,
     attributeTarget: observability?.attributeTarget ?? 'both',
     attributePrefix: 'emmett',
   };
