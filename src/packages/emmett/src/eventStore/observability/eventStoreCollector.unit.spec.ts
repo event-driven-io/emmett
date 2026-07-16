@@ -1,6 +1,7 @@
 import {
   collectingMeter,
   collectingTracer,
+  MessagingAttributes,
   noopLogger,
   ObservabilitySpec,
 } from '@event-driven-io/almanac';
@@ -20,11 +21,7 @@ import {
 const A = EmmettAttributes;
 
 afterEach(() => setupEmmettObservability(undefined));
-const M = {
-  system: 'messaging.system',
-  operationType: 'messaging.operation.type',
-  batchMessageCount: 'messaging.batch.message_count',
-};
+const M = MessagingAttributes;
 
 const makeEvents = (types: string[]) =>
   types.map((type) => ({
@@ -49,11 +46,15 @@ describe('eventStoreCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('eventStore.readStream').hasAttributes({
+        spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
           [A.eventStore.operation]: 'readStream',
-          [M.operationType]: 'receive',
-          [M.system]: MessagingSystemName,
           [A.stream.name]: 'orders-123',
+          [A.eventStore.read.status]: 'success',
+          [A.eventStore.read.eventCount]: 1,
+          [A.eventStore.read.eventTypes]: ['OrderPlaced'],
+          [M.operation.type]: 'receive',
+          [M.destination.name]: 'orders-123',
+          [M.system]: MessagingSystemName,
         }),
       );
   });
@@ -70,11 +71,16 @@ describe('eventStoreCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('eventStore.appendToStream').hasAttributes({
+        spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
           [A.eventStore.operation]: 'appendToStream',
-          [M.operationType]: 'send',
-          [M.batchMessageCount]: 1,
           [A.stream.name]: 'orders-123',
+          [A.eventStore.append.batchSize]: 1,
+          [A.eventStore.append.status]: 'success',
+          [A.stream.versionAfter]: 1,
+          [M.operation.type]: 'send',
+          [M.batch.messageCount]: 1,
+          [M.destination.name]: 'orders-123',
+          [M.system]: MessagingSystemName,
         }),
       );
   });
@@ -92,7 +98,7 @@ describe('eventStoreCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('eventStore.appendToStream')
+          .hasSingleSpanNamed('eventStore.appendToStream')
           .hasAttribute(A.stream.versionAfter, 6),
       );
   });
@@ -109,12 +115,13 @@ describe('eventStoreCollector', () => {
         ),
       )
       .then(({ spans, metrics }) => {
-        spans.haveSpanNamed('eventStore.aggregateStream').hasAttributes({
+        spans.hasSingleSpanNamed('eventStore.aggregateStream').hasAttributes({
           [A.eventStore.operation]: 'aggregateStream',
           [A.stream.name]: 'orders-123',
           [A.eventStore.aggregate.status]: 'success',
           [A.stream.versionAfter]: 3,
-          [M.operationType]: 'process',
+          [M.operation.type]: 'process',
+          [M.destination.name]: 'orders-123',
           [M.system]: MessagingSystemName,
         });
         metrics
@@ -273,7 +280,16 @@ describe('eventStoreObservability', () => {
         ),
       )
       .then(({ spans, metrics }) => {
-        spans.haveSpanNamed('eventStore.readStream');
+        spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
+          [A.eventStore.operation]: 'readStream',
+          [A.stream.name]: 'orders-1',
+          [A.eventStore.read.status]: 'success',
+          [A.eventStore.read.eventCount]: 0,
+          [A.eventStore.read.eventTypes]: [],
+          [M.operation.type]: 'receive',
+          [M.destination.name]: 'orders-1',
+          [M.system]: MessagingSystemName,
+        });
         metrics
           .haveHistogramNamed(EmmettMetrics.stream.readingDuration)
           .hasValueAtLeast(0);

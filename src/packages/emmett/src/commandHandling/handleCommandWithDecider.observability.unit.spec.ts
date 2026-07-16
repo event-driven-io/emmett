@@ -58,7 +58,7 @@ describe('DeciderCommandHandler observability', () => {
       )
       .then(({ spans }) => {
         spans
-          .haveSpanNamed('command.handle')
+          .hasSingleSpanNamed('command.handle')
           .hasAttribute(EmmettAttributes.command.type, 'AddItem');
       });
   });
@@ -82,7 +82,7 @@ describe('DeciderCommandHandler observability', () => {
       )
       .then(({ spans }) => {
         spans
-          .haveSpanNamed('command.handle')
+          .hasSingleSpanNamed('command.handle')
           .hasAttribute(EmmettAttributes.command.type, ['AddItem', 'Confirm']);
       });
   });

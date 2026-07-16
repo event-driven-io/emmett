@@ -100,7 +100,7 @@ describe('consumerCollector', () => {
       })
       .then(({ spans, metrics }) => {
         spans
-          .haveSpanNamed('consumer.poll')
+          .hasSingleSpanNamed('consumer.poll')
           .logged('info', 'using global observability');
         metrics
           .haveHistogramNamed(EmmettMetrics.consumer.pollDuration)
@@ -121,7 +121,7 @@ describe('consumerCollector', () => {
           () => Promise.resolve(),
         ),
       )
-      .then(({ spans }) => spans.haveSpanNamed('consumer.poll'));
+      .then(({ spans }) => spans.hasSingleSpanNamed('consumer.poll'));
   });
 
   it('tracePoll creates consumer.poll span with emmett.scope.type=consumer and emmett.scope.main=true', async () => {
@@ -138,7 +138,7 @@ describe('consumerCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('consumer.poll').hasAttributes({
+        spans.hasSingleSpanNamed('consumer.poll').hasAttributes({
           [A.scope.type]: 'consumer',
           'emmett.scope.main': true,
         }),
@@ -159,7 +159,7 @@ describe('consumerCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('consumer.poll').hasAttributes({
+        spans.hasSingleSpanNamed('consumer.poll').hasAttributes({
           [A.consumer.batchSize]: 25,
           [A.consumer.processorCount]: 4,
         }),
@@ -180,7 +180,7 @@ describe('consumerCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('consumer.poll').hasAttributes({
+        spans.hasSingleSpanNamed('consumer.poll').hasAttributes({
           [M.system]: MessagingSystemName,
           [M.operationType]: 'receive',
         }),
@@ -202,7 +202,7 @@ describe('consumerCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('consumer.poll')
+          .hasSingleSpanNamed('consumer.poll')
           .hasAttribute('emmett.consumer.poll.empty', true),
       );
   });
@@ -222,7 +222,7 @@ describe('consumerCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('consumer.poll')
+          .hasSingleSpanNamed('consumer.poll')
           .hasAttribute('emmett.consumer.poll.wait_ms', 500),
       );
   });
@@ -245,7 +245,7 @@ describe('consumerCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('consumer.deliver.ShoppingCartProjection')
+          .hasSingleSpanNamed('consumer.deliver.ShoppingCartProjection')
           .hasAttribute(
             A.consumer.delivery.processorId,
             'ShoppingCartProjection',
@@ -328,7 +328,7 @@ describe('consumerObservability', () => {
           () => Promise.resolve(),
         ),
       )
-      .then(({ spans }) => spans.haveSpanNamed('consumer.poll'));
+      .then(({ spans }) => spans.hasSingleSpanNamed('consumer.poll'));
   });
 
   it('uses consumer fields after store observability is merged', () => {

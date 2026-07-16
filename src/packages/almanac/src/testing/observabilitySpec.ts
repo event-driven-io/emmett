@@ -21,8 +21,10 @@ export type ObservabilityTestConfig = {
   includeMessagePayloads: boolean;
 };
 
+type MaybePromise<T> = T | PromiseLike<T>;
+
 export type TracingSpecification = <T = undefined>(
-  given: (config: ObservabilityTestConfig) => T,
+  given: (config: ObservabilityTestConfig) => MaybePromise<T>,
   config?: Partial<ObservabilityTestConfig>,
 ) => {
   when: (fn: (sut: T, config: ObservabilityTestConfig) => unknown) => {
@@ -47,7 +49,7 @@ export type TracingSpecification = <T = undefined>(
 export const ObservabilitySpec = {
   for: (config?: Partial<ObservabilityTestConfig>): TracingSpecification => {
     return <T>(
-      given: (config: ObservabilityTestConfig) => T,
+      given: (config: ObservabilityTestConfig) => MaybePromise<T>,
       testConfig?: Partial<ObservabilityTestConfig>,
     ) => ({
       when: (fn: (sut: T, config: ObservabilityTestConfig) => unknown) => {
@@ -84,7 +86,7 @@ export const ObservabilitySpec = {
                 ...testConfig,
               };
 
-              const sut = given(observability);
+              const sut = await given(observability);
 
               let error: unknown;
               try {

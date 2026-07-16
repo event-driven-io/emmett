@@ -33,7 +33,7 @@ describe('commandHandlerCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('command.handle').hasAttributes({
+        spans.hasSingleSpanNamed('command.handle').hasAttributes({
           [A.scope.type]: 'command',
           'emmett.scope.main': true,
         }),
@@ -49,7 +49,7 @@ describe('commandHandlerCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('command.handle')
+          .hasSingleSpanNamed('command.handle')
           .hasAttribute(A.stream.name, 'orders-123'),
       );
   });
@@ -62,7 +62,7 @@ describe('commandHandlerCollector', () => {
         ),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('command.handle').hasAttributes({
+        spans.hasSingleSpanNamed('command.handle').hasAttributes({
           [M.system]: MessagingSystemName,
           [M.destination.name]: 'orders-123',
         }),
@@ -75,7 +75,7 @@ describe('commandHandlerCollector', () => {
         collector.startScope({ streamName: 'test' }, () => Promise.resolve()),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('command.handle').hasAttributes({
+        spans.hasSingleSpanNamed('command.handle').hasAttributes({
           [A.command.status]: 'success',
           error: false,
         }),
@@ -95,7 +95,7 @@ describe('commandHandlerCollector', () => {
         }),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('command.handle').hasAttributes({
+        spans.hasSingleSpanNamed('command.handle').hasAttributes({
           [A.command.eventCount]: 2,
           [A.command.eventTypes]: ['OrderPlaced', 'ItemAdded'],
           [M.batch.messageCount]: 2,
@@ -112,7 +112,7 @@ describe('commandHandlerCollector', () => {
         }),
       )
       .then(({ spans }) =>
-        spans.haveSpanNamed('command.handle').hasAttributes({
+        spans.hasSingleSpanNamed('command.handle').hasAttributes({
           [A.stream.versionBefore]: 3,
           [A.stream.versionAfter]: 5,
         }),
@@ -137,7 +137,7 @@ describe('commandHandlerCollector', () => {
         ),
       )
       .thenThrows(({ spans }) =>
-        spans.haveSpanNamed('command.handle').hasAttributes({
+        spans.hasSingleSpanNamed('command.handle').hasAttributes({
           [A.command.status]: 'failure',
           error: true,
           'exception.message': 'boom',
@@ -193,7 +193,7 @@ describe('commandHandlerCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('command.handle')
+          .hasSingleSpanNamed('command.handle')
           .hasAttribute(M.message.correlationId, 'corr-123'),
       );
   });
@@ -205,7 +205,7 @@ describe('commandHandlerCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('command.handle')
+          .hasSingleSpanNamed('command.handle')
           .hasAttribute(M.message.correlationId, undefined),
       );
   });
@@ -220,7 +220,7 @@ describe('commandHandlerCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('command.handle')
+          .hasSingleSpanNamed('command.handle')
           .hasAttribute(M.message.causationId, 'caus-456'),
       );
   });
@@ -232,7 +232,7 @@ describe('commandHandlerCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('command.handle')
+          .hasSingleSpanNamed('command.handle')
           .hasAttribute(M.message.causationId, undefined),
       );
   });
@@ -247,7 +247,7 @@ describe('commandHandlerCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('command.handle')
+          .hasSingleSpanNamed('command.handle')
           .hasAttribute(A.command.type, 'AddProductItem'),
       );
   });
@@ -262,7 +262,7 @@ describe('commandHandlerCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('command.handle')
+          .hasSingleSpanNamed('command.handle')
           .hasAttribute(A.command.type, ['AddProductItem', 'Confirm']),
       );
   });
@@ -274,7 +274,7 @@ describe('commandHandlerCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('command.handle')
+          .hasSingleSpanNamed('command.handle')
           .hasAttribute(A.command.type, undefined),
       );
   });
@@ -293,7 +293,7 @@ describe('commandHandlerCollector', () => {
       )
       .then(({ spans }) =>
         spans
-          .haveSpanNamed('command.handle')
+          .hasSingleSpanNamed('command.handle')
           .hasParent({ traceId: 'parent-trace', spanId: 'parent-span' }),
       );
   });
@@ -303,7 +303,9 @@ describe('commandHandlerCollector', () => {
       .when((collector) =>
         collector.startScope({ streamName: 'test' }, () => Promise.resolve()),
       )
-      .then(({ spans }) => spans.haveSpanNamed('command.handle').hasNoParent());
+      .then(({ spans }) =>
+        spans.hasSingleSpanNamed('command.handle').hasNoParent(),
+      );
   });
 
   it('records emmett.command.type on the handling duration histogram for a single type', async () => {
@@ -351,7 +353,7 @@ describe('commandObservability', () => {
       )
       .then(({ spans, metrics }) => {
         spans
-          .haveSpanNamed('command.handle')
+          .hasSingleSpanNamed('command.handle')
           .logged('info', 'using global observability');
         metrics
           .haveHistogramNamed(EmmettMetrics.command.handlingDuration)
