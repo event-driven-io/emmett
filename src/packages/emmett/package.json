@@ -48,12 +48,25 @@
         "types": "./dist/cli.d.cts",
         "default": "./dist/cli.cjs"
       }
+    },
+    "./otel": {
+      "import": {
+        "types": "./dist/otel.d.ts",
+        "default": "./dist/otel.js"
+      },
+      "require": {
+        "types": "./dist/otel.d.cts",
+        "default": "./dist/otel.cjs"
+      }
     }
   },
   "typesVersions": {
     "*": {
       "cli": [
         "./dist/cli.d.ts"
+      ],
+      "otel": [
+        "./dist/otel.d.ts"
       ]
     }
   },
@@ -72,7 +85,21 @@
     "async-retry": "^1.3.3"
   },
   "peerDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/instrumentation": ">=0.215.0 <0.219.0",
     "commander": "^14.0.3",
     "uuid": "^14.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    },
+    "@opentelemetry/instrumentation": {
+      "optional": true
+    }
+  },
+  "optionalDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/instrumentation": ">=0.215.0 <0.219.0"
   }
 }

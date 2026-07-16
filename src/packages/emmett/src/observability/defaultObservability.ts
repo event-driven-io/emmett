@@ -18,6 +18,10 @@ export function setupObservability(
   return observability;
 }
 
+export const currentDefaultObservability = ():
+  EmmettObservabilityConfig | undefined =>
+  globalThis.eventDrivenIoEmmettDefaultObservability;
+
 export const mergeWithDefaultObservability = (
   parent: EmmettObservabilityConfig | undefined,
   local: EmmettObservabilityConfig | undefined,
