@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/emmett",
   "type": "module",
-  "version": "0.43.0-beta.27",
+  "version": "0.43.0-beta.28",
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
     "build": "tsdown",
@@ -93,7 +93,7 @@
     "emmett": "dist/cli.js"
   },
   "dependencies": {
-    "@event-driven-io/almanac": "0.1.0-beta.27",
+    "@event-driven-io/almanac": "0.1.0-beta.28",
     "@types/async-retry": "^1.4.9",
     "async-retry": "^1.3.3"
   },
