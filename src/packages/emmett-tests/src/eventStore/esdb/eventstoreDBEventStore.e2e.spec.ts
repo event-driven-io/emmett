@@ -28,6 +28,7 @@ import {
 
 describe('EventStoreDBEventStore', () => {
   const M = MessagingAttributes;
+  const given = ObservabilitySpec.for();
   let esdbContainer: StartedEventStoreDBContainer;
 
   const eventStoreFactory: EventStoreFactory = async () => {
@@ -47,7 +48,6 @@ describe('EventStoreDBEventStore', () => {
   testStreamExists(eventStoreFactory, { teardownHook });
 
   it('records observability spans while appending with ESDB storage', async () => {
-    const given = ObservabilitySpec.for();
     const container = await getSharedEventStoreDBTestContainer();
     const streamName = `observed-${uuid()}`;
 
@@ -81,7 +81,6 @@ describe('EventStoreDBEventStore', () => {
   });
 
   it('records observability spans while reading with ESDB storage', async () => {
-    const given = ObservabilitySpec.for();
     const container = await getSharedEventStoreDBTestContainer();
     const streamName = `observed-${uuid()}`;
 
@@ -118,7 +117,6 @@ describe('EventStoreDBEventStore', () => {
   });
 
   it('records observability spans while aggregating with ESDB storage', async () => {
-    const given = ObservabilitySpec.for();
     const container = await getSharedEventStoreDBTestContainer();
     const streamName = `observed-${uuid()}`;
 

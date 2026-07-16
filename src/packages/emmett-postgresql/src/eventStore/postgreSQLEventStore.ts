@@ -13,6 +13,7 @@ import type {
   PgPool,
   PgPoolClientConnection,
 } from '@event-driven-io/dumbo/pg';
+import type { ObservabilityScope } from '@event-driven-io/almanac';
 import {
   assertExpectedVersionMatchesCurrent,
   downcastRecordedMessages,
@@ -20,7 +21,6 @@ import {
   eventStoreObservability,
   ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
-  ObservabilityScope,
   noopScope,
   unknownTag,
   type AggregateStreamOptions,
@@ -226,7 +226,6 @@ export const getPostgreSQLEventStore = (
     .map(({ projection }) => projection);
   const observability = eventStoreObservability(options);
   const collector = eventStoreCollector(observability);
-  const { startScope } = ObservabilityScope(observability);
 
   const migrate = async (migrationOptions?: CreateEventStoreSchemaOptions) => {
     if (!migrateSchema) {
@@ -281,11 +280,39 @@ export const getPostgreSQLEventStore = (
     return migrate();
   };
 
-  const beforeCommitHook: AppendToStreamBeforeCommitHook | undefined =
+  const readStreamFromPostgreSQL = <
+    EventType extends Event,
+    EventPayloadType extends Event = EventType,
+  >(
+    streamName: string,
+    readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
+    parentScope?: ObservabilityScope,
+  ): Promise<ReadStreamResult<EventType, PostgresReadEventMetadata>> =>
+    collector.instrumentRead(
+      streamName,
+      async () => {
+        await ensureSchemaExists();
+        return readStream<EventType, EventPayloadType>(
+          pool.execute,
+          streamName,
+          {
+            ...readOptions,
+            serialization: options.serialization ?? readOptions?.serialization,
+          },
+        );
+      },
+      { parentScope },
+    );
+
+  const beforeCommitHook = (
+    streamName: string,
+    parentScope: ObservabilityScope,
+  ): AppendToStreamBeforeCommitHook | undefined =>
     inlineProjections.length > 0
       ? async (events, { transaction }) =>
-          startScope(
-            'eventStore.inlineProjection',
+          collector.instrumentInlineProjection(
+            streamName,
+            parentScope,
             async (observabilityScope) =>
               handleProjections({
                 projections: inlineProjections,
@@ -357,17 +384,17 @@ export const getPostgreSQLEventStore = (
         EventPayloadType
       >,
     ): Promise<AggregateStreamResult<State>> {
-      return collector.instrumentAggregate(streamName, async () => {
+      return collector.instrumentAggregate(streamName, async (scope) => {
         const { evolve, initialState, read } = options;
 
         const expectedStreamVersion = read?.expectedStreamVersion;
 
         let state = initialState();
 
-        const result = await this.readStream<EventType, EventPayloadType>(
-          streamName,
-          read,
-        );
+        const result = await readStreamFromPostgreSQL<
+          EventType,
+          EventPayloadType
+        >(streamName, read, scope);
         const currentStreamVersion = result.currentStreamVersion;
 
         assertExpectedVersionMatchesCurrent(
@@ -396,17 +423,7 @@ export const getPostgreSQLEventStore = (
       streamName: string,
       readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<ReadStreamResult<EventType, PostgresReadEventMetadata>> =>
-      collector.instrumentRead(streamName, async () => {
-        await ensureSchemaExists();
-        return readStream<EventType, EventPayloadType>(
-          pool.execute,
-          streamName,
-          {
-            ...readOptions,
-            serialization: options.serialization ?? readOptions?.serialization,
-          },
-        );
-      }),
+      readStreamFromPostgreSQL(streamName, readOptions),
 
     appendToStream: async <
       EventType extends Event,
@@ -416,7 +433,7 @@ export const getPostgreSQLEventStore = (
       events: EventType[],
       appendOptions?: AppendToStreamOptions<EventType, EventPayloadType>,
     ): Promise<AppendToStreamResultWithGlobalPosition> =>
-      collector.instrumentAppend(streamName, events, async () => {
+      collector.instrumentAppend(streamName, events, async (scope) => {
         await ensureSchemaExists();
         // TODO: This has to be smarter when we introduce urn-based resolution
         const [firstPart, ...rest] = streamName.split('-');
@@ -433,7 +450,7 @@ export const getPostgreSQLEventStore = (
             downcastRecordedMessages(events, appendOptions?.schema?.versioning),
             {
               ...(appendOptions as AppendToStreamOptions),
-              beforeCommitHook,
+              beforeCommitHook: beforeCommitHook(streamName, scope),
             },
           ),
         );

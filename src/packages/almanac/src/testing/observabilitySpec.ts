@@ -1,6 +1,6 @@
 import type { AttributeTarget } from '../attributes';
 import type { Logger } from '../loggers';
-import type { TracePropagation } from '../tracers';
+import type { TraceContextGenerator, TracePropagation } from '../tracers';
 import { collectingMeter, type CollectingMeter } from './collectingMeter';
 import { collectingTracer, type CollectingTracer } from './collectingTracer';
 import {
@@ -17,6 +17,7 @@ export type ObservabilityTestConfig = {
   meter: CollectingMeter;
   logger: Logger;
   propagation: TracePropagation;
+  traceContextGenerator?: TraceContextGenerator;
   attributeTarget: AttributeTarget;
   includeMessagePayloads: boolean;
 };
@@ -64,7 +65,13 @@ export const ObservabilitySpec = {
             | undefined;
           return async () => {
             if (!cached) {
-              const tracer = collectingTracer();
+              const traceContextGenerator = {
+                ...config,
+                ...testConfig,
+              }.traceContextGenerator;
+              const tracer = collectingTracer(
+                traceContextGenerator ? { traceContextGenerator } : undefined,
+              );
               const meter = collectingMeter();
               const logger: Logger = (log) => {
                 const span = tracer.spans.find(

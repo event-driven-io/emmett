@@ -1,6 +1,7 @@
 export const EmmettAttributes = {
   scope: {
     type: 'emmett.scope.type',
+    main: 'emmett.scope.main',
   },
   command: {
     type: 'emmett.command.type',

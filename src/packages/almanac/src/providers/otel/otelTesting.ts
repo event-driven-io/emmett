@@ -9,6 +9,7 @@ type OtelSpanAssertions = {
   hasAttribute(key: string, value: unknown): OtelSpanAssertions;
   hasAttributes(attrs: Record<string, unknown>): OtelSpanAssertions;
   hasParent(ctx: { traceId: string; spanId: string }): OtelSpanAssertions;
+  hasParentSpanNamed(name: string): OtelSpanAssertions;
   hasNoParent(): OtelSpanAssertions;
   hasStatus(code: SpanStatusCode, message?: string): OtelSpanAssertions;
   hasCreationLinks(
@@ -17,9 +18,17 @@ type OtelSpanAssertions = {
   isMainScope(prefix?: string): OtelSpanAssertions;
 };
 
+type SingleOtelSpanFilter = {
+  parentSpanNamed?: string;
+  noParent?: boolean;
+};
+
 type OtelSpanCollectionAssertions = {
   haveSpanNamed(name: string): OtelSpanAssertions;
-  hasSingleSpanNamed(name: string): OtelSpanAssertions;
+  hasSingleSpanNamed(
+    name: string,
+    filter?: SingleOtelSpanFilter,
+  ): OtelSpanAssertions;
   haveSpansNamed(name: string): OtelSpanGroupAssertions;
   containSpanNamed(name: string): OtelSpanCollectionAssertions;
   haveNoSpans(): void;
@@ -31,7 +40,10 @@ type OtelSpanGroupAssertions = {
   haveAttributes(attrs: Record<string, unknown>): OtelSpanGroupAssertions;
 };
 
-const otelSpan = (span: ReadableSpan | undefined): OtelSpanAssertions => {
+const otelSpan = (
+  span: ReadableSpan | undefined,
+  spans: ReadableSpan[] = span ? [span] : [],
+): OtelSpanAssertions => {
   const self: OtelSpanAssertions = {
     exists() {
       if (!span) throw new Error('Expected span to exist but it was not found');
@@ -72,6 +84,22 @@ const otelSpan = (span: ReadableSpan | undefined): OtelSpanAssertions => {
           `Expected span "${span.name}" to have parent ${JSON.stringify(ctx)}, got ${JSON.stringify(parent)}`,
         );
       return self;
+    },
+    hasParentSpanNamed(name) {
+      const parents = spans.filter((s) => s.name === name);
+      if (parents.length === 0)
+        throw new Error(
+          `Expected parent span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
+        );
+      if (parents.length > 1)
+        throw new Error(
+          `Expected exactly one parent span named "${name}" but found ${parents.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
+        );
+      const parent = parents[0]!.spanContext();
+      return self.hasParent({
+        traceId: parent.traceId,
+        spanId: parent.spanId,
+      });
     },
     hasNoParent() {
       if (!span)
@@ -121,6 +149,18 @@ const otelSpan = (span: ReadableSpan | undefined): OtelSpanAssertions => {
 };
 
 const otelSpans = (spans: ReadableSpan[]): OtelSpanCollectionAssertions => {
+  const findSingleParent = (name: string): ReadableSpan => {
+    const parents = spans.filter((s) => s.name === name);
+    if (parents.length === 0)
+      throw new Error(
+        `Expected parent span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
+      );
+    if (parents.length > 1)
+      throw new Error(
+        `Expected exactly one parent span named "${name}" but found ${parents.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
+      );
+    return parents[0]!;
+  };
   const self: OtelSpanCollectionAssertions = {
     haveSpanNamed(name) {
       const span = spans.find((s) => s.name === name);
@@ -128,10 +168,24 @@ const otelSpans = (spans: ReadableSpan[]): OtelSpanCollectionAssertions => {
         throw new Error(
           `Expected span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
         );
-      return otelSpan(span);
+      return otelSpan(span, spans);
     },
-    hasSingleSpanNamed(name) {
-      const found = spans.filter((s) => s.name === name);
+    hasSingleSpanNamed(name, filter) {
+      const parent = filter?.parentSpanNamed
+        ? findSingleParent(filter.parentSpanNamed)
+        : undefined;
+      const parentContext = parent?.spanContext();
+      const found = spans.filter((s) => {
+        if (s.name !== name) return false;
+        if (parentContext) {
+          return (
+            s.parentSpanContext?.traceId === parentContext.traceId &&
+            s.parentSpanContext?.spanId === parentContext.spanId
+          );
+        }
+        if (filter?.noParent) return s.parentSpanContext === undefined;
+        return true;
+      });
       if (found.length === 0)
         throw new Error(
           `Expected span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
@@ -140,7 +194,7 @@ const otelSpans = (spans: ReadableSpan[]): OtelSpanCollectionAssertions => {
         throw new Error(
           `Expected exactly one span named "${name}" but found ${found.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
         );
-      return otelSpan(found[0]);
+      return otelSpan(found[0], spans);
     },
     haveSpansNamed(name) {
       const found = spans.filter((s) => s.name === name);
@@ -158,7 +212,7 @@ const otelSpans = (spans: ReadableSpan[]): OtelSpanCollectionAssertions => {
               `Expected span(s) named "${name}" to have attribute "${key}" but none were found. All spans: [${spans.map((s) => s.name).join(', ')}]`,
             );
           for (const span of found) {
-            otelSpan(span).hasAttribute(key, value);
+            otelSpan(span, spans).hasAttribute(key, value);
           }
           return group;
         },

@@ -3,9 +3,11 @@ import {
   noopLogger,
   noopMeter,
   noopTracer,
+  ObservabilityScope,
   type AttributeTarget,
   type Logger,
   type Meter,
+  type ObservabilityScope as ObservabilityScopeType,
   type Tracer,
 } from '@event-driven-io/almanac';
 import type {
@@ -56,6 +58,10 @@ export const eventStoreObservability = (
 export const eventStoreCollector = (
   observability: ResolvedEventStoreObservability,
 ) => {
+  const { startScope } = ObservabilityScope({
+    ...observability,
+    attributePrefix: 'emmett',
+  });
   const A = EmmettAttributes;
   const M = MessagingAttributes;
   const streamReadingDuration = observability.meter.histogram(
@@ -79,6 +85,56 @@ export const eventStoreCollector = (
   const streamAggregatingDuration = observability.meter.histogram(
     EmmettMetrics.stream.aggregatingDuration,
   );
+  const readAttributes = (streamName: string): Record<string, unknown> => ({
+    [A.eventStore.operation]: 'readStream',
+    [A.stream.name]: streamName,
+    [M.operation.type]: 'receive',
+    [M.destination.name]: streamName,
+    [M.system]: MessagingSystemName,
+  });
+
+  const readStream = <
+    EventType extends Event,
+    ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  >(
+    fn: (
+      scope: ObservabilityScopeType,
+    ) => Promise<ReadStreamResult<EventType, ReadEventMetadataType>>,
+  ) => {
+    const start = Date.now();
+    return async (
+      scope: ObservabilityScopeType,
+    ): Promise<ReadStreamResult<EventType, ReadEventMetadataType>> => {
+      let status = 'success';
+      try {
+        const result = await fn(scope);
+        const events: ReadEvent<EventType, ReadEventMetadataType>[] =
+          result.events;
+        scope.setAttributes({
+          [A.eventStore.read.status]: status,
+          [A.eventStore.read.eventCount]: events.length,
+          [A.eventStore.read.eventTypes]: [
+            ...new Set(events.map((e) => e.type)),
+          ],
+        });
+        streamReadingSize.record(events.length, {
+          [A.eventStore.read.status]: status,
+        });
+        for (const event of events) {
+          eventReadingCount.add(1, { [A.event.type]: event.type });
+        }
+        return result;
+      } catch (err) {
+        status = 'failure';
+        scope.setAttributes({ [A.eventStore.read.status]: status });
+        throw err;
+      } finally {
+        streamReadingDuration.record(Date.now() - start, {
+          [A.eventStore.read.status]: status,
+        });
+      }
+    };
+  };
 
   return {
     instrumentRead: <
@@ -86,50 +142,28 @@ export const eventStoreCollector = (
       ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
     >(
       streamName: string,
-      fn: () => Promise<ReadStreamResult<EventType, ReadEventMetadataType>>,
+      fn: (
+        scope: ObservabilityScopeType,
+      ) => Promise<ReadStreamResult<EventType, ReadEventMetadataType>>,
     ): Promise<ReadStreamResult<EventType, ReadEventMetadataType>> => {
-      const start = Date.now();
-      return observability.tracer.startSpan(
-        'eventStore.readStream',
-        async (span) => {
-          span.setAttributes({
-            [A.eventStore.operation]: 'readStream',
-            [A.stream.name]: streamName,
-            [M.operation.type]: 'receive',
-            [M.destination.name]: streamName,
-            [M.system]: MessagingSystemName,
-          });
+      return startScope('eventStore.readStream', readStream(fn), {
+        attributes: readAttributes(streamName),
+      });
+    },
 
-          let status = 'success';
-          try {
-            const result = await fn();
-            const events: ReadEvent<EventType, ReadEventMetadataType>[] =
-              result.events;
-            span.setAttributes({
-              [A.eventStore.read.status]: status,
-              [A.eventStore.read.eventCount]: events.length,
-              [A.eventStore.read.eventTypes]: [
-                ...new Set(events.map((e) => e.type)),
-              ],
-            });
-            streamReadingSize.record(events.length, {
-              [A.eventStore.read.status]: status,
-            });
-            for (const event of events) {
-              eventReadingCount.add(1, { [A.event.type]: event.type });
-            }
-            return result;
-          } catch (err) {
-            status = 'failure';
-            span.setAttributes({ [A.eventStore.read.status]: status });
-            throw err;
-          } finally {
-            streamReadingDuration.record(Date.now() - start, {
-              [A.eventStore.read.status]: status,
-            });
-          }
-        },
-      );
+    instrumentReadInScope: <
+      EventType extends Event,
+      ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+    >(
+      scope: ObservabilityScopeType,
+      streamName: string,
+      fn: (
+        scope: ObservabilityScopeType,
+      ) => Promise<ReadStreamResult<EventType, ReadEventMetadataType>>,
+    ): Promise<ReadStreamResult<EventType, ReadEventMetadataType>> => {
+      return scope.scope('eventStore.readStream', readStream(fn), {
+        attributes: readAttributes(streamName),
+      });
     },
 
     instrumentAppend: <
@@ -138,26 +172,25 @@ export const eventStoreCollector = (
     >(
       streamName: string,
       events: EventType[],
-      fn: () => Promise<Result>,
+      fn: (scope: ObservabilityScopeType) => Promise<Result>,
     ): Promise<Result> => {
       const start = Date.now();
-      return observability.tracer.startSpan(
+      return startEventStoreScope(
         'eventStore.appendToStream',
-        async (span) => {
-          span.setAttributes({
-            [A.eventStore.operation]: 'appendToStream',
-            [A.stream.name]: streamName,
-            [A.eventStore.append.batchSize]: events.length,
-            [M.operation.type]: 'send',
-            [M.batch.messageCount]: events.length,
-            [M.destination.name]: streamName,
-            [M.system]: MessagingSystemName,
-          });
-
+        {
+          [A.eventStore.operation]: 'appendToStream',
+          [A.stream.name]: streamName,
+          [A.eventStore.append.batchSize]: events.length,
+          [M.operation.type]: 'send',
+          [M.batch.messageCount]: events.length,
+          [M.destination.name]: streamName,
+          [M.system]: MessagingSystemName,
+        },
+        async (scope) => {
           let status = 'success';
           try {
-            const result = await fn();
-            span.setAttributes({
+            const result = await fn(scope);
+            scope.setAttributes({
               [A.eventStore.append.status]: status,
               [A.stream.versionAfter]: Number(result.nextExpectedStreamVersion),
             });
@@ -170,7 +203,7 @@ export const eventStoreCollector = (
             return result;
           } catch (err) {
             status = 'failure';
-            span.setAttributes({ [A.eventStore.append.status]: status });
+            scope.setAttributes({ [A.eventStore.append.status]: status });
             throw err;
           } finally {
             streamAppendingDuration.record(Date.now() - start, {
@@ -183,31 +216,30 @@ export const eventStoreCollector = (
 
     instrumentAggregate: <Result extends AggregateStreamResult<unknown>>(
       streamName: string,
-      fn: () => Promise<Result>,
+      fn: (scope: ObservabilityScopeType) => Promise<Result>,
     ): Promise<Result> => {
       const start = Date.now();
-      return observability.tracer.startSpan(
+      return startEventStoreScope(
         'eventStore.aggregateStream',
-        async (span) => {
-          span.setAttributes({
-            [A.eventStore.operation]: 'aggregateStream',
-            [A.stream.name]: streamName,
-            [M.operation.type]: 'process',
-            [M.destination.name]: streamName,
-            [M.system]: MessagingSystemName,
-          });
-
+        {
+          [A.eventStore.operation]: 'aggregateStream',
+          [A.stream.name]: streamName,
+          [M.operation.type]: 'process',
+          [M.destination.name]: streamName,
+          [M.system]: MessagingSystemName,
+        },
+        async (scope) => {
           let status = 'success';
           try {
-            const result = await fn();
-            span.setAttributes({
+            const result = await fn(scope);
+            scope.setAttributes({
               [A.eventStore.aggregate.status]: status,
               [A.stream.versionAfter]: Number(result.currentStreamVersion),
             });
             return result;
           } catch (err) {
             status = 'failure';
-            span.setAttributes({ [A.eventStore.aggregate.status]: status });
+            scope.setAttributes({ [A.eventStore.aggregate.status]: status });
             throw err;
           } finally {
             streamAggregatingDuration.record(Date.now() - start, {
@@ -216,6 +248,22 @@ export const eventStoreCollector = (
           }
         },
       );
+    },
+
+    instrumentInlineProjection: <T>(
+      streamName: string,
+      appendScope: ObservabilityScopeType,
+      fn: (scope: ObservabilityScopeType) => Promise<T>,
+    ): Promise<T> => {
+      return appendScope.scope('eventStore.inlineProjection', fn, {
+        attributes: {
+          [A.eventStore.operation]: 'inlineProjection',
+          [A.stream.name]: streamName,
+          [M.operation.type]: 'process',
+          [M.destination.name]: streamName,
+          [M.system]: MessagingSystemName,
+        },
+      });
     },
   };
 };

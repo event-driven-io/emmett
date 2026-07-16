@@ -34,6 +34,7 @@ import { pgDriver } from '@event-driven-io/pongo/pg';
 
 void describe('EventStoreDBEventStore', () => {
   const M = MessagingAttributes;
+  const given = ObservabilitySpec.for();
   let postgres: StartedPostgreSqlContainer;
   let eventStore: PostgresEventStore;
   let connectionString: string;
@@ -220,7 +221,6 @@ void describe('EventStoreDBEventStore', () => {
   });
 
   void it('should record observability while appending', async () => {
-    const given = ObservabilitySpec.for();
     const observedShoppingCartId = `shopping_cart-${uuid()}`;
 
     await given((observability) => ({
@@ -258,7 +258,6 @@ void describe('EventStoreDBEventStore', () => {
   });
 
   void it('should record observability while reading', async () => {
-    const given = ObservabilitySpec.for();
     const observedShoppingCartId = `shopping_cart-${uuid()}`;
 
     await given(async (observability) => {
@@ -303,8 +302,6 @@ void describe('EventStoreDBEventStore', () => {
   });
 
   void it('should record observability while handling inline projections', async () => {
-    const given = ObservabilitySpec.for();
-    let projectionTraceId = '';
     const projectionName = `postgres_observability_projection_${uuid().replaceAll(
       '-',
       '_',
@@ -318,10 +315,7 @@ void describe('EventStoreDBEventStore', () => {
           postgreSQLProjection<ShoppingCartEvent>({
             name: projectionName,
             canHandle: ['ProductItemAdded'],
-            handle: (_events, context) => {
-              projectionTraceId =
-                context.observabilityScope.spanContext().traceId;
-            },
+            handle: () => undefined,
           }),
         ]),
       }),
@@ -344,6 +338,7 @@ void describe('EventStoreDBEventStore', () => {
       })
       .then(({ spans }) => {
         spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
+          'emmett.scope.main': true,
           [EmmettAttributes.eventStore.operation]: 'appendToStream',
           [EmmettAttributes.stream.name]: observedShoppingCartId,
           [EmmettAttributes.eventStore.append.batchSize]: 1,
@@ -357,15 +352,19 @@ void describe('EventStoreDBEventStore', () => {
 
         spans
           .hasSingleSpanNamed('eventStore.inlineProjection')
+          .hasParentSpanNamed('eventStore.appendToStream')
           .hasAttributes({
-            'emmett.scope.main': true,
-          })
-          .hasTraceId(projectionTraceId);
+            'emmett.scope.main': undefined,
+            [EmmettAttributes.eventStore.operation]: 'inlineProjection',
+            [EmmettAttributes.stream.name]: observedShoppingCartId,
+            [M.operation.type]: 'process',
+            [M.destination.name]: observedShoppingCartId,
+            [M.system]: MessagingSystemName,
+          });
       });
   });
 
   void it('should record observability while aggregating stream', async () => {
-    const given = ObservabilitySpec.for();
     const observedShoppingCartId = `shopping_cart-${uuid()}`;
 
     await given(async (observability) => {
@@ -403,6 +402,7 @@ void describe('EventStoreDBEventStore', () => {
       })
       .then(({ spans }) => {
         spans.hasSingleSpanNamed('eventStore.aggregateStream').hasAttributes({
+          'emmett.scope.main': true,
           [EmmettAttributes.eventStore.operation]: 'aggregateStream',
           [EmmettAttributes.stream.name]: observedShoppingCartId,
           [EmmettAttributes.eventStore.aggregate.status]: 'success',
@@ -412,16 +412,20 @@ void describe('EventStoreDBEventStore', () => {
           [M.system]: MessagingSystemName,
         });
 
-        spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
-          [EmmettAttributes.eventStore.operation]: 'readStream',
-          [EmmettAttributes.stream.name]: observedShoppingCartId,
-          [EmmettAttributes.eventStore.read.status]: 'success',
-          [EmmettAttributes.eventStore.read.eventCount]: 1,
-          [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
-          [M.operation.type]: 'receive',
-          [M.destination.name]: observedShoppingCartId,
-          [M.system]: MessagingSystemName,
-        });
+        spans
+          .hasSingleSpanNamed('eventStore.readStream')
+          .hasParentSpanNamed('eventStore.aggregateStream')
+          .hasAttributes({
+            'emmett.scope.main': undefined,
+            [EmmettAttributes.eventStore.operation]: 'readStream',
+            [EmmettAttributes.stream.name]: observedShoppingCartId,
+            [EmmettAttributes.eventStore.read.status]: 'success',
+            [EmmettAttributes.eventStore.read.eventCount]: 1,
+            [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
+            [M.operation.type]: 'receive',
+            [M.destination.name]: observedShoppingCartId,
+            [M.system]: MessagingSystemName,
+          });
       });
   });
 

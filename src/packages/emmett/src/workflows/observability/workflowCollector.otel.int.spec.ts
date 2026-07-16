@@ -99,8 +99,9 @@ describe('workflowCollector with OTel', () => {
 
     otelAssertions
       .spans(spans)
-      .hasSingleSpanNamed('eventStore.appendToStream')
+      .hasSingleSpanNamed('eventStore.appendToStream', { noParent: true })
       .hasAttributes({
+        'emmett.scope.main': true,
         [EmmettAttributes.eventStore.operation]: 'appendToStream',
         [EmmettAttributes.stream.name]: 'orders-1',
         [EmmettAttributes.eventStore.append.batchSize]: 1,
@@ -129,8 +130,16 @@ describe('workflowCollector with OTel', () => {
 
     otelAssertions
       .spans(spans)
-      .hasSingleSpanNamed('eventStore.aggregateStream')
+      .hasSingleSpanNamed('eventStore.readStream', { noParent: true })
       .hasAttributes({
+        'emmett.scope.main': true,
+      });
+
+    otelAssertions
+      .spans(spans)
+      .hasSingleSpanNamed('eventStore.aggregateStream', { noParent: true })
+      .hasAttributes({
+        'emmett.scope.main': true,
         [EmmettAttributes.eventStore.operation]: 'aggregateStream',
         [EmmettAttributes.stream.name]: 'orders-1',
         [EmmettAttributes.eventStore.aggregate.status]: 'success',
@@ -138,6 +147,15 @@ describe('workflowCollector with OTel', () => {
         [M.operation.type]: 'process',
         [M.destination.name]: 'orders-1',
         [M.system]: MessagingSystemName,
+      });
+
+    otelAssertions
+      .spans(spans)
+      .hasSingleSpanNamed('eventStore.readStream', {
+        parentSpanNamed: 'eventStore.aggregateStream',
+      })
+      .hasAttributes({
+        'emmett.scope.main': undefined,
       });
   });
 });

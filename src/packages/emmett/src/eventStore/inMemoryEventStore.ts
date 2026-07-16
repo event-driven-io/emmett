@@ -1,3 +1,4 @@
+import type { ObservabilityScope } from '@event-driven-io/almanac';
 import { v4 as uuid } from 'uuid';
 import {
   getInMemoryDatabase,
@@ -87,53 +88,19 @@ export const getInMemoryEventStore = (
 
   const observability = eventStoreObservability(eventStoreOptions);
   const collector = eventStoreCollector(observability);
-
-  // Create the event store object
-  const eventStore: InMemoryEventStore = {
-    database,
-    async aggregateStream<
-      State,
-      EventType extends Event,
-      EventPayloadType extends Event = EventType,
-    >(
-      streamName: string,
-      options: AggregateStreamOptions<
-        State,
-        EventType,
-        ReadEventMetadataWithGlobalPosition,
-        EventPayloadType
-      >,
-    ): Promise<AggregateStreamResult<State>> {
-      return collector.instrumentAggregate(streamName, async () => {
-        const { evolve, initialState, read } = options;
-
-        const result = await this.readStream<EventType, EventPayloadType>(
-          streamName,
-          read,
-        );
-
-        const events = result?.events ?? [];
-
-        const state = events.reduce((s, e) => evolve(s, e), initialState());
-
-        return {
-          currentStreamVersion: BigInt(events.length),
-          state,
-          streamExists: result.streamExists,
-        };
-      });
-    },
-
-    readStream: <
-      EventType extends Event,
-      EventPayloadType extends Event = EventType,
-    >(
-      streamName: string,
-      readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
-    ): Promise<
-      ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
-    > =>
-      collector.instrumentRead(streamName, () => {
+  const readStreamFromMemory = <
+    EventType extends Event,
+    EventPayloadType extends Event = EventType,
+  >(
+    streamName: string,
+    readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
+    parentScope?: ObservabilityScope,
+  ): Promise<
+    ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
+  > =>
+    collector.instrumentRead(
+      streamName,
+      () => {
         const events = streams.get(streamName);
         const currentStreamVersion = events
           ? BigInt(events.length)
@@ -173,7 +140,56 @@ export const getInMemoryEventStore = (
           events: resultEvents,
           streamExists: events !== undefined && events.length > 0,
         });
-      }),
+      },
+      { parentScope },
+    );
+
+  // Create the event store object
+  const eventStore: InMemoryEventStore = {
+    database,
+    async aggregateStream<
+      State,
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
+      streamName: string,
+      options: AggregateStreamOptions<
+        State,
+        EventType,
+        ReadEventMetadataWithGlobalPosition,
+        EventPayloadType
+      >,
+    ): Promise<AggregateStreamResult<State>> {
+      return collector.instrumentAggregate(streamName, async (scope) => {
+        const { evolve, initialState, read } = options;
+
+        const result = await readStreamFromMemory<EventType, EventPayloadType>(
+          streamName,
+          read,
+          scope,
+        );
+
+        const events = result?.events ?? [];
+
+        const state = events.reduce((s, e) => evolve(s, e), initialState());
+
+        return {
+          currentStreamVersion: BigInt(events.length),
+          state,
+          streamExists: result.streamExists,
+        };
+      });
+    },
+
+    readStream: <
+      EventType extends Event,
+      EventPayloadType extends Event = EventType,
+    >(
+      streamName: string,
+      readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
+    ): Promise<
+      ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
+    > => readStreamFromMemory(streamName, readOptions),
 
     appendToStream: <
       EventType extends Event,
@@ -189,7 +205,7 @@ export const getInMemoryEventStore = (
           ? BigInt(currentEvents.length)
           : InMemoryEventStoreDefaultStreamVersion;
 
-      return collector.instrumentAppend(streamName, events, async () => {
+      return collector.instrumentAppend(streamName, events, async (scope) => {
         assertExpectedVersionMatchesCurrent(
           currentStreamVersion,
           options?.expectedStreamVersion,
@@ -245,7 +261,10 @@ export const getInMemoryEventStore = (
             events: newEvents,
             database: eventStore.database,
             eventStore,
-            observability,
+            startInlineProjectionScope: (fn) =>
+              collector.instrumentInlineProjection(streamName, scope, (child) =>
+                Promise.resolve(fn(child)),
+              ),
           });
         }
 

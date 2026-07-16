@@ -5,12 +5,13 @@ import type { CollectedSpan } from './collectedSpan';
 const span = (
   name: string,
   attributes: Record<string, unknown> = {},
+  parent?: { traceId: string; spanId: string },
 ): CollectedSpan => ({
   name,
   attributes,
   logs: [],
   links: [],
-  startOptions: {},
+  startOptions: parent ? { parent } : {},
   ownContext: { traceId: 'trace', spanId: name },
 });
 
@@ -107,5 +108,38 @@ describe('spanAssertions', () => {
     assertThatSpans([span('eventStore.inlineProjection')])
       .hasSingleSpanNamed('eventStore.inlineProjection')
       .hasTraceId('trace');
+  });
+
+  it('asserts parent span by name', () => {
+    assertThatSpans([
+      span('eventStore.appendToStream'),
+      span(
+        'eventStore.inlineProjection',
+        {},
+        {
+          traceId: 'trace',
+          spanId: 'eventStore.appendToStream',
+        },
+      ),
+    ])
+      .hasSingleSpanNamed('eventStore.inlineProjection')
+      .hasParentSpanNamed('eventStore.appendToStream');
+  });
+
+  it('filters single span by parent span name', () => {
+    assertThatSpans([
+      span('eventStore.readStream'),
+      span('eventStore.aggregateStream'),
+      span(
+        'eventStore.readStream',
+        {},
+        {
+          traceId: 'trace',
+          spanId: 'eventStore.aggregateStream',
+        },
+      ),
+    ]).hasSingleSpanNamed('eventStore.readStream', {
+      parentSpanNamed: 'eventStore.aggregateStream',
+    });
   });
 });
