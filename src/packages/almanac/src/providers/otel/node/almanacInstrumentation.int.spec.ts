@@ -57,7 +57,7 @@ describe('AlmanacInstrumentation with NodeSDK', () => {
     expect(spans).toHaveLength(1);
     otelAssertions
       .spans(spans)
-      .haveSpanNamed('command.handle')
+      .hasSingleSpanNamed('command.handle')
       .isMainScope('almanac')
       .hasAttribute('almanac.scope.type', 'command');
   });

@@ -3,7 +3,7 @@ export {
   otel,
   otelLogger,
   otelMeter,
-  otelTraceContextGenerator,
+  otelObservabilityContextGenerator,
   otelTracer,
   type AlmanacInstrumentationConfig,
   type AlmanacObservabilityConfig,

@@ -75,6 +75,41 @@ describe('spanAssertions', () => {
       });
   });
 
+  it('asserts parent span by name on all spans with the same name', () => {
+    const parent = span('command.handle');
+    const parentContext = {
+      traceId: parent.ownContext.traceId,
+      spanId: parent.ownContext.spanId,
+    };
+
+    assertThatSpans([
+      parent,
+      span('eventStore.aggregateStream', {}, parentContext),
+      span('eventStore.aggregateStream', {}, parentContext),
+    ])
+      .haveSpansNamed('eventStore.aggregateStream')
+      .hasCount(2)
+      .haveParentSpanNamed('command.handle');
+  });
+
+  it('throws when any grouped span does not have the expected parent span', () => {
+    const parent = span('command.handle');
+    const parentContext = {
+      traceId: parent.ownContext.traceId,
+      spanId: parent.ownContext.spanId,
+    };
+
+    expect(() =>
+      assertThatSpans([
+        parent,
+        span('eventStore.aggregateStream', {}, parentContext),
+        span('eventStore.aggregateStream'),
+      ])
+        .haveSpansNamed('eventStore.aggregateStream')
+        .haveParentSpanNamed('command.handle'),
+    ).toThrow('Expected span "eventStore.aggregateStream" to have parent');
+  });
+
   it('throws when any span with the same name misses expected attributes', () => {
     expect(() =>
       assertThatSpans([
