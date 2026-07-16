@@ -4,11 +4,11 @@ import {
   noopLogger,
   noopMeter,
   noopTracer,
-  ObservabilityScope,
+  ObservabilityScope as createObservabilityScope,
   type AttributeTarget,
   type Logger,
   type Meter,
-  type ObservabilityScope as ObservabilityScopeType,
+  type ObservabilityScope,
   type Tracer,
 } from '@event-driven-io/almanac';
 import {
@@ -18,7 +18,11 @@ import {
   ScopeTypes,
 } from '../../observability/attributes';
 import { mergeWithDefaultObservability } from '../../observability/defaultObservability';
-import type { EmmettObservabilityConfig } from '../../observability/options';
+import type {
+  EmmettObservabilityConfig,
+  OperationObservabilityOptions,
+} from '../../observability/options';
+import { withOperationAttributes } from '../../observability/options';
 import type { Event } from '../../typing';
 
 export type CommandObservabilityConfig = Pick<
@@ -57,14 +61,12 @@ export type CommandHandlerCollectorContext = {
   commandType?: string | string[];
   correlationId?: string;
   causationId?: string;
-  traceId?: string;
-  spanId?: string;
 };
 
 export const commandHandlerCollector = (
   observability: ResolvedCommandObservability,
 ) => {
-  const { startScope } = ObservabilityScope({
+  const { startScope } = createObservabilityScope({
     ...observability,
     attributePrefix: 'emmett',
   });
@@ -76,18 +78,27 @@ export const commandHandlerCollector = (
   const eventAppendingCount = observability.meter.counter(
     EmmettMetrics.event.appendingCount,
   );
+  const startCommandScope = <T>(
+    name: string,
+    fn: (scope: ObservabilityScope) => Promise<T>,
+    options?: OperationObservabilityOptions,
+  ): Promise<T> => {
+    if (options?.scope) {
+      const { scope, ...scopeOptions } = options;
+      return scope.scope(name, fn, scopeOptions);
+    }
+
+    return startScope(name, fn, options);
+  };
 
   return {
     startScope: <T>(
       context: CommandHandlerCollectorContext,
-      fn: (scope: ObservabilityScopeType) => Promise<T>,
+      fn: (scope: ObservabilityScope) => Promise<T>,
+      options?: OperationObservabilityOptions,
     ): Promise<T> => {
       const start = Date.now();
-      const parent =
-        context.traceId && context.spanId
-          ? { traceId: context.traceId, spanId: context.spanId }
-          : undefined;
-      return startScope(
+      return startCommandScope(
         'command.handle',
         async (scope) => {
           scope.setAttributes({
@@ -139,27 +150,24 @@ export const commandHandlerCollector = (
             });
           }
         },
-        {
-          parent,
-          attributes: {
-            [A.scope.type]: ScopeTypes.command,
-            [A.stream.name]: context.streamName,
-            ...(context.commandType
-              ? { [A.command.type]: context.commandType }
-              : {}),
-            ...(context.correlationId
-              ? { [M.message.correlationId]: context.correlationId }
-              : {}),
-            ...(context.causationId
-              ? { [M.message.causationId]: context.causationId }
-              : {}),
-          },
-        },
+        withOperationAttributes(options, {
+          [A.scope.type]: ScopeTypes.command,
+          [A.stream.name]: context.streamName,
+          ...(context.commandType
+            ? { [A.command.type]: context.commandType }
+            : {}),
+          ...(context.correlationId
+            ? { [M.message.correlationId]: context.correlationId }
+            : {}),
+          ...(context.causationId
+            ? { [M.message.causationId]: context.causationId }
+            : {}),
+        }),
       );
     },
 
     recordEvents: (
-      scope: ObservabilityScopeType,
+      scope: ObservabilityScope,
       events: Event[],
       status: string,
     ): void => {
@@ -175,7 +183,7 @@ export const commandHandlerCollector = (
     },
 
     recordVersions: (
-      scope: ObservabilityScopeType,
+      scope: ObservabilityScope,
       before: bigint,
       after: bigint,
     ): void => {

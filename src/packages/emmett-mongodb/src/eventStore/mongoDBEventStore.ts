@@ -1,4 +1,3 @@
-import type { ObservabilityScope } from '@event-driven-io/almanac';
 import {
   assertExpectedVersionMatchesCurrent,
   downcastRecordedMessage,
@@ -23,6 +22,7 @@ import {
   type ReadStreamOptions,
   type ReadStreamResult,
   type StreamExistsResult,
+  withOperationScope,
 } from '@event-driven-io/emmett';
 import {
   MongoClient,
@@ -251,7 +251,6 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
   >(
     streamName: StreamName,
     options?: ReadStreamOptions<EventType, EventPayloadType>,
-    parentScope?: ObservabilityScope,
   ): Promise<
     Exclude<ReadStreamResult<EventType, MongoDBReadEventMetadata>, null>
   > {
@@ -317,7 +316,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
           streamExists: true,
         };
       },
-      { parentScope },
+      options?.observability,
     );
   }
 
@@ -334,20 +333,30 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       EventPayloadType
     >,
   ): Promise<AggregateStreamResult<State>> {
-    return this.collector.instrumentAggregate(streamName, async (scope) => {
-      const stream = await this.readStreamFromMongoDB<
-        EventType,
-        EventPayloadType
-      >(streamName, options?.read, scope);
-      const { evolve, initialState } = options;
+    return this.collector.instrumentAggregate(
+      streamName,
+      async (scope) => {
+        const stream = await this.readStreamFromMongoDB<
+          EventType,
+          EventPayloadType
+        >(streamName, {
+          ...(options?.read ?? {}),
+          observability: withOperationScope(
+            scope,
+            options?.read?.observability,
+          ),
+        });
+        const { evolve, initialState } = options;
 
-      const state = stream.events.reduce(evolve, initialState());
-      return {
-        state,
-        currentStreamVersion: stream.currentStreamVersion,
-        streamExists: stream.streamExists,
-      };
-    });
+        const state = stream.events.reduce(evolve, initialState());
+        return {
+          state,
+          currentStreamVersion: stream.currentStreamVersion,
+          streamExists: stream.streamExists,
+        };
+      },
+      options.observability,
+    );
   }
 
   async appendToStream<
@@ -489,6 +498,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
             currentStreamVersion === MongoDBEventStoreDefaultStreamVersion,
         };
       },
+      options?.observability,
     );
   }
 

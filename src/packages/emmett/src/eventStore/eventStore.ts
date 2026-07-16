@@ -1,4 +1,5 @@
 import type { ProcessorCheckpoint } from '../processors';
+import type { OperationObservabilityOptions } from '../observability';
 import type { JSONSerializationOptions } from '../serialization';
 import type {
   AnyReadEventMetadata,
@@ -134,6 +135,7 @@ export type ReadStreamOptions<
   maxCount?: bigint;
   expectedStreamVersion?: ExpectedStreamVersion;
   schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
+  observability?: OperationObservabilityOptions;
 } & JSONSerializationOptions;
 
 export type ReadStreamResult<
@@ -170,6 +172,7 @@ export type AggregateStreamOptions<
   evolve: Evolve<State, EventType, ReadEventMetadataType>;
   initialState: () => State;
   read?: ReadStreamOptions<EventType, EventPayloadType>;
+  observability?: OperationObservabilityOptions;
 };
 
 export type AggregateStreamResult<State> = {
@@ -208,6 +211,7 @@ export type AppendToStreamOptions<
   causationId?: string;
   traceId?: string;
   spanId?: string;
+  observability?: OperationObservabilityOptions;
 };
 
 export type AppendToStreamResult = {

@@ -324,8 +324,6 @@ export const reactor = <
         messages: RecordedMessage<MessageType, MessageMetadataType>[],
         context: HandlerContext,
       ): Promise<BatchMessageHandlerResult> => {
-        const batchCtx = context.observabilityScope.spanContext();
-
         let result: BatchMessageHandlerResult = undefined;
         for (let i = 0; i < messages.length; i++) {
           const message = messages[i]!;
@@ -337,7 +335,7 @@ export const reactor = <
               archetypeType: type,
             },
             message,
-            batchCtx,
+            context.observabilityScope,
             (messageScope) =>
               Promise.resolve(
                 options.eachMessage(message, {

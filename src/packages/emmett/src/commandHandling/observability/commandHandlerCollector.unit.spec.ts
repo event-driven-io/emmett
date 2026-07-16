@@ -35,7 +35,7 @@ describe('commandHandlerCollector', () => {
       .then(({ spans }) =>
         spans.hasSingleSpanNamed('command.handle').hasAttributes({
           [A.scope.type]: 'command',
-          'emmett.scope.main': true,
+          [A.scope.main]: true,
         }),
       );
   });
@@ -279,16 +279,20 @@ describe('commandHandlerCollector', () => {
       );
   });
 
-  it('uses inherited trace context when traceId/spanId are provided', async () => {
+  it('uses inherited trace context when parent is provided', async () => {
     await given((config) => commandHandlerCollector(config))
       .when((collector) =>
         collector.startScope(
           {
             streamName: 'test',
-            traceId: 'parent-trace',
-            spanId: 'parent-span',
           },
           () => Promise.resolve(),
+          {
+            parent: {
+              traceId: 'parent-trace',
+              spanId: 'parent-span',
+            },
+          },
         ),
       )
       .then(({ spans }) =>
@@ -298,7 +302,7 @@ describe('commandHandlerCollector', () => {
       );
   });
 
-  it('does not set parent when traceId/spanId are absent', async () => {
+  it('does not set parent when parent is absent', async () => {
     await given((config) => commandHandlerCollector(config))
       .when((collector) =>
         collector.startScope({ streamName: 'test' }, () => Promise.resolve()),

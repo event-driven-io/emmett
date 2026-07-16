@@ -76,7 +76,7 @@ describe('otelTracer integration', () => {
     expect(spans).toHaveLength(1);
     otelAssertions
       .spans(spans)
-      .haveSpanNamed('command.handle')
+      .hasSingleSpanNamed('command.handle')
       .isMainScope('emmett')
       .hasAttributes({
         'emmett.scope.type': 'command',

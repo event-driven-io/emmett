@@ -1,7 +1,18 @@
 import { ObservabilitySpec } from '@event-driven-io/almanac';
 import { describe, it } from 'vitest';
+import {
+  EmmettAttributes,
+  MessagingSystemName,
+} from '../observability/attributes';
 import type { AnyRecordedMessageMetadata } from '../typing';
 import { reactor } from './processors';
+
+const A = EmmettAttributes;
+const M = {
+  system: 'messaging.system',
+  batchMessageCount: 'messaging.batch.message_count',
+  operationType: 'messaging.operation.type',
+};
 
 const makeMessage = (type: string, meta: Record<string, unknown> = {}) => ({
   type,
@@ -34,11 +45,29 @@ describe('processors observability wiring', () => {
         );
         await reactor.close({});
       })
-      .then(({ spans }) =>
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('processor.handle').hasAttributes({
+          [A.scope.type]: 'processor',
+          [A.scope.main]: true,
+          [A.processor.id]: 'test',
+          [A.processor.type]: 'reactor',
+          [A.processor.batchSize]: 1,
+          [A.processor.eventTypes]: ['OrderPlaced'],
+          [A.processor.status]: 'ack',
+          [M.system]: MessagingSystemName,
+          [M.batchMessageCount]: 1,
+        });
+
         spans
           .hasSingleSpanNamed('processor.message.OrderPlaced')
-          .hasParent({ traceId: 'trace-A', spanId: 'span-x' }),
-      );
+          .hasParent({ traceId: 'trace-A', spanId: 'span-x' })
+          .hasAttributes({
+            [A.scope.type]: 'reactor',
+            [A.processor.id]: 'test',
+            [A.processor.type]: 'reactor',
+            [M.operationType]: 'process',
+          });
+      });
   });
 
   it('per-message span without trace context has no parent', async () => {
@@ -55,7 +84,15 @@ describe('processors observability wiring', () => {
         await reactor.close({});
       })
       .then(({ spans }) =>
-        spans.hasSingleSpanNamed('processor.message.OrderPlaced').hasNoParent(),
+        spans
+          .hasSingleSpanNamed('processor.message.OrderPlaced')
+          .hasNoParent()
+          .hasAttributes({
+            [A.scope.type]: 'reactor',
+            [A.processor.id]: 'test',
+            [A.processor.type]: 'reactor',
+            [M.operationType]: 'process',
+          }),
       );
   });
 
@@ -114,7 +151,13 @@ describe('processors observability wiring', () => {
         spans
           .hasSingleSpanNamed('processor.message.OrderPlaced')
           .hasPropagation('propagate')
-          .hasParent({ traceId: 'trace-A', spanId: 'span-x' }),
+          .hasParent({ traceId: 'trace-A', spanId: 'span-x' })
+          .hasAttributes({
+            [A.scope.type]: 'reactor',
+            [A.processor.id]: 'test',
+            [A.processor.type]: 'reactor',
+            [M.operationType]: 'process',
+          }),
       );
   });
 

@@ -60,7 +60,7 @@ void describe('EventStoreDBEventStore observability', () => {
         })
         .then(({ spans }) => {
           spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
-            'emmett.scope.main': true,
+            [EmmettAttributes.scope.main]: true,
             [EmmettAttributes.eventStore.operation]: 'appendToStream',
             [EmmettAttributes.stream.name]: streamName,
             [EmmettAttributes.eventStore.append.batchSize]: 1,
@@ -99,7 +99,7 @@ void describe('EventStoreDBEventStore observability', () => {
           spans
             .hasSingleSpanNamed('eventStore.readStream', { noParent: true })
             .hasAttributes({
-              'emmett.scope.main': true,
+              [EmmettAttributes.scope.main]: true,
               [EmmettAttributes.eventStore.operation]: 'readStream',
               [EmmettAttributes.stream.name]: streamName,
               [EmmettAttributes.eventStore.read.status]: 'success',
@@ -144,12 +144,12 @@ void describe('EventStoreDBEventStore observability', () => {
           });
         })
         .then(({ spans }) => {
-          spans
+          const aggregateSpan = spans
             .hasSingleSpanNamed('eventStore.aggregateStream', {
               noParent: true,
             })
             .hasAttributes({
-              'emmett.scope.main': true,
+              [EmmettAttributes.scope.main]: true,
               [EmmettAttributes.eventStore.operation]: 'aggregateStream',
               [EmmettAttributes.stream.name]: streamName,
               [EmmettAttributes.eventStore.aggregate.status]: 'success',
@@ -159,23 +159,17 @@ void describe('EventStoreDBEventStore observability', () => {
               [M.system]: MessagingSystemName,
             });
 
-          spans
-            .hasSingleSpanNamed('eventStore.readStream', {
-              parentSpanNamed: 'eventStore.aggregateStream',
-            })
-            .hasAttributes({
-              'emmett.scope.main': undefined,
-              [EmmettAttributes.eventStore.operation]: 'readStream',
-              [EmmettAttributes.stream.name]: streamName,
-              [EmmettAttributes.eventStore.read.status]: 'success',
-              [EmmettAttributes.eventStore.read.eventCount]: 1,
-              [EmmettAttributes.eventStore.read.eventTypes]: [
-                'ProductItemAdded',
-              ],
-              [M.operation.type]: 'receive',
-              [M.destination.name]: streamName,
-              [M.system]: MessagingSystemName,
-            });
+          aggregateSpan.hasChildNamed('eventStore.readStream').hasAttributes({
+            [EmmettAttributes.scope.main]: undefined,
+            [EmmettAttributes.eventStore.operation]: 'readStream',
+            [EmmettAttributes.stream.name]: streamName,
+            [EmmettAttributes.eventStore.read.status]: 'success',
+            [EmmettAttributes.eventStore.read.eventCount]: 1,
+            [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
+            [M.operation.type]: 'receive',
+            [M.destination.name]: streamName,
+            [M.system]: MessagingSystemName,
+          });
         });
     },
   );

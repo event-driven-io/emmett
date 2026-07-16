@@ -3,11 +3,11 @@ import {
   noopLogger,
   noopMeter,
   noopTracer,
-  ObservabilityScope,
+  ObservabilityScope as createObservabilityScope,
   type AttributeTarget,
   type Logger,
   type Meter,
-  type ObservabilityScope as ObservabilityScopeType,
+  type ObservabilityScope,
   type TracePropagation,
   type Tracer,
 } from '@event-driven-io/almanac';
@@ -67,7 +67,7 @@ export type WorkflowCollectorContext = {
 export const workflowCollector = (
   observability: ResolvedWorkflowObservability,
 ) => {
-  const { startScope } = ObservabilityScope({
+  const { startScope } = createObservabilityScope({
     ...observability,
     attributePrefix: 'emmett',
   });
@@ -80,7 +80,7 @@ export const workflowCollector = (
   return {
     startScope: <T>(
       context: WorkflowCollectorContext,
-      fn: (scope: ObservabilityScopeType) => Promise<T>,
+      fn: (scope: ObservabilityScope) => Promise<T>,
     ): Promise<T> => {
       const start = Date.now();
       return startScope(
@@ -118,7 +118,7 @@ export const workflowCollector = (
     },
 
     recordOutputs: (
-      scope: ObservabilityScopeType,
+      scope: ObservabilityScope,
       outputs: { type: string }[],
     ): void => {
       scope.setAttributes({
@@ -128,7 +128,7 @@ export const workflowCollector = (
     },
 
     recordStateRebuild: (
-      scope: ObservabilityScopeType,
+      scope: ObservabilityScope,
       eventCount: number,
     ): void => {
       scope.setAttributes({

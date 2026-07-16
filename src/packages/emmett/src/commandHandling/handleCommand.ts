@@ -10,11 +10,11 @@ import {
   type EventStore,
   type EventStoreSession,
   type ExpectedStreamVersion,
-  type ReadStreamOptions,
 } from '../eventStore';
 import type { JSONSerializationOptions } from '../serialization';
 import type { Event } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
+import type { OperationObservabilityOptions } from '../observability';
 import {
   commandHandlerCollector,
   commandObservability,
@@ -74,12 +74,7 @@ export type HandleOptions<Store extends EventStore> = Parameters<
       }
   ) & {
     commandType?: string | string[];
-    observability?: {
-      traceId?: string;
-      spanId?: string;
-      correlationId?: string;
-      causationId?: string;
-    };
+    observability?: OperationObservabilityOptions;
   };
 
 type CommandHandlerFunction<State, StreamEvent extends Event> = (
@@ -115,8 +110,25 @@ export const CommandHandler =
       options.commandType ??
       options.name ??
       handlerNames(handle);
-    const correlationId = handleOptions?.observability?.correlationId ?? uuid();
-    const causationId = handleOptions?.observability?.causationId;
+    const correlationId = handleOptions?.correlationId ?? uuid();
+    const causationId = handleOptions?.causationId;
+    const commandScopeOptions = handleOptions?.observability;
+    const appendOptionsFromHandle = (() => {
+      if (!handleOptions) return undefined;
+
+      const {
+        commandType: _commandType,
+        observability: _operationObservability,
+        ...optionsWithoutCommandFields
+      } = handleOptions;
+
+      if ('retry' in optionsWithoutCommandFields) {
+        const { retry: _retry, ...appendOptions } = optionsWithoutCommandFields;
+        return appendOptions;
+      }
+
+      return optionsWithoutCommandFields;
+    })();
 
     return asyncRetry(
       () =>
@@ -126,8 +138,6 @@ export const CommandHandler =
             commandType,
             correlationId,
             causationId,
-            traceId: handleOptions?.observability?.traceId,
-            spanId: handleOptions?.observability?.spanId,
           },
           async (scope) => {
             const result = await withSession<
@@ -144,12 +154,9 @@ export const CommandHandler =
               >(streamName, {
                 evolve,
                 initialState,
+                observability: { scope },
                 read: {
                   schema: options.schema,
-                  ...(handleOptions as ReadStreamOptions<
-                    StreamEvent,
-                    EventPayloadType
-                  >),
                   serialization: options.serialization,
                   // expected stream version is passed to fail fast
                   // if stream is in the wrong state
@@ -216,15 +223,11 @@ export const CommandHandler =
 
               // 4. Append result to the stream
               const { traceId, spanId } = scope.spanContext();
-              const {
-                observability: _appendObservability,
-                ...handleOptionsForAppend
-              } = handleOptions ?? {};
               const appendResult = await eventStore.appendToStream(
                 streamName,
                 eventsToAppend,
                 {
-                  ...(handleOptionsForAppend as AppendToStreamOptions<
+                  ...(appendOptionsFromHandle as AppendToStreamOptions<
                     StreamEvent,
                     EventPayloadType
                   >),
@@ -233,6 +236,7 @@ export const CommandHandler =
                   ...(causationId ? { causationId } : {}),
                   traceId,
                   spanId,
+                  observability: { scope },
                 },
               );
 
@@ -253,6 +257,7 @@ export const CommandHandler =
 
             return result;
           },
+          commandScopeOptions,
         ),
       fromCommandHandlerRetryOptions(
         handleOptions && 'retry' in handleOptions

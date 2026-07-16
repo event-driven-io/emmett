@@ -233,30 +233,29 @@ void describe('MongoDBEventStore', () => {
         );
       })
       .then(({ spans }) => {
-        spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
-          'emmett.scope.main': true,
-          [EmmettAttributes.eventStore.operation]: 'appendToStream',
-          [EmmettAttributes.stream.name]: streamName,
-          [EmmettAttributes.eventStore.append.batchSize]: 1,
-          [EmmettAttributes.eventStore.append.status]: 'success',
-          [EmmettAttributes.stream.versionAfter]: 1,
-          [M.operation.type]: 'send',
-          [M.batch.messageCount]: 1,
-          [M.destination.name]: streamName,
-          [M.system]: MessagingSystemName,
-        });
-
-        spans
-          .hasSingleSpanNamed('eventStore.inlineProjection')
-          .hasParentSpanNamed('eventStore.appendToStream')
+        const appendSpan = spans
+          .hasSingleSpanNamed('eventStore.appendToStream')
           .hasAttributes({
-            'emmett.scope.main': undefined,
-            [EmmettAttributes.eventStore.operation]: 'inlineProjection',
+            [EmmettAttributes.scope.main]: true,
+            [EmmettAttributes.eventStore.operation]: 'appendToStream',
             [EmmettAttributes.stream.name]: streamName,
-            [M.operation.type]: 'process',
+            [EmmettAttributes.eventStore.append.batchSize]: 1,
+            [EmmettAttributes.eventStore.append.status]: 'success',
+            [EmmettAttributes.stream.versionAfter]: 1,
+            [M.operation.type]: 'send',
+            [M.batch.messageCount]: 1,
             [M.destination.name]: streamName,
             [M.system]: MessagingSystemName,
           });
+
+        appendSpan.hasChildNamed('eventStore.inlineProjection').hasAttributes({
+          [EmmettAttributes.scope.main]: undefined,
+          [EmmettAttributes.eventStore.operation]: 'inlineProjection',
+          [EmmettAttributes.stream.name]: streamName,
+          [M.operation.type]: 'process',
+          [M.destination.name]: streamName,
+          [M.system]: MessagingSystemName,
+        });
       });
   });
 
@@ -296,31 +295,30 @@ void describe('MongoDBEventStore', () => {
         });
       })
       .then(({ spans }) => {
-        spans.hasSingleSpanNamed('eventStore.aggregateStream').hasAttributes({
-          'emmett.scope.main': true,
-          [EmmettAttributes.eventStore.operation]: 'aggregateStream',
+        const aggregateSpan = spans
+          .hasSingleSpanNamed('eventStore.aggregateStream')
+          .hasAttributes({
+            [EmmettAttributes.scope.main]: true,
+            [EmmettAttributes.eventStore.operation]: 'aggregateStream',
+            [EmmettAttributes.stream.name]: streamName,
+            [M.operation.type]: 'process',
+            [M.destination.name]: streamName,
+            [M.system]: MessagingSystemName,
+            [EmmettAttributes.eventStore.aggregate.status]: 'success',
+            [EmmettAttributes.stream.versionAfter]: 1,
+          });
+
+        aggregateSpan.hasChildNamed('eventStore.readStream').hasAttributes({
+          [EmmettAttributes.scope.main]: undefined,
+          [EmmettAttributes.eventStore.operation]: 'readStream',
           [EmmettAttributes.stream.name]: streamName,
-          [EmmettAttributes.eventStore.aggregate.status]: 'success',
-          [EmmettAttributes.stream.versionAfter]: 1,
-          [M.operation.type]: 'process',
+          [EmmettAttributes.eventStore.read.status]: 'success',
+          [EmmettAttributes.eventStore.read.eventCount]: 1,
+          [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
+          [M.operation.type]: 'receive',
           [M.destination.name]: streamName,
           [M.system]: MessagingSystemName,
         });
-
-        spans
-          .hasSingleSpanNamed('eventStore.readStream')
-          .hasParentSpanNamed('eventStore.aggregateStream')
-          .hasAttributes({
-            'emmett.scope.main': undefined,
-            [EmmettAttributes.eventStore.operation]: 'readStream',
-            [EmmettAttributes.stream.name]: streamName,
-            [EmmettAttributes.eventStore.read.status]: 'success',
-            [EmmettAttributes.eventStore.read.eventCount]: 1,
-            [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
-            [M.operation.type]: 'receive',
-            [M.destination.name]: streamName,
-            [M.system]: MessagingSystemName,
-          });
       });
   });
 

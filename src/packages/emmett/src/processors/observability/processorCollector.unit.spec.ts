@@ -50,7 +50,7 @@ describe('processorCollector', () => {
       .then(({ spans }) =>
         spans.hasSingleSpanNamed('processor.handle').hasAttributes({
           [A.scope.type]: 'processor',
-          'emmett.scope.main': true,
+          [A.scope.main]: true,
         }),
       );
   });
@@ -215,6 +215,98 @@ describe('processorCollector', () => {
           .hasAttributes({
             [M.operationType]: 'process',
             [M.messageId]: 'msg-42',
+          }),
+      );
+  });
+
+  it('startMessageScope uses message trace context as parent', async () => {
+    const message = makeMessage('OrderPlaced', {
+      messageId: 'msg-42',
+      traceId: 'trace-A',
+      spanId: 'span-x',
+    });
+
+    await given((config) => processorCollector(config))
+      .when((collector) =>
+        collector.startScope(
+          { processorId: 'p1', type: 'reactor', checkpoint: null },
+          [message],
+          (scope) =>
+            collector.startMessageScope(
+              {
+                processorId: 'p1',
+                type: 'reactor',
+                checkpoint: null,
+                archetypeType: 'reactor',
+              },
+              message,
+              scope,
+              () => Promise.resolve(),
+            ),
+        ),
+      )
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('processor.handle').hasAttributes({
+          [A.scope.type]: 'processor',
+          [A.scope.main]: true,
+          [A.processor.id]: 'p1',
+          [A.processor.type]: 'reactor',
+          [A.processor.batchSize]: 1,
+          [A.processor.eventTypes]: ['OrderPlaced'],
+          [M.system]: MessagingSystemName,
+          [M.batchMessageCount]: 1,
+        });
+
+        spans
+          .hasSingleSpanNamed('processor.message.OrderPlaced')
+          .hasParent({ traceId: 'trace-A', spanId: 'span-x' })
+          .hasAttributes({
+            [A.scope.type]: 'reactor',
+            [A.processor.id]: 'p1',
+            [A.processor.type]: 'reactor',
+            [M.operationType]: 'process',
+            [M.messageId]: 'msg-42',
+          });
+      });
+  });
+
+  it("startMessageScope uses message trace context as parent when propagation is 'propagate'", async () => {
+    const message = makeMessage('OrderPlaced', {
+      traceId: 'trace-A',
+      spanId: 'span-x',
+    });
+
+    await given((config) => processorCollector(config), {
+      propagation: 'propagate',
+    })
+      .when((collector) =>
+        collector.startScope(
+          { processorId: 'p1', type: 'reactor', checkpoint: null },
+          [message],
+          (scope) =>
+            collector.startMessageScope(
+              {
+                processorId: 'p1',
+                type: 'reactor',
+                checkpoint: null,
+                archetypeType: 'reactor',
+              },
+              message,
+              scope,
+              () => Promise.resolve(),
+            ),
+        ),
+      )
+      .then(({ spans }) =>
+        spans
+          .hasSingleSpanNamed('processor.message.OrderPlaced')
+          .hasPropagation('propagate')
+          .hasParent({ traceId: 'trace-A', spanId: 'span-x' })
+          .hasAttributes({
+            [A.scope.type]: 'reactor',
+            [A.processor.id]: 'p1',
+            [A.processor.type]: 'reactor',
+            [M.operationType]: 'process',
           }),
       );
   });

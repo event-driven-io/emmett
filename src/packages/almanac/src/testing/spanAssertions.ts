@@ -8,6 +8,7 @@ type SpanAssertions = {
   hasTraceId(traceId: string): SpanAssertions;
   hasParent(ctx: { traceId: string; spanId: string }): SpanAssertions;
   hasParentSpanNamed(name: string): SpanAssertions;
+  hasChildNamed(name: string): SpanAssertions;
   hasNoParent(): SpanAssertions;
   hasPropagation(p: TracePropagation): SpanAssertions;
   hasCreationLinks(
@@ -107,6 +108,25 @@ export const assertThatSpan = (
           `Expected exactly one parent span named "${name}" but found ${parents.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
         );
       return self.hasParent(parents[0]!.ownContext);
+    },
+    hasChildNamed(name) {
+      if (!span)
+        throw new Error('Expected span to have child but span was not found');
+      const children = spans.filter(
+        (s) =>
+          s.name === name &&
+          s.startOptions.parent?.traceId === span.ownContext.traceId &&
+          s.startOptions.parent?.spanId === span.ownContext.spanId,
+      );
+      if (children.length === 0)
+        throw new Error(
+          `Expected span "${span.name}" to have child span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
+        );
+      if (children.length > 1)
+        throw new Error(
+          `Expected span "${span.name}" to have exactly one child span named "${name}" but found ${children.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
+        );
+      return assertThatSpan(children[0], spans);
     },
     hasNoParent() {
       if (!span)
