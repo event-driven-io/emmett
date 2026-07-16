@@ -1,4 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import {
+  collectingTracer,
+  testObservabilityContextGenerator,
+} from '@event-driven-io/almanac';
 import { describe, it } from 'vitest';
 import { EmmettError } from '../errors';
 import { getInMemoryEventStore } from '../eventStore';
@@ -675,6 +679,68 @@ void describe('Workflow Processor', () => {
       const { events } = await eventStore.readStream(streamName);
       assertThatArray(events).isNotEmpty();
       assertEqual(events[events.length - 1]!.type, 'GuestCheckedOut');
+    });
+
+    void it('router appends returned input with output message context', async () => {
+      const contextGenerator = testObservabilityContextGenerator({
+        traceIds: ['processor-trace', 'message-trace', 'append-trace'],
+        spanIds: ['processor-span', 'message-span', 'append-span'],
+        messageIds: 'appended-message',
+        correlationIds: 'unused-correlation',
+      });
+      const tracer = collectingTracer({ contextGenerator });
+      const eventStore = getInMemoryEventStore({
+        observability: { tracer, contextGenerator },
+      });
+      const groupCheckoutId = randomUUID();
+      const guestStayAccountId = randomUUID();
+      const streamName = workflowStreamName({
+        workflowName: 'GroupCheckoutWorkflow',
+        workflowId: groupCheckoutId,
+      });
+      const responseEvent: GuestCheckedOut = {
+        type: 'GuestCheckedOut',
+        data: { guestStayAccountId, checkedOutAt: new Date(), groupCheckoutId },
+      };
+      const processor = workflowProcessor({
+        ...workflowOptions,
+        observability: { tracer, contextGenerator },
+        outputHandler: workflowOutputHandler<
+          GroupCheckoutInput,
+          GroupCheckoutOutput,
+          CheckOut
+        >({
+          canHandle: ['CheckOut'],
+          eachMessage: () => responseEvent,
+        }),
+      });
+      const outputMessage = {
+        type: 'CheckOut',
+        data: { guestStayAccountId, groupCheckoutId },
+        kind: 'Event',
+        metadata: {
+          streamName,
+          streamPosition: 2n,
+          messageId: 'checkout-message',
+          correlationId: 'checkout-correlation',
+          action: 'Sent',
+        },
+      } as unknown as RecordedMessage<GroupCheckoutInput>;
+
+      await processor.start({ connection: { messageStore: eventStore } });
+      await processor.handle([outputMessage], {
+        connection: { messageStore: eventStore },
+      });
+
+      const { events } = await eventStore.readStream(streamName);
+
+      assertMatches(events.at(-1)?.metadata, {
+        messageId: 'appended-message',
+        correlationId: 'checkout-correlation',
+        causationId: 'checkout-message',
+        traceId: 'message-trace',
+        spanId: 'message-span',
+      });
     });
 
     void it('router returning [] is a no-op', async () => {

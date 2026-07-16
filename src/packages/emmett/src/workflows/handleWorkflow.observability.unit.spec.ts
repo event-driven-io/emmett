@@ -152,4 +152,68 @@ describe('WorkflowHandler observability', () => {
         });
       });
   });
+
+  it('preserves append operation attributes and links while nesting append under workflow handling', async () => {
+    const groupCheckoutId = 'group-checkout-3';
+    const streamName = workflowStreamName({
+      workflowName: 'GroupCheckoutWorkflow',
+      workflowId: groupCheckoutId,
+    });
+    const externalParent = {
+      traceId: 'external-workflow-trace',
+      spanId: 'external-workflow-span',
+    };
+    const appendLink = {
+      traceId: 'linked-workflow-trace',
+      spanId: 'linked-workflow-span',
+    };
+    const command: InitiateGroupCheckout = {
+      type: 'InitiateGroupCheckout',
+      kind: 'Command',
+      data: {
+        groupCheckoutId,
+        clerkId: 'clerk-1',
+        guestStayAccountIds: ['guest-1'],
+        now: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    };
+
+    await ObservabilitySpec.for()((observability) => ({
+      store: getInMemoryEventStore({ observability }),
+      handle: WorkflowHandler({
+        ...workflowOptions,
+        observability,
+      }),
+    }))
+      .when(({ handle, store }) =>
+        handle(store, command, {
+          observability: {
+            parent: externalParent,
+            attributes: { 'test.workflow.append.option': 'kept' },
+            links: [appendLink],
+          },
+        }),
+      )
+      .then(({ spans }) => {
+        const workflowSpan = spans
+          .hasSingleSpanNamed('workflow.handle')
+          .hasParent(externalParent);
+
+        workflowSpan
+          .hasChildNamed('eventStore.appendToStream')
+          .hasAttributes({
+            'test.workflow.append.option': 'kept',
+            [EmmettAttributes.eventStore.operation]: 'appendToStream',
+            [EmmettAttributes.stream.name]: streamName,
+            [EmmettAttributes.eventStore.append.batchSize]: 3,
+            [EmmettAttributes.eventStore.append.status]: 'success',
+            [EmmettAttributes.stream.versionAfter]: 3,
+            [MessagingAttributes.operation.type]: 'send',
+            [MessagingAttributes.batch.messageCount]: 3,
+            [MessagingAttributes.destination.name]: streamName,
+            [MessagingAttributes.system]: MessagingSystemName,
+          })
+          .hasCreationLinks([appendLink]);
+      });
+  });
 });

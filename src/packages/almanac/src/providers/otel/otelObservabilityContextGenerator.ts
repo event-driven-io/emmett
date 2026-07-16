@@ -11,6 +11,3 @@ export const otelObservabilityContextGenerator: ObservabilityContextGenerator =
     generateCorrelationId: () => generator.generateTraceId(),
     generateCausationId: () => generator.generateTraceId(),
   };
-
-/** @deprecated Use otelObservabilityContextGenerator. */
-export const otelTraceContextGenerator = otelObservabilityContextGenerator;

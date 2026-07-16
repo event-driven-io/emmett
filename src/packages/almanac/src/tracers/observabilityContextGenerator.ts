@@ -11,9 +11,6 @@ export type ObservabilityContextGenerator = {
   generateCausationId(): string;
 };
 
-/** @deprecated Use ObservabilityContextGenerator. */
-export type TraceContextGenerator = ObservabilityContextGenerator;
-
 const randomHex = (bytes: number): string => {
   const arr = new Uint8Array(bytes);
   globalThis.crypto.getRandomValues(arr);
@@ -29,7 +26,3 @@ export const defaultObservabilityContextGenerator: ObservabilityContextGenerator
     generateCorrelationId: () => randomHex(16),
     generateCausationId: () => randomHex(16),
   };
-
-/** @deprecated Use defaultObservabilityContextGenerator. */
-export const defaultTraceContextGenerator =
-  defaultObservabilityContextGenerator;
