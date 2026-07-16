@@ -65,7 +65,7 @@ describe('AlmanacInstrumentation integration', () => {
     expect(spans).toHaveLength(1);
     otelAssertions
       .spans(spans)
-      .haveSpanNamed('command.handle')
+      .hasSingleSpanNamed('command.handle')
       .isMainScope('almanac')
       .hasAttribute('almanac.scope.type', 'command');
   });
@@ -86,7 +86,7 @@ describe('AlmanacInstrumentation integration', () => {
 
     otelAssertions
       .spans(injectedExporter.getFinishedSpans())
-      .haveSpanNamed('command.handle');
+      .hasSingleSpanNamed('command.handle');
     otelAssertions.spans(globalExporter.getFinishedSpans()).haveNoSpans();
 
     await injectedProvider.shutdown();
@@ -118,7 +118,7 @@ describe('AlmanacInstrumentation integration', () => {
 
     otelAssertions
       .spans(priorExporter.getFinishedSpans())
-      .haveSpanNamed('command.handle');
+      .hasSingleSpanNamed('command.handle');
     otelAssertions.spans(globalExporter.getFinishedSpans()).haveNoSpans();
 
     await priorProvider.shutdown();

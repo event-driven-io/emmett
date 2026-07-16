@@ -1,3 +1,4 @@
+import { otelAssertions } from '@event-driven-io/almanac/otel';
 import {
   currentDefaultObservability,
   mergeWithDefaultObservability,
@@ -10,7 +11,6 @@ import {
   EmmettInstrumentation,
   otelTracer,
 } from '@event-driven-io/emmett/otel';
-import { otelAssertions } from '@event-driven-io/almanac/otel';
 import { context, trace } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import {
@@ -67,7 +67,7 @@ describe('EmmettInstrumentation integration', () => {
 
     otelAssertions
       .spans(globalExporter.getFinishedSpans())
-      .haveSpanNamed('command.handle')
+      .hasSingleSpanNamed('command.handle')
       .isMainScope('emmett')
       .hasAttribute('emmett.scope.type', 'command');
   });
@@ -88,7 +88,7 @@ describe('EmmettInstrumentation integration', () => {
 
     otelAssertions
       .spans(injectedExporter.getFinishedSpans())
-      .haveSpanNamed('command.handle')
+      .hasSingleSpanNamed('command.handle')
       .isMainScope('emmett');
     otelAssertions.spans(globalExporter.getFinishedSpans()).haveNoSpans();
 
@@ -121,7 +121,7 @@ describe('EmmettInstrumentation integration', () => {
 
     otelAssertions
       .spans(priorExporter.getFinishedSpans())
-      .haveSpanNamed('command.handle')
+      .hasSingleSpanNamed('command.handle')
       .isMainScope('emmett');
     otelAssertions.spans(globalExporter.getFinishedSpans()).haveNoSpans();
 

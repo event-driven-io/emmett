@@ -3,6 +3,7 @@ import {
   collectingTracer,
   defaultObservabilityContextGenerator,
   LogEvent,
+  MessagingAttributes,
   noopLogger,
   ObservabilitySpec,
   testObservabilityContextGenerator,
@@ -29,10 +30,7 @@ import { consumerCollector, consumerObservability } from './consumerCollector';
 const A = EmmettAttributes;
 
 afterEach(() => setDefaultObservability(undefined));
-const M = {
-  system: 'messaging.system',
-  operationType: 'messaging.operation.type',
-};
+const M = MessagingAttributes;
 
 const given = ObservabilitySpec.for();
 

@@ -37,6 +37,7 @@ export type SpanCollectionAssertions = {
 
 type SpanGroupAssertions = {
   hasCount(count: number): SpanGroupAssertions;
+  haveParentSpanNamed(name: string): SpanGroupAssertions;
   haveAttribute(key: string, value: unknown): SpanGroupAssertions;
   haveAttributes(attrs: Record<string, unknown>): SpanGroupAssertions;
 };
@@ -264,6 +265,18 @@ export const assertThatSpans = (
             throw new Error(
               `Expected ${count} span(s) named "${name}" but found ${found.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
             );
+          return group;
+        },
+        haveParentSpanNamed(parentName) {
+          if (found.length === 0)
+            throw new Error(
+              `Expected span(s) named "${name}" to have parent span named "${parentName}" but none were found. All spans: [${spans.map((s) => s.name).join(', ')}]`,
+            );
+
+          const parent = findSingleParent(parentName);
+          for (const span of found) {
+            assertThatSpan(span, spans).hasParent(parent.ownContext);
+          }
           return group;
         },
         haveAttribute(key, value) {

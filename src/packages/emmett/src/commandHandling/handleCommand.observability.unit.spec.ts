@@ -529,6 +529,90 @@ describe('handler observability', () => {
           });
         });
     });
+
+    void it('keeps retry attempts inside a single command handling span', () => {
+      const eventStore = getInMemoryEventStore();
+      const streamId = uuid();
+      const event: ItemAdded = {
+        type: 'ItemAdded',
+        data: { productId: 'p1' },
+      };
+      let attempts = 0;
+
+      return given((observability) =>
+        CommandHandler<Cart, ItemAdded>({
+          evolve: (state, _event) => ({ count: state.count + 1 }),
+          initialState: () => ({ count: 0 }),
+          observability,
+        }),
+      )
+        .when((handler) =>
+          handler(
+            eventStore,
+            streamId,
+            () => {
+              if (attempts++ === 0)
+                throw new ExpectedVersionConflictError(0n, 1n);
+
+              return [event];
+            },
+            {
+              retry: {
+                onVersionConflict: {
+                  retries: 1,
+                  minTimeout: 0,
+                  factor: 1,
+                },
+              },
+            },
+          ),
+        )
+        .then(({ spans }) => {
+          const commandSpan = spans
+            .hasSingleSpanNamed('command.handle')
+            .hasAttributes({
+              [EmmettAttributes.scope.type]: 'command',
+              [EmmettAttributes.scope.main]: true,
+              [EmmettAttributes.stream.name]: streamId,
+              [EmmettAttributes.command.status]: 'success',
+              [EmmettAttributes.command.eventTypes]: ['ItemAdded'],
+              [EmmettAttributes.command.eventCount]: 1,
+              [EmmettAttributes.stream.versionBefore]: 0,
+              [EmmettAttributes.stream.versionAfter]: 1,
+              [MessagingAttributes.batch.messageCount]: 1,
+              [MessagingAttributes.destination.name]: streamId,
+              [MessagingAttributes.system]: MessagingSystemName,
+            });
+
+          spans
+            .haveSpansNamed('eventStore.aggregateStream')
+            .hasCount(2)
+            .haveParentSpanNamed('command.handle')
+            .haveAttributes({
+              [EmmettAttributes.scope.main]: undefined,
+              [EmmettAttributes.eventStore.operation]: 'aggregateStream',
+              [EmmettAttributes.stream.name]: streamId,
+              [EmmettAttributes.eventStore.aggregate.status]: 'success',
+              [EmmettAttributes.stream.versionAfter]: 0,
+              [MessagingAttributes.operation.type]: 'process',
+              [MessagingAttributes.destination.name]: streamId,
+              [MessagingAttributes.system]: MessagingSystemName,
+            });
+
+          commandSpan.hasChildNamed('eventStore.appendToStream').hasAttributes({
+            [EmmettAttributes.scope.main]: undefined,
+            [EmmettAttributes.eventStore.operation]: 'appendToStream',
+            [EmmettAttributes.stream.name]: streamId,
+            [EmmettAttributes.eventStore.append.batchSize]: 1,
+            [EmmettAttributes.eventStore.append.status]: 'success',
+            [EmmettAttributes.stream.versionAfter]: 1,
+            [MessagingAttributes.operation.type]: 'send',
+            [MessagingAttributes.batch.messageCount]: 1,
+            [MessagingAttributes.destination.name]: streamId,
+            [MessagingAttributes.system]: MessagingSystemName,
+          });
+        });
+    });
   });
 
   void describe('metrics', () => {

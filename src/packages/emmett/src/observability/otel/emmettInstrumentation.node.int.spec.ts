@@ -1,3 +1,4 @@
+import { otelAssertions } from '@event-driven-io/almanac/otel';
 import {
   mergeWithDefaultObservability,
   observability,
@@ -7,7 +8,6 @@ import {
 } from '@event-driven-io/emmett';
 import { EmmettInstrumentation } from '@event-driven-io/emmett/otel';
 import { otel } from '@event-driven-io/emmett/otel-node';
-import { otelAssertions } from '@event-driven-io/almanac/otel';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import {
   InMemorySpanExporter,
@@ -51,7 +51,7 @@ describe('EmmettInstrumentation with NodeSDK', () => {
 
     otelAssertions
       .spans(exporter.getFinishedSpans())
-      .haveSpanNamed('command.handle')
+      .hasSingleSpanNamed('command.handle')
       .isMainScope('emmett')
       .hasAttribute('emmett.scope.type', 'command');
   });
