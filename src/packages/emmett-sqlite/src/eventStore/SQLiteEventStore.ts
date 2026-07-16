@@ -1,5 +1,6 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
+import type { ObservabilityScope } from '@event-driven-io/almanac';
 import {
   assertExpectedVersionMatchesCurrent,
   bigIntProcessorCheckpoint,
@@ -8,7 +9,6 @@ import {
   ExpectedVersionConflictError,
   JSONSerializer,
   NO_CONCURRENCY_CHECK,
-  ObservabilityScope,
   noopScope,
   type AggregateStreamOptions,
   type AggregateStreamResult,
@@ -154,7 +154,6 @@ export const getSQLiteEventStore = <
     .map(({ projection }) => projection);
   const observability = eventStoreObservability(options);
   const collector = eventStoreCollector(observability);
-  const { startScope } = ObservabilityScope(observability);
 
   const onBeforeCommitHook = options.hooks?.onBeforeCommit;
 
@@ -200,6 +199,33 @@ export const getSQLiteEventStore = <
     return pool.withConnection((connection) => migrate(connection));
   };
 
+  const readStreamFromSQLite = <
+    EventType extends Event,
+    EventPayloadType extends Event = EventType,
+  >(
+    streamName: string,
+    readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
+    parentScope?: ObservabilityScope,
+  ): Promise<
+    ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
+  > =>
+    collector.instrumentRead(
+      streamName,
+      async () => {
+        await ensureSchemaExists();
+
+        return readStream<EventType, EventPayloadType>(
+          pool.execute,
+          streamName,
+          {
+            ...readOptions,
+            serializer: options.serialization?.serializer ?? serializer,
+          },
+        );
+      },
+      { parentScope },
+    );
+
   return {
     async aggregateStream<
       State,
@@ -214,7 +240,7 @@ export const getSQLiteEventStore = <
         EventPayloadType
       >,
     ): Promise<AggregateStreamResult<State>> {
-      return collector.instrumentAggregate(streamName, async () => {
+      return collector.instrumentAggregate(streamName, async (scope) => {
         await ensureSchemaExists();
         const { evolve, initialState, read } = options;
 
@@ -226,9 +252,10 @@ export const getSQLiteEventStore = <
           throw new Error('Stream name is not string');
         }
 
-        const result = await this.readStream<EventType, EventPayloadType>(
+        const result = await readStreamFromSQLite<EventType, EventPayloadType>(
           streamName,
           read,
+          scope,
         );
 
         const currentStreamVersion = result.currentStreamVersion;
@@ -260,19 +287,7 @@ export const getSQLiteEventStore = <
       readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<
       ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
-    > =>
-      collector.instrumentRead(streamName, async () => {
-        await ensureSchemaExists();
-
-        return readStream<EventType, EventPayloadType>(
-          pool.execute,
-          streamName,
-          {
-            ...readOptions,
-            serializer: options.serialization?.serializer ?? serializer,
-          },
-        );
-      }),
+    > => readStreamFromSQLite(streamName, readOptions),
 
     appendToStream: async <
       EventType extends Event,
@@ -282,7 +297,7 @@ export const getSQLiteEventStore = <
       events: EventType[],
       appendOptions?: AppendToStreamOptions<EventType, EventPayloadType>,
     ): Promise<AppendToStreamResultWithGlobalPosition> =>
-      collector.instrumentAppend(streamName, events, async () => {
+      collector.instrumentAppend(streamName, events, async (scope) => {
         await ensureSchemaExists();
         // TODO: This has to be smarter when we introduce urn-based resolution
         const [firstPart, ...rest] = streamName.split('-');
@@ -296,8 +311,9 @@ export const getSQLiteEventStore = <
               ...(appendOptions as AppendToStreamOptions),
               onBeforeCommit: async (messages, context) => {
                 if (inlineProjections.length > 0)
-                  await startScope(
-                    'eventStore.inlineProjection',
+                  await collector.instrumentInlineProjection(
+                    streamName,
+                    scope,
                     (observabilityScope) =>
                       handleProjections({
                         projections: inlineProjections,

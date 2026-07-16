@@ -87,8 +87,13 @@ const makeScope = (
     childName: string,
     childFn: (child: ObservabilityScope) => Promise<T>,
     childOpts?: ScopeOptions,
-  ): Promise<T> =>
-    observability.tracer.startSpan(
+  ): Promise<T> => {
+    const currentContext = span.spanContext();
+    const parent =
+      childOpts?.parent ??
+      (hasSpanContext(currentContext) ? currentContext : undefined);
+
+    return observability.tracer.startSpan(
       childName,
       async (childSpan) => {
         if (childOpts?.attributes) {
@@ -99,10 +104,11 @@ const makeScope = (
       {
         attributes: childOpts?.attributes,
         links: childOpts?.links,
-        parent: childOpts?.parent,
+        parent,
         propagation: childOpts?.propagation ?? observability.propagation,
       },
-    ),
+    );
+  },
   log: (event) => logForScope(span, observability.logger, event),
   addLink: (link) => span.addLink(link),
   spanContext: () => span.spanContext(),

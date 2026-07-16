@@ -47,6 +47,7 @@ describe('eventStoreCollector', () => {
       )
       .then(({ spans }) =>
         spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
+          'emmett.scope.main': true,
           [A.eventStore.operation]: 'readStream',
           [A.stream.name]: 'orders-123',
           [A.eventStore.read.status]: 'success',
@@ -72,6 +73,7 @@ describe('eventStoreCollector', () => {
       )
       .then(({ spans }) =>
         spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
+          'emmett.scope.main': true,
           [A.eventStore.operation]: 'appendToStream',
           [A.stream.name]: 'orders-123',
           [A.eventStore.append.batchSize]: 1,
@@ -116,6 +118,7 @@ describe('eventStoreCollector', () => {
       )
       .then(({ spans, metrics }) => {
         spans.hasSingleSpanNamed('eventStore.aggregateStream').hasAttributes({
+          'emmett.scope.main': true,
           [A.eventStore.operation]: 'aggregateStream',
           [A.stream.name]: 'orders-123',
           [A.eventStore.aggregate.status]: 'success',
@@ -127,6 +130,101 @@ describe('eventStoreCollector', () => {
         metrics
           .haveHistogramNamed(EmmettMetrics.stream.aggregatingDuration)
           .hasValueAtLeast(0);
+      });
+  });
+
+  it('instrumentInlineProjection creates a child span under append', async () => {
+    const events = makeEvents(['OrderPlaced']);
+
+    await given((config) => eventStoreCollector(config))
+      .when((collector) =>
+        collector.instrumentAppend('orders-123', events, async (scope) => {
+          await collector.instrumentInlineProjection('orders-123', scope, () =>
+            Promise.resolve(),
+          );
+
+          return {
+            nextExpectedStreamVersion: 1n,
+            createdNewStream: true,
+          };
+        }),
+      )
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
+          'emmett.scope.main': true,
+          [A.eventStore.operation]: 'appendToStream',
+          [A.stream.name]: 'orders-123',
+          [A.eventStore.append.batchSize]: 1,
+          [A.eventStore.append.status]: 'success',
+          [A.stream.versionAfter]: 1,
+          [M.operation.type]: 'send',
+          [M.batch.messageCount]: 1,
+          [M.destination.name]: 'orders-123',
+          [M.system]: MessagingSystemName,
+        });
+
+        spans
+          .hasSingleSpanNamed('eventStore.inlineProjection')
+          .hasParentSpanNamed('eventStore.appendToStream')
+          .hasAttributes({
+            'emmett.scope.main': undefined,
+            [A.eventStore.operation]: 'inlineProjection',
+            [A.stream.name]: 'orders-123',
+            [M.operation.type]: 'process',
+            [M.destination.name]: 'orders-123',
+            [M.system]: MessagingSystemName,
+          });
+      });
+  });
+
+  it('instrumentRead can create a child span under aggregate', async () => {
+    await given((config) => eventStoreCollector(config))
+      .when((collector) =>
+        collector.instrumentAggregate('orders-123', async (scope) => {
+          const result = await collector.instrumentRead(
+            'orders-123',
+            () =>
+              Promise.resolve({
+                events: makeEvents(['OrderPlaced']),
+                currentStreamVersion: 1n,
+                streamExists: true,
+              }),
+            { parentScope: scope },
+          );
+
+          return {
+            currentStreamVersion: result.currentStreamVersion,
+            state: { total: 42 },
+            streamExists: result.streamExists,
+          };
+        }),
+      )
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.aggregateStream').hasAttributes({
+          'emmett.scope.main': true,
+          [A.eventStore.operation]: 'aggregateStream',
+          [A.stream.name]: 'orders-123',
+          [A.eventStore.aggregate.status]: 'success',
+          [A.stream.versionAfter]: 1,
+          [M.operation.type]: 'process',
+          [M.destination.name]: 'orders-123',
+          [M.system]: MessagingSystemName,
+        });
+
+        spans
+          .hasSingleSpanNamed('eventStore.readStream')
+          .hasParentSpanNamed('eventStore.aggregateStream')
+          .hasAttributes({
+            'emmett.scope.main': undefined,
+            [A.eventStore.operation]: 'readStream',
+            [A.stream.name]: 'orders-123',
+            [A.eventStore.read.status]: 'success',
+            [A.eventStore.read.eventCount]: 1,
+            [A.eventStore.read.eventTypes]: ['OrderPlaced'],
+            [M.operation.type]: 'receive',
+            [M.destination.name]: 'orders-123',
+            [M.system]: MessagingSystemName,
+          });
       });
   });
 

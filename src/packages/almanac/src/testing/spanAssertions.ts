@@ -7,6 +7,7 @@ type SpanAssertions = {
   hasAttributes(attrs: Record<string, unknown>): SpanAssertions;
   hasTraceId(traceId: string): SpanAssertions;
   hasParent(ctx: { traceId: string; spanId: string }): SpanAssertions;
+  hasParentSpanNamed(name: string): SpanAssertions;
   hasNoParent(): SpanAssertions;
   hasPropagation(p: TracePropagation): SpanAssertions;
   hasCreationLinks(
@@ -21,8 +22,13 @@ type SpanAssertions = {
   noLogs(): SpanAssertions;
 };
 
+type SingleSpanFilter = {
+  parentSpanNamed?: string;
+  noParent?: boolean;
+};
+
 export type SpanCollectionAssertions = {
-  hasSingleSpanNamed(name: string): SpanAssertions;
+  hasSingleSpanNamed(name: string, filter?: SingleSpanFilter): SpanAssertions;
   haveSpansNamed(name: string): SpanGroupAssertions;
   containSpanNamed(name: string): SpanCollectionAssertions;
   haveNoSpans(): void;
@@ -36,6 +42,7 @@ type SpanGroupAssertions = {
 
 export const assertThatSpan = (
   span: CollectedSpan | undefined,
+  spans: CollectedSpan[] = span ? [span] : [],
 ): SpanAssertions => {
   const self: SpanAssertions = {
     exists() {
@@ -88,6 +95,18 @@ export const assertThatSpan = (
           `Expected span "${span.name}" to have parent ${JSON.stringify(ctx)}, got ${JSON.stringify(parent)}`,
         );
       return self;
+    },
+    hasParentSpanNamed(name) {
+      const parents = spans.filter((s) => s.name === name);
+      if (parents.length === 0)
+        throw new Error(
+          `Expected parent span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
+        );
+      if (parents.length > 1)
+        throw new Error(
+          `Expected exactly one parent span named "${name}" but found ${parents.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
+        );
+      return self.hasParent(parents[0]!.ownContext);
     },
     hasNoParent() {
       if (!span)
@@ -179,9 +198,34 @@ export const assertThatSpan = (
 export const assertThatSpans = (
   spans: CollectedSpan[],
 ): SpanCollectionAssertions => {
+  const findSingleParent = (name: string): CollectedSpan => {
+    const parents = spans.filter((s) => s.name === name);
+    if (parents.length === 0)
+      throw new Error(
+        `Expected parent span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
+      );
+    if (parents.length > 1)
+      throw new Error(
+        `Expected exactly one parent span named "${name}" but found ${parents.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
+      );
+    return parents[0]!;
+  };
   const self: SpanCollectionAssertions = {
-    hasSingleSpanNamed(name) {
-      const found = spans.filter((s) => s.name === name);
+    hasSingleSpanNamed(name, filter) {
+      const parent = filter?.parentSpanNamed
+        ? findSingleParent(filter.parentSpanNamed)
+        : undefined;
+      const found = spans.filter((s) => {
+        if (s.name !== name) return false;
+        if (parent) {
+          return (
+            s.startOptions.parent?.traceId === parent.ownContext.traceId &&
+            s.startOptions.parent?.spanId === parent.ownContext.spanId
+          );
+        }
+        if (filter?.noParent) return s.startOptions.parent === undefined;
+        return true;
+      });
       if (found.length === 0)
         throw new Error(
           `Expected span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
@@ -190,7 +234,7 @@ export const assertThatSpans = (
         throw new Error(
           `Expected exactly one span named "${name}" but found ${found.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
         );
-      return assertThatSpan(found[0]);
+      return assertThatSpan(found[0], spans);
     },
     haveSpansNamed(name) {
       const found = spans.filter((s) => s.name === name);
@@ -208,7 +252,7 @@ export const assertThatSpans = (
               `Expected span(s) named "${name}" to have attribute "${key}" but none were found. All spans: [${spans.map((s) => s.name).join(', ')}]`,
             );
           for (const span of found) {
-            assertThatSpan(span).hasAttribute(key, value);
+            assertThatSpan(span, spans).hasAttribute(key, value);
           }
           return group;
         },

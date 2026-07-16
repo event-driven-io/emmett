@@ -1,9 +1,10 @@
+import { noopScope } from '@event-driven-io/almanac';
 import { v4 as uuid } from 'uuid';
 import {
   handleInMemoryProjections,
   type InMemoryProjectionDefinition,
 } from '.';
-import { bigIntProcessorCheckpoint, eventStoreObservability } from '../../..';
+import { bigIntProcessorCheckpoint } from '../../..';
 import {
   getInMemoryDatabase,
   type Document,
@@ -139,7 +140,8 @@ export const InMemoryProjectionSpec = {
               projections: [projection],
               database,
               eventStore: mockEventStore,
-              observability: eventStoreObservability(undefined),
+              startInlineProjectionScope: (fn) =>
+                Promise.resolve(fn(noopScope)),
             });
           };
 

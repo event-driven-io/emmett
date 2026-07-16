@@ -113,7 +113,7 @@ export const getEventStoreDBEventStore = (
         EventPayloadType
       >,
     ): Promise<AggregateStreamResultWithGlobalPosition<State>> {
-      return collector.instrumentAggregate(streamName, async () => {
+      return collector.instrumentAggregate(streamName, async (scope) => {
         const { evolve, initialState, read } = options;
 
         const expectedStreamVersion = read?.expectedStreamVersion;
@@ -122,40 +122,46 @@ export const getEventStoreDBEventStore = (
         const readResult = await collector.instrumentRead<
           EventType,
           EventStoreDBReadEventMetadata
-        >(streamName, async () => {
-          const events: ReadEvent<EventType, EventStoreDBReadEventMetadata>[] =
-            [];
-          let currentStreamVersion: bigint =
-            EventStoreDBEventStoreDefaultStreamVersion;
+        >(
+          streamName,
+          async () => {
+            const events: ReadEvent<
+              EventType,
+              EventStoreDBReadEventMetadata
+            >[] = [];
+            let currentStreamVersion: bigint =
+              EventStoreDBEventStoreDefaultStreamVersion;
 
-          try {
-            for await (const resolvedEvent of eventStore.readStream<EventPayloadType>(
-              streamName,
-              toEventStoreDBReadOptions(read),
-            )) {
-              const { event } = resolvedEvent;
-              if (!event) continue;
+            try {
+              for await (const resolvedEvent of eventStore.readStream<EventPayloadType>(
+                streamName,
+                toEventStoreDBReadOptions(read),
+              )) {
+                const { event } = resolvedEvent;
+                if (!event) continue;
 
-              const readEvent = upcastRecordedMessage(
-                mapFromESDBEvent<EventPayloadType>(resolvedEvent),
-                read?.schema?.versioning,
-              );
+                const readEvent = upcastRecordedMessage(
+                  mapFromESDBEvent<EventPayloadType>(resolvedEvent),
+                  read?.schema?.versioning,
+                );
 
-              events.push(readEvent);
-              currentStreamVersion = event.revision;
+                events.push(readEvent);
+                currentStreamVersion = event.revision;
+              }
+            } catch (error) {
+              if (!(error instanceof StreamNotFoundError)) {
+                throw error;
+              }
             }
-          } catch (error) {
-            if (!(error instanceof StreamNotFoundError)) {
-              throw error;
-            }
-          }
 
-          return {
-            currentStreamVersion,
-            events,
-            streamExists: events.length > 0,
-          };
-        });
+            return {
+              currentStreamVersion,
+              events,
+              streamExists: events.length > 0,
+            };
+          },
+          { parentScope: scope },
+        );
 
         assertExpectedVersionMatchesCurrent(
           readResult.currentStreamVersion,

@@ -1,6 +1,7 @@
 import {
   MessagingAttributes,
   ObservabilitySpec,
+  testTraceContextGenerator,
 } from '@event-driven-io/almanac';
 import { v4 as uuid } from 'uuid';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -14,7 +15,7 @@ import {
   EmmettMetrics,
   MessagingSystemName,
 } from '../observability/attributes';
-import { assertEqual, assertNotEqual, assertUndefined } from '../testing';
+import { assertEqual, assertUndefined } from '../testing';
 import type { Event } from '../typing';
 import { CommandHandler } from './handleCommand';
 
@@ -30,25 +31,40 @@ describe('handler observability', () => {
     const eventStore = getInMemoryEventStore();
     const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
     const streamId = uuid();
+    const expectedCorrelationId = 'flow-1';
 
-    return given((observability) => {
-      setupEmmettObservability(observability);
-      return CommandHandler<Cart, ItemAdded>({
-        evolve: (state) => state,
-        initialState: () => ({ count: 0 }),
-      });
-    })
+    return given(
+      (observability) => {
+        setupEmmettObservability(observability);
+        return CommandHandler<Cart, ItemAdded>({
+          evolve: (state) => state,
+          initialState: () => ({ count: 0 }),
+        });
+      },
+      {
+        traceContextGenerator: testTraceContextGenerator({
+          traceIds: 'generated-trace-1',
+          spanIds: 'generated-span-1',
+        }),
+      },
+    )
       .when((handler) =>
-        handler(eventStore, streamId, () => [
-          { type: 'ItemAdded', data: { productId: 'p1' } },
-        ]),
+        handler(
+          eventStore,
+          streamId,
+          () => [{ type: 'ItemAdded', data: { productId: 'p1' } }],
+          {
+            observability: {
+              correlationId: expectedCorrelationId,
+            },
+          },
+        ),
       )
       .then(({ spans }) => {
         const appendToStreamOptions = appendToStreamSpy.mock.calls[0]![2]!;
         const { correlationId } = appendToStreamOptions;
 
-        expect(correlationId).toBeTypeOf('string');
-        assertNotEqual('', correlationId);
+        assertEqual(expectedCorrelationId, correlationId);
 
         spans.hasSingleSpanNamed('command.handle').hasAttributes({
           [EmmettAttributes.scope.type]: 'command',
@@ -59,7 +75,7 @@ describe('handler observability', () => {
           [EmmettAttributes.command.eventCount]: 1,
           [EmmettAttributes.stream.versionBefore]: 0,
           [EmmettAttributes.stream.versionAfter]: 1,
-          [MessagingAttributes.message.correlationId]: correlationId,
+          [MessagingAttributes.message.correlationId]: expectedCorrelationId,
           [MessagingAttributes.batch.messageCount]: 1,
           [MessagingAttributes.destination.name]: streamId,
           [MessagingAttributes.system]: MessagingSystemName,
@@ -76,18 +92,27 @@ describe('handler observability', () => {
       const expectedCausationId = 'cmd-1';
       const expectedSpanId = 'exp-span-1';
       const expectedTraceId = 'exp-trace-1';
+      const generatedSpanId = 'generated-span-2';
+      const generatedTraceId = 'generated-trace-2';
 
       const event: ItemAdded = {
         type: 'ItemAdded',
         data: { productId: 'p1' },
       };
 
-      return given((observability) =>
-        CommandHandler<Cart, ItemAdded>({
-          evolve: (state) => state,
-          initialState: () => ({ count: 0 }),
-          observability,
-        }),
+      return given(
+        (observability) =>
+          CommandHandler<Cart, ItemAdded>({
+            evolve: (state) => state,
+            initialState: () => ({ count: 0 }),
+            observability,
+          }),
+        {
+          traceContextGenerator: testTraceContextGenerator({
+            traceIds: generatedTraceId,
+            spanIds: generatedSpanId,
+          }),
+        },
       )
         .when(async (handler) =>
           handler(eventStore, streamId, () => [event], {
@@ -106,20 +131,12 @@ describe('handler observability', () => {
 
           assertEqual(expectedCausationId, causationId);
           assertEqual(expectedCorrelationId, correlationId);
-          expect(spanId).toBeTypeOf('string');
-          expect(traceId).toBeTypeOf('string');
-          assertNotEqual('', spanId);
-          assertNotEqual('', traceId);
-          assertNotEqual(expectedSpanId, spanId);
-          assertNotEqual(expectedTraceId, traceId);
+          assertEqual(generatedSpanId, spanId);
+          assertEqual(generatedTraceId, traceId);
 
           spans
             .hasSingleSpanNamed('command.handle')
             .hasParent({ traceId: expectedTraceId, spanId: expectedSpanId })
-            .hasAttribute(
-              MessagingAttributes.message.correlationId,
-              expectedCorrelationId,
-            )
             .hasAttributes({
               [MessagingAttributes.message.correlationId]:
                 expectedCorrelationId,
@@ -128,27 +145,38 @@ describe('handler observability', () => {
         });
     });
 
-    void it('auto-generates correlationId, spanId and traceId when not provided', async () => {
+    void it('stamps provided correlationId and causationId, and auto-generates spanId and traceId when not provided', async () => {
       const eventStore = getInMemoryEventStore();
       const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
       const streamId = uuid();
       const expectedCausationId = 'cmd-1';
+      const expectedCorrelationId = 'flow-2';
+      const generatedSpanId = 'generated-span-3';
+      const generatedTraceId = 'generated-trace-3';
 
       const event: ItemAdded = {
         type: 'ItemAdded',
         data: { productId: 'p1' },
       };
 
-      return given((observability) =>
-        CommandHandler<Cart, ItemAdded>({
-          evolve: (state) => state,
-          initialState: () => ({ count: 0 }),
-          observability,
-        }),
+      return given(
+        (observability) =>
+          CommandHandler<Cart, ItemAdded>({
+            evolve: (state) => state,
+            initialState: () => ({ count: 0 }),
+            observability,
+          }),
+        {
+          traceContextGenerator: testTraceContextGenerator({
+            traceIds: generatedTraceId,
+            spanIds: generatedSpanId,
+          }),
+        },
       )
         .when(async (handler) =>
           handler(eventStore, streamId, () => [event], {
             observability: {
+              correlationId: expectedCorrelationId,
               causationId: expectedCausationId,
             },
           }),
@@ -158,19 +186,17 @@ describe('handler observability', () => {
           const { correlationId, causationId, spanId, traceId } =
             appendToStreamOptions;
 
-          expect(causationId).toEqual(expectedCausationId);
-          expect(correlationId).toBeTypeOf('string');
-          expect(spanId).toBeTypeOf('string');
-          expect(traceId).toBeTypeOf('string');
-          assertNotEqual('', correlationId);
-          assertNotEqual('', spanId);
-          assertNotEqual('', traceId);
+          assertEqual(expectedCausationId, causationId);
+          assertEqual(expectedCorrelationId, correlationId);
+          assertEqual(generatedSpanId, spanId);
+          assertEqual(generatedTraceId, traceId);
 
           spans
             .hasSingleSpanNamed('command.handle')
             .hasNoParent()
             .hasAttributes({
-              [MessagingAttributes.message.correlationId]: correlationId,
+              [MessagingAttributes.message.correlationId]:
+                expectedCorrelationId,
               [MessagingAttributes.message.causationId]: expectedCausationId,
             });
         });
@@ -180,37 +206,51 @@ describe('handler observability', () => {
       const eventStore = getInMemoryEventStore();
       const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
       const streamId = uuid();
+      const expectedCorrelationId = 'flow-3';
+      const generatedSpanId = 'generated-span-4';
+      const generatedTraceId = 'generated-trace-4';
 
       const event: ItemAdded = {
         type: 'ItemAdded',
         data: { productId: 'p1' },
       };
 
-      return given((observability) =>
-        CommandHandler<Cart, ItemAdded>({
-          evolve: (state) => state,
-          initialState: () => ({ count: 0 }),
-          observability,
-        }),
+      return given(
+        (observability) =>
+          CommandHandler<Cart, ItemAdded>({
+            evolve: (state) => state,
+            initialState: () => ({ count: 0 }),
+            observability,
+          }),
+        {
+          traceContextGenerator: testTraceContextGenerator({
+            traceIds: generatedTraceId,
+            spanIds: generatedSpanId,
+          }),
+        },
       )
-        .when(async (handler) => handler(eventStore, streamId, () => [event]))
+        .when(async (handler) =>
+          handler(eventStore, streamId, () => [event], {
+            observability: {
+              correlationId: expectedCorrelationId,
+            },
+          }),
+        )
         .then(({ spans }) => {
           const appendToStreamOptions = appendToStreamSpy.mock.calls[0]![2]!;
           const { correlationId, causationId, spanId, traceId } =
             appendToStreamOptions;
           assertUndefined(causationId);
-          expect(correlationId).toBeTypeOf('string');
-          expect(spanId).toBeTypeOf('string');
-          expect(traceId).toBeTypeOf('string');
-          assertNotEqual('', correlationId);
-          assertNotEqual('', spanId);
-          assertNotEqual('', traceId);
+          assertEqual(expectedCorrelationId, correlationId);
+          assertEqual(generatedSpanId, spanId);
+          assertEqual(generatedTraceId, traceId);
 
           spans
             .hasSingleSpanNamed('command.handle')
             .hasNoParent()
             .hasAttributes({
-              [MessagingAttributes.message.correlationId]: correlationId,
+              [MessagingAttributes.message.correlationId]:
+                expectedCorrelationId,
               [MessagingAttributes.message.causationId]: undefined,
             });
         });

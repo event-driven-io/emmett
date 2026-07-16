@@ -1,4 +1,4 @@
-import { ObservabilityScope } from '@event-driven-io/almanac';
+import type { ObservabilityScope } from '@event-driven-io/almanac';
 import type { InMemoryDatabase } from '../../../database/inMemoryDatabase';
 import type {
   ProjectionDefinition,
@@ -9,7 +9,6 @@ import type {
   InMemoryProjectionHandlerContext,
   InMemoryReadEventMetadata,
 } from '../../inMemoryEventStore';
-import type { ResolvedEventStoreObservability } from '../../observability';
 
 export const DATABASE_REQUIRED_ERROR_MESSAGE =
   'Database is required in context for InMemory projections';
@@ -27,7 +26,9 @@ export type InMemoryProjectionHandlerOptions<EventType extends Event = Event> =
     events: ReadEvent<EventType, InMemoryReadEventMetadata>[];
     database: InMemoryDatabase;
     eventStore?: InMemoryProjectionHandlerContext['eventStore'];
-    observability: ResolvedEventStoreObservability;
+    startInlineProjectionScope: (
+      fn: (observabilityScope: ObservabilityScope) => unknown,
+    ) => Promise<unknown>;
   };
 
 /**
@@ -39,9 +40,13 @@ export const handleInMemoryProjections = async <
 >(
   options: InMemoryProjectionHandlerOptions<EventType>,
 ): Promise<void> => {
-  const { projections, events, database, eventStore, observability } = options;
-
-  const { startScope } = ObservabilityScope(observability);
+  const {
+    projections,
+    events,
+    database,
+    eventStore,
+    startInlineProjectionScope,
+  } = options;
 
   // Process each projection
   for (const projection of projections) {
@@ -50,14 +55,12 @@ export const handleInMemoryProjections = async <
     );
     if (filteredEvents.length === 0) continue;
 
-    await startScope(
-      'eventStore.inlineProjection',
-      async (observabilityScope) =>
-        projection.handle(filteredEvents, {
-          eventStore,
-          database,
-          observabilityScope,
-        }),
+    await startInlineProjectionScope((observabilityScope) =>
+      projection.handle(filteredEvents, {
+        eventStore,
+        database,
+        observabilityScope,
+      }),
     );
   }
 };

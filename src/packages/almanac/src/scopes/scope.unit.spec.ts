@@ -243,6 +243,12 @@ describe('ObservabilityScope', () => {
     });
 
     expect(tracer.spans.map((s) => s.name)).toEqual(['root', 'a', 'b']);
+    expect(tracer.spans[1]!.startOptions.parent).toEqual(
+      tracer.spans[0]!.ownContext,
+    );
+    expect(tracer.spans[2]!.startOptions.parent).toEqual(
+      tracer.spans[1]!.ownContext,
+    );
   });
 
   it('root scope carries {prefix}.scope.main=true', async () => {

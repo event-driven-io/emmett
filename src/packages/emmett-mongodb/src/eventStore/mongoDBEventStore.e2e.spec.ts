@@ -29,6 +29,7 @@ import {
 
 void describe('MongoDBEventStore', () => {
   const M = MessagingAttributes;
+  const given = ObservabilitySpec.for();
   let mongodb: StartedMongoDBContainer;
   let eventStore: MongoDBEventStore;
   let client: MongoClient;
@@ -122,7 +123,6 @@ void describe('MongoDBEventStore', () => {
   });
 
   void it('should record observability while appending', async () => {
-    const given = ObservabilitySpec.for();
     const streamType = 'shopping_cart';
     const shoppingCartId = uuid();
     const streamName = toStreamName(streamType, shoppingCartId);
@@ -161,7 +161,6 @@ void describe('MongoDBEventStore', () => {
   });
 
   void it('should record observability while reading', async () => {
-    const given = ObservabilitySpec.for();
     const streamType = 'shopping_cart';
     const shoppingCartId = uuid();
     const streamName = toStreamName(streamType, shoppingCartId);
@@ -203,8 +202,6 @@ void describe('MongoDBEventStore', () => {
   });
 
   void it('should record observability while handling inline projections', async () => {
-    const given = ObservabilitySpec.for();
-    let projectionTraceId = '';
     const projectionName = `mongo_observability_projection_${uuid()}`;
     const streamType = 'shopping_cart';
     const shoppingCartId = uuid();
@@ -223,10 +220,7 @@ void describe('MongoDBEventStore', () => {
           {
             name: projectionName,
             canHandle: ['ProductItemAdded'],
-            handle: (events, context) => {
-              projectionTraceId =
-                context.observabilityScope.spanContext().traceId;
-            },
+            handle: () => undefined,
           },
         ]),
       }),
@@ -240,6 +234,7 @@ void describe('MongoDBEventStore', () => {
       })
       .then(({ spans }) => {
         spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
+          'emmett.scope.main': true,
           [EmmettAttributes.eventStore.operation]: 'appendToStream',
           [EmmettAttributes.stream.name]: streamName,
           [EmmettAttributes.eventStore.append.batchSize]: 1,
@@ -253,15 +248,19 @@ void describe('MongoDBEventStore', () => {
 
         spans
           .hasSingleSpanNamed('eventStore.inlineProjection')
+          .hasParentSpanNamed('eventStore.appendToStream')
           .hasAttributes({
-            'emmett.scope.main': true,
-          })
-          .hasTraceId(projectionTraceId);
+            'emmett.scope.main': undefined,
+            [EmmettAttributes.eventStore.operation]: 'inlineProjection',
+            [EmmettAttributes.stream.name]: streamName,
+            [M.operation.type]: 'process',
+            [M.destination.name]: streamName,
+            [M.system]: MessagingSystemName,
+          });
       });
   });
 
   void it('should record observability while aggregating stream', async () => {
-    const given = ObservabilitySpec.for();
     const streamType = 'shopping_cart';
     const shoppingCartId = uuid();
     const streamName = toStreamName(streamType, shoppingCartId);
@@ -298,6 +297,7 @@ void describe('MongoDBEventStore', () => {
       })
       .then(({ spans }) => {
         spans.hasSingleSpanNamed('eventStore.aggregateStream').hasAttributes({
+          'emmett.scope.main': true,
           [EmmettAttributes.eventStore.operation]: 'aggregateStream',
           [EmmettAttributes.stream.name]: streamName,
           [EmmettAttributes.eventStore.aggregate.status]: 'success',
@@ -307,16 +307,20 @@ void describe('MongoDBEventStore', () => {
           [M.system]: MessagingSystemName,
         });
 
-        spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
-          [EmmettAttributes.eventStore.operation]: 'readStream',
-          [EmmettAttributes.stream.name]: streamName,
-          [EmmettAttributes.eventStore.read.status]: 'success',
-          [EmmettAttributes.eventStore.read.eventCount]: 1,
-          [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
-          [M.operation.type]: 'receive',
-          [M.destination.name]: streamName,
-          [M.system]: MessagingSystemName,
-        });
+        spans
+          .hasSingleSpanNamed('eventStore.readStream')
+          .hasParentSpanNamed('eventStore.aggregateStream')
+          .hasAttributes({
+            'emmett.scope.main': undefined,
+            [EmmettAttributes.eventStore.operation]: 'readStream',
+            [EmmettAttributes.stream.name]: streamName,
+            [EmmettAttributes.eventStore.read.status]: 'success',
+            [EmmettAttributes.eventStore.read.eventCount]: 1,
+            [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
+            [M.operation.type]: 'receive',
+            [M.destination.name]: streamName,
+            [M.system]: MessagingSystemName,
+          });
       });
   });
 
