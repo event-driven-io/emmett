@@ -14,6 +14,7 @@ import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
+  setDefaultObservability,
   setupEmmettObservability,
 } from '../../observability';
 import {
@@ -25,7 +26,7 @@ import { consumerCollector, consumerObservability } from './consumerCollector';
 
 const A = EmmettAttributes;
 
-afterEach(() => setupEmmettObservability(undefined));
+afterEach(() => setDefaultObservability(undefined));
 const M = {
   system: 'messaging.system',
   operationType: 'messaging.operation.type',
@@ -101,6 +102,14 @@ describe('consumerCollector', () => {
       .then(({ spans, metrics }) => {
         spans
           .hasSingleSpanNamed('consumer.poll')
+          .hasAttributes({
+            [A.scope.type]: 'consumer',
+            'emmett.scope.main': true,
+            [A.consumer.batchSize]: 3,
+            [A.consumer.processorCount]: 1,
+            [M.system]: MessagingSystemName,
+            [M.operation.type]: 'receive',
+          })
           .logged('info', 'using global observability');
         metrics
           .haveHistogramNamed(EmmettMetrics.consumer.pollDuration)
@@ -121,7 +130,16 @@ describe('consumerCollector', () => {
           () => Promise.resolve(),
         ),
       )
-      .then(({ spans }) => spans.hasSingleSpanNamed('consumer.poll'));
+      .then(({ spans }) =>
+        spans.hasSingleSpanNamed('consumer.poll').hasAttributes({
+          [A.scope.type]: 'consumer',
+          'emmett.scope.main': true,
+          [A.consumer.batchSize]: 3,
+          [A.consumer.processorCount]: 1,
+          [M.system]: MessagingSystemName,
+          [M.operation.type]: 'receive',
+        }),
+      );
   });
 
   it('tracePoll creates consumer.poll span with emmett.scope.type=consumer and emmett.scope.main=true', async () => {
@@ -182,7 +200,7 @@ describe('consumerCollector', () => {
       .then(({ spans }) =>
         spans.hasSingleSpanNamed('consumer.poll').hasAttributes({
           [M.system]: MessagingSystemName,
-          [M.operationType]: 'receive',
+          [M.operation.type]: 'receive',
         }),
       );
   });
@@ -328,7 +346,16 @@ describe('consumerObservability', () => {
           () => Promise.resolve(),
         ),
       )
-      .then(({ spans }) => spans.hasSingleSpanNamed('consumer.poll'));
+      .then(({ spans }) =>
+        spans.hasSingleSpanNamed('consumer.poll').hasAttributes({
+          [A.scope.type]: 'consumer',
+          'emmett.scope.main': true,
+          [A.consumer.batchSize]: 3,
+          [A.consumer.processorCount]: 1,
+          [M.system]: MessagingSystemName,
+          [M.operation.type]: 'receive',
+        }),
+      );
   });
 
   it('uses consumer fields after store observability is merged', () => {

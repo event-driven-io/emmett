@@ -9,7 +9,11 @@ import {
   getInMemoryEventStore,
 } from '../eventStore';
 import { setupEmmettObservability } from '../observability';
-import { EmmettAttributes, EmmettMetrics } from '../observability/attributes';
+import {
+  EmmettAttributes,
+  EmmettMetrics,
+  MessagingSystemName,
+} from '../observability/attributes';
 import { assertEqual, assertNotEqual, assertUndefined } from '../testing';
 import type { Event } from '../typing';
 import { CommandHandler } from './handleCommand';
@@ -22,8 +26,12 @@ describe('handler observability', () => {
 
   afterEach(() => setupEmmettObservability(undefined));
 
-  it('uses default observability without handler configuration', () =>
-    given((observability) => {
+  it('uses default observability without handler configuration', () => {
+    const eventStore = getInMemoryEventStore();
+    const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
+    const streamId = uuid();
+
+    return given((observability) => {
       setupEmmettObservability(observability);
       return CommandHandler<Cart, ItemAdded>({
         evolve: (state) => state,
@@ -31,13 +39,33 @@ describe('handler observability', () => {
       });
     })
       .when((handler) =>
-        handler(getInMemoryEventStore(), uuid(), () => [
+        handler(eventStore, streamId, () => [
           { type: 'ItemAdded', data: { productId: 'p1' } },
         ]),
       )
       .then(({ spans }) => {
-        spans.hasSingleSpanNamed('command.handle');
-      }));
+        const appendToStreamOptions = appendToStreamSpy.mock.calls[0]![2]!;
+        const { correlationId } = appendToStreamOptions;
+
+        expect(correlationId).toBeTypeOf('string');
+        assertNotEqual('', correlationId);
+
+        spans.hasSingleSpanNamed('command.handle').hasAttributes({
+          [EmmettAttributes.scope.type]: 'command',
+          'emmett.scope.main': true,
+          [EmmettAttributes.stream.name]: streamId,
+          [EmmettAttributes.command.status]: 'success',
+          [EmmettAttributes.command.eventTypes]: ['ItemAdded'],
+          [EmmettAttributes.command.eventCount]: 1,
+          [EmmettAttributes.stream.versionBefore]: 0,
+          [EmmettAttributes.stream.versionAfter]: 1,
+          [MessagingAttributes.message.correlationId]: correlationId,
+          [MessagingAttributes.batch.messageCount]: 1,
+          [MessagingAttributes.destination.name]: streamId,
+          [MessagingAttributes.system]: MessagingSystemName,
+        });
+      });
+  });
 
   void describe('observability propagation', () => {
     void it('stamps correlationId, causationId, traceId and spanId from handle options onto produced events', () => {
@@ -80,6 +108,8 @@ describe('handler observability', () => {
           assertEqual(expectedCorrelationId, correlationId);
           expect(spanId).toBeTypeOf('string');
           expect(traceId).toBeTypeOf('string');
+          assertNotEqual('', spanId);
+          assertNotEqual('', traceId);
           assertNotEqual(expectedSpanId, spanId);
           assertNotEqual(expectedTraceId, traceId);
 
@@ -132,6 +162,9 @@ describe('handler observability', () => {
           expect(correlationId).toBeTypeOf('string');
           expect(spanId).toBeTypeOf('string');
           expect(traceId).toBeTypeOf('string');
+          assertNotEqual('', correlationId);
+          assertNotEqual('', spanId);
+          assertNotEqual('', traceId);
 
           spans
             .hasSingleSpanNamed('command.handle')
@@ -169,6 +202,9 @@ describe('handler observability', () => {
           expect(correlationId).toBeTypeOf('string');
           expect(spanId).toBeTypeOf('string');
           expect(traceId).toBeTypeOf('string');
+          assertNotEqual('', correlationId);
+          assertNotEqual('', spanId);
+          assertNotEqual('', traceId);
 
           spans
             .hasSingleSpanNamed('command.handle')

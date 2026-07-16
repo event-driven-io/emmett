@@ -186,7 +186,7 @@ void describe('MongoDBEventStore', () => {
       };
     })
       .when(async ({ eventStore }) => {
-        await eventStore.readStream(streamName);
+        await eventStore.readStream<ShoppingCartEvent>(streamName);
       })
       .then(({ spans }) => {
         spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
@@ -205,6 +205,7 @@ void describe('MongoDBEventStore', () => {
   void it('should record observability while handling inline projections', async () => {
     const given = ObservabilitySpec.for();
     let projectionTraceId = '';
+    const projectionName = `mongo_observability_projection_${uuid()}`;
     const streamType = 'shopping_cart';
     const shoppingCartId = uuid();
     const streamName = toStreamName(streamType, shoppingCartId);
@@ -220,9 +221,9 @@ void describe('MongoDBEventStore', () => {
         observability,
         projections: projections.inline([
           {
-            name: `mongo_observability_projection_${uuid()}`,
+            name: projectionName,
             canHandle: ['ProductItemAdded'],
-            handle: (_events, context) => {
+            handle: (events, context) => {
               projectionTraceId =
                 context.observabilityScope.spanContext().traceId;
             },
@@ -238,8 +239,23 @@ void describe('MongoDBEventStore', () => {
         );
       })
       .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'appendToStream',
+          [EmmettAttributes.stream.name]: streamName,
+          [EmmettAttributes.eventStore.append.batchSize]: 1,
+          [EmmettAttributes.eventStore.append.status]: 'success',
+          [EmmettAttributes.stream.versionAfter]: 1,
+          [M.operation.type]: 'send',
+          [M.batch.messageCount]: 1,
+          [M.destination.name]: streamName,
+          [M.system]: MessagingSystemName,
+        });
+
         spans
           .hasSingleSpanNamed('eventStore.inlineProjection')
+          .hasAttributes({
+            'emmett.scope.main': true,
+          })
           .hasTraceId(projectionTraceId);
       });
   });

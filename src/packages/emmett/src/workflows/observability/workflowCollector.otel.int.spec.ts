@@ -58,7 +58,7 @@ describe('workflowCollector with OTel', () => {
 
     otelAssertions
       .spans(spans)
-      .haveSpanNamed('workflow.handle')
+      .hasSingleSpanNamed('workflow.handle')
       .isMainScope('emmett')
       .hasAttributes({
         [EmmettAttributes.scope.type]: 'workflow',
@@ -88,23 +88,18 @@ describe('workflowCollector with OTel', () => {
     await store.appendToStream('orders-1', [
       { type: 'OrderPlaced', data: { orderId: 'orders-1' } },
     ]);
-    const readResult = await store.readStream('orders-1');
+    await store.readStream('orders-1');
     await store.aggregateStream<{ orders: number }, Event>('orders-1', {
       initialState: () => ({ orders: 0 }),
       evolve: (state: { orders: number }) => ({ orders: state.orders + 1 }),
     });
 
-    expect(readResult.events).toHaveLength(1);
-
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(4);
-    expect(
-      spans.filter((span) => span.name === 'eventStore.readStream'),
-    ).toHaveLength(2);
 
     otelAssertions
       .spans(spans)
-      .haveSpanNamed('eventStore.appendToStream')
+      .hasSingleSpanNamed('eventStore.appendToStream')
       .hasAttributes({
         [EmmettAttributes.eventStore.operation]: 'appendToStream',
         [EmmettAttributes.stream.name]: 'orders-1',
@@ -119,12 +114,14 @@ describe('workflowCollector with OTel', () => {
 
     otelAssertions
       .spans(spans)
-      .haveSpanNamed('eventStore.readStream')
-      .hasAttributes({
+      .haveSpansNamed('eventStore.readStream')
+      .hasCount(2)
+      .haveAttributes({
         [EmmettAttributes.eventStore.operation]: 'readStream',
         [EmmettAttributes.stream.name]: 'orders-1',
         [EmmettAttributes.eventStore.read.status]: 'success',
         [EmmettAttributes.eventStore.read.eventCount]: 1,
+        [EmmettAttributes.eventStore.read.eventTypes]: ['OrderPlaced'],
         [M.operation.type]: 'receive',
         [M.destination.name]: 'orders-1',
         [M.system]: MessagingSystemName,
@@ -132,11 +129,12 @@ describe('workflowCollector with OTel', () => {
 
     otelAssertions
       .spans(spans)
-      .haveSpanNamed('eventStore.aggregateStream')
+      .hasSingleSpanNamed('eventStore.aggregateStream')
       .hasAttributes({
         [EmmettAttributes.eventStore.operation]: 'aggregateStream',
         [EmmettAttributes.stream.name]: 'orders-1',
         [EmmettAttributes.eventStore.aggregate.status]: 'success',
+        [EmmettAttributes.stream.versionAfter]: 1,
         [M.operation.type]: 'process',
         [M.destination.name]: 'orders-1',
         [M.system]: MessagingSystemName,

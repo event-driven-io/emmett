@@ -32,6 +32,7 @@ export type ResolvedEventStoreObservability = {
   meter: Meter;
   logger: Logger;
   attributeTarget: AttributeTarget;
+  attributePrefix?: 'emmett';
 };
 
 export const eventStoreObservability = (
@@ -48,6 +49,7 @@ export const eventStoreObservability = (
     meter: observability?.meter ?? noopMeter(),
     logger: observability?.logger ?? noopLogger,
     attributeTarget: observability?.attributeTarget ?? 'both',
+    attributePrefix: 'emmett',
   };
 };
 
