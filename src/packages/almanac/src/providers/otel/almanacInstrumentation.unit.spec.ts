@@ -1,37 +1,19 @@
 import { trace } from '@opentelemetry/api';
-import type { InstrumentationConfig } from '@opentelemetry/instrumentation';
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { Observability } from '../../configuration';
+import {
+  currentDefaultObservability,
+  mergeWithDefaultObservability,
+  setupObservability,
+  type Observability,
+} from '../../configuration';
 import { AlmanacInstrumentation } from './almanacInstrumentation';
 
 type TestObservability = Partial<Observability<string>>;
-
-let store: TestObservability | undefined;
-
-class TestInstrumentation extends AlmanacInstrumentation<TestObservability> {
-  constructor(config: InstrumentationConfig = {}) {
-    super('test-instrumentation', '0.0.0', config);
-  }
-
-  protected buildObservability(): TestObservability {
-    return this.almanacObservability();
-  }
-
-  protected readObservability(): TestObservability | undefined {
-    return store;
-  }
-
-  protected setupObservability(
-    observability: TestObservability | undefined,
-  ): void {
-    store = observability;
-  }
-}
 
 describe('AlmanacInstrumentation', () => {
   const globalExporter = new InMemorySpanExporter();
@@ -45,41 +27,52 @@ describe('AlmanacInstrumentation', () => {
 
   beforeEach(() => {
     globalExporter.reset();
-    store = undefined;
+    setupObservability(undefined);
   });
 
   afterEach(() => {
-    store = undefined;
+    setupObservability(undefined);
   });
 
   it('does no module patching', () => {
-    const instrumentation = new TestInstrumentation({ enabled: false });
+    const instrumentation = new AlmanacInstrumentation({ enabled: false });
 
     expect(instrumentation.getModuleDefinitions()).toEqual([]);
   });
 
   it('does not register observability when constructed disabled', () => {
-    new TestInstrumentation({ enabled: false });
+    new AlmanacInstrumentation({ enabled: false });
 
-    expect(store).toBeUndefined();
+    expect(currentDefaultObservability()).toBeUndefined();
   });
 
-  it('registers observability on enable', () => {
-    new TestInstrumentation();
+  it('registers its tracer, meter and logger built from the config on enable', () => {
+    new AlmanacInstrumentation();
 
-    expect(store).toBeDefined();
-    expect(store!.tracer).toBeDefined();
+    const merged = mergeWithDefaultObservability(undefined, undefined);
+
+    expect(merged?.tracer).toBeDefined();
+    expect(merged?.meter).toBeDefined();
+    expect(merged?.logger).toBeDefined();
+  });
+
+  it('carries base observability config into the store', () => {
+    new AlmanacInstrumentation({ attributePrefix: 'custom' });
+
+    const merged = mergeWithDefaultObservability(undefined, undefined);
+
+    expect(merged?.attributePrefix).toBe('custom');
   });
 
   it('restores the prior observability on disable', () => {
     const sentinel = { tracer: {} } as TestObservability;
-    store = sentinel;
+    setupObservability(sentinel);
 
-    const instrumentation = new TestInstrumentation();
-    expect(store).not.toBe(sentinel);
+    const instrumentation = new AlmanacInstrumentation();
+    expect(currentDefaultObservability()).not.toBe(sentinel);
 
     instrumentation.disable();
-    expect(store).toBe(sentinel);
+    expect(currentDefaultObservability()).toBe(sentinel);
   });
 
   it('rebinds the registered tracer to an injected provider', async () => {
@@ -88,10 +81,11 @@ describe('AlmanacInstrumentation', () => {
       spanProcessors: [new SimpleSpanProcessor(injectedExporter)],
     });
 
-    const instrumentation = new TestInstrumentation();
+    const instrumentation = new AlmanacInstrumentation();
     instrumentation.setTracerProvider(injectedProvider);
 
-    await store!.tracer!.startSpan('rebind-span', () => Promise.resolve());
+    const merged = mergeWithDefaultObservability(undefined, undefined);
+    await merged!.tracer!.startSpan('rebind-span', () => Promise.resolve());
 
     expect(injectedExporter.getFinishedSpans().map((s) => s.name)).toContain(
       'rebind-span',
@@ -103,13 +97,13 @@ describe('AlmanacInstrumentation', () => {
 
   it('restores the prior observability after rebinding on disable', () => {
     const sentinel = { tracer: {} } as TestObservability;
-    store = sentinel;
+    setupObservability(sentinel);
 
     const injectedProvider = new BasicTracerProvider();
-    const instrumentation = new TestInstrumentation();
+    const instrumentation = new AlmanacInstrumentation();
     instrumentation.setTracerProvider(injectedProvider);
 
     instrumentation.disable();
-    expect(store).toBe(sentinel);
+    expect(currentDefaultObservability()).toBe(sentinel);
   });
 });

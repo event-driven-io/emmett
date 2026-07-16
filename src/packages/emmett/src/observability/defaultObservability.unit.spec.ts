@@ -1,13 +1,13 @@
 import { collectingTracer } from '@event-driven-io/almanac';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { setupObservability } from './defaultObservability';
+import { setupEmmettObservability } from './defaultObservability';
 
 describe('default observability', () => {
-  afterEach(() => setupObservability(undefined));
+  afterEach(() => setupEmmettObservability(undefined));
 
   it('is shared across Emmett module instances', async () => {
     const tracer = collectingTracer();
-    setupObservability({ tracer });
+    setupEmmettObservability({ tracer });
 
     vi.resetModules();
     const { commandObservability: commandObservabilityFromAnotherModule } =

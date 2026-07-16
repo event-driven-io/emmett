@@ -1,9 +1,9 @@
 import {
-  ObservabilitySpec,
   collectingMeter,
   collectingTracer,
   LogEvent,
   noopLogger,
+  ObservabilitySpec,
   type CollectedHistogram,
   type CollectedSpan,
   type CollectingTracer,
@@ -14,7 +14,7 @@ import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
-  setDefaultObservability,
+  setupEmmettObservability,
 } from '../../observability';
 import {
   assertDefined,
@@ -25,7 +25,7 @@ import { consumerCollector, consumerObservability } from './consumerCollector';
 
 const A = EmmettAttributes;
 
-afterEach(() => setDefaultObservability(undefined));
+afterEach(() => setupEmmettObservability(undefined));
 const M = {
   system: 'messaging.system',
   operationType: 'messaging.operation.type',
@@ -319,7 +319,7 @@ describe('consumerCollector', () => {
 describe('consumerObservability', () => {
   it('uses default observability when polling', async () => {
     await given((observability) => {
-      setDefaultObservability({ ...observability, pollTracing: 'active' });
+      setupEmmettObservability({ ...observability, pollTracing: 'active' });
       return consumerCollector(consumerObservability(undefined));
     })
       .when((collector) =>

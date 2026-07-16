@@ -6,7 +6,7 @@ import {
   ObservabilitySpec,
 } from '@event-driven-io/almanac';
 import { afterEach, describe, expect, it } from 'vitest';
-import { setDefaultObservability } from '../../observability';
+import { setupEmmettObservability } from '../../observability';
 import {
   EmmettAttributes,
   EmmettMetrics,
@@ -22,7 +22,7 @@ const M = MessagingAttributes;
 
 const given = ObservabilitySpec.for();
 
-afterEach(() => setDefaultObservability(undefined));
+afterEach(() => setupEmmettObservability(undefined));
 
 describe('commandHandlerCollector', () => {
   it('creates a span named command.handle with emmett.scope.type=command and emmett.scope.main=true', async () => {
@@ -340,7 +340,7 @@ describe('commandHandlerCollector', () => {
 describe('commandObservability', () => {
   it('uses default observability when handling a command', async () => {
     await given((observability) => {
-      setDefaultObservability(observability);
+      setupEmmettObservability(observability);
       return commandHandlerCollector(commandObservability(undefined));
     })
       .when((collector) =>

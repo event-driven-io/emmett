@@ -5,7 +5,7 @@ import {
   ObservabilitySpec,
 } from '@event-driven-io/almanac';
 import { afterEach, describe, expect, it } from 'vitest';
-import { setDefaultObservability } from '../../observability';
+import { setupEmmettObservability } from '../../observability';
 import {
   EmmettAttributes,
   EmmettMetrics,
@@ -19,7 +19,7 @@ import {
 
 const A = EmmettAttributes;
 
-afterEach(() => setDefaultObservability(undefined));
+afterEach(() => setupEmmettObservability(undefined));
 const M = {
   system: 'messaging.system',
   operationType: 'messaging.operation.type',
@@ -234,7 +234,7 @@ describe('eventStoreCollector', () => {
 describe('eventStoreObservability', () => {
   it('uses default observability when reading a stream', async () => {
     await given((observability) => {
-      setDefaultObservability(observability);
+      setupEmmettObservability(observability);
       return eventStoreCollector(eventStoreObservability(undefined));
     })
       .when((collector) =>
