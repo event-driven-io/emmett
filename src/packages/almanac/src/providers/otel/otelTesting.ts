@@ -19,8 +19,16 @@ type OtelSpanAssertions = {
 
 type OtelSpanCollectionAssertions = {
   haveSpanNamed(name: string): OtelSpanAssertions;
+  hasSingleSpanNamed(name: string): OtelSpanAssertions;
+  haveSpansNamed(name: string): OtelSpanGroupAssertions;
   containSpanNamed(name: string): OtelSpanCollectionAssertions;
   haveNoSpans(): void;
+};
+
+type OtelSpanGroupAssertions = {
+  hasCount(count: number): OtelSpanGroupAssertions;
+  haveAttribute(key: string, value: unknown): OtelSpanGroupAssertions;
+  haveAttributes(attrs: Record<string, unknown>): OtelSpanGroupAssertions;
 };
 
 const otelSpan = (span: ReadableSpan | undefined): OtelSpanAssertions => {
@@ -35,7 +43,11 @@ const otelSpan = (span: ReadableSpan | undefined): OtelSpanAssertions => {
           `Expected span to have attribute "${key}" but span was not found`,
         );
       const actual = span.attributes[key];
-      if (actual !== value)
+      const isEqual =
+        Array.isArray(value) || (typeof value === 'object' && value !== null)
+          ? JSON.stringify(actual) === JSON.stringify(value)
+          : actual === value;
+      if (!isEqual)
         throw new Error(
           `Expected span "${span.name}" attribute "${key}" to be ${JSON.stringify(value)}, got ${JSON.stringify(actual)}`,
         );
@@ -117,6 +129,47 @@ const otelSpans = (spans: ReadableSpan[]): OtelSpanCollectionAssertions => {
           `Expected span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
         );
       return otelSpan(span);
+    },
+    hasSingleSpanNamed(name) {
+      const found = spans.filter((s) => s.name === name);
+      if (found.length === 0)
+        throw new Error(
+          `Expected span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
+        );
+      if (found.length > 1)
+        throw new Error(
+          `Expected exactly one span named "${name}" but found ${found.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
+        );
+      return otelSpan(found[0]);
+    },
+    haveSpansNamed(name) {
+      const found = spans.filter((s) => s.name === name);
+      const group: OtelSpanGroupAssertions = {
+        hasCount(count) {
+          if (found.length !== count)
+            throw new Error(
+              `Expected ${count} span(s) named "${name}" but found ${found.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
+            );
+          return group;
+        },
+        haveAttribute(key, value) {
+          if (found.length === 0)
+            throw new Error(
+              `Expected span(s) named "${name}" to have attribute "${key}" but none were found. All spans: [${spans.map((s) => s.name).join(', ')}]`,
+            );
+          for (const span of found) {
+            otelSpan(span).hasAttribute(key, value);
+          }
+          return group;
+        },
+        haveAttributes(attrs) {
+          for (const [key, value] of Object.entries(attrs)) {
+            group.haveAttribute(key, value);
+          }
+          return group;
+        },
+      };
+      return group;
     },
     containSpanNamed(name) {
       const span = spans.find((s) => s.name === name);

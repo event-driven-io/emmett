@@ -281,7 +281,9 @@ void describe('EventStoreDBEventStore', () => {
     })
       .when(async ({ eventStore }) => {
         try {
-          await eventStore.readStream(observedShoppingCartId);
+          await eventStore.readStream<ShoppingCartEvent>(
+            observedShoppingCartId,
+          );
         } finally {
           await eventStore.close();
         }
@@ -316,10 +318,9 @@ void describe('EventStoreDBEventStore', () => {
           postgreSQLProjection<ShoppingCartEvent>({
             name: projectionName,
             canHandle: ['ProductItemAdded'],
-            handle: (events, context) => {
+            handle: (_events, context) => {
               projectionTraceId =
                 context.observabilityScope.spanContext().traceId;
-              handledEventsInCustomProjection.push(...events);
             },
           }),
         ]),
@@ -342,8 +343,23 @@ void describe('EventStoreDBEventStore', () => {
         }
       })
       .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'appendToStream',
+          [EmmettAttributes.stream.name]: observedShoppingCartId,
+          [EmmettAttributes.eventStore.append.batchSize]: 1,
+          [EmmettAttributes.eventStore.append.status]: 'success',
+          [EmmettAttributes.stream.versionAfter]: 1,
+          [M.operation.type]: 'send',
+          [M.batch.messageCount]: 1,
+          [M.destination.name]: observedShoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
+
         spans
           .hasSingleSpanNamed('eventStore.inlineProjection')
+          .hasAttributes({
+            'emmett.scope.main': true,
+          })
           .hasTraceId(projectionTraceId);
       });
   });

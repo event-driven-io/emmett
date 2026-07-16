@@ -427,8 +427,23 @@ void describe('SQLiteEventStore', () => {
         }
       })
       .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'appendToStream',
+          [EmmettAttributes.stream.name]: shoppingCartId,
+          [EmmettAttributes.eventStore.append.batchSize]: 1,
+          [EmmettAttributes.eventStore.append.status]: 'success',
+          [EmmettAttributes.stream.versionAfter]: 1,
+          [M.operation.type]: 'send',
+          [M.batch.messageCount]: 1,
+          [M.destination.name]: shoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
+
         spans
           .hasSingleSpanNamed('eventStore.inlineProjection')
+          .hasAttributes({
+            'emmett.scope.main': true,
+          })
           .hasTraceId(projectionTraceId);
       });
   });
