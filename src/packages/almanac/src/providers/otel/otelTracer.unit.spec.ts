@@ -46,6 +46,53 @@ describe('otelTracer', () => {
     expect(spans[0]!.name).toBe('test-span');
   });
 
+  it('uses an injected tracer instead of the global provider', async () => {
+    const injectedExporter = new InMemorySpanExporter();
+    const injectedProvider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(injectedExporter)],
+    });
+
+    const tracer = otelTracer('almanac', {
+      tracer: injectedProvider.getTracer('injected'),
+    });
+    await tracer.startSpan('injected-span', () => Promise.resolve());
+
+    expect(injectedExporter.getFinishedSpans().map((s) => s.name)).toContain(
+      'injected-span',
+    );
+    expect(exporter.getFinishedSpans().map((s) => s.name)).not.toContain(
+      'injected-span',
+    );
+  });
+
+  it('uses an injected tracerProvider instead of the global provider', async () => {
+    const injectedExporter = new InMemorySpanExporter();
+    const injectedProvider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(injectedExporter)],
+    });
+
+    const tracer = otelTracer('almanac', {
+      tracerProvider: injectedProvider,
+    });
+    await tracer.startSpan('provider-span', () => Promise.resolve());
+
+    expect(injectedExporter.getFinishedSpans().map((s) => s.name)).toContain(
+      'provider-span',
+    );
+    expect(exporter.getFinishedSpans().map((s) => s.name)).not.toContain(
+      'provider-span',
+    );
+  });
+
+  it('falls back to the global tracer when none is injected', async () => {
+    const tracer = otelTracer();
+    await tracer.startSpan('global-span', () => Promise.resolve());
+
+    expect(exporter.getFinishedSpans().map((s) => s.name)).toContain(
+      'global-span',
+    );
+  });
+
   it('setAttributes maps to OTel span.setAttribute', async () => {
     const tracer = otelTracer();
     await tracer.startSpan('test-span', (span) => {

@@ -1,4 +1,8 @@
-import type { SpanOptions } from '@opentelemetry/api';
+import type {
+  SpanOptions,
+  Tracer as OtelApiTracer,
+  TracerProvider,
+} from '@opentelemetry/api';
 import {
   context,
   ROOT_CONTEXT,
@@ -16,7 +20,11 @@ import { logEventForSpan } from '../../tracers/spanLogEvent';
 
 export const otelTracer = (
   tracerName = 'almanac',
-  tracerOptions?: { logger?: Logger },
+  tracerOptions?: {
+    logger?: Logger;
+    tracer?: OtelApiTracer;
+    tracerProvider?: TracerProvider;
+  },
 ): Tracer => {
   const log = tracerOptions?.logger ?? noopLogger;
 
@@ -26,7 +34,10 @@ export const otelTracer = (
       fn: (span: ActiveSpan) => Promise<T>,
       options?: StartSpanOptions,
     ): Promise<T> => {
-      const tracer = trace.getTracer(tracerName);
+      const tracer =
+        tracerOptions?.tracer ??
+        tracerOptions?.tracerProvider?.getTracer(tracerName) ??
+        trace.getTracer(tracerName);
       const spanOptions: SpanOptions = {};
 
       // Links always added as-is: OTel requires them at creation time.

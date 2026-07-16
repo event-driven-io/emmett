@@ -91,6 +91,7 @@
   "peerDependencies": {
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/api-logs": "^0.218.0",
+    "@opentelemetry/instrumentation": ">=0.215.0 <0.219.0",
     "@opentelemetry/instrumentation-pino": "^0.64.0",
     "@opentelemetry/sdk-node": ">=0.215.0 <0.219.0",
     "pino": "^10.3.1"
@@ -100,6 +101,9 @@
       "optional": true
     },
     "@opentelemetry/api-logs": {
+      "optional": true
+    },
+    "@opentelemetry/instrumentation": {
       "optional": true
     },
     "@opentelemetry/instrumentation-pino": {
@@ -115,6 +119,7 @@
   "optionalDependencies": {
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/api-logs": "^0.218.0",
+    "@opentelemetry/instrumentation": ">=0.215.0 <0.219.0",
     "@opentelemetry/instrumentation-pino": "^0.64.0",
     "pino": "^10.3.1"
   },
