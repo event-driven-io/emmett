@@ -1,4 +1,3 @@
-import { v4 as uuid } from 'uuid';
 import {
   getInMemoryDatabase,
   type InMemoryDatabase,
@@ -227,7 +226,7 @@ export const getInMemoryEventStore = (
             const globalPosition = BigInt(getAllEventsCount() + index + 1);
             const metadata: ReadEventMetadataWithGlobalPosition = {
               streamName,
-              messageId: uuid(),
+              messageId: observability.contextGenerator.generateMessageId(),
               streamPosition: BigInt(currentEvents.length + index + 1),
               globalPosition: bigIntProcessorCheckpoint(globalPosition),
               checkpoint: bigIntProcessorCheckpoint(globalPosition),

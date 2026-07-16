@@ -317,6 +317,8 @@ export const getSQLiteEventStore = <
             (connection) =>
               appendToStream(connection, streamName, streamType, events, {
                 ...(appendOptions as AppendToStreamOptions),
+                messageIdGenerator: () =>
+                  observability.contextGenerator.generateMessageId(),
                 onBeforeCommit: async (messages, context) => {
                   if (inlineProjections.length > 0)
                     await collector.instrumentInlineProjection(

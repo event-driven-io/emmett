@@ -1,4 +1,3 @@
-import { v7 as uuid } from 'uuid';
 import {
   canCreateEventStoreSession,
   isExpectedVersionConflictError,
@@ -223,10 +222,24 @@ export const WorkflowHandler =
     message: Input | RecordedMessage<Input, MessageMetadataType>,
     handleOptions?: WorkflowHandleOptions<Store>,
   ): Promise<WorkflowHandlerResult<Output, Store>> => {
-    const collector = workflowCollector(workflowObservability(options));
+    const observability = workflowObservability(options);
+    const collector = workflowCollector(observability);
     const workflowType = options.workflow.name;
     const inputType = (message as { type: string }).type;
     const workflowId = options.getWorkflowId(message) ?? '';
+    const sourceMetadata =
+      'metadata' in message && message.metadata
+        ? (message.metadata as Record<string, unknown>)
+        : undefined;
+    const inputMessageId =
+      getString(sourceMetadata?.messageId) ??
+      observability.contextGenerator.generateMessageId();
+    const correlationId =
+      handleOptions?.correlationId ??
+      getString(sourceMetadata?.correlationId) ??
+      observability.contextGenerator.generateCorrelationId();
+    const causationId = handleOptions?.causationId ?? inputMessageId;
+
     return asyncRetry(
       () =>
         collector.startScope(
@@ -240,13 +253,6 @@ export const WorkflowHandler =
                 workflow: { evolve, initialState, decide, name: workflowName },
                 getWorkflowId,
               } = options;
-
-              const inputMessageId =
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                ('metadata' in message && message.metadata?.messageId
-                  ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                    (message.metadata.messageId as string | undefined)
-                  : undefined) ?? uuid();
 
               const messageWithMetadata: RecordedMessage<
                 Input,
@@ -293,6 +299,7 @@ export const WorkflowHandler =
                   metadata: inputMetadata,
                 } as StoredMessage;
 
+                const { traceId, spanId } = scope.spanContext();
                 const appendResult = await eventStore.appendToStream(
                   streamName,
                   [inputToStore] as unknown as Event[],
@@ -304,6 +311,11 @@ export const WorkflowHandler =
                     expectedStreamVersion:
                       handleOptions?.expectedStreamVersion ??
                       NO_CONCURRENCY_CHECK,
+                    correlationId,
+                    causationId,
+                    traceId,
+                    spanId,
+                    observability: { scope },
                   },
                 );
 
@@ -333,6 +345,7 @@ export const WorkflowHandler =
               >(streamName, {
                 evolve: wrappedEvolve,
                 initialState: wrappedInitialState,
+                observability: { scope },
                 read: {
                   ...(handleOptions as ReadStreamOptions<
                     WorkflowEvent<Input | Output>,
@@ -422,6 +435,7 @@ export const WorkflowHandler =
                   : STREAM_DOES_NOT_EXIST);
 
               // 4. Append result to the stream
+              const { traceId, spanId } = scope.spanContext();
               const appendResult = await eventStore.appendToStream(
                 streamName,
                 // TODO: Fix this cast
@@ -432,6 +446,11 @@ export const WorkflowHandler =
                     StoredMessage & Event
                   >),
                   expectedStreamVersion,
+                  correlationId,
+                  causationId,
+                  traceId,
+                  spanId,
+                  observability: { scope },
                 },
               );
 
@@ -445,6 +464,7 @@ export const WorkflowHandler =
 
             return result;
           },
+          handleOptions?.observability,
         ),
       fromWorkflowHandlerRetryOptions(
         handleOptions && 'retry' in handleOptions
@@ -465,3 +485,6 @@ const withSession = <EventStoreType extends EventStore, T = unknown>(
 
   return sessionFactory.withSession(callback);
 };
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === 'string' && value !== '' ? value : undefined;

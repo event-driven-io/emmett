@@ -1,4 +1,3 @@
-import { v7 as uuid } from 'uuid';
 import {
   canCreateEventStoreSession,
   isExpectedVersionConflictError,
@@ -97,7 +96,8 @@ export const CommandHandler =
       | CommandHandlerFunction<State, StreamEvent>[],
     handleOptions?: HandleOptions<Store>,
   ): Promise<CommandHandlerResult<State, StreamEvent, Store>> => {
-    const collector = commandHandlerCollector(commandObservability(options));
+    const observability = commandObservability(options);
+    const collector = commandHandlerCollector(observability);
     const streamName = (options.mapToStreamId ?? ((id: string) => id))(id);
 
     // TODO: for array-of-handlers we record all types as an
@@ -110,25 +110,16 @@ export const CommandHandler =
       options.commandType ??
       options.name ??
       handlerNames(handle);
-    const correlationId = handleOptions?.correlationId ?? uuid();
+    const correlationId =
+      handleOptions?.correlationId ??
+      observability.contextGenerator.generateCorrelationId();
     const causationId = handleOptions?.causationId;
     const commandScopeOptions = handleOptions?.observability;
-    const appendOptionsFromHandle = (() => {
-      if (!handleOptions) return undefined;
-
-      const {
-        commandType: _commandType,
-        observability: _operationObservability,
-        ...optionsWithoutCommandFields
-      } = handleOptions;
-
-      if ('retry' in optionsWithoutCommandFields) {
-        const { retry: _retry, ...appendOptions } = optionsWithoutCommandFields;
-        return appendOptions;
-      }
-
-      return optionsWithoutCommandFields;
-    })();
+    const appendOptionsFromHandle = toAppendOptions<
+      Store,
+      StreamEvent,
+      EventPayloadType
+    >(handleOptions);
 
     return asyncRetry(
       () =>
@@ -227,10 +218,7 @@ export const CommandHandler =
                 streamName,
                 eventsToAppend,
                 {
-                  ...(appendOptionsFromHandle as AppendToStreamOptions<
-                    StreamEvent,
-                    EventPayloadType
-                  >),
+                  ...(appendOptionsFromHandle ?? {}),
                   expectedStreamVersion,
                   correlationId,
                   ...(causationId ? { causationId } : {}),
@@ -295,6 +283,34 @@ const fromCommandHandlerRetryOptions = (
   }
 
   return retryOptions;
+};
+
+const toAppendOptions = <
+  Store extends EventStore,
+  StreamEvent extends Event,
+  EventPayloadType extends Event,
+>(
+  options: HandleOptions<Store> | undefined,
+): AppendToStreamOptions<StreamEvent, EventPayloadType> | undefined => {
+  if (!options) return undefined;
+
+  return {
+    ...(options.expectedStreamVersion !== undefined
+      ? { expectedStreamVersion: options.expectedStreamVersion }
+      : {}),
+    ...(options.schema
+      ? {
+          schema: options.schema as AppendToStreamOptions<
+            StreamEvent,
+            EventPayloadType
+          >['schema'],
+        }
+      : {}),
+    ...(options.correlationId ? { correlationId: options.correlationId } : {}),
+    ...(options.causationId ? { causationId: options.causationId } : {}),
+    ...(options.traceId ? { traceId: options.traceId } : {}),
+    ...(options.spanId ? { spanId: options.spanId } : {}),
+  };
 };
 
 const handlerNames = <State, StreamEvent extends Event>(

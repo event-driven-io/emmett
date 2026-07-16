@@ -463,6 +463,8 @@ export const getPostgreSQLEventStore = (
               ),
               {
                 ...(appendOptions as AppendToStreamOptions),
+                messageIdGenerator: () =>
+                  observability.contextGenerator.generateMessageId(),
                 beforeCommitHook: beforeCommitHook(streamName, scope),
               },
             ),

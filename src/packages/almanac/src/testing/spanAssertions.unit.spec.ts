@@ -143,6 +143,36 @@ describe('spanAssertions', () => {
       .hasAttribute('eventStore.operation', 'inlineProjection');
   });
 
+  it('throws when child span is missing', () => {
+    expect(() =>
+      assertThatSpans([span('eventStore.appendToStream')])
+        .hasSingleSpanNamed('eventStore.appendToStream')
+        .hasChildNamed('eventStore.inlineProjection'),
+    ).toThrow(
+      'Expected span "eventStore.appendToStream" to have child span named "eventStore.inlineProjection"',
+    );
+  });
+
+  it('throws when multiple child spans match', () => {
+    const parent = span('eventStore.appendToStream');
+    const childParent = {
+      traceId: parent.ownContext.traceId,
+      spanId: parent.ownContext.spanId,
+    };
+
+    expect(() =>
+      assertThatSpans([
+        parent,
+        span('eventStore.inlineProjection', {}, childParent),
+        span('eventStore.inlineProjection', {}, childParent),
+      ])
+        .hasSingleSpanNamed('eventStore.appendToStream')
+        .hasChildNamed('eventStore.inlineProjection'),
+    ).toThrow(
+      'Expected span "eventStore.appendToStream" to have exactly one child span named "eventStore.inlineProjection"',
+    );
+  });
+
   it('filters single span by parent span name', () => {
     assertThatSpans([
       span('eventStore.readStream'),

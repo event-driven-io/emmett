@@ -1,9 +1,11 @@
 import {
   collectingMeter,
   collectingTracer,
+  defaultObservabilityContextGenerator,
   MessagingAttributes,
   noopLogger,
   ObservabilitySpec,
+  testObservabilityContextGenerator,
 } from '@event-driven-io/almanac';
 import { afterEach, describe, expect, it } from 'vitest';
 import { setupEmmettObservability } from '../../observability';
@@ -232,6 +234,7 @@ describe('eventStoreCollector', () => {
       tracer: collectingTracer(),
       meter,
       logger: noopLogger,
+      contextGenerator: defaultObservabilityContextGenerator,
       attributeTarget: 'both' as const,
     };
     await eventStoreCollector(obs).instrumentRead('test', () =>
@@ -257,6 +260,7 @@ describe('eventStoreCollector', () => {
       tracer: collectingTracer(),
       meter,
       logger: noopLogger,
+      contextGenerator: defaultObservabilityContextGenerator,
       attributeTarget: 'both' as const,
     };
     await expect(
@@ -279,6 +283,7 @@ describe('eventStoreCollector', () => {
       tracer: collectingTracer(),
       meter,
       logger: noopLogger,
+      contextGenerator: defaultObservabilityContextGenerator,
       attributeTarget: 'both' as const,
     };
     await eventStoreCollector(obs).instrumentRead('test', () =>
@@ -300,6 +305,7 @@ describe('eventStoreCollector', () => {
       tracer: collectingTracer(),
       meter,
       logger: noopLogger,
+      contextGenerator: defaultObservabilityContextGenerator,
       attributeTarget: 'both' as const,
     };
     await eventStoreCollector(obs).instrumentRead('test', () =>
@@ -322,6 +328,7 @@ describe('eventStoreCollector', () => {
       tracer: collectingTracer(),
       meter,
       logger: noopLogger,
+      contextGenerator: defaultObservabilityContextGenerator,
       attributeTarget: 'both' as const,
     };
     const events = makeEvents(['OrderPlaced', 'ItemAdded']);
@@ -395,11 +402,16 @@ describe('eventStoreObservability', () => {
   it('uses event store fields after broader observability is merged', () => {
     const tracer = collectingTracer();
     const meter = collectingMeter();
+    const contextGenerator = testObservabilityContextGenerator({
+      traceIds: 'trace',
+      spanIds: 'span',
+    });
     const resolved = eventStoreObservability(
       { observability: { attributeTarget: 'currentSpan' } },
       {
         tracer,
         meter,
+        contextGenerator,
         pollTracing: 'verbose',
         propagation: 'propagate',
       },
@@ -407,6 +419,7 @@ describe('eventStoreObservability', () => {
 
     expect(resolved.tracer).toBe(tracer);
     expect(resolved.meter).toBe(meter);
+    expect(resolved.contextGenerator).toBe(contextGenerator);
     expect(resolved.attributeTarget).toBe('currentSpan');
     expect('pollTracing' in resolved).toBe(false);
     expect('propagation' in resolved).toBe(false);

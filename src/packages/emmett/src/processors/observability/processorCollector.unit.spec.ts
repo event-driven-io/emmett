@@ -1,9 +1,11 @@
 import {
   collectingMeter,
   collectingTracer,
+  defaultObservabilityContextGenerator,
   LogEvent,
   noopLogger,
   ObservabilitySpec,
+  testObservabilityContextGenerator,
 } from '@event-driven-io/almanac';
 import { afterEach, describe, expect, it } from 'vitest';
 import { setDefaultObservability } from '../../observability';
@@ -319,6 +321,7 @@ describe('processorCollector', () => {
       meter,
       logger: noopLogger,
       propagation: 'links' as const,
+      contextGenerator: defaultObservabilityContextGenerator,
       attributeTarget: 'both' as const,
       includeMessagePayloads: false,
     };
@@ -348,6 +351,7 @@ describe('processorCollector', () => {
       meter,
       logger: noopLogger,
       propagation: 'links' as const,
+      contextGenerator: defaultObservabilityContextGenerator,
       attributeTarget: 'both' as const,
       includeMessagePayloads: false,
     };
@@ -429,6 +433,7 @@ describe('processorObservability', () => {
       meter,
       logger: processorLogger,
       propagation: 'propagate',
+      contextGenerator: defaultObservabilityContextGenerator,
       attributeTarget: 'both',
       includeMessagePayloads: true,
     });
@@ -474,11 +479,16 @@ describe('processorObservability', () => {
   it('uses processor fields after store or consumer observability is merged', () => {
     const tracer = collectingTracer();
     const meter = collectingMeter();
+    const contextGenerator = testObservabilityContextGenerator({
+      traceIds: 'trace',
+      spanIds: 'span',
+    });
     const resolved = processorObservability(
       { observability: { propagation: 'propagate' } },
       {
         tracer,
         meter,
+        contextGenerator,
         pollTracing: 'verbose',
         attributeTarget: 'currentSpan',
       },
@@ -486,6 +496,7 @@ describe('processorObservability', () => {
 
     expect(resolved.tracer).toBe(tracer);
     expect(resolved.meter).toBe(meter);
+    expect(resolved.contextGenerator).toBe(contextGenerator);
     expect(resolved.propagation).toBe('propagate');
     expect(resolved.attributeTarget).toBe('currentSpan');
     expect('pollTracing' in resolved).toBe(false);

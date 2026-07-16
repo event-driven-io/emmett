@@ -34,7 +34,6 @@ import {
   type UpdateFilter,
   type WithId,
 } from 'mongodb';
-import { v4 as uuid } from 'uuid';
 import {
   handleInlineProjections,
   MongoDBDefaultInlineProjectionName,
@@ -408,7 +407,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
           MongoDBReadEventMetadata
         >[] = events.map((event) => {
           const metadata: MongoDBReadEventMetadata = {
-            messageId: uuid(),
+            messageId: this.observability.contextGenerator.generateMessageId(),
             streamName,
             streamPosition: ++streamOffset,
             ...(options?.correlationId

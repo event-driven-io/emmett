@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { LogEvent } from '../loggers/logger';
 import { collectingTracer } from './collectingTracer';
-import { testTraceContextGenerator } from './traceContextGenerator';
+import { testObservabilityContextGenerator } from './contextGenerator';
 
 describe('collectingTracer', () => {
   it('uses an injected trace context generator for collected spans', async () => {
     const tracer = collectingTracer({
-      traceContextGenerator: testTraceContextGenerator({
+      contextGenerator: testObservabilityContextGenerator({
         traceIds: ['trace-1'],
         spanIds: ['span-1'],
       }),
@@ -27,7 +27,7 @@ describe('collectingTracer', () => {
 
   it('preserves ids supplied directly on event metadata', async () => {
     const tracer = collectingTracer({
-      traceContextGenerator: testTraceContextGenerator({
+      contextGenerator: testObservabilityContextGenerator({
         traceIds: ['trace-1'],
         spanIds: ['span-1'],
       }),
@@ -54,7 +54,7 @@ describe('collectingTracer', () => {
 
   it('supports trace context generator sequences', async () => {
     const tracer = collectingTracer({
-      traceContextGenerator: testTraceContextGenerator({
+      contextGenerator: testObservabilityContextGenerator({
         traceIds: ['trace-1', 'trace-2'],
         spanIds: ['span-1', 'span-2'],
       }),

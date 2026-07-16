@@ -1,9 +1,11 @@
 import {
   collectingMeter,
   collectingTracer,
+  defaultObservabilityContextGenerator,
   LogEvent,
   noopLogger,
   ObservabilitySpec,
+  testObservabilityContextGenerator,
 } from '@event-driven-io/almanac';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -128,6 +130,7 @@ describe('workflowCollector', () => {
       meter,
       logger: noopLogger,
       propagation: 'links' as const,
+      contextGenerator: defaultObservabilityContextGenerator,
       attributeTarget: 'both' as const,
       includeMessagePayloads: false,
     };
@@ -205,5 +208,17 @@ describe('workflowObservability', () => {
       observability: { includeMessagePayloads: true },
     });
     expect(resolved.includeMessagePayloads).toBe(true);
+  });
+
+  it('uses provided contextGenerator', () => {
+    const contextGenerator = testObservabilityContextGenerator({
+      traceIds: 'trace',
+      spanIds: 'span',
+    });
+    const resolved = workflowObservability({
+      observability: { contextGenerator },
+    });
+
+    expect(resolved.contextGenerator).toBe(contextGenerator);
   });
 });

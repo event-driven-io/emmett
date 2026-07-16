@@ -2,10 +2,10 @@ import { shouldLog } from '../loggers/logger';
 import type {
   ActiveSpan,
   StartSpanOptions,
-  TraceContextGenerator,
+  ObservabilityContextGenerator,
   Tracer,
 } from '../tracers';
-import { defaultTraceContextGenerator } from '../tracers';
+import { defaultObservabilityContextGenerator } from '../tracers';
 import { logEventForSpan } from '../tracers/spanLogEvent';
 import type { CollectedSpan } from './collectedSpan';
 
@@ -14,15 +14,15 @@ export type CollectingTracer = Tracer & {
 };
 
 export type CollectingTracerOptions = {
-  traceContextGenerator?: TraceContextGenerator;
+  contextGenerator?: ObservabilityContextGenerator;
 };
 
 export const collectingTracer = (
   options?: CollectingTracerOptions,
 ): CollectingTracer => {
   const spans: CollectedSpan[] = [];
-  const traceContextGenerator =
-    options?.traceContextGenerator ?? defaultTraceContextGenerator;
+  const contextGenerator =
+    options?.contextGenerator ?? defaultObservabilityContextGenerator;
 
   return {
     spans,
@@ -31,8 +31,8 @@ export const collectingTracer = (
       fn: (span: ActiveSpan) => Promise<T>,
       options?: StartSpanOptions,
     ): Promise<T> => {
-      const traceId = traceContextGenerator.generateTraceId();
-      const spanId = traceContextGenerator.generateSpanId();
+      const traceId = contextGenerator.generateTraceId();
+      const spanId = contextGenerator.generateSpanId();
       const context = { traceId, spanId };
 
       const collected: CollectedSpan = {
