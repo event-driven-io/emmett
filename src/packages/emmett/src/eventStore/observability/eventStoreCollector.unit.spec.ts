@@ -47,7 +47,7 @@ describe('eventStoreCollector', () => {
       )
       .then(({ spans }) =>
         spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
-          'emmett.scope.main': true,
+          [A.scope.main]: true,
           [A.eventStore.operation]: 'readStream',
           [A.stream.name]: 'orders-123',
           [A.eventStore.read.status]: 'success',
@@ -73,7 +73,7 @@ describe('eventStoreCollector', () => {
       )
       .then(({ spans }) =>
         spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
-          'emmett.scope.main': true,
+          [A.scope.main]: true,
           [A.eventStore.operation]: 'appendToStream',
           [A.stream.name]: 'orders-123',
           [A.eventStore.append.batchSize]: 1,
@@ -118,7 +118,7 @@ describe('eventStoreCollector', () => {
       )
       .then(({ spans, metrics }) => {
         spans.hasSingleSpanNamed('eventStore.aggregateStream').hasAttributes({
-          'emmett.scope.main': true,
+          [A.scope.main]: true,
           [A.eventStore.operation]: 'aggregateStream',
           [A.stream.name]: 'orders-123',
           [A.eventStore.aggregate.status]: 'success',
@@ -150,30 +150,29 @@ describe('eventStoreCollector', () => {
         }),
       )
       .then(({ spans }) => {
-        spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
-          'emmett.scope.main': true,
-          [A.eventStore.operation]: 'appendToStream',
-          [A.stream.name]: 'orders-123',
-          [A.eventStore.append.batchSize]: 1,
-          [A.eventStore.append.status]: 'success',
-          [A.stream.versionAfter]: 1,
-          [M.operation.type]: 'send',
-          [M.batch.messageCount]: 1,
-          [M.destination.name]: 'orders-123',
-          [M.system]: MessagingSystemName,
-        });
-
-        spans
-          .hasSingleSpanNamed('eventStore.inlineProjection')
-          .hasParentSpanNamed('eventStore.appendToStream')
+        const appendSpan = spans
+          .hasSingleSpanNamed('eventStore.appendToStream')
           .hasAttributes({
-            'emmett.scope.main': undefined,
-            [A.eventStore.operation]: 'inlineProjection',
+            [A.scope.main]: true,
+            [A.eventStore.operation]: 'appendToStream',
             [A.stream.name]: 'orders-123',
-            [M.operation.type]: 'process',
+            [A.eventStore.append.batchSize]: 1,
+            [A.eventStore.append.status]: 'success',
+            [A.stream.versionAfter]: 1,
+            [M.operation.type]: 'send',
+            [M.batch.messageCount]: 1,
             [M.destination.name]: 'orders-123',
             [M.system]: MessagingSystemName,
           });
+
+        appendSpan.hasChildNamed('eventStore.inlineProjection').hasAttributes({
+          [A.scope.main]: undefined,
+          [A.eventStore.operation]: 'inlineProjection',
+          [A.stream.name]: 'orders-123',
+          [M.operation.type]: 'process',
+          [M.destination.name]: 'orders-123',
+          [M.system]: MessagingSystemName,
+        });
       });
   });
 
@@ -189,7 +188,7 @@ describe('eventStoreCollector', () => {
                 currentStreamVersion: 1n,
                 streamExists: true,
               }),
-            { parentScope: scope },
+            { scope },
           );
 
           return {
@@ -200,31 +199,30 @@ describe('eventStoreCollector', () => {
         }),
       )
       .then(({ spans }) => {
-        spans.hasSingleSpanNamed('eventStore.aggregateStream').hasAttributes({
-          'emmett.scope.main': true,
-          [A.eventStore.operation]: 'aggregateStream',
+        const aggregateSpan = spans
+          .hasSingleSpanNamed('eventStore.aggregateStream')
+          .hasAttributes({
+            [A.scope.main]: true,
+            [A.eventStore.operation]: 'aggregateStream',
+            [A.stream.name]: 'orders-123',
+            [M.operation.type]: 'process',
+            [M.destination.name]: 'orders-123',
+            [M.system]: MessagingSystemName,
+            [A.eventStore.aggregate.status]: 'success',
+            [A.stream.versionAfter]: 1,
+          });
+
+        aggregateSpan.hasChildNamed('eventStore.readStream').hasAttributes({
+          [A.scope.main]: undefined,
+          [A.eventStore.operation]: 'readStream',
           [A.stream.name]: 'orders-123',
-          [A.eventStore.aggregate.status]: 'success',
-          [A.stream.versionAfter]: 1,
-          [M.operation.type]: 'process',
+          [A.eventStore.read.status]: 'success',
+          [A.eventStore.read.eventCount]: 1,
+          [A.eventStore.read.eventTypes]: ['OrderPlaced'],
+          [M.operation.type]: 'receive',
           [M.destination.name]: 'orders-123',
           [M.system]: MessagingSystemName,
         });
-
-        spans
-          .hasSingleSpanNamed('eventStore.readStream')
-          .hasParentSpanNamed('eventStore.aggregateStream')
-          .hasAttributes({
-            'emmett.scope.main': undefined,
-            [A.eventStore.operation]: 'readStream',
-            [A.stream.name]: 'orders-123',
-            [A.eventStore.read.status]: 'success',
-            [A.eventStore.read.eventCount]: 1,
-            [A.eventStore.read.eventTypes]: ['OrderPlaced'],
-            [M.operation.type]: 'receive',
-            [M.destination.name]: 'orders-123',
-            [M.system]: MessagingSystemName,
-          });
       });
   });
 

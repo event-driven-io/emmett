@@ -36,7 +36,7 @@ describe('workflowCollector', () => {
       .then(({ spans }) =>
         spans.hasSingleSpanNamed('workflow.handle').hasAttributes({
           [A.scope.type]: 'workflow',
-          'emmett.scope.main': true,
+          [A.scope.main]: true,
         }),
       );
   });

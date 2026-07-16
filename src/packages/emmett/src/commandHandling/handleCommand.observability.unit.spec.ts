@@ -31,7 +31,12 @@ describe('handler observability', () => {
     const eventStore = getInMemoryEventStore();
     const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
     const streamId = uuid();
-    const expectedCorrelationId = 'flow-1';
+    const context = testTraceContextGenerator({
+      traceIds: 'generated-trace-1',
+      spanIds: 'generated-span-1',
+      correlationIds: 'flow-1',
+    });
+    const expectedCorrelationId = context.generateCorrelationId();
 
     return given(
       (observability) => {
@@ -42,10 +47,7 @@ describe('handler observability', () => {
         });
       },
       {
-        traceContextGenerator: testTraceContextGenerator({
-          traceIds: 'generated-trace-1',
-          spanIds: 'generated-span-1',
-        }),
+        traceContextGenerator: context,
       },
     )
       .when((handler) =>
@@ -54,9 +56,7 @@ describe('handler observability', () => {
           streamId,
           () => [{ type: 'ItemAdded', data: { productId: 'p1' } }],
           {
-            observability: {
-              correlationId: expectedCorrelationId,
-            },
+            correlationId: expectedCorrelationId,
           },
         ),
       )
@@ -68,7 +68,7 @@ describe('handler observability', () => {
 
         spans.hasSingleSpanNamed('command.handle').hasAttributes({
           [EmmettAttributes.scope.type]: 'command',
-          'emmett.scope.main': true,
+          [EmmettAttributes.scope.main]: true,
           [EmmettAttributes.stream.name]: streamId,
           [EmmettAttributes.command.status]: 'success',
           [EmmettAttributes.command.eventTypes]: ['ItemAdded'],
@@ -88,12 +88,18 @@ describe('handler observability', () => {
       const eventStore = getInMemoryEventStore();
       const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
       const streamId = uuid();
-      const expectedCorrelationId = 'flow-1';
-      const expectedCausationId = 'cmd-1';
       const expectedSpanId = 'exp-span-1';
       const expectedTraceId = 'exp-trace-1';
       const generatedSpanId = 'generated-span-2';
       const generatedTraceId = 'generated-trace-2';
+      const context = testTraceContextGenerator({
+        traceIds: generatedTraceId,
+        spanIds: generatedSpanId,
+        correlationIds: 'flow-1',
+        causationIds: 'cmd-1',
+      });
+      const expectedCorrelationId = context.generateCorrelationId();
+      const expectedCausationId = context.generateCausationId();
 
       const event: ItemAdded = {
         type: 'ItemAdded',
@@ -108,19 +114,18 @@ describe('handler observability', () => {
             observability,
           }),
         {
-          traceContextGenerator: testTraceContextGenerator({
-            traceIds: generatedTraceId,
-            spanIds: generatedSpanId,
-          }),
+          traceContextGenerator: context,
         },
       )
         .when(async (handler) =>
           handler(eventStore, streamId, () => [event], {
+            correlationId: expectedCorrelationId,
+            causationId: expectedCausationId,
             observability: {
-              correlationId: expectedCorrelationId,
-              causationId: expectedCausationId,
-              spanId: expectedSpanId,
-              traceId: expectedTraceId,
+              parent: {
+                spanId: expectedSpanId,
+                traceId: expectedTraceId,
+              },
             },
           }),
         )
@@ -149,10 +154,16 @@ describe('handler observability', () => {
       const eventStore = getInMemoryEventStore();
       const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
       const streamId = uuid();
-      const expectedCausationId = 'cmd-1';
-      const expectedCorrelationId = 'flow-2';
       const generatedSpanId = 'generated-span-3';
       const generatedTraceId = 'generated-trace-3';
+      const context = testTraceContextGenerator({
+        traceIds: generatedTraceId,
+        spanIds: generatedSpanId,
+        correlationIds: 'flow-2',
+        causationIds: 'cmd-1',
+      });
+      const expectedCorrelationId = context.generateCorrelationId();
+      const expectedCausationId = context.generateCausationId();
 
       const event: ItemAdded = {
         type: 'ItemAdded',
@@ -167,18 +178,13 @@ describe('handler observability', () => {
             observability,
           }),
         {
-          traceContextGenerator: testTraceContextGenerator({
-            traceIds: generatedTraceId,
-            spanIds: generatedSpanId,
-          }),
+          traceContextGenerator: context,
         },
       )
         .when(async (handler) =>
           handler(eventStore, streamId, () => [event], {
-            observability: {
-              correlationId: expectedCorrelationId,
-              causationId: expectedCausationId,
-            },
+            correlationId: expectedCorrelationId,
+            causationId: expectedCausationId,
           }),
         )
         .then(({ spans }) => {
@@ -206,9 +212,14 @@ describe('handler observability', () => {
       const eventStore = getInMemoryEventStore();
       const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
       const streamId = uuid();
-      const expectedCorrelationId = 'flow-3';
       const generatedSpanId = 'generated-span-4';
       const generatedTraceId = 'generated-trace-4';
+      const context = testTraceContextGenerator({
+        traceIds: generatedTraceId,
+        spanIds: generatedSpanId,
+        correlationIds: 'flow-3',
+      });
+      const expectedCorrelationId = context.generateCorrelationId();
 
       const event: ItemAdded = {
         type: 'ItemAdded',
@@ -223,17 +234,12 @@ describe('handler observability', () => {
             observability,
           }),
         {
-          traceContextGenerator: testTraceContextGenerator({
-            traceIds: generatedTraceId,
-            spanIds: generatedSpanId,
-          }),
+          traceContextGenerator: context,
         },
       )
         .when(async (handler) =>
           handler(eventStore, streamId, () => [event], {
-            observability: {
-              correlationId: expectedCorrelationId,
-            },
+            correlationId: expectedCorrelationId,
           }),
         )
         .then(({ spans }) => {
@@ -370,6 +376,78 @@ describe('handler observability', () => {
   });
 
   void describe('span attributes', () => {
+    void it('nests event store aggregate, read and append spans under command handling', () => {
+      const streamId = uuid();
+
+      return given((observability) =>
+        CommandHandler<Cart, ItemAdded>({
+          evolve: (state, _event) => ({ count: state.count + 1 }),
+          initialState: () => ({ count: 0 }),
+          observability,
+        }),
+      )
+        .when(async (handler) =>
+          handler(getInMemoryEventStore(), streamId, () => [
+            { type: 'ItemAdded', data: { productId: 'p1' } },
+          ]),
+        )
+        .then(({ spans }) => {
+          const commandSpan = spans
+            .hasSingleSpanNamed('command.handle')
+            .hasAttributes({
+              [EmmettAttributes.scope.type]: 'command',
+              [EmmettAttributes.scope.main]: true,
+              [EmmettAttributes.stream.name]: streamId,
+              [EmmettAttributes.command.status]: 'success',
+              [EmmettAttributes.command.eventTypes]: ['ItemAdded'],
+              [EmmettAttributes.command.eventCount]: 1,
+              [EmmettAttributes.stream.versionBefore]: 0,
+              [EmmettAttributes.stream.versionAfter]: 1,
+              [MessagingAttributes.batch.messageCount]: 1,
+              [MessagingAttributes.destination.name]: streamId,
+              [MessagingAttributes.system]: MessagingSystemName,
+            });
+
+          const aggregateSpan = commandSpan
+            .hasChildNamed('eventStore.aggregateStream')
+            .hasAttributes({
+              [EmmettAttributes.scope.main]: undefined,
+              [EmmettAttributes.eventStore.operation]: 'aggregateStream',
+              [EmmettAttributes.stream.name]: streamId,
+              [EmmettAttributes.eventStore.aggregate.status]: 'success',
+              [EmmettAttributes.stream.versionAfter]: 0,
+              [MessagingAttributes.operation.type]: 'process',
+              [MessagingAttributes.destination.name]: streamId,
+              [MessagingAttributes.system]: MessagingSystemName,
+            });
+
+          aggregateSpan.hasChildNamed('eventStore.readStream').hasAttributes({
+            [EmmettAttributes.scope.main]: undefined,
+            [EmmettAttributes.eventStore.operation]: 'readStream',
+            [EmmettAttributes.stream.name]: streamId,
+            [EmmettAttributes.eventStore.read.status]: 'success',
+            [EmmettAttributes.eventStore.read.eventCount]: 0,
+            [EmmettAttributes.eventStore.read.eventTypes]: [],
+            [MessagingAttributes.operation.type]: 'receive',
+            [MessagingAttributes.destination.name]: streamId,
+            [MessagingAttributes.system]: MessagingSystemName,
+          });
+
+          commandSpan.hasChildNamed('eventStore.appendToStream').hasAttributes({
+            [EmmettAttributes.scope.main]: undefined,
+            [EmmettAttributes.eventStore.operation]: 'appendToStream',
+            [EmmettAttributes.stream.name]: streamId,
+            [EmmettAttributes.eventStore.append.batchSize]: 1,
+            [EmmettAttributes.eventStore.append.status]: 'success',
+            [EmmettAttributes.stream.versionAfter]: 1,
+            [MessagingAttributes.operation.type]: 'send',
+            [MessagingAttributes.batch.messageCount]: 1,
+            [MessagingAttributes.destination.name]: streamId,
+            [MessagingAttributes.system]: MessagingSystemName,
+          });
+        });
+    });
+
     void it('records stream name, success status, event types, event count and stream versions', () => {
       const streamId = uuid();
 

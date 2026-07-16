@@ -3,12 +3,11 @@ import {
   noopLogger,
   noopMeter,
   noopTracer,
-  ObservabilityScope,
+  ObservabilityScope as createObservabilityScope,
   type AttributeTarget,
   type Logger,
   type Meter,
-  type ObservabilityScope as ObservabilityScopeType,
-  type SpanContext,
+  type ObservabilityScope,
   type SpanLink,
   type TracePropagation,
   type Tracer,
@@ -75,7 +74,7 @@ export type ProcessorCollectorContext = {
 export const processorCollector = (
   observability: ResolvedProcessorObservability,
 ) => {
-  const { startScope } = ObservabilityScope({
+  const { startScope } = createObservabilityScope({
     ...observability,
     attributePrefix: 'emmett',
   });
@@ -96,7 +95,7 @@ export const processorCollector = (
     >(
       context: ProcessorCollectorContext,
       messages: RecordedMessage<MessageType, MessageMetadataType>[],
-      fn: (scope: ObservabilityScopeType) => Promise<T>,
+      fn: (scope: ObservabilityScope) => Promise<T>,
     ): Promise<T> => {
       const sourceLinks: SpanLink[] = messages
         .filter(
@@ -160,15 +159,16 @@ export const processorCollector = (
     >(
       context: ProcessorCollectorContext & { archetypeType: string },
       message: RecordedMessage<MessageType, MessageMetadataType>,
-      batchCtx: SpanContext,
-      fn: (scope: ObservabilityScopeType) => Promise<T>,
+      batchScope: ObservabilityScope,
+      fn: (scope: ObservabilityScope) => Promise<T>,
     ): Promise<T> => {
       const meta = message.metadata as Record<string, unknown>;
       const parent =
         meta?.traceId && meta?.spanId
           ? { traceId: meta.traceId as string, spanId: meta.spanId as string }
           : undefined;
-      const links: SpanLink[] = batchCtx.traceId ? [batchCtx] : [];
+      const batchContext = batchScope.spanContext();
+      const links: SpanLink[] = batchContext.traceId ? [batchContext] : [];
 
       return startScope(
         `processor.message.${message.type}`,

@@ -3,11 +3,11 @@ import {
   noopLogger,
   noopMeter,
   noopTracer,
-  ObservabilityScope,
+  ObservabilityScope as createObservabilityScope,
   type AttributeTarget,
   type Logger,
   type Meter,
-  type ObservabilityScope as ObservabilityScopeType,
+  type ObservabilityScope,
   type Tracer,
 } from '@event-driven-io/almanac';
 import type {
@@ -20,6 +20,8 @@ import {
   EmmettMetrics,
   MessagingSystemName,
   type EmmettObservabilityConfig,
+  type OperationObservabilityOptions,
+  withOperationAttributes,
 } from '../../observability';
 import { mergeWithDefaultObservability } from '../../observability/defaultObservability';
 import type { AnyReadEventMetadata, Event, ReadEvent } from '../../typing';
@@ -58,7 +60,7 @@ export const eventStoreObservability = (
 export const eventStoreCollector = (
   observability: ResolvedEventStoreObservability,
 ) => {
-  const { startScope } = ObservabilityScope({
+  const { startScope } = createObservabilityScope({
     ...observability,
     attributePrefix: 'emmett',
   });
@@ -85,6 +87,18 @@ export const eventStoreCollector = (
   const streamAggregatingDuration = observability.meter.histogram(
     EmmettMetrics.stream.aggregatingDuration,
   );
+  const startOperationScope = <T>(
+    name: string,
+    fn: (scope: ObservabilityScope) => Promise<T>,
+    options?: OperationObservabilityOptions,
+  ): Promise<T> => {
+    if (options?.scope) {
+      const { scope, ...scopeOptions } = options;
+      return scope.scope(name, fn, scopeOptions);
+    }
+
+    return startScope(name, fn, options);
+  };
   const readAttributes = (streamName: string): Record<string, unknown> => ({
     [A.eventStore.operation]: 'readStream',
     [A.stream.name]: streamName,
@@ -98,12 +112,12 @@ export const eventStoreCollector = (
     ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   >(
     fn: (
-      scope: ObservabilityScopeType,
+      scope: ObservabilityScope,
     ) => Promise<ReadStreamResult<EventType, ReadEventMetadataType>>,
   ) => {
     const start = Date.now();
     return async (
-      scope: ObservabilityScopeType,
+      scope: ObservabilityScope,
     ): Promise<ReadStreamResult<EventType, ReadEventMetadataType>> => {
       let status = 'success';
       try {
@@ -143,27 +157,15 @@ export const eventStoreCollector = (
     >(
       streamName: string,
       fn: (
-        scope: ObservabilityScopeType,
+        scope: ObservabilityScope,
       ) => Promise<ReadStreamResult<EventType, ReadEventMetadataType>>,
+      options?: OperationObservabilityOptions,
     ): Promise<ReadStreamResult<EventType, ReadEventMetadataType>> => {
-      return startScope('eventStore.readStream', readStream(fn), {
-        attributes: readAttributes(streamName),
-      });
-    },
-
-    instrumentReadInScope: <
-      EventType extends Event,
-      ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-    >(
-      scope: ObservabilityScopeType,
-      streamName: string,
-      fn: (
-        scope: ObservabilityScopeType,
-      ) => Promise<ReadStreamResult<EventType, ReadEventMetadataType>>,
-    ): Promise<ReadStreamResult<EventType, ReadEventMetadataType>> => {
-      return scope.scope('eventStore.readStream', readStream(fn), {
-        attributes: readAttributes(streamName),
-      });
+      return startOperationScope(
+        'eventStore.readStream',
+        readStream(fn),
+        withOperationAttributes(options, readAttributes(streamName)),
+      );
     },
 
     instrumentAppend: <
@@ -172,20 +174,12 @@ export const eventStoreCollector = (
     >(
       streamName: string,
       events: EventType[],
-      fn: (scope: ObservabilityScopeType) => Promise<Result>,
+      fn: (scope: ObservabilityScope) => Promise<Result>,
+      options?: OperationObservabilityOptions,
     ): Promise<Result> => {
       const start = Date.now();
-      return startEventStoreScope(
+      return startOperationScope(
         'eventStore.appendToStream',
-        {
-          [A.eventStore.operation]: 'appendToStream',
-          [A.stream.name]: streamName,
-          [A.eventStore.append.batchSize]: events.length,
-          [M.operation.type]: 'send',
-          [M.batch.messageCount]: events.length,
-          [M.destination.name]: streamName,
-          [M.system]: MessagingSystemName,
-        },
         async (scope) => {
           let status = 'success';
           try {
@@ -211,23 +205,26 @@ export const eventStoreCollector = (
             });
           }
         },
+        withOperationAttributes(options, {
+          [A.eventStore.operation]: 'appendToStream',
+          [A.stream.name]: streamName,
+          [A.eventStore.append.batchSize]: events.length,
+          [M.operation.type]: 'send',
+          [M.batch.messageCount]: events.length,
+          [M.destination.name]: streamName,
+          [M.system]: MessagingSystemName,
+        }),
       );
     },
 
     instrumentAggregate: <Result extends AggregateStreamResult<unknown>>(
       streamName: string,
-      fn: (scope: ObservabilityScopeType) => Promise<Result>,
+      fn: (scope: ObservabilityScope) => Promise<Result>,
+      options?: OperationObservabilityOptions,
     ): Promise<Result> => {
       const start = Date.now();
-      return startEventStoreScope(
+      return startOperationScope(
         'eventStore.aggregateStream',
-        {
-          [A.eventStore.operation]: 'aggregateStream',
-          [A.stream.name]: streamName,
-          [M.operation.type]: 'process',
-          [M.destination.name]: streamName,
-          [M.system]: MessagingSystemName,
-        },
         async (scope) => {
           let status = 'success';
           try {
@@ -247,13 +244,20 @@ export const eventStoreCollector = (
             });
           }
         },
+        withOperationAttributes(options, {
+          [A.eventStore.operation]: 'aggregateStream',
+          [A.stream.name]: streamName,
+          [M.operation.type]: 'process',
+          [M.destination.name]: streamName,
+          [M.system]: MessagingSystemName,
+        }),
       );
     },
 
     instrumentInlineProjection: <T>(
       streamName: string,
-      appendScope: ObservabilityScopeType,
-      fn: (scope: ObservabilityScopeType) => Promise<T>,
+      appendScope: ObservabilityScope,
+      fn: (scope: ObservabilityScope) => Promise<T>,
     ): Promise<T> => {
       return appendScope.scope('eventStore.inlineProjection', fn, {
         attributes: {

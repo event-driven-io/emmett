@@ -5,11 +5,11 @@ import {
   noopMeter,
   noopScope,
   noopTracer,
-  ObservabilityScope,
+  ObservabilityScope as createObservabilityScope,
   type AttributeTarget,
   type Logger,
   type Meter,
-  type ObservabilityScope as ObservabilityScopeType,
+  type ObservabilityScope,
   type Tracer,
 } from '@event-driven-io/almanac';
 import {
@@ -56,7 +56,7 @@ export const consumerObservability = (
 export const consumerCollector = (
   observability: ResolvedConsumerObservability,
 ) => {
-  const { startScope } = ObservabilityScope({
+  const { startScope } = createObservabilityScope({
     ...observability,
     attributePrefix: 'emmett',
   });
@@ -77,7 +77,7 @@ export const consumerCollector = (
         empty: boolean;
         waitMs?: number;
       },
-      fn: (scope: ObservabilityScopeType) => Promise<T>,
+      fn: (scope: ObservabilityScope) => Promise<T>,
     ): Promise<T> => {
       const skip =
         observability.pollTracing === 'off' ||
@@ -109,7 +109,7 @@ export const consumerCollector = (
     },
 
     traceDelivery: <T>(
-      scope: ObservabilityScopeType,
+      scope: ObservabilityScope,
       processorId: string,
       fn: () => Promise<T>,
     ): Promise<T> => {

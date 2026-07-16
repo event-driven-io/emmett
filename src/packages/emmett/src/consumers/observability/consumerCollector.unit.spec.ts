@@ -104,7 +104,7 @@ describe('consumerCollector', () => {
           .hasSingleSpanNamed('consumer.poll')
           .hasAttributes({
             [A.scope.type]: 'consumer',
-            'emmett.scope.main': true,
+            [A.scope.main]: true,
             [A.consumer.batchSize]: 3,
             [A.consumer.processorCount]: 1,
             [M.system]: MessagingSystemName,
@@ -133,7 +133,7 @@ describe('consumerCollector', () => {
       .then(({ spans }) =>
         spans.hasSingleSpanNamed('consumer.poll').hasAttributes({
           [A.scope.type]: 'consumer',
-          'emmett.scope.main': true,
+          [A.scope.main]: true,
           [A.consumer.batchSize]: 3,
           [A.consumer.processorCount]: 1,
           [M.system]: MessagingSystemName,
@@ -158,7 +158,7 @@ describe('consumerCollector', () => {
       .then(({ spans }) =>
         spans.hasSingleSpanNamed('consumer.poll').hasAttributes({
           [A.scope.type]: 'consumer',
-          'emmett.scope.main': true,
+          [A.scope.main]: true,
         }),
       );
   });
@@ -349,7 +349,7 @@ describe('consumerObservability', () => {
       .then(({ spans }) =>
         spans.hasSingleSpanNamed('consumer.poll').hasAttributes({
           [A.scope.type]: 'consumer',
-          'emmett.scope.main': true,
+          [A.scope.main]: true,
           [A.consumer.batchSize]: 3,
           [A.consumer.processorCount]: 1,
           [M.system]: MessagingSystemName,

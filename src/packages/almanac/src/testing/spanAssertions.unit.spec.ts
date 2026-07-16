@@ -126,6 +126,23 @@ describe('spanAssertions', () => {
       .hasParentSpanNamed('eventStore.appendToStream');
   });
 
+  it('asserts child span by name', () => {
+    assertThatSpans([
+      span('eventStore.appendToStream'),
+      span(
+        'eventStore.inlineProjection',
+        { 'eventStore.operation': 'inlineProjection' },
+        {
+          traceId: 'trace',
+          spanId: 'eventStore.appendToStream',
+        },
+      ),
+    ])
+      .hasSingleSpanNamed('eventStore.appendToStream')
+      .hasChildNamed('eventStore.inlineProjection')
+      .hasAttribute('eventStore.operation', 'inlineProjection');
+  });
+
   it('filters single span by parent span name', () => {
     assertThatSpans([
       span('eventStore.readStream'),

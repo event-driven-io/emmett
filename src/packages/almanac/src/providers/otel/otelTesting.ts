@@ -10,6 +10,7 @@ type OtelSpanAssertions = {
   hasAttributes(attrs: Record<string, unknown>): OtelSpanAssertions;
   hasParent(ctx: { traceId: string; spanId: string }): OtelSpanAssertions;
   hasParentSpanNamed(name: string): OtelSpanAssertions;
+  hasChildNamed(name: string): OtelSpanAssertions;
   hasNoParent(): OtelSpanAssertions;
   hasStatus(code: SpanStatusCode, message?: string): OtelSpanAssertions;
   hasCreationLinks(
@@ -24,7 +25,6 @@ type SingleOtelSpanFilter = {
 };
 
 type OtelSpanCollectionAssertions = {
-  haveSpanNamed(name: string): OtelSpanAssertions;
   hasSingleSpanNamed(
     name: string,
     filter?: SingleOtelSpanFilter,
@@ -101,6 +101,26 @@ const otelSpan = (
         spanId: parent.spanId,
       });
     },
+    hasChildNamed(name) {
+      if (!span)
+        throw new Error('Expected span to have child but span was not found');
+      const parent = span.spanContext();
+      const children = spans.filter(
+        (s) =>
+          s.name === name &&
+          s.parentSpanContext?.traceId === parent.traceId &&
+          s.parentSpanContext?.spanId === parent.spanId,
+      );
+      if (children.length === 0)
+        throw new Error(
+          `Expected span "${span.name}" to have child span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
+        );
+      if (children.length > 1)
+        throw new Error(
+          `Expected span "${span.name}" to have exactly one child span named "${name}" but found ${children.length}. All spans: [${spans.map((s) => s.name).join(', ')}]`,
+        );
+      return otelSpan(children[0], spans);
+    },
     hasNoParent() {
       if (!span)
         throw new Error(
@@ -162,14 +182,6 @@ const otelSpans = (spans: ReadableSpan[]): OtelSpanCollectionAssertions => {
     return parents[0]!;
   };
   const self: OtelSpanCollectionAssertions = {
-    haveSpanNamed(name) {
-      const span = spans.find((s) => s.name === name);
-      if (!span)
-        throw new Error(
-          `Expected span named "${name}" but found: [${spans.map((s) => s.name).join(', ')}]`,
-        );
-      return otelSpan(span, spans);
-    },
     hasSingleSpanNamed(name, filter) {
       const parent = filter?.parentSpanNamed
         ? findSingleParent(filter.parentSpanNamed)
