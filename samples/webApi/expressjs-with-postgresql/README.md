@@ -36,6 +36,20 @@ This sample bundles a turnkey observability stack — OTel Collector → Tempo (
 
 ### Quickstart
 
+You can run
+
+```bash
+npm run dev
+```
+
+And it'll setup all needed tools and service then to clean it up:
+
+```bash
+npm run dev:clean
+```
+
+Or just do it manually:
+
 ```bash
 # 1. Start Postgres + the observability stack
 docker compose --profile observability up -d
@@ -50,6 +64,8 @@ curl -i -X POST http://localhost:3000/clients/dummy/shopping-carts/current/produ
 
 # 4. Open Grafana at http://localhost:3001
 ```
+
+For sending requests you can use [.http](./.http) file.
 
 ### Endpoints
 
