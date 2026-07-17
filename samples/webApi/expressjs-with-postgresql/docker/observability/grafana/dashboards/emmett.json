@@ -12,7 +12,7 @@
       }
     ]
   },
-  "editable": true,
+  "editable": false,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
@@ -29,8 +29,8 @@
     {
       "type": "stat",
       "id": 2,
-      "title": "Command Throughput",
-      "description": "Commands handled per second",
+      "title": "Commands Handled",
+      "description": "Commands handled since this application process started",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
@@ -43,7 +43,8 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "short",
+          "noValue": "0",
           "color": { "mode": "fixed", "fixedColor": "blue" },
           "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
           "mappings": []
@@ -53,7 +54,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(emmett_command_handling_duration_count{service_name=\"$service\"}[5m]))",
+          "expr": "sum(emmett_command_handling_duration_count{service_name=\"$service\"}) or vector(0)",
           "legendFormat": "",
           "refId": "A"
         }
@@ -77,6 +78,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
+          "noValue": "N/A",
           "min": 0,
           "max": 100,
           "thresholds": {
@@ -94,7 +96,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(emmett_command_handling_duration_count{service_name=\"$service\",emmett_command_status=\"success\"}[5m])) / sum(rate(emmett_command_handling_duration_count{service_name=\"$service\"}[5m])) * 100",
+          "expr": "sum(rate(emmett_command_handling_duration_count{service_name=\"$service\",emmett_command_status=\"success\"}[$__rate_interval])) / sum(rate(emmett_command_handling_duration_count{service_name=\"$service\"}[$__rate_interval])) * 100",
           "legendFormat": "",
           "refId": "A"
         }
@@ -118,6 +120,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "ms",
+          "noValue": "N/A",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -133,7 +136,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum(rate(emmett_command_handling_duration_bucket{service_name=\"$service\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(emmett_command_handling_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
           "legendFormat": "",
           "refId": "A"
         }
@@ -142,8 +145,8 @@
     {
       "type": "stat",
       "id": 5,
-      "title": "Events Emitted/s",
-      "description": "Rate of domain events written to the event store",
+      "title": "Events Emitted",
+      "description": "Domain events written since this application process started",
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
@@ -157,6 +160,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "noValue": "0",
           "color": { "mode": "fixed", "fixedColor": "purple" },
           "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] },
           "mappings": []
@@ -166,7 +170,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(emmett_event_appending_count_total{service_name=\"$service\"}[5m]))",
+          "expr": "sum(emmett_event_appending_count_total{service_name=\"$service\"}) or vector(0)",
           "legendFormat": "",
           "refId": "A"
         }
@@ -211,13 +215,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(emmett_command_handling_duration_count{service_name=\"$service\",emmett_command_status=\"success\"}[5m]))",
+          "expr": "sum(rate(emmett_command_handling_duration_count{service_name=\"$service\",emmett_command_status=\"success\"}[$__rate_interval]))",
           "legendFormat": "Successes",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(emmett_command_handling_duration_count{service_name=\"$service\",emmett_command_status=\"failure\"}[5m]))",
+          "expr": "sum(rate(emmett_command_handling_duration_count{service_name=\"$service\",emmett_command_status=\"failure\"}[$__rate_interval]))",
           "legendFormat": "Failures",
           "refId": "B"
         }
@@ -250,19 +254,19 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.50, sum(rate(emmett_command_handling_duration_bucket{service_name=\"$service\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(emmett_command_handling_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum(rate(emmett_command_handling_duration_bucket{service_name=\"$service\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(emmett_command_handling_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.99, sum(rate(emmett_command_handling_duration_bucket{service_name=\"$service\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(emmett_command_handling_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -271,13 +275,13 @@
     {
       "type": "timeseries",
       "id": 9,
-      "title": "Events Emitted by Type",
-      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 14 },
+      "title": "Event Append Rate — ${event_rate_unit:text}",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": {
-          "calcs": ["lastNotNull", "mean"],
+          "calcs": ["lastNotNull"],
           "displayMode": "table",
           "placement": "right",
           "showLegend": true
@@ -285,7 +289,8 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "short",
+          "decimals": 0,
           "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "spanNulls": true },
           "mappings": [],
           "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
@@ -295,7 +300,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(emmett_event_appending_count_total{service_name=\"$service\"}[5m])) by (emmett_event_type)",
+          "expr": "sum(rate(emmett_event_appending_count_total{service_name=\"$service\"}[$__rate_interval])) by (emmett_event_type) * ${event_rate_unit:raw}",
           "legendFormat": "{{emmett_event_type}}",
           "refId": "A"
         }
@@ -306,7 +311,7 @@
       "id": 28,
       "title": "Events in Selected Range",
       "description": "Estimated number of successfully appended events during the dashboard time range. Prometheus increase() accounts for counter resets and may extrapolate at scrape boundaries.",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 14 },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 14 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
@@ -329,6 +334,40 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "sum(increase(emmett_event_appending_count_total{service_name=\"$service\"}[$__range])) by (emmett_event_type)",
+          "legendFormat": "{{emmett_event_type}}",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 29,
+      "title": "Events Since Process Start",
+      "description": "Current cumulative event counters. Unlike increase(), this includes the first event observed for a newly created event-type series.",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "colorMode": "value",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(emmett_event_appending_count_total{service_name=\"$service\"}) by (emmett_event_type)",
           "legendFormat": "{{emmett_event_type}}",
           "instant": true,
           "refId": "A"
@@ -365,7 +404,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(http_server_duration_milliseconds_count[5m]))",
+          "expr": "sum(rate(http_server_duration_milliseconds_count{service_name=\"$service\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "Requests/s",
           "refId": "A"
         }
@@ -398,19 +437,19 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.50, sum(rate(http_server_duration_milliseconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_server_duration_milliseconds_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum(rate(http_server_duration_milliseconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_duration_milliseconds_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.99, sum(rate(http_server_duration_milliseconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_duration_milliseconds_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -435,9 +474,9 @@
             "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
           },
           "targets": [
-            { "expr": "sum(rate(emmett_stream_reading_duration_count{service_name=\"$service\"}[5m])) by (emmett_eventstore_read_status)", "legendFormat": "read · {{emmett_eventstore_read_status}}", "refId": "A" },
-            { "expr": "sum(rate(emmett_stream_appending_duration_count{service_name=\"$service\"}[5m])) by (emmett_eventstore_append_status)", "legendFormat": "append · {{emmett_eventstore_append_status}}", "refId": "B" },
-            { "expr": "sum(rate(emmett_stream_aggregating_duration_count{service_name=\"$service\"}[5m])) by (emmett_eventstore_aggregate_status)", "legendFormat": "aggregate · {{emmett_eventstore_aggregate_status}}", "refId": "C" }
+            { "expr": "sum(rate(emmett_stream_reading_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_eventstore_read_status)", "legendFormat": "read · {{emmett_eventstore_read_status}}", "refId": "A" },
+            { "expr": "sum(rate(emmett_stream_appending_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_eventstore_append_status)", "legendFormat": "append · {{emmett_eventstore_append_status}}", "refId": "B" },
+            { "expr": "sum(rate(emmett_stream_aggregating_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_eventstore_aggregate_status)", "legendFormat": "aggregate · {{emmett_eventstore_aggregate_status}}", "refId": "C" }
           ]
         },
         {
@@ -452,12 +491,12 @@
             "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
           },
           "targets": [
-            { "expr": "sum(rate(emmett_stream_reading_duration_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_stream_reading_duration_count{service_name=\"$service\"}[5m]))", "legendFormat": "read avg", "refId": "A" },
-            { "expr": "sum(rate(emmett_stream_appending_duration_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_stream_appending_duration_count{service_name=\"$service\"}[5m]))", "legendFormat": "append avg", "refId": "B" },
-            { "expr": "sum(rate(emmett_stream_aggregating_duration_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_stream_aggregating_duration_count{service_name=\"$service\"}[5m]))", "legendFormat": "aggregate avg", "refId": "C" },
-            { "expr": "histogram_quantile(0.95, sum(rate(emmett_stream_reading_duration_bucket{service_name=\"$service\"}[5m])) by (le))", "legendFormat": "read p95", "refId": "D" },
-            { "expr": "histogram_quantile(0.95, sum(rate(emmett_stream_appending_duration_bucket{service_name=\"$service\"}[5m])) by (le))", "legendFormat": "append p95", "refId": "E" },
-            { "expr": "histogram_quantile(0.95, sum(rate(emmett_stream_aggregating_duration_bucket{service_name=\"$service\"}[5m])) by (le))", "legendFormat": "aggregate p95", "refId": "F" }
+            { "expr": "sum(rate(emmett_stream_reading_duration_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_stream_reading_duration_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "read avg", "refId": "A" },
+            { "expr": "sum(rate(emmett_stream_appending_duration_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_stream_appending_duration_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "append avg", "refId": "B" },
+            { "expr": "sum(rate(emmett_stream_aggregating_duration_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_stream_aggregating_duration_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "aggregate avg", "refId": "C" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_stream_reading_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))", "legendFormat": "read p95", "refId": "D" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_stream_appending_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))", "legendFormat": "append p95", "refId": "E" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_stream_aggregating_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))", "legendFormat": "aggregate p95", "refId": "F" }
           ]
         },
         {
@@ -472,24 +511,24 @@
             "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
           },
           "targets": [
-            { "expr": "sum(rate(emmett_stream_reading_size_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_stream_reading_size_count{service_name=\"$service\"}[5m]))", "legendFormat": "events/read", "refId": "A" },
-            { "expr": "sum(rate(emmett_stream_appending_size_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_stream_appending_size_count{service_name=\"$service\"}[5m]))", "legendFormat": "events/append", "refId": "B" }
+            { "expr": "sum(rate(emmett_stream_reading_size_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_stream_reading_size_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "events/read", "refId": "A" },
+            { "expr": "sum(rate(emmett_stream_appending_size_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_stream_appending_size_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "events/append", "refId": "B" }
           ]
         },
         {
           "type": "timeseries",
           "id": 17,
-          "title": "Event Read and Append Rate by Type",
+          "title": "Event Read and Append Rate by Type (per minute)",
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+          "fieldConfig": { "defaults": { "unit": "cpm", "decimals": 2 }, "overrides": [] },
           "options": {
             "tooltip": { "mode": "multi", "sort": "desc" },
             "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "right", "showLegend": true }
           },
           "targets": [
-            { "expr": "sum(rate(emmett_event_reading_count_total{service_name=\"$service\"}[5m])) by (emmett_event_type)", "legendFormat": "read {{emmett_event_type}}", "refId": "A" },
-            { "expr": "sum(rate(emmett_event_appending_count_total{service_name=\"$service\"}[5m])) by (emmett_event_type)", "legendFormat": "append {{emmett_event_type}}", "refId": "B" }
+            { "expr": "sum(rate(emmett_event_reading_count_total{service_name=\"$service\"}[$__rate_interval])) by (emmett_event_type) * 60", "legendFormat": "read {{emmett_event_type}}", "refId": "A" },
+            { "expr": "sum(rate(emmett_event_appending_count_total{service_name=\"$service\"}[$__rate_interval])) by (emmett_event_type) * 60", "legendFormat": "append {{emmett_event_type}}", "refId": "B" }
           ]
         }
       ]
@@ -513,7 +552,7 @@
             "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
           },
           "targets": [
-            { "expr": "sum(rate(emmett_processor_processing_duration_count{service_name=\"$service\"}[5m])) by (emmett_processor_type, emmett_processor_status)", "legendFormat": "{{emmett_processor_type}} · {{emmett_processor_status}}", "refId": "A" }
+            { "expr": "sum(rate(emmett_processor_processing_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_processor_type, emmett_processor_status)", "legendFormat": "{{emmett_processor_type}} · {{emmett_processor_status}}", "refId": "A" }
           ]
         },
         {
@@ -528,8 +567,8 @@
             "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
           },
           "targets": [
-            { "expr": "sum(rate(emmett_processor_processing_duration_sum{service_name=\"$service\"}[5m])) by (emmett_processor_type) / sum(rate(emmett_processor_processing_duration_count{service_name=\"$service\"}[5m])) by (emmett_processor_type)", "legendFormat": "{{emmett_processor_type}} avg", "refId": "A" },
-            { "expr": "histogram_quantile(0.95, sum(rate(emmett_processor_processing_duration_bucket{service_name=\"$service\"}[5m])) by (le, emmett_processor_type))", "legendFormat": "{{emmett_processor_type}} p95", "refId": "B" }
+            { "expr": "sum(rate(emmett_processor_processing_duration_sum{service_name=\"$service\"}[$__rate_interval])) by (emmett_processor_type) / sum(rate(emmett_processor_processing_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_processor_type)", "legendFormat": "{{emmett_processor_type}} avg", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_processor_processing_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le, emmett_processor_type))", "legendFormat": "{{emmett_processor_type}} p95", "refId": "B" }
           ]
         },
         {
@@ -568,8 +607,8 @@
             "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
           },
           "targets": [
-            { "expr": "sum(rate(emmett_consumer_poll_duration_count{service_name=\"$service\"}[5m]))", "legendFormat": "polls", "refId": "A" },
-            { "expr": "sum(rate(emmett_consumer_delivery_duration_count{service_name=\"$service\"}[5m])) by (emmett_consumer_delivery_processor_id)", "legendFormat": "deliveries · {{emmett_consumer_delivery_processor_id}}", "refId": "B" }
+            { "expr": "sum(rate(emmett_consumer_poll_duration_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "polls", "refId": "A" },
+            { "expr": "sum(rate(emmett_consumer_delivery_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_consumer_delivery_processor_id)", "legendFormat": "deliveries · {{emmett_consumer_delivery_processor_id}}", "refId": "B" }
           ]
         },
         {
@@ -584,10 +623,10 @@
             "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
           },
           "targets": [
-            { "expr": "sum(rate(emmett_consumer_poll_duration_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_consumer_poll_duration_count{service_name=\"$service\"}[5m]))", "legendFormat": "poll avg", "refId": "A" },
-            { "expr": "histogram_quantile(0.95, sum(rate(emmett_consumer_poll_duration_bucket{service_name=\"$service\"}[5m])) by (le))", "legendFormat": "poll p95", "refId": "B" },
-            { "expr": "sum(rate(emmett_consumer_delivery_duration_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_consumer_delivery_duration_count{service_name=\"$service\"}[5m]))", "legendFormat": "delivery avg", "refId": "C" },
-            { "expr": "histogram_quantile(0.95, sum(rate(emmett_consumer_delivery_duration_bucket{service_name=\"$service\"}[5m])) by (le))", "legendFormat": "delivery p95", "refId": "D" }
+            { "expr": "sum(rate(emmett_consumer_poll_duration_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_consumer_poll_duration_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "poll avg", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_consumer_poll_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))", "legendFormat": "poll p95", "refId": "B" },
+            { "expr": "sum(rate(emmett_consumer_delivery_duration_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_consumer_delivery_duration_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "delivery avg", "refId": "C" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_consumer_delivery_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))", "legendFormat": "delivery p95", "refId": "D" }
           ]
         }
       ]
@@ -611,7 +650,7 @@
             "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
           },
           "targets": [
-            { "expr": "sum(rate(emmett_workflow_processing_duration_count{service_name=\"$service\"}[5m])) by (emmett_workflow_type, status)", "legendFormat": "{{emmett_workflow_type}} · {{status}}", "refId": "A" }
+            { "expr": "sum(rate(emmett_workflow_processing_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_workflow_type, status)", "legendFormat": "{{emmett_workflow_type}} · {{status}}", "refId": "A" }
           ]
         },
         {
@@ -627,14 +666,14 @@
             "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
           },
           "targets": [
-            { "expr": "sum(rate(emmett_workflow_processing_duration_sum{service_name=\"$service\"}[5m])) by (emmett_workflow_type) / sum(rate(emmett_workflow_processing_duration_count{service_name=\"$service\"}[5m])) by (emmett_workflow_type)", "legendFormat": "{{emmett_workflow_type}} avg", "refId": "A" },
-            { "expr": "histogram_quantile(0.95, sum(rate(emmett_workflow_processing_duration_bucket{service_name=\"$service\"}[5m])) by (le, emmett_workflow_type))", "legendFormat": "{{emmett_workflow_type}} p95", "refId": "B" }
+            { "expr": "sum(rate(emmett_workflow_processing_duration_sum{service_name=\"$service\"}[$__rate_interval])) by (emmett_workflow_type) / sum(rate(emmett_workflow_processing_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_workflow_type)", "legendFormat": "{{emmett_workflow_type}} avg", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_workflow_processing_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le, emmett_workflow_type))", "legendFormat": "{{emmett_workflow_type}} p95", "refId": "B" }
           ]
         }
       ]
     }
   ],
-  "refresh": "30s",
+  "refresh": "10s",
   "schemaVersion": 39,
   "tags": ["emmett", "observability"],
   "templating": {
@@ -657,6 +696,39 @@
         "regex": "",
         "sort": 1,
         "type": "query"
+      },
+      {
+        "current": { "selected": true, "text": "Per minute", "value": "60" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Event rate unit",
+        "multi": false,
+        "name": "event_rate_unit",
+        "options": [
+          {
+            "selected": false,
+            "text": "Per second",
+            "value": "1"
+          },
+          {
+            "selected": true,
+            "text": "Per minute",
+            "value": "60"
+          },
+          {
+            "selected": false,
+            "text": "Per hour",
+            "value": "3600"
+          },
+          {
+            "selected": false,
+            "text": "Per day",
+            "value": "86400"
+          }
+        ],
+        "query": "Per second : 1, Per minute : 60, Per hour : 3600, Per day : 86400",
+        "skipUrlSync": true,
+        "type": "custom"
       }
     ]
   },

@@ -32,6 +32,7 @@ const sdk = new NodeSDK({
   logRecordProcessors: [new BatchLogRecordProcessor({ exporter: logExporter })],
   metricReader: new PeriodicExportingMetricReader({
     exporter: metricExporter,
+    exportIntervalMillis: 5_000,
   }),
   instrumentations: [
     new HttpInstrumentation({

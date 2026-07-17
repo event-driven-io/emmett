@@ -7,9 +7,18 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 128
+    spike_limit_mib: 32
+
   batch:
     timeout: 1s
     send_batch_size: 1024
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
 
 exporters:
   otlp/tempo:
@@ -24,10 +33,13 @@ exporters:
 
   prometheus:
     endpoint: 0.0.0.0:8889
+    enable_open_metrics: true
     resource_to_telemetry_conversion:
       enabled: true
 
 service:
+  extensions: [health_check]
+
   telemetry:
     metrics:
       level: detailed
@@ -41,15 +53,15 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [otlp/tempo]
 
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [otlphttp/loki]
 
     metrics:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [prometheus]

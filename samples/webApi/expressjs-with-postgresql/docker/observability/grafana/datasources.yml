@@ -32,3 +32,9 @@ datasources:
     uid: prometheus
     jsonData:
       httpMethod: GET
+      prometheusType: Prometheus
+      prometheusVersion: 3.2.1
+      timeInterval: 5s
+      exemplarTraceIdDestinations:
+        - datasourceUid: tempo
+          name: trace_id

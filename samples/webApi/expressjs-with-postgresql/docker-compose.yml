@@ -61,6 +61,7 @@ services:
       - '4317:4317'
       - '4318:4318'
       - '8889:8889'
+      - '13133:13133'
     profiles: [observability]
     networks:
       - postgresql_network
@@ -92,6 +93,7 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --web.enable-lifecycle
+      - --enable-feature=exemplar-storage
     volumes:
       - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
