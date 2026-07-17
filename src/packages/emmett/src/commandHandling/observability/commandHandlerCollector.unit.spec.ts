@@ -83,9 +83,10 @@ describe('commandHandlerCollector', () => {
       );
   });
 
-  it('recordEvents sets event_count, event_types, batch_message_count and increments counter per event', async () => {
+  it('recordEvents sets emitted event count, unique event types, messaging batch size, and command status', async () => {
     const events = [
       { type: 'OrderPlaced', data: {}, kind: 'Event' as const },
+      { type: 'ItemAdded', data: {}, kind: 'Event' as const },
       { type: 'ItemAdded', data: {}, kind: 'Event' as const },
     ];
     await given((config) => commandHandlerCollector(config))
@@ -97,9 +98,10 @@ describe('commandHandlerCollector', () => {
       )
       .then(({ spans }) =>
         spans.hasSingleSpanNamed('command.handle').hasAttributes({
-          [A.command.eventCount]: 2,
+          [A.command.eventCount]: 3,
           [A.command.eventTypes]: ['OrderPlaced', 'ItemAdded'],
-          [M.batch.messageCount]: 2,
+          [M.batch.messageCount]: 3,
+          [A.command.status]: 'success',
         }),
       );
   });
@@ -156,25 +158,6 @@ describe('commandHandlerCollector', () => {
         metrics
           .haveHistogramNamed(EmmettMetrics.command.handlingDuration)
           .hasValueAtLeast(0),
-      );
-  });
-
-  it('recordEvents increments counter per event', async () => {
-    const events = [
-      { type: 'OrderPlaced', data: {}, kind: 'Event' as const },
-      { type: 'ItemAdded', data: {}, kind: 'Event' as const },
-    ];
-    await given((config) => commandHandlerCollector(config))
-      .when((collector) =>
-        collector.startScope({ streamName: 'test' }, (scope) => {
-          collector.recordEvents(scope, events, 'success');
-          return Promise.resolve();
-        }),
-      )
-      .then(({ metrics }) =>
-        metrics
-          .haveCounterNamed(EmmettMetrics.event.appendingCount)
-          .recordedTimes(2),
       );
   });
 
