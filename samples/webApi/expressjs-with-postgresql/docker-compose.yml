@@ -66,7 +66,7 @@ services:
       - postgresql_network
 
   tempo:
-    image: grafana/tempo:2.6.1
+    image: grafana/tempo:2.8.4
     command: ['-config.file=/etc/tempo/tempo.yml']
     volumes:
       - ./docker/observability/tempo.yml:/etc/tempo/tempo.yml
