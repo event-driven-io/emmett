@@ -1,10 +1,9 @@
 import {
   getInMemoryEventStore,
   getInMemoryMessageBus,
-  ObservabilitySpec,
-  setDefaultObservability,
   type EventStore,
 } from '@event-driven-io/emmett';
+import { otelAssertions } from '@event-driven-io/almanac/otel';
 import {
   ApiSpecification,
   existingStream,
@@ -13,9 +12,20 @@ import {
   expectResponse,
   getApplication,
 } from '@event-driven-io/emmett-expressjs';
+import { EmmettInstrumentation } from '@event-driven-io/emmett/otel';
+import {
+  AggregationTemporality,
+  InMemoryMetricExporter,
+  PeriodicExportingMetricReader,
+} from '@opentelemetry/sdk-metrics';
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import {
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
 import { randomUUID } from 'node:crypto';
-import { afterEach, beforeEach, describe, it } from 'node:test';
-import { shoppingCartApi } from './api';
+import { after, before, beforeEach, describe, it } from 'node:test';
+import { expect } from 'vitest';
 import { type PricedProductItem, type ShoppingCartEvent } from './shoppingCart';
 
 const getUnitPrice = (_productId: string) => {
@@ -23,32 +33,72 @@ const getUnitPrice = (_productId: string) => {
 };
 
 void describe('ShoppingCart', () => {
+  const spanExporter = new InMemorySpanExporter();
+  const metricExporter = new InMemoryMetricExporter(
+    AggregationTemporality.CUMULATIVE,
+  );
+  const metricReader = new PeriodicExportingMetricReader({
+    exporter: metricExporter,
+    exportIntervalMillis: 60_000,
+  });
+  const spanProcessor = new SimpleSpanProcessor(spanExporter);
+  const observabilitySDK = new NodeSDK({
+    serviceName: 'expressjs-with-postgresql',
+    spanProcessors: [spanProcessor],
+    metricReader,
+    instrumentations: [new EmmettInstrumentation()],
+  });
   let clientId: string;
   let shoppingCartId: string;
+  let shoppingCartApi: typeof import('./api').shoppingCartApi;
+
+  before(async () => {
+    observabilitySDK.start();
+    ({ shoppingCartApi } = await import('./api'));
+  });
+
+  after(() => observabilitySDK.shutdown());
 
   beforeEach(() => {
+    spanExporter.reset();
+    metricExporter.reset();
     clientId = randomUUID();
     shoppingCartId = `shopping_cart:${clientId}:current`;
   });
 
-  afterEach(() => setDefaultObservability(undefined));
-
-  void it('uses the application observability by default', () =>
-    ObservabilitySpec.for()((observability) => {
-      setDefaultObservability(observability);
-      return given();
-    })
-      .when((specification) =>
-        specification
-          .when((request) =>
-            request
-              .post(`/clients/${clientId}/shopping-carts/current/product-items`)
-              .send(productItem),
-          )
-          .then(expectResponse(204)),
+  void it('exports correlated Emmett and event-store spans plus command and event metrics', () =>
+    given()
+      .when((request) =>
+        request
+          .post(`/clients/${clientId}/shopping-carts/current/product-items`)
+          .send(productItem),
       )
-      .then(({ spans }) => {
-        spans.haveSpanNamed('command.handle');
+      .then(expectResponse(204))
+      .then(async () => {
+        await spanProcessor.forceFlush();
+        const spans = spanExporter.getFinishedSpans();
+        otelAssertions
+          .spans(spans)
+          .hasSingleSpanNamed('command.handle')
+          .hasChildNamed('eventStore.appendToStream');
+
+        await metricReader.forceFlush();
+        const metrics = metricExporter
+          .getMetrics()
+          .flatMap((resource) => resource.scopeMetrics)
+          .flatMap((scope) => scope.metrics);
+        expect(
+          metrics.some(
+            (metric) =>
+              metric.descriptor.name === 'emmett.command.handling.duration',
+          ),
+        ).toBe(true);
+        expect(
+          metrics.some(
+            (metric) =>
+              metric.descriptor.name === 'emmett.event.appending.count',
+          ),
+        ).toBe(true);
       }));
 
   void describe('When empty', () => {

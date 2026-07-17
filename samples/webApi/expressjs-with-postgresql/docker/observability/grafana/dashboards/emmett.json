@@ -272,12 +272,12 @@
       "type": "timeseries",
       "id": 9,
       "title": "Events Emitted by Type",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 14 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": {
-          "calcs": ["sum"],
+          "calcs": ["lastNotNull", "mean"],
           "displayMode": "table",
           "placement": "right",
           "showLegend": true
@@ -285,7 +285,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "ops",
           "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "spanNulls": true },
           "mappings": [],
           "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
@@ -297,6 +297,40 @@
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "sum(rate(emmett_event_appending_count_total{service_name=\"$service\"}[5m])) by (emmett_event_type)",
           "legendFormat": "{{emmett_event_type}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 28,
+      "title": "Events in Selected Range",
+      "description": "Estimated number of successfully appended events during the dashboard time range. Prometheus increase() accounts for counter resets and may extrapolate at scrape boundaries.",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "colorMode": "value",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(emmett_event_appending_count_total{service_name=\"$service\"}[$__range])) by (emmett_event_type)",
+          "legendFormat": "{{emmett_event_type}}",
+          "instant": true,
           "refId": "A"
         }
       ]
@@ -390,71 +424,212 @@
       "type": "row",
       "panels": [
         {
-          "type": "text",
+          "type": "timeseries",
           "id": 14,
-          "title": "",
-          "gridPos": { "h": 4, "w": 24, "x": 0, "y": 32 },
+          "title": "Event Store Operations/s",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
           "options": {
-            "mode": "markdown",
-            "content": "**Event store metrics (`emmett.stream.*`) appear here when `eventStoreCollector` is wired into the event store.**\n\nCurrently only `commandHandlerCollector` is active in this sample. Wire `eventStoreCollector` into your `getPostgreSQLEventStore` call to see read/append durations and batch sizes here."
-          }
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_stream_reading_duration_count{service_name=\"$service\"}[5m])) by (emmett_eventstore_read_status)", "legendFormat": "read · {{emmett_eventstore_read_status}}", "refId": "A" },
+            { "expr": "sum(rate(emmett_stream_appending_duration_count{service_name=\"$service\"}[5m])) by (emmett_eventstore_append_status)", "legendFormat": "append · {{emmett_eventstore_append_status}}", "refId": "B" },
+            { "expr": "sum(rate(emmett_stream_aggregating_duration_count{service_name=\"$service\"}[5m])) by (emmett_eventstore_aggregate_status)", "legendFormat": "aggregate · {{emmett_eventstore_aggregate_status}}", "refId": "C" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 15,
+          "title": "Event Store Average Latency",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_stream_reading_duration_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_stream_reading_duration_count{service_name=\"$service\"}[5m]))", "legendFormat": "read avg", "refId": "A" },
+            { "expr": "sum(rate(emmett_stream_appending_duration_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_stream_appending_duration_count{service_name=\"$service\"}[5m]))", "legendFormat": "append avg", "refId": "B" },
+            { "expr": "sum(rate(emmett_stream_aggregating_duration_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_stream_aggregating_duration_count{service_name=\"$service\"}[5m]))", "legendFormat": "aggregate avg", "refId": "C" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_stream_reading_duration_bucket{service_name=\"$service\"}[5m])) by (le))", "legendFormat": "read p95", "refId": "D" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_stream_appending_duration_bucket{service_name=\"$service\"}[5m])) by (le))", "legendFormat": "append p95", "refId": "E" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_stream_aggregating_duration_bucket{service_name=\"$service\"}[5m])) by (le))", "legendFormat": "aggregate p95", "refId": "F" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 16,
+          "title": "Average Stream Batch Size",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_stream_reading_size_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_stream_reading_size_count{service_name=\"$service\"}[5m]))", "legendFormat": "events/read", "refId": "A" },
+            { "expr": "sum(rate(emmett_stream_appending_size_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_stream_appending_size_count{service_name=\"$service\"}[5m]))", "legendFormat": "events/append", "refId": "B" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 17,
+          "title": "Event Read and Append Rate by Type",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "right", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_event_reading_count_total{service_name=\"$service\"}[5m])) by (emmett_event_type)", "legendFormat": "read {{emmett_event_type}}", "refId": "A" },
+            { "expr": "sum(rate(emmett_event_appending_count_total{service_name=\"$service\"}[5m])) by (emmett_event_type)", "legendFormat": "append {{emmett_event_type}}", "refId": "B" }
+          ]
         }
       ]
     },
     {
       "collapsed": true,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
-      "id": 15,
+      "id": 18,
       "title": "Processors",
       "type": "row",
       "panels": [
         {
-          "type": "text",
-          "id": 16,
-          "title": "",
-          "gridPos": { "h": 4, "w": 24, "x": 0, "y": 33 },
+          "type": "timeseries",
+          "id": 19,
+          "title": "Processor Batches/s by Status",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
           "options": {
-            "mode": "markdown",
-            "content": "**Processor metrics (`emmett.processor.*`) appear here when using Emmett's consumer framework.**\n\nThis sample uses an in-memory `MessageBus`. Swap it for an Emmett `Consumer` with `processorCollector` to track processing duration, batch sizes, and processor lag."
-          }
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_processor_processing_duration_count{service_name=\"$service\"}[5m])) by (emmett_processor_type, emmett_processor_status)", "legendFormat": "{{emmett_processor_type}} · {{emmett_processor_status}}", "refId": "A" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 20,
+          "title": "Processor Latency",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_processor_processing_duration_sum{service_name=\"$service\"}[5m])) by (emmett_processor_type) / sum(rate(emmett_processor_processing_duration_count{service_name=\"$service\"}[5m])) by (emmett_processor_type)", "legendFormat": "{{emmett_processor_type}} avg", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_processor_processing_duration_bucket{service_name=\"$service\"}[5m])) by (le, emmett_processor_type))", "legendFormat": "{{emmett_processor_type}} p95", "refId": "B" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 21,
+          "title": "Processor Lag",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 41 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "right", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "max(emmett_processor_lag_events{service_name=\"$service\"}) by (emmett_processor_id)", "legendFormat": "{{emmett_processor_id}}", "refId": "A" }
+          ]
         }
       ]
     },
     {
       "collapsed": true,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
-      "id": 17,
+      "id": 22,
       "title": "Consumers",
       "type": "row",
       "panels": [
         {
-          "type": "text",
-          "id": 18,
-          "title": "",
-          "gridPos": { "h": 4, "w": 24, "x": 0, "y": 34 },
+          "type": "timeseries",
+          "id": 23,
+          "title": "Consumer Operations/s",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
           "options": {
-            "mode": "markdown",
-            "content": "**Consumer metrics (`emmett.consumer.*`) appear here when using Emmett's consumer framework.**\n\nConsumer metrics track polling cycles, delivery latency, and per-processor throughput. Enable the consumer framework to see data here."
-          }
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_consumer_poll_duration_count{service_name=\"$service\"}[5m]))", "legendFormat": "polls", "refId": "A" },
+            { "expr": "sum(rate(emmett_consumer_delivery_duration_count{service_name=\"$service\"}[5m])) by (emmett_consumer_delivery_processor_id)", "legendFormat": "deliveries · {{emmett_consumer_delivery_processor_id}}", "refId": "B" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 24,
+          "title": "Consumer Latency",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_consumer_poll_duration_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_consumer_poll_duration_count{service_name=\"$service\"}[5m]))", "legendFormat": "poll avg", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_consumer_poll_duration_bucket{service_name=\"$service\"}[5m])) by (le))", "legendFormat": "poll p95", "refId": "B" },
+            { "expr": "sum(rate(emmett_consumer_delivery_duration_sum{service_name=\"$service\"}[5m])) / sum(rate(emmett_consumer_delivery_duration_count{service_name=\"$service\"}[5m]))", "legendFormat": "delivery avg", "refId": "C" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_consumer_delivery_duration_bucket{service_name=\"$service\"}[5m])) by (le))", "legendFormat": "delivery p95", "refId": "D" }
+          ]
         }
       ]
     },
     {
       "collapsed": true,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
-      "id": 19,
+      "id": 25,
       "title": "Workflows",
       "type": "row",
       "panels": [
         {
-          "type": "text",
-          "id": 20,
-          "title": "",
-          "gridPos": { "h": 4, "w": 24, "x": 0, "y": 35 },
+          "type": "timeseries",
+          "id": 26,
+          "title": "Workflow Executions/s by Status",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
           "options": {
-            "mode": "markdown",
-            "content": "**Workflow metrics (`emmett.workflow.*`) appear here when using Emmett's workflow engine.**\n\nWorkflow metrics track processing duration, input event types, and output counts per workflow type. Register a workflow handler to populate this section."
-          }
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_workflow_processing_duration_count{service_name=\"$service\"}[5m])) by (emmett_workflow_type, status)", "legendFormat": "{{emmett_workflow_type}} · {{status}}", "refId": "A" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 27,
+          "title": "Workflow Latency",
+          "description": "Workflow input and output types are span attributes today; the metric series exposes workflow type and status.",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_workflow_processing_duration_sum{service_name=\"$service\"}[5m])) by (emmett_workflow_type) / sum(rate(emmett_workflow_processing_duration_count{service_name=\"$service\"}[5m])) by (emmett_workflow_type)", "legendFormat": "{{emmett_workflow_type}} avg", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_workflow_processing_duration_bucket{service_name=\"$service\"}[5m])) by (le, emmett_workflow_type))", "legendFormat": "{{emmett_workflow_type}} p95", "refId": "B" }
+          ]
         }
       ]
     }
