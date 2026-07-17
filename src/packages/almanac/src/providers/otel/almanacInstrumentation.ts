@@ -1,14 +1,14 @@
 import type { MeterProvider, TracerProvider } from '@opentelemetry/api';
 import {
-  InstrumentationBase,
-  type InstrumentationConfig,
+    InstrumentationBase,
+    type InstrumentationConfig,
 } from '@opentelemetry/instrumentation';
 import type { AttributeTarget } from '../../attributes';
 import {
-  currentDefaultObservability,
-  setupObservability,
-  type Observability,
-  type Sampler,
+    currentDefaultObservability,
+    setupObservability,
+    type Observability,
+    type Sampler,
 } from '../../configuration';
 import type { TracePropagation } from '../../tracers';
 import { otelLogger } from './otelLogger';
@@ -16,7 +16,7 @@ import { otelMeter } from './otelMeter';
 import { otelTracer } from './otelTracer';
 
 const ALMANAC_INSTRUMENTATION_NAME = '@event-driven-io/almanac';
-const ALMANAC_INSTRUMENTATION_VERSION = '0.1.0-beta.28';
+const ALMANAC_INSTRUMENTATION_VERSION = '0.1.0-beta.29';
 
 export type AlmanacObservabilityConfig = Partial<Observability<string>>;
 
