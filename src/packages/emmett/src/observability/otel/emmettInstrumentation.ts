@@ -1,7 +1,7 @@
 import {
-    AlmanacInstrumentation,
-    type AlmanacInstrumentationConfig,
-    type AlmanacObservabilityConfig,
+  AlmanacInstrumentation,
+  type AlmanacInstrumentationConfig,
+  type AlmanacObservabilityConfig,
 } from '@event-driven-io/almanac/otel';
 import type { EmmettObservabilityConfig, PollTracing } from '../options';
 

@@ -1,14 +1,14 @@
 import type { MeterProvider, TracerProvider } from '@opentelemetry/api';
 import {
-    InstrumentationBase,
-    type InstrumentationConfig,
+  InstrumentationBase,
+  type InstrumentationConfig,
 } from '@opentelemetry/instrumentation';
 import type { AttributeTarget } from '../../attributes';
 import {
-    currentDefaultObservability,
-    setupObservability,
-    type Observability,
-    type Sampler,
+  currentDefaultObservability,
+  setupObservability,
+  type Observability,
+  type Sampler,
 } from '../../configuration';
 import type { TracePropagation } from '../../tracers';
 import { otelLogger } from './otelLogger';

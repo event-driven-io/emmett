@@ -85,9 +85,6 @@ export const commandHandlerCollector = (
   const commandHandlingDuration = observability.meter.histogram(
     EmmettMetrics.command.handlingDuration,
   );
-  const eventAppendingCount = observability.meter.counter(
-    EmmettMetrics.event.appendingCount,
-  );
   const startCommandScope = <T>(
     name: string,
     fn: (scope: ObservabilityScope) => Promise<T>,
@@ -183,13 +180,10 @@ export const commandHandlerCollector = (
     ): void => {
       scope.setAttributes({
         [A.command.eventCount]: events.length,
-        [A.command.eventTypes]: events.map((e) => e.type),
+        [A.command.eventTypes]: [...new Set(events.map((e) => e.type))],
         [M.batch.messageCount]: events.length,
         [A.command.status]: status,
       });
-      for (const event of events) {
-        eventAppendingCount.add(1, { [A.event.type]: event.type });
-      }
     },
 
     recordVersions: (

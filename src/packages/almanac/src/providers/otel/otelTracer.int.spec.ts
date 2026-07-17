@@ -26,7 +26,7 @@ describe('otelTracer integration', () => {
 
   const logExporter = new InMemoryLogRecordExporter();
   const loggerProvider = new LoggerProvider({
-    processors: [new SimpleLogRecordProcessor(logExporter)],
+    processors: [new SimpleLogRecordProcessor({ exporter: logExporter })],
   });
 
   beforeAll(() => {

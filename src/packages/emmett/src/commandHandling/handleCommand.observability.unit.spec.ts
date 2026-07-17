@@ -658,16 +658,17 @@ describe('handler observability', () => {
         });
     });
 
-    void it('increments event appending counter once per appended event', () => {
-      return given((observability) =>
-        CommandHandler<Cart, ItemAdded>({
+    void it('increments the event appending counter once per successfully stored event', () => {
+      return given((observability) => ({
+        handler: CommandHandler<Cart, ItemAdded>({
           evolve: (state) => state,
           initialState: () => ({ count: 0 }),
           observability,
         }),
-      )
-        .when(async (handler) =>
-          handler(getInMemoryEventStore(), uuid(), () => [
+        eventStore: getInMemoryEventStore({ observability }),
+      }))
+        .when(async ({ handler, eventStore }) =>
+          handler(eventStore, uuid(), () => [
             { type: 'ItemAdded', data: { productId: 'p1' } },
             { type: 'ItemAdded', data: { productId: 'p2' } },
           ]),
