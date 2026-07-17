@@ -307,8 +307,8 @@ void describe('SQLiteEventStore', () => {
       price: 3,
     };
 
-    await given((observability) => ({
-      eventStore: getSQLiteEventStore({
+    await given((observability) =>
+      getSQLiteEventStore({
         driver: sqlite3EventStoreDriver,
         schema: {
           autoMigration: 'CreateOrUpdate',
@@ -316,16 +316,12 @@ void describe('SQLiteEventStore', () => {
         fileName,
         observability,
       }),
-    }))
-      .when(async ({ eventStore }) => {
-        try {
-          await eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
-            { type: 'ProductItemAdded', data: { productItem } },
-          ]);
-        } finally {
-          await eventStore.close();
-        }
-      })
+    )
+      .when((eventStore) =>
+        eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ]),
+      )
       .then(({ spans }) => {
         spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
           [EmmettAttributes.eventStore.operation]: 'appendToStream',
@@ -361,17 +357,9 @@ void describe('SQLiteEventStore', () => {
       await eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
         { type: 'ProductItemAdded', data: { productItem } },
       ]);
-      return {
-        eventStore,
-      };
+      return eventStore;
     })
-      .when(async ({ eventStore }) => {
-        try {
-          await eventStore.readStream(shoppingCartId);
-        } finally {
-          await eventStore.close();
-        }
-      })
+      .when((eventStore) => eventStore.readStream(shoppingCartId))
       .then(({ spans }) => {
         spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
           [EmmettAttributes.eventStore.operation]: 'readStream',
@@ -394,8 +382,8 @@ void describe('SQLiteEventStore', () => {
       price: 3,
     };
 
-    await given((observability) => ({
-      eventStore: getSQLiteEventStore({
+    await given((observability) =>
+      getSQLiteEventStore({
         driver: sqlite3EventStoreDriver,
         schema: {
           autoMigration: 'CreateOrUpdate',
@@ -410,16 +398,12 @@ void describe('SQLiteEventStore', () => {
           }),
         ]),
       }),
-    }))
-      .when(async ({ eventStore }) => {
-        try {
-          await eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
-            { type: 'ProductItemAdded', data: { productItem } },
-          ]);
-        } finally {
-          await eventStore.close();
-        }
-      })
+    )
+      .when((eventStore) =>
+        eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ]),
+      )
       .then(({ spans }) => {
         const appendSpan = spans
           .hasSingleSpanNamed('eventStore.appendToStream')
@@ -467,25 +451,19 @@ void describe('SQLiteEventStore', () => {
       await eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
         { type: 'ProductItemAdded', data: { productItem } },
       ]);
-      return {
-        eventStore,
-      };
+      return eventStore;
     })
-      .when(async ({ eventStore }) => {
-        try {
-          await eventStore.aggregateStream<
-            { productItemsCount: number },
-            ProductItemAdded
-          >(shoppingCartId, {
-            initialState: () => ({ productItemsCount: 0 }),
-            evolve: (state: { productItemsCount: number }) => ({
-              productItemsCount: state.productItemsCount + 1,
-            }),
-          });
-        } finally {
-          await eventStore.close();
-        }
-      })
+      .when((eventStore) =>
+        eventStore.aggregateStream<
+          { productItemsCount: number },
+          ProductItemAdded
+        >(shoppingCartId, {
+          initialState: () => ({ productItemsCount: 0 }),
+          evolve: (state: { productItemsCount: number }) => ({
+            productItemsCount: state.productItemsCount + 1,
+          }),
+        }),
+      )
       .then(({ spans }) => {
         const aggregateSpan = spans
           .hasSingleSpanNamed('eventStore.aggregateStream')

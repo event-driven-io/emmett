@@ -14,7 +14,9 @@ import {
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
+import { pgDriver } from '@event-driven-io/pongo/pg';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { v4 as uuid } from 'uuid';
 import {
   afterAll,
   afterEach,
@@ -23,14 +25,12 @@ import {
   describe,
   it,
 } from 'vitest';
-import { v4 as uuid } from 'uuid';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from './postgreSQLEventStore';
 import { postgreSQLProjection } from './projections';
 import { pongoSingleStreamProjection } from './projections/pongo/pongoProjections';
-import { pgDriver } from '@event-driven-io/pongo/pg';
 
 void describe('EventStoreDBEventStore', () => {
   const M = MessagingAttributes;
@@ -223,25 +223,18 @@ void describe('EventStoreDBEventStore', () => {
   void it('should record observability while appending', async () => {
     const observedShoppingCartId = `shopping_cart-${uuid()}`;
 
-    await given((observability) => ({
-      eventStore: getPostgreSQLEventStore(connectionString, { observability }),
-    }))
-      .when(async ({ eventStore }) => {
-        try {
-          await eventStore.appendToStream<ShoppingCartEvent>(
-            observedShoppingCartId,
-            [
-              {
-                type: 'ProductItemAdded',
-                data: { productItem },
-                metadata: { clientId },
-              },
-            ],
-          );
-        } finally {
-          await eventStore.close();
-        }
-      })
+    await given((observability) =>
+      getPostgreSQLEventStore(connectionString, { observability }),
+    )
+      .when((eventStore) =>
+        eventStore.appendToStream<ShoppingCartEvent>(observedShoppingCartId, [
+          {
+            type: 'ProductItemAdded',
+            data: { productItem },
+            metadata: { clientId },
+          },
+        ]),
+      )
       .then(({ spans }) => {
         spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
           [EmmettAttributes.eventStore.operation]: 'appendToStream',
@@ -274,19 +267,11 @@ void describe('EventStoreDBEventStore', () => {
           },
         ],
       );
-      return {
-        eventStore,
-      };
+      return eventStore;
     })
-      .when(async ({ eventStore }) => {
-        try {
-          await eventStore.readStream<ShoppingCartEvent>(
-            observedShoppingCartId,
-          );
-        } finally {
-          await eventStore.close();
-        }
-      })
+      .when((eventStore) =>
+        eventStore.readStream<ShoppingCartEvent>(observedShoppingCartId),
+      )
       .then(({ spans }) => {
         spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
           [EmmettAttributes.eventStore.operation]: 'readStream',
@@ -308,8 +293,8 @@ void describe('EventStoreDBEventStore', () => {
     )}`;
     const observedShoppingCartId = `shopping_cart-${uuid()}`;
 
-    await given((observability) => ({
-      eventStore: getPostgreSQLEventStore(connectionString, {
+    await given((observability) =>
+      getPostgreSQLEventStore(connectionString, {
         observability,
         projections: projections.inline([
           postgreSQLProjection<ShoppingCartEvent>({
@@ -319,23 +304,16 @@ void describe('EventStoreDBEventStore', () => {
           }),
         ]),
       }),
-    }))
-      .when(async ({ eventStore }) => {
-        try {
-          await eventStore.appendToStream<ShoppingCartEvent>(
-            observedShoppingCartId,
-            [
-              {
-                type: 'ProductItemAdded',
-                data: { productItem },
-                metadata: { clientId },
-              },
-            ],
-          );
-        } finally {
-          await eventStore.close();
-        }
-      })
+    )
+      .when((eventStore) =>
+        eventStore.appendToStream<ShoppingCartEvent>(observedShoppingCartId, [
+          {
+            type: 'ProductItemAdded',
+            data: { productItem },
+            metadata: { clientId },
+          },
+        ]),
+      )
       .then(({ spans }) => {
         const appendSpan = spans
           .hasSingleSpanNamed('eventStore.appendToStream')
@@ -380,25 +358,19 @@ void describe('EventStoreDBEventStore', () => {
           },
         ],
       );
-      return {
-        eventStore,
-      };
+      return eventStore;
     })
-      .when(async ({ eventStore }) => {
-        try {
-          await eventStore.aggregateStream<
-            { productItemsCount: number },
-            ShoppingCartEvent
-          >(observedShoppingCartId, {
-            initialState: () => ({ productItemsCount: 0 }),
-            evolve: (state: { productItemsCount: number }) => ({
-              productItemsCount: state.productItemsCount + 1,
-            }),
-          });
-        } finally {
-          await eventStore.close();
-        }
-      })
+      .when((eventStore) =>
+        eventStore.aggregateStream<
+          { productItemsCount: number },
+          ShoppingCartEvent
+        >(observedShoppingCartId, {
+          initialState: () => ({ productItemsCount: 0 }),
+          evolve: (state: { productItemsCount: number }) => ({
+            productItemsCount: state.productItemsCount + 1,
+          }),
+        }),
+      )
       .then(({ spans }) => {
         const aggregateSpan = spans
           .hasSingleSpanNamed('eventStore.aggregateStream')

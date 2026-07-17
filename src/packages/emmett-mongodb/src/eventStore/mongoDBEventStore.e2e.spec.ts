@@ -16,8 +16,8 @@ import {
 import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient, type Collection } from 'mongodb';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import type { PricedProductItem, ShoppingCartEvent } from '../testing';
 import {
   getMongoDBEventStore,
@@ -132,19 +132,19 @@ void describe('MongoDBEventStore', () => {
       price: 3,
     };
 
-    await given((observability) => ({
-      eventStore: getMongoDBEventStore({
+    await given((observability) =>
+      getMongoDBEventStore({
         client,
         observability,
       }),
-    }))
-      .when(async ({ eventStore }) => {
-        await eventStore.appendToStream<ShoppingCartEvent>(
+    )
+      .when((eventStore) =>
+        eventStore.appendToStream<ShoppingCartEvent>(
           streamName,
           [{ type: 'ProductItemAdded', data: { productItem } }],
           { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
-        );
-      })
+        ),
+      )
       .then(({ spans }) => {
         spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
           [EmmettAttributes.eventStore.operation]: 'appendToStream',
@@ -180,13 +180,11 @@ void describe('MongoDBEventStore', () => {
         [{ type: 'ProductItemAdded', data: { productItem } }],
         { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
       );
-      return {
-        eventStore,
-      };
+      return eventStore;
     })
-      .when(async ({ eventStore }) => {
-        await eventStore.readStream<ShoppingCartEvent>(streamName);
-      })
+      .when((eventStore) =>
+        eventStore.readStream<ShoppingCartEvent>(streamName),
+      )
       .then(({ spans }) => {
         spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
           [EmmettAttributes.eventStore.operation]: 'readStream',
@@ -212,8 +210,8 @@ void describe('MongoDBEventStore', () => {
       price: 3,
     };
 
-    await given((observability) => ({
-      eventStore: getMongoDBEventStore({
+    await given((observability) =>
+      getMongoDBEventStore({
         client,
         observability,
         projections: projections.inline([
@@ -224,14 +222,14 @@ void describe('MongoDBEventStore', () => {
           },
         ]),
       }),
-    }))
-      .when(async ({ eventStore }) => {
-        await eventStore.appendToStream<ShoppingCartEvent>(
+    )
+      .when((eventStore) =>
+        eventStore.appendToStream<ShoppingCartEvent>(
           streamName,
           [{ type: 'ProductItemAdded', data: { productItem } }],
           { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
-        );
-      })
+        ),
+      )
       .then(({ spans }) => {
         const appendSpan = spans
           .hasSingleSpanNamed('eventStore.appendToStream')
@@ -279,12 +277,10 @@ void describe('MongoDBEventStore', () => {
         [{ type: 'ProductItemAdded', data: { productItem } }],
         { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
       );
-      return {
-        eventStore,
-      };
+      return eventStore;
     })
-      .when(async ({ eventStore }) => {
-        await eventStore.aggregateStream<
+      .when((eventStore) =>
+        eventStore.aggregateStream<
           { productItemsCount: number },
           ShoppingCartEvent
         >(streamName, {
@@ -292,8 +288,8 @@ void describe('MongoDBEventStore', () => {
           evolve: (state: { productItemsCount: number }) => ({
             productItemsCount: state.productItemsCount + 1,
           }),
-        });
-      })
+        }),
+      )
       .then(({ spans }) => {
         const aggregateSpan = spans
           .hasSingleSpanNamed('eventStore.aggregateStream')

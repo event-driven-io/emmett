@@ -52,16 +52,16 @@ describe('EventStoreDBEventStore', () => {
     const streamName = `observed-${uuid()}`;
 
     try {
-      await given((observability) => ({
-        eventStore: getEventStoreDBEventStore(container.getClient(), {
+      await given((observability) =>
+        getEventStoreDBEventStore(container.getClient(), {
           observability,
         }),
-      }))
-        .when(async ({ eventStore }) => {
-          await eventStore.appendToStream(streamName, [
+      )
+        .when((eventStore) =>
+          eventStore.appendToStream(streamName, [
             { type: 'Observed', data: { observed: true } },
-          ]);
-        })
+          ]),
+        )
         .then(({ spans }) => {
           spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
             [EmmettAttributes.eventStore.operation]: 'appendToStream',
@@ -92,13 +92,9 @@ describe('EventStoreDBEventStore', () => {
         await eventStore.appendToStream(streamName, [
           { type: 'Observed', data: { observed: true } },
         ]);
-        return {
-          eventStore,
-        };
+        return eventStore;
       })
-        .when(async ({ eventStore }) => {
-          await eventStore.readStream(streamName);
-        })
+        .when((eventStore) => eventStore.readStream(streamName))
         .then(({ spans }) => {
           spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
             [EmmettAttributes.eventStore.operation]: 'readStream',
@@ -128,21 +124,16 @@ describe('EventStoreDBEventStore', () => {
         await eventStore.appendToStream(streamName, [
           { type: 'Observed', data: { observed: true } },
         ]);
-        return {
-          eventStore,
-        };
+        return eventStore;
       })
-        .when(async ({ eventStore }) => {
-          await eventStore.aggregateStream<{ observed: number }, Event>(
-            streamName,
-            {
-              initialState: () => ({ observed: 0 }),
-              evolve: (state: { observed: number }) => ({
-                observed: state.observed + 1,
-              }),
-            },
-          );
-        })
+        .when((eventStore) =>
+          eventStore.aggregateStream<{ observed: number }, Event>(streamName, {
+            initialState: () => ({ observed: 0 }),
+            evolve: (state: { observed: number }) => ({
+              observed: state.observed + 1,
+            }),
+          }),
+        )
         .then(({ spans }) => {
           spans.hasSingleSpanNamed('eventStore.aggregateStream').hasAttributes({
             [EmmettAttributes.eventStore.operation]: 'aggregateStream',
