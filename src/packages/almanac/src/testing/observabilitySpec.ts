@@ -32,10 +32,13 @@ export type TracingSpecification = <T = undefined>(
   given: (config: ObservabilityTestConfig) => MaybePromise<T>,
   config?: Partial<ObservabilityTestConfig>,
 ) => {
-  when: (fn: (sut: T, config: ObservabilityTestConfig) => unknown) => {
+  when: <Result = unknown>(
+    fn: (sut: T, config: ObservabilityTestConfig) => MaybePromise<Result>,
+  ) => {
     then: (
       assertFn: (result: {
         sut: T;
+        result: Result;
         spans: SpanCollectionAssertions;
         metrics: MeterCollectionAssertions;
       }) => void,
@@ -57,13 +60,16 @@ export const ObservabilitySpec = {
       given: (config: ObservabilityTestConfig) => MaybePromise<T>,
       testConfig?: Partial<ObservabilityTestConfig>,
     ) => ({
-      when: (fn: (sut: T, config: ObservabilityTestConfig) => unknown) => {
+      when: <Result = unknown>(
+        fn: (sut: T, config: ObservabilityTestConfig) => MaybePromise<Result>,
+      ) => {
         const execute = (() => {
           let cached:
             | {
                 tracer: CollectingTracer;
                 meter: CollectingMeter;
                 sut: T;
+                result?: Result;
                 error?: unknown;
               }
             | undefined;
@@ -102,12 +108,23 @@ export const ObservabilitySpec = {
               const sut = await given(observability);
 
               let error: unknown;
+              let result: Result | undefined;
               try {
-                await fn(sut, observability);
+                result = await fn(sut, observability);
               } catch (e) {
                 error = e;
+              } finally {
+                if (
+                  sut &&
+                  typeof sut === 'object' &&
+                  'close' in sut &&
+                  typeof sut.close === 'function'
+                ) {
+                  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+                  await sut.close();
+                }
               }
-              cached = { tracer, meter, sut, error };
+              cached = { tracer, meter, sut, result, error };
             }
             return cached;
           };
@@ -117,14 +134,16 @@ export const ObservabilitySpec = {
           then: async (
             assertFn: (result: {
               sut: T;
+              result: Result;
               spans: SpanCollectionAssertions;
               metrics: MeterCollectionAssertions;
             }) => void,
           ) => {
-            const { tracer, meter, sut, error } = await execute();
+            const { tracer, meter, sut, result, error } = await execute();
             if (error !== undefined) throw error as Error;
             assertFn({
               sut,
+              result: result!,
               spans: assertThatSpans(tracer.spans),
               metrics: assertThatMetrics(meter),
             });

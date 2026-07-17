@@ -9,8 +9,8 @@ import {
 } from '@event-driven-io/emmett';
 import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { getEventStoreDBEventStore } from './eventstoreDBEventStore';
 
 type ProductItemAdded = Event<
@@ -53,11 +53,11 @@ void describe('EventStoreDBEventStore observability', () => {
           observability,
         }),
       }))
-        .when(async ({ eventStore }) => {
-          await eventStore.appendToStream<ProductItemAdded>(streamName, [
+        .when(({ eventStore }) =>
+          eventStore.appendToStream<ProductItemAdded>(streamName, [
             { type: 'ProductItemAdded', data: { productItem } },
-          ]);
-        })
+          ]),
+        )
         .then(({ spans }) => {
           spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
             [EmmettAttributes.scope.main]: true,
@@ -88,13 +88,11 @@ void describe('EventStoreDBEventStore observability', () => {
         await eventStore.appendToStream<ProductItemAdded>(streamName, [
           { type: 'ProductItemAdded', data: { productItem } },
         ]);
-        return {
-          eventStore,
-        };
+        return eventStore;
       })
-        .when(async ({ eventStore }) => {
-          await eventStore.readStream<ProductItemAdded>(streamName);
-        })
+        .when((eventStore) =>
+          eventStore.readStream<ProductItemAdded>(streamName),
+        )
         .then(({ spans }) => {
           spans
             .hasSingleSpanNamed('eventStore.readStream', { noParent: true })
@@ -128,12 +126,10 @@ void describe('EventStoreDBEventStore observability', () => {
         await eventStore.appendToStream<ProductItemAdded>(streamName, [
           { type: 'ProductItemAdded', data: { productItem } },
         ]);
-        return {
-          eventStore,
-        };
+        return eventStore;
       })
-        .when(async ({ eventStore }) => {
-          await eventStore.aggregateStream<
+        .when((eventStore) =>
+          eventStore.aggregateStream<
             { productItemsCount: number },
             ProductItemAdded
           >(streamName, {
@@ -141,8 +137,8 @@ void describe('EventStoreDBEventStore observability', () => {
             evolve: (state: { productItemsCount: number }) => ({
               productItemsCount: state.productItemsCount + 1,
             }),
-          });
-        })
+          }),
+        )
         .then(({ spans }) => {
           const aggregateSpan = spans
             .hasSingleSpanNamed('eventStore.aggregateStream', {
