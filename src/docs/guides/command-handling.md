@@ -53,6 +53,120 @@ Pass an array of decisions to run them in sequence. Each runs on the state left 
 
 <<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#sequential-handlers
 
+## Control Which Decision Results Are Appended {#decision-middleware}
+
+Suppose a command reports that a product is out of stock. You may need to return that outcome to the caller without saving it, or stop the remaining commands after saving the changes made so far.
+
+You can configure a reusable rule on either `CommandHandler` or `DeciderCommandHandler`. The rule runs for each command outcome and chooses whether to save it, continue with the next command, or reject the whole batch. Outcomes that are not saved are still returned, so you can use them in the response.
+
+Emmett calls these rules _decision middleware_. Use the helpers below for the common cases, or write custom middleware when you need different behavior.
+
+The business logic remains responsible only for describing what happened. These decisions return ordinary cart events for unavailable stock, duplicate products, item limits, and failed payment authorization:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.middleware.unit.spec.ts#decision-handling-business-logic
+
+The handler configuration below decides which of those events belong in the shopping-cart stream and whether the rest of a command batch should run.
+
+<a id="reject-output"></a>
+
+**Reject the complete batch**
+
+Use `rejectOn` when none of the changes from the current call should be saved after a matching outcome. This configuration rejects the complete batch when a decision returns `ProductItemOutOfStock`:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.middleware.unit.spec.ts#command-handler-reject-on-setup
+
+`rejectOn` leaves the cart unchanged and does not run later decisions. It still returns `ProductItemOutOfStock`, so the endpoint can use the available quantity to return status 409. Use this when the commands belong to one operation and a failure in any of them should cancel the whole operation. [Map Returned Events to Error Responses](/guides/error-handling#map-returned-events) shows the complete Express route.
+
+If one command produces several events, they remain one unit. A match rejects all events produced by that command.
+
+<a id="stop-output"></a>
+
+**Commit earlier decisions and stop**
+
+Use `stopOn` when earlier changes should be saved, but the matching outcome and later commands should not be. This configuration stops when payment authorization returns `ShoppingCartConfirmationFailed`:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.middleware.unit.spec.ts#command-handler-stop-on-setup
+
+Use `stopOn` when earlier commands may stand on their own. The caller still receives `ShoppingCartConfirmationFailed`, so it can explain why processing stopped. Use `rejectOn` instead when those earlier changes must also be cancelled.
+
+<a id="skip-output"></a>
+
+**Skip one outcome and continue**
+
+Use `skipOn` when you want to ignore the matching outcome and continue. This configuration skips `ProductItemAlreadyInCart` and runs the next decision:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.middleware.unit.spec.ts#command-handler-skip-on-setup
+
+The caller receives `ProductItemAlreadyInCart`, but that event is not appended to the shopping-cart stream. Processing continues, and the confirmation sees a cart with one copy of the product.
+
+<a id="stop-after-output"></a>
+
+**Record a terminal failure and stop**
+
+Use `stopAfter` when the matching outcome should be saved and no later command should run. This configuration records `ShoppingCartItemLimitReached` before stopping:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.middleware.unit.spec.ts#command-handler-stop-after-setup
+
+`ProductItemAdded` and `ShoppingCartItemLimitReached` are appended together. The third product decision does not run. `stopOn` would omit `ShoppingCartItemLimitReached`; `stopAfter` includes it.
+
+<a id="throw-on-output"></a>
+
+**Turn a produced event into an exception**
+
+Use `throwOn` when the matching outcome should enter an existing exception-based error path, such as HTTP Problem Details mapping:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.middleware.unit.spec.ts#command-handler-before-all-throw-on
+
+Nothing from the call is stored. Unlike `rejectOn`, `throwOn` does not return the matching event to the caller; the created error follows the application's exception-handling path.
+
+<a id="before-all"></a>
+
+**Check the complete input before handling**
+
+Use `middleware.beforeAll` when a check should run once for the whole call instead of once per command. Request authorization is one example. It runs before the current state is read. If it throws, no commands run and nothing is saved.
+
+For `CommandHandler`, it receives the decision or decision array. For `DeciderCommandHandler`, it receives the command or command array. For `WorkflowHandler`, it receives the input message. The second argument contains the resolved stream name and handle options.
+
+Put checks that need a command or rebuilt state in `middleware.decision`. Pass the decision middleware array directly as `middleware` when `beforeAll` is not needed.
+
+<a id="after-all"></a>
+
+**Observe the completed result**
+
+Use `middleware.afterAll` when a measurement or notification should describe the completed operation rather than each command separately. It receives the final result, so it can record values such as the number of appended events or the resulting stream version. The decider example below records the appended-event count.
+
+Do not use `afterAll` for validation or for anything that must prevent the save. The operation has already completed, so an error from this callback cannot undo it. Use the event-store hooks when you need to observe each store commit rather than the completed handler result.
+
+<a id="decider-middleware"></a>
+
+**Use middleware with `DeciderCommandHandler`**
+
+The handling choices shown above work the same way with `CommandHandler` and `DeciderCommandHandler`. The difference is what each middleware receives. Raw command handling supplies the current state because the command is captured by the decision function. `DeciderCommandHandler` supplies the command and current state, so a shared handler can authorize or measure commands without wrapping every call.
+
+Use `before` for work before `decide`, and `after` for work based on its result:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommandWithDecider.middleware.unit.spec.ts#decider-command-middleware
+
+Callbacks may omit state, as `authorizeCommand` does here. Accept it as the second argument when needed: `before((command, state) => ...)`. Decision middleware runs again on concurrency retry.
+
+<a id="custom-decision-middleware"></a>
+
+**Write custom decision middleware**
+
+Use custom middleware when one handler needs several handling rules or when a helper predicate is not enough. The middleware receives `next`, calls it with the command and current state, then returns the handling selected for the produced outcome:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommandWithDecider.middleware.unit.spec.ts#custom-decision-middleware
+
+This middleware uses the same rules as the preceding examples:
+
+- `ProductItemAlreadyInCart` is returned but not saved, and the next command runs.
+- `ShoppingCartConfirmationFailed` is returned without being saved; earlier changes are saved and later commands do not run.
+- `ProductItemOutOfStock` rejects the complete command batch.
+- `ShoppingCartItemLimitReached` is saved before the remaining commands are stopped.
+- Other outcomes keep the default append-and-continue behavior returned by `next`.
+
+The first configured middleware is the outermost wrapper. Put authorization or timing middleware before outcome-selection middleware when it must observe the complete decision call.
+
 ## Control Concurrency {#concurrency}
 
 By default the handler reuses the version it read from the stream, so you do not pass one and concurrent writers cannot overwrite each other:
@@ -83,6 +197,14 @@ For a different backoff, or to retry on errors other than version conflicts, pas
 
 <<< @./../packages/emmett/src/commandHandling/handleCommand.unit.spec.ts#custom-retry
 
+### Make decision middleware retry-safe {#middleware-retry}
+
+`beforeAll` runs once before retry processing. Decision middleware and the decision run again for every attempt:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.middleware.unit.spec.ts#command-middleware-retry
+
+The caller receives only the outcome of the attempt that completes. Any external work performed by decision middleware may run more than once, so make it safe to repeat. Use `beforeAll` for a check that must run once and does not need the rebuilt state. `afterAll` runs once after an attempt completes and receives its final result.
+
 ## Make It Idempotent {#idempotence}
 
 **The same command can reach the handler twice.** A shopper double-clicks "Add to cart", a request times out and the browser sends it again, a [retry](#retry) re-runs it after a conflict. Handling it twice shouldn't add the product twice, and two things you already have keep it safe.
@@ -102,6 +224,10 @@ Second, [optimistic concurrency](#concurrency). When you carry the version, a du
 `emmett-expressjs` wraps a handler with `on`. Fetch any data the decision needs, such as the unit price, before calling the handler and pass it into the command, which keeps the decision pure. The first write creates the stream:
 
 <<< @/snippets/gettingStarted/webApi/simpleApi.ts#add-product-item-endpoint{17,23-25}
+
+When decision middleware returns a business failure, use `ResponseFromEvents` to return the response expected by Express `on` without assuming the failure is the final event. The `failure` callback returns an ordinary response helper such as `Conflict(...)`. If no event selects a failure response, `success` may be a status code or a callback returning `NoContent(...)`, `Created(...)`, or another response helper. The callback receives the complete handler result when headers such as an ETag depend on it:
+
+<<< @./../packages/emmett-expressjs/src/responses.int.spec.ts#express-response-from-events-route
 
 ### Carry the version in an ETag {#etag}
 

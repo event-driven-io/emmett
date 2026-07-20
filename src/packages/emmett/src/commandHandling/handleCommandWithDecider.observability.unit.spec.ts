@@ -6,33 +6,23 @@ import { EmmettAttributes } from '../observability/attributes';
 import type { Event } from '../typing';
 import { DeciderCommandHandler } from './handleCommandWithDecider';
 
-type AddItem = { type: 'AddItem'; data: { productId: string } };
-type Confirm = { type: 'Confirm'; data: Record<string, never> };
-type CartCommand = AddItem | Confirm;
-
-type ItemAdded = Event<'ItemAdded', { productId: string }>;
-type CartConfirmed = Event<'CartConfirmed', Record<string, never>>;
-type CartEvent = ItemAdded | CartConfirmed;
-
+type CartCommand =
+  | { type: 'AddItem'; data: { productId: string } }
+  | { type: 'Confirm'; data: { confirmedAt: Date } };
+type CartEvent =
+  | Event<'ItemAdded', { productId: string }>
+  | Event<'CartConfirmed', { confirmedAt: Date }>;
 type Cart = { items: string[]; confirmed: boolean };
 
-const decide = (command: CartCommand): CartEvent | CartEvent[] => {
-  switch (command.type) {
-    case 'AddItem':
-      return { type: 'ItemAdded', data: { productId: command.data.productId } };
-    case 'Confirm':
-      return { type: 'CartConfirmed', data: {} };
-  }
-};
+const decide = (command: CartCommand): CartEvent =>
+  command.type === 'AddItem'
+    ? { type: 'ItemAdded', data: command.data }
+    : { type: 'CartConfirmed', data: command.data };
 
-const evolve = (state: Cart, event: CartEvent): Cart => {
-  switch (event.type) {
-    case 'ItemAdded':
-      return { ...state, items: [...state.items, event.data.productId] };
-    case 'CartConfirmed':
-      return { ...state, confirmed: true };
-  }
-};
+const evolve = (state: Cart, event: CartEvent): Cart =>
+  event.type === 'ItemAdded'
+    ? { ...state, items: [...state.items, event.data.productId] }
+    : { ...state, confirmed: true };
 
 const initialState = (): Cart => ({ items: [], confirmed: false });
 
@@ -77,7 +67,7 @@ describe('DeciderCommandHandler observability', () => {
       .when(async (handler) =>
         handler(getInMemoryEventStore(), streamId, [
           { type: 'AddItem', data: { productId: 'p1' } },
-          { type: 'Confirm', data: {} },
+          { type: 'Confirm', data: { confirmedAt: new Date() } },
         ]),
       )
       .then(({ spans }) => {

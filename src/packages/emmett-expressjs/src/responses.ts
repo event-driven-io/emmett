@@ -115,3 +115,62 @@ export const sendProblem = (
   response.statusCode = statusCode;
   response.json(problemDetails);
 };
+
+export type EventResponseSource<Event> = Event[] | { events: Event[] };
+
+type EventOf<Source> = Source extends (infer Event)[]
+  ? Event
+  : Source extends { events: (infer Event)[] }
+    ? Event
+    : never;
+
+type MappedHttpResponse = (response: Response) => void;
+
+export type EventSuccessResponse = number | MappedHttpResponse;
+
+export type EventFailureResponse = number | MappedHttpResponse;
+
+export type ResponseFromEventsOptions<
+  Source extends EventResponseSource<unknown>,
+> = {
+  events: Source;
+  success?: number | ((source: Source) => EventSuccessResponse);
+  failure?: (
+    event: EventOf<Source>,
+    source: Source,
+  ) => EventFailureResponse | undefined;
+};
+
+export const ResponseFromEvents = <
+  Source extends EventResponseSource<unknown>,
+>({
+  events: source,
+  success = 204,
+  failure,
+}: ResponseFromEventsOptions<Source>): MappedHttpResponse => {
+  const events = (
+    Array.isArray(source) ? source : source.events
+  ) as EventOf<Source>[];
+
+  if (failure) {
+    for (let index = events.length - 1; index >= 0; index--) {
+      const selected = failure(events[index]!, source);
+      if (selected === undefined) continue;
+      return typeof selected === 'number'
+        ? (response) => sendProblem(response, selected)
+        : selected;
+    }
+  }
+
+  const selected = typeof success === 'number' ? success : success(source);
+  return typeof selected === 'number'
+    ? (response) => send(response, selected)
+    : selected;
+};
+
+export const sendResponseFromEvents = <
+  Source extends EventResponseSource<unknown>,
+>(
+  response: Response,
+  options: ResponseFromEventsOptions<Source>,
+): void => ResponseFromEvents(options)(response);

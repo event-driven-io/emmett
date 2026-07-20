@@ -31,6 +31,12 @@ import type {
   WorkflowMessageAction,
 } from './workflow';
 import type { WorkflowOptions } from './workflowProcessor';
+import {
+  append,
+  composeMiddleware,
+  resolveMiddleware,
+  type MiddlewareOptions,
+} from '../commandHandling/middleware';
 
 export const WorkflowHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
   {
@@ -67,6 +73,9 @@ export type WorkflowHandlerResult<
   Output extends AnyEvent | AnyCommand,
   Store extends EventStore,
 > = AppendStreamResultOfEventStore<Store> & {
+  messages: Output[];
+  appendedMessages: Output[];
+  /** @deprecated Use appendedMessages. */
   newMessages: Output[];
 };
 
@@ -89,6 +98,8 @@ const emptyHandlerResult = <
   nextExpectedStreamVersion: bigint = 0n,
 ): WorkflowHandlerResult<Output, Store> =>
   ({
+    messages: [] as Output[],
+    appendedMessages: [] as Output[],
     newMessages: [] as Output[],
     createdNewStream: false,
     nextExpectedStreamVersion,
@@ -200,6 +211,25 @@ export type WorkflowHandlerOptions<
 > & {
   retry?: WorkflowHandlerRetryOptions;
   observability?: WorkflowObservabilityConfig;
+  middleware?: MiddlewareOptions<
+    Input,
+    State,
+    Output,
+    (
+      input: Input | RecordedMessage<Input, MessageMetadataType>,
+      context: {
+        streamName: string;
+        handleOptions: WorkflowHandleOptions<EventStore> | undefined;
+      },
+    ) => void | Promise<void>,
+    <Store extends EventStore>(
+      result: WorkflowHandlerResult<Output, Store>,
+      context: {
+        streamName: string;
+        handleOptions: WorkflowHandleOptions<Store> | undefined;
+      },
+    ) => void | Promise<void>
+  >;
 };
 
 export const WorkflowHandler =
@@ -240,8 +270,22 @@ export const WorkflowHandler =
       sourceMetadata?.correlationId ??
       observability.contextGenerator.generateCorrelationId();
     const causationId = handleOptions?.causationId ?? inputMessageId;
+    const resolvedStreamName = options.mapWorkflowId
+      ? options.mapWorkflowId(workflowId)
+      : workflowStreamName({ workflowName: workflowType, workflowId });
 
-    return collector.startScope(
+    const {
+      decision: decisionMiddleware,
+      beforeAll,
+      afterAll,
+    } = resolveMiddleware(options.middleware);
+
+    await beforeAll?.(message, {
+      streamName: resolvedStreamName,
+      handleOptions,
+    });
+
+    const result = await collector.startScope(
       { workflowId, workflowType, inputType },
       async (scope) =>
         asyncRetry(
@@ -329,6 +373,8 @@ export const WorkflowHandler =
 
                   return {
                     ...appendResult,
+                    messages: [] as Output[],
+                    appendedMessages: [] as Output[],
                     newMessages: [] as Output[],
                   } as unknown as WorkflowHandlerResult<Output, Store>;
                 }
@@ -397,7 +443,21 @@ export const WorkflowHandler =
                     } as Input)
                   : (messageWithMetadata as Input);
 
-                const result = decide(messageForDecide, state);
+                const decision = composeMiddleware<Input, State, Output>(
+                  (input, decisionState) => {
+                    const result = decide(input, decisionState);
+                    return Promise.resolve(
+                      append(
+                        (Array.isArray(result) ? result : [result]).filter(
+                          (output): output is Output =>
+                            output !== undefined && output !== null,
+                        ),
+                      ),
+                    );
+                  },
+                  decisionMiddleware,
+                );
+                const handlingResult = await decision(messageForDecide, state);
 
                 const inputMetadata = createInputMetadata(
                   inputMessageId,
@@ -411,20 +471,26 @@ export const WorkflowHandler =
                   metadata: inputMetadata,
                 } as StoredMessage;
 
-                const outputMessages = (
-                  Array.isArray(result) ? result : [result]
-                ).filter(
+                const outputMessages = handlingResult.outputs.filter(
                   (msg): msg is Output => msg !== undefined && msg !== null,
                 );
 
+                const appendedOutputMessages =
+                  handlingResult.type === 'APPEND' ||
+                  handlingResult.type === 'APPEND_AND_STOP'
+                    ? outputMessages
+                    : [];
+
                 const outputCommandTypes = options.outputs?.commands ?? [];
-                const taggedOutputMessages = outputMessages.map((msg) => {
-                  const action: WorkflowMessageAction =
-                    outputCommandTypes.includes(msg.type as string)
-                      ? 'Sent'
-                      : 'Published';
-                  return tagOutputMessage(msg, action);
-                });
+                const taggedOutputMessages = appendedOutputMessages.map(
+                  (msg) => {
+                    const action: WorkflowMessageAction =
+                      outputCommandTypes.includes(msg.type as string)
+                        ? 'Sent'
+                        : 'Published';
+                    return tagOutputMessage(msg, action);
+                  },
+                );
 
                 const messagesToAppend =
                   options.separateInputInboxFromProcessing && hasWorkflowPrefix
@@ -476,7 +542,9 @@ export const WorkflowHandler =
                 collector.recordOutputs(scope, outputMessages);
                 return {
                   ...appendResult,
-                  newMessages: outputMessages,
+                  messages: outputMessages,
+                  appendedMessages: appendedOutputMessages,
+                  newMessages: appendedOutputMessages,
                 } as unknown as WorkflowHandlerResult<Output, Store>;
               },
             ),
@@ -488,6 +556,12 @@ export const WorkflowHandler =
         ),
       handleOptions?.observability,
     );
+
+    await afterAll?.(result, {
+      streamName: resolvedStreamName,
+      handleOptions,
+    });
+    return result;
   };
 // #endregion stream-handler
 

@@ -117,3 +117,60 @@ export const sendProblem = (
   response.headers.set('Content-Type', 'application/problem+json');
   return response;
 };
+
+export type EventResponseSource<Event> = Event[] | { events: Event[] };
+
+type EventOf<Source> = Source extends (infer Event)[]
+  ? Event
+  : Source extends { events: (infer Event)[] }
+    ? Event
+    : never;
+
+export type EventSuccessResponse = StatusCode | Response;
+
+export type EventFailureResponse = StatusCode | Response;
+
+export type ResponseFromEventsOptions<
+  Source extends EventResponseSource<unknown>,
+> = {
+  context: Context;
+  events: Source;
+  success?: StatusCode | ((source: Source) => EventSuccessResponse);
+  failure?: (
+    event: EventOf<Source>,
+    source: Source,
+  ) => EventFailureResponse | undefined;
+};
+
+export const ResponseFromEvents = <
+  Source extends EventResponseSource<unknown>,
+>({
+  context,
+  events: source,
+  success = 204,
+  failure,
+}: ResponseFromEventsOptions<Source>): Response => {
+  const events = (
+    Array.isArray(source) ? source : source.events
+  ) as EventOf<Source>[];
+
+  if (failure) {
+    for (let index = events.length - 1; index >= 0; index--) {
+      const selected = failure(events[index]!, source);
+      if (selected === undefined) continue;
+      return typeof selected === 'number'
+        ? sendProblem(context, selected)
+        : selected;
+    }
+  }
+
+  const selected = typeof success === 'number' ? success : success(source);
+  return typeof selected === 'number' ? send(context, selected) : selected;
+};
+
+export const sendResponseFromEvents = <
+  Source extends EventResponseSource<unknown>,
+>(
+  context: Context,
+  options: Omit<ResponseFromEventsOptions<Source>, 'context'>,
+): Response => ResponseFromEvents({ ...options, context });

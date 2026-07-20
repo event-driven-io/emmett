@@ -45,6 +45,14 @@ type WorkflowOutput<Output> = Array<
 
 Workflows can emit both events (facts) and commands (requests to other aggregates).
 
+`WorkflowHandler` accepts `middleware` as a decision middleware array or as an
+object with `beforeAll` and `decision` members. The same
+`APPEND`, `SKIP`, `STOP`, `REJECT`, and `APPEND_AND_STOP` results used by command
+handlers apply to the workflow's complete output array. Suppressing or rejecting
+outputs does not suppress the durable inbox record for the input. Results expose
+all produced outputs as `messages`, persisted outputs as `appendedMessages`, and
+the deprecated `newMessages` alias retains its persisted-output meaning.
+
 ### WorkflowEvent
 
 Events in a workflow stream include both inputs and outputs:

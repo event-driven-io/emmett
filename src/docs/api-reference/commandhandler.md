@@ -19,16 +19,17 @@ It builds on the event store's [`aggregateStream`](/api-reference/eventstore#agg
 
 ### CommandHandlerOptions
 
-| Property               | Type                                          | Description                                                                        |
-| ---------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `evolve`               | `(state: State, event: StreamEvent) => State` | Applies an event to the state, returning the next state. Required.                 |
-| `initialState`         | `() => State`                                 | Starting state for a stream with no events. Required.                              |
-| `mapToStreamId`        | `(id: string) => string`                      | Maps the business id to the stream name. Defaults to the identity function.        |
-| `retry`                | `CommandHandlerRetryOptions`                  | Retry policy for version conflicts. See [Retry](#retry).                           |
-| `schema.versioning`    | `{ upcast?; downcast? }`                      | Converts stored events to and from `StreamEvent`. See [Advanced](#advanced).       |
-| `serialization`        | `{ serializer?; serializerOptions? }`         | Custom serialiser for reading and writing events. See [Advanced](#advanced).       |
-| `name` / `commandType` | `string` / `string \| string[]`               | Labels used for observability and as the default command type when none is passed. |
-| `observability`        | `CommandObservabilityConfig`                  | Tracing and metrics configuration. See [Advanced](#advanced).                      |
+| Property               | Type                                                   | Description                                                                                   |
+| ---------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `evolve`               | `(state: State, event: StreamEvent) => State`          | Applies an event to the state, returning the next state. Required.                            |
+| `initialState`         | `() => State`                                          | Starting state for a stream with no events. Required.                                         |
+| `mapToStreamId`        | `(id: string) => string`                               | Maps the business id to the stream name. Defaults to the identity function.                   |
+| `retry`                | `CommandHandlerRetryOptions`                           | Retry policy for version conflicts. See [Retry](#retry).                                      |
+| `schema.versioning`    | `{ upcast?; downcast? }`                               | Converts stored events to and from `StreamEvent`. See [Advanced](#advanced).                  |
+| `serialization`        | `{ serializer?; serializerOptions? }`                  | Custom serialiser for reading and writing events. See [Advanced](#advanced).                  |
+| `name` / `commandType` | `string` / `string \| string[]`                        | Labels used for observability and as the default command type when none is passed.            |
+| `observability`        | `CommandObservabilityConfig`                           | Tracing and metrics configuration. See [Advanced](#advanced).                                 |
+| `middleware`           | `Middleware[] \| { beforeAll?; afterAll?; decision? }` | Configures invocation-wide and per-decision middleware. An array is shorthand for `decision`. |
 
 ## Calling the Handler
 
@@ -67,12 +68,73 @@ Each call resolves to `CommandHandlerResult`:
 
 | Property                    | Type                                                | Description                                                  |
 | --------------------------- | --------------------------------------------------- | ------------------------------------------------------------ |
-| `newState`                  | `State`                                             | State after applying the produced events.                    |
-| `newEvents`                 | `StreamEvent[]`                                     | Events appended, empty when the decision produced none.      |
+| `newState`                  | `State`                                             | State after applying the appended events.                    |
+| `events`                    | `StreamEvent[]`                                     | Every event produced by decisions that ran.                  |
+| `appendedEvents`            | `StreamEvent[]`                                     | Events persisted by this call.                               |
+| `newEvents`                 | `StreamEvent[]`                                     | Deprecated alias of `appendedEvents`.                        |
 | `nextExpectedStreamVersion` | `StreamPosition` (`bigint` for the built-in stores) | Version to pass as `expectedStreamVersion` on the next call. |
 | `createdNewStream`          | `boolean`                                           | Whether this call created the stream.                        |
 
 `nextExpectedStreamVersion` and `createdNewStream` come from the store in use, so their exact type depends on it.
+
+## Decision Middleware
+
+Ordinary decision results are treated as `APPEND`. Middleware can change how a complete decision result is handled with `skipOn`, `stopOn`, `rejectOn`, `stopAfter`, or a custom middleware. A predicate may inspect individual events, but a match always applies to every event returned by that decision.
+
+- `APPEND` stages and evolves the events, then continues.
+- `SKIP` exposes the events in `events` without staging or evolving them, then continues.
+- `STOP` discards the current events, commits earlier staged events, and stops.
+- `REJECT` discards every staged event, restores the state from before the batch, and stops.
+- `APPEND_AND_STOP` stages and evolves the current events, then commits and stops.
+
+`SKIP`, `STOP`, `REJECT`, and `APPEND_AND_STOP` return normally; they do not throw. Produced events remain in `events` even when they are not present in `appendedEvents`. `throwOn` is the exception-producing helper.
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.middleware.unit.spec.ts#command-handler-before-all-throw-on
+
+### Configuration
+
+`middleware` accepts a decision middleware array or an object:
+
+| Form                                     | Behavior                                              |
+| ---------------------------------------- | ----------------------------------------------------- |
+| `middleware: Middleware[]`               | Applies the array to every decision.                  |
+| `middleware: { decision: Middleware[] }` | Equivalent to the array form.                         |
+| `middleware: { beforeAll, decision }`    | Runs `beforeAll` once before aggregation/retries.     |
+| `middleware: { afterAll, decision }`     | Runs `afterAll` once after the successful invocation. |
+
+`beforeAll` receives the complete handler input and an operation context containing `streamName` and `handleOptions`. Raw `CommandHandler` supplies the decision or decision array. `DeciderCommandHandler` supplies the command or command array. `WorkflowHandler` supplies the input message.
+
+`afterAll` receives the final handler result and the operation context. Both lifecycle callbacks run outside retry processing. `afterAll` runs only after a successful invocation; throwing from it does not roll back events or messages that were already appended.
+
+Decision middleware runs for every decision and every retry attempt. Its arguments depend on the handler:
+
+| Handler                 | First argument | Second argument |
+| ----------------------- | -------------- | --------------- |
+| `CommandHandler`        | Current state  | None            |
+| `DeciderCommandHandler` | Command        | Current state   |
+| `WorkflowHandler`       | Input message  | Current state   |
+
+### Helpers
+
+| Helper                    | Matching behavior                                               |
+| ------------------------- | --------------------------------------------------------------- |
+| `before(callback)`        | Runs `callback` before the decision.                            |
+| `after(callback)`         | Runs `callback` with the handling result after the decision.    |
+| `skipOn(predicate)`       | Returns `SKIP`.                                                 |
+| `stopOn(predicate)`       | Returns `STOP`.                                                 |
+| `rejectOn(predicate)`     | Returns `REJECT`.                                               |
+| `stopAfter(predicate)`    | Returns `APPEND_AND_STOP`.                                      |
+| `throwOn(predicate, map)` | Throws the error created by `map` before the batch is appended. |
+
+A helper predicate runs for each output. If one output matches, the helper applies its result to every output returned by that decision.
+
+### Custom middleware
+
+Custom middleware can inspect the input, state, and result before selecting how the decision is handled:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommandWithDecider.middleware.unit.spec.ts#custom-decision-middleware
+
+Use `afterAll` for logging, metrics or other measurements that need the returned result. Use event-store hooks for commit instrumentation that must reflect storage-level behavior.
 
 When the decision returns an empty array, nothing is appended and the result carries `newEvents: []`, `createdNewStream: false`, and the current version:
 

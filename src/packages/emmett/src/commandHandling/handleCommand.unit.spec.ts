@@ -45,13 +45,37 @@ type ShoppingCartCancelled = Event<
   'ShoppingCartCancelled',
   { canceledAt: Date }
 >;
+type ProductItemOutOfStock = Event<
+  'ProductItemOutOfStock',
+  {
+    productId: string;
+    requestedQuantity: number;
+    availableQuantity: number;
+  }
+>;
+type ShoppingCartItemLimitReached = Event<
+  'ShoppingCartItemLimitReached',
+  { maximumItems: number; requestedProductId: string }
+>;
+type ProductItemAlreadyInCart = Event<
+  'ProductItemAlreadyInCart',
+  { productId: string }
+>;
+type ShoppingCartConfirmationFailed = Event<
+  'ShoppingCartConfirmationFailed',
+  { reason: 'PaymentAuthorizationFailed' }
+>;
 
 // #region event-union
 type ShoppingCartEvent =
   | ProductItemAdded
   | DiscountApplied
   | ShoppingCartConfirmed
-  | ShoppingCartCancelled;
+  | ShoppingCartCancelled
+  | ProductItemOutOfStock
+  | ShoppingCartItemLimitReached
+  | ProductItemAlreadyInCart
+  | ShoppingCartConfirmationFailed;
 // #endregion event-union
 
 const evolve = (
@@ -77,6 +101,11 @@ const evolve = (
       return { ...state, status: 'Confirmed' };
     case 'ShoppingCartCancelled':
       return { ...state, status: 'Cancelled' };
+    case 'ProductItemOutOfStock':
+    case 'ShoppingCartItemLimitReached':
+    case 'ProductItemAlreadyInCart':
+    case 'ShoppingCartConfirmationFailed':
+      return state;
   }
 };
 
@@ -101,6 +130,7 @@ const addProductItem = (
     data: { productItem: command.data.productItem },
   };
 };
+
 // #endregion single-event-decision
 
 type ApplyDiscount = Event<'ApplyDiscount', { percent: number }>;

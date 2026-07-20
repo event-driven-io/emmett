@@ -22,6 +22,13 @@ import {
   commandObservability,
   type CommandObservabilityConfig,
 } from './observability';
+import {
+  append,
+  composeMiddleware,
+  resolveMiddleware,
+  type DecisionHandlingResult,
+  type MiddlewareOptions,
+} from './middleware';
 
 export const CommandHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
   {
@@ -40,8 +47,37 @@ export type CommandHandlerResult<
   Store extends EventStore,
 > = AppendStreamResultOfEventStore<Store> & {
   newState: State;
+  events: StreamEvent[];
+  appendedEvents: StreamEvent[];
+  /** @deprecated Use appendedEvents. */
   newEvents: StreamEvent[];
 };
+
+export type CommandMiddlewareContext = undefined;
+
+export type BeforeAllContext<Store extends EventStore = EventStore> = {
+  streamName: string;
+  handleOptions: HandleOptions<Store> | undefined;
+};
+
+export type CommandHandlerMiddlewareOptions<
+  State,
+  StreamEvent extends Event,
+> = MiddlewareOptions<
+  State,
+  CommandMiddlewareContext,
+  StreamEvent,
+  (
+    handle:
+      | CommandHandlerFunction<State, StreamEvent>
+      | CommandHandlerFunction<State, StreamEvent>[],
+    context: BeforeAllContext,
+  ) => void | Promise<void>,
+  <Store extends EventStore>(
+    result: CommandHandlerResult<State, StreamEvent, Store>,
+    context: BeforeAllContext<Store>,
+  ) => void | Promise<void>
+>;
 
 export type CommandHandlerOptions<
   State,
@@ -60,6 +96,7 @@ export type CommandHandlerOptions<
   };
   name?: string;
   commandType?: string | string[];
+  middleware?: CommandHandlerMiddlewareOptions<State, StreamEvent>;
 } & JSONSerializationOptions & {
     observability?: CommandObservabilityConfig;
   };
@@ -79,7 +116,7 @@ export type HandleOptions<Store extends EventStore> = Parameters<
     observability?: OperationObservabilityOptions;
   };
 
-type CommandHandlerFunction<State, StreamEvent extends Event> = (
+export type CommandHandlerFunction<State, StreamEvent extends Event> = (
   state: State,
 ) => StreamEvent | StreamEvent[] | Promise<StreamEvent | StreamEvent[]>;
 
@@ -103,6 +140,14 @@ export const CommandHandler =
     const collector = commandHandlerCollector(observability);
     const streamName = (options.mapToStreamId ?? ((id: string) => id))(id);
 
+    const {
+      decision: decisionMiddleware,
+      beforeAll,
+      afterAll,
+    } = resolveMiddleware(options.middleware);
+
+    await beforeAll?.(handle, { streamName, handleOptions });
+
     // TODO: for array-of-handlers we record all types as an
     // `emmett.command.type` array attribute on the parent span and drop the
     // type label from the handling-duration histogram (OTel metric labels
@@ -124,7 +169,7 @@ export const CommandHandler =
       EventPayloadType
     >(handleOptions);
 
-    return collector.startScope(
+    const result = await collector.startScope(
       {
         streamName,
         commandType,
@@ -167,22 +212,45 @@ export const CommandHandler =
                   ...restOfAggregationResult
                 } = aggregationResult;
 
-                let state = aggregationResult.state;
+                const stateBeforeBatch = aggregationResult.state;
+                let state = stateBeforeBatch;
 
                 const handlers = Array.isArray(handle) ? handle : [handle];
                 let eventsToAppend: StreamEvent[] = [];
+                let events: StreamEvent[] = [];
 
                 // 3. Run business logic
                 for (const handler of handlers) {
-                  const result = await handler(state);
+                  const decision = composeMiddleware<
+                    State,
+                    CommandMiddlewareContext,
+                    StreamEvent
+                  >(async (decisionState) => {
+                    const result = await handler(decisionState);
+                    return isDecisionHandlingResult<StreamEvent>(result)
+                      ? result
+                      : append(Array.isArray(result) ? result : [result]);
+                  }, decisionMiddleware);
+                  const result = await decision(state, undefined);
+                  events = [...events, ...result.outputs];
 
-                  const newEvents = Array.isArray(result) ? result : [result];
-
-                  if (newEvents.length > 0) {
-                    state = newEvents.reduce(evolve, state);
+                  if (
+                    result.type === 'APPEND' ||
+                    result.type === 'APPEND_AND_STOP'
+                  ) {
+                    state = result.outputs.reduce(evolve, state);
+                    eventsToAppend = [...eventsToAppend, ...result.outputs];
                   }
-
-                  eventsToAppend = [...eventsToAppend, ...newEvents];
+                  if (result.type === 'REJECT') {
+                    eventsToAppend = [];
+                    state = stateBeforeBatch;
+                    break;
+                  }
+                  if (
+                    result.type === 'STOP' ||
+                    result.type === 'APPEND_AND_STOP'
+                  )
+                    break;
                 }
 
                 //const newEvents = Array.isArray(result) ? result : [result];
@@ -195,6 +263,8 @@ export const CommandHandler =
                   );
                   return {
                     ...restOfAggregationResult,
+                    events,
+                    appendedEvents: [],
                     newEvents: [],
                     newState: state,
 
@@ -247,6 +317,8 @@ export const CommandHandler =
                 // 5. Return result with updated state
                 return {
                   ...appendResult,
+                  events,
+                  appendedEvents: eventsToAppend,
                   newEvents: eventsToAppend,
                   newState: state,
                 } as unknown as CommandHandlerResult<State, StreamEvent, Store>;
@@ -260,6 +332,9 @@ export const CommandHandler =
         ),
       commandScopeOptions,
     );
+
+    await afterAll?.(result, { streamName, handleOptions });
+    return result;
   };
 
 const withSession = <EventStoreType extends EventStore, T = unknown>(
@@ -332,3 +407,15 @@ const handlerNames = <State, StreamEvent extends Event>(
   }
   return handle.name || undefined;
 };
+
+const isDecisionHandlingResult = <Output>(
+  value: unknown,
+): value is DecisionHandlingResult<Output> =>
+  typeof value === 'object' &&
+  value !== null &&
+  'type' in value &&
+  ['APPEND', 'SKIP', 'STOP', 'REJECT', 'APPEND_AND_STOP'].includes(
+    (value as { type: string }).type,
+  ) &&
+  'outputs' in value &&
+  Array.isArray((value as { outputs: unknown }).outputs);
