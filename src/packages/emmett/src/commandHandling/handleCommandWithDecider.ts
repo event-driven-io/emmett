@@ -3,9 +3,17 @@ import type { Command, Event } from '../typing';
 import type { Decider } from '../typing/decider';
 import {
   CommandHandler,
+  type BeforeAllContext,
   type CommandHandlerOptions,
+  type CommandHandlerResult,
   type HandleOptions,
 } from './handleCommand';
+import {
+  append,
+  composeMiddleware,
+  resolveMiddleware,
+  type MiddlewareOptions,
+} from './middleware';
 
 const commandTypesOf = (commands: Command | Command[]): string | string[] =>
   Array.isArray(commands) ? commands.map((c) => c.type) : commands.type;
@@ -16,8 +24,22 @@ export type DeciderCommandHandlerOptions<
   State,
   CommandType extends Command,
   StreamEvent extends Event,
-> = CommandHandlerOptions<State, StreamEvent> &
-  Decider<State, CommandType, StreamEvent>;
+> = Omit<CommandHandlerOptions<State, StreamEvent>, 'middleware'> &
+  Decider<State, CommandType, StreamEvent> & {
+    middleware?: MiddlewareOptions<
+      CommandType,
+      State,
+      StreamEvent,
+      (
+        commands: CommandType | CommandType[],
+        context: BeforeAllContext,
+      ) => void | Promise<void>,
+      <Store extends EventStore>(
+        result: CommandHandlerResult<State, StreamEvent, Store>,
+        context: BeforeAllContext<Store>,
+      ) => void | Promise<void>
+    >;
+  };
 
 export const DeciderCommandHandler =
   <State, CommandType extends Command, StreamEvent extends Event>(
@@ -29,19 +51,49 @@ export const DeciderCommandHandler =
     commands: CommandType | CommandType[],
     handleOptions?: HandleOptions<Store>,
   ) => {
-    const { decide, ...rest } = options;
+    const { decide, middleware, ...rest } = options;
+    const {
+      decision: decisionMiddleware,
+      beforeAll,
+      afterAll,
+    } = resolveMiddleware(middleware);
 
     const deciders = (Array.isArray(commands) ? commands : [commands]).map(
-      (command) => (state: State) => decide(command, state),
+      (command) => async (state: State) => {
+        const handler = composeMiddleware<CommandType, State, StreamEvent>(
+          (input, decisionState) => {
+            const result = decide(input, decisionState);
+            return Promise.resolve(
+              append(Array.isArray(result) ? result : [result]),
+            );
+          },
+          decisionMiddleware,
+        );
+        return (await handler(command, state)) as unknown as StreamEvent[];
+      },
     );
 
     // TODO: forwarding an array of command types to a single span attribute
     // mirrors the array-of-handlers case in CommandHandler: revisit once we
     // decide on per-command child scopes vs. a single parent with an array
     // attribute.
-    return CommandHandler<State, StreamEvent>(rest)(eventStore, id, deciders, {
+    const result = await CommandHandler<State, StreamEvent>({
+      ...rest,
+      middleware: beforeAll
+        ? {
+            beforeAll: (_handlers, context) =>
+              beforeAll(commands, { ...context, handleOptions }),
+          }
+        : undefined,
+    })(eventStore, id, deciders, {
       commandType: commandTypesOf(commands),
       ...handleOptions,
     });
+
+    await afterAll?.(result, {
+      streamName: (rest.mapToStreamId ?? ((streamId: string) => streamId))(id),
+      handleOptions,
+    });
+    return result;
   };
 // #endregion command-handler

@@ -148,6 +148,10 @@ type GroupCheckoutOutput =
         failedCheckouts: string[];
       }
     >
+  | Event<
+      'GroupCheckoutRejected',
+      { groupCheckoutId: string; reason: 'NoGuestStays' }
+    >
   | Event<'GroupCheckoutTimedOut', { groupCheckoutId: string }>;
 ```
 
@@ -184,6 +188,14 @@ const initiateGroupCheckout = (
   }
 
   const { groupCheckoutId, guestStayAccountIds } = command.data;
+
+  if (guestStayAccountIds.length === 0) {
+    return {
+      kind: 'Event',
+      type: 'GroupCheckoutRejected',
+      data: { groupCheckoutId, reason: 'NoGuestStays' },
+    };
+  }
 
   return [
     // Record that checkout was initiated
@@ -306,6 +318,8 @@ const evolve = (
       if (state.status !== 'Pending') return state;
       return { status: 'Finished' };
     }
+    case 'GroupCheckoutRejected':
+      return state;
     default:
       return state;
   }
@@ -341,11 +355,24 @@ const groupCheckoutProcessor = workflowProcessor({
       'GroupCheckoutInitiated',
       'GroupCheckoutCompleted',
       'GroupCheckoutFailed',
+      'GroupCheckoutRejected',
       'GroupCheckoutTimedOut',
     ],
   },
 });
 ```
+
+## Return an Output Without Storing It {#reject-workflow-output}
+
+`WorkflowHandler` records the input message before its outputs are dispatched. This prevents the same input from being handled twice. Normally, the commands and events produced by the workflow are stored in the workflow stream as its outbox.
+
+Sometimes the workflow produces a failure that the caller needs immediately, but that should not be dispatched to another handler. Here an `InitiateGroupCheckout` command with no guest stays produces `GroupCheckoutRejected`. `rejectOn` returns that event without adding it to the workflow outbox:
+
+<<< @./../packages/emmett/src/workflows/handleWorkflow.middleware.unit.spec.ts#workflow-output-rejection
+
+The input remains recorded, so delivering the same command again is still treated as a duplicate. `GroupCheckoutRejected` is available in `result.messages`, but it is not stored or dispatched. Use this only when no later processor needs the rejection; otherwise let the workflow append it normally.
+
+The other decision-middleware choices have the same output behavior as command handling: `skipOn` omits the matching output and continues, `stopOn` omits it and stops, and `stopAfter` stores it before stopping. See the [CommandHandler reference](/api-reference/commandhandler#decision-middleware) for their exact result contracts.
 
 ## Testing Workflows
 

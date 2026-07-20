@@ -8,13 +8,25 @@ import type { Response } from 'express';
 import { ProblemDocument } from 'http-problem-details';
 import { beforeEach, describe, it, vi } from 'vitest';
 import { toWeakETag } from './etag';
+import { Conflict, NoContent, on } from './handler';
 import {
+  ResponseFromEvents,
   send,
   sendAccepted,
   sendCreated,
   sendNoContent,
   sendProblem,
 } from './responses';
+
+type ProductItemAdded = {
+  type: 'ProductItemAdded';
+  data: { productId: string };
+};
+type ProductItemOutOfStock = {
+  type: 'ProductItemOutOfStock';
+  data: { availableQuantity: number };
+};
+type ShoppingCartEvent = ProductItemAdded | ProductItemOutOfStock;
 
 // Minimal mock of Express Response
 const mockResponse = () => {
@@ -66,6 +78,85 @@ void describe('send', () => {
     const res = mockResponse();
     send(res, 200, { eTag: toWeakETag(42), body: 'x' });
     assertEqual(res.headers['etag'], 'W/"42"');
+  });
+});
+
+void describe('ResponseFromEvents', () => {
+  void it('returns the HttpResponse expected by on', async () => {
+    const res = mockResponse();
+
+    const route = on(() =>
+      ResponseFromEvents({
+        events: [
+          { type: 'ProductItemAdded', data: { productId: 'product-1' } },
+        ],
+        success: 202,
+      }),
+    );
+    await route({} as never, res, vi.fn());
+
+    assertEqual(res.statusCode, 202);
+  });
+
+  void it('maps a matching event from a complete handler result', () => {
+    const res = mockResponse();
+    const result = {
+      events: [
+        {
+          type: 'ProductItemOutOfStock',
+          data: { availableQuantity: 2 },
+        },
+        { type: 'ProductItemAdded', data: { productId: 'product-1' } },
+      ] as ShoppingCartEvent[],
+      appendedEvents: [],
+      nextExpectedStreamVersion: 4n,
+    };
+
+    const selectResponse = () => {
+      // #region express-command-result-response
+      return ResponseFromEvents({
+        events: result,
+        success: 204,
+        failure: (event) => {
+          switch (event.type) {
+            case 'ProductItemOutOfStock':
+              return Conflict({
+                problemDetails: `Only ${event.data.availableQuantity} items are available`,
+              });
+          }
+          return undefined;
+        },
+      });
+      // #endregion express-command-result-response
+    };
+    const response = selectResponse();
+
+    response(res);
+
+    assertEqual(res.statusCode, 409);
+    assertMatches(res.body, {
+      status: 409,
+      detail: 'Only 2 items are available',
+    });
+  });
+
+  void it('uses the complete result in a success response callback', () => {
+    const res = mockResponse();
+    const result = {
+      events: [{ type: 'ProductItemAdded', data: { productId: 'product-1' } }],
+      nextExpectedStreamVersion: 4n,
+    };
+
+    ResponseFromEvents({
+      events: result,
+      success: (handled) =>
+        NoContent({
+          eTag: toWeakETag(handled.nextExpectedStreamVersion),
+        }),
+    })(res);
+
+    assertEqual(res.statusCode, 204);
+    assertEqual(res.headers['etag'], 'W/"4"');
   });
 });
 

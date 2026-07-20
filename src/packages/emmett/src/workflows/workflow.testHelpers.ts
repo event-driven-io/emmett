@@ -76,6 +76,15 @@ export type GroupCheckoutInitiated = Event<
   }
 >;
 
+export type GroupCheckoutRejected = Event<
+  'GroupCheckoutRejected',
+  {
+    groupCheckoutId: string;
+    reason: 'NoGuestStays';
+    rejectedAt: Date;
+  }
+>;
+
 export type GroupCheckoutCompleted = Event<
   'GroupCheckoutCompleted',
   {
@@ -155,6 +164,7 @@ export type GroupCheckoutInput =
 
 export type GroupCheckoutOutput =
   | GroupCheckoutInitiated
+  | GroupCheckoutRejected
   | CheckOut
   | GroupCheckoutCompleted
   | GroupCheckoutFailed
@@ -183,6 +193,8 @@ export const evolve = (
         ),
       };
     }
+    case 'GroupCheckoutRejected':
+      return state;
     case 'GuestCheckedOut':
     case 'GuestCheckoutFailed': {
       if (state.status !== 'Pending') return state;
@@ -269,6 +281,7 @@ export const workflowOptions: WorkflowOptions<
     events: [
       'GroupCheckoutCompleted',
       'GroupCheckoutFailed',
+      'GroupCheckoutRejected',
       'GroupCheckoutTimedOut',
     ],
   },
@@ -352,8 +365,18 @@ export const groupCheckoutWorkflowProcessor = workflowProcessor({
 const initiateGroupCheckout = (
   { data }: InitiateGroupCheckout,
   state: GroupCheckout,
-): [GroupCheckoutInitiated, ...CheckOut[]] | [] => {
+): [GroupCheckoutInitiated, ...CheckOut[]] | GroupCheckoutRejected | [] => {
   if (state.status !== 'NotExisting') return [];
+
+  if (data.guestStayAccountIds.length === 0)
+    return {
+      type: 'GroupCheckoutRejected',
+      data: {
+        groupCheckoutId: data.groupCheckoutId,
+        reason: 'NoGuestStays',
+        rejectedAt: data.now,
+      },
+    };
 
   const checkoutGuestStays: CheckOut[] = data.guestStayAccountIds.map((id) => ({
     type: 'CheckOut',

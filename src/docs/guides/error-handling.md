@@ -23,6 +23,26 @@ When a decision can fail in more than one way, give each mode its own event rath
 
 Every _failure_ event carries the data its own handler needs, which a shared `CouponRejected` could not: `CouponAlreadyUsed` carries when the coupon was first applied, `CartBelowCouponMinimum` carries both the cart total and the minimum it missed. A consumer can tell them apart and react to each on its own terms, emailing a fresh coupon after an expiry and suggesting more items after a near miss.
 
+### Return a Failure Without Recording It {#selective-failure-events}
+
+Whether a failure event belongs in the stream depends on who needs it after the current request finishes. Record it when it changes how the aggregate is rebuilt, when another component must react to it, or when it forms part of the history you need to retain. The earlier checkout examples use that model: the failure remains available to projections and workflows long after the caller receives its response.
+
+Some failed attempts do not change the aggregate and do not need to trigger any later processing. The endpoint still needs enough information to tell the client why the command was not applied. When the requested product quantity is unavailable, the decision can return `ProductItemOutOfStock` with the requested and available quantities while leaving the cart unchanged. If no downstream consumer needs that attempt, the event does not need to be appended to the cart stream.
+
+Configure `rejectOn` when that outcome should leave the stream unchanged while remaining available to the caller:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommand.middleware.unit.spec.ts#command-handler-reject-on
+
+`rejectOn` does not turn the event into an exception. The decision returns `ProductItemOutOfStock`, and the handler returns that event to the caller without saving changes from the command batch. The cart remains as it was before the request, and later commands in the batch do not run. The endpoint can use the event's data to build a specific conflict response.
+
+You can instead configure `throwOn` to translate the produced event into an exception before anything is appended. The exception enters the application's centralized error mapping, and the handler does not return a normal result.
+
+`rejectOn` and `throwOn` can therefore produce the same HTTP error response through different control flow. `rejectOn` returns the failure event, and the endpoint maps that known outcome explicitly. This keeps expected failures in a deterministic result pipeline without using exceptions for control flow. Use `throwOn` when the endpoint already relies on centralized exception mapping or when returning the event would not be useful. See [Turn a Produced Event into an Exception](/guides/command-handling#throw-on-output) for the exception form and [Reject the Complete Batch](/guides/command-handling#reject-output) for the batch behavior.
+
+#### Keep Earlier Changes and Stop {#stop-on-failure}
+
+Use `stopOn` when commands earlier in the batch made independent changes that should remain saved. The matching failure is returned without being appended, and later commands do not run. Use `rejectOn` instead when the complete batch must be all-or-nothing. [Commit Earlier Decisions and Stop](/guides/command-handling#stop-output) shows the configuration alongside the other handling choices.
+
 ## Throw for Broken Invariants {#throw-invariants}
 
 Returning an event fits an outcome the business expects. A broken rule is different: a command that should never have been issued, such as an illegal state transition or invalid input. Throw before building any event, so a bad command never records one.
@@ -106,6 +126,16 @@ When the error unwinds to an HTTP endpoint, it still needs a shape the caller ca
 ```
 
 The status comes from the error's code, the title from that HTTP status, and the detail from the error message. Emmett's built-in errors carry their status code, so they map without any configuration: `ValidationError` to 400, `IllegalStateError` to 403, `NotFoundError` to 404, `ConcurrencyError` to 412. Anything else becomes a 500.
+
+### Map Returned Events to Error Responses {#map-returned-events}
+
+An event returned through `rejectOn` or `stopOn` does not enter exception middleware. At the web API boundary, the endpoint must map that business outcome to HTTP explicitly. It can use an ordinary switch, or use `ResponseFromEvents` from the Express and Hono integrations.
+
+This Express route calls the command handler, passes its result to `ResponseFromEvents`, and returns the same `Conflict(...)` or success response that an `on` route normally returns:
+
+<<< @./../packages/emmett-expressjs/src/responses.int.spec.ts#express-response-from-events-route
+
+The `failure` callback is checked for each produced event, from newest to oldest, until it returns a response. Returning `undefined` leaves that event unmapped. If no failure response is selected, `success` provides the normal status or response callback. The Hono helper uses the same mapping and additionally receives its `context`.
 
 ### Map Your Own Errors {#custom-mapping}
 

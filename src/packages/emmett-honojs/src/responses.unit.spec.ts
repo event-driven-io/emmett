@@ -9,13 +9,25 @@ import type { Context } from 'hono';
 import { ProblemDocument } from 'http-problem-details';
 import { describe, it } from 'vitest';
 import { toWeakETag } from './etag';
+import { Conflict, NoContent } from './handler';
 import {
+  ResponseFromEvents,
   send,
   sendAccepted,
   sendCreated,
   sendNoContent,
   sendProblem,
 } from './responses';
+
+type ProductItemAdded = {
+  type: 'ProductItemAdded';
+  data: { productId: string };
+};
+type ProductItemOutOfStock = {
+  type: 'ProductItemOutOfStock';
+  data: { availableQuantity: number };
+};
+type ShoppingCartEvent = ProductItemAdded | ProductItemOutOfStock;
 
 // Helper: build a one-shot Hono app, call handler with context, return the Response
 const withContext = async (
@@ -54,6 +66,81 @@ void describe('send', () => {
       send(c, 200, { eTag: toWeakETag(42), body: 'x' }),
     );
     assertEqual(response.headers.get('etag'), 'W/"42"');
+  });
+});
+
+void describe('ResponseFromEvents', () => {
+  void it('uses a numeric success status when no event maps to a failure', async () => {
+    const response = await withContext((context) =>
+      ResponseFromEvents({
+        context,
+        events: [
+          { type: 'ProductItemAdded', data: { productId: 'product-1' } },
+        ],
+        success: 202,
+      }),
+    );
+
+    assertEqual(response.status, 202);
+  });
+
+  void it('maps a matching event from a complete handler result', async () => {
+    const result = {
+      events: [
+        {
+          type: 'ProductItemOutOfStock',
+          data: { availableQuantity: 2 },
+        },
+        { type: 'ProductItemAdded', data: { productId: 'product-1' } },
+      ] as ShoppingCartEvent[],
+      appendedEvents: [],
+      nextExpectedStreamVersion: 4n,
+    };
+
+    const response = await withContext((context) => {
+      return ResponseFromEvents({
+        context,
+        events: result,
+        success: 204,
+        failure: (event) => {
+          switch (event.type) {
+            case 'ProductItemOutOfStock':
+              return Conflict({
+                context,
+                problemDetails: `Only ${event.data.availableQuantity} items are available`,
+              });
+          }
+          return undefined;
+        },
+      });
+    });
+
+    assertEqual(response.status, 409);
+    assertMatches(await response.json(), {
+      status: 409,
+      detail: 'Only 2 items are available',
+    });
+  });
+
+  void it('uses the complete result in a success response callback', async () => {
+    const result = {
+      events: [{ type: 'ProductItemAdded', data: { productId: 'product-1' } }],
+      nextExpectedStreamVersion: 4n,
+    };
+    const response = await withContext((context) =>
+      ResponseFromEvents({
+        context,
+        events: result,
+        success: (handled) =>
+          NoContent({
+            context,
+            eTag: toWeakETag(handled.nextExpectedStreamVersion),
+          }),
+      }),
+    );
+
+    assertEqual(response.status, 204);
+    assertEqual(response.headers.get('etag'), 'W/"4"');
   });
 });
 
