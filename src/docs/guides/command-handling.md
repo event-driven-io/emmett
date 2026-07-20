@@ -55,9 +55,9 @@ Pass an array of decisions to run them in sequence. Each runs on the state left 
 
 ## Control Which Decision Results Are Appended {#decision-middleware}
 
-Suppose a command reports that a product is out of stock. You may need to return that outcome to the caller without saving it, or stop the remaining commands after saving the changes made so far.
+Suppose a command reports that a product is out of stock. You may need to return that outcome to the caller without appending it, or stop the remaining commands after appending the changes made so far.
 
-You can configure a reusable rule on either `CommandHandler` or `DeciderCommandHandler`. The rule runs for each command outcome and chooses whether to save it, continue with the next command, or reject the whole batch. Outcomes that are not saved are still returned, so you can use them in the response.
+You can configure a reusable rule on either `CommandHandler` or `DeciderCommandHandler`. The rule runs for each command outcome and chooses whether to append it, continue with the next command, or reject the whole batch. Outcomes that are not appended are still returned, so you can use them in the response.
 
 Emmett calls these rules _decision middleware_. Use the helpers below for the common cases, or write custom middleware when you need different behavior.
 
@@ -71,7 +71,7 @@ The handler configuration below decides which of those events belong in the shop
 
 **Reject the complete batch**
 
-Use `rejectOn` when none of the changes from the current call should be saved after a matching outcome. This configuration rejects the complete batch when a decision returns `ProductItemOutOfStock`:
+Use `rejectOn` when none of the changes from the current call should be appended after a matching outcome. This configuration rejects the complete batch when a decision returns `ProductItemOutOfStock`:
 
 <<< @./../packages/emmett/src/commandHandling/handleCommand.middleware.unit.spec.ts#command-handler-reject-on-setup
 
@@ -83,7 +83,7 @@ If one command produces several events, they remain one unit. A match rejects al
 
 **Commit earlier decisions and stop**
 
-Use `stopOn` when earlier changes should be saved, but the matching outcome and later commands should not be. This configuration stops when payment authorization returns `ShoppingCartConfirmationFailed`:
+Use `stopOn` when earlier changes should be appended, but the matching outcome and later commands should not be. This configuration stops when payment authorization returns `ShoppingCartConfirmationFailed`:
 
 <<< @./../packages/emmett/src/commandHandling/handleCommand.middleware.unit.spec.ts#command-handler-stop-on-setup
 
@@ -103,7 +103,7 @@ The caller receives `ProductItemAlreadyInCart`, but that event is not appended t
 
 **Record a terminal failure and stop**
 
-Use `stopAfter` when the matching outcome should be saved and no later command should run. This configuration records `ShoppingCartItemLimitReached` before stopping:
+Use `stopAfter` when the matching outcome should be appended and no later command should run. This configuration appends `ShoppingCartItemLimitReached` before stopping:
 
 <<< @./../packages/emmett/src/commandHandling/handleCommand.middleware.unit.spec.ts#command-handler-stop-after-setup
 
@@ -117,13 +117,13 @@ Use `throwOn` when the matching outcome should enter an existing exception-based
 
 <<< @./../packages/emmett/src/commandHandling/handleCommand.middleware.unit.spec.ts#command-handler-before-all-throw-on
 
-Nothing from the call is stored. Unlike `rejectOn`, `throwOn` does not return the matching event to the caller; the created error follows the application's exception-handling path.
+Nothing from the call is appended. Unlike `rejectOn`, `throwOn` does not return the matching event to the caller; the created error follows the application's exception-handling path.
 
 <a id="before-all"></a>
 
 **Check the complete input before handling**
 
-Use `middleware.beforeAll` when a check should run once for the whole call instead of once per command. Request authorization is one example. It runs before the current state is read. If it throws, no commands run and nothing is saved.
+Use `middleware.beforeAll` when a check should run once for the whole call instead of once per command. Request authorization is one example. It runs before the current state is read. If it throws, no commands run and nothing is appended.
 
 For `CommandHandler`, it receives the decision or decision array. For `DeciderCommandHandler`, it receives the command or command array. For `WorkflowHandler`, it receives the input message. The second argument contains the resolved stream name and handle options.
 
@@ -135,7 +135,7 @@ Put checks that need a command or rebuilt state in `middleware.decision`. Pass t
 
 Use `middleware.afterAll` when a measurement or notification should describe the completed operation rather than each command separately. It receives the final result, so it can record values such as the number of appended events or the resulting stream version. The decider example below records the appended-event count.
 
-Do not use `afterAll` for validation or for anything that must prevent the save. The operation has already completed, so an error from this callback cannot undo it. Use the event-store hooks when you need to observe each store commit rather than the completed handler result.
+Do not use `afterAll` for validation or for anything that must prevent the append. The operation has already completed, so an error from this callback cannot undo it. Use the event-store hooks when you need to observe each store commit rather than the completed handler result.
 
 <a id="decider-middleware"></a>
 
@@ -159,10 +159,10 @@ Use custom middleware when one handler needs several handling rules or when a he
 
 This middleware uses the same rules as the preceding examples:
 
-- `ProductItemAlreadyInCart` is returned but not saved, and the next command runs.
-- `ShoppingCartConfirmationFailed` is returned without being saved; earlier changes are saved and later commands do not run.
+- `ProductItemAlreadyInCart` is returned but not appended, and the next command runs.
+- `ShoppingCartConfirmationFailed` is returned without being appended; earlier changes are appended and later commands do not run.
 - `ProductItemOutOfStock` rejects the complete command batch.
-- `ShoppingCartItemLimitReached` is saved before the remaining commands are stopped.
+- `ShoppingCartItemLimitReached` is appended before the remaining commands are stopped.
 - Other outcomes keep the default append-and-continue behavior returned by `next`.
 
 The first configured middleware is the outermost wrapper. Put authorization or timing middleware before outcome-selection middleware when it must observe the complete decision call.

@@ -114,7 +114,9 @@ type AddProductItem = Event<
   'AddProductItem',
   { productItem: PricedProductItem }
 >;
+type ConfirmShoppingCart = Event<'ConfirmShoppingCart', { now: Date }>;
 
+// #region decision-handling-business-logic
 // #region single-event-decision
 const addProductItem = (
   command: AddProductItem,
@@ -125,8 +127,25 @@ const addProductItem = (
     data: { productItem: command.data.productItem },
   };
 };
+// #endregion single-event-decision
 
-// #region decision-handling-business-logic
+// #region confirm-decision
+const confirm = (
+  command: ConfirmShoppingCart,
+  state: ShoppingCart,
+): ShoppingCartEvent[] => {
+  // Already confirmed: nothing left to do, so append nothing
+  if (state.status === 'Confirmed') return [];
+
+  if (state.productItems.length === 0)
+    throw new IllegalStateError('Cannot confirm an empty shopping cart');
+
+  return [
+    { type: 'ShoppingCartConfirmed', data: { confirmedAt: command.data.now } },
+  ];
+};
+// #endregion confirm-decision
+
 const addProductItemWithStock = (
   command: AddProductItem,
   availableQuantity: number,
@@ -183,26 +202,6 @@ const confirmAfterPaymentAuthorization = (
         data: { reason: 'PaymentAuthorizationFailed' },
       };
 // #endregion decision-handling-business-logic
-// #endregion single-event-decision
-
-type ConfirmShoppingCart = Event<'ConfirmShoppingCart', { now: Date }>;
-
-// #region confirm-decision
-const confirm = (
-  command: ConfirmShoppingCart,
-  state: ShoppingCart,
-): ShoppingCartEvent[] => {
-  // Already confirmed: nothing left to do, so append nothing
-  if (state.status === 'Confirmed') return [];
-
-  if (state.productItems.length === 0)
-    throw new IllegalStateError('Cannot confirm an empty shopping cart');
-
-  return [
-    { type: 'ShoppingCartConfirmed', data: { confirmedAt: command.data.now } },
-  ];
-};
-// #endregion confirm-decision
 
 void describe('CommandHandler middleware', () => {
   const eventStore = getInMemoryEventStore();
@@ -239,7 +238,6 @@ void describe('CommandHandler middleware', () => {
     const handle = CommandHandler<ShoppingCart, ShoppingCartEvent>({
       evolve,
       initialState,
-      // An out-of-stock result cancels every change made by this batch.
       middleware: [rejectOn((event) => event.type === 'ProductItemOutOfStock')],
     });
     // #endregion command-handler-reject-on-setup
