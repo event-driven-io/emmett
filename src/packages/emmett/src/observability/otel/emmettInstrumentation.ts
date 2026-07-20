@@ -5,7 +5,7 @@ import {
 } from '@event-driven-io/almanac/otel';
 import type { EmmettObservabilityConfig, PollTracing } from '../options';
 
-const EMMETT_INSTRUMENTATION_VERSION = '0.43.0-beta.30';
+const EMMETT_INSTRUMENTATION_VERSION = '0.43.0-beta.31';
 
 export interface EmmettInstrumentationConfig extends AlmanacInstrumentationConfig {
   pollTracing?: PollTracing;
