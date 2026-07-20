@@ -121,8 +121,12 @@ export type CommandHandlerFunction<State, StreamEvent extends Event> = (
 ) => StreamEvent | StreamEvent[] | Promise<StreamEvent | StreamEvent[]>;
 
 export const CommandHandler =
-  <State, StreamEvent extends Event, StoredEvent extends Event = StreamEvent>(
-    options: CommandHandlerOptions<State, StreamEvent, StoredEvent>,
+  <
+    State,
+    StreamEvent extends Event,
+    EventPayloadType extends Event = StreamEvent,
+  >(
+    options: CommandHandlerOptions<State, StreamEvent, EventPayloadType>,
   ) =>
   async <Store extends EventStore>(
     store: Store,
@@ -162,7 +166,7 @@ export const CommandHandler =
     const appendOptionsFromHandle = toAppendOptions<
       Store,
       StreamEvent,
-      StoredEvent
+      EventPayloadType
     >(handleOptions);
 
     const result = await collector.startScope(
@@ -184,7 +188,7 @@ export const CommandHandler =
                 const aggregationResult = await eventStore.aggregateStream<
                   State,
                   StreamEvent,
-                  StoredEvent
+                  EventPayloadType
                 >(streamName, {
                   evolve,
                   initialState,
@@ -366,10 +370,10 @@ const fromCommandHandlerRetryOptions = (
 const toAppendOptions = <
   Store extends EventStore,
   StreamEvent extends Event,
-  StoredEvent extends Event,
+  EventPayloadType extends Event,
 >(
   options: HandleOptions<Store> | undefined,
-): AppendToStreamOptions<StreamEvent, StoredEvent> | undefined => {
+): AppendToStreamOptions<StreamEvent, EventPayloadType> | undefined => {
   if (!options) return undefined;
 
   return {
@@ -380,7 +384,7 @@ const toAppendOptions = <
       ? {
           schema: options.schema as AppendToStreamOptions<
             StreamEvent,
-            StoredEvent
+            EventPayloadType
           >['schema'],
         }
       : {}),
