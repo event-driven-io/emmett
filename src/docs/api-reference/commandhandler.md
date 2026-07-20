@@ -13,9 +13,11 @@ It builds on the event store's [`aggregateStream`](/api-reference/eventstore#agg
 
 ## Construction
 
-`CommandHandler(options)` returns the handler function. It takes three type parameters: `State`, `StreamEvent` (the discriminated union written to the stream), and an optional `EventPayloadType` (the stored shape when it differs from `StreamEvent`, used with schema versioning).
+`CommandHandler(options)` returns the handler function. It takes three type parameters: `State`, `StreamEvent` (the discriminated union written to the stream), and an optional `StoredEvent` (the stored shape when it differs from `StreamEvent`, used with schema versioning).
 
 <<< @/snippets/gettingStarted/commandHandler.ts#command-handler
+
+`DeciderCommandHandler(options)` takes four: `State`, `CommandType`, `StreamEvent`, and an optional `StoredEvent`. On both handlers `StoredEvent` defaults to `StreamEvent`, so leaving it out types `schema.versioning.upcast` as if stored events already had the current shape. See [Schema versioning](#schema-versioning).
 
 ### CommandHandlerOptions
 
@@ -215,9 +217,13 @@ A decision throws to reject a command; the handler appends nothing and propagate
 
 ## Advanced
 
-### Schema versioning
+### Schema versioning {#schema-versioning}
 
 `schema.versioning.upcast` maps a stored event to the current `StreamEvent` shape on read; `schema.versioning.downcast` maps a `StreamEvent` back to its stored shape on write. Together they carry a stream through event schema evolution.
+
+Pass the stored shape as the last type parameter — `StoredEvent`, on either handler — so both callbacks are checked against it. It defaults to `StreamEvent`, which is only correct while the stored and current shapes still match.
+
+<<< @./../packages/emmett/src/commandHandling/handleCommandWithDecider.versioning.unit.spec.ts#decider-upcasting
 
 ### Serialization
 
@@ -229,7 +235,7 @@ A decision throws to reject a command; the handler appends nothing and propagate
 
 ## Type Source
 
-For the full signatures, see [`handleCommand.ts`](https://github.com/event-driven-io/emmett/blob/main/src/packages/emmett/src/commandHandling/handleCommand.ts) in the source.
+For the full signatures, see [`handleCommand.ts`](https://github.com/event-driven-io/emmett/blob/main/src/packages/emmett/src/commandHandling/handleCommand.ts) and [`handleCommandWithDecider.ts`](https://github.com/event-driven-io/emmett/blob/main/src/packages/emmett/src/commandHandling/handleCommandWithDecider.ts) in the source.
 
 ## See also {#see-also}
 
