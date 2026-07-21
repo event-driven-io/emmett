@@ -24,8 +24,11 @@ export type DeciderCommandHandlerOptions<
   State,
   CommandType extends Command,
   StreamEvent extends Event,
-  StoredEvent extends Event = StreamEvent,
-> = Omit<CommandHandlerOptions<State, StreamEvent, StoredEvent>, 'middleware'> &
+  EventPayloadType extends Event = StreamEvent,
+> = Omit<
+  CommandHandlerOptions<State, StreamEvent, EventPayloadType>,
+  'middleware'
+> &
   Decider<State, CommandType, StreamEvent> & {
     middleware?: MiddlewareOptions<
       CommandType,
@@ -47,13 +50,13 @@ export const DeciderCommandHandler =
     State,
     CommandType extends Command,
     StreamEvent extends Event,
-    StoredEvent extends Event = StreamEvent,
+    EventPayloadType extends Event = StreamEvent,
   >(
     options: DeciderCommandHandlerOptions<
       State,
       CommandType,
       StreamEvent,
-      StoredEvent
+      EventPayloadType
     >,
   ) =>
   async <Store extends EventStore>(
@@ -88,7 +91,7 @@ export const DeciderCommandHandler =
     // mirrors the array-of-handlers case in CommandHandler: revisit once we
     // decide on per-command child scopes vs. a single parent with an array
     // attribute.
-    const result = await CommandHandler<State, StreamEvent, StoredEvent>({
+    const result = await CommandHandler<State, StreamEvent, EventPayloadType>({
       ...rest,
       middleware: beforeAll
         ? {

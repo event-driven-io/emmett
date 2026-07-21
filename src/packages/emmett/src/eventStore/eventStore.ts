@@ -100,27 +100,27 @@ export const nulloSessionFactory = <EventStoreType extends EventStore>(
 
 export type EventStoreReadSchemaOptions<
   StreamEvent extends Event = Event,
-  StoredEvent extends Event = StreamEvent,
+  EventPayloadType extends Event = StreamEvent,
 > = {
   versioning?: {
-    upcast?: (event: StoredEvent) => StreamEvent;
+    upcast?: (event: EventPayloadType) => StreamEvent;
   };
 };
 
 export type EventStoreAppendSchemaOptions<
   StreamEvent extends Event = Event,
-  StoredEvent extends Event = StreamEvent,
+  EventPayloadType extends Event = StreamEvent,
 > = {
   versioning?: {
-    downcast?: (event: StreamEvent) => StoredEvent;
+    downcast?: (event: StreamEvent) => EventPayloadType;
   };
 };
 
 export type EventStoreSchemaOptions<
   StreamEvent extends Event = Event,
-  StoredEvent extends Event = StreamEvent,
-> = EventStoreReadSchemaOptions<StreamEvent, StoredEvent> &
-  EventStoreAppendSchemaOptions<StreamEvent, StoredEvent>;
+  EventPayloadType extends Event = StreamEvent,
+> = EventStoreReadSchemaOptions<StreamEvent, EventPayloadType> &
+  EventStoreAppendSchemaOptions<StreamEvent, EventPayloadType>;
 
 ////////////////////////////////////////////////////////////////////
 /// ReadStream types

@@ -1,50 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { getInMemoryEventStore } from '../eventStore';
-import type { Command, Event } from '../typing';
-import { DeciderCommandHandler } from './handleCommandWithDecider';
+import type { Event } from '../typing';
+import { CommandHandler } from './handleCommand';
 
-type AddProductItem = Command<
-  'AddProductItem',
-  { productId: string; quantity: number }
->;
-
-// #region decider-upcasting
-// The shape older events were stored with: productId and quantity as flat
-// fields, addedAt as the ISO-8601 string JSON persists a Date as.
 type ProductItemAddedV1 = Event<
   'ProductItemAdded',
   { productId: string; quantity: number; addedAt: string }
 >;
 
-// The current shape: the product item is grouped under its own object and
-// addedAt is a Date. The event type name stays the same across versions.
 type ProductItemAdded = Event<
   'ProductItemAdded',
   { productItem: { productId: string; quantity: number }; addedAt: Date }
 >;
 
-// The events the domain works with, and the shapes the stream can hold: a
-// stream written across the change carries both versions.
 type ShoppingCartEvent = ProductItemAdded;
 type StoredShoppingCartEvent = ProductItemAddedV1 | ProductItemAdded;
-
-const upcast = (event: StoredShoppingCartEvent): ShoppingCartEvent => {
-  if ('productItem' in event.data)
-    return { type: 'ProductItemAdded', data: event.data };
-
-  return {
-    type: 'ProductItemAdded',
-    data: {
-      productItem: {
-        productId: event.data.productId,
-        quantity: event.data.quantity,
-      },
-      addedAt: new Date(event.data.addedAt),
-    },
-  };
-};
-// #endregion decider-upcasting
 
 type ProductItem = { productId: string; quantity: number; addedAt: Date };
 
@@ -62,30 +33,21 @@ const evolve = (
   ],
 });
 
-const decide = (
-  command: AddProductItem,
-  _state: ShoppingCart,
-): ShoppingCartEvent => ({
-  type: 'ProductItemAdded',
-  data: {
-    productItem: command.data,
-    addedAt: new Date('2024-03-01T09:00:00.000Z'),
-  },
-});
+const upcast = (event: StoredShoppingCartEvent): ShoppingCartEvent => {
+  if ('productItem' in event.data)
+    return { type: 'ProductItemAdded', data: event.data };
 
-// #region decider-upcasting-register
-const handle = DeciderCommandHandler<
-  ShoppingCart,
-  AddProductItem,
-  ShoppingCartEvent,
-  StoredShoppingCartEvent
->({
-  decide,
-  evolve,
-  initialState,
-  schema: { versioning: { upcast } },
-});
-// #endregion decider-upcasting-register
+  return {
+    type: 'ProductItemAdded',
+    data: {
+      productItem: {
+        productId: event.data.productId,
+        quantity: event.data.quantity,
+      },
+      addedAt: new Date(event.data.addedAt),
+    },
+  };
+};
 
 const downcast = (event: ShoppingCartEvent): StoredShoppingCartEvent => ({
   type: 'ProductItemAdded',
@@ -96,22 +58,29 @@ const downcast = (event: ShoppingCartEvent): StoredShoppingCartEvent => ({
   },
 });
 
-const handleWithDowncast = DeciderCommandHandler<
+const schema = { versioning: { upcast, downcast } };
+
+const handle = CommandHandler<
   ShoppingCart,
-  AddProductItem,
   ShoppingCartEvent,
   StoredShoppingCartEvent
 >({
-  decide,
   evolve,
   initialState,
-  schema: { versioning: { downcast } },
+  schema,
 });
 
-void describe('DeciderCommandHandler schema versioning', () => {
-  const eventStore = getInMemoryEventStore();
+const addSocks = () => ({
+  type: 'ProductItemAdded' as const,
+  data: {
+    productItem: { productId: 'socks', quantity: 3 },
+    addedAt: new Date('2024-03-01T09:00:00.000Z'),
+  },
+});
 
+void describe('CommandHandler schema versioning', () => {
   void it('upcasts a stream mixing old and current shapes', async () => {
+    const eventStore = getInMemoryEventStore();
     const shoppingCartId = randomUUID();
 
     await eventStore.appendToStream<StoredShoppingCartEvent>(shoppingCartId, [
@@ -132,10 +101,7 @@ void describe('DeciderCommandHandler schema versioning', () => {
       },
     ]);
 
-    const { newState } = await handle(eventStore, shoppingCartId, {
-      type: 'AddProductItem',
-      data: { productId: 'socks', quantity: 3 },
-    });
+    const { newState } = await handle(eventStore, shoppingCartId, addSocks);
 
     expect(newState).toEqual({
       productItems: [
@@ -159,13 +125,11 @@ void describe('DeciderCommandHandler schema versioning', () => {
     expect(newState.productItems[0]!.addedAt).toBeInstanceOf(Date);
   });
 
-  void it('downcasts decided events to the stored shape on append', async () => {
+  void it('downcasts to the stored shape on append', async () => {
+    const eventStore = getInMemoryEventStore();
     const shoppingCartId = randomUUID();
 
-    await handleWithDowncast(eventStore, shoppingCartId, {
-      type: 'AddProductItem',
-      data: { productId: 'socks', quantity: 3 },
-    });
+    await handle(eventStore, shoppingCartId, addSocks);
 
     const stored =
       await eventStore.readStream<ProductItemAddedV1>(shoppingCartId);
@@ -177,5 +141,35 @@ void describe('DeciderCommandHandler schema versioning', () => {
         addedAt: '2024-03-01T09:00:00.000Z',
       },
     ]);
+  });
+
+  void it('round-trips through downcast on append and upcast on read', async () => {
+    const eventStore = getInMemoryEventStore();
+    const shoppingCartId = randomUUID();
+
+    await handle(eventStore, shoppingCartId, addSocks);
+
+    const { newState } = await handle(eventStore, shoppingCartId, () => ({
+      type: 'ProductItemAdded',
+      data: {
+        productItem: { productId: 'hat', quantity: 1 },
+        addedAt: new Date('2024-03-02T09:00:00.000Z'),
+      },
+    }));
+
+    expect(newState).toEqual({
+      productItems: [
+        {
+          productId: 'socks',
+          quantity: 3,
+          addedAt: new Date('2024-03-01T09:00:00.000Z'),
+        },
+        {
+          productId: 'hat',
+          quantity: 1,
+          addedAt: new Date('2024-03-02T09:00:00.000Z'),
+        },
+      ],
+    });
   });
 });
