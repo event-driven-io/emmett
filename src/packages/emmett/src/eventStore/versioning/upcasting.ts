@@ -47,6 +47,7 @@ export const upcastRecordedMessage = <
 
   return {
     ...recordedMessage,
+    type: upcasted.type as MessagePayloadType['type'],
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     data: upcasted.data,
     ...('metadata' in recordedMessage || 'metadata' in upcasted

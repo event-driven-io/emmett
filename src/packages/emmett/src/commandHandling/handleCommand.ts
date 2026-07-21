@@ -82,7 +82,7 @@ export type CommandHandlerMiddlewareOptions<
 export type CommandHandlerOptions<
   State,
   StreamEvent extends Event,
-  StoredEvent extends Event = StreamEvent,
+  EventPayloadType extends Event = StreamEvent,
 > = {
   evolve: (state: State, event: StreamEvent) => State;
   initialState: () => State;
@@ -90,8 +90,8 @@ export type CommandHandlerOptions<
   retry?: CommandHandlerRetryOptions;
   schema?: {
     versioning?: {
-      upcast?: (event: StoredEvent) => StreamEvent;
-      downcast?: (event: StreamEvent) => StoredEvent;
+      upcast?: (event: EventPayloadType) => StreamEvent;
+      downcast?: (event: StreamEvent) => EventPayloadType;
     };
   };
   name?: string;
@@ -168,6 +168,7 @@ export const CommandHandler =
       StreamEvent,
       EventPayloadType
     >(handleOptions);
+    const appendSchema = appendOptionsFromHandle?.schema ?? options.schema;
 
     const result = await collector.startScope(
       {
@@ -295,6 +296,7 @@ export const CommandHandler =
                   eventsToAppend,
                   {
                     ...(appendOptionsFromHandle ?? {}),
+                    ...(appendSchema ? { schema: appendSchema } : {}),
                     expectedStreamVersion,
                     correlationId,
                     ...(causationId ? { causationId } : {}),

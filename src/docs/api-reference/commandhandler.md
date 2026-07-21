@@ -13,11 +13,11 @@ It builds on the event store's [`aggregateStream`](/api-reference/eventstore#agg
 
 ## Construction
 
-`CommandHandler(options)` returns the handler function. It takes three type parameters: `State`, `StreamEvent` (the discriminated union written to the stream), and an optional `EventPayloadType` (the stored shape when it differs from `StreamEvent`, used with schema versioning).
+`CommandHandler(options)` returns the handler function. It takes three type parameters: `State`, `StreamEvent` (the discriminated union written to the stream), and an optional `EventPayloadType` (the stored shape when it differs from `StreamEvent`, used with [Schema versioning](#schema-versioning)).
 
 <<< @/snippets/gettingStarted/commandHandler.ts#command-handler
 
-`DeciderCommandHandler(options)` takes four: `State`, `CommandType`, `StreamEvent`, and an optional `StoredEvent` (the same stored shape, named for the decider's event-sourced context). On both handlers it defaults to `StreamEvent`, so leaving it out types `schema.versioning.upcast` as if stored events already had the current shape. See [Schema versioning](#schema-versioning).
+`DeciderCommandHandler(options)` adds a `CommandType` parameter representing the command type. In `DeciderCommandHandler` we're not passing the decision callback.
 
 ### CommandHandlerOptions
 
@@ -221,9 +221,15 @@ A decision throws to reject a command; the handler appends nothing and propagate
 
 `schema.versioning.upcast` maps a stored event to the current `StreamEvent` shape on read; `schema.versioning.downcast` maps a `StreamEvent` back to its stored shape on write. Together they carry a stream through event schema evolution.
 
-Pass the stored shape as the last type parameter so both callbacks are checked against it: `EventPayloadType` on `CommandHandler`, `StoredEvent` on `DeciderCommandHandler`. Both default to `StreamEvent`, which is only correct while the stored and current shapes still match.
+Pass the stored shape as the last type parameter, `EventPayloadType`, on either handler so both callbacks are checked against it. It defaults to `StreamEvent`, which is only correct while the stored and current shapes still match.
+
+Define the transform against both shapes. Here older events stored the product item's fields flat and kept `addedAt` as the ISO string JSON persists a `Date` as; the current shape groups those fields and rebuilds the `Date`:
 
 <<< @./../packages/emmett/src/commandHandling/handleCommandWithDecider.versioning.unit.spec.ts#decider-upcasting
+
+Then register it under `schema.versioning` on the handler:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommandWithDecider.versioning.unit.spec.ts#decider-upcasting-register
 
 ### Serialization
 
