@@ -6,11 +6,10 @@ import {
   noopMeter,
   noopScope,
   noopTracer,
-  ObservabilityScope as createObservabilityScope,
+  ObservabilityScope,
   type AttributeTarget,
   type Logger,
   type Meter,
-  type ObservabilityScope,
   type ObservabilityContextGenerator,
   type Tracer,
 } from '@event-driven-io/almanac';
@@ -66,7 +65,7 @@ export const consumerObservability = (
 export const consumerCollector = (
   observability: ResolvedConsumerObservability,
 ) => {
-  const { startScope } = createObservabilityScope({
+  const { startScope } = ObservabilityScope({
     ...observability,
     attributePrefix: 'emmett',
   });

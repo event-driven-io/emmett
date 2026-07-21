@@ -4,11 +4,10 @@ import {
   noopLogger,
   noopMeter,
   noopTracer,
-  ObservabilityScope as createObservabilityScope,
+  ObservabilityScope,
   type AttributeTarget,
   type Logger,
   type Meter,
-  type ObservabilityScope,
   type SpanLink,
   type ObservabilityContextGenerator,
   type TracePropagation,
@@ -80,7 +79,7 @@ export type ProcessorCollectorContext = {
 export const processorCollector = (
   observability: ResolvedProcessorObservability,
 ) => {
-  const { startScope } = createObservabilityScope({
+  const { startScope } = ObservabilityScope({
     ...observability,
     attributePrefix: 'emmett',
   });
@@ -173,8 +172,10 @@ export const processorCollector = (
         meta?.traceId && meta?.spanId
           ? { traceId: meta.traceId as string, spanId: meta.spanId as string }
           : undefined;
-      const batchContext = batchScope.spanContext();
-      const links: SpanLink[] = batchContext.traceId ? [batchContext] : [];
+      const batchContext = batchScope.context;
+      const links: SpanLink[] = batchContext.traceId
+        ? [{ traceId: batchContext.traceId, spanId: batchContext.spanId }]
+        : [];
 
       return startScope(
         `processor.message.${message.type}`,

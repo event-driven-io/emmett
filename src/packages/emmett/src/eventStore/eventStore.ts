@@ -207,10 +207,6 @@ export type AppendToStreamOptions<
   expectedStreamVersion?: ExpectedStreamVersion;
   schema?: EventStoreAppendSchemaOptions<EventType, EventPayloadType> &
     JSONSerializationOptions;
-  correlationId?: string;
-  causationId?: string;
-  traceId?: string;
-  spanId?: string;
   observability?: OperationObservabilityOptions;
 };
 

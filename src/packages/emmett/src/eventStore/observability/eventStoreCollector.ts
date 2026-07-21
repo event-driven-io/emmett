@@ -4,11 +4,10 @@ import {
   noopLogger,
   noopMeter,
   noopTracer,
-  ObservabilityScope as createObservabilityScope,
+  ObservabilityScope,
   type AttributeTarget,
   type Logger,
   type Meter,
-  type ObservabilityScope,
   type ObservabilityContextGenerator,
   type Tracer,
 } from '@event-driven-io/almanac';
@@ -65,7 +64,7 @@ export const eventStoreObservability = (
 export const eventStoreCollector = (
   observability: ResolvedEventStoreObservability,
 ) => {
-  const { startScope } = createObservabilityScope({
+  const { startScope } = ObservabilityScope({
     ...observability,
     attributePrefix: 'emmett',
   });
@@ -186,6 +185,11 @@ export const eventStoreCollector = (
       return startOperationScope(
         'eventStore.appendToStream',
         async (scope) => {
+          const { correlationId, causationId } = scope.context;
+          scope.setAttributes({
+            [M.message.correlationId]: correlationId,
+            ...(causationId ? { [M.message.causationId]: causationId } : {}),
+          });
           let status = 'success';
           try {
             const result = await fn(scope);
