@@ -53,8 +53,8 @@ void describe('PostgreSQL event store consumer', () => {
 
   afterAll(async () => {
     try {
-      await eventStore.close();
-      await postgres.stop();
+      await eventStore?.close();
+      await postgres?.stop();
     } catch (error) {
       console.log(error);
     }

@@ -37,16 +37,24 @@ void describe('PostgreSQL event store started consumer', () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString);
-    pongo = pongoClient({ connectionString, driver: pgDriver });
+    pongo = pongoClient({
+      connectionString,
+      driver: pgDriver,
+      connectionOptions: {
+        transactionOptions: {
+          allowNestedTransactions: true,
+        },
+      },
+    });
     summaries = pongo.db().collection(shoppingCartsSummaryCollectionName);
     await eventStore.schema.migrate();
   });
 
   afterAll(async () => {
     try {
-      await eventStore.close();
-      await pongo.close();
-      await postgres.stop();
+      await eventStore?.close();
+      await pongo?.close();
+      await postgres?.stop();
     } catch (error) {
       console.log(error);
     }

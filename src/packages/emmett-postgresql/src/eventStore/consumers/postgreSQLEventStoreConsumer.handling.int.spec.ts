@@ -39,7 +39,12 @@ void describe('PostgreSQL event store started consumer', () => {
     connectionString = postgres.getConnectionUri();
     eventStore = getPostgreSQLEventStore(connectionString);
     await eventStore.schema.migrate();
-    pool = dumbo({ connectionString });
+    pool = dumbo({
+      connectionString,
+      transactionOptions: {
+        allowNestedTransactions: true,
+      },
+    });
   });
 
   beforeEach(async () => {
@@ -51,9 +56,9 @@ void describe('PostgreSQL event store started consumer', () => {
 
   afterAll(async () => {
     try {
-      await pool.close();
-      await eventStore.close();
-      await postgres.stop();
+      await pool?.close();
+      await eventStore?.close();
+      await postgres?.stop();
     } catch (error) {
       console.log(error);
     }
@@ -1017,7 +1022,12 @@ void describe('PostgreSQL event store started consumer', () => {
       withDeadline,
       async () => {
         // Given
-        const pool = dumbo({ connectionString });
+        const pool = dumbo({
+          connectionString,
+          transactionOptions: {
+            allowNestedTransactions: true,
+          },
+        });
         const processor = postgreSQLReactor<GuestStayEvent>({
           processorId: uuid(),
           eachMessage: () => Promise.resolve(),
@@ -1037,7 +1047,7 @@ void describe('PostgreSQL event store started consumer', () => {
         // Then
         assertEqual(processor.isActive, false);
 
-        await pool.close();
+        await pool?.close();
       },
     );
   });

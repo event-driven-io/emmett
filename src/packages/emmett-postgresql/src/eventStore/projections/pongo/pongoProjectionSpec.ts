@@ -33,7 +33,12 @@ const withCollection = (
   return pool.withConnection(async (connection) => {
     const pongo = pongoClient({
       connectionString,
-      connectionOptions: { connection },
+      connectionOptions: {
+        connection,
+        transactionOptions: {
+          allowNestedTransactions: true,
+        },
+      },
       driver: pgDriver,
     });
     try {

@@ -58,7 +58,15 @@ void describe('Rebuilding PostgreSQL Projections', () => {
         otherShoppingCartsSummaryProjection,
       ]),
     });
-    pongo = pongoClient({ connectionString, driver: pgDriver });
+    pongo = pongoClient({
+      connectionString,
+      driver: pgDriver,
+      connectionOptions: {
+        transactionOptions: {
+          allowNestedTransactions: true,
+        },
+      },
+    });
     db = pongo.db();
     summaries = db.collection(shoppingCartsSummaryCollectionName);
     otherSummaries = db.collection(otherShoppingCartsSummaryCollectionName);
@@ -66,7 +74,13 @@ void describe('Rebuilding PostgreSQL Projections', () => {
     otherSummariesV2 = db.collection(
       `${otherShoppingCartsSummaryCollectionName}_v2`,
     );
-    pool = dumbo({ connectionString, driver: pgDumboDriver });
+    pool = dumbo({
+      connectionString,
+      driver: pgDumboDriver,
+      transactionOptions: {
+        allowNestedTransactions: true,
+      },
+    });
   });
 
   beforeEach(async () => {
@@ -75,10 +89,10 @@ void describe('Rebuilding PostgreSQL Projections', () => {
 
   afterAll(async () => {
     try {
-      await eventStore.close();
-      await pongo.close();
-      await pool.close();
-      await postgres.stop();
+      await eventStore?.close();
+      await pongo?.close();
+      await pool?.close();
+      await postgres?.stop();
     } catch (error) {
       console.log(error);
     }

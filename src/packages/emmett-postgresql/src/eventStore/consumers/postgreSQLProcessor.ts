@@ -322,6 +322,9 @@ const getProcessorPool = (options: PostgreSQLConnectionOptions) => {
             connectionString: processorConnectionString,
             ...poolOptions,
             serialization: options.serialization,
+            transactionOptions: {
+              allowNestedTransactions: true,
+            },
           })
         : null;
 

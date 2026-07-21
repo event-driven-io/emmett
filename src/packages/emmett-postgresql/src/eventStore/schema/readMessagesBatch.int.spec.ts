@@ -30,6 +30,9 @@ void describe('reading messages in batches', () => {
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
+      transactionOptions: {
+        allowNestedTransactions: true,
+      },
       pooled: false,
     });
 
@@ -43,8 +46,8 @@ void describe('reading messages in batches', () => {
   });
 
   afterAll(async () => {
-    await pool.close();
-    await postgres.stop();
+    await pool?.close();
+    await postgres?.stop();
   });
 
   const createTestEvent = (

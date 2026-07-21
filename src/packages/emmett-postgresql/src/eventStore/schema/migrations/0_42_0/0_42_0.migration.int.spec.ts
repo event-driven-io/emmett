@@ -88,6 +88,9 @@ void describe('Schema migrations tests', () => {
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
+      transactionOptions: {
+        allowNestedTransactions: true,
+      },
     });
 
     // TODO: Change setup to schemas, when they're supported in Emmett instead of using separate containers
@@ -99,8 +102,8 @@ void describe('Schema migrations tests', () => {
 
   afterEach(async () => {
     try {
-      await eventStore.close();
-      await pool.close();
+      await eventStore?.close();
+      await pool?.close();
     } catch (error) {
       console.log(error);
     }
@@ -108,7 +111,7 @@ void describe('Schema migrations tests', () => {
 
   afterAll(async () => {
     try {
-      await postgres.stop();
+      await postgres?.stop();
     } catch (error) {
       console.log(error);
     }

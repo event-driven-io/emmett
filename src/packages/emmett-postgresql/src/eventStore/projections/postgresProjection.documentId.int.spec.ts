@@ -106,7 +106,7 @@ void describe('Pongo projection document id behaviour', () => {
 
   afterAll(async () => {
     try {
-      await postgres.stop();
+      await postgres?.stop();
     } catch (error) {
       console.log(error);
     }

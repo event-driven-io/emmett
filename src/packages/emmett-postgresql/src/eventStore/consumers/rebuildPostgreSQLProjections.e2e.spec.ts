@@ -8,8 +8,8 @@ import {
 } from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import type { ProductItemAdded } from '../../testing/shoppingCart.domain';
 import {
   getPostgreSQLEventStore,
@@ -33,7 +33,13 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
     eventStore = getPostgreSQLEventStore(connectionString, {
       projections: projections.inline([]),
     });
-    pool = dumbo({ connectionString, driver: pgDumboDriver });
+    pool = dumbo({
+      connectionString,
+      driver: pgDumboDriver,
+      transactionOptions: {
+        allowNestedTransactions: true,
+      },
+    });
   });
 
   beforeEach(async () => {
@@ -42,9 +48,9 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
 
   afterAll(async () => {
     try {
-      await eventStore.close();
-      await pool.close();
-      await postgres.stop();
+      await eventStore?.close();
+      await pool?.close();
+      await postgres?.stop();
     } catch (error) {
       console.log(error);
     }

@@ -112,7 +112,13 @@ export const pongoProjection = <
       const pongo = pongoClient({
         connectionString,
         driver: pgDriver,
-        connectionOptions: { client, pool },
+        connectionOptions: {
+          client,
+          pool,
+          transactionOptions: {
+            allowNestedTransactions: true,
+          },
+        },
       });
       try {
         await handle(events, {
@@ -131,7 +137,13 @@ export const pongoProjection = <
           const pongo = pongoClient({
             connectionString,
             driver: pgDriver,
-            connectionOptions: { client, pool },
+            connectionOptions: {
+              client,
+              pool,
+              transactionOptions: {
+                allowNestedTransactions: true,
+              },
+            },
           });
           try {
             await truncate({
@@ -266,7 +278,13 @@ export const pongoMultiStreamProjection = <
       const pongo = pongoClient({
         connectionString,
         driver: pgDriver,
-        connectionOptions: { client, pool },
+        connectionOptions: {
+          client,
+          pool,
+          transactionOptions: {
+            allowNestedTransactions: true,
+          },
+        },
       });
 
       try {
@@ -288,7 +306,13 @@ export const pongoMultiStreamProjection = <
       const pongo = pongoClient({
         connectionString,
         driver: pgDriver,
-        connectionOptions: { client, pool },
+        connectionOptions: {
+          client,
+          pool,
+          transactionOptions: {
+            allowNestedTransactions: true,
+          },
+        },
       });
 
       try {

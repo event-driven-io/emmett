@@ -36,7 +36,7 @@ void describe('Postgres Projections', () => {
 
   afterAll(async () => {
     try {
-      await postgres.stop();
+      await postgres?.stop();
     } catch (error) {
       console.log(error);
     }

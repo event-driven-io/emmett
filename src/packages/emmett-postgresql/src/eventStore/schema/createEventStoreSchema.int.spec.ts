@@ -21,14 +21,17 @@ void describe('createEventStoreSchema', () => {
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
+      transactionOptions: {
+        allowNestedTransactions: true,
+      },
     });
     await createEventStoreSchema(connectionString, pool);
   });
 
   afterAll(async () => {
     try {
-      await pool.close();
-      await postgres.stop();
+      await pool?.close();
+      await postgres?.stop();
     } catch (error) {
       console.log(error);
     }

@@ -93,6 +93,9 @@ export const createEventStoreSchema = (
       connectionString,
       connection: tx.connection,
       serialization: options?.serialization,
+      transactionOptions: {
+        allowNestedTransactions: true,
+      },
     });
 
     try {

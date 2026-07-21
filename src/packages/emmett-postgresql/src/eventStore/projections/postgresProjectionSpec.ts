@@ -73,6 +73,9 @@ export const PostgreSQLProjectionSpec = {
       const dumboOptions = {
         ...restOptions,
         serialization: projection.serialization,
+        transactionOptions: {
+          allowNestedTransactions: true,
+        },
       };
       const { connectionString } = dumboOptions;
 

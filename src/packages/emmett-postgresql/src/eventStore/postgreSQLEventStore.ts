@@ -215,7 +215,13 @@ export const getPostgreSQLEventStore = (
   const pool =
     'dumbo' in poolOptions
       ? poolOptions.dumbo
-      : dumbo({ ...poolOptions, serialization: options.serialization });
+      : dumbo({
+          ...poolOptions,
+          serialization: options.serialization,
+          transactionOptions: {
+            allowNestedTransactions: true,
+          },
+        });
   let migrateSchema: Promise<RunSQLMigrationsResult> | undefined = undefined;
 
   const autoGenerateSchema =

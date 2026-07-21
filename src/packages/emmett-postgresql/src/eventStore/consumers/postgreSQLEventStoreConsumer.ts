@@ -124,6 +124,9 @@ export const postgreSQLEventStoreConsumer = <
     : dumbo({
         connectionString: options.connectionString,
         serialization: options.serialization,
+        transactionOptions: {
+          allowNestedTransactions: true,
+        },
       });
 
   const processorContext = {

@@ -91,7 +91,7 @@ void describe('PostgreSQL handleProjections canHandle filtering', () => {
 
   afterAll(async () => {
     try {
-      await postgres.stop();
+      await postgres?.stop();
     } catch (error) {
       console.log(error);
     }

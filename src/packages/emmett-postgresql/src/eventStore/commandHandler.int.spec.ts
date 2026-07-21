@@ -41,15 +41,23 @@ void describe('Postgres Projections', () => {
       },
     });
     await eventStore.schema.migrate();
-    pongo = pongoClient({ connectionString, driver: pgDriver });
+    pongo = pongoClient({
+      connectionString,
+      driver: pgDriver,
+      connectionOptions: {
+        transactionOptions: {
+          allowNestedTransactions: true,
+        },
+      },
+    });
     return eventStore;
   });
 
   afterAll(async () => {
     try {
-      await eventStore.close();
-      await pongo.close();
-      await postgres.stop();
+      await eventStore?.close();
+      await pongo?.close();
+      await postgres?.stop();
     } catch (error) {
       console.log(error);
     }

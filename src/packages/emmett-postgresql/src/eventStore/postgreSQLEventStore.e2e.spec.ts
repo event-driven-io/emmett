@@ -52,7 +52,15 @@ void describe('EventStoreDBEventStore', () => {
   beforeAll(async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
-    pongo = pongoClient({ connectionString, driver: pgDriver });
+    pongo = pongoClient({
+      connectionString,
+      driver: pgDriver,
+      connectionOptions: {
+        transactionOptions: {
+          allowNestedTransactions: true,
+        },
+      },
+    });
   });
 
   beforeEach(() => {
@@ -74,7 +82,7 @@ void describe('EventStoreDBEventStore', () => {
 
   afterEach(async () => {
     try {
-      await eventStore.close();
+      await eventStore?.close();
     } catch (error) {
       console.log(error);
     }
@@ -82,8 +90,8 @@ void describe('EventStoreDBEventStore', () => {
 
   afterAll(async () => {
     try {
-      await pongo.close();
-      await postgres.stop();
+      await pongo?.close();
+      await postgres?.stop();
     } catch (error) {
       console.log(error);
     }
