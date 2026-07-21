@@ -14,6 +14,7 @@ import {
   type DefaultRecord,
   type ExpectedStreamVersion,
   type Message,
+  type ObservabilityContext,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
@@ -167,6 +168,7 @@ export const appendToStream = (
   options?: AppendToStreamOptions & {
     partition?: string;
     messageIdGenerator?: () => string;
+    context?: ObservabilityContext;
     beforeCommitHook?: AppendToStreamBeforeCommitHook;
   },
 ): Promise<AppendToStreamResult> =>
@@ -181,14 +183,21 @@ export const appendToStream = (
         options?.expectedStreamVersion,
       );
 
-      const messagesToAppend: RecordedMessage[] = messages.map((e) => ({
-        ...e,
-        kind: e.kind ?? 'Event',
-        metadata: {
-          messageId: options?.messageIdGenerator?.() ?? uuid(),
-          ...('metadata' in e ? (e.metadata ?? {}) : {}),
-        },
-      })) as RecordedMessage[];
+      const messagesToAppend: RecordedMessage[] = messages.map((e) => {
+        const messageId = options?.messageIdGenerator?.() ?? uuid();
+        return {
+          ...e,
+          kind: e.kind ?? 'Event',
+          metadata: {
+            messageId,
+            correlationId: options?.context?.correlationId,
+            causationId: options?.context?.causationId ?? messageId,
+            traceId: options?.context?.traceId,
+            spanId: options?.context?.spanId,
+            ...('metadata' in e ? (e.metadata ?? {}) : {}),
+          },
+        };
+      }) as RecordedMessage[];
 
       const {
         success,

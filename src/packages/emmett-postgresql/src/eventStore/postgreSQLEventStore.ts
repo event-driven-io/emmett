@@ -465,6 +465,7 @@ export const getPostgreSQLEventStore = (
                 ...(appendOptions as AppendToStreamOptions),
                 messageIdGenerator: () =>
                   observability.contextGenerator.generateMessageId(),
+                context: scope.context,
                 beforeCommitHook: beforeCommitHook(streamName, scope),
               },
             ),

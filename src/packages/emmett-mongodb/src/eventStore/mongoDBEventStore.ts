@@ -370,6 +370,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
       streamName,
       events,
       async (scope) => {
+        const context = scope.context;
         const { streamId, streamType } = fromStreamName(streamName);
         const expectedStreamVersion = options?.expectedStreamVersion;
 
@@ -406,18 +407,16 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
           EventPayloadType,
           MongoDBReadEventMetadata
         >[] = events.map((event) => {
+          const messageId =
+            this.observability.contextGenerator.generateMessageId();
           const metadata: MongoDBReadEventMetadata = {
-            messageId: this.observability.contextGenerator.generateMessageId(),
+            messageId,
             streamName,
             streamPosition: ++streamOffset,
-            ...(options?.correlationId
-              ? { correlationId: options.correlationId }
-              : {}),
-            ...(options?.causationId
-              ? { causationId: options.causationId }
-              : {}),
-            ...(options?.traceId ? { traceId: options.traceId } : {}),
-            ...(options?.spanId ? { spanId: options.spanId } : {}),
+            correlationId: context.correlationId,
+            causationId: context.causationId ?? messageId,
+            traceId: context.traceId,
+            spanId: context.spanId,
           };
           return downcastRecordedMessage(
             {

@@ -66,20 +66,22 @@ describe('WorkflowHandler observability', () => {
         metadata = events.map((event) => event.metadata);
       })
       .then(() => {
+        // trace/span come from the append span (a child of workflow.handle),
+        // not the workflow span: everyone who appends is instrumented uniformly.
         expect(metadata[0]).toMatchObject({
           messageId: 'stored-input-message',
           originalMessageId: 'workflow-input-message',
           correlationId: 'workflow-correlation',
           causationId: 'workflow-input-message',
-          traceId: 'workflow-trace',
-          spanId: 'workflow-span',
+          traceId: 'event-store-trace',
+          spanId: 'event-store-span',
         });
         expect(metadata[1]).toMatchObject({
           messageId: 'stored-output-message',
           correlationId: 'workflow-correlation',
           causationId: 'workflow-input-message',
-          traceId: 'workflow-trace',
-          spanId: 'workflow-span',
+          traceId: 'event-store-trace',
+          spanId: 'event-store-span',
         });
       });
   });
@@ -134,20 +136,22 @@ describe('WorkflowHandler observability', () => {
         metadata = events.map((event) => event.metadata);
       })
       .then(() => {
+        // trace/span come from the append span (a child of workflow.handle),
+        // not the workflow span: everyone who appends is instrumented uniformly.
         expect(metadata[0]).toMatchObject({
           messageId: 'stored-input-message',
           originalMessageId: 'generated-input-message',
           correlationId: 'source-correlation',
           causationId: 'generated-input-message',
-          traceId: 'workflow-trace',
-          spanId: 'workflow-span',
+          traceId: 'event-store-trace',
+          spanId: 'event-store-span',
         });
         expect(metadata[1]).toMatchObject({
           messageId: 'stored-output-message',
           correlationId: 'source-correlation',
           causationId: 'generated-input-message',
-          traceId: 'workflow-trace',
-          spanId: 'workflow-span',
+          traceId: 'event-store-trace',
+          spanId: 'event-store-span',
         });
       });
   });
