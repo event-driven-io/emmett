@@ -4,7 +4,7 @@ import {
   testObservabilityContextGenerator,
 } from '@event-driven-io/almanac';
 import { v4 as uuid } from 'uuid';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   ExpectedVersionConflictError,
   getInMemoryEventStore,
@@ -15,7 +15,7 @@ import {
   EmmettMetrics,
   MessagingSystemName,
 } from '../observability/attributes';
-import { assertEqual, assertUndefined } from '../testing';
+import { assertDeepEqual } from '../testing';
 import type { Event } from '../typing';
 import { CommandHandler } from './handleCommand';
 
@@ -29,7 +29,6 @@ describe('handler observability', () => {
 
   it('uses default observability without handler configuration', () => {
     const eventStore = getInMemoryEventStore();
-    const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
     const streamId = uuid();
     const context = testObservabilityContextGenerator({
       traceIds: 'generated-trace-1',
@@ -56,45 +55,45 @@ describe('handler observability', () => {
           streamId,
           () => [{ type: 'ItemAdded', data: { productId: 'p1' } }],
           {
-            correlationId: expectedCorrelationId,
+            observability: {
+              context: { correlationId: expectedCorrelationId },
+            },
           },
         ),
       )
       .then(({ spans }) => {
-        const appendToStreamOptions = appendToStreamSpy.mock.calls[0]![2]!;
-        const { correlationId } = appendToStreamOptions;
+        const commandSpan = spans
+          .hasSingleSpanNamed('command.handle')
+          .hasAttributes({
+            [EmmettAttributes.scope.type]: 'command',
+            [EmmettAttributes.scope.main]: true,
+            [EmmettAttributes.stream.name]: streamId,
+            [EmmettAttributes.command.status]: 'success',
+            [EmmettAttributes.command.eventTypes]: ['ItemAdded'],
+            [EmmettAttributes.command.eventCount]: 1,
+            [EmmettAttributes.stream.versionBefore]: 0,
+            [EmmettAttributes.stream.versionAfter]: 1,
+            [MessagingAttributes.message.correlationId]: expectedCorrelationId,
+            [MessagingAttributes.batch.messageCount]: 1,
+            [MessagingAttributes.destination.name]: streamId,
+            [MessagingAttributes.system]: MessagingSystemName,
+          });
 
-        assertEqual(expectedCorrelationId, correlationId);
-
-        spans.hasSingleSpanNamed('command.handle').hasAttributes({
-          [EmmettAttributes.scope.type]: 'command',
-          [EmmettAttributes.scope.main]: true,
-          [EmmettAttributes.stream.name]: streamId,
-          [EmmettAttributes.command.status]: 'success',
-          [EmmettAttributes.command.eventTypes]: ['ItemAdded'],
-          [EmmettAttributes.command.eventCount]: 1,
-          [EmmettAttributes.stream.versionBefore]: 0,
-          [EmmettAttributes.stream.versionAfter]: 1,
+        commandSpan.hasChildNamed('eventStore.appendToStream').hasAttributes({
           [MessagingAttributes.message.correlationId]: expectedCorrelationId,
-          [MessagingAttributes.batch.messageCount]: 1,
-          [MessagingAttributes.destination.name]: streamId,
-          [MessagingAttributes.system]: MessagingSystemName,
         });
       });
   });
 
   void describe('observability propagation', () => {
-    void it('stamps correlationId, causationId, traceId and spanId from handle options onto produced events', () => {
+    void it('propagates correlationId and causationId from handle options onto the command and append spans', () => {
       const eventStore = getInMemoryEventStore();
-      const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
       const streamId = uuid();
       const expectedSpanId = 'exp-span-1';
       const expectedTraceId = 'exp-trace-1';
-      const generatedSpanId = 'generated-span-2';
-      const generatedTraceId = 'generated-trace-2';
       const context = testObservabilityContextGenerator({
-        traceIds: generatedTraceId,
-        spanIds: generatedSpanId,
+        traceIds: 'generated-trace-2',
+        spanIds: 'generated-span-2',
         correlationIds: 'flow-1',
         causationIds: 'cmd-1',
       });
@@ -119,27 +118,20 @@ describe('handler observability', () => {
       )
         .when(async (handler) =>
           handler(eventStore, streamId, () => [event], {
-            correlationId: expectedCorrelationId,
-            causationId: expectedCausationId,
             observability: {
               parent: {
                 spanId: expectedSpanId,
                 traceId: expectedTraceId,
               },
+              context: {
+                correlationId: expectedCorrelationId,
+                causationId: expectedCausationId,
+              },
             },
           }),
         )
         .then(({ spans }) => {
-          const appendToStreamOptions = appendToStreamSpy.mock.calls[0]![2]!;
-          const { correlationId, causationId, spanId, traceId } =
-            appendToStreamOptions;
-
-          assertEqual(expectedCausationId, causationId);
-          assertEqual(expectedCorrelationId, correlationId);
-          assertEqual(generatedSpanId, spanId);
-          assertEqual(generatedTraceId, traceId);
-
-          spans
+          const commandSpan = spans
             .hasSingleSpanNamed('command.handle')
             .hasParent({ traceId: expectedTraceId, spanId: expectedSpanId })
             .hasAttributes({
@@ -147,18 +139,20 @@ describe('handler observability', () => {
                 expectedCorrelationId,
               [MessagingAttributes.message.causationId]: expectedCausationId,
             });
+
+          commandSpan.hasChildNamed('eventStore.appendToStream').hasAttributes({
+            [MessagingAttributes.message.correlationId]: expectedCorrelationId,
+            [MessagingAttributes.message.causationId]: expectedCausationId,
+          });
         });
     });
 
-    void it('stamps provided correlationId and causationId, and auto-generates spanId and traceId when not provided', async () => {
+    void it('propagates provided correlationId and causationId when there is no parent', async () => {
       const eventStore = getInMemoryEventStore();
-      const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
       const streamId = uuid();
-      const generatedSpanId = 'generated-span-3';
-      const generatedTraceId = 'generated-trace-3';
       const context = testObservabilityContextGenerator({
-        traceIds: generatedTraceId,
-        spanIds: generatedSpanId,
+        traceIds: 'generated-trace-3',
+        spanIds: 'generated-span-3',
         correlationIds: 'flow-2',
         causationIds: 'cmd-1',
       });
@@ -183,21 +177,16 @@ describe('handler observability', () => {
       )
         .when(async (handler) =>
           handler(eventStore, streamId, () => [event], {
-            correlationId: expectedCorrelationId,
-            causationId: expectedCausationId,
+            observability: {
+              context: {
+                correlationId: expectedCorrelationId,
+                causationId: expectedCausationId,
+              },
+            },
           }),
         )
         .then(({ spans }) => {
-          const appendToStreamOptions = appendToStreamSpy.mock.calls[0]![2]!;
-          const { correlationId, causationId, spanId, traceId } =
-            appendToStreamOptions;
-
-          assertEqual(expectedCausationId, causationId);
-          assertEqual(expectedCorrelationId, correlationId);
-          assertEqual(generatedSpanId, spanId);
-          assertEqual(generatedTraceId, traceId);
-
-          spans
+          const commandSpan = spans
             .hasSingleSpanNamed('command.handle')
             .hasNoParent()
             .hasAttributes({
@@ -205,18 +194,20 @@ describe('handler observability', () => {
                 expectedCorrelationId,
               [MessagingAttributes.message.causationId]: expectedCausationId,
             });
+
+          commandSpan.hasChildNamed('eventStore.appendToStream').hasAttributes({
+            [MessagingAttributes.message.correlationId]: expectedCorrelationId,
+            [MessagingAttributes.message.causationId]: expectedCausationId,
+          });
         });
     });
 
-    void it('does not generate causationId when not provided', async () => {
+    void it('does not record a causationId on the append span when not provided (it self-roots per event)', async () => {
       const eventStore = getInMemoryEventStore();
-      const appendToStreamSpy = vi.spyOn(eventStore, 'appendToStream');
       const streamId = uuid();
-      const generatedSpanId = 'generated-span-4';
-      const generatedTraceId = 'generated-trace-4';
       const context = testObservabilityContextGenerator({
-        traceIds: generatedTraceId,
-        spanIds: generatedSpanId,
+        traceIds: 'generated-trace-4',
+        spanIds: 'generated-span-4',
         correlationIds: 'flow-3',
       });
       const expectedCorrelationId = context.generateCorrelationId();
@@ -239,19 +230,13 @@ describe('handler observability', () => {
       )
         .when(async (handler) =>
           handler(eventStore, streamId, () => [event], {
-            correlationId: expectedCorrelationId,
+            observability: {
+              context: { correlationId: expectedCorrelationId },
+            },
           }),
         )
         .then(({ spans }) => {
-          const appendToStreamOptions = appendToStreamSpy.mock.calls[0]![2]!;
-          const { correlationId, causationId, spanId, traceId } =
-            appendToStreamOptions;
-          assertUndefined(causationId);
-          assertEqual(expectedCorrelationId, correlationId);
-          assertEqual(generatedSpanId, spanId);
-          assertEqual(generatedTraceId, traceId);
-
-          spans
+          const commandSpan = spans
             .hasSingleSpanNamed('command.handle')
             .hasNoParent()
             .hasAttributes({
@@ -259,6 +244,11 @@ describe('handler observability', () => {
                 expectedCorrelationId,
               [MessagingAttributes.message.causationId]: undefined,
             });
+
+          commandSpan.hasChildNamed('eventStore.appendToStream').hasAttributes({
+            [MessagingAttributes.message.correlationId]: expectedCorrelationId,
+            [MessagingAttributes.message.causationId]: undefined,
+          });
         });
     });
 
@@ -314,6 +304,53 @@ describe('handler observability', () => {
               [MessagingAttributes.system]: MessagingSystemName,
             })
             .hasCreationLinks([appendLink]);
+        });
+    });
+  });
+
+  void describe('persisted event metadata', () => {
+    void it('stamps appended events with the flow ids the scope resolves', async () => {
+      const streamId = uuid();
+      const event: ItemAdded = { type: 'ItemAdded', data: { productId: 'p1' } };
+
+      return given(
+        (observability) => ({
+          eventStore: getInMemoryEventStore({ observability }),
+          handler: CommandHandler<Cart, ItemAdded>({
+            evolve: (state) => state,
+            initialState: () => ({ count: 0 }),
+            observability,
+          }),
+        }),
+        {
+          contextGenerator: testObservabilityContextGenerator({
+            traceIds: 'trace-1',
+            spanIds: 'span-1',
+            messageIds: 'msg-1',
+          }),
+        },
+      )
+        .when(async ({ eventStore, handler }) => {
+          await handler(eventStore, streamId, () => [event], {
+            observability: { context: { correlationId: 'flow-1' } },
+          });
+          return eventStore.readStream<ItemAdded>(streamId);
+        })
+        .then(({ result }) => {
+          const { messageId, correlationId, causationId, traceId, spanId } =
+            result.events[0]!.metadata;
+
+          assertDeepEqual(
+            { messageId, correlationId, causationId, traceId, spanId },
+            {
+              messageId: 'msg-1',
+              correlationId: 'flow-1',
+              // no causation seeded: it self-roots to the event's own messageId
+              causationId: 'msg-1',
+              traceId: 'trace-1',
+              spanId: 'span-1',
+            },
+          );
         });
     });
   });

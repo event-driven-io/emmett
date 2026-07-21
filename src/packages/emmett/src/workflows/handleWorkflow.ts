@@ -19,7 +19,10 @@ import type {
   RecordedMessage,
 } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
-import { withOperationScope } from '../observability';
+import {
+  withOperationScope,
+  type OperationObservabilityOptions,
+} from '../observability';
 import {
   workflowCollector,
   workflowObservability,
@@ -265,11 +268,20 @@ export const WorkflowHandler =
     const inputMessageId =
       sourceMetadata?.messageId ??
       observability.contextGenerator.generateMessageId();
-    const correlationId =
-      handleOptions?.correlationId ??
-      sourceMetadata?.correlationId ??
-      observability.contextGenerator.generateCorrelationId();
-    const causationId = handleOptions?.causationId ?? inputMessageId;
+    // The workflow's output events continue the triggering message's flow:
+    // correlation comes from the input message (the scope generates one when
+    // absent), causation is the input message itself. A caller can override
+    // either through the handle-options context seed.
+    const scopeOptions: OperationObservabilityOptions = {
+      ...(handleOptions?.observability ?? {}),
+      context: {
+        correlationId:
+          handleOptions?.observability?.context?.correlationId ??
+          sourceMetadata?.correlationId,
+        causationId:
+          handleOptions?.observability?.context?.causationId ?? inputMessageId,
+      },
+    };
     const resolvedStreamName = options.mapWorkflowId
       ? options.mapWorkflowId(workflowId)
       : workflowStreamName({ workflowName: workflowType, workflowId });
@@ -348,7 +360,6 @@ export const WorkflowHandler =
                     metadata: inputMetadata,
                   } as StoredMessage;
 
-                  const { traceId, spanId } = scope.spanContext();
                   const appendResult = await eventStore.appendToStream(
                     streamName,
                     [inputToStore] as unknown as Event[],
@@ -360,10 +371,6 @@ export const WorkflowHandler =
                       expectedStreamVersion:
                         handleOptions?.expectedStreamVersion ??
                         NO_CONCURRENCY_CHECK,
-                      correlationId,
-                      causationId,
-                      traceId,
-                      spanId,
                       observability: withOperationScope(
                         scope,
                         handleOptions?.observability,
@@ -516,7 +523,8 @@ export const WorkflowHandler =
                     : STREAM_DOES_NOT_EXIST);
 
                 // 4. Append result to the stream
-                const { traceId, spanId } = scope.spanContext();
+                // correlation/causation propagate via the seeded workflow
+                // scope; trace/span come from the append span itself.
                 const appendResult = await eventStore.appendToStream(
                   streamName,
                   // TODO: Fix this cast
@@ -527,10 +535,6 @@ export const WorkflowHandler =
                       StoredMessage & Event
                     >),
                     expectedStreamVersion,
-                    correlationId,
-                    causationId,
-                    traceId,
-                    spanId,
                     observability: withOperationScope(
                       scope,
                       handleOptions?.observability,
@@ -554,7 +558,7 @@ export const WorkflowHandler =
               : options.retry,
           ),
         ),
-      handleOptions?.observability,
+      scopeOptions,
     );
 
     await afterAll?.(result, {

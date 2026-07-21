@@ -734,12 +734,13 @@ void describe('Workflow Processor', () => {
 
       const { events } = await eventStore.readStream(streamName);
 
+      // trace/span come from the append span, not the output message scope
       assertMatches(events.at(-1)?.metadata, {
         messageId: 'appended-message',
         correlationId: 'checkout-correlation',
         causationId: 'checkout-message',
-        traceId: 'message-trace',
-        spanId: 'message-span',
+        traceId: 'append-trace',
+        spanId: 'append-span',
       });
     });
 

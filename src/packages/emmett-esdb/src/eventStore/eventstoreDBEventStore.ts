@@ -264,7 +264,8 @@ export const getEventStoreDBEventStore = (
       collector.instrumentAppend(
         streamName,
         events,
-        async () => {
+        async (scope) => {
+          const context = scope.context;
           try {
             const eventsToStore = downcastRecordedMessages(
               events,
@@ -285,6 +286,10 @@ export const getEventStoreDBEventStore = (
                 id: messageId,
                 metadata: {
                   messageId,
+                  correlationId: context.correlationId,
+                  causationId: context.causationId ?? messageId,
+                  traceId: context.traceId,
+                  spanId: context.spanId,
                   ...metadata,
                 },
               });

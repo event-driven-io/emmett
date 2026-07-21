@@ -167,13 +167,12 @@ describe('commandHandlerCollector', () => {
     await collector.startScope({ streamName: 'test' }, () => Promise.resolve());
   });
 
-  it('sets messaging.message.correlation_id when correlationId is provided', async () => {
+  it('sets messaging.message.correlation_id from the seeded context', async () => {
     await given((config) => commandHandlerCollector(config))
       .when((collector) =>
-        collector.startScope(
-          { streamName: 'test', correlationId: 'corr-123' },
-          () => Promise.resolve(),
-        ),
+        collector.startScope({ streamName: 'test' }, () => Promise.resolve(), {
+          context: { correlationId: 'corr-123' },
+        }),
       )
       .then(({ spans }) =>
         spans
@@ -182,25 +181,30 @@ describe('commandHandlerCollector', () => {
       );
   });
 
-  it('does not set messaging.message.correlation_id when correlationId is absent', async () => {
-    await given((config) => commandHandlerCollector(config))
+  it('generates messaging.message.correlation_id when none is seeded', async () => {
+    await given((config) => commandHandlerCollector(config), {
+      contextGenerator: testObservabilityContextGenerator({
+        traceIds: 'trace-1',
+        spanIds: 'span-1',
+        correlationIds: 'gen-corr',
+      }),
+    })
       .when((collector) =>
         collector.startScope({ streamName: 'test' }, () => Promise.resolve()),
       )
       .then(({ spans }) =>
         spans
           .hasSingleSpanNamed('command.handle')
-          .hasAttribute(M.message.correlationId, undefined),
+          .hasAttribute(M.message.correlationId, 'gen-corr'),
       );
   });
 
-  it('sets messaging.message.causation_id when causationId is provided', async () => {
+  it('sets messaging.message.causation_id from the seeded context', async () => {
     await given((config) => commandHandlerCollector(config))
       .when((collector) =>
-        collector.startScope(
-          { streamName: 'test', causationId: 'caus-456' },
-          () => Promise.resolve(),
-        ),
+        collector.startScope({ streamName: 'test' }, () => Promise.resolve(), {
+          context: { causationId: 'caus-456' },
+        }),
       )
       .then(({ spans }) =>
         spans

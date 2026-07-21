@@ -1,13 +1,9 @@
-import type {
-  ObservabilityContextGenerator,
-  ObservabilityScope,
-} from '@event-driven-io/almanac';
+import type { ObservabilityScope } from '@event-driven-io/almanac';
 import { EmmettError } from '../errors';
 import type { AppendToStreamOptions, EventStore } from '../eventStore';
 import type { MessageProcessor } from '../processors';
 import {
   MessageProcessorType,
-  processorObservability,
   reactor,
   type BaseMessageProcessorOptions,
 } from '../processors';
@@ -210,7 +206,6 @@ export const workflowProcessor = <
   >,
 ): MessageProcessor<Input, MetaDataType, HandlerContext> => {
   const { workflow, ...rest } = options;
-  const observability = processorObservability(options);
 
   const inputs = [...options.inputs.commands, ...options.inputs.events];
   let canHandle = inputs;
@@ -320,7 +315,6 @@ export const workflowProcessor = <
           appendOptionsFromHandledOutput(
             recordedMessage,
             context.observabilityScope,
-            observability.contextGenerator,
           ),
         );
 
@@ -338,20 +332,18 @@ const appendOptionsFromHandledOutput = <
 >(
   message: RecordedMessage<MessageType, MessageMetadataType>,
   scope: ObservabilityScope,
-  contextGenerator: ObservabilityContextGenerator,
 ): AppendToStreamOptions<Event> => {
-  const { traceId, spanId } = scope.spanContext();
   const metadata = message.metadata as {
     readonly messageId: string;
     readonly correlationId?: string;
   };
 
   return {
-    correlationId:
-      metadata.correlationId ?? contextGenerator.generateCorrelationId(),
-    causationId: metadata.messageId,
-    traceId,
-    spanId,
-    observability: withOperationScope(scope),
+    observability: withOperationScope(scope, {
+      context: {
+        correlationId: metadata.correlationId,
+        causationId: metadata.messageId,
+      },
+    }),
   };
 };
