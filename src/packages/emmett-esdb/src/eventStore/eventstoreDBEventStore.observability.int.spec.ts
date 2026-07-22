@@ -10,7 +10,7 @@ import {
 import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getEventStoreDBEventStore } from './eventstoreDBEventStore';
 
 type ProductItemAdded = Event<
@@ -71,6 +71,45 @@ void describe('EventStoreDBEventStore observability', () => {
             [M.destination.name]: streamName,
             [M.system]: MessagingSystemName,
           });
+        });
+    },
+  );
+
+  void it(
+    'persists the observability id set onto appended events',
+    withDeadline,
+    async () => {
+      const streamName = `shopping_cart-${uuid()}`;
+
+      await given(async (observability) => {
+        const eventStore = getEventStoreDBEventStore(eventStoreDB.getClient(), {
+          observability,
+        });
+        await eventStore.appendToStream<ProductItemAdded>(streamName, [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ]);
+        return eventStore;
+      })
+        .when((eventStore) =>
+          eventStore.readStream<ProductItemAdded>(streamName),
+        )
+        .then(({ result }) => {
+          const metadata = result.events[0]!.metadata as {
+            messageId: string;
+            correlationId?: string;
+            causationId?: string;
+            traceId?: string;
+            spanId?: string;
+          };
+
+          expect(typeof metadata.correlationId).toBe('string');
+          expect(metadata.correlationId!.length).toBeGreaterThan(0);
+          // causationId self-roots to the event's own messageId when unset
+          expect(metadata.causationId).toBe(metadata.messageId);
+          expect(typeof metadata.traceId).toBe('string');
+          expect(metadata.traceId!.length).toBeGreaterThan(0);
+          expect(typeof metadata.spanId).toBe('string');
+          expect(metadata.spanId!.length).toBeGreaterThan(0);
         });
     },
   );

@@ -4,11 +4,10 @@ import {
   noopLogger,
   noopMeter,
   noopTracer,
-  ObservabilityScope as createObservabilityScope,
+  ObservabilityScope,
   type AttributeTarget,
   type Logger,
   type Meter,
-  type ObservabilityScope,
   type ObservabilityContextGenerator,
   type TracePropagation,
   type Tracer,
@@ -75,7 +74,7 @@ export type WorkflowCollectorContext = {
 export const workflowCollector = (
   observability: ResolvedWorkflowObservability,
 ) => {
-  const { startScope } = createObservabilityScope({
+  const { startScope } = ObservabilityScope({
     ...observability,
     attributePrefix: 'emmett',
   });
@@ -107,12 +106,17 @@ export const workflowCollector = (
       return startWorkflowScope(
         'workflow.handle',
         async (scope) => {
+          const { correlationId, causationId } = scope.context;
           scope.setAttributes({
             [A.scope.type]: ScopeTypes.workflow,
             [A.workflow.id]: context.workflowId,
             [A.workflow.type]: context.workflowType,
             [A.workflow.inputType]: context.inputType,
             [M.system]: MessagingSystemName,
+            ...(correlationId
+              ? { [M.message.correlationId]: correlationId }
+              : {}),
+            ...(causationId ? { [M.message.causationId]: causationId } : {}),
           });
 
           let status = 'success';

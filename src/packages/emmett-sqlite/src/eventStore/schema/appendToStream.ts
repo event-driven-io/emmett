@@ -19,6 +19,7 @@ import {
   type BeforeEventStoreCommitHandler,
   type ExpectedStreamVersion,
   type Event as Message,
+  type ObservabilityContext,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
@@ -46,6 +47,7 @@ export const appendToStream = async <MessageType extends Message>(
   options?: AppendToStreamOptions & {
     partition?: string;
     messageIdGenerator?: () => string;
+    context?: ObservabilityContext;
     onBeforeCommit?: BeforeEventStoreCommitHandler<
       SQLiteEventStore,
       { connection: AnySQLiteConnection }
@@ -65,17 +67,23 @@ export const appendToStream = async <MessageType extends Message>(
     (
       m: Message,
       i: number,
-    ): RecordedMessage<MessageType, SQLiteReadEventMetadata> =>
-      ({
+    ): RecordedMessage<MessageType, SQLiteReadEventMetadata> => {
+      const messageId = options?.messageIdGenerator?.() ?? uuid();
+      return {
         ...m,
         kind: m.kind ?? 'Event',
         metadata: {
           streamName,
-          messageId: options?.messageIdGenerator?.() ?? uuid(),
+          messageId,
           streamPosition: BigInt(i + 1),
+          correlationId: options?.context?.correlationId,
+          causationId: options?.context?.causationId ?? messageId,
+          traceId: options?.context?.traceId,
+          spanId: options?.context?.spanId,
           ...('metadata' in m ? (m.metadata ?? {}) : {}),
         },
-      }) as RecordedMessage<MessageType, SQLiteReadEventMetadata>,
+      } as RecordedMessage<MessageType, SQLiteReadEventMetadata>;
+    },
   );
 
   try {

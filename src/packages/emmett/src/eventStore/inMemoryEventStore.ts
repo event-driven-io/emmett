@@ -219,25 +219,24 @@ export const getInMemoryEventStore = (
             InMemoryEventStoreDefaultStreamVersion,
           );
 
+          const context = scope.context;
           const newEvents: ReadEvent<
             EventType,
             ReadEventMetadataWithGlobalPosition
           >[] = events.map((event, index) => {
             const globalPosition = BigInt(getAllEventsCount() + index + 1);
+            const messageId =
+              observability.contextGenerator.generateMessageId();
             const metadata: ReadEventMetadataWithGlobalPosition = {
               streamName,
-              messageId: observability.contextGenerator.generateMessageId(),
+              messageId,
               streamPosition: BigInt(currentEvents.length + index + 1),
               globalPosition: bigIntProcessorCheckpoint(globalPosition),
               checkpoint: bigIntProcessorCheckpoint(globalPosition),
-              ...(options?.correlationId
-                ? { correlationId: options.correlationId }
-                : {}),
-              ...(options?.causationId
-                ? { causationId: options.causationId }
-                : {}),
-              ...(options?.traceId ? { traceId: options.traceId } : {}),
-              ...(options?.spanId ? { spanId: options.spanId } : {}),
+              correlationId: context.correlationId,
+              causationId: context.causationId ?? messageId,
+              traceId: context.traceId,
+              spanId: context.spanId,
             };
             return {
               ...event,

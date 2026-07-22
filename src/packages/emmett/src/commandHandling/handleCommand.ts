@@ -158,10 +158,6 @@ export const CommandHandler =
       options.commandType ??
       options.name ??
       handlerNames(handle);
-    const correlationId =
-      handleOptions?.correlationId ??
-      observability.contextGenerator.generateCorrelationId();
-    const causationId = handleOptions?.causationId;
     const commandScopeOptions = handleOptions?.observability;
     const appendOptionsFromHandle = toAppendOptions<
       Store,
@@ -174,8 +170,6 @@ export const CommandHandler =
       {
         streamName,
         commandType,
-        correlationId,
-        causationId,
       },
       async (scope) =>
         asyncRetry(
@@ -290,7 +284,9 @@ export const CommandHandler =
                     : STREAM_DOES_NOT_EXIST);
 
                 // 4. Append result to the stream
-                const { traceId, spanId } = scope.spanContext();
+                // correlation/causation propagate to the append via the scope
+                // (seeded on the command scope, inherited by the append child);
+                // trace/span come from the append span itself.
                 const appendResult = await eventStore.appendToStream(
                   streamName,
                   eventsToAppend,
@@ -298,10 +294,6 @@ export const CommandHandler =
                     ...(appendOptionsFromHandle ?? {}),
                     ...(appendSchema ? { schema: appendSchema } : {}),
                     expectedStreamVersion,
-                    correlationId,
-                    ...(causationId ? { causationId } : {}),
-                    traceId,
-                    spanId,
                     observability: withOperationScope(
                       scope,
                       appendOptionsFromHandle?.observability,
@@ -390,10 +382,6 @@ const toAppendOptions = <
           >['schema'],
         }
       : {}),
-    ...(options.correlationId ? { correlationId: options.correlationId } : {}),
-    ...(options.causationId ? { causationId: options.causationId } : {}),
-    ...(options.traceId ? { traceId: options.traceId } : {}),
-    ...(options.spanId ? { spanId: options.spanId } : {}),
     ...(options.observability ? { observability: options.observability } : {}),
   };
 };

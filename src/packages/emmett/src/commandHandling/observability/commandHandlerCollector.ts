@@ -5,11 +5,10 @@ import {
   noopLogger,
   noopMeter,
   noopTracer,
-  ObservabilityScope as createObservabilityScope,
+  ObservabilityScope,
   type AttributeTarget,
   type Logger,
   type Meter,
-  type ObservabilityScope,
   type ObservabilityContextGenerator,
   type Tracer,
 } from '@event-driven-io/almanac';
@@ -69,14 +68,12 @@ export const commandObservability = (
 export type CommandHandlerCollectorContext = {
   streamName: string;
   commandType?: string | string[];
-  correlationId?: string;
-  causationId?: string;
 };
 
 export const commandHandlerCollector = (
   observability: ResolvedCommandObservability,
 ) => {
-  const { startScope } = createObservabilityScope({
+  const { startScope } = ObservabilityScope({
     ...observability,
     attributePrefix: 'emmett',
   });
@@ -108,6 +105,7 @@ export const commandHandlerCollector = (
       return startCommandScope(
         'command.handle',
         async (scope) => {
+          const { correlationId, causationId } = scope.context;
           scope.setAttributes({
             [A.scope.type]: ScopeTypes.command,
             [M.system]: MessagingSystemName,
@@ -115,12 +113,10 @@ export const commandHandlerCollector = (
             ...(context.commandType
               ? { [A.command.type]: context.commandType }
               : {}),
-            ...(context.correlationId
-              ? { [M.message.correlationId]: context.correlationId }
+            ...(correlationId
+              ? { [M.message.correlationId]: correlationId }
               : {}),
-            ...(context.causationId
-              ? { [M.message.causationId]: context.causationId }
-              : {}),
+            ...(causationId ? { [M.message.causationId]: causationId } : {}),
           });
 
           let status = 'success';
@@ -162,12 +158,6 @@ export const commandHandlerCollector = (
           [A.stream.name]: context.streamName,
           ...(context.commandType
             ? { [A.command.type]: context.commandType }
-            : {}),
-          ...(context.correlationId
-            ? { [M.message.correlationId]: context.correlationId }
-            : {}),
-          ...(context.causationId
-            ? { [M.message.causationId]: context.causationId }
             : {}),
         }),
       );

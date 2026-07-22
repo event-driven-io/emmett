@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { alwaysSample, neverSample } from '../configuration/options';
 import { LogEvent, noopLogger, type AnyLogEvent } from '../loggers/logger';
-import { collectingTracer } from '../testing';
+import {
+  collectingTracer,
+  testObservabilityContextGenerator,
+} from '../testing';
 import { noopTracer } from '../tracers';
 import type { ScopeObservability } from './scope';
-import { ObservabilityScope } from './scope';
+import { noopScope, ObservabilityScope } from './scope';
 
 const defaultObservability = (
   overrides?: Partial<ScopeObservability>,
@@ -220,14 +223,14 @@ describe('ObservabilityScope', () => {
     ]);
   });
 
-  it('spanContext returns the underlying span context', async () => {
+  it('observabilityContext resolves trace/span from the underlying span', async () => {
     const tracer = collectingTracer();
     const o11y = defaultObservability({ tracer });
 
     await ObservabilityScope(o11y).startScope('root', (scope) => {
-      const ctx = scope.spanContext();
-      expect(ctx.traceId).toBeDefined();
-      expect(ctx.spanId).toBeDefined();
+      const ctx = scope.context;
+      expect(ctx.traceId).toBe(tracer.spans[0]!.ownContext.traceId);
+      expect(ctx.spanId).toBe(tracer.spans[0]!.ownContext.spanId);
       return Promise.resolve();
     });
   });
@@ -377,5 +380,127 @@ describe('ObservabilityScope', () => {
 
     expect(result).toBe(42);
     expect(tracer.spans).toHaveLength(0);
+  });
+
+  describe('observabilityContext', () => {
+    it('generates all four ids when nothing is seeded', async () => {
+      const o11y = defaultObservability({
+        tracer: noopTracer(),
+        contextGenerator: testObservabilityContextGenerator({
+          traceIds: 'trace-1',
+          spanIds: 'span-1',
+          correlationIds: 'corr-1',
+        }),
+      });
+
+      await ObservabilityScope(o11y).startScope('root', (scope) => {
+        expect(scope.context).toEqual({
+          traceId: 'trace-1',
+          spanId: 'span-1',
+          correlationId: 'corr-1',
+          causationId: undefined,
+        });
+        return Promise.resolve();
+      });
+    });
+
+    it('resolves the seeded correlation/causation over the generator', async () => {
+      const o11y = defaultObservability({
+        tracer: noopTracer(),
+        contextGenerator: testObservabilityContextGenerator({
+          traceIds: 'trace-1',
+          spanIds: 'span-1',
+        }),
+      });
+
+      await ObservabilityScope(o11y).startScope(
+        'root',
+        (scope) => {
+          expect(scope.context).toEqual({
+            traceId: 'trace-1',
+            spanId: 'span-1',
+            correlationId: 'corr-1',
+            causationId: 'cause-1',
+          });
+          return Promise.resolve();
+        },
+        { context: { correlationId: 'corr-1', causationId: 'cause-1' } },
+      );
+    });
+
+    it('a child inherits correlation/causation and mints its own span', async () => {
+      const tracer = collectingTracer();
+      const o11y = defaultObservability({ tracer });
+
+      await ObservabilityScope(o11y).startScope(
+        'root',
+        async (scope) => {
+          const parent = scope.context;
+          await scope.scope('child', (child) => {
+            const childContext = child.context;
+            expect(childContext.correlationId).toBe(parent.correlationId);
+            expect(childContext.causationId).toBe(parent.causationId);
+            expect(childContext.spanId).not.toBe(parent.spanId);
+            return Promise.resolve();
+          });
+        },
+        { context: { correlationId: 'corr-1', causationId: 'cause-1' } },
+      );
+    });
+
+    it('a child context overrides the inherited correlation/causation', async () => {
+      const o11y = defaultObservability();
+
+      await ObservabilityScope(o11y).startScope(
+        'root',
+        async (scope) => {
+          await scope.scope(
+            'child',
+            (child) => {
+              const childContext = child.context;
+              expect(childContext.correlationId).toBe('corr-1');
+              expect(childContext.causationId).toBe('cause-2');
+              return Promise.resolve();
+            },
+            { context: { causationId: 'cause-2' } },
+          );
+        },
+        { context: { correlationId: 'corr-1', causationId: 'cause-1' } },
+      );
+    });
+
+    it('noopScope resolves generated ids', () => {
+      const context = noopScope.context;
+      expect(typeof context.traceId).toBe('string');
+      expect(context.traceId.length).toBeGreaterThan(0);
+      expect(typeof context.spanId).toBe('string');
+      expect(context.spanId.length).toBeGreaterThan(0);
+      expect(typeof context.correlationId).toBe('string');
+      expect(context.correlationId.length).toBeGreaterThan(0);
+    });
+
+    it('a sampled-out scope still resolves its context', async () => {
+      const o11y = defaultObservability({
+        sampler: neverSample,
+        contextGenerator: testObservabilityContextGenerator({
+          traceIds: 'trace-1',
+          spanIds: 'span-1',
+        }),
+      });
+
+      await ObservabilityScope(o11y).startScope(
+        'root',
+        (scope) => {
+          expect(scope.context).toEqual({
+            traceId: 'trace-1',
+            spanId: 'span-1',
+            correlationId: 'corr-1',
+            causationId: undefined,
+          });
+          return Promise.resolve();
+        },
+        { context: { correlationId: 'corr-1' } },
+      );
+    });
   });
 });
