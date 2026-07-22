@@ -41,9 +41,6 @@ void describe('PostgreSQL event store started consumer', () => {
     await eventStore.schema.migrate();
     pool = dumbo({
       connectionString,
-      transactionOptions: {
-        allowNestedTransactions: true,
-      },
     });
   });
 
@@ -1024,9 +1021,6 @@ void describe('PostgreSQL event store started consumer', () => {
         // Given
         const pool = dumbo({
           connectionString,
-          transactionOptions: {
-            allowNestedTransactions: true,
-          },
         });
         const processor = postgreSQLReactor<GuestStayEvent>({
           processorId: uuid(),

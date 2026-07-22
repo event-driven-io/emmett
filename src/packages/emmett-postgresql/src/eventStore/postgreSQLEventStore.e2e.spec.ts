@@ -55,11 +55,6 @@ void describe('EventStoreDBEventStore', () => {
     pongo = pongoClient({
       connectionString,
       driver: pgDriver,
-      connectionOptions: {
-        transactionOptions: {
-          allowNestedTransactions: true,
-        },
-      },
     });
   });
 

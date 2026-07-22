@@ -48,9 +48,6 @@ void describe('SQLite event store started consumer', () => {
   beforeEach(() => {
     pool = sqlite3Pool({
       fileName,
-      transactionOptions: {
-        allowNestedTransactions: true,
-      },
     });
 
     eventStore = getSQLiteEventStore({ ...config, pool });

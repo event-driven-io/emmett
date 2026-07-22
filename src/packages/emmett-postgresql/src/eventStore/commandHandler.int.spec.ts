@@ -44,11 +44,6 @@ void describe('Postgres Projections', () => {
     pongo = pongoClient({
       connectionString,
       driver: pgDriver,
-      connectionOptions: {
-        transactionOptions: {
-          allowNestedTransactions: true,
-        },
-      },
     });
     return eventStore;
   });

@@ -5,10 +5,15 @@ import {
   sqlMigration,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
-import type { PgPool, PgTransaction } from '@event-driven-io/dumbo/pg';
+import type {
+  PgPool,
+  PgTransaction,
+  PgTransactionOptions,
+} from '@event-driven-io/dumbo/pg';
 import type { JSONSerializationOptions } from '@event-driven-io/emmett';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 import { transactionToPostgreSQLProjectionHandlerContext } from '../projections';
+import { withNestedTransactionOptions } from '../transactionOptions';
 import { appendToStreamSQL } from './appendToStream';
 import { eventStoreSchemaMigrations } from './migrations';
 import {
@@ -93,9 +98,7 @@ export const createEventStoreSchema = (
       connectionString,
       connection: tx.connection,
       serialization: options?.serialization,
-      transactionOptions: {
-        allowNestedTransactions: true,
-      },
+      ...withNestedTransactionOptions<object, PgTransactionOptions>(),
     });
 
     try {

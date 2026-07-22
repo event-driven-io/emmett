@@ -30,9 +30,6 @@ void describe('reading messages in batches', () => {
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
-      transactionOptions: {
-        allowNestedTransactions: true,
-      },
       pooled: false,
     });
 

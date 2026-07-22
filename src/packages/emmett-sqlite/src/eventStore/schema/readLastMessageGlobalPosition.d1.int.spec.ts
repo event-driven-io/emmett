@@ -43,7 +43,6 @@ void describe('readLastMessageGlobalPosition', () => {
       database,
       serializer: JSONSerializer,
       transactionOptions: {
-        allowNestedTransactions: true,
         mode: 'session_based',
       },
     });

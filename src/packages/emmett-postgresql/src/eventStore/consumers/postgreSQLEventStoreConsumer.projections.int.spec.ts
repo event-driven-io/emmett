@@ -40,11 +40,6 @@ void describe('PostgreSQL event store started consumer', () => {
     pongo = pongoClient({
       connectionString,
       driver: pgDriver,
-      connectionOptions: {
-        transactionOptions: {
-          allowNestedTransactions: true,
-        },
-      },
     });
     summaries = pongo.db().collection(shoppingCartsSummaryCollectionName);
     await eventStore.schema.migrate();

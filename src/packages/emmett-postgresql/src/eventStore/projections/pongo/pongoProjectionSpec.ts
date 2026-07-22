@@ -35,9 +35,6 @@ const withCollection = (
       connectionString,
       connectionOptions: {
         connection,
-        transactionOptions: {
-          allowNestedTransactions: true,
-        },
       },
       driver: pgDriver,
     });

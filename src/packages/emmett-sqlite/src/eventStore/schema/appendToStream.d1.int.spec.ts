@@ -60,7 +60,6 @@ void describe('appendEvent', () => {
       database,
       serializer: JSONSerializer,
       transactionOptions: {
-        allowNestedTransactions: true,
         mode: 'session_based',
       },
     });

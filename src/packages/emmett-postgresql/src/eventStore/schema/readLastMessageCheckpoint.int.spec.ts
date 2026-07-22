@@ -37,9 +37,6 @@ void describe('readLastMessageGlobalPosition', () => {
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
-      transactionOptions: {
-        allowNestedTransactions: true,
-      },
     });
 
     await createEventStoreSchema(connectionString, pool);

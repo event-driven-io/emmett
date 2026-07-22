@@ -140,12 +140,8 @@ export const getSQLiteEventStore = <
   const pool =
     options.pool ??
     dumbo({
-      serialization: options.serialization,
-      transactionOptions: {
-        allowNestedTransactions: true,
-        mode: 'session_based',
-      },
       ...options.driver.mapToDumboOptions(options),
+      serialization: options.serialization,
     });
   let migrateSchema: Promise<void> | undefined = undefined;
 
@@ -392,10 +388,6 @@ export const getSQLiteEventStore = <
             connection,
             serialization: options.serialization,
           }),
-          transactionOptions: {
-            allowNestedTransactions: true,
-            mode: 'session_based',
-          },
           schema: {
             ...options.schema,
             autoMigration: 'None',

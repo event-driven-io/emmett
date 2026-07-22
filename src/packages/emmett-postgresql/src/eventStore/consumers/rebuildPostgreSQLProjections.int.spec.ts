@@ -61,11 +61,6 @@ void describe('Rebuilding PostgreSQL Projections', () => {
     pongo = pongoClient({
       connectionString,
       driver: pgDriver,
-      connectionOptions: {
-        transactionOptions: {
-          allowNestedTransactions: true,
-        },
-      },
     });
     db = pongo.db();
     summaries = db.collection(shoppingCartsSummaryCollectionName);
@@ -77,9 +72,6 @@ void describe('Rebuilding PostgreSQL Projections', () => {
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
-      transactionOptions: {
-        allowNestedTransactions: true,
-      },
     });
   });
 

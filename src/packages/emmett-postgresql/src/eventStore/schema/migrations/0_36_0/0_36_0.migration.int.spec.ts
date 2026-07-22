@@ -60,9 +60,6 @@ void describe('Schema migrations tests', () => {
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
-      transactionOptions: {
-        allowNestedTransactions: true,
-      },
     });
 
     // TODO: Change setup to schemas, when they're supported in Emmett instead of using separate containers

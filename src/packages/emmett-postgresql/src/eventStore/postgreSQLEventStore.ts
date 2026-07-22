@@ -1,3 +1,4 @@
+import type { ObservabilityScope } from '@event-driven-io/almanac';
 import {
   dumbo,
   fromDatabaseDriverType,
@@ -6,13 +7,12 @@ import {
   type MigrationStyle,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
-import type { ObservabilityScope } from '@event-driven-io/almanac';
 import type {
   PgClientConnection,
-  PgConnection,
   PgDriverType,
   PgPool,
   PgPoolClientConnection,
+  PgTransactionOptions,
 } from '@event-driven-io/dumbo/pg';
 import {
   assertExpectedVersionMatchesCurrent,
@@ -20,27 +20,27 @@ import {
   eventStoreCollector,
   eventStoreObservability,
   ExpectedVersionConflictError,
+  mergeObservability,
   NO_CONCURRENCY_CHECK,
   noopScope,
   unknownTag,
+  withOperationScope,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
-  type Event,
   type EmmettObservabilityConfig,
+  type Event,
   type EventStore,
   type EventStoreSession,
   type EventStoreSessionFactory,
   type JSONSerializationOptions,
-  mergeObservability,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
   type StreamExistsResult,
-  withOperationScope,
 } from '@event-driven-io/emmett';
 import type pg from 'pg';
 import {
@@ -65,6 +65,7 @@ import {
   type PostgresStreamExistsOptions,
 } from './schema';
 import { truncateTables } from './schema/truncateTables';
+import { withNestedTransactionOptions } from './transactionOptions';
 
 export interface PostgresEventStore
   extends
@@ -169,8 +170,11 @@ type PostgresEventStoreNotPooledOptions =
       pooled?: false;
     };
 
-export type PostgresEventStoreConnectionOptions =
-  PostgresEventStorePooledOptions | PostgresEventStoreNotPooledOptions;
+export type PostgresEventStoreConnectionOptions = (
+  PostgresEventStorePooledOptions | PostgresEventStoreNotPooledOptions
+) & {
+  transactionOptions?: PgTransactionOptions | undefined;
+};
 
 export type PostgresEventStoreOptions = {
   projections?: ProjectionRegistration<
@@ -208,20 +212,21 @@ export const getPostgreSQLEventStore = (
   connectionString: string,
   options: PostgresEventStoreOptions = defaultPostgreSQLOptions,
 ): PostgresEventStore => {
-  const poolOptions = {
+  const rawPoolOptions = {
     connectionString,
     ...(options.connectionOptions ? options.connectionOptions : {}),
   };
-  const pool =
+  const poolOptions = withNestedTransactionOptions<
+    PostgresEventStoreConnectionOptions & { connectionString: string },
+    PgTransactionOptions
+  >(rawPoolOptions);
+  const pool: PgPool =
     'dumbo' in poolOptions
-      ? poolOptions.dumbo
-      : dumbo({
+      ? (poolOptions.dumbo as PgPool)
+      : (dumbo({
           ...poolOptions,
           serialization: options.serialization,
-          transactionOptions: {
-            allowNestedTransactions: true,
-          },
-        });
+        }) as PgPool);
   let migrateSchema: Promise<RunSQLMigrationsResult> | undefined = undefined;
 
   const autoGenerateSchema =
@@ -239,7 +244,7 @@ export const getPostgreSQLEventStore = (
       // TODO: Fix this cast when introducing more drivers
       migrateSchema = createEventStoreSchema(
         connectionString,
-        pool as PgPool,
+        pool,
         {
           onBeforeSchemaCreated: async (context) => {
             if (options.hooks?.onBeforeSchemaCreated) {
@@ -460,7 +465,7 @@ export const getPostgreSQLEventStore = (
           const appendResult = await pool.withConnection(async (connection) =>
             appendToStream(
               // TODO: Fix this when introducing more drivers
-              connection as PgConnection,
+              connection,
               streamName,
               streamType,
               downcastRecordedMessages(
@@ -525,7 +530,7 @@ export const getPostgreSQLEventStore = (
         const storeOptions: PostgresEventStoreOptions = {
           ...options,
           connectionOptions: {
-            connection: connection as PgConnection,
+            connection,
           },
           schema: {
             ...(options.schema ?? {}),

@@ -4,7 +4,11 @@ import {
   type QueryResultRow,
   type SQL,
 } from '@event-driven-io/dumbo';
-import type { PgPool, PgPoolOptions } from '@event-driven-io/dumbo/pg';
+import type {
+  PgPool,
+  PgPoolOptions,
+  PgTransactionOptions,
+} from '@event-driven-io/dumbo/pg';
 import {
   assertFails,
   AssertionError,
@@ -27,6 +31,7 @@ import {
   type PostgresReadEventMetadata,
 } from '../postgreSQLEventStore';
 import { PostgreSQLEventStoreCheckpoint } from '../schema';
+import { withNestedTransactionOptions } from '../transactionOptions';
 
 export type PostgreSQLProjectionSpecEvent<
   EventType extends Event,
@@ -73,9 +78,9 @@ export const PostgreSQLProjectionSpec = {
       const dumboOptions = {
         ...restOptions,
         serialization: projection.serialization,
-        transactionOptions: {
-          allowNestedTransactions: true,
-        },
+        ...withNestedTransactionOptions<PgPoolOptions, PgTransactionOptions>(
+          restOptions,
+        ),
       };
       const { connectionString } = dumboOptions;
 

@@ -117,9 +117,6 @@ export const pongoProjection = <
         connectionOptions: {
           client,
           pool,
-          transactionOptions: {
-            allowNestedTransactions: true,
-          },
         },
       });
       try {
@@ -142,9 +139,6 @@ export const pongoProjection = <
             connectionOptions: {
               client,
               pool,
-              transactionOptions: {
-                allowNestedTransactions: true,
-              },
             },
           });
           try {
@@ -168,9 +162,6 @@ export const pongoProjection = <
             connectionOptions: {
               client,
               pool,
-              transactionOptions: {
-                allowNestedTransactions: true,
-              },
             },
           });
           try {
@@ -309,9 +300,6 @@ export const pongoMultiStreamProjection = <
         connectionOptions: {
           client,
           pool,
-          transactionOptions: {
-            allowNestedTransactions: true,
-          },
         },
       });
 

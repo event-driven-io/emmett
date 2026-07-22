@@ -25,7 +25,6 @@ const sqliteConsumerFactory: ConsumerFactory = () => {
   // the store does not deadlock against the connection pulling its messages
   const pool = sqlite3Pool({
     fileName,
-    transactionOptions: { allowNestedTransactions: true },
   });
 
   const eventStore = getSQLiteEventStore({

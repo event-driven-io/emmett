@@ -132,12 +132,8 @@ export const sqliteEventStoreConsumer = <
   const pool =
     options.pool ??
     dumbo({
-      serialization: options.serialization,
-      transactionOptions: {
-        allowNestedTransactions: true,
-        mode: 'session_based',
-      },
       ...options.driver.mapToDumboOptions(options),
+      serialization: options.serialization,
     });
 
   const processorContext = {

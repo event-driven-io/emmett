@@ -1,4 +1,5 @@
 import { dumbo, JSONSerializer, type Dumbo } from '@event-driven-io/dumbo';
+import type { PgTransactionOptions } from '@event-driven-io/dumbo/pg';
 import {
   asyncAwaiter,
   ConsumerStartPositions,
@@ -40,6 +41,7 @@ import {
   type PostgreSQLReactorOptions,
   type PostgreSQLWorkflowProcessorOptions,
 } from './postgreSQLProcessor';
+import { withNestedTransactionOptions } from '../transactionOptions';
 
 export type PostgreSQLEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -124,9 +126,7 @@ export const postgreSQLEventStoreConsumer = <
     : dumbo({
         connectionString: options.connectionString,
         serialization: options.serialization,
-        transactionOptions: {
-          allowNestedTransactions: true,
-        },
+        ...withNestedTransactionOptions<object, PgTransactionOptions>(),
       });
 
   const processorContext = {

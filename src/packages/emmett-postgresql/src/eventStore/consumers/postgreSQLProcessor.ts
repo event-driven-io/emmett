@@ -6,6 +6,7 @@ import type {
   PgPool,
   PgPoolClientConnection,
   PgTransaction,
+  PgTransactionOptions,
 } from '@event-driven-io/dumbo/pg';
 import type {
   AnyCommand,
@@ -49,6 +50,7 @@ import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
+import { withNestedTransactionOptions } from '../transactionOptions';
 import {
   DefaultPostgreSQLProcessorLockPolicy,
   postgreSQLProcessorLock,
@@ -325,9 +327,9 @@ const getProcessorPool = (options: PostgreSQLConnectionOptions) => {
             connectionString: processorConnectionString,
             ...poolOptions,
             serialization: options.serialization,
-            transactionOptions: {
-              allowNestedTransactions: true,
-            },
+            ...withNestedTransactionOptions<object, PgTransactionOptions>(
+              poolOptions,
+            ),
           })
         : null;
 
