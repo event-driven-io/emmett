@@ -90,6 +90,7 @@ export const pongoProjection = <
   handle,
   canHandle,
   eventsOptions,
+  init,
 }: PongoProjectionOptions<
   EventType,
   EventPayloadType
@@ -107,6 +108,7 @@ export const pongoProjection = <
       ))!;
       const pongo = pongoClient({
         driver,
+        schema: { autoMigration: 'None' },
         connectionOptions: { connection },
       });
       try {
@@ -131,6 +133,26 @@ export const pongoProjection = <
           try {
             await truncate({
               ...context,
+              pongo,
+            });
+          } finally {
+            await pongo.close();
+          }
+        }
+      : undefined,
+    init: init
+      ? async (options) => {
+          const { connection } = options.context;
+          const driver = (await pongoDriverRegistry.tryResolve(
+            options.context.driverType,
+          ))!;
+          const pongo = pongoClient({
+            driver,
+            connectionOptions: { connection },
+          });
+          try {
+            await init({
+              ...options.context,
               pongo,
             });
           } finally {
@@ -273,26 +295,13 @@ export const pongoMultiStreamProjection = <
       }
     },
     init: async (context) => {
-      const { connection } = context;
-      const driver = (await pongoDriverRegistry.tryResolve(
-        context.driverType,
-      ))!;
-      const pongo = pongoClient({
-        connectionOptions: { connection },
-        driver,
-      });
-
-      try {
-        await pongo
-          .db()
-          .collection<Document>(
-            collectionNameWithVersion,
-            options.collectionOptions,
-          )
-          .schema.migrate(); // TODO: ADD migration optionscontext.migrationOptions);
-      } finally {
-        await pongo.close();
-      }
+      await context.pongo
+        .db()
+        .collection<Document>(
+          collectionNameWithVersion,
+          options.collectionOptions,
+        )
+        .schema.migrate(); // TODO: ADD migration optionscontext.migrationOptions);
     },
   });
 };

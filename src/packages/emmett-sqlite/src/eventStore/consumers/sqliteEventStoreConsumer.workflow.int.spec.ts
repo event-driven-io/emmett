@@ -8,7 +8,6 @@ import {
   workflowStreamName,
   type WorkflowOptions,
 } from '@event-driven-io/emmett';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
@@ -25,6 +24,7 @@ import {
   type GroupCheckoutOutput,
   type GuestCheckedOut,
 } from '../../testing/groupCheckout.domain';
+import { deleteSQLiteDatabaseFiles } from '../../testing/sqliteTestDatabase';
 import { createEventStoreSchema } from '../schema';
 import {
   getSQLiteEventStore,
@@ -81,14 +81,7 @@ void describe('SQLite event store workflow processor', () => {
 
   afterEach(async () => {
     await eventStore.close();
-    if (!fs.existsSync(fileName)) {
-      return;
-    }
-    try {
-      fs.unlinkSync(fileName);
-    } catch (error) {
-      console.log(error);
-    }
+    deleteSQLiteDatabaseFiles(fileName);
   });
 
   void it(

@@ -14,7 +14,6 @@ import {
   projections,
   type Event,
 } from '@event-driven-io/emmett';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
@@ -29,6 +28,7 @@ import type {
   ProductItemAdded,
   ShoppingCartEvent,
 } from '../testing/shoppingCart.domain';
+import { deleteSQLiteDatabaseFiles } from '../testing/sqliteTestDatabase';
 import {
   getSQLiteEventStore,
   type SQLiteEventStore,
@@ -48,10 +48,7 @@ void describe('SQLiteEventStore', () => {
   let eventStore: SQLiteEventStore;
 
   afterEach(() => {
-    if (!fs.existsSync(fileName)) {
-      return;
-    }
-    fs.unlinkSync(fileName);
+    deleteSQLiteDatabaseFiles(fileName);
   });
 
   void describe('With manual Schema Creation', () => {

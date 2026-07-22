@@ -294,7 +294,10 @@ const postgreSQLProcessingScope = (options: {
           client,
           transaction: transaction as PgTransaction,
           messageStore: getPostgreSQLEventStore(connectionString, {
-            connectionOptions: { client },
+            connectionOptions: {
+              connection: transaction.connection as PgPoolClientConnection,
+            },
+            schema: { autoMigration: 'None' },
           }),
         },
         observabilityScope: partialContext?.observabilityScope ?? noopScope,
