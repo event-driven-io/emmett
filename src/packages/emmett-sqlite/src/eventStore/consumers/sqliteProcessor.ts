@@ -124,8 +124,12 @@ export type SQLiteWorkflowProcessorOptions<
   StoredMessage
 > &
   SQLiteProcessorConnectionOptions & {
-    messageStore: WorkflowProcessorContext['connection']['messageStore'];
+    messageStore: SQLiteWorkflowMessageStoreFactory;
   };
+
+export type SQLiteWorkflowMessageStoreFactory = (
+  connection: AnySQLiteConnection,
+) => WorkflowProcessorContext['connection']['messageStore'];
 
 const sqliteProcessingScope =
   (): MessageProcessingScope<SQLiteProcessorHandlerContext> => {
@@ -159,7 +163,7 @@ const sqliteProcessingScope =
   };
 
 const sqliteWorkflowProcessingScope = (
-  messageStore: WorkflowProcessorContext['connection']['messageStore'],
+  createMessageStore: SQLiteWorkflowMessageStoreFactory,
 ): MessageProcessingScope<
   SQLiteProcessorHandlerContext & WorkflowProcessorContext
 > => {
@@ -181,7 +185,10 @@ const sqliteWorkflowProcessingScope = (
       async (transaction: SQLiteTransaction) => {
         return handler({
           ...partialContext,
-          connection: Object.assign(connection, { messageStore }),
+          connection: {
+            ...connection,
+            messageStore: createMessageStore(transaction.connection),
+          },
           execute: transaction.execute,
           observabilityScope: partialContext?.observabilityScope ?? noopScope,
         });

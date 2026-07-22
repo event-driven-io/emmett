@@ -1,4 +1,5 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
+import { sqliteAmbientConnectionPool } from '@event-driven-io/dumbo/sqlite';
 import {
   asyncAwaiter,
   bigIntProcessorCheckpoint,
@@ -256,15 +257,17 @@ export const sqliteEventStoreConsumer = <
         'messageStore'
       >,
     ): SQLiteProcessor<Input | Output> => {
-      const messageStore = getSQLiteEventStore({
-        ...options,
-        pool,
-        schema: { autoMigration: 'None' },
-      });
-
       const processor = sqliteWorkflowProcessor({
         ...processorOptions,
-        messageStore,
+        messageStore: (connection) =>
+          getSQLiteEventStore({
+            ...options,
+            pool: sqliteAmbientConnectionPool({
+              driverType: options.driver.driverType,
+              connection,
+            }),
+            schema: { autoMigration: 'None' },
+          }),
         observability: mergeObservability(
           options.observability,
           processorOptions.observability,
