@@ -30,7 +30,7 @@ export const ProcessorCheckpoint = Object.assign(
     isEnd: (checkpoint: ProcessorCheckpoint | undefined): checkpoint is END =>
       checkpoint === 'END',
     compare: (a: ProcessorCheckpoint, b: ProcessorCheckpoint) =>
-      a > b ? 1 : -1,
+      a > b ? 1 : a < b ? -1 : 0,
   } as const,
 );
 

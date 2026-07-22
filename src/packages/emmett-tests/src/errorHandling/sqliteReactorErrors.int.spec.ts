@@ -4,11 +4,11 @@ import {
   sqliteEventStoreConsumer,
 } from '@event-driven-io/emmett-sqlite';
 import { sqlite3EventStoreDriver } from '@event-driven-io/emmett-sqlite/sqlite3';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import { describe } from 'vitest';
+import { deleteSQLiteDatabaseFiles } from '../testing/sqliteTestDatabase';
 import {
   testReactorRecordsFailureAsEvent,
   testReactorSkipsAndStops,
@@ -46,10 +46,7 @@ const sqliteConsumerFactory: ConsumerFactory = () => {
     teardown: async () => {
       await eventStore.close();
       await pool.close();
-      for (const suffix of ['', '-shm', '-wal']) {
-        const file = `${fileName}${suffix}`;
-        if (fs.existsSync(file)) fs.unlinkSync(file);
-      }
+      deleteSQLiteDatabaseFiles(fileName);
     },
   });
 };

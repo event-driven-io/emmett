@@ -30,8 +30,8 @@ import { onShutdown } from '../utils/lifecycle';
 import { asyncAwaiter } from '../utils/promises';
 import {
   getCheckpoint,
+  ProcessorCheckpoint,
   type Checkpointer,
-  type ProcessorCheckpoint,
   type StoreProcessorCheckpointResult,
 } from './checkpoints';
 import { inMemoryCheckpointer } from './inMemoryProcessors';
@@ -47,7 +47,7 @@ export const CurrentMessageProcessorPosition = {
     compareCheckpoints: (
       a: ProcessorCheckpoint,
       b: ProcessorCheckpoint,
-    ) => number = (chkA, chkB) => (chkA > chkB ? 1 : chkA < chkB ? -1 : 0),
+    ) => number = ProcessorCheckpoint.compare,
   ) => {
     if (a === b) return 0;
 
@@ -84,6 +84,10 @@ export const wasMessageHandled = <
 >(
   message: RecordedMessage<MessageType, MessageMetadataType>,
   checkpoint: ProcessorCheckpoint | null,
+  compareCheckpoints: (
+    a: ProcessorCheckpoint,
+    b: ProcessorCheckpoint,
+  ) => number = ProcessorCheckpoint.compare,
 ): boolean => {
   //TODO Make it smarter
   const messageCheckpoint = getCheckpoint(message);
@@ -93,7 +97,7 @@ export const wasMessageHandled = <
     messageCheckpoint !== undefined &&
     checkpoint !== null &&
     checkpoint !== undefined &&
-    messageCheckpoint <= checkpoint
+    compareCheckpoints(messageCheckpoint, checkpoint) <= 0
   );
 };
 
@@ -218,6 +222,10 @@ export type BaseMessageProcessorOptions<
   checkpoints?:
     Checkpointer<MessageType, MessageMetadataType, HandlerContext> | 'DISABLED';
   canHandle?: CanHandle<MessageType>;
+  compareCheckpoints?: (
+    a: ProcessorCheckpoint,
+    b: ProcessorCheckpoint,
+  ) => number;
   hooks?: ProcessorHooks<HandlerContext>;
 } & JSONSerializationOptions & {
     observability?: ProcessorObservabilityConfig;
@@ -343,6 +351,7 @@ export const reactor = <
     startFrom,
     canHandle,
     stopAfter,
+    compareCheckpoints = ProcessorCheckpoint.compare,
   } = options;
 
   const checkpointer =
@@ -433,7 +442,7 @@ export const reactor = <
   }>();
 
   const hasProcessed = (target: ProcessorCheckpoint): boolean =>
-    lastCheckpoint !== null && lastCheckpoint >= target;
+    lastCheckpoint !== null && compareCheckpoints(lastCheckpoint, target) >= 0;
 
   const notifyCheckpointWaiters = () => {
     for (const waiter of checkpointWaiters) {
@@ -645,7 +654,12 @@ export const reactor = <
             return await processingScope(
               async (context) => {
                 const messagesAboveCheckpoint = messages.filter(
-                  (message) => !wasMessageHandled(message, lastCheckpoint),
+                  (message) =>
+                    !wasMessageHandled(
+                      message,
+                      lastCheckpoint,
+                      compareCheckpoints,
+                    ),
                 );
 
                 const upcastedMessages = messagesAboveCheckpoint
