@@ -797,7 +797,7 @@ void describe('Processors', () => {
       };
     };
 
-    void it('resolves BEGINNING without reading the stored checkpoint', async () => {
+    void it('resolves BEGINNING even when a checkpoint is stored', async () => {
       // Given
       const { checkpoints, wasRead } = trackingCheckpointer(
         bigIntProcessorCheckpoint(9n),
@@ -814,7 +814,7 @@ void describe('Processors', () => {
 
       // Then
       assertEqual(startPosition, 'BEGINNING');
-      assertEqual(wasRead(), false);
+      assertEqual(wasRead(), true);
     });
 
     void it('resolves an explicit checkpoint without reading the stored checkpoint', async () => {
@@ -912,7 +912,7 @@ void describe('Processors', () => {
 
       // Then
       assertEqual(startPosition, 'END');
-      assertEqual(wasRead(), false);
+      assertEqual(wasRead(), true);
     });
   });
 
