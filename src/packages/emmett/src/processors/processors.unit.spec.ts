@@ -12,10 +12,23 @@ import type { Event, ReadEventMetadata, RecordedMessage } from '../typing';
 import { isString } from '../validation';
 import {
   bigIntProcessorCheckpoint,
+  ProcessorCheckpoint,
   type Checkpointer,
-  type ProcessorCheckpoint,
 } from './checkpoints';
-import { MessageProcessor, projector, reactor } from './processors';
+import {
+  MessageProcessor,
+  projector,
+  reactor,
+  wasMessageHandled,
+} from './processors';
+
+const numericCompareCheckpoints = (
+  a: ProcessorCheckpoint,
+  b: ProcessorCheckpoint,
+): number => {
+  const [left, right] = [BigInt(a), BigInt(b)];
+  return left > right ? 1 : left < right ? -1 : 0;
+};
 
 type TestEvent = Event<'test', { counter: number }>;
 
@@ -1152,5 +1165,68 @@ void describe('Processors', () => {
       // Then
       assertEqual(processor.instanceId, customInstanceId);
     });
+  });
+});
+
+void describe('comparing checkpoints', () => {
+  const rawRecordedEvent = (
+    checkpoint: string,
+  ): RecordedMessage<
+    TestEvent,
+    ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+  > => ({
+    type: 'test',
+    kind: 'Event',
+    data: { counter: 0 },
+    metadata: {
+      streamName: 'test-stream',
+      messageId: uuid(),
+      checkpoint: ProcessorCheckpoint(checkpoint),
+      globalPosition: BigInt(checkpoint),
+      streamPosition: BigInt(checkpoint),
+    },
+  });
+
+  void describe('wasMessageHandled', () => {
+    void it('uses the provided comparator to decide whether a message was handled', () => {
+      // '10' <= '9' lexicographically (native), but 10 <= 9 is false numerically
+      const message = rawRecordedEvent('10');
+
+      assertEqual(
+        wasMessageHandled(
+          message,
+          ProcessorCheckpoint('9'),
+          numericCompareCheckpoints,
+        ),
+        false,
+      );
+    });
+  });
+
+  void it('uses the provided comparator when deciding whether a checkpoint was processed', async () => {
+    // Given
+    const checkpoint = ProcessorCheckpoint('10');
+    const message = rawRecordedEvent('10');
+    const processor = reactor({
+      processorId: uuid(),
+      compareCheckpoints: numericCompareCheckpoints,
+      eachMessage: () => Promise.resolve(),
+      checkpoints: {
+        read: () => Promise.resolve({ lastCheckpoint: null }),
+        store: () =>
+          Promise.resolve({
+            success: true,
+            newCheckpoint: checkpoint,
+          }),
+      },
+    });
+    await processor.start();
+
+    // When - processed up to checkpoint '10'
+    await processor.handle([message], {});
+
+    // Then - '10' is past '9' numerically, so the wait resolves rather than
+    // timing out as it would under lexicographic string comparison
+    await processor.whenProcessed(ProcessorCheckpoint('9'), { timeout: 100 });
   });
 });

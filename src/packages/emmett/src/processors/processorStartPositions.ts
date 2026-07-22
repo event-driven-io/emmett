@@ -5,7 +5,7 @@ import type {
   MessageHandlerContext,
   RecordedMessage,
 } from '../typing';
-import { getCheckpoint, type ProcessorCheckpoint } from './checkpoints';
+import { getCheckpoint, ProcessorCheckpoint } from './checkpoints';
 import {
   CurrentMessageProcessorPosition,
   type MessageProcessor,
@@ -77,10 +77,15 @@ export const ProcessorStartPositions = (
         return messages;
 
       const { lastCheckpoint } = position;
+      const compareCheckpoints =
+        options?.compareCheckpoints ?? ProcessorCheckpoint.compare;
 
       return messages.filter((message) => {
         const checkpoint = getCheckpoint(message);
-        return checkpoint !== null && checkpoint > lastCheckpoint;
+        return (
+          checkpoint !== null &&
+          compareCheckpoints(checkpoint, lastCheckpoint) > 0
+        );
       });
     },
   };

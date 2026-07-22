@@ -16,7 +16,9 @@ import {
   type MessageConsumerOptions,
   type MessageHandlerContext,
   type MessageProcessor,
+  type ProcessorCheckpoint,
   type ReadEventMetadataWithGlobalPosition,
+  type WaitOptions,
   type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import { v7 as uuid } from 'uuid';
@@ -66,6 +68,12 @@ export type PostgreSQLEventStoreConsumer<
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<ConsumerMessageType> &
   Readonly<{
+    whenProcessed: (
+      position: ProcessorCheckpoint,
+      options?: WaitOptions,
+    ) => Promise<void>;
+    whenCaughtUp: (options?: WaitOptions) => Promise<void>;
+
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       options: PostgreSQLReactorOptions<MessageType>,
     ) => PostgreSQLProcessor<MessageType>;
@@ -199,6 +207,29 @@ export const postgreSQLEventStoreConsumer = <
       return isRunning;
     },
     whenStarted: (): Promise<void> => startedAwaiter.wait,
+    whenProcessed: (position, options): Promise<void> =>
+      Promise.all(
+        processors.map((p) => p.whenProcessed(position, options)),
+      ).then(() => undefined),
+    whenCaughtUp: async (options): Promise<void> => {
+      const tail = await pool.withConnection(async (connection) => {
+        const { currentCheckpoint } = await readLastMessageCheckpoint(
+          connection.execute,
+        );
+        return currentCheckpoint;
+      });
+
+      if (tail === null) return;
+
+      await Promise.all(
+        processors.map((p) =>
+          p.whenProcessed(
+            PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(tail),
+            options,
+          ),
+        ),
+      );
+    },
     processors,
     init,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(

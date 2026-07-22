@@ -1,31 +1,18 @@
-import { JSONSerializer } from '@event-driven-io/dumbo';
-import {
-  sqlite3Connection,
-  sqlite3Pool,
-  type SQLite3Connection,
-  type SQLitePool,
-} from '@event-driven-io/dumbo/sqlite3';
 import {
   assertRejects,
   assertThatArray,
-  bigIntProcessorCheckpoint,
   type Event,
 } from '@event-driven-io/emmett';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { v4 as uuid } from 'uuid';
-import { afterEach, beforeEach, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
-  sqlite3EventStoreDriver,
-  type SQLite3EventStoreOptions,
-} from '../../sqlite3';
-import { deleteSQLiteDatabaseFiles } from '../../testing/sqliteTestDatabase';
-import { createEventStoreSchema } from '../schema';
-import {
-  getSQLiteEventStore,
-  type SQLiteEventStore,
-} from '../SQLiteEventStore';
-import { sqliteEventStoreConsumer } from './sqliteEventStoreConsumer';
+  getPostgreSQLEventStore,
+  type PostgresEventStore,
+} from '../postgreSQLEventStore';
+import { PostgreSQLEventStoreCheckpoint } from '../schema';
+import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 
 type GuestStayEvent = Event<
   'GuestCheckedIn' | 'GuestCheckedOut',
@@ -34,35 +21,32 @@ type GuestStayEvent = Event<
 
 const withDeadline = { timeout: 30000 };
 
-void describe('waiting for a SQLite consumer to catch up in a test', () => {
-  const testDatabasePath = path.dirname(fileURLToPath(import.meta.url));
-  const fileName = path.resolve(testDatabasePath, `awaiters.test.db`);
+void describe('waiting for a PostgreSQL consumer to catch up in a test', () => {
+  let postgres: StartedPostgreSqlContainer;
+  let connectionString: string;
+  let eventStore: PostgresEventStore;
 
-  let pool: SQLitePool<SQLite3Connection>;
-
-  const config: SQLite3EventStoreOptions = {
-    driver: sqlite3EventStoreDriver,
-    schema: { autoMigration: 'None' },
-    fileName,
-  };
-
-  let eventStore: SQLiteEventStore;
-
-  beforeEach(() => {
-    pool = sqlite3Pool({
-      fileName,
-      transactionOptions: { allowNestedTransactions: true },
-    });
-    eventStore = getSQLiteEventStore({ ...config, pool });
-    return createEventStoreSchema(
-      sqlite3Connection({ fileName, serializer: JSONSerializer }),
-    );
+  beforeAll(async () => {
+    postgres = await getPostgreSQLStartedContainer();
+    connectionString = postgres.getConnectionUri();
+    eventStore = getPostgreSQLEventStore(connectionString);
+    await eventStore.schema.migrate();
   });
 
-  afterEach(async () => {
-    await eventStore.close();
-    await pool.close();
-    deleteSQLiteDatabaseFiles(fileName);
+  beforeEach(async () => {
+    await eventStore.schema.dangerous.truncate({
+      resetSequences: true,
+      truncateProjections: true,
+    });
+  });
+
+  afterAll(async () => {
+    try {
+      await eventStore?.close();
+      await postgres?.stop();
+    } catch (error) {
+      console.log(error);
+    }
   });
 
   void it(
@@ -71,9 +55,8 @@ void describe('waiting for a SQLite consumer to catch up in a test', () => {
     async () => {
       // Given
       const processed: GuestStayEvent[] = [];
-      const consumer = sqliteEventStoreConsumer({
-        driver: sqlite3EventStoreDriver,
-        fileName,
+      const consumer = postgreSQLEventStoreConsumer({
+        connectionString,
       });
       consumer.reactor<GuestStayEvent>({
         processorId: uuid(),
@@ -113,9 +96,8 @@ void describe('waiting for a SQLite consumer to catch up in a test', () => {
     async () => {
       // Given
       const processed: GuestStayEvent[] = [];
-      const consumer = sqliteEventStoreConsumer({
-        driver: sqlite3EventStoreDriver,
-        fileName,
+      const consumer = postgreSQLEventStoreConsumer({
+        connectionString,
       });
       consumer.reactor<GuestStayEvent>({
         processorId: uuid(),
@@ -157,9 +139,8 @@ void describe('waiting for a SQLite consumer to catch up in a test', () => {
     withDeadline,
     async () => {
       // Given
-      const consumer = sqliteEventStoreConsumer({
-        driver: sqlite3EventStoreDriver,
-        fileName,
+      const consumer = postgreSQLEventStoreConsumer({
+        connectionString,
       });
       consumer.reactor<GuestStayEvent>({
         processorId: uuid(),
@@ -178,9 +159,15 @@ void describe('waiting for a SQLite consumer to catch up in a test', () => {
 
         // When / Then - a position far past the tail is never reached
         await assertRejects(
-          consumer.whenProcessed(bigIntProcessorCheckpoint(9_999_999_999n), {
-            timeout: 200,
-          }),
+          consumer.whenProcessed(
+            PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+              transactionId: 99_999_999_999_999_999_999n,
+              globalPosition: 9_999_999_999n,
+            }),
+            {
+              timeout: 200,
+            },
+          ),
         );
       } finally {
         await consumer.close();
