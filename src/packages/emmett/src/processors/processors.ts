@@ -434,6 +434,7 @@ export const reactor = <
   let isActive = false;
 
   let lastCheckpoint: ProcessorCheckpoint | null = null;
+  let lastStoredCheckpoint: ProcessorCheckpoint | null = null;
   let closeSignal: (() => void) | null = null;
 
   const checkpointWaiters = new Set<{
@@ -582,10 +583,9 @@ export const reactor = <
           await hooks.onStart(context);
         }
 
-        if (startFrom !== undefined && startFrom !== 'CURRENT') {
-          if (typeof startFrom !== 'string') {
-            lastCheckpoint = startFrom.lastCheckpoint;
-          }
+        if (startFrom !== undefined && typeof startFrom !== 'string') {
+          lastCheckpoint = startFrom.lastCheckpoint;
+          lastStoredCheckpoint = startFrom.lastCheckpoint;
           log(
             info(
               `Processor ${processorId} with instance id ${instanceId} starting from: ${JSONSerializer.serialize(startFrom)}`,
@@ -602,8 +602,19 @@ export const reactor = <
             },
             { ...startOptions, ...context },
           );
-          lastCheckpoint = readResult.lastCheckpoint;
+          lastStoredCheckpoint = readResult.lastCheckpoint;
         }
+
+        if (startFrom === 'BEGINNING' || startFrom === 'END') {
+          log(
+            info(
+              `Processor ${processorId} with instance id ${instanceId} starting from: ${JSONSerializer.serialize(startFrom)}`,
+            ),
+          );
+          return startFrom;
+        }
+
+        lastCheckpoint = lastStoredCheckpoint;
 
         if (lastCheckpoint === null) {
           log(
@@ -726,7 +737,7 @@ export const reactor = <
                           MessageType,
                           MessageMetadataType
                         >,
-                        lastCheckpoint,
+                        lastCheckpoint: lastStoredCheckpoint,
                         partition,
                       },
                       context,
@@ -735,6 +746,7 @@ export const reactor = <
                   if (storeCheckpointResult.success) {
                     // TODO: Add correct handling of the storing checkpoint
                     lastCheckpoint = storeCheckpointResult.newCheckpoint;
+                    lastStoredCheckpoint = storeCheckpointResult.newCheckpoint;
                     notifyCheckpointWaiters();
                   }
                 }

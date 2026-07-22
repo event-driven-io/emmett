@@ -105,14 +105,10 @@ void describe('PostgreSQL event store started consumer', () => {
       withDeadline,
       async () => {
         // Given
-        let stopAfterPosition: string | undefined = undefined;
-
         const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
         });
         const consumer = postgreSQLEventStoreConsumer<ShoppingCartSummaryEvent>(
           {
@@ -137,16 +133,14 @@ void describe('PostgreSQL event store started consumer', () => {
           },
         ];
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne((d) => d._id === streamName);
 
@@ -158,6 +152,7 @@ void describe('PostgreSQL event store started consumer', () => {
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -185,8 +180,6 @@ void describe('PostgreSQL event store started consumer', () => {
           },
         ];
 
-        let stopAfterPosition: string | undefined = undefined;
-
         const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
@@ -194,8 +187,6 @@ void describe('PostgreSQL event store started consumer', () => {
           startFrom: {
             lastCheckpoint: startPosition,
           },
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
         });
 
         const consumer = postgreSQLEventStoreConsumer<ShoppingCartSummaryEvent>(
@@ -206,16 +197,14 @@ void describe('PostgreSQL event store started consumer', () => {
         );
 
         // When
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne((d) => d._id === streamName);
 
@@ -227,6 +216,7 @@ void describe('PostgreSQL event store started consumer', () => {
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -254,15 +244,11 @@ void describe('PostgreSQL event store started consumer', () => {
           },
         ];
 
-        let stopAfterPosition: string | undefined = undefined;
-
         const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
           startFrom: 'CURRENT',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
         });
 
         const consumer = postgreSQLEventStoreConsumer<ShoppingCartSummaryEvent>(
@@ -274,16 +260,14 @@ void describe('PostgreSQL event store started consumer', () => {
 
         // When
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne((d) => d._id === streamName);
 
@@ -295,6 +279,7 @@ void describe('PostgreSQL event store started consumer', () => {
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -322,15 +307,12 @@ void describe('PostgreSQL event store started consumer', () => {
           },
         ];
 
-        let stopAfterPosition: string | undefined = startPosition;
-
         const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
           startFrom: 'CURRENT',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
+          stopAfter: (event) => event.metadata.globalPosition === startPosition,
         });
 
         const consumer = postgreSQLEventStoreConsumer<ShoppingCartSummaryEvent>(
@@ -344,18 +326,14 @@ void describe('PostgreSQL event store started consumer', () => {
         await consumer.start();
         await consumer.stop();
 
-        stopAfterPosition = undefined;
-
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne((d) => d._id === streamName);
 
@@ -367,6 +345,7 @@ void describe('PostgreSQL event store started consumer', () => {
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -394,15 +373,12 @@ void describe('PostgreSQL event store started consumer', () => {
           },
         ];
 
-        let stopAfterPosition: string | undefined = startPosition;
-
         const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
           startFrom: 'CURRENT',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
+          stopAfter: (event) => event.metadata.globalPosition === startPosition,
         });
 
         const consumer = postgreSQLEventStoreConsumer<ShoppingCartSummaryEvent>(
@@ -419,23 +395,19 @@ void describe('PostgreSQL event store started consumer', () => {
           await consumer.close();
         }
 
-        stopAfterPosition = undefined;
-
         const newConsumer = postgreSQLEventStoreConsumer({
           connectionString,
           processors: [inMemoryProcessor],
         });
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = newConsumer.start();
+          consumerPromise = newConsumer.start();
+          await newConsumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await newConsumer.whenCaughtUp();
 
           const summary = await summaries.findOne((d) => d._id === streamName);
 
@@ -447,6 +419,7 @@ void describe('PostgreSQL event store started consumer', () => {
           });
         } finally {
           await newConsumer.close();
+          await consumerPromise;
         }
       },
     );
