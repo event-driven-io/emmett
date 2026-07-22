@@ -10,7 +10,6 @@ import {
   asyncAwaiter,
   type Event,
 } from '@event-driven-io/emmett';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
@@ -19,6 +18,7 @@ import {
   sqlite3EventStoreDriver,
   type SQLite3EventStoreOptions,
 } from '../../sqlite3';
+import { deleteSQLiteDatabaseFiles } from '../../testing/sqliteTestDatabase';
 import { createEventStoreSchema } from '../schema';
 import {
   getSQLiteEventStore,
@@ -62,16 +62,7 @@ void describe('SQLite event store started consumer', () => {
   afterEach(async () => {
     await eventStore.close();
     await pool.close();
-    if (!fs.existsSync(fileName)) {
-      return;
-    }
-    try {
-      fs.unlinkSync(fileName);
-      fs.unlinkSync(`${fileName}-shm`);
-      fs.unlinkSync(`${fileName}-wal`);
-    } catch (error) {
-      console.log(error);
-    }
+    deleteSQLiteDatabaseFiles(fileName);
   });
 
   void describe('starting and closing resilience', () => {

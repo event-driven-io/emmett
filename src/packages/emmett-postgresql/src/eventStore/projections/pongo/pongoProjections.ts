@@ -95,6 +95,7 @@ export const pongoProjection = <
   handle,
   canHandle,
   eventsOptions,
+  init,
 }: PongoProjectionOptions<
   EventType,
   EventPayloadType
@@ -112,6 +113,7 @@ export const pongoProjection = <
       const pongo = pongoClient({
         connectionString,
         driver: pgDriver,
+        schema: { autoMigration: 'None' },
         connectionOptions: {
           client,
           pool,
@@ -148,6 +150,32 @@ export const pongoProjection = <
           try {
             await truncate({
               ...context,
+              pongo,
+            });
+          } finally {
+            await pongo.close();
+          }
+        }
+      : undefined,
+    init: init
+      ? async (options) => {
+          const {
+            connection: { connectionString, client, pool },
+          } = options.context;
+          const pongo = pongoClient({
+            connectionString,
+            driver: pgDriver,
+            connectionOptions: {
+              client,
+              pool,
+              transactionOptions: {
+                allowNestedTransactions: true,
+              },
+            },
+          });
+          try {
+            await init({
+              ...options.context,
               pongo,
             });
           } finally {
@@ -300,32 +328,13 @@ export const pongoMultiStreamProjection = <
       }
     },
     init: async (context) => {
-      const {
-        connection: { connectionString, client, pool },
-      } = context;
-      const pongo = pongoClient({
-        connectionString,
-        driver: pgDriver,
-        connectionOptions: {
-          client,
-          pool,
-          transactionOptions: {
-            allowNestedTransactions: true,
-          },
-        },
-      });
-
-      try {
-        await pongo
-          .db()
-          .collection<Document>(
-            collectionNameWithVersion,
-            options.collectionOptions,
-          )
-          .schema.migrate(context.migrationOptions);
-      } finally {
-        await pongo.close();
-      }
+      await context.pongo
+        .db()
+        .collection<Document>(
+          collectionNameWithVersion,
+          options.collectionOptions,
+        )
+        .schema.migrate(context.migrationOptions);
     },
   });
 };
