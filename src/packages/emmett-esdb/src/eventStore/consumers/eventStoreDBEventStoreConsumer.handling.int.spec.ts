@@ -508,6 +508,73 @@ void describe('EventStoreDB event store started consumer', () => {
       );
     });
 
+    void describe('startFrom END across processors in one consumer', () => {
+      void it(
+        'does not flood END processor when mixed with BEGINNING processor in one consumer',
+        withDeadline,
+        async () => {
+          // Given
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+
+          const initialEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+          await eventStore.appendToStream(streamName, initialEvents);
+
+          const newEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+
+          const fromBeginning: GuestStayEvent[] = [];
+          const fromEnd: GuestStayEvent[] = [];
+
+          // When
+          const consumer = eventStoreDBEventStoreConsumer({
+            connectionString,
+            from: { stream: $all },
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: 'BEGINNING',
+            eachMessage: (event) => {
+              if (event.metadata.streamName === streamName)
+                fromBeginning.push(event);
+            },
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: 'END',
+            eachMessage: (event) => {
+              if (event.metadata.streamName === streamName) fromEnd.push(event);
+            },
+          });
+
+          let consumerPromise: Promise<void> | undefined;
+          try {
+            consumerPromise = consumer.start();
+            await consumer.whenStarted();
+
+            await eventStore.appendToStream(streamName, newEvents);
+
+            await consumer.whenCaughtUp();
+
+            assertThatArray(fromBeginning).containsElementsMatching([
+              ...initialEvents,
+              ...newEvents,
+            ]);
+            assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
+          } finally {
+            await consumer.close();
+            await consumerPromise;
+          }
+        },
+      );
+    });
+
     consumeFrom.forEach(([displayName, from]) => {
       void it(
         `handles all events from ${displayName} appended to event store BEFORE processor was started`,

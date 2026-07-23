@@ -5,7 +5,7 @@ import type {
 } from '@event-driven-io/emmett';
 import {
   asyncAwaiter,
-  CurrentMessageProcessorPosition,
+  ConsumerStartPositions,
   EmmettError,
   inMemoryProjector,
   inMemoryReactor,
@@ -111,6 +111,7 @@ export const eventStoreDBEventStoreConsumer = <
   const from = options.from;
   const processors = options.processors ?? [];
   let abortController: AbortController | null = null;
+  let startPositions: ConsumerStartPositions | undefined;
 
   let start: Promise<void>;
 
@@ -138,7 +139,11 @@ export const eventStoreDBEventStoreConsumer = <
     const result = await Promise.allSettled(
       activeProcessors.map(async (s) => {
         // TODO: Add here filtering to only pass messages that can be handled by
-        return await s.handle(messagesBatch, { client });
+        const batch =
+          startPositions?.afterStartPosition(s.id, messagesBatch) ??
+          messagesBatch;
+
+        return await s.handle(batch, { client });
       }),
     );
 
@@ -173,16 +178,6 @@ export const eventStoreDBEventStoreConsumer = <
   };
 
   const stopProcessors = () => Promise.all(processors.map((p) => p.close({})));
-
-  const resolveStartFrom = async (
-    startFrom: CurrentMessageProcessorPosition,
-  ): Promise<CurrentMessageProcessorPosition> => {
-    if (startFrom !== 'END') return startFrom;
-
-    const tail = await readLastCommittedMessageCheckpoint(client, from);
-
-    return tail === undefined ? 'END' : { lastCheckpoint: tail };
-  };
 
   const stop = async () => {
     if (!isRunning) return;
@@ -282,13 +277,22 @@ export const eventStoreDBEventStoreConsumer = <
             await init();
           }
 
-          const startFrom = CurrentMessageProcessorPosition.zip(
-            await Promise.all(processors.map((o) => o.start(client))),
-          );
+          startPositions = await ConsumerStartPositions.resolve({
+            processors,
+            handlerContext: client as never,
+            readLastMessageCheckpoint: async () => {
+              const tail = await readLastCommittedMessageCheckpoint(
+                client,
+                from,
+              );
+
+              return tail ?? null;
+            },
+          });
 
           currentSubscription = subscription;
           await subscription.start({
-            startFrom: await resolveStartFrom(startFrom),
+            startFrom: startPositions.earliestPosition,
             started: startedAwaiter,
           });
         } catch (error) {
