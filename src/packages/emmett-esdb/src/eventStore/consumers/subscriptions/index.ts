@@ -31,6 +31,7 @@ import {
   $all,
   type EventStoreDBEventStoreConsumerType,
 } from '../eventStoreDBEventStoreConsumer';
+export { readLastCommittedMessageCheckpoint } from './readLastCommittedMessageCheckpoint';
 
 export const DefaultEventStoreDBEventStoreProcessorBatchSize = 100;
 export const DefaultEventStoreDBEventStoreProcessorPullingFrequencyInMs = 50;
@@ -236,7 +237,10 @@ export const eventStoreDBSubscription = <
               _encoding: string,
               done: () => void,
             ) {
-              if (!isRunning) return;
+              if (!isRunning) {
+                done();
+                return;
+              }
 
               if (isString(result)) {
                 options.startFrom = {
