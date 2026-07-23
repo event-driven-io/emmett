@@ -16,7 +16,7 @@ import { otelMeter } from './otelMeter';
 import { otelTracer } from './otelTracer';
 
 const ALMANAC_INSTRUMENTATION_NAME = '@event-driven-io/almanac';
-const ALMANAC_INSTRUMENTATION_VERSION = '0.1.0-beta.36';
+const ALMANAC_INSTRUMENTATION_VERSION = '0.1.0-beta.37';
 
 export type AlmanacObservabilityConfig = Partial<Observability<string>>;
 
