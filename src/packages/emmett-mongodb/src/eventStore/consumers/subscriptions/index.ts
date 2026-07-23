@@ -141,17 +141,19 @@ export const oplogChangeToMessages = (
       : [];
 
 /**
- * Returns the checkpoint of a change's first message, or undefined when it
- * carries none. Position 0 is used because every message emitted from a single
- * change shares that change's resume token and differs only by index, so it is
- * always at or before the processor's checkpoint for that change.
+ * Returns the checkpoint of a change's last message, or undefined when it
+ * carries none. MongoDB resume tokens identify the whole change; the message
+ * index keeps processor-level filtering precise inside multi-message changes.
  */
 export const oplogChangeToTailCheckpoint = (
   change: OplogChange<AnyMessage, RecordedMessageMetadata>,
-): MongoDBCheckpoint | undefined =>
-  oplogChangeToMessages(change).length > 0
-    ? toMongoDBCheckpoint(change._id, 0)
+): MongoDBCheckpoint | undefined => {
+  const messages = oplogChangeToMessages(change);
+
+  return messages.length > 0
+    ? toMongoDBCheckpoint(change._id, messages.length - 1)
     : undefined;
+};
 
 type SubscriptionSequentialHandlerOptions<
   MessageType extends AnyMessage = AnyMessage,

@@ -5,6 +5,7 @@ import type {
 } from '@event-driven-io/emmett';
 import {
   asyncAwaiter,
+  ConsumerStartPositions,
   EmmettError,
   mergeObservability,
   type AnyEvent,
@@ -31,9 +32,9 @@ import {
 import {
   mongoDBSubscription,
   readLastCommittedMessageCheckpoint,
-  zipMongoDBMessageBatchPullerStartFrom,
   type MongoDBSubscription,
 } from './subscriptions';
+import { compareTwoMongoDBCheckpoints } from './subscriptions/mongoDBCheckpoint';
 
 export type MongoDBChangeStreamMessageMetadata =
   RecordedMessageMetadataWithoutGlobalPosition;
@@ -116,6 +117,7 @@ export const mongoDBEventStoreConsumer = <
   let stream: MongoDBSubscription | undefined;
   let isRunning = false;
   let isInitialized = false;
+  let startPositions: ConsumerStartPositions | undefined;
 
   const startedAwaiter: AsyncAwaiter<void> = asyncAwaiter<void>();
 
@@ -140,7 +142,11 @@ export const mongoDBEventStoreConsumer = <
     const result = await Promise.allSettled(
       activeProcessors.map(async (s) => {
         // TODO: Add here filtering to only pass messages that can be handled by
-        return await s.handle(messagesBatch, { client });
+        const batch =
+          startPositions?.afterStartPosition(s.id, messagesBatch) ??
+          messagesBatch;
+
+        return await s.handle(batch, { client });
       }),
     );
 
@@ -262,19 +268,25 @@ export const mongoDBEventStoreConsumer = <
             await init();
           }
 
-          const positions = await Promise.all(
-            processors.map((o) => o.start({ client })),
-          );
-          const startFrom = zipMongoDBMessageBatchPullerStartFrom(positions);
+          startPositions = await ConsumerStartPositions.resolve({
+            processors,
+            handlerContext: { client },
+            readLastMessageCheckpoint: async () =>
+              (await readLastCommittedMessageCheckpoint(client.db())) ?? null,
+            compareCheckpoints: compareTwoMongoDBCheckpoints as (
+              a: ProcessorCheckpoint,
+              b: ProcessorCheckpoint,
+            ) => number,
+          });
 
           stream = mongoDBSubscription<ConsumerMessageType>({
             client,
-            from: startFrom,
+            from: startPositions.earliestPosition,
             eachBatch,
           });
 
           await stream.start({
-            startFrom,
+            startFrom: startPositions.earliestPosition,
             started: startedAwaiter,
           });
         } catch (error) {

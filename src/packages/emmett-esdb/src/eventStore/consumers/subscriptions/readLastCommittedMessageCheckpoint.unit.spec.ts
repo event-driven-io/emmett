@@ -83,6 +83,7 @@ void describe('readLastCommittedMessageCheckpoint', () => {
 });
 
 const asyncIterable = <T>(items: T[]) =>
+  // eslint-disable-next-line @typescript-eslint/require-await
   async function* (): AsyncIterable<T> {
     yield* items;
   };
