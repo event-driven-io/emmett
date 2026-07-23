@@ -1,10 +1,13 @@
 import {
   assertThatArray,
+  asyncAwaiter,
   delay,
   inMemoryReactor,
   type Closeable,
   type Event,
+  type ProcessorCheckpoint,
 } from '@event-driven-io/emmett';
+import { compareTwoMongoDBCheckpoints } from './subscriptions';
 import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { v4 as uuid } from 'uuid';
@@ -213,436 +216,57 @@ void describe('MongoDB event store started consumer', () => {
       }
     });
 
-    // void it(
-    //   `handles ONLY events from stream AFTER provided global position`,
-    //   withDeadline,
-    //   async () => {
-    //     // Given
-    //     const guestId = uuid();
-    //     const otherGuestId = uuid();
-    //     const streamName = `guestStay-${guestId}`;
-
-    //     const initialEvents: GuestStayEvent[] = [
-    //       { type: 'GuestCheckedIn', data: { guestId } },
-    //       { type: 'GuestCheckedOut', data: { guestId } },
-    //     ];
-    //     const { nextExpectedStreamVersion: startPosition } =
-    //       await eventStore.appendToStream(streamName, initialEvents);
-
-    //     const events: GuestStayEvent[] = [
-    //       { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
-    //       { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
-    //     ];
-
-    //     const result: GuestStayEvent[] = [];
-    //     let stopAfterPosition: bigint | undefined = undefined;
-
-    //     // When
-    //     const consumer = mongoDBEventStoreConsumer({
-    //       connectionString,
-    //       from: { stream: streamName },
-    //     });
-    //     consumer.reactor<GuestStayEvent>({
-    //       processorId: uuid(),
-    //       startFrom: { lastCheckpoint: startPosition },
-    //       stopAfter: (event) =>
-    //         event.metadata.streamPosition === stopAfterPosition,
-    //       eachMessage: (event) => {
-    //         result.push(event);
-    //       },
-    //     });
-
-    //     try {
-    //       const consumerPromise = consumer.start();
-
-    //       const appendResult = await eventStore.appendToStream(
-    //         streamName,
-    //         events,
-    //       );
-    //       stopAfterPosition = appendResult.nextExpectedStreamVersion;
-
-    //       await consumerPromise;
-
-    //       assertThatArray(result).containsOnlyElementsMatching(events);
-    //     } finally {
-    //       await consumer.close();
-    //     }
-    //   },
-    // );
-
-    // void it(
-    //   `handles ONLY events from $all AFTER provided global position`,
-    //   withDeadline,
-    //   async () => {
-    //     // Given
-    //     const guestId = uuid();
-    //     const otherGuestId = uuid();
-    //     const streamName = `guestStay-${guestId}`;
-
-    //     const initialEvents: GuestStayEvent[] = [
-    //       { type: 'GuestCheckedIn', data: { guestId } },
-    //       { type: 'GuestCheckedOut', data: { guestId } },
-    //     ];
-    //     const { lastEventGlobalPosition: startPosition } =
-    //       await eventStore.appendToStream(streamName, initialEvents);
-
-    //     const events: GuestStayEvent[] = [
-    //       { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
-    //       { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
-    //     ];
-
-    //     const result: GuestStayEvent[] = [];
-    //     let stopAfterPosition: bigint | undefined = undefined;
-
-    //     // When
-    //     const consumer = mongoDBEventStoreConsumer({
-    //       connectionString,
-    //       from: { stream: $all },
-    //     });
-    //     consumer.reactor<GuestStayEvent>({
-    //       processorId: uuid(),
-    //       startFrom: { lastCheckpoint: startPosition },
-    //       stopAfter: (event) =>
-    //         event.metadata.globalPosition === stopAfterPosition,
-    //       eachMessage: (event) => {
-    //         result.push(event);
-    //       },
-    //     });
-
-    //     try {
-    //       const consumerPromise = consumer.start();
-
-    //       const appendResult = await eventStore.appendToStream(
-    //         streamName,
-    //         events,
-    //       );
-    //       stopAfterPosition = appendResult.lastEventGlobalPosition;
-
-    //       await consumerPromise;
-
-    //       assertThatArray(result).containsOnlyElementsMatching(events);
-    //     } finally {
-    //       await consumer.close();
-    //     }
-    //   },
-    // );
-
-    // consumeFrom.forEach(([displayName, from]) => {
-    //   void it(
-    //     `handles all events from ${displayName} appended to event store BEFORE processor was started`,
-    //     withDeadline,
-    //     async () => {
-    //       // Given
-    //       const guestId = uuid();
-    //       const streamName = `guestStay-${guestId}`;
-    //       const events: GuestStayEvent[] = [
-    //         { type: 'GuestCheckedIn', data: { guestId } },
-    //         { type: 'GuestCheckedOut', data: { guestId } },
-    //       ];
-    //       const appendResult = await eventStore.appendToStream(
-    //         streamName,
-    //         events,
-    //       );
-
-    //       const result: GuestStayEvent[] = [];
-
-    //       // When
-    //       const consumer = mongoDBEventStoreConsumer({
-    //         connectionString,
-    //         from: from(streamName),
-    //       });
-    //       consumer.reactor<GuestStayEvent>({
-    //         processorId: uuid(),
-    //         stopAfter: (event) =>
-    //           event.metadata.globalPosition ===
-    //           appendResult.lastEventGlobalPosition,
-    //         eachMessage: (event) => {
-    //           result.push(event);
-    //         },
-    //       });
-
-    //       try {
-    //         await consumer.start();
-
-    //         assertThatArray(result).containsElementsMatching(events);
-    //       } finally {
-    //         await consumer.close();
-    //       }
-    //     },
-    //   );
-
-    //   void it(
-    //     `handles all events from ${displayName} appended to event store AFTER processor was started`,
-    //     withDeadline,
-    //     async () => {
-    //       // Given
-
-    //       const result: GuestStayEvent[] = [];
-    //       let stopAfterPosition: bigint | undefined = undefined;
-
-    //       const guestId = uuid();
-    //       const streamName = `guestStay-${guestId}`;
-    //       const waitForStart = asyncAwaiter();
-
-    //       // When
-    //       const consumer = mongoDBEventStoreConsumer({
-    //         connectionString,
-    //         from: from(streamName),
-    //       });
-    //       consumer.reactor<GuestStayEvent>({
-    //         processorId: uuid(),
-    //         stopAfter: (event) =>
-    //           event.metadata.globalPosition === stopAfterPosition,
-    //         eachMessage: async (event) => {
-    //           await waitForStart.wait;
-    //           result.push(event);
-    //         },
-    //       });
-
-    //       const events: GuestStayEvent[] = [
-    //         { type: 'GuestCheckedIn', data: { guestId } },
-    //         { type: 'GuestCheckedOut', data: { guestId } },
-    //       ];
-
-    //       try {
-    //         const consumerPromise = consumer.start();
-
-    //         const appendResult = await eventStore.appendToStream(
-    //           streamName,
-    //           events,
-    //         );
-    //         stopAfterPosition = appendResult.lastEventGlobalPosition;
-    //         waitForStart.resolve();
-
-    //         await consumerPromise;
-
-    //         assertThatArray(result).containsElementsMatching(events);
-    //       } finally {
-    //         await consumer.close();
-    //       }
-    //     },
-    //   );
-
-    //   void it(
-    //     `handles all events from ${displayName} when CURRENT position is NOT stored`,
-    //     withDeadline,
-    //     async () => {
-    //       // Given
-    //       const guestId = uuid();
-    //       const otherGuestId = uuid();
-    //       const streamName = `guestStay-${guestId}`;
-
-    //       const initialEvents: GuestStayEvent[] = [
-    //         { type: 'GuestCheckedIn', data: { guestId } },
-    //         { type: 'GuestCheckedOut', data: { guestId } },
-    //       ];
-
-    //       await eventStore.appendToStream(streamName, initialEvents);
-
-    //       const events: GuestStayEvent[] = [
-    //         { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
-    //         { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
-    //       ];
-
-    //       const result: GuestStayEvent[] = [];
-    //       let stopAfterPosition: bigint | undefined = undefined;
-    //       const waitForStart = asyncAwaiter();
-
-    //       // When
-    //       const consumer = mongoDBEventStoreConsumer({
-    //         connectionString,
-    //         from: from(streamName),
-    //       });
-    //       consumer.reactor<GuestStayEvent>({
-    //         processorId: uuid(),
-    //         startFrom: 'CURRENT',
-    //         stopAfter: (event) =>
-    //           event.metadata.globalPosition === stopAfterPosition,
-    //         eachMessage: async (event) => {
-    //           await waitForStart.wait;
-    //           result.push(event);
-    //         },
-    //       });
-
-    //       try {
-    //         const consumerPromise = consumer.start();
-
-    //         const appendResult = await eventStore.appendToStream(
-    //           streamName,
-    //           events,
-    //         );
-    //         stopAfterPosition = appendResult.lastEventGlobalPosition;
-    //         waitForStart.resolve();
-
-    //         await consumerPromise;
-
-    //         assertThatArray(result).containsElementsMatching([
-    //           ...initialEvents,
-    //           ...events,
-    //         ]);
-    //       } finally {
-    //         await consumer.close();
-    //       }
-    //     },
-    //   );
-
-    //   void it(
-    //     `handles only new events when CURRENT position is stored for restarted consumer from ${displayName}`,
-    //     withDeadline,
-    //     async () => {
-    //       // Given
-    //       const guestId = uuid();
-    //       const otherGuestId = uuid();
-    //       const streamName = `guestStay-${guestId}`;
-
-    //       const initialEvents: GuestStayEvent[] = [
-    //         { type: 'GuestCheckedIn', data: { guestId } },
-    //         { type: 'GuestCheckedOut', data: { guestId } },
-    //       ];
-    //       const { lastEventGlobalPosition } = await eventStore.appendToStream(
-    //         streamName,
-    //         initialEvents,
-    //       );
-
-    //       const events: GuestStayEvent[] = [
-    //         { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
-    //         { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
-    //       ];
-
-    //       let result: GuestStayEvent[] = [];
-    //       let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
-
-    //       const waitForStart = asyncAwaiter();
-
-    //       // When
-    //       const consumer = mongoDBEventStoreConsumer({
-    //         connectionString,
-    //         from: from(streamName),
-    //       });
-    //       consumer.reactor<GuestStayEvent>({
-    //         processorId: uuid(),
-    //         startFrom: 'CURRENT',
-    //         stopAfter: (event) =>
-    //           event.metadata.globalPosition === stopAfterPosition,
-    //         eachMessage: async (event) => {
-    //           await waitForStart.wait;
-    //           result.push(event);
-    //         },
-    //       });
-
-    //       let consumerPromise = consumer.start();
-    //       waitForStart.resolve();
-    //       await consumerPromise;
-    //       await consumer.stop();
-
-    //       waitForStart.reset();
-
-    //       result = [];
-
-    //       stopAfterPosition = undefined;
-
-    //       try {
-    //         consumerPromise = consumer.start();
-
-    //         const appendResult = await eventStore.appendToStream(
-    //           streamName,
-    //           events,
-    //         );
-    //         stopAfterPosition = appendResult.lastEventGlobalPosition;
-    //         waitForStart.resolve();
-
-    //         await consumerPromise;
-
-    //         assertThatArray(result).containsOnlyElementsMatching(events);
-    //       } finally {
-    //         await consumer.close();
-    //       }
-    //     },
-    //   );
-
-    //   void it(
-    //     `handles only new events when CURRENT position is stored for a new consumer from ${displayName}`,
-    //     withDeadline,
-    //     async () => {
-    //       // Given
-    //       const guestId = uuid();
-    //       const otherGuestId = uuid();
-    //       const streamName = `guestStay-${guestId}`;
-
-    //       const initialEvents: GuestStayEvent[] = [
-    //         { type: 'GuestCheckedIn', data: { guestId } },
-    //         { type: 'GuestCheckedOut', data: { guestId } },
-    //       ];
-    //       const { lastEventGlobalPosition } = await eventStore.appendToStream(
-    //         streamName,
-    //         initialEvents,
-    //       );
-
-    //       const events: GuestStayEvent[] = [
-    //         { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
-    //         { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
-    //       ];
-
-    //       let result: GuestStayEvent[] = [];
-    //       let stopAfterPosition: bigint | undefined = lastEventGlobalPosition;
-
-    //       const waitForStart = asyncAwaiter();
-    //       const processorOptions: InMemoryReactorOptions<GuestStayEvent> = {
-    //         processorId: uuid(),
-    //         startFrom: 'CURRENT',
-    //         stopAfter: (event) =>
-    //           event.metadata.globalPosition === stopAfterPosition,
-    //         eachMessage: async (event) => {
-    //           await waitForStart.wait;
-    //           result.push(event);
-    //         },
-    //         connectionOptions: { database },
-    //       };
-
-    //       // When
-    //       const consumer = mongoDBEventStoreConsumer({
-    //         connectionString,
-    //         from: from(streamName),
-    //       });
-    //       try {
-    //         consumer.reactor<GuestStayEvent>(processorOptions);
-
-    //         waitForStart.resolve();
-    //         await consumer.start();
-    //       } finally {
-    //         await consumer.close();
-    //       }
-
-    //       result = [];
-
-    //       waitForStart.reset();
-    //       stopAfterPosition = undefined;
-
-    //       const newConsumer = mongoDBEventStoreConsumer({
-    //         connectionString,
-    //         from: from(streamName),
-    //       });
-    //       newConsumer.reactor<GuestStayEvent>(processorOptions);
-
-    //       try {
-    //         const consumerPromise = newConsumer.start();
-
-    //         const appendResult = await eventStore.appendToStream(
-    //           streamName,
-    //           events,
-    //         );
-    //         waitForStart.resolve();
-    //         stopAfterPosition = appendResult.lastEventGlobalPosition;
-
-    //         await consumerPromise;
-
-    //         assertThatArray(result).containsOnlyElementsMatching(events);
-    //       } finally {
-    //         await newConsumer.close();
-    //       }
-    //     },
-    //   );
-    // });
+    void it(`PROBE whenProcessed after append`, withDeadline, async () => {
+      const guestId = uuid();
+      const streamName = `guestStay-${guestId}`;
+      const events: GuestStayEvent[] = [
+        { type: 'GuestCheckedIn', data: { guestId } },
+        { type: 'GuestCheckedOut', data: { guestId } },
+      ];
+
+      const result: GuestStayEvent[] = [];
+      let lastCheckpoint: string | undefined;
+      const reachedEnd = asyncAwaiter();
+
+      const consumer = mongoDBEventStoreConsumer({
+        connectionString,
+        clientOptions: { directConnection: true },
+        processors: [
+          inMemoryReactor<GuestStayEvent>({
+            processorId: uuid(),
+            compareCheckpoints: compareTwoMongoDBCheckpoints as (
+              a: ProcessorCheckpoint,
+              b: ProcessorCheckpoint,
+            ) => number,
+            eachMessage: (event) => {
+              if (event.metadata.streamName === streamName) {
+                result.push(event);
+                lastCheckpoint = event.metadata.checkpoint as string;
+                if (event.type === 'GuestCheckedOut') reachedEnd.resolve();
+              }
+            },
+          }),
+        ],
+      });
+
+      let consumerPromise: Promise<void> | undefined;
+      try {
+        consumerPromise = consumer.start();
+        await consumer.whenStarted();
+
+        await eventStore.appendToStream(streamName, events);
+
+        await reachedEnd.wait;
+        console.log('PROBE lastCheckpoint', lastCheckpoint);
+        await consumer.whenProcessed(lastCheckpoint as never);
+        console.log('PROBE whenProcessed resolved');
+
+        assertThatArray(result).containsElementsMatching(events);
+      } finally {
+        await consumer.close();
+        await consumerPromise;
+      }
+    });
   });
 });
 

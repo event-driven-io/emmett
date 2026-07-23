@@ -104,14 +104,10 @@ void describe('EventStoreDB event store started consumer', () => {
       withDeadline,
       async () => {
         // Given
-        let stopAfterPosition: string | undefined = undefined;
-
         const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
         });
         const consumer =
           eventStoreDBEventStoreConsumer<ShoppingCartSummaryEvent>({
@@ -135,16 +131,14 @@ void describe('EventStoreDB event store started consumer', () => {
           },
         ];
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne((d) => d._id === streamName);
 
@@ -156,6 +150,7 @@ void describe('EventStoreDB event store started consumer', () => {
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -183,8 +178,6 @@ void describe('EventStoreDB event store started consumer', () => {
           },
         ];
 
-        let stopAfterPosition: string | undefined = undefined;
-
         const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
@@ -192,8 +185,6 @@ void describe('EventStoreDB event store started consumer', () => {
           startFrom: {
             lastCheckpoint: startPosition,
           },
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
         });
 
         const consumer =
@@ -203,16 +194,14 @@ void describe('EventStoreDB event store started consumer', () => {
           });
 
         // When
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp({ timeout: 30000 });
 
           const summary = await summaries.findOne((d) => d._id === streamName);
 
@@ -224,6 +213,7 @@ void describe('EventStoreDB event store started consumer', () => {
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -251,15 +241,11 @@ void describe('EventStoreDB event store started consumer', () => {
           },
         ];
 
-        let stopAfterPosition: string | undefined = undefined;
-
         const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
           startFrom: 'CURRENT',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
         });
 
         const consumer =
@@ -270,16 +256,14 @@ void describe('EventStoreDB event store started consumer', () => {
 
         // When
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne((d) => d._id === streamName);
 
@@ -291,6 +275,7 @@ void describe('EventStoreDB event store started consumer', () => {
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -307,8 +292,7 @@ void describe('EventStoreDB event store started consumer', () => {
           { type: 'ProductItemAdded', data: { productItem } },
           { type: 'ProductItemAdded', data: { productItem } },
         ];
-        const { lastEventGlobalPosition: startPosition } =
-          await eventStore.appendToStream(streamName, initialEvents);
+        await eventStore.appendToStream(streamName, initialEvents);
 
         const events: ShoppingCartSummaryEvent[] = [
           { type: 'ProductItemAdded', data: { productItem } },
@@ -318,15 +302,11 @@ void describe('EventStoreDB event store started consumer', () => {
           },
         ];
 
-        let stopAfterPosition: string | undefined = startPosition;
-
         const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
           startFrom: 'CURRENT',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
         });
 
         const consumer =
@@ -336,21 +316,19 @@ void describe('EventStoreDB event store started consumer', () => {
           });
 
         // When
-        await consumer.start();
+        let consumerPromise: Promise<void> | undefined = consumer.start();
+        await consumer.whenStarted();
+        await consumer.whenCaughtUp();
         await consumer.stop();
-
-        stopAfterPosition = undefined;
+        await consumerPromise;
 
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne((d) => d._id === streamName);
 
@@ -362,6 +340,7 @@ void describe('EventStoreDB event store started consumer', () => {
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -378,8 +357,7 @@ void describe('EventStoreDB event store started consumer', () => {
           { type: 'ProductItemAdded', data: { productItem } },
           { type: 'ProductItemAdded', data: { productItem } },
         ];
-        const { lastEventGlobalPosition: startPosition } =
-          await eventStore.appendToStream(streamName, initialEvents);
+        await eventStore.appendToStream(streamName, initialEvents);
 
         const events: ShoppingCartSummaryEvent[] = [
           { type: 'ProductItemAdded', data: { productItem } },
@@ -389,15 +367,11 @@ void describe('EventStoreDB event store started consumer', () => {
           },
         ];
 
-        let stopAfterPosition: string | undefined = startPosition;
-
         const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
           startFrom: 'CURRENT',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
         });
 
         const consumer =
@@ -407,29 +381,29 @@ void describe('EventStoreDB event store started consumer', () => {
           });
 
         // When
+        let consumerPromise: Promise<void> | undefined;
         try {
-          await consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+          await consumer.whenCaughtUp();
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
-
-        stopAfterPosition = undefined;
 
         const newConsumer = eventStoreDBEventStoreConsumer({
           connectionString,
           processors: [inMemoryProcessor],
         });
 
+        let newConsumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = newConsumer.start();
+          newConsumerPromise = newConsumer.start();
+          await newConsumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await newConsumer.whenCaughtUp();
 
           const summary = await summaries.findOne((d) => d._id === streamName);
 
@@ -441,6 +415,7 @@ void describe('EventStoreDB event store started consumer', () => {
           });
         } finally {
           await newConsumer.close();
+          await newConsumerPromise;
         }
       },
     );

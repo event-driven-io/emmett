@@ -16,6 +16,8 @@ import {
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
+  type ProcessorCheckpoint,
+  type WaitOptions,
 } from '@event-driven-io/emmett';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
 import { v4 as uuid } from 'uuid';
@@ -27,10 +29,16 @@ import {
   type MongoDBProjectorOptions,
 } from './mongoDBProcessor';
 import {
+  getDatabaseVersionPolicies,
   mongoDBSubscription,
+  subscribe,
   zipMongoDBMessageBatchPullerStartFrom,
   type MongoDBSubscription,
 } from './subscriptions';
+import {
+  toMongoDBCheckpoint,
+  type MongoDBResumeToken,
+} from './subscriptions/mongoDBCheckpoint';
 
 export type MongoDBChangeStreamMessageMetadata =
   RecordedMessageMetadataWithoutGlobalPosition;
@@ -65,6 +73,12 @@ export type MongoDBEventStoreConsumer<
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<ConsumerMessageType> &
   Readonly<{
+    whenProcessed: (
+      position: ProcessorCheckpoint,
+      options?: WaitOptions,
+    ) => Promise<void>;
+    whenCaughtUp: (options?: WaitOptions) => Promise<void>;
+
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       options: MongoDBProcessorOptions<MessageType>,
     ) => MongoDBProcessor<MessageType>;
@@ -176,6 +190,34 @@ export const mongoDBEventStoreConsumer = <
       return isRunning;
     },
     whenStarted: (): Promise<void> => startedAwaiter.wait,
+    whenProcessed: (position, options): Promise<void> =>
+      Promise.all(
+        processors.map((p) => p.whenProcessed(position, options)),
+      ).then(() => undefined),
+    whenCaughtUp: async (options): Promise<void> => {
+      const db = client.db();
+
+      const { changeStreamFullDocumentValuePolicy } =
+        await getDatabaseVersionPolicies(db);
+
+      const cs = subscribe(changeStreamFullDocumentValuePolicy, db)('END');
+
+      try {
+        await cs.tryNext();
+
+        const resumeToken = cs.resumeToken as MongoDBResumeToken | undefined;
+
+        if (resumeToken === undefined || resumeToken === null) return;
+
+        const tailCheckpoint = toMongoDBCheckpoint(resumeToken, 0);
+
+        await Promise.all(
+          processors.map((p) => p.whenProcessed(tailCheckpoint, options)),
+        );
+      } finally {
+        await cs.close();
+      }
+    },
     processors,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       processorOptions: MongoDBProcessorOptions<MessageType>,

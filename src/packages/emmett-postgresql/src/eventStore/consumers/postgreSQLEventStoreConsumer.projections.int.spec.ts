@@ -1,4 +1,8 @@
-import { assertDeepEqual, type ReadEvent } from '@event-driven-io/emmett';
+import {
+  assertDeepEqual,
+  assertMatches,
+  type ReadEvent,
+} from '@event-driven-io/emmett';
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import {
   pongoClient,
@@ -111,17 +115,12 @@ void describe('PostgreSQL event store started consumer', () => {
       withDeadline,
       async () => {
         // Given
-        let stopAfterPosition: string | undefined = undefined;
-
-        // When
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
         consumer.projector({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
         });
 
         const shoppingCartId = `shoppingCart:${uuid()}`;
@@ -139,16 +138,15 @@ void describe('PostgreSQL event store started consumer', () => {
           },
         ];
 
+        // When
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne({ _id: streamName });
 
@@ -160,6 +158,7 @@ void describe('PostgreSQL event store started consumer', () => {
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -187,8 +186,6 @@ void describe('PostgreSQL event store started consumer', () => {
           },
         ];
 
-        let stopAfterPosition: string | undefined = undefined;
-
         // When
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
@@ -199,20 +196,16 @@ void describe('PostgreSQL event store started consumer', () => {
           startFrom: {
             lastCheckpoint: startPosition,
           },
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
         });
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne({ _id: streamName });
 
@@ -224,6 +217,7 @@ void describe('PostgreSQL event store started consumer', () => {
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -251,8 +245,6 @@ void describe('PostgreSQL event store started consumer', () => {
           },
         ];
 
-        let stopAfterPosition: string | undefined = undefined;
-
         // When
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
@@ -261,31 +253,29 @@ void describe('PostgreSQL event store started consumer', () => {
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           startFrom: 'CURRENT',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
         });
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne({ _id: streamName });
 
-          assertDeepEqual(summary, {
+          // _version is not asserted here because the pre-existing events and
+          // the ones appended after start may land in one or two poll batches
+          assertMatches(summary, {
             _id: streamName,
             status: 'confirmed',
-            _version: 1n, // because it captures the whole batch of events as one operation
             productItemsCount: productItem.quantity * 3,
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -313,8 +303,6 @@ void describe('PostgreSQL event store started consumer', () => {
           },
         ];
 
-        let stopAfterPosition: string | undefined = startPosition;
-
         // When
         const consumer = postgreSQLEventStoreConsumer({
           connectionString,
@@ -323,25 +311,20 @@ void describe('PostgreSQL event store started consumer', () => {
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           startFrom: 'CURRENT',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
+          stopAfter: (event) => event.metadata.globalPosition === startPosition,
         });
 
         await consumer.start();
         await consumer.stop();
 
-        stopAfterPosition = undefined;
-
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne({ _id: streamName });
 
@@ -353,6 +336,7 @@ void describe('PostgreSQL event store started consumer', () => {
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -380,15 +364,13 @@ void describe('PostgreSQL event store started consumer', () => {
           },
         ];
 
-        let stopAfterPosition: string | undefined = startPosition;
-
         const processorOptions: PostgreSQLProjectorOptions<ShoppingCartSummaryEvent> =
           {
             processorId: uuid(),
             projection: shoppingCartsSummaryProjection,
             startFrom: 'CURRENT',
             stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
+              event.metadata.globalPosition === startPosition,
           };
 
         // When
@@ -403,23 +385,19 @@ void describe('PostgreSQL event store started consumer', () => {
           await consumer.close();
         }
 
-        stopAfterPosition = undefined;
-
         const newConsumer = postgreSQLEventStoreConsumer({
           connectionString,
         });
         newConsumer.projector<ShoppingCartSummaryEvent>(processorOptions);
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = newConsumer.start();
+          consumerPromise = newConsumer.start();
+          await newConsumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await newConsumer.whenCaughtUp();
 
           const summary = await summaries.findOne({ _id: streamName });
 
@@ -431,6 +409,7 @@ void describe('PostgreSQL event store started consumer', () => {
           });
         } finally {
           await newConsumer.close();
+          await consumerPromise;
         }
       },
     );

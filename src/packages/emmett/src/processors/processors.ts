@@ -583,17 +583,6 @@ export const reactor = <
           await hooks.onStart(context);
         }
 
-        if (startFrom !== undefined && typeof startFrom !== 'string') {
-          lastCheckpoint = startFrom.lastCheckpoint;
-          lastStoredCheckpoint = startFrom.lastCheckpoint;
-          log(
-            info(
-              `Processor ${processorId} with instance id ${instanceId} starting from: ${JSONSerializer.serialize(startFrom)}`,
-            ),
-          );
-          return startFrom;
-        }
-
         if (checkpointer) {
           const readResult = await checkpointer.read(
             {
@@ -603,6 +592,16 @@ export const reactor = <
             { ...startOptions, ...context },
           );
           lastStoredCheckpoint = readResult.lastCheckpoint;
+        }
+
+        if (startFrom !== undefined && typeof startFrom !== 'string') {
+          lastCheckpoint = startFrom.lastCheckpoint;
+          log(
+            info(
+              `Processor ${processorId} with instance id ${instanceId} starting from: ${JSONSerializer.serialize(startFrom)}`,
+            ),
+          );
+          return startFrom;
         }
 
         if (startFrom === 'BEGINNING' || startFrom === 'END') {
@@ -662,7 +661,7 @@ export const reactor = <
         messages,
         async (scope) => {
           try {
-            return await processingScope(
+            const result = await processingScope(
               async (context) => {
                 const messagesAboveCheckpoint = messages.filter(
                   (message) =>
@@ -747,7 +746,6 @@ export const reactor = <
                     // TODO: Add correct handling of the storing checkpoint
                     lastCheckpoint = storeCheckpointResult.newCheckpoint;
                     lastStoredCheckpoint = storeCheckpointResult.newCheckpoint;
-                    notifyCheckpointWaiters();
                   }
                 }
 
@@ -765,6 +763,10 @@ export const reactor = <
               },
               { ...partialContext, observabilityScope: scope },
             );
+
+            if (result?.type !== 'STOP') notifyCheckpointWaiters();
+
+            return result;
           } catch (err) {
             scope.log(
               error(

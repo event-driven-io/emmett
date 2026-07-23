@@ -347,7 +347,7 @@ void describe('EventStoreDB event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        let stopAfterStreamPosition: bigint | undefined = undefined;
+        const resultReachedEnd = asyncAwaiter();
 
         // When
         const consumer = eventStoreDBEventStoreConsumer({
@@ -359,27 +359,29 @@ void describe('EventStoreDB event store started consumer', () => {
           startFrom: {
             lastCheckpoint: bigIntProcessorCheckpoint(startPosition),
           },
-          stopAfter: (event) =>
-            event.metadata.streamPosition === stopAfterStreamPosition,
           eachMessage: (event) => {
             result.push(event);
+            if (
+              event.type === 'GuestCheckedOut' &&
+              event.data.guestId === otherGuestId
+            )
+              resultReachedEnd.resolve();
           },
         });
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterStreamPosition = appendResult.nextExpectedStreamVersion;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await resultReachedEnd.wait;
 
           assertThatArray(result).containsOnlyElementsMatching(events);
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -406,7 +408,7 @@ void describe('EventStoreDB event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        let stopAfterPosition: string | undefined = undefined;
+        const resultReachedEnd = asyncAwaiter();
 
         // When
         const consumer = eventStoreDBEventStoreConsumer({
@@ -418,27 +420,29 @@ void describe('EventStoreDB event store started consumer', () => {
           startFrom: {
             lastCheckpoint: startPosition,
           },
-          stopAfter: (event) =>
-            event.metadata.globalPosition === stopAfterPosition,
           eachMessage: (event) => {
             result.push(event);
+            if (
+              event.type === 'GuestCheckedOut' &&
+              event.data.guestId === otherGuestId
+            )
+              resultReachedEnd.resolve();
           },
         });
 
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.lastEventGlobalPosition;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await resultReachedEnd.wait;
 
           assertThatArray(result).containsOnlyElementsMatching(events);
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -494,11 +498,9 @@ void describe('EventStoreDB event store started consumer', () => {
           // Given
 
           const result: GuestStayEvent[] = [];
-          let stopAfterPosition: string | undefined = undefined;
 
           const guestId = uuid();
           const streamName = `guestStay-${guestId}`;
-          const waitForStart = asyncAwaiter();
 
           // When
           const consumer = eventStoreDBEventStoreConsumer({
@@ -507,10 +509,7 @@ void describe('EventStoreDB event store started consumer', () => {
           });
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
-            stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
-            eachMessage: async (event) => {
-              await waitForStart.wait;
+            eachMessage: (event) => {
               result.push(event);
             },
           });
@@ -520,21 +519,19 @@ void describe('EventStoreDB event store started consumer', () => {
             { type: 'GuestCheckedOut', data: { guestId } },
           ];
 
+          let consumerPromise: Promise<void> | undefined;
           try {
-            const consumerPromise = consumer.start();
+            consumerPromise = consumer.start();
+            await consumer.whenStarted();
 
-            const appendResult = await eventStore.appendToStream(
-              streamName,
-              events,
-            );
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
-            waitForStart.resolve();
+            await eventStore.appendToStream(streamName, events);
 
-            await consumerPromise;
+            await consumer.whenCaughtUp();
 
             assertThatArray(result).containsElementsMatching(events);
           } finally {
             await consumer.close();
+            await consumerPromise;
           }
         },
       );
@@ -561,8 +558,6 @@ void describe('EventStoreDB event store started consumer', () => {
           ];
 
           const result: GuestStayEvent[] = [];
-          let stopAfterPosition: string | undefined = undefined;
-          const waitForStart = asyncAwaiter();
 
           // When
           const consumer = eventStoreDBEventStoreConsumer({
@@ -572,25 +567,19 @@ void describe('EventStoreDB event store started consumer', () => {
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             startFrom: 'CURRENT',
-            stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
-            eachMessage: async (event) => {
-              await waitForStart.wait;
+            eachMessage: (event) => {
               result.push(event);
             },
           });
 
+          let consumerPromise: Promise<void> | undefined;
           try {
-            const consumerPromise = consumer.start();
+            consumerPromise = consumer.start();
+            await consumer.whenStarted();
 
-            const appendResult = await eventStore.appendToStream(
-              streamName,
-              events,
-            );
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
-            waitForStart.resolve();
+            await eventStore.appendToStream(streamName, events);
 
-            await consumerPromise;
+            await consumer.whenCaughtUp();
 
             assertThatArray(result).containsElementsMatching([
               ...initialEvents,
@@ -598,6 +587,7 @@ void describe('EventStoreDB event store started consumer', () => {
             ]);
           } finally {
             await consumer.close();
+            await consumerPromise;
           }
         },
       );
@@ -615,8 +605,7 @@ void describe('EventStoreDB event store started consumer', () => {
             { type: 'GuestCheckedIn', data: { guestId } },
             { type: 'GuestCheckedOut', data: { guestId } },
           ];
-          const { lastEventGlobalPosition: startPosition } =
-            await eventStore.appendToStream(streamName, initialEvents);
+          await eventStore.appendToStream(streamName, initialEvents);
 
           const events: GuestStayEvent[] = [
             { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
@@ -624,9 +613,6 @@ void describe('EventStoreDB event store started consumer', () => {
           ];
 
           let result: GuestStayEvent[] = [];
-          let stopAfterPosition: string | undefined = startPosition;
-
-          const waitForStart = asyncAwaiter();
 
           // When
           const consumer = eventStoreDBEventStoreConsumer({
@@ -636,40 +622,31 @@ void describe('EventStoreDB event store started consumer', () => {
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             startFrom: 'CURRENT',
-            stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
-            eachMessage: async (event) => {
-              await waitForStart.wait;
+            eachMessage: (event) => {
               result.push(event);
             },
           });
 
-          let consumerPromise = consumer.start();
-          waitForStart.resolve();
-          await consumerPromise;
+          let consumerPromise: Promise<void> | undefined = consumer.start();
+          await consumer.whenStarted();
+          await consumer.whenCaughtUp();
           await consumer.stop();
-
-          waitForStart.reset();
+          await consumerPromise;
 
           result = [];
 
-          stopAfterPosition = undefined;
-
           try {
             consumerPromise = consumer.start();
+            await consumer.whenStarted();
 
-            const appendResult = await eventStore.appendToStream(
-              streamName,
-              events,
-            );
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
-            waitForStart.resolve();
+            await eventStore.appendToStream(streamName, events);
 
-            await consumerPromise;
+            await consumer.whenCaughtUp();
 
             assertThatArray(result).containsOnlyElementsMatching(events);
           } finally {
             await consumer.close();
+            await consumerPromise;
           }
         },
       );
@@ -687,8 +664,7 @@ void describe('EventStoreDB event store started consumer', () => {
             { type: 'GuestCheckedIn', data: { guestId } },
             { type: 'GuestCheckedOut', data: { guestId } },
           ];
-          const { lastEventGlobalPosition: startPosition } =
-            await eventStore.appendToStream(streamName, initialEvents);
+          await eventStore.appendToStream(streamName, initialEvents);
 
           const events: GuestStayEvent[] = [
             { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
@@ -696,16 +672,11 @@ void describe('EventStoreDB event store started consumer', () => {
           ];
 
           let result: GuestStayEvent[] = [];
-          let stopAfterPosition: string | undefined = startPosition;
 
-          const waitForStart = asyncAwaiter();
           const processorOptions: InMemoryReactorOptions<GuestStayEvent> = {
             processorId: uuid(),
             startFrom: 'CURRENT',
-            stopAfter: (event) =>
-              event.metadata.globalPosition === stopAfterPosition,
-            eachMessage: async (event) => {
-              await waitForStart.wait;
+            eachMessage: (event) => {
               result.push(event);
             },
             connectionOptions: { database },
@@ -716,19 +687,19 @@ void describe('EventStoreDB event store started consumer', () => {
             connectionString,
             from: from(streamName),
           });
+          let consumerPromise: Promise<void> | undefined;
           try {
             consumer.reactor<GuestStayEvent>(processorOptions);
 
-            waitForStart.resolve();
-            await consumer.start();
+            consumerPromise = consumer.start();
+            await consumer.whenStarted();
+            await consumer.whenCaughtUp();
           } finally {
             await consumer.close();
+            await consumerPromise;
           }
 
           result = [];
-
-          waitForStart.reset();
-          stopAfterPosition = undefined;
 
           const newConsumer = eventStoreDBEventStoreConsumer({
             connectionString,
@@ -736,21 +707,19 @@ void describe('EventStoreDB event store started consumer', () => {
           });
           newConsumer.reactor<GuestStayEvent>(processorOptions);
 
+          let newConsumerPromise: Promise<void> | undefined;
           try {
-            const consumerPromise = newConsumer.start();
+            newConsumerPromise = newConsumer.start();
+            await newConsumer.whenStarted();
 
-            const appendResult = await eventStore.appendToStream(
-              streamName,
-              events,
-            );
-            waitForStart.resolve();
-            stopAfterPosition = appendResult.lastEventGlobalPosition;
+            await eventStore.appendToStream(streamName, events);
 
-            await consumerPromise;
+            await newConsumer.whenCaughtUp();
 
             assertThatArray(result).containsOnlyElementsMatching(events);
           } finally {
             await newConsumer.close();
+            await newConsumerPromise;
           }
         },
       );
