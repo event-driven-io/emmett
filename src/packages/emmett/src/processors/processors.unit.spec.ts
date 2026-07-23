@@ -689,6 +689,51 @@ void describe('Processors', () => {
         (error: EmmettError) => error instanceof EmmettError,
       );
     });
+
+    void it('resolves when the target batch is skipped', async () => {
+      // Given
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => ({ type: 'SKIP' }),
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+
+      let resolved = false;
+      const whenProcessed = processor
+        .whenProcessed(bigIntProcessorCheckpoint(2n))
+        .then(() => {
+          resolved = true;
+        });
+
+      // When
+      await processor.handle([recordedEvent(1n), recordedEvent(2n)], {});
+      await whenProcessed;
+
+      // Then
+      assertEqual(resolved, true);
+    });
+
+    void it('does not resolve past a stopped batch', async () => {
+      // Given
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => ({ type: 'STOP' }),
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+
+      // When
+      await processor.handle([recordedEvent(1n), recordedEvent(2n)], {});
+
+      // Then
+      await assertRejects(
+        processor.whenProcessed(bigIntProcessorCheckpoint(2n), {
+          timeout: 20,
+        }),
+        (error: EmmettError) => error instanceof EmmettError,
+      );
+    });
   });
 
   void describe('skipping and stopping from a reactor', () => {
@@ -817,7 +862,7 @@ void describe('Processors', () => {
       assertEqual(wasRead(), true);
     });
 
-    void it('resolves an explicit checkpoint without reading the stored checkpoint', async () => {
+    void it('resolves an explicit checkpoint after reading the stored checkpoint', async () => {
       // Given
       const provided = bigIntProcessorCheckpoint(5n);
       const { checkpoints, wasRead } = trackingCheckpointer(
@@ -835,7 +880,7 @@ void describe('Processors', () => {
 
       // Then
       assertDeepEqual(startPosition, { lastCheckpoint: provided });
-      assertEqual(wasRead(), false);
+      assertEqual(wasRead(), true);
     });
 
     void it('resolves the default to BEGINNING when no checkpoint is stored', async () => {

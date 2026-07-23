@@ -24,6 +24,7 @@ import {
 import { v7 as uuid } from 'uuid';
 import {
   PostgreSQLEventStoreCheckpoint,
+  readLastCommittedMessageCheckpoint,
   readLastMessageCheckpoint,
 } from '../schema';
 import {
@@ -213,9 +214,8 @@ export const postgreSQLEventStoreConsumer = <
       ).then(() => undefined),
     whenCaughtUp: async (options): Promise<void> => {
       const tail = await pool.withConnection(async (connection) => {
-        const { currentCheckpoint } = await readLastMessageCheckpoint(
-          connection.execute,
-        );
+        const { currentCheckpoint } =
+          await readLastCommittedMessageCheckpoint(connection.execute);
         return currentCheckpoint;
       });
 
