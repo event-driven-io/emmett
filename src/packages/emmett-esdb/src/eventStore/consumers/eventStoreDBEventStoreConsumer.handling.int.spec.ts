@@ -1,6 +1,5 @@
 import {
   assertThatArray,
-  asyncAwaiter,
   bigIntProcessorCheckpoint,
   delay,
   getInMemoryDatabase,
@@ -143,8 +142,8 @@ void describe('EventStoreDB event store started consumer', () => {
         consumer.reactor<GuestStayEvent>({
           processorId: uuid(),
           stopAfter: (event) =>
-            event.metadata.globalPosition ===
-            appendResult.lastEventGlobalPosition,
+            event.metadata.checkpoint ===
+            bigIntProcessorCheckpoint(appendResult.nextExpectedStreamVersion),
           eachMessage: (event) => {
             result.push(event);
           },
@@ -186,8 +185,8 @@ void describe('EventStoreDB event store started consumer', () => {
       consumer.reactor<NumberRecorded>({
         processorId: uuid(),
         stopAfter: (event) =>
-          event.metadata.globalPosition ===
-          appendResult.lastEventGlobalPosition,
+          event.metadata.checkpoint ===
+          bigIntProcessorCheckpoint(appendResult.nextExpectedStreamVersion),
         eachMessage: async (event) => {
           await delay(Math.floor(Math.random() * 200));
 
@@ -245,8 +244,8 @@ void describe('EventStoreDB event store started consumer', () => {
         consumer.reactor<NumberRecorded>({
           processorId: uuid(),
           stopAfter: (event) =>
-            event.metadata.globalPosition ===
-            appendResult.lastEventGlobalPosition,
+            event.metadata.checkpoint ===
+            bigIntProcessorCheckpoint(appendResult.nextExpectedStreamVersion),
           eachMessage: (event) => {
             if (shouldThrowRandomError) {
               return Promise.reject(new Error('Random error'));
@@ -347,7 +346,6 @@ void describe('EventStoreDB event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        const resultReachedEnd = asyncAwaiter();
 
         // When
         const consumer = eventStoreDBEventStoreConsumer({
@@ -361,11 +359,6 @@ void describe('EventStoreDB event store started consumer', () => {
           },
           eachMessage: (event) => {
             result.push(event);
-            if (
-              event.type === 'GuestCheckedOut' &&
-              event.data.guestId === otherGuestId
-            )
-              resultReachedEnd.resolve();
           },
         });
 
@@ -376,7 +369,7 @@ void describe('EventStoreDB event store started consumer', () => {
 
           await eventStore.appendToStream(streamName, events);
 
-          await resultReachedEnd.wait;
+          await consumer.whenCaughtUp();
 
           assertThatArray(result).containsOnlyElementsMatching(events);
         } finally {
@@ -408,7 +401,6 @@ void describe('EventStoreDB event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        const resultReachedEnd = asyncAwaiter();
 
         // When
         const consumer = eventStoreDBEventStoreConsumer({
@@ -422,11 +414,6 @@ void describe('EventStoreDB event store started consumer', () => {
           },
           eachMessage: (event) => {
             result.push(event);
-            if (
-              event.type === 'GuestCheckedOut' &&
-              event.data.guestId === otherGuestId
-            )
-              resultReachedEnd.resolve();
           },
         });
 
@@ -437,7 +424,7 @@ void describe('EventStoreDB event store started consumer', () => {
 
           await eventStore.appendToStream(streamName, events);
 
-          await resultReachedEnd.wait;
+          await consumer.whenCaughtUp();
 
           assertThatArray(result).containsOnlyElementsMatching(events);
         } finally {
@@ -446,6 +433,80 @@ void describe('EventStoreDB event store started consumer', () => {
         }
       },
     );
+
+    const projectionStreams: [
+      string,
+      EventStoreDBEventStoreConsumerType,
+      (events: GuestStayEvent[]) => GuestStayEvent[],
+    ][] = [
+      [
+        'category projection',
+        { stream: '$ce-guestStay', options: { resolveLinkTos: true } },
+        (events: GuestStayEvent[]) => events,
+      ],
+      [
+        'event type projection',
+        { stream: '$et-GuestCheckedOut', options: { resolveLinkTos: true } },
+        (events: GuestStayEvent[]) =>
+          events.filter((event) => event.type === 'GuestCheckedOut'),
+      ],
+    ];
+
+    projectionStreams.forEach(([displayName, from, expectedEvents]) => {
+      void it(
+        `handles only new events when starting from END for ${displayName}`,
+        withDeadline,
+        async () => {
+          // Given
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+
+          const initialEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+          await eventStore.appendToStream(streamName, initialEvents);
+
+          const events: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+
+          const result: GuestStayEvent[] = [];
+
+          // When
+          const consumer = eventStoreDBEventStoreConsumer({
+            connectionString,
+            from,
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: 'END',
+            eachMessage: (event) => {
+              result.push(event);
+            },
+          });
+
+          let consumerPromise: Promise<void> | undefined;
+          try {
+            consumerPromise = consumer.start();
+            await consumer.whenStarted();
+
+            await eventStore.appendToStream(streamName, events);
+
+            await consumer.whenCaughtUp();
+
+            assertThatArray(result).containsOnlyElementsMatching(
+              expectedEvents(events),
+            );
+          } finally {
+            await consumer.close();
+            await consumerPromise;
+          }
+        },
+      );
+    });
 
     consumeFrom.forEach(([displayName, from]) => {
       void it(

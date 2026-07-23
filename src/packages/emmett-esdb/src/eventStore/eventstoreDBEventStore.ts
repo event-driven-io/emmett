@@ -376,6 +376,9 @@ export const mapFromESDBEvent = <MessageType extends AnyMessage = AnyMessage>(
   from?: EventStoreDBEventStoreConsumerType,
 ): RecordedMessage<MessageType, EventStoreDBReadEventMetadata> => {
   const event = resolvedEvent.event!;
+  const globalPosition =
+    event.position?.commit ?? resolvedEvent.link?.position?.commit;
+
   return <RecordedMessage<MessageType, EventStoreDBReadEventMetadata>>{
     type: event.type,
     data: event.data,
@@ -385,7 +388,9 @@ export const mapFromESDBEvent = <MessageType extends AnyMessage = AnyMessage>(
       eventId: event.id,
       streamName: event.streamId,
       streamPosition: event.revision,
-      globalPosition: bigIntProcessorCheckpoint(event.position!.commit),
+      ...(globalPosition !== undefined
+        ? { globalPosition: bigIntProcessorCheckpoint(globalPosition) }
+        : {}),
       checkpoint: bigIntProcessorCheckpoint(
         getESDBCheckpoint(resolvedEvent, from),
       ),

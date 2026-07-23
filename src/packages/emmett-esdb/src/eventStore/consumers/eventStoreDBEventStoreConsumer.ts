@@ -5,7 +5,6 @@ import type {
 } from '@event-driven-io/emmett';
 import {
   asyncAwaiter,
-  bigIntProcessorCheckpoint,
   CurrentMessageProcessorPosition,
   EmmettError,
   inMemoryProjector,
@@ -26,10 +25,7 @@ import {
   type WaitOptions,
 } from '@event-driven-io/emmett';
 import {
-  BACKWARDS,
-  END,
   EventStoreDBClient,
-  StreamNotFoundError,
   type SubscribeToAllOptions,
   type SubscribeToStreamOptions,
 } from '@eventstore/db-client';
@@ -38,6 +34,7 @@ import type { EventStoreDBReadEventMetadata } from '../eventstoreDBEventStore';
 import {
   DefaultEventStoreDBEventStoreProcessorBatchSize,
   eventStoreDBSubscription,
+  readLastCommittedMessageCheckpoint,
   type EventStoreDBSubscription,
 } from './subscriptions';
 
@@ -177,6 +174,16 @@ export const eventStoreDBEventStoreConsumer = <
 
   const stopProcessors = () => Promise.all(processors.map((p) => p.close({})));
 
+  const resolveStartFrom = async (
+    startFrom: CurrentMessageProcessorPosition,
+  ): Promise<CurrentMessageProcessorPosition> => {
+    if (startFrom !== 'END') return startFrom;
+
+    const tail = await readLastCommittedMessageCheckpoint(client, from);
+
+    return tail === undefined ? 'END' : { lastCheckpoint: tail };
+  };
+
   const stop = async () => {
     if (!isRunning) return;
     isRunning = false;
@@ -201,46 +208,11 @@ export const eventStoreDBEventStoreConsumer = <
         processors.map((p) => p.whenProcessed(position, options)),
       ).then(() => undefined),
     whenCaughtUp: async (options): Promise<void> => {
-      let tail: bigint | undefined;
-
-      if (!from || from.stream === $all) {
-        const stream = client.readAll({
-          direction: BACKWARDS,
-          fromPosition: END,
-          maxCount: 1,
-        });
-
-        for await (const resolved of stream) {
-          tail = (resolved.event?.position?.commit ??
-            resolved.link?.position?.commit)!;
-          break;
-        }
-      } else {
-        try {
-          const stream = client.readStream(from.stream, {
-            direction: BACKWARDS,
-            fromRevision: END,
-            maxCount: 1,
-          });
-
-          for await (const resolved of stream) {
-            tail = resolved.event?.revision ?? resolved.link?.revision;
-            break;
-          }
-        } catch (error) {
-          if (error instanceof StreamNotFoundError) return;
-          throw error;
-        }
-      }
+      const tail = await readLastCommittedMessageCheckpoint(client, from);
 
       if (tail === undefined) return;
-      const caughtUpTail = tail;
 
-      await Promise.all(
-        processors.map((p) =>
-          p.whenProcessed(bigIntProcessorCheckpoint(caughtUpTail), options),
-        ),
-      );
+      await Promise.all(processors.map((p) => p.whenProcessed(tail, options)));
     },
     processors,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
@@ -314,7 +286,11 @@ export const eventStoreDBEventStoreConsumer = <
             await Promise.all(processors.map((o) => o.start(client))),
           );
 
-          await subscription.start({ startFrom, started: startedAwaiter });
+          currentSubscription = subscription;
+          await subscription.start({
+            startFrom: await resolveStartFrom(startFrom),
+            started: startedAwaiter,
+          });
         } catch (error) {
           isRunning = false;
           startedAwaiter.reject(error);
