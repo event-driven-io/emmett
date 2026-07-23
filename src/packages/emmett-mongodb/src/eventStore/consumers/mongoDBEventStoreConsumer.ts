@@ -29,16 +29,11 @@ import {
   type MongoDBProjectorOptions,
 } from './mongoDBProcessor';
 import {
-  getDatabaseVersionPolicies,
   mongoDBSubscription,
-  subscribe,
+  readLastCommittedMessageCheckpoint,
   zipMongoDBMessageBatchPullerStartFrom,
   type MongoDBSubscription,
 } from './subscriptions';
-import {
-  toMongoDBCheckpoint,
-  type MongoDBResumeToken,
-} from './subscriptions/mongoDBCheckpoint';
 
 export type MongoDBChangeStreamMessageMetadata =
   RecordedMessageMetadataWithoutGlobalPosition;
@@ -195,28 +190,11 @@ export const mongoDBEventStoreConsumer = <
         processors.map((p) => p.whenProcessed(position, options)),
       ).then(() => undefined),
     whenCaughtUp: async (options): Promise<void> => {
-      const db = client.db();
+      const tail = await readLastCommittedMessageCheckpoint(client.db());
 
-      const { changeStreamFullDocumentValuePolicy } =
-        await getDatabaseVersionPolicies(db);
+      if (tail === undefined) return;
 
-      const cs = subscribe(changeStreamFullDocumentValuePolicy, db)('END');
-
-      try {
-        await cs.tryNext();
-
-        const resumeToken = cs.resumeToken as MongoDBResumeToken | undefined;
-
-        if (resumeToken === undefined || resumeToken === null) return;
-
-        const tailCheckpoint = toMongoDBCheckpoint(resumeToken, 0);
-
-        await Promise.all(
-          processors.map((p) => p.whenProcessed(tailCheckpoint, options)),
-        );
-      } finally {
-        await cs.close();
-      }
+      await Promise.all(processors.map((p) => p.whenProcessed(tail, options)));
     },
     processors,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(

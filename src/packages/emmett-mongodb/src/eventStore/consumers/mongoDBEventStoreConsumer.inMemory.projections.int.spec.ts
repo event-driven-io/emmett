@@ -1,10 +1,13 @@
 import {
   assertMatches,
+  asyncAwaiter,
   getInMemoryDatabase,
   inMemoryProjector,
+  inMemoryReactor,
   inMemorySingleStreamProjection,
   type Closeable,
   type InMemoryDocumentsCollection,
+  type ProcessorCheckpoint,
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
@@ -20,10 +23,20 @@ import {
 } from '../mongoDBEventStore';
 import { mongoDBEventStoreConsumer } from './mongoDBEventStoreConsumer';
 import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
+import { compareTwoMongoDBCheckpoints } from './subscriptions';
 
 const withDeadline = { timeout: 30000 };
 
-void describe.skip('mongoDB event store started consumer', () => {
+/**
+ * MongoDB checkpoints are resume tokens, not lexicographically ordered values,
+ * so processors must compare them via the MongoDB-specific comparator.
+ */
+const compareCheckpoints = compareTwoMongoDBCheckpoints as (
+  a: ProcessorCheckpoint,
+  b: ProcessorCheckpoint,
+) => number;
+
+void describe('mongoDB event store started consumer', () => {
   let mongoDB: StartedMongoDBContainer;
   let connectionString: string;
   let eventStore: MongoDBEventStore & Closeable;
@@ -72,6 +85,7 @@ void describe.skip('mongoDB event store started consumer', () => {
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
+          compareCheckpoints,
           stopAfter: (event) =>
             event.metadata.streamName === streamName &&
             event.metadata.streamPosition ===
@@ -93,8 +107,6 @@ void describe.skip('mongoDB event store started consumer', () => {
           assertMatches(summary, {
             _id: streamName,
             status: 'confirmed',
-            // TODO: ensure that _version and _id works like in Pongo
-            //_version: 2n,
             productItemsCount: productItem.quantity,
           });
         } finally {
@@ -110,15 +122,12 @@ void describe.skip('mongoDB event store started consumer', () => {
         // Given
         const shoppingCartId = `shoppingCart:${uuid()}`;
         const streamName = `shopping_cart-${shoppingCartId}`;
-        let stopAfterPosition: bigint | undefined = undefined;
 
         const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
-          stopAfter: (event) =>
-            event.metadata.streamName === streamName &&
-            event.metadata.streamPosition === stopAfterPosition,
+          compareCheckpoints,
         });
         const consumer = mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>({
           connectionString,
@@ -126,144 +135,124 @@ void describe.skip('mongoDB event store started consumer', () => {
           processors: [inMemoryProcessor],
         });
 
-        // When
         const events: ShoppingCartSummaryEvent[] = [
-          {
-            type: 'ProductItemAdded',
-            data: {
-              productItem,
-            },
-          },
-          {
-            type: 'ShoppingCartConfirmed',
-            data: { confirmedAt },
-          },
+          { type: 'ProductItemAdded', data: { productItem } },
+          { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
         ];
 
+        // When
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.nextExpectedStreamVersion;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne((d) => d._id === streamName);
 
           assertMatches(summary, {
             _id: streamName,
             status: 'confirmed',
-            //_version: 2n,
             productItemsCount: productItem.quantity,
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
 
-    // void it(
-    //   'handles ONLY events AFTER provided global position',
-    //   withDeadline,
-    //   async () => {
-    //     // Given
-    //     const shoppingCartId = `shoppingCart:${uuid()}`;
-    //     const streamName = `shopping_cart-${shoppingCartId}`;
+    void it(
+      'handles ONLY events AFTER provided checkpoint',
+      withDeadline,
+      async () => {
+        // Given
+        const shoppingCartId = `shoppingCart:${uuid()}`;
+        const streamName = `shopping_cart-${shoppingCartId}`;
 
-    //     const initialEvents: ShoppingCartSummaryEvent[] = [
-    //       { type: 'ProductItemAdded', data: { productItem } },
-    //       { type: 'ProductItemAdded', data: { productItem } },
-    //     ];
-    //     const { nextExpectedStreamVersion } = await eventStore.appendToStream(
-    //       streamName,
-    //       initialEvents,
-    //     );
+        const initialEvents: ShoppingCartSummaryEvent[] = [
+          { type: 'ProductItemAdded', data: { productItem } },
+          { type: 'ProductItemAdded', data: { productItem } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
 
-    //     const events: ShoppingCartSummaryEvent[] = [
-    //       { type: 'ProductItemAdded', data: { productItem } },
-    //       {
-    //         type: 'ShoppingCartConfirmed',
-    //         data: { confirmedAt },
-    //       },
-    //     ];
+        // Capture the checkpoint of the last initial event without projecting it,
+        // as MongoDB checkpoints are resume tokens that cannot be synthesised.
+        let startCheckpoint: ProcessorCheckpoint | undefined;
+        let seen = 0;
+        const captured = asyncAwaiter();
+        const capturingConsumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [
+            inMemoryReactor<ShoppingCartSummaryEvent>({
+              processorId: uuid(),
+              compareCheckpoints,
+              eachMessage: (event) => {
+                if (event.metadata.streamName !== streamName) return;
+                startCheckpoint = event.metadata
+                  .checkpoint as ProcessorCheckpoint;
+                if (++seen === initialEvents.length) captured.resolve();
+              },
+            }),
+          ],
+        });
 
-    //     let stopAfterPosition: bigint | undefined = nextExpectedStreamVersion;
-    //     let checkpoint: MongoDBCheckpoint | null | undefined = undefined;
+        let capturingPromise: Promise<void> | undefined;
+        try {
+          capturingPromise = capturingConsumer.start();
+          await capturingConsumer.whenStarted();
+          await captured.wait;
+        } finally {
+          await capturingConsumer.close();
+          await capturingPromise;
+        }
 
-    //     const projectorOptions: InMemoryProjectorOptions<ShoppingCartSummaryEvent> =
-    //       {
-    //         processorId: uuid(),
-    //         projection: shoppingCartsSummaryProjection,
-    //         connectionOptions: { database },
-    //         stopAfter: (event) => {
-    //           checkpoint = getCheckpoint(event);
-    //           return (
-    //             event.metadata.streamName === streamName &&
-    //             event.metadata.streamPosition === stopAfterPosition
-    //           );
-    //         },
-    //       };
+        const events: ShoppingCartSummaryEvent[] = [
+          { type: 'ProductItemAdded', data: { productItem } },
+          { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
+        ];
 
-    //     let eartlierConsumer: MongoDBEventStoreConsumer<ShoppingCartSummaryEvent> =
-    //       undefined!;
+        // When
+        const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
+          processorId: uuid(),
+          projection: shoppingCartsSummaryProjection,
+          connectionOptions: { database },
+          compareCheckpoints,
+          startFrom: {
+            lastCheckpoint: startCheckpoint as ProcessorCheckpoint,
+          },
+        });
+        const consumer = mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [inMemoryProcessor],
+        });
 
-    //     try {
-    //       eartlierConsumer =
-    //         mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>({
-    //           connectionString,
-    //           clientOptions: { directConnection: true },
-    //           processors: [
-    //             inMemoryProjector<ShoppingCartSummaryEvent>(projectorOptions),
-    //           ],
-    //         });
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-    //       await eartlierConsumer.start();
-    //     } finally {
-    //       await eartlierConsumer.close();
-    //     }
+          await eventStore.appendToStream(streamName, events);
 
-    //     // When
-    //     let consumer: MongoDBEventStoreConsumer<ShoppingCartSummaryEvent> =
-    //       undefined!;
+          await consumer.whenCaughtUp();
 
-    //     try {
-    //       consumer = mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>({
-    //         connectionString,
-    //         clientOptions: { directConnection: true },
-    //         processors: [
-    //           inMemoryProjector<ShoppingCartSummaryEvent>({
-    //             ...projectorOptions,
-    //             startFrom: checkpoint,
-    //           }),
-    //         ],
-    //       });
-    //       stopAfterPosition = undefined;
-    //       const consumerPromise = consumer.start();
+          const summary = await summaries.findOne((d) => d._id === streamName);
 
-    //       const appendResult = await eventStore.appendToStream(
-    //         streamName,
-    //         events,
-    //       );
-    //       stopAfterPosition = appendResult.nextExpectedStreamVersion;
-
-    //       await consumerPromise;
-
-    //       const summary = await summaries.findOne((d) => d._id === streamName);
-
-    //       assertMatches(summary, {
-    //         _id: streamName,
-    //         status: 'confirmed',
-    //         _version: 3n,
-    //         productItemsCount: productItem.quantity,
-    //       });
-    //     } finally {
-    //       await consumer.close();
-    //     }
-    //   },
-    // );
+          assertMatches(summary, {
+            _id: streamName,
+            status: 'confirmed',
+            productItemsCount: productItem.quantity,
+          });
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
 
     void it(
       'handles all events when CURRENT position is NOT stored',
@@ -282,22 +271,15 @@ void describe.skip('mongoDB event store started consumer', () => {
 
         const events: ShoppingCartSummaryEvent[] = [
           { type: 'ProductItemAdded', data: { productItem } },
-          {
-            type: 'ShoppingCartConfirmed',
-            data: { confirmedAt },
-          },
+          { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
         ];
-
-        let stopAfterPosition: bigint | undefined = undefined;
 
         const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
+          compareCheckpoints,
           startFrom: 'CURRENT',
-          stopAfter: (event) =>
-            event.metadata.streamName === streamName &&
-            event.metadata.streamPosition === stopAfterPosition,
         });
 
         const consumer = mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>({
@@ -307,28 +289,25 @@ void describe.skip('mongoDB event store started consumer', () => {
         });
 
         // When
-
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const consumerPromise = consumer.start();
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.nextExpectedStreamVersion;
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne((d) => d._id === streamName);
 
           assertMatches(summary, {
             _id: streamName,
             status: 'confirmed',
-            // _version: 4n,
             productItemsCount: productItem.quantity * 3,
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
@@ -345,29 +324,23 @@ void describe.skip('mongoDB event store started consumer', () => {
           { type: 'ProductItemAdded', data: { productItem } },
           { type: 'ProductItemAdded', data: { productItem } },
         ];
-        const { nextExpectedStreamVersion } = await eventStore.appendToStream(
-          streamName,
-          initialEvents,
-        );
+        const { nextExpectedStreamVersion: startPosition } =
+          await eventStore.appendToStream(streamName, initialEvents);
 
         const events: ShoppingCartSummaryEvent[] = [
           { type: 'ProductItemAdded', data: { productItem } },
-          {
-            type: 'ShoppingCartConfirmed',
-            data: { confirmedAt },
-          },
+          { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
         ];
-
-        let stopAfterPosition: bigint | undefined = nextExpectedStreamVersion;
 
         const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
+          compareCheckpoints,
           startFrom: 'CURRENT',
           stopAfter: (event) =>
             event.metadata.streamName === streamName &&
-            event.metadata.streamPosition === stopAfterPosition,
+            event.metadata.streamPosition === startPosition,
         });
 
         const consumer = mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>({
@@ -380,116 +353,111 @@ void describe.skip('mongoDB event store started consumer', () => {
         await consumer.start();
         await consumer.stop();
 
-        stopAfterPosition = undefined;
-
+        let consumerPromise: Promise<void> | undefined;
         try {
-          const appendResult = await eventStore.appendToStream(
-            streamName,
-            events,
-          );
-          stopAfterPosition = appendResult.nextExpectedStreamVersion;
-          console.log('stopAfterPosition', stopAfterPosition);
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-          const consumerPromise = consumer.start();
+          await eventStore.appendToStream(streamName, events);
 
-          await consumerPromise;
+          await consumer.whenCaughtUp();
 
           const summary = await summaries.findOne((d) => d._id === streamName);
 
           assertMatches(summary, {
             _id: streamName,
             status: 'confirmed',
-            //_version: 4n,
             productItemsCount: productItem.quantity * 3,
           });
         } finally {
           await consumer.close();
+          await consumerPromise;
         }
       },
     );
 
-    // void it(
-    //   'handles only new events when CURRENT position is stored for a new consumer',
-    //   withDeadline,
-    //   async () => {
-    //     // Given
-    //     const shoppingCartId = `shoppingCart:${uuid()}`;
-    //     const streamName = `shopping_cart-${shoppingCartId}`;
+    void it(
+      'handles only new events when CURRENT position is stored for a new consumer',
+      withDeadline,
+      async () => {
+        // Given
+        const shoppingCartId = `shoppingCart:${uuid()}`;
+        const streamName = `shopping_cart-${shoppingCartId}`;
 
-    //     const initialEvents: ShoppingCartSummaryEvent[] = [
-    //       { type: 'ProductItemAdded', data: { productItem } },
-    //       { type: 'ProductItemAdded', data: { productItem } },
-    //     ];
-    //     const { nextExpectedStreamVersion } = await eventStore.appendToStream(
-    //       streamName,
-    //       initialEvents,
-    //     );
+        const initialEvents: ShoppingCartSummaryEvent[] = [
+          { type: 'ProductItemAdded', data: { productItem } },
+          { type: 'ProductItemAdded', data: { productItem } },
+        ];
+        const { nextExpectedStreamVersion: startPosition } =
+          await eventStore.appendToStream(streamName, initialEvents);
 
-    //     const events: ShoppingCartSummaryEvent[] = [
-    //       { type: 'ProductItemAdded', data: { productItem } },
-    //       {
-    //         type: 'ShoppingCartConfirmed',
-    //         data: { confirmedAt },
-    //       },
-    //     ];
+        const events: ShoppingCartSummaryEvent[] = [
+          { type: 'ProductItemAdded', data: { productItem } },
+          { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
+        ];
 
-    //     let stopAfterPosition: bigint | undefined = nextExpectedStreamVersion;
+        const processorId = uuid();
+        const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
+          processorId,
+          projection: shoppingCartsSummaryProjection,
+          connectionOptions: { database },
+          compareCheckpoints,
+          startFrom: 'CURRENT',
+          stopAfter: (event) =>
+            event.metadata.streamName === streamName &&
+            event.metadata.streamPosition === startPosition,
+        });
 
-    //     const inMemoryProcessor = inMemoryProjector<ShoppingCartSummaryEvent>({
-    //       processorId: uuid(),
-    //       projection: shoppingCartsSummaryProjection,
-    //       connectionOptions: { database },
-    //       startFrom: 'CURRENT',
-    //       stopAfter: (event) =>
-    //         event.metadata.streamName === streamName &&
-    //         event.metadata.streamPosition === stopAfterPosition,
-    //     });
+        // When
+        const consumer = mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [inMemoryProcessor],
+        });
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
 
-    //     const consumer = mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>({
-    //       connectionString,
-    //       clientOptions: { directConnection: true },
-    //       processors: [inMemoryProcessor],
-    //     });
+        const newInMemoryProcessor =
+          inMemoryProjector<ShoppingCartSummaryEvent>({
+            processorId,
+            projection: shoppingCartsSummaryProjection,
+            connectionOptions: { database },
+            compareCheckpoints,
+            startFrom: 'CURRENT',
+          });
+        const newConsumer = mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>(
+          {
+            connectionString,
+            clientOptions: { directConnection: true },
+            processors: [newInMemoryProcessor],
+          },
+        );
 
-    //     // When
-    //     try {
-    //       await consumer.start();
-    //     } finally {
-    //       await consumer.close();
-    //     }
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = newConsumer.start();
+          await newConsumer.whenStarted();
 
-    //     stopAfterPosition = undefined;
+          await eventStore.appendToStream(streamName, events);
 
-    //     const newConsumer = mongoDBEventStoreConsumer({
-    //       connectionString,
-    //       clientOptions: { directConnection: true },
-    //       processors: [inMemoryProcessor],
-    //     });
+          await newConsumer.whenCaughtUp();
 
-    //     try {
-    //       const consumerPromise = newConsumer.start();
+          const summary = await summaries.findOne((d) => d._id === streamName);
 
-    //       const appendResult = await eventStore.appendToStream(
-    //         streamName,
-    //         events,
-    //       );
-    //       stopAfterPosition = appendResult.nextExpectedStreamVersion;
-
-    //       await consumerPromise;
-
-    //       const summary = await summaries.findOne((d) => d._id === streamName);
-
-    //       assertMatches(summary, {
-    //         _id: streamName,
-    //         status: 'confirmed',
-    //         //_version: 4n,
-    //         productItemsCount: productItem.quantity * 3,
-    //       });
-    //     } finally {
-    //       await newConsumer.close();
-    //     }
-    //   },
-    // );
+          assertMatches(summary, {
+            _id: streamName,
+            status: 'confirmed',
+            productItemsCount: productItem.quantity * 3,
+          });
+        } finally {
+          await newConsumer.close();
+          await consumerPromise;
+        }
+      },
+    );
   });
 });
 

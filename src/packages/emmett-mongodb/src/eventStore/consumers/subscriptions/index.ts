@@ -94,9 +94,7 @@ export type StreamSubscription<
     MongoDBChangeStreamMessageMetadata,
 > = ChangeStream<
   EventStream<Extract<EventType, { kind?: 'Event' }>, MessageMetadataType>,
-  MongoDBSubscriptionDocument<
-    EventStream<Extract<EventType, { kind?: 'Event' }>, RecordedMessageMetadata>
-  >
+  OplogChange<Extract<EventType, { kind?: 'Event' }>, RecordedMessageMetadata>
 >;
 export type MessageArrayElement = `messages.${string}`;
 export type UpdateDescription<T> = {
@@ -131,6 +129,30 @@ export type OplogChange<
       ReadEvent<Extract<EventType, { kind?: 'Event' }>, EventMetaDataType>
     >;
 
+export const oplogChangeToMessages = (
+  change: OplogChange<AnyMessage, RecordedMessageMetadata>,
+): ReadEvent[] =>
+  change.operationType === 'insert'
+    ? (change.fullDocument?.messages ?? [])
+    : change.operationType === 'update'
+      ? Object.entries(change.updateDescription.updatedFields)
+          .filter(([key]) => key.startsWith('messages.'))
+          .map(([, value]) => value as ReadEvent)
+      : [];
+
+/**
+ * Returns the checkpoint of a change's first message, or undefined when it
+ * carries none. Position 0 is used because every message emitted from a single
+ * change shares that change's resume token and differs only by index, so it is
+ * always at or before the processor's checkpoint for that change.
+ */
+export const oplogChangeToTailCheckpoint = (
+  change: OplogChange<AnyMessage, RecordedMessageMetadata>,
+): MongoDBCheckpoint | undefined =>
+  oplogChangeToMessages(change).length > 0
+    ? toMongoDBCheckpoint(change._id, 0)
+    : undefined;
+
 type SubscriptionSequentialHandlerOptions<
   MessageType extends AnyMessage = AnyMessage,
 > = MongoDBSubscriptionOptions<MessageType> & WritableOptions;
@@ -160,23 +182,10 @@ class SubscriptionSequentialHandler<
       }
 
       const changeStreamCheckpoint = change._id;
-      const streamChange =
-        change.operationType === 'insert'
-          ? change.fullDocument
-          : change.operationType === 'update'
-            ? {
-                messages: Object.entries(change.updateDescription.updatedFields)
-                  .filter(([key]) => key.startsWith('messages.'))
-                  .map(([, value]) => value as ReadEvent),
-              }
-            : void 0;
-
-      if (!streamChange) {
-        return;
-      }
+      const extractedMessages = oplogChangeToMessages(change);
 
       let lastCheckpoint: MongoDBCheckpoint | undefined = undefined;
-      const messages = streamChange.messages.map((message, index) => {
+      const messages = extractedMessages.map((message, index) => {
         lastCheckpoint = toMongoDBCheckpoint(changeStreamCheckpoint, index);
         return {
           kind: message.kind,
@@ -303,9 +312,7 @@ const createChangeStream = <EventType extends Message = AnyMessage>(
 
   return db.watch<
     EventStream<Extract<EventType, { kind?: 'Event' }>>,
-    MongoDBSubscriptionDocument<
-      EventStream<Extract<EventType, { kind?: 'Event' }>>
-    >
+    OplogChange<Extract<EventType, { kind?: 'Event' }>, RecordedMessageMetadata>
   >(pipeline, {
     useBigInt64: true,
     fullDocument: getFullDocumentValue(),
@@ -339,6 +346,40 @@ const subscribe =
     resumeToken?: MongoDBSubscriptionStartFrom,
   ) =>
     createChangeStream<EventType>(getFullDocumentValue, db, resumeToken);
+
+/**
+ * Reads the checkpoint of the last committed message, the MongoDB equivalent of
+ * PostgreSQL's readLastCommittedMessageCheckpoint. MongoDB has no queryable tail,
+ * so it drains a momentary change stream from the beginning and keeps the last
+ * message-producing change. Its resume token at position 0 is a real event the
+ * processor can reach, unlike a live "END" resume token, which sits ahead of the
+ * last event and never resolves.
+ */
+export const readLastCommittedMessageCheckpoint = async (
+  db: Db,
+): Promise<MongoDBCheckpoint | undefined> => {
+  const { changeStreamFullDocumentValuePolicy } =
+    await getDatabaseVersionPolicies(db);
+
+  const changeStream = subscribe(changeStreamFullDocumentValuePolicy, db)();
+
+  let currentCheckpoint: MongoDBCheckpoint | undefined;
+
+  try {
+    for (
+      let change = await changeStream.tryNext();
+      change !== null;
+      change = await changeStream.tryNext()
+    ) {
+      const checkpoint = oplogChangeToTailCheckpoint(change);
+      if (checkpoint !== undefined) currentCheckpoint = checkpoint;
+    }
+  } finally {
+    await changeStream.close();
+  }
+
+  return currentCheckpoint;
+};
 
 export const mongoDBSubscription = <MessageType extends Message = AnyMessage>({
   client,

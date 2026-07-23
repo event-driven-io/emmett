@@ -216,57 +216,62 @@ void describe('MongoDB event store started consumer', () => {
       }
     });
 
-    void it(`PROBE whenProcessed after append`, withDeadline, async () => {
-      const guestId = uuid();
-      const streamName = `guestStay-${guestId}`;
-      const events: GuestStayEvent[] = [
-        { type: 'GuestCheckedIn', data: { guestId } },
-        { type: 'GuestCheckedOut', data: { guestId } },
-      ];
+    void it(
+      `resolves whenProcessed and whenCaughtUp for events appended after start`,
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
 
-      const result: GuestStayEvent[] = [];
-      let lastCheckpoint: string | undefined;
-      const reachedEnd = asyncAwaiter();
+        const result: GuestStayEvent[] = [];
+        let lastCheckpoint: ProcessorCheckpoint | undefined;
+        const reachedEnd = asyncAwaiter();
 
-      const consumer = mongoDBEventStoreConsumer({
-        connectionString,
-        clientOptions: { directConnection: true },
-        processors: [
-          inMemoryReactor<GuestStayEvent>({
-            processorId: uuid(),
-            compareCheckpoints: compareTwoMongoDBCheckpoints as (
-              a: ProcessorCheckpoint,
-              b: ProcessorCheckpoint,
-            ) => number,
-            eachMessage: (event) => {
-              if (event.metadata.streamName === streamName) {
+        // When
+        const consumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [
+            inMemoryReactor<GuestStayEvent>({
+              processorId: uuid(),
+              compareCheckpoints: compareTwoMongoDBCheckpoints as (
+                a: ProcessorCheckpoint,
+                b: ProcessorCheckpoint,
+              ) => number,
+              eachMessage: (event) => {
+                if (event.metadata.streamName !== streamName) return;
                 result.push(event);
-                lastCheckpoint = event.metadata.checkpoint as string;
+                lastCheckpoint = event.metadata
+                  .checkpoint as ProcessorCheckpoint;
                 if (event.type === 'GuestCheckedOut') reachedEnd.resolve();
-              }
-            },
-          }),
-        ],
-      });
+              },
+            }),
+          ],
+        });
 
-      let consumerPromise: Promise<void> | undefined;
-      try {
-        consumerPromise = consumer.start();
-        await consumer.whenStarted();
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
 
-        await eventStore.appendToStream(streamName, events);
+          await eventStore.appendToStream(streamName, events);
 
-        await reachedEnd.wait;
-        console.log('PROBE lastCheckpoint', lastCheckpoint);
-        await consumer.whenProcessed(lastCheckpoint as never);
-        console.log('PROBE whenProcessed resolved');
+          await reachedEnd.wait;
+          await consumer.whenProcessed(lastCheckpoint!);
+          await consumer.whenCaughtUp();
 
-        assertThatArray(result).containsElementsMatching(events);
-      } finally {
-        await consumer.close();
-        await consumerPromise;
-      }
-    });
+          assertThatArray(result).containsElementsMatching(events);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
   });
 });
 
