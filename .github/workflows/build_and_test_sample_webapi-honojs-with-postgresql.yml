@@ -1,0 +1,68 @@
+name: Build and test Sample - WebApi with Hono and PostgreSQL
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "samples/webApi/honojs-with-postgresql/**"
+      - "./.github/workflows/build_and_test_sample_webapi-honojs-with-postgresql.yml"
+
+  pull_request:
+    paths:
+      - "samples/webApi/honojs-with-postgresql/**"
+      - "./.github/workflows/build_and_test_sample_webapi-honojs-with-postgresql.yml"
+
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: samples/webApi/honojs-with-postgresql
+
+jobs:
+  build-and-test-code:
+    name: Build application code
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check Out Repo
+        uses: actions/checkout@v6
+
+      - name: Use Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ./samples/webApi/honojs-with-postgresql/.nvmrc
+          cache: "npm"
+          cache-dependency-path: "./samples/webApi/honojs-with-postgresql/package-lock.json"
+
+      - name: Ensure specific npm version
+        run: npm install -g npm@11.9.0
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build TS
+        run: npm run build:ts
+
+      - name: Run linting (ESlint and Prettier)
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm run test
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker
+        id: docker_build
+        uses: docker/build-push-action@v4
+        with:
+          context: "./samples/webApi/honojs-with-postgresql"
+          push: false
+          tags: oskardudycz/emmett.honojs.postgresql.sample:latest
+
+      - name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}
