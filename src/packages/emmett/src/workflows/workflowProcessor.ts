@@ -7,8 +7,10 @@ import type { AppendToStreamOptions, EventStore } from '../eventStore';
 import type { MessageProcessor } from '../processors';
 import {
   MessageProcessorType,
+  ProcessorCheckpoint,
   processorObservability,
   reactor,
+  toStopAfterCheck,
   type BaseMessageProcessorOptions,
 } from '../processors';
 import type {
@@ -227,6 +229,11 @@ export const workflowProcessor = <
 
   const handle = WorkflowHandler(options);
 
+  const shouldStopAfter = toStopAfterCheck(
+    options.stopAfter,
+    options.compareCheckpoints ?? ProcessorCheckpoint.compare,
+  );
+
   return reactor<Input | Output, MetaDataType, HandlerContext>({
     ...rest,
     processorId:
@@ -251,10 +258,10 @@ export const workflowProcessor = <
         );
 
         // Check stopAfter on output messages
-        if (options.stopAfter && result.newMessages.length > 0) {
+        if (shouldStopAfter && result.newMessages.length > 0) {
           for (const outputMessage of result.newMessages) {
             if (
-              options.stopAfter(
+              shouldStopAfter(
                 outputMessage as RecordedMessage<Output, MetaDataType>,
               )
             ) {

@@ -141,6 +141,62 @@ const raceWithTimeout = (
   );
 };
 
+/**
+ * Answers, for a message just handled, whether the processor should stop right
+ * after it. Built once per processor from the {@link StopAfterCondition}.
+ */
+export type StopAfterCheck<
+  MessageType extends AnyMessage = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+> = (message: RecordedMessage<MessageType, MessageMetadataType>) => boolean;
+
+const reachedPosition = <
+  MessageType extends AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata,
+>(
+  message: RecordedMessage<MessageType, MessageMetadataType>,
+  position: ProcessorCheckpoint,
+  compareCheckpoints: (
+    a: ProcessorCheckpoint,
+    b: ProcessorCheckpoint,
+  ) => number,
+): boolean => {
+  const checkpoint = getCheckpoint(message);
+  return checkpoint !== null && compareCheckpoints(checkpoint, position) >= 0;
+};
+
+const handledCountReached = (limit: number): (() => boolean) => {
+  let handled = 0;
+  return () => ++handled >= limit;
+};
+
+export const toStopAfterCheck = <
+  MessageType extends AnyMessage = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+>(
+  stopAfter: StopAfterCondition<MessageType, MessageMetadataType> | undefined,
+  compareCheckpoints: (
+    a: ProcessorCheckpoint,
+    b: ProcessorCheckpoint,
+  ) => number,
+): StopAfterCheck<MessageType, MessageMetadataType> | undefined => {
+  if (stopAfter === undefined) return undefined;
+  if (typeof stopAfter === 'function') return stopAfter;
+
+  const { message, position, count } = stopAfter;
+
+  const conditions: StopAfterCheck<MessageType, MessageMetadataType>[] = [];
+
+  if (message) conditions.push(message);
+  if (position !== undefined)
+    conditions.push((candidate) =>
+      reachedPosition(candidate, position, compareCheckpoints),
+    );
+  if (count !== undefined) conditions.push(handledCountReached(count));
+
+  return (candidate) => conditions.some((reached) => reached(candidate));
+};
+
 export type MessageProcessor<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -166,6 +222,13 @@ export type MessageProcessor<
     checkpoint: ProcessorCheckpoint,
     options?: WaitOptions,
   ) => Promise<void>;
+  /**
+   * Tells the processor it has reached the store tail, so it can run its
+   * {@link ProcessorHooks.onCaughtUp} hook. The consumer calls it, since only
+   * the consumer's puller knows there are no messages left; the processor
+   * reports its own current checkpoint (null when nothing was processed yet).
+   */
+  notifyCaughtUp: () => Promise<void>;
   handle: BatchRecordedMessageHandlerWithContext<
     MessageType,
     MessageMetadataType,
@@ -196,12 +259,27 @@ export type MessageProcessingScope<
   partialContext: WithObservabilityScope<Partial<HandlerContext>>,
 ) => Result | Promise<Result>;
 
+export type StopAfterCondition<
+  MessageType extends AnyMessage = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+> =
+  | ((message: RecordedMessage<MessageType, MessageMetadataType>) => boolean)
+  | {
+      message?: (
+        message: RecordedMessage<MessageType, MessageMetadataType>,
+      ) => boolean;
+      position?: ProcessorCheckpoint;
+      count?: number;
+    };
+
 export type ProcessorHooks<
   HandlerContext extends MessageHandlerContext = MessageHandlerContext,
 > = {
   onInit?: OnReactorInitHook<HandlerContext>;
   onStart?: OnReactorStartHook<HandlerContext>;
   onClose?: OnReactorCloseHook<HandlerContext>;
+  onProcessed?: OnProcessedHook;
+  onCaughtUp?: OnCaughtUpHook;
 };
 
 export type BaseMessageProcessorOptions<
@@ -215,9 +293,7 @@ export type BaseMessageProcessorOptions<
   version?: number;
   partition?: string;
   startFrom?: MessageProcessorStartFrom;
-  stopAfter?: (
-    message: RecordedMessage<MessageType, MessageMetadataType>,
-  ) => boolean;
+  stopAfter?: StopAfterCondition<MessageType, MessageMetadataType>;
   processingScope?: MessageProcessingScope<HandlerContext>;
   checkpoints?:
     Checkpointer<MessageType, MessageMetadataType, HandlerContext> | 'DISABLED';
@@ -264,6 +340,14 @@ export type OnReactorStartHook<
 export type OnReactorCloseHook<
   HandlerContext extends MessageHandlerContext = MessageHandlerContext,
 > = (context: HandlerContext) => Promise<void>;
+
+export type OnProcessedHook = (
+  checkpoint: ProcessorCheckpoint,
+) => void | Promise<void>;
+
+export type OnCaughtUpHook = (
+  checkpoint: ProcessorCheckpoint | null,
+) => void | Promise<void>;
 
 export type ReactorOptions<
   MessageType extends AnyMessage = AnyMessage,
@@ -354,6 +438,8 @@ export const reactor = <
     compareCheckpoints = ProcessorCheckpoint.compare,
   } = options;
 
+  const shouldStopAfter = toStopAfterCheck(stopAfter, compareCheckpoints);
+
   const checkpointer =
     checkpoints === 'DISABLED'
       ? inMemoryCheckpointer<MessageType, MessageMetadataType, HandlerContext>()
@@ -407,7 +493,7 @@ export const reactor = <
             break;
           }
 
-          if (stopAfter && stopAfter(message)) {
+          if (shouldStopAfter && shouldStopAfter(message)) {
             result = {
               type: 'STOP',
               reason: 'Stop condition reached',
@@ -650,6 +736,9 @@ export const reactor = <
       return isActive;
     },
     whenProcessed,
+    notifyCaughtUp: async (): Promise<void> => {
+      if (hooks.onCaughtUp) await hooks.onCaughtUp(lastCheckpoint);
+    },
     handle: async (
       messages: RecordedMessage<MessageType, MessageMetadataType>[],
       partialContext: Partial<HandlerContext>,
@@ -689,8 +778,8 @@ export const reactor = <
                   );
 
                 const stopMessageIndex =
-                  isCustomBatch && stopAfter
-                    ? upcastedMessages.findIndex(stopAfter)
+                  isCustomBatch && shouldStopAfter
+                    ? upcastedMessages.findIndex(shouldStopAfter)
                     : -1;
 
                 const unhandledMessages =
@@ -746,6 +835,14 @@ export const reactor = <
                     // TODO: Add correct handling of the storing checkpoint
                     lastCheckpoint = storeCheckpointResult.newCheckpoint;
                     lastStoredCheckpoint = storeCheckpointResult.newCheckpoint;
+
+                    if (
+                      storeCheckpointResult.newCheckpoint !== null &&
+                      hooks.onProcessed
+                    )
+                      await hooks.onProcessed(
+                        storeCheckpointResult.newCheckpoint,
+                      );
                   }
                 }
 
@@ -833,6 +930,8 @@ export const projector = <
             }
           : undefined,
       onClose: options.hooks?.onClose,
+      onProcessed: options.hooks?.onProcessed,
+      onCaughtUp: options.hooks?.onCaughtUp,
     },
     eachBatch: (events, context) => projection.handle(events, context),
   });

@@ -822,6 +822,330 @@ void describe('Processors', () => {
     });
   });
 
+  void describe('stopping after a condition', () => {
+    const positionCheckpointer = (): Checkpointer<
+      TestEvent,
+      ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+    > => ({
+      read: () => Promise.resolve({ lastCheckpoint: null }),
+      store: (options) =>
+        Promise.resolve({
+          success: true,
+          newCheckpoint: bigIntProcessorCheckpoint(
+            options.message.metadata.globalPosition,
+          ),
+        }),
+    });
+
+    const recordedEvent = (
+      position: bigint,
+    ): RecordedMessage<
+      TestEvent,
+      ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+    > => ({
+      type: 'test',
+      kind: 'Event',
+      data: { counter: Number(position) },
+      metadata: {
+        streamName: 'test-stream',
+        messageId: uuid(),
+        checkpoint: bigIntProcessorCheckpoint(position),
+        globalPosition: position,
+        streamPosition: position,
+      },
+    });
+
+    void it('stops after the message matching a predicate (shorthand)', async () => {
+      // Given
+      const handled: number[] = [];
+      const processor = reactor({
+        processorId: uuid(),
+        stopAfter: (message) => message.data.counter === 2,
+        eachMessage: (message) => {
+          handled.push(message.data.counter);
+          return Promise.resolve();
+        },
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+
+      // When
+      const result = await processor.handle(
+        [recordedEvent(1n), recordedEvent(2n), recordedEvent(3n)],
+        {},
+      );
+
+      // Then
+      assertMatches(result, { type: 'STOP' });
+      assertEqual(processor.isActive, false);
+      assertDeepEqual(handled, [1, 2]);
+    });
+
+    void it('stops after reaching the given position', async () => {
+      // Given
+      const handled: number[] = [];
+      const processor = reactor({
+        processorId: uuid(),
+        stopAfter: { position: bigIntProcessorCheckpoint(2n) },
+        eachMessage: (message) => {
+          handled.push(message.data.counter);
+          return Promise.resolve();
+        },
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+
+      // When
+      const result = await processor.handle(
+        [recordedEvent(1n), recordedEvent(2n), recordedEvent(3n)],
+        {},
+      );
+
+      // Then
+      assertMatches(result, { type: 'STOP' });
+      assertEqual(processor.isActive, false);
+      assertDeepEqual(handled, [1, 2]);
+    });
+
+    void it('stops after handling the given count of messages', async () => {
+      // Given
+      const handled: number[] = [];
+      const processor = reactor({
+        processorId: uuid(),
+        stopAfter: { count: 2 },
+        eachMessage: (message) => {
+          handled.push(message.data.counter);
+          return Promise.resolve();
+        },
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+
+      // When
+      const result = await processor.handle(
+        [recordedEvent(1n), recordedEvent(2n), recordedEvent(3n)],
+        {},
+      );
+
+      // Then
+      assertMatches(result, { type: 'STOP' });
+      assertEqual(processor.isActive, false);
+      assertDeepEqual(handled, [1, 2]);
+    });
+
+    void it('counts across separate handle calls', async () => {
+      // Given
+      const handled: number[] = [];
+      const processor = reactor({
+        processorId: uuid(),
+        stopAfter: { count: 3 },
+        eachMessage: (message) => {
+          handled.push(message.data.counter);
+          return Promise.resolve();
+        },
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+
+      // When
+      await processor.handle([recordedEvent(1n)], {});
+      const result = await processor.handle(
+        [recordedEvent(2n), recordedEvent(3n), recordedEvent(4n)],
+        {},
+      );
+
+      // Then
+      assertMatches(result, { type: 'STOP' });
+      assertDeepEqual(handled, [1, 2, 3]);
+    });
+
+    void it('stops on whichever OR-ed condition is satisfied first', async () => {
+      // Given - count (2) is reached before position (3)
+      const handled: number[] = [];
+      const processor = reactor({
+        processorId: uuid(),
+        stopAfter: { position: bigIntProcessorCheckpoint(3n), count: 2 },
+        eachMessage: (message) => {
+          handled.push(message.data.counter);
+          return Promise.resolve();
+        },
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+
+      // When
+      const result = await processor.handle(
+        [
+          recordedEvent(1n),
+          recordedEvent(2n),
+          recordedEvent(3n),
+          recordedEvent(4n),
+        ],
+        {},
+      );
+
+      // Then
+      assertMatches(result, { type: 'STOP' });
+      assertDeepEqual(handled, [1, 2]);
+    });
+  });
+
+  void describe('processor hooks', () => {
+    const positionCheckpointer = (): Checkpointer<
+      TestEvent,
+      ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+    > => ({
+      read: () => Promise.resolve({ lastCheckpoint: null }),
+      store: (options) =>
+        Promise.resolve({
+          success: true,
+          newCheckpoint: bigIntProcessorCheckpoint(
+            options.message.metadata.globalPosition,
+          ),
+        }),
+    });
+
+    const recordedEvent = (
+      position: bigint,
+    ): RecordedMessage<
+      TestEvent,
+      ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+    > => ({
+      type: 'test',
+      kind: 'Event',
+      data: { counter: Number(position) },
+      metadata: {
+        streamName: 'test-stream',
+        messageId: uuid(),
+        checkpoint: bigIntProcessorCheckpoint(position),
+        globalPosition: position,
+        streamPosition: position,
+      },
+    });
+
+    void it('calls onProcessed with the stored checkpoint on each advance', async () => {
+      // Given
+      const processed: ProcessorCheckpoint[] = [];
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => Promise.resolve(),
+        checkpoints: positionCheckpointer(),
+        hooks: {
+          onProcessed: (checkpoint) => {
+            processed.push(checkpoint);
+          },
+        },
+      });
+      await processor.start();
+
+      // When
+      await processor.handle([recordedEvent(1n), recordedEvent(2n)], {});
+      await processor.handle([recordedEvent(3n)], {});
+
+      // Then
+      assertDeepEqual(processed, [
+        bigIntProcessorCheckpoint(2n),
+        bigIntProcessorCheckpoint(3n),
+      ]);
+    });
+
+    void it('calls onProcessed with the last stored checkpoint when the batch stops early', async () => {
+      // Given
+      const processed: ProcessorCheckpoint[] = [];
+      const processor = reactor({
+        processorId: uuid(),
+        stopAfter: { count: 1 },
+        eachMessage: () => Promise.resolve(),
+        checkpoints: positionCheckpointer(),
+        hooks: {
+          onProcessed: (checkpoint) => {
+            processed.push(checkpoint);
+          },
+        },
+      });
+      await processor.start();
+
+      // When
+      await processor.handle([recordedEvent(1n), recordedEvent(2n)], {});
+
+      // Then - the checkpoint still advanced to the stop message
+      assertDeepEqual(processed, [bigIntProcessorCheckpoint(1n)]);
+    });
+
+    void it('calls onCaughtUp with the current checkpoint when notified', async () => {
+      // Given - the consumer, not the processor, knows the tail is drained
+      const caughtUp: (ProcessorCheckpoint | null)[] = [];
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => Promise.resolve(),
+        checkpoints: positionCheckpointer(),
+        hooks: {
+          onCaughtUp: (checkpoint) => {
+            caughtUp.push(checkpoint);
+          },
+        },
+      });
+      await processor.start();
+      await processor.handle([recordedEvent(1n), recordedEvent(2n)], {});
+
+      // When
+      await processor.notifyCaughtUp();
+
+      // Then
+      assertDeepEqual(caughtUp, [bigIntProcessorCheckpoint(2n)]);
+    });
+
+    void it('calls onCaughtUp with null when nothing has been processed yet', async () => {
+      // Given
+      const caughtUp: (ProcessorCheckpoint | null)[] = [];
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => Promise.resolve(),
+        checkpoints: positionCheckpointer(),
+        hooks: {
+          onCaughtUp: (checkpoint) => {
+            caughtUp.push(checkpoint);
+          },
+        },
+      });
+      await processor.start();
+
+      // When - caught up to an empty store
+      await processor.notifyCaughtUp();
+
+      // Then
+      assertDeepEqual(caughtUp, [null]);
+    });
+
+    void it('calls onCaughtUp every time it is notified', async () => {
+      // Given
+      const caughtUp: (ProcessorCheckpoint | null)[] = [];
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => Promise.resolve(),
+        checkpoints: positionCheckpointer(),
+        hooks: {
+          onCaughtUp: (checkpoint) => {
+            caughtUp.push(checkpoint);
+          },
+        },
+      });
+      await processor.start();
+
+      // When
+      await processor.handle([recordedEvent(1n)], {});
+      await processor.notifyCaughtUp();
+      await processor.handle([recordedEvent(2n)], {});
+      await processor.notifyCaughtUp();
+
+      // Then
+      assertDeepEqual(caughtUp, [
+        bigIntProcessorCheckpoint(1n),
+        bigIntProcessorCheckpoint(2n),
+      ]);
+    });
+  });
+
   void describe('start position resolution', () => {
     const trackingCheckpointer = (
       stored: ProcessorCheckpoint | null,
