@@ -273,6 +273,545 @@ void describe('MongoDB event store started consumer', () => {
       },
     );
 
+    void it(
+      'handles ONLY events AFTER provided checkpoint',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const compareCheckpoints = compareTwoMongoDBCheckpoints as (
+          a: ProcessorCheckpoint,
+          b: ProcessorCheckpoint,
+        ) => number;
+
+        // First, capture the checkpoint of the last initial event
+        let startCheckpoint: ProcessorCheckpoint | undefined;
+        const captureConsumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [
+            inMemoryReactor<GuestStayEvent>({
+              processorId: uuid(),
+              compareCheckpoints,
+              stopAfter: (event) =>
+                event.metadata.streamName === streamName &&
+                event.metadata.streamPosition === 2n,
+              eachMessage: (event) => {
+                if (
+                  event.metadata.streamName === streamName &&
+                  event.metadata.streamPosition === 2n
+                )
+                  startCheckpoint = event.metadata
+                    .checkpoint as ProcessorCheckpoint;
+              },
+            }),
+          ],
+        });
+        try {
+          await captureConsumer.start();
+        } finally {
+          await captureConsumer.close();
+        }
+
+        const result: GuestStayEvent[] = [];
+        const resultReachedEnd = asyncAwaiter();
+
+        // When
+        const consumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [
+            inMemoryReactor<GuestStayEvent>({
+              processorId: uuid(),
+              startFrom: { lastCheckpoint: startCheckpoint! },
+              compareCheckpoints,
+              eachMessage: (event) => {
+                if (event.metadata.streamName !== streamName) return;
+                result.push(event);
+                if (
+                  event.type === 'GuestCheckedOut' &&
+                  event.data.guestId === otherGuestId
+                )
+                  resultReachedEnd.resolve();
+              },
+            }),
+          ],
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, events);
+
+          await resultReachedEnd.wait;
+
+          assertThatArray(result).containsOnlyElementsMatching(events);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'handles all events when CURRENT position is NOT stored',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [
+            inMemoryReactor<GuestStayEvent>({
+              processorId: uuid(),
+              startFrom: 'CURRENT',
+              compareCheckpoints: compareTwoMongoDBCheckpoints as (
+                a: ProcessorCheckpoint,
+                b: ProcessorCheckpoint,
+              ) => number,
+              eachMessage: (event) => {
+                if (event.metadata.streamName === streamName)
+                  result.push(event);
+              },
+            }),
+          ],
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, events);
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(result).containsElementsMatching([
+            ...initialEvents,
+            ...events,
+          ]);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'handles only new events when CURRENT position is stored for a new consumer',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+        const processorId = uuid();
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        let result: GuestStayEvent[] = [];
+
+        // When - first consumer catches up with CURRENT and persists checkpoint
+        const consumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId,
+          startFrom: 'CURRENT',
+          connectionOptions: {
+            connectionString,
+            clientOptions: { directConnection: true },
+          },
+          stopAfter: (event) =>
+            event.metadata.streamName === streamName &&
+            event.metadata.streamPosition === 2n,
+          eachMessage: (event) => {
+            if (event.metadata.streamName === streamName) result.push(event);
+          },
+        });
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+
+        result = [];
+
+        const newConsumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+        });
+        newConsumer.reactor<GuestStayEvent>({
+          processorId,
+          startFrom: 'CURRENT',
+          connectionOptions: {
+            connectionString,
+            clientOptions: { directConnection: true },
+          },
+          eachMessage: (event) => {
+            if (event.metadata.streamName === streamName) result.push(event);
+          },
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = newConsumer.start();
+          await newConsumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, events);
+
+          await newConsumer.whenCaughtUp();
+
+          assertThatArray(result).containsOnlyElementsMatching(events);
+        } finally {
+          await newConsumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'handles only new events when startFrom END is specified',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [
+            inMemoryReactor<GuestStayEvent>({
+              processorId: uuid(),
+              startFrom: 'END',
+              compareCheckpoints: compareTwoMongoDBCheckpoints as (
+                a: ProcessorCheckpoint,
+                b: ProcessorCheckpoint,
+              ) => number,
+              eachMessage: (event) => {
+                if (event.metadata.streamName === streamName)
+                  result.push(event);
+              },
+            }),
+          ],
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, events);
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(result).containsOnlyElementsMatching(events);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'handles events on empty store when startFrom END is specified',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+
+        const result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [
+            inMemoryReactor<GuestStayEvent>({
+              processorId: uuid(),
+              startFrom: 'END',
+              compareCheckpoints: compareTwoMongoDBCheckpoints as (
+                a: ProcessorCheckpoint,
+                b: ProcessorCheckpoint,
+              ) => number,
+              eachMessage: (event) => {
+                if (event.metadata.streamName === streamName)
+                  result.push(event);
+              },
+            }),
+          ],
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, events);
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(result).containsElementsMatching(events);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'multiple END reactors in one consumer each handle only new events',
+      withDeadline,
+      async () => {
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        await eventStore.appendToStream(streamName, [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ]);
+
+        const newEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const firstEnd: GuestStayEvent[] = [];
+        const secondEnd: GuestStayEvent[] = [];
+        const compareCheckpoints = compareTwoMongoDBCheckpoints as (
+          a: ProcessorCheckpoint,
+          b: ProcessorCheckpoint,
+        ) => number;
+
+        const consumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [
+            inMemoryReactor<GuestStayEvent>({
+              processorId: uuid(),
+              startFrom: 'END',
+              compareCheckpoints,
+              eachMessage: (event) => {
+                if (event.metadata.streamName === streamName)
+                  firstEnd.push(event);
+              },
+            }),
+            inMemoryReactor<GuestStayEvent>({
+              processorId: uuid(),
+              startFrom: 'END',
+              compareCheckpoints,
+              eachMessage: (event) => {
+                if (event.metadata.streamName === streamName)
+                  secondEnd.push(event);
+              },
+            }),
+          ],
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, newEvents);
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(firstEnd).containsOnlyElementsMatching(newEvents);
+          assertThatArray(secondEnd).containsOnlyElementsMatching(newEvents);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'delivers all events appended after starting from END as the stream grows',
+      withDeadline,
+      async () => {
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        await eventStore.appendToStream(streamName, [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ]);
+
+        const firstAppend: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+        ];
+        const secondAppend: GuestStayEvent[] = [
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const fromEnd: GuestStayEvent[] = [];
+
+        const consumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [
+            inMemoryReactor<GuestStayEvent>({
+              processorId: uuid(),
+              startFrom: 'END',
+              compareCheckpoints: compareTwoMongoDBCheckpoints as (
+                a: ProcessorCheckpoint,
+                b: ProcessorCheckpoint,
+              ) => number,
+              eachMessage: (event) => {
+                if (event.metadata.streamName === streamName)
+                  fromEnd.push(event);
+              },
+            }),
+          ],
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, firstAppend);
+          await eventStore.appendToStream(streamName, secondAppend);
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(fromEnd).containsOnlyElementsMatching([
+            ...firstAppend,
+            ...secondAppend,
+          ]);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'handles ONLY events matching canHandle filter',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+        await eventStore.appendToStream(streamName, events);
+
+        const result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+          processors: [
+            inMemoryReactor<GuestStayEvent>({
+              processorId: uuid(),
+              startFrom: 'BEGINNING',
+              canHandle: ['GuestCheckedIn'], // Only handle check-in events
+              compareCheckpoints: compareTwoMongoDBCheckpoints as (
+                a: ProcessorCheckpoint,
+                b: ProcessorCheckpoint,
+              ) => number,
+              stopAfter: (event) =>
+                event.metadata.streamName === streamName &&
+                event.type === 'GuestCheckedIn' &&
+                event.data.guestId === otherGuestId,
+              eachMessage: (event) => {
+                if (event.metadata.streamName === streamName)
+                  result.push(event);
+              },
+            }),
+          ],
+        });
+
+        try {
+          await consumer.start();
+
+          // Then - should only have GuestCheckedIn events, not GuestCheckedOut
+          assertThatArray(result).containsOnlyElementsMatching([
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          ]);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
     void describe('startFrom END across processors in one consumer', () => {
       void it(
         'does not flood END processor when mixed with BEGINNING processor in one consumer',
