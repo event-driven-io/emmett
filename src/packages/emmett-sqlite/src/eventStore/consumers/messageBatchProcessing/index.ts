@@ -41,9 +41,10 @@ export type SQLiteEventStoreMessageBatchPullerOptions<
     MessageType,
     ReadEventMetadataWithGlobalPosition
   >;
-  stopWhen?: {
+  until?: {
     noMessagesLeft?: boolean;
   };
+  onCaughtUp?: () => Promise<void>;
   signal: AbortSignal;
 } & JSONSerializationOptions;
 
@@ -69,7 +70,8 @@ export const sqliteEventStoreMessageBatchPuller = <
   batchSize,
   eachBatch,
   pullingFrequencyInMs,
-  stopWhen,
+  until,
+  onCaughtUp,
   signal,
   serialization,
 }: SQLiteEventStoreMessageBatchPullerOptions<MessageType>): SQLiteEventStoreMessageBatchPuller => {
@@ -104,6 +106,7 @@ export const sqliteEventStoreMessageBatchPuller = <
     };
 
     let waitTime = 100;
+    let wasCaughtUp = false;
 
     while (isRunning && !signal?.aborted) {
       const { messages, currentGlobalPosition, areMessagesLeft } =
@@ -120,9 +123,14 @@ export const sqliteEventStoreMessageBatchPuller = <
 
       readMessagesOptions.after = currentGlobalPosition;
 
+      if (!areMessagesLeft && !wasCaughtUp && onCaughtUp) {
+        await onCaughtUp();
+      }
+      wasCaughtUp = !areMessagesLeft;
+
       await new Promise((resolve) => setTimeout(resolve, waitTime));
 
-      if (stopWhen?.noMessagesLeft === true && !areMessagesLeft) {
+      if (until?.noMessagesLeft === true && !areMessagesLeft) {
         isRunning = false;
         break;
       }

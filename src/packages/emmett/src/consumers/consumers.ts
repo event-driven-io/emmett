@@ -72,7 +72,7 @@ export type MessageConsumer<
   whenCaughtUp?: (options?: WaitOptions) => Promise<void>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   processors: ReadonlyArray<MessageProcessor<ConsumerMessageType, any, any>>;
-  start: () => Promise<void>;
+  start: (options?: MessageConsumerStartOptions) => Promise<void>;
   stop: () => Promise<void>;
   close: () => Promise<void>;
 }>;

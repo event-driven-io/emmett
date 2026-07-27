@@ -14,6 +14,7 @@ import {
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
+  type MessageConsumerStartOptions,
   type MessageHandlerContext,
   type MessageProcessor,
   type ProcessorCheckpoint,
@@ -48,9 +49,6 @@ export type PostgreSQLEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
 > = MessageConsumerOptions<ConsumerMessageType> & {
-  stopWhen?: {
-    noMessagesLeft?: boolean;
-  };
   pulling?: {
     batchSize?: number;
     pullingFrequencyInMs?: number;
@@ -202,6 +200,26 @@ export const postgreSQLEventStoreConsumer = <
     isInitialized = true;
   };
 
+  const whenCaughtUp = async (waitOptions?: WaitOptions): Promise<void> => {
+    const tail = await pool.withConnection(async (connection) => {
+      const { currentCheckpoint } = await readLastCommittedMessageCheckpoint(
+        connection.execute,
+      );
+      return currentCheckpoint;
+    });
+
+    if (tail === null) return;
+
+    await Promise.all(
+      processors.map((p) =>
+        p.whenProcessed(
+          PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(tail),
+          waitOptions,
+        ),
+      ),
+    );
+  };
+
   return {
     consumerId: options.consumerId ?? uuid(),
     get isRunning() {
@@ -212,25 +230,7 @@ export const postgreSQLEventStoreConsumer = <
       Promise.all(
         processors.map((p) => p.whenProcessed(position, options)),
       ).then(() => undefined),
-    whenCaughtUp: async (options): Promise<void> => {
-      const tail = await pool.withConnection(async (connection) => {
-        const { currentCheckpoint } = await readLastCommittedMessageCheckpoint(
-          connection.execute,
-        );
-        return currentCheckpoint;
-      });
-
-      if (tail === null) return;
-
-      await Promise.all(
-        processors.map((p) =>
-          p.whenProcessed(
-            PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(tail),
-            options,
-          ),
-        ),
-      );
-    },
+    whenCaughtUp,
     processors,
     init,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
@@ -316,7 +316,7 @@ export const postgreSQLEventStoreConsumer = <
 
       return processor;
     },
-    start: () => {
+    start: (startOptions?: MessageConsumerStartOptions) => {
       if (isRunning) {
         console.log(
           'Consumer is already running. Returning the existing start promise.',
@@ -336,6 +336,9 @@ export const postgreSQLEventStoreConsumer = <
         startedAwaiter.reject(error);
         return Promise.reject(error);
       }
+
+      const effectiveUntil = startOptions?.until ?? options.until;
+      const effectiveTimeout = startOptions?.timeout ?? options.defaultTimeout;
 
       isRunning = true;
       abortController = new AbortController();
@@ -391,7 +394,11 @@ export const postgreSQLEventStoreConsumer = <
 
         try {
           messagePuller = postgreSQLEventStoreMessageBatchPuller({
-            stopWhen: options.stopWhen,
+            until: effectiveUntil,
+            onCaughtUp: () =>
+              Promise.all(processors.map((p) => p.notifyCaughtUp())).then(
+                () => undefined,
+              ),
             executor: pool.execute,
             eachBatch,
             batchSize:
@@ -439,10 +446,18 @@ export const postgreSQLEventStoreConsumer = <
             )}. Waiting for messages...`,
           );
 
-          await messagePuller.start({
+          const pullerRun = messagePuller.start({
             startFrom: startPositions.earliestPosition,
             started: startedAwaiter,
           });
+
+          if (effectiveUntil?.caughtUp === true) {
+            await startedAwaiter.wait;
+            await whenCaughtUp({ timeout: effectiveTimeout });
+            await messagePuller.stop();
+          }
+
+          await pullerRun;
         } catch (error) {
           isRunning = false;
           startedAwaiter.reject(error);

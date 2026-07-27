@@ -26,7 +26,7 @@ export const rebuildPostgreSQLProjections = <
 >(
   options: Omit<
     PostgreSQLEventStoreConsumerOptions<EventType>,
-    'stopWhen' | 'processors'
+    'until' | 'processors'
   > & {
     lock?: {
       acquisitionPolicy?: LockAcquisitionPolicy;
@@ -52,7 +52,7 @@ export const rebuildPostgreSQLProjections = <
 ): PostgreSQLEventStoreConsumer<EventType> => {
   const consumer = postgreSQLEventStoreConsumer({
     ...options,
-    stopWhen: { noMessagesLeft: true },
+    until: { noMessagesLeft: true },
   });
 
   const lock = { acquisitionPolicy: defaultRebuildLockPolicy, ...options.lock };

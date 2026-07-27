@@ -16,6 +16,7 @@ import {
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
+  type MessageConsumerStartOptions,
   type MessageHandlerContext,
   type MessageProcessor,
   type ProcessorCheckpoint,
@@ -51,9 +52,6 @@ export type SQLiteEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
 > = MessageConsumerOptions<ConsumerMessageType> & {
-  stopWhen?: {
-    noMessagesLeft?: boolean;
-  };
   pulling?: {
     batchSize?: number;
     pullingFrequencyInMs?: number;
@@ -190,6 +188,23 @@ export const sqliteEventStoreConsumer = <
     isInitialized = true;
   };
 
+  const whenCaughtUp = async (waitOptions?: WaitOptions): Promise<void> => {
+    const tail = await pool.withConnection(async (connection) => {
+      const { currentGlobalPosition } = await readLastMessageGlobalPosition(
+        connection.execute,
+      );
+      return currentGlobalPosition;
+    });
+
+    if (tail === null) return;
+
+    await Promise.all(
+      processors.map((p) =>
+        p.whenProcessed(bigIntProcessorCheckpoint(tail), waitOptions),
+      ),
+    );
+  };
+
   return {
     consumerId: options.consumerId ?? uuid(),
     get isRunning() {
@@ -200,22 +215,7 @@ export const sqliteEventStoreConsumer = <
       Promise.all(
         processors.map((p) => p.whenProcessed(position, options)),
       ).then(() => undefined),
-    whenCaughtUp: async (options): Promise<void> => {
-      const tail = await pool.withConnection(async (connection) => {
-        const { currentGlobalPosition } = await readLastMessageGlobalPosition(
-          connection.execute,
-        );
-        return currentGlobalPosition;
-      });
-
-      if (tail === null) return;
-
-      await Promise.all(
-        processors.map((p) =>
-          p.whenProcessed(bigIntProcessorCheckpoint(tail), options),
-        ),
-      );
-    },
+    whenCaughtUp,
     processors,
     init,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
@@ -313,7 +313,7 @@ export const sqliteEventStoreConsumer = <
 
       return processor;
     },
-    start: () => {
+    start: (startOptions?: MessageConsumerStartOptions) => {
       if (isRunning) return start;
 
       startedAwaiter.reset();
@@ -325,6 +325,9 @@ export const sqliteEventStoreConsumer = <
         startedAwaiter.reject(error);
         return Promise.reject(error);
       }
+
+      const effectiveUntil = startOptions?.until ?? options.until;
+      const effectiveTimeout = startOptions?.timeout ?? options.defaultTimeout;
 
       isRunning = true;
       abortController = new AbortController();
@@ -371,7 +374,11 @@ export const sqliteEventStoreConsumer = <
 
         try {
           messagePuller = sqliteEventStoreMessageBatchPuller({
-            stopWhen: options.stopWhen,
+            until: effectiveUntil,
+            onCaughtUp: () =>
+              Promise.all(processors.map((p) => p.notifyCaughtUp())).then(
+                () => undefined,
+              ),
             executor: pool.execute,
             eachBatch,
             batchSize:
@@ -403,10 +410,18 @@ export const sqliteEventStoreConsumer = <
             }),
           );
 
-          await messagePuller.start({
+          const pullerRun = messagePuller.start({
             startFrom: startPositions.earliestPosition,
             started: startedAwaiter,
           });
+
+          if (effectiveUntil?.caughtUp === true) {
+            await startedAwaiter.wait;
+            await whenCaughtUp({ timeout: effectiveTimeout });
+            await messagePuller.stop();
+          }
+
+          await pullerRun;
         } catch (error) {
           isRunning = false;
           startedAwaiter.reject(error);

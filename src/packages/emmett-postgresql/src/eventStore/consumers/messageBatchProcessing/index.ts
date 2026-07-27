@@ -34,9 +34,10 @@ export type PostgreSQLEventStoreMessageBatchPullerOptions<
     MessageType,
     ReadEventMetadataWithGlobalPosition
   >;
-  stopWhen?: {
+  until?: {
     noMessagesLeft?: boolean;
   };
+  onCaughtUp?: () => Promise<void>;
   signal: AbortSignal;
 };
 
@@ -64,7 +65,8 @@ export const postgreSQLEventStoreMessageBatchPuller = <
   batchSize,
   eachBatch,
   pullingFrequencyInMs,
-  stopWhen,
+  until,
+  onCaughtUp,
   signal,
 }: PostgreSQLEventStoreMessageBatchPullerOptions<MessageType>): PostgreSQLEventStoreMessageBatchPuller => {
   let isRunning = false;
@@ -103,6 +105,7 @@ export const postgreSQLEventStoreMessageBatchPuller = <
       };
 
       let waitTime = 100;
+      let wasCaughtUp = false;
 
       while (isRunning && !signal?.aborted) {
         const { messages, currentCheckpoint, areMessagesLeft } =
@@ -119,9 +122,14 @@ export const postgreSQLEventStoreMessageBatchPuller = <
 
         readMessagesOptions.after = currentCheckpoint;
 
+        if (!areMessagesLeft && !wasCaughtUp && onCaughtUp) {
+          await onCaughtUp();
+        }
+        wasCaughtUp = !areMessagesLeft;
+
         await new Promise((resolve) => setTimeout(resolve, waitTime));
 
-        if (stopWhen?.noMessagesLeft === true && !areMessagesLeft) {
+        if (until?.noMessagesLeft === true && !areMessagesLeft) {
           console.log(
             `No messages left to process after reaching checkpoint ${JSONSerializer.serialize(readMessagesOptions.after)}. Stopping the puller.`,
           );

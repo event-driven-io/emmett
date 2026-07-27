@@ -42,6 +42,7 @@ void describe('PostgreSQL event store consumer', () => {
     close: () => Promise.resolve(),
     handle: () => Promise.resolve(),
     whenProcessed: () => Promise.resolve(),
+    notifyCaughtUp: () => Promise.resolve(),
     isActive: false,
   };
 
