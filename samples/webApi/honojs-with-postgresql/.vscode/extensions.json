@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "connor4312.nodejs-testing",
+    "vitest.explorer"
+  ]
+}

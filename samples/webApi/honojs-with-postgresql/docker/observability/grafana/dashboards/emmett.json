@@ -1,0 +1,741 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Overview",
+      "type": "row",
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 2,
+      "title": "Commands Handled",
+      "description": "Commands handled since this application process started",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "graphMode": "area",
+        "colorMode": "background",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(emmett_command_handling_duration_count{service_name=\"$service\"}) or vector(0)",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 3,
+      "title": "Success Rate",
+      "description": "Percentage of commands that succeeded",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "graphMode": "area",
+        "colorMode": "background",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "N/A",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 95 },
+              { "color": "green", "value": 99 }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(emmett_command_handling_duration_count{service_name=\"$service\",emmett_command_status=\"success\"}[$__rate_interval])) / sum(rate(emmett_command_handling_duration_count{service_name=\"$service\"}[$__rate_interval])) * 100",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 4,
+      "title": "p95 Latency",
+      "description": "95th percentile command handling duration",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "graphMode": "area",
+        "colorMode": "background",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "noValue": "N/A",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 200 },
+              { "color": "red", "value": 500 }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(emmett_command_handling_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 5,
+      "title": "Events Emitted",
+      "description": "Domain events written since this application process started",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "graphMode": "area",
+        "colorMode": "background",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "color": { "mode": "fixed", "fixedColor": "purple" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(emmett_event_appending_count_total{service_name=\"$service\"}) or vector(0)",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 6,
+      "title": "Command Handling",
+      "type": "row",
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 7,
+      "title": "Command Rate by Status",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "spanNulls": true },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Failures" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Successes" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(emmett_command_handling_duration_count{service_name=\"$service\",emmett_command_status=\"success\"}[$__rate_interval]))",
+          "legendFormat": "Successes",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(emmett_command_handling_duration_count{service_name=\"$service\",emmett_command_status=\"failure\"}[$__rate_interval]))",
+          "legendFormat": "Failures",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 8,
+      "title": "Command Latency",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2, "fillOpacity": 5, "showPoints": "never", "spanNulls": true },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum(rate(emmett_command_handling_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(emmett_command_handling_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(emmett_command_handling_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 9,
+      "title": "Event Append Rate — ${event_rate_unit:text}",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": {
+          "calcs": ["lastNotNull"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "spanNulls": true },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(emmett_event_appending_count_total{service_name=\"$service\"}[$__rate_interval])) by (emmett_event_type) * ${event_rate_unit:raw}",
+          "legendFormat": "{{emmett_event_type}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 28,
+      "title": "Events in Selected Range",
+      "description": "Estimated number of successfully appended events during the dashboard time range. Prometheus increase() accounts for counter resets and may extrapolate at scrape boundaries.",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "colorMode": "value",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(emmett_event_appending_count_total{service_name=\"$service\"}[$__range])) by (emmett_event_type)",
+          "legendFormat": "{{emmett_event_type}}",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 29,
+      "title": "Events Since Process Start",
+      "description": "Current cumulative event counters. Unlike increase(), this includes the first event observed for a newly created event-type series.",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "colorMode": "value",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(emmett_event_appending_count_total{service_name=\"$service\"}) by (emmett_event_type)",
+          "legendFormat": "{{emmett_event_type}}",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 10,
+      "title": "HTTP",
+      "type": "row",
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 11,
+      "title": "HTTP Request Rate",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "spanNulls": true },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_server_duration_milliseconds_count{service_name=\"$service\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Requests/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 12,
+      "title": "HTTP Response Latency",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": {
+          "calcs": ["mean"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2, "fillOpacity": 5, "showPoints": "never", "spanNulls": true },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum(rate(http_server_duration_milliseconds_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_duration_milliseconds_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_duration_milliseconds_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "collapsed": true,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+      "id": 13,
+      "title": "Event Store",
+      "type": "row",
+      "panels": [
+        {
+          "type": "timeseries",
+          "id": 14,
+          "title": "Event Store Operations/s",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_stream_reading_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_eventstore_read_status)", "legendFormat": "read · {{emmett_eventstore_read_status}}", "refId": "A" },
+            { "expr": "sum(rate(emmett_stream_appending_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_eventstore_append_status)", "legendFormat": "append · {{emmett_eventstore_append_status}}", "refId": "B" },
+            { "expr": "sum(rate(emmett_stream_aggregating_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_eventstore_aggregate_status)", "legendFormat": "aggregate · {{emmett_eventstore_aggregate_status}}", "refId": "C" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 15,
+          "title": "Event Store Average Latency",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_stream_reading_duration_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_stream_reading_duration_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "read avg", "refId": "A" },
+            { "expr": "sum(rate(emmett_stream_appending_duration_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_stream_appending_duration_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "append avg", "refId": "B" },
+            { "expr": "sum(rate(emmett_stream_aggregating_duration_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_stream_aggregating_duration_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "aggregate avg", "refId": "C" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_stream_reading_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))", "legendFormat": "read p95", "refId": "D" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_stream_appending_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))", "legendFormat": "append p95", "refId": "E" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_stream_aggregating_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))", "legendFormat": "aggregate p95", "refId": "F" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 16,
+          "title": "Average Stream Batch Size",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_stream_reading_size_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_stream_reading_size_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "events/read", "refId": "A" },
+            { "expr": "sum(rate(emmett_stream_appending_size_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_stream_appending_size_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "events/append", "refId": "B" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 17,
+          "title": "Event Read and Append Rate by Type (per minute)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "cpm", "decimals": 2 }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "right", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_event_reading_count_total{service_name=\"$service\"}[$__rate_interval])) by (emmett_event_type) * 60", "legendFormat": "read {{emmett_event_type}}", "refId": "A" },
+            { "expr": "sum(rate(emmett_event_appending_count_total{service_name=\"$service\"}[$__rate_interval])) by (emmett_event_type) * 60", "legendFormat": "append {{emmett_event_type}}", "refId": "B" }
+          ]
+        }
+      ]
+    },
+    {
+      "collapsed": true,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "id": 18,
+      "title": "Processors",
+      "type": "row",
+      "panels": [
+        {
+          "type": "timeseries",
+          "id": 19,
+          "title": "Processor Batches/s by Status",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_processor_processing_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_processor_type, emmett_processor_status)", "legendFormat": "{{emmett_processor_type}} · {{emmett_processor_status}}", "refId": "A" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 20,
+          "title": "Processor Latency",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_processor_processing_duration_sum{service_name=\"$service\"}[$__rate_interval])) by (emmett_processor_type) / sum(rate(emmett_processor_processing_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_processor_type)", "legendFormat": "{{emmett_processor_type}} avg", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_processor_processing_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le, emmett_processor_type))", "legendFormat": "{{emmett_processor_type}} p95", "refId": "B" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 21,
+          "title": "Processor Lag",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 41 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "right", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "max(emmett_processor_lag_events{service_name=\"$service\"}) by (emmett_processor_id)", "legendFormat": "{{emmett_processor_id}}", "refId": "A" }
+          ]
+        }
+      ]
+    },
+    {
+      "collapsed": true,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
+      "id": 22,
+      "title": "Consumers",
+      "type": "row",
+      "panels": [
+        {
+          "type": "timeseries",
+          "id": 23,
+          "title": "Consumer Operations/s",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_consumer_poll_duration_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "polls", "refId": "A" },
+            { "expr": "sum(rate(emmett_consumer_delivery_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_consumer_delivery_processor_id)", "legendFormat": "deliveries · {{emmett_consumer_delivery_processor_id}}", "refId": "B" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 24,
+          "title": "Consumer Latency",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_consumer_poll_duration_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_consumer_poll_duration_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "poll avg", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_consumer_poll_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))", "legendFormat": "poll p95", "refId": "B" },
+            { "expr": "sum(rate(emmett_consumer_delivery_duration_sum{service_name=\"$service\"}[$__rate_interval])) / sum(rate(emmett_consumer_delivery_duration_count{service_name=\"$service\"}[$__rate_interval]))", "legendFormat": "delivery avg", "refId": "C" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_consumer_delivery_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le))", "legendFormat": "delivery p95", "refId": "D" }
+          ]
+        }
+      ]
+    },
+    {
+      "collapsed": true,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "id": 25,
+      "title": "Workflows",
+      "type": "row",
+      "panels": [
+        {
+          "type": "timeseries",
+          "id": 26,
+          "title": "Workflow Executions/s by Status",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_workflow_processing_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_workflow_type, status)", "legendFormat": "{{emmett_workflow_type}} · {{status}}", "refId": "A" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "id": 27,
+          "title": "Workflow Latency",
+          "description": "Workflow input and output types are span attributes today; the metric series exposes workflow type and status.",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }
+          },
+          "targets": [
+            { "expr": "sum(rate(emmett_workflow_processing_duration_sum{service_name=\"$service\"}[$__rate_interval])) by (emmett_workflow_type) / sum(rate(emmett_workflow_processing_duration_count{service_name=\"$service\"}[$__rate_interval])) by (emmett_workflow_type)", "legendFormat": "{{emmett_workflow_type}} avg", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(emmett_workflow_processing_duration_bucket{service_name=\"$service\"}[$__rate_interval])) by (le, emmett_workflow_type))", "legendFormat": "{{emmett_workflow_type}} p95", "refId": "B" }
+          ]
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["emmett", "observability"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "definition": "label_values(emmett_command_handling_duration_count, service_name)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Service",
+        "multi": false,
+        "name": "service",
+        "options": [],
+        "query": {
+          "query": "label_values(emmett_command_handling_duration_count, service_name)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "selected": true, "text": "Per minute", "value": "60" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Event rate unit",
+        "multi": false,
+        "name": "event_rate_unit",
+        "options": [
+          {
+            "selected": false,
+            "text": "Per second",
+            "value": "1"
+          },
+          {
+            "selected": true,
+            "text": "Per minute",
+            "value": "60"
+          },
+          {
+            "selected": false,
+            "text": "Per hour",
+            "value": "3600"
+          },
+          {
+            "selected": false,
+            "text": "Per day",
+            "value": "86400"
+          }
+        ],
+        "query": "Per second : 1, Per minute : 60, Per hour : 3600, Per day : 86400",
+        "skipUrlSync": true,
+        "type": "custom"
+      }
+    ]
+  },
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Emmett",
+  "uid": "emmett-observability",
+  "version": 1
+}

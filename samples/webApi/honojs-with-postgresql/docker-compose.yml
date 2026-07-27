@@ -1,0 +1,127 @@
+services:
+  app:
+    build:
+      # use local image
+      dockerfile: Dockerfile
+      context: .
+    container_name: emmett_api
+    profiles: [app]
+    environment:
+      - POSTGRESQL_CONNECTION_STRING=postgresql://postgres@postgres:5432/postgres
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+    networks:
+      - postgresql_network
+    ports:
+      - '3000:3000'
+
+  #######################################################
+  #  PostgreSQL
+  #######################################################
+  postgres:
+    image: postgres:15.1-alpine
+    ports:
+      - '5432:5432'
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+    networks:
+      - postgresql_network
+
+  pgadmin:
+    container_name: pgadmin_container
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-pgadmin4@pgadmin.org}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-postgres}
+      - PGADMIN_CONFIG_SERVER_MODE=False
+      - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
+    ports:
+      - '${PGADMIN_PORT:-5050}:80'
+    entrypoint: /bin/sh -c "chmod 600 /pgpass; /entrypoint.sh;"
+    user: root
+    volumes:
+      - ./docker/pgAdmin/pgpass:/pgpass
+      - ./docker/pgAdmin/servers.json:/pgadmin4/servers.json
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - postgresql_network
+
+  #######################################################
+  #  Observability
+  #######################################################
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.150.1
+    command: ['--config=/etc/otelcol/otel-collector.yml']
+    volumes:
+      - ./docker/observability/otel-collector.yml:/etc/otelcol/otel-collector.yml
+    ports:
+      - '4317:4317'
+      - '4318:4318'
+      - '8889:8889'
+      - '13133:13133'
+    profiles: [observability]
+    networks:
+      - postgresql_network
+
+  tempo:
+    image: grafana/tempo:2.8.4
+    command: ['-config.file=/etc/tempo/tempo.yml']
+    volumes:
+      - ./docker/observability/tempo.yml:/etc/tempo/tempo.yml
+    ports:
+      - '3200:3200'
+    profiles: [observability]
+    networks:
+      - postgresql_network
+
+  loki:
+    image: grafana/loki:3.1.1
+    command: -config.file=/etc/loki/local-config.yml
+    volumes:
+      - ./docker/observability/loki.yml:/etc/loki/local-config.yml
+    ports:
+      - '3100:3100'
+    profiles: [observability]
+    networks:
+      - postgresql_network
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-lifecycle
+      - --enable-feature=exemplar-storage
+    volumes:
+      - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - '9090:9090'
+    profiles: [observability]
+    networks:
+      - postgresql_network
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    volumes:
+      - ./docker/observability/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./docker/observability/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./docker/observability/grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - '3001:3000'
+    profiles: [observability]
+    networks:
+      - postgresql_network
+
+networks:
+  postgresql_network:
+    driver: bridge
+
+volumes:
+  eventstore-volume-data:
+  eventstore-volume-logs:

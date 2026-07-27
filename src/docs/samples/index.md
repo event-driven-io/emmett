@@ -18,6 +18,7 @@ Emmett includes complete sample applications demonstrating real-world usage patt
 | Sample                                          | Event Store  | Framework  | Description                |
 | ----------------------------------------------- | ------------ | ---------- | -------------------------- |
 | [Express + PostgreSQL](#express-postgresql)     | PostgreSQL   | Express.js | Recommended starting point |
+| [Hono + PostgreSQL](#hono-postgresql)           | PostgreSQL   | Hono       | Hono and Node.js HTTP      |
 | [Express + MongoDB](#express-mongodb)           | MongoDB      | Express.js | Document-oriented approach |
 | [Express + EventStoreDB](#express-eventstoredb) | EventStoreDB | Express.js | Native ES capabilities     |
 
@@ -70,6 +71,32 @@ npm run test
 # Or use the HTTP file for manual testing
 # Open .http file in VS Code with REST Client extension
 ```
+
+---
+
+## Hono + PostgreSQL {#hono-postgresql}
+
+**Location:** [`samples/webApi/honojs-with-postgresql`](https://github.com/event-driven-io/emmett/tree/main/samples/webApi/honojs-with-postgresql)
+
+The Hono counterpart of the Express.js PostgreSQL sample. It demonstrates:
+
+- Hono route and application setup
+- PostgreSQL event store setup
+- Inline projections with Pongo
+- Integration and E2E testing with the Hono testing utilities
+- OpenTelemetry traces, metrics, and logs
+
+### Running the Sample
+
+```bash
+cd emmett/samples/webApi/honojs-with-postgresql
+
+docker compose up -d
+npm install
+npm run start
+```
+
+See the sample's [`README.md`](https://github.com/event-driven-io/emmett/tree/main/samples/webApi/honojs-with-postgresql/README.md) for the bundled observability stack.
 
 ---
 
