@@ -14,6 +14,7 @@ import type {
   AnyRecordedMessageMetadata,
   BatchRecordedMessageHandlerWithContext,
   Checkpointer,
+  CurrentMessageProcessorPosition,
   Event,
   JSONSerializationOptions,
   Message,
@@ -59,7 +60,6 @@ import {
   storeProcessorCheckpoint,
   type EventStoreSchemaMigrationOptions,
 } from '../schema';
-import type { PostgreSQLEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 
 export type PostgreSQLProcessorHandlerContext = MessageHandlerContext<
   {
@@ -101,7 +101,7 @@ export type PostgreSQLProcessorEachBatchHandler<
 >;
 
 export type PostgreSQLProcessorStartFrom =
-  PostgreSQLEventStoreMessageBatchPullerStartFrom | 'CURRENT';
+  CurrentMessageProcessorPosition | 'CURRENT';
 
 type PostgreSQLProcessorPooledOptions =
   | {

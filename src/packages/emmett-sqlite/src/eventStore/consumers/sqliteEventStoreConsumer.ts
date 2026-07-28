@@ -1,41 +1,28 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import { sqliteAmbientConnectionPool } from '@event-driven-io/dumbo/sqlite';
 import {
-  asyncAwaiter,
-  bigIntProcessorCheckpoint,
-  ConsumerStartPositions,
-  EmmettError,
+  consumer,
   mergeObservability,
   type AnyCommand,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
-  type AsyncAwaiter,
-  type BatchRecordedMessageHandlerWithoutContext,
+  type ConsumerObservabilityConfig,
   type JSONSerializationOptions,
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
-  type MessageHandlerContext,
-  type MessageProcessor,
   type ProcessorCheckpoint,
   type ReadEventMetadataWithGlobalPosition,
   type WaitOptions,
   type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
-import { v7 as uuid } from 'uuid';
 import type {
   AnyEventStoreDriver,
   InferOptionsFromEventStoreDriver,
 } from '../eventStoreDriver';
-import { readLastMessageGlobalPosition } from '../schema';
 import { getSQLiteEventStore } from '../SQLiteEventStore';
-import {
-  DefaultSQLiteEventStoreProcessorBatchSize,
-  DefaultSQLiteEventStoreProcessorPullingFrequencyInMs,
-  sqliteEventStoreMessageBatchPuller,
-  type SQLiteEventStoreMessageBatchPuller,
-} from './messageBatchProcessing';
+import { sqliteMessageSource } from './sqliteMessageSource';
 import {
   sqliteProjector,
   sqliteReactor,
@@ -124,18 +111,6 @@ export const sqliteEventStoreConsumer = <
 >(
   options: SQLiteEventStoreConsumerOptions<ConsumerMessageType, Driver>,
 ): SQLiteEventStoreConsumer<ConsumerMessageType> => {
-  let isRunning = false;
-  let isInitialized = false;
-  const { pulling } = options;
-  const processors = options.processors ?? [];
-  let abortController: AbortController | null = null;
-
-  let start: Promise<void>;
-
-  let messagePuller: SQLiteEventStoreMessageBatchPuller | undefined;
-
-  const startedAwaiter: AsyncAwaiter<void> = asyncAwaiter<void>();
-
   const isOwnPool = !options.pool;
   const pool =
     options.pool ??
@@ -148,120 +123,68 @@ export const sqliteEventStoreConsumer = <
       ...options.driver.mapToDumboOptions(options),
     });
 
-  const processorContext = {
-    execute: undefined,
-    connection: undefined,
-  };
+  const messageConsumer = consumer<
+    ConsumerMessageType,
+    ReadEventMetadataWithGlobalPosition,
+    SQLiteProcessorHandlerContext
+  >({
+    ...options,
+    source: sqliteMessageSource<ConsumerMessageType>({
+      pool,
+      batchSize: options.pulling?.batchSize,
+      pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
+      serialization: options.serialization,
+    }),
+    scope: (handler) =>
+      pool.withConnection((connection) =>
+        handler({
+          connection,
+          execute: connection.execute,
+        }),
+      ),
+    until:
+      options.until ??
+      (options.stopWhen?.noMessagesLeft === true
+        ? { noMessagesLeft: true }
+        : undefined),
+    hooks: {
+      onClose: async () => {
+        if (isOwnPool) await pool.close();
+      },
+    },
+  });
 
-  const stopProcessors = () =>
-    Promise.all(processors.map((p) => p.close(processorContext)));
-
-  const stop = async () => {
-    if (!isRunning) return;
-    isRunning = false;
-    if (messagePuller) {
-      abortController?.abort();
-      await messagePuller.stop();
-    }
-    await start;
-
-    messagePuller = undefined;
-    abortController = null;
-
-    await stopProcessors();
-  };
-
-  const init = async (): Promise<void> => {
-    if (isInitialized) return;
-
-    const sqliteProcessors = processors as unknown as SQLiteProcessor[];
-
-    await pool.withConnection(async (connection) => {
-      for (const processor of sqliteProcessors) {
-        if (processor.init) {
-          await processor.init({
-            ...processorContext,
-            connection,
-            execute: connection.execute,
-          });
-        }
-      }
-    });
-    isInitialized = true;
-  };
+  const withMergedObservability = <
+    ProcessorOptionsType extends {
+      observability?: ConsumerObservabilityConfig;
+    },
+  >(
+    processorOptions: ProcessorOptionsType,
+  ): ProcessorOptionsType => ({
+    ...processorOptions,
+    observability: mergeObservability(
+      options.observability,
+      processorOptions.observability,
+    ),
+  });
 
   return {
-    consumerId: options.consumerId ?? uuid(),
+    ...messageConsumer,
     get isRunning() {
-      return isRunning;
+      return messageConsumer.isRunning;
     },
-    whenStarted: (): Promise<void> => startedAwaiter.wait,
-    whenProcessed: (position, options): Promise<void> =>
-      Promise.all(
-        processors.map((p) => p.whenProcessed(position, options)),
-      ).then(() => undefined),
-    whenCaughtUp: async (options): Promise<void> => {
-      const tail = await pool.withConnection(async (connection) => {
-        const { currentGlobalPosition } = await readLastMessageGlobalPosition(
-          connection.execute,
-        );
-        return currentGlobalPosition;
-      });
-
-      if (tail === null) return;
-
-      await Promise.all(
-        processors.map((p) =>
-          p.whenProcessed(bigIntProcessorCheckpoint(tail), options),
-        ),
-      );
-    },
-    processors,
-    init,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       processorOptions: SQLiteReactorOptions<MessageType>,
-    ): SQLiteProcessor<MessageType> => {
-      const processor = sqliteReactor({
-        ...processorOptions,
-        observability: mergeObservability(
-          options.observability,
-          processorOptions.observability,
-        ),
-      });
-
-      processors.push(
-        // TODO: change that
-        processor as unknown as MessageProcessor<
-          ConsumerMessageType,
-          AnyRecordedMessageMetadata,
-          MessageHandlerContext
-        >,
-      );
-
-      return processor;
-    },
+    ): SQLiteProcessor<MessageType> =>
+      messageConsumer.register(
+        sqliteReactor(withMergedObservability(processorOptions)),
+      ),
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
       processorOptions: SQLiteProjectorOptions<EventType>,
-    ): SQLiteProcessor<EventType> => {
-      const processor = sqliteProjector({
-        ...processorOptions,
-        observability: mergeObservability(
-          options.observability,
-          processorOptions.observability,
-        ),
-      });
-
-      processors.push(
-        // TODO: change that
-        processor as unknown as MessageProcessor<
-          ConsumerMessageType,
-          AnyRecordedMessageMetadata,
-          MessageHandlerContext
-        >,
-      );
-
-      return processor;
-    },
+    ): SQLiteProcessor<EventType> =>
+      messageConsumer.register(
+        sqliteProjector(withMergedObservability(processorOptions)),
+      ),
     workflowProcessor: <
       Input extends AnyEvent | AnyCommand,
       State,
@@ -284,144 +207,22 @@ export const sqliteEventStoreConsumer = <
         >,
         'messageStore'
       >,
-    ): SQLiteProcessor<Input | Output> => {
-      const processor = sqliteWorkflowProcessor({
-        ...processorOptions,
-        messageStore: (connection) =>
-          getSQLiteEventStore({
-            ...options,
-            pool: sqliteAmbientConnectionPool({
-              driverType: options.driver.driverType,
-              connection,
-            }),
-            schema: { autoMigration: 'None' },
-          }),
-        observability: mergeObservability(
-          options.observability,
-          processorOptions.observability,
-        ),
-      });
-
-      processors.push(
-        // TODO: change that
-        processor as unknown as MessageProcessor<
-          ConsumerMessageType,
-          AnyRecordedMessageMetadata,
-          MessageHandlerContext
-        >,
-      );
-
-      return processor;
-    },
-    start: () => {
-      if (isRunning) return start;
-
-      startedAwaiter.reset();
-
-      if (processors.length === 0) {
-        const error = new EmmettError(
-          'Cannot start consumer without at least a single processor',
-        );
-        startedAwaiter.reject(error);
-        return Promise.reject(error);
-      }
-
-      isRunning = true;
-      abortController = new AbortController();
-
-      start = (async () => {
-        if (!isRunning) return;
-
-        let startPositions: ConsumerStartPositions = undefined!;
-
-        const eachBatch: BatchRecordedMessageHandlerWithoutContext<
-          ConsumerMessageType,
-          ReadEventMetadataWithGlobalPosition
-        > = (messagesBatch) =>
-          pool.withConnection(async (connection) => {
-            const activeProcessors = processors.filter((s) => s.isActive);
-
-            if (activeProcessors.length === 0)
-              return {
-                type: 'STOP',
-                reason: 'No active processors',
-              };
-
-            const result = await Promise.allSettled(
-              activeProcessors.map(async (s) => {
-                const batch = startPositions.afterStartPosition(
-                  s.id,
-                  messagesBatch,
-                );
-                return await s.handle(batch, {
+    ): SQLiteProcessor<Input | Output> =>
+      messageConsumer.register(
+        sqliteWorkflowProcessor(
+          withMergedObservability({
+            ...processorOptions,
+            messageStore: (connection) =>
+              getSQLiteEventStore({
+                ...options,
+                pool: sqliteAmbientConnectionPool({
+                  driverType: options.driver.driverType,
                   connection,
-                  execute: connection.execute,
-                });
+                }),
+                schema: { autoMigration: 'None' },
               }),
-            );
-
-            return result.some(
-              (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
-            )
-              ? undefined
-              : {
-                  type: 'STOP',
-                };
-          });
-
-        try {
-          messagePuller = sqliteEventStoreMessageBatchPuller({
-            stopWhen: options.stopWhen,
-            executor: pool.execute,
-            eachBatch,
-            batchSize:
-              pulling?.batchSize ?? DefaultSQLiteEventStoreProcessorBatchSize,
-            pullingFrequencyInMs:
-              pulling?.pullingFrequencyInMs ??
-              DefaultSQLiteEventStoreProcessorPullingFrequencyInMs,
-            signal: abortController.signal,
-          });
-
-          if (!isInitialized) {
-            await init();
-          }
-
-          startPositions = await pool.withConnection((connection) =>
-            ConsumerStartPositions.resolve({
-              processors,
-              handlerContext: {
-                execute: connection.execute,
-                connection,
-              },
-              readLastMessageCheckpoint: async () => {
-                const { currentGlobalPosition } =
-                  await readLastMessageGlobalPosition(connection.execute);
-                return currentGlobalPosition !== null
-                  ? bigIntProcessorCheckpoint(currentGlobalPosition)
-                  : null;
-              },
-            }),
-          );
-
-          await messagePuller.start({
-            startFrom: startPositions.earliestPosition,
-            started: startedAwaiter,
-          });
-        } catch (error) {
-          isRunning = false;
-          startedAwaiter.reject(error);
-          throw error;
-        } finally {
-          await stopProcessors();
-        }
-      })();
-
-      return start;
-    },
-    stop,
-    close: async () => {
-      await stop();
-      if (isOwnPool) await pool.close();
-    },
+          }),
+        ),
+      ),
   };
 };
