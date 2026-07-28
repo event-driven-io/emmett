@@ -3,14 +3,18 @@ import {
   testObservabilityContextGenerator,
 } from '@event-driven-io/almanac';
 import { describe, it } from 'vitest';
-import { getInMemoryEventStore } from '../eventStore';
+import { getInMemoryEventStore, type EventStore } from '../eventStore';
 import {
   EmmettAttributes,
   MessagingSystemName,
 } from '../observability/attributes';
 import { withOperationScope } from '../observability/options';
 import { assertDeepEqual } from '../testing';
-import type { AnyRecordedMessageMetadata } from '../typing';
+import type {
+  AnyMessage,
+  AnyRecordedMessageMetadata,
+  MessageHandlerContext,
+} from '../typing';
 import { reactor } from './processors';
 
 const A = EmmettAttributes;
@@ -191,6 +195,64 @@ describe('processors observability wiring', () => {
             'Error during message processing for processor test with instance id test. Stopping the processor.',
           ),
       );
+  });
+
+  it('the message store on the handler context appends into the handled message flow', async () => {
+    const eventStore = getInMemoryEventStore({
+      observability: {
+        contextGenerator: testObservabilityContextGenerator({
+          traceIds: 'store-trace',
+          spanIds: 'store-span',
+          messageIds: 'appended-message',
+        }),
+      },
+    });
+    const streamName = 'reaction-2';
+    let metadata: AnyRecordedMessageMetadata | undefined;
+
+    await given((config) =>
+      reactor<
+        AnyMessage,
+        AnyRecordedMessageMetadata,
+        MessageHandlerContext<{ connection: { messageStore: EventStore } }>
+      >({
+        processorId: 'test',
+        eachMessage: async (_message, context) => {
+          await context.connection.messageStore.appendToStream(streamName, [
+            { type: 'OrderConfirmed', kind: 'Event', data: {} },
+          ]);
+        },
+        observability: config,
+      }),
+    )
+      .when(async (reactor) => {
+        await reactor.start({ connection: { messageStore: eventStore } });
+        await reactor.handle(
+          [
+            makeMessage('OrderPlaced', {
+              messageId: 'trigger-message',
+              correlationId: 'flow-1',
+            }),
+          ],
+          { connection: { messageStore: eventStore } },
+        );
+        await reactor.close({ connection: { messageStore: eventStore } });
+
+        const { events } = await eventStore.readStream(streamName);
+        metadata = events[0]?.metadata;
+      })
+      .then(() => {
+        const { messageId, correlationId, causationId } = metadata!;
+
+        assertDeepEqual(
+          { messageId, correlationId, causationId },
+          {
+            messageId: 'appended-message',
+            correlationId: 'flow-1',
+            causationId: 'trigger-message',
+          },
+        );
+      });
   });
 
   it('what a reactor appends is caused by the message it handles', async () => {
