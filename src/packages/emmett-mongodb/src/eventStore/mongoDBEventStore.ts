@@ -7,6 +7,7 @@ import {
   filterProjections,
   tryPublishMessagesAfterCommit,
   upcastRecordedMessages,
+  withOperationScope,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AppendToStreamOptions,
@@ -14,15 +15,14 @@ import {
   type Closeable,
   type DefaultEventStoreOptions,
   type Event,
-  type EventStoreObservabilityConfig,
   type EventStore,
+  type EventStoreObservabilityConfig,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithoutGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
   type StreamExistsResult,
-  withOperationScope,
 } from '@event-driven-io/emmett';
 import {
   MongoClient,
@@ -414,7 +414,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
             streamName,
             streamPosition: ++streamOffset,
             correlationId: context.correlationId,
-            causationId: context.causationId ?? messageId,
+            causationId: context.causationId ?? context.correlationId,
             traceId: context.traceId,
             spanId: context.spanId,
           };

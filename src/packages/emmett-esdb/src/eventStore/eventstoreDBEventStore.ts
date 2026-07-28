@@ -10,14 +10,15 @@ import {
   eventStoreObservability,
   mergeObservability,
   upcastRecordedMessage,
+  withOperationScope,
   type AggregateStreamOptions,
   type AggregateStreamResultWithGlobalPosition,
   type AnyMessage,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
   type Event,
-  type EventStoreObservabilityConfig,
   type EventStore,
+  type EventStoreObservabilityConfig,
   type ExpectedStreamVersion,
   type ProcessorCheckpoint,
   type ReadEvent,
@@ -26,7 +27,6 @@ import {
   type ReadStreamResult,
   type RecordedMessage,
   type StreamExistsResult,
-  withOperationScope,
 } from '@event-driven-io/emmett';
 import type { EventStoreDBClient } from '@eventstore/db-client';
 import {
@@ -287,7 +287,7 @@ export const getEventStoreDBEventStore = (
                 metadata: {
                   messageId,
                   correlationId: context.correlationId,
-                  causationId: context.causationId ?? messageId,
+                  causationId: context.causationId ?? context.correlationId,
                   traceId: context.traceId,
                   spanId: context.spanId,
                   ...metadata,

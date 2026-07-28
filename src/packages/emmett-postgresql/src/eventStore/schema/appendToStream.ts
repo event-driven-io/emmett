@@ -191,7 +191,8 @@ export const appendToStream = (
           metadata: {
             messageId,
             correlationId: options?.context?.correlationId,
-            causationId: options?.context?.causationId ?? messageId,
+            causationId:
+              options?.context?.causationId ?? options?.context?.correlationId,
             traceId: options?.context?.traceId,
             spanId: options?.context?.spanId,
             ...('metadata' in e ? (e.metadata ?? {}) : {}),

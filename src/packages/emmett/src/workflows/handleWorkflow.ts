@@ -1,4 +1,10 @@
 import {
+  append,
+  composeMiddleware,
+  resolveMiddleware,
+  type MiddlewareOptions,
+} from '../commandHandling/middleware';
+import {
   canCreateEventStoreSession,
   isExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
@@ -11,6 +17,10 @@ import {
   type ExpectedStreamVersion,
   type ReadStreamOptions,
 } from '../eventStore';
+import {
+  withOperationScope,
+  type OperationObservabilityOptions,
+} from '../observability';
 import type {
   AnyCommand,
   AnyEvent,
@@ -19,10 +29,6 @@ import type {
   RecordedMessage,
 } from '../typing';
 import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
-import {
-  withOperationScope,
-  type OperationObservabilityOptions,
-} from '../observability';
 import {
   workflowCollector,
   workflowObservability,
@@ -34,12 +40,6 @@ import type {
   WorkflowMessageAction,
 } from './workflow';
 import type { WorkflowOptions } from './workflowProcessor';
-import {
-  append,
-  composeMiddleware,
-  resolveMiddleware,
-  type MiddlewareOptions,
-} from '../commandHandling/middleware';
 
 export const WorkflowHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
   {
@@ -268,18 +268,21 @@ export const WorkflowHandler =
     const inputMessageId =
       sourceMetadata?.messageId ??
       observability.contextGenerator.generateMessageId();
+
+    const correlationId =
+      handleOptions?.observability?.context?.correlationId ??
+      sourceMetadata?.correlationId;
     // The workflow's output events continue the triggering message's flow:
     // correlation comes from the input message (the scope generates one when
-    // absent), causation is the input message itself. A caller can override
-    // either through the handle-options context seed.
+    // absent), causation defaults to that same correlation, so an unseeded flow
+    // roots itself. A caller can override either through the handle-options
+    // context seed.
     const scopeOptions: OperationObservabilityOptions = {
       ...(handleOptions?.observability ?? {}),
       context: {
-        correlationId:
-          handleOptions?.observability?.context?.correlationId ??
-          sourceMetadata?.correlationId,
+        correlationId,
         causationId:
-          handleOptions?.observability?.context?.causationId ?? inputMessageId,
+          handleOptions?.observability?.context?.causationId ?? correlationId,
       },
     };
     const resolvedStreamName = options.mapWorkflowId
