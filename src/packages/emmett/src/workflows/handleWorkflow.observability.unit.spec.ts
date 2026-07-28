@@ -72,14 +72,14 @@ describe('WorkflowHandler observability', () => {
           messageId: 'stored-input-message',
           originalMessageId: 'workflow-input-message',
           correlationId: 'workflow-correlation',
-          causationId: 'workflow-input-message',
+          causationId: 'workflow-correlation',
           traceId: 'event-store-trace',
           spanId: 'event-store-span',
         });
         expect(metadata[1]).toMatchObject({
           messageId: 'stored-output-message',
           correlationId: 'workflow-correlation',
-          causationId: 'workflow-input-message',
+          causationId: 'workflow-correlation',
           traceId: 'event-store-trace',
           spanId: 'event-store-span',
         });
@@ -142,14 +142,14 @@ describe('WorkflowHandler observability', () => {
           messageId: 'stored-input-message',
           originalMessageId: 'generated-input-message',
           correlationId: 'source-correlation',
-          causationId: 'generated-input-message',
+          causationId: 'source-correlation',
           traceId: 'event-store-trace',
           spanId: 'event-store-span',
         });
         expect(metadata[1]).toMatchObject({
           messageId: 'stored-output-message',
           correlationId: 'source-correlation',
-          causationId: 'generated-input-message',
+          causationId: 'source-correlation',
           traceId: 'event-store-trace',
           spanId: 'event-store-span',
         });

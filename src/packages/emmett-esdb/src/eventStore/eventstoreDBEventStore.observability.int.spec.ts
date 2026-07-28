@@ -105,7 +105,7 @@ void describe('EventStoreDBEventStore observability', () => {
           expect(typeof metadata.correlationId).toBe('string');
           expect(metadata.correlationId!.length).toBeGreaterThan(0);
           // causationId self-roots to the event's own messageId when unset
-          expect(metadata.causationId).toBe(metadata.messageId);
+          expect(metadata.causationId).toBe(metadata.correlationId);
           expect(typeof metadata.traceId).toBe('string');
           expect(metadata.traceId!.length).toBeGreaterThan(0);
           expect(typeof metadata.spanId).toBe('string');

@@ -345,8 +345,8 @@ describe('handler observability', () => {
             {
               messageId: 'msg-1',
               correlationId: 'flow-1',
-              // no causation seeded: it self-roots to the event's own messageId
-              causationId: 'msg-1',
+              // no causation seeded: it self-roots to the correlationId
+              causationId: 'flow-1',
               traceId: 'trace-1',
               spanId: 'span-1',
             },

@@ -74,14 +74,14 @@ describe('inMemoryEventStore observability context', () => {
       {
         messageId: 'message-1',
         correlationId: 'corr-1',
-        causationId: 'message-1',
+        causationId: 'corr-1',
         traceId: 'trace-1',
         spanId: 'span-1',
       },
       {
         messageId: 'message-2',
         correlationId: 'corr-1',
-        causationId: 'message-2',
+        causationId: 'corr-1',
         traceId: 'trace-1',
         spanId: 'span-1',
       },

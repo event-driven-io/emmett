@@ -25,13 +25,13 @@ import type {
   StreamExistsResult,
 } from './eventStore';
 import { assertExpectedVersionMatchesCurrent } from './expectedVersion';
+import {
+  eventStoreCollector,
+  eventStoreObservability,
+  type EventStoreObservabilityConfig,
+} from './observability';
 import { handleInMemoryProjections } from './projections/inMemory';
 import { downcastRecordedMessages, upcastRecordedMessages } from './versioning';
-import {
-  type EventStoreObservabilityConfig,
-  eventStoreObservability,
-  eventStoreCollector,
-} from './observability';
 
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
 
@@ -234,7 +234,7 @@ export const getInMemoryEventStore = (
               globalPosition: bigIntProcessorCheckpoint(globalPosition),
               checkpoint: bigIntProcessorCheckpoint(globalPosition),
               correlationId: context.correlationId,
-              causationId: context.causationId ?? messageId,
+              causationId: context.causationId ?? context.correlationId,
               traceId: context.traceId,
               spanId: context.spanId,
             };
