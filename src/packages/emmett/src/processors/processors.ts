@@ -1,10 +1,17 @@
-import { LogEvent, noopScope } from '@event-driven-io/almanac';
+import {
+  LogEvent,
+  noopScope,
+  type ObservabilityScope,
+} from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
 import type { ProcessorObservabilityConfig } from '.';
 import { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
-import type { WithObservabilityScope } from '../observability';
-import { EmmettAttributes } from '../observability';
+import type {
+  OperationObservabilityOptions,
+  WithObservabilityScope,
+} from '../observability';
+import { EmmettAttributes, withOperationScope } from '../observability';
 import type { ProjectionDefinition } from '../projections';
 import {
   JSONSerializer,
@@ -315,6 +322,63 @@ export const defaultProcessingMessageProcessingScope = <
     observabilityScope: partialContext.observabilityScope ?? noopScope,
   } as WithObservabilityScope<HandlerContext>);
 
+type AppendingMessageStore = {
+  appendToStream: (
+    streamName: string,
+    messages: unknown[],
+    options?: { observability?: OperationObservabilityOptions },
+  ) => unknown;
+};
+
+const isAppendingMessageStore = (
+  store: unknown,
+): store is AppendingMessageStore =>
+  typeof (store as AppendingMessageStore | undefined)?.appendToStream ===
+  'function';
+
+/**
+ * Binds the message store handed to the handler to the scope of the message
+ * being handled, so what a handler appends continues the triggering message's
+ * flow without threading the scope by hand. A handler passing its own scope or
+ * parent still wins.
+ */
+const withScopedMessageStore = <HandlerContext>(
+  context: HandlerContext,
+  scope: ObservabilityScope,
+): HandlerContext => {
+  const connection = (
+    context as { connection?: { messageStore?: unknown } } | undefined
+  )?.connection;
+
+  if (!connection || !isAppendingMessageStore(connection.messageStore))
+    return context;
+
+  const messageStore = new Proxy(connection.messageStore, {
+    get: (target, property, receiver): unknown => {
+      if (property !== 'appendToStream')
+        return Reflect.get(target, property, receiver);
+
+      return (
+        streamName: string,
+        messages: unknown[],
+        options?: { observability?: OperationObservabilityOptions },
+      ) =>
+        target.appendToStream(streamName, messages, {
+          ...options,
+          observability:
+            (options?.observability?.scope ?? options?.observability?.parent)
+              ? options.observability
+              : withOperationScope(scope, options?.observability),
+        });
+    },
+  });
+
+  return {
+    ...context,
+    connection: { ...connection, messageStore },
+  };
+};
+
 export const defaultProcessorVersion = 1;
 export const defaultProcessorPartition = defaultTag;
 
@@ -387,10 +451,13 @@ export const reactor = <
             context.observabilityScope,
             (messageScope) =>
               Promise.resolve(
-                options.eachMessage(message, {
-                  ...context,
-                  observabilityScope: messageScope,
-                }),
+                options.eachMessage(
+                  message,
+                  withScopedMessageStore(
+                    { ...context, observabilityScope: messageScope },
+                    messageScope,
+                  ),
+                ),
               ),
           );
 

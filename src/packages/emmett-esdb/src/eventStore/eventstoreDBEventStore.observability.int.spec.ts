@@ -82,6 +82,7 @@ void describe('EventStoreDBEventStore observability', () => {
     withDeadline,
     async () => {
       const streamName = `shopping_cart-${uuid()}`;
+      const appendedMessageId = uuid();
 
       await given(
         async (observability) => {
@@ -98,7 +99,8 @@ void describe('EventStoreDBEventStore observability', () => {
           contextGenerator: testObservabilityContextGenerator({
             traceIds: 'append-trace',
             spanIds: 'append-span',
-            messageIds: 'appended-message',
+            // EventStoreDB rejects an event id that isn't a UUID
+            messageIds: appendedMessageId,
             correlationIds: 'generated-correlation',
           }),
         },
@@ -113,7 +115,7 @@ void describe('EventStoreDBEventStore observability', () => {
           assertDeepEqual(
             { messageId, correlationId, causationId, traceId, spanId },
             {
-              messageId: 'appended-message',
+              messageId: appendedMessageId,
               correlationId: 'generated-correlation',
               // an unseeded causation roots itself on the correlation
               causationId: 'generated-correlation',
