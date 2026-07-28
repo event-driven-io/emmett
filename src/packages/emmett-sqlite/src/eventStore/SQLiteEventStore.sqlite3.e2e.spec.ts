@@ -2,6 +2,7 @@ import { InMemorySQLiteDatabase } from '@event-driven-io/dumbo/sqlite3';
 import {
   MessagingAttributes,
   ObservabilitySpec,
+  testObservabilityContextGenerator,
 } from '@event-driven-io/almanac';
 import type { ExpectedVersionConflictError } from '@event-driven-io/emmett';
 import {
@@ -331,6 +332,102 @@ void describe('SQLiteEventStore', () => {
           [M.destination.name]: shoppingCartId,
           [M.system]: MessagingSystemName,
         });
+      });
+  });
+
+  void it('roots the persisted causationId on the correlationId when unset', async () => {
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given(
+      async (observability) => {
+        const eventStore = getSQLiteEventStore({
+          driver: sqlite3EventStoreDriver,
+          schema: {
+            autoMigration: 'CreateOrUpdate',
+          },
+          fileName,
+          observability,
+        });
+        await eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ]);
+        return eventStore;
+      },
+      {
+        contextGenerator: testObservabilityContextGenerator({
+          traceIds: 'append-trace',
+          spanIds: 'append-span',
+          messageIds: 'appended-message',
+          correlationIds: 'generated-correlation',
+        }),
+      },
+    )
+      .when((eventStore) => eventStore.readStream(shoppingCartId))
+      .then(({ result }) => {
+        const { messageId, correlationId, causationId, traceId, spanId } =
+          result.events[0]!.metadata;
+
+        assertDeepEqual(
+          { messageId, correlationId, causationId, traceId, spanId },
+          {
+            messageId: 'appended-message',
+            correlationId: 'generated-correlation',
+            // an unseeded causation roots itself on the correlation
+            causationId: 'generated-correlation',
+            traceId: 'append-trace',
+            spanId: 'append-span',
+          },
+        );
+      });
+  });
+
+  void it('persists the triggering messageId as causationId when seeded', async () => {
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given(async (observability) => {
+      const eventStore = getSQLiteEventStore({
+        driver: sqlite3EventStoreDriver,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+        },
+        fileName,
+        observability,
+      });
+      await eventStore.appendToStream<ProductItemAdded>(
+        shoppingCartId,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+        {
+          observability: {
+            context: {
+              correlationId: 'seeded-correlation',
+              causationId: 'triggering-message',
+            },
+          },
+        },
+      );
+      return eventStore;
+    })
+      .when((eventStore) => eventStore.readStream(shoppingCartId))
+      .then(({ result }) => {
+        const { correlationId, causationId } = result.events[0]!.metadata;
+
+        assertDeepEqual(
+          { correlationId, causationId },
+          {
+            correlationId: 'seeded-correlation',
+            causationId: 'triggering-message',
+          },
+        );
       });
   });
 

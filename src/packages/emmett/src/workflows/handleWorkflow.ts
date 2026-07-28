@@ -274,15 +274,15 @@ export const WorkflowHandler =
       sourceMetadata?.correlationId;
     // The workflow's output events continue the triggering message's flow:
     // correlation comes from the input message (the scope generates one when
-    // absent), causation defaults to that same correlation, so an unseeded flow
-    // roots itself. A caller can override either through the handle-options
+    // absent), causation is the input message itself, which is the message the
+    // output reacts to. A caller can override either through the handle-options
     // context seed.
     const scopeOptions: OperationObservabilityOptions = {
       ...(handleOptions?.observability ?? {}),
       context: {
         correlationId,
         causationId:
-          handleOptions?.observability?.context?.causationId ?? correlationId,
+          handleOptions?.observability?.context?.causationId ?? inputMessageId,
       },
     };
     const resolvedStreamName = options.mapWorkflowId

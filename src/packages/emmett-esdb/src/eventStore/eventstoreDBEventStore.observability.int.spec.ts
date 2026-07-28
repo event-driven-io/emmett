@@ -1,8 +1,10 @@
 import {
   MessagingAttributes,
   ObservabilitySpec,
+  testObservabilityContextGenerator,
 } from '@event-driven-io/almanac';
 import {
+  assertDeepEqual,
   EmmettAttributes,
   MessagingSystemName,
   type Event,
@@ -10,7 +12,7 @@ import {
 import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { getEventStoreDBEventStore } from './eventstoreDBEventStore';
 
 type ProductItemAdded = Event<
@@ -81,35 +83,85 @@ void describe('EventStoreDBEventStore observability', () => {
     async () => {
       const streamName = `shopping_cart-${uuid()}`;
 
+      await given(
+        async (observability) => {
+          const eventStore = getEventStoreDBEventStore(
+            eventStoreDB.getClient(),
+            { observability },
+          );
+          await eventStore.appendToStream<ProductItemAdded>(streamName, [
+            { type: 'ProductItemAdded', data: { productItem } },
+          ]);
+          return eventStore;
+        },
+        {
+          contextGenerator: testObservabilityContextGenerator({
+            traceIds: 'append-trace',
+            spanIds: 'append-span',
+            messageIds: 'appended-message',
+            correlationIds: 'generated-correlation',
+          }),
+        },
+      )
+        .when((eventStore) =>
+          eventStore.readStream<ProductItemAdded>(streamName),
+        )
+        .then(({ result }) => {
+          const { messageId, correlationId, causationId, traceId, spanId } =
+            result.events[0]!.metadata;
+
+          assertDeepEqual(
+            { messageId, correlationId, causationId, traceId, spanId },
+            {
+              messageId: 'appended-message',
+              correlationId: 'generated-correlation',
+              // an unseeded causation roots itself on the correlation
+              causationId: 'generated-correlation',
+              traceId: 'append-trace',
+              spanId: 'append-span',
+            },
+          );
+        });
+    },
+  );
+
+  void it(
+    'persists the triggering messageId as causationId when seeded',
+    withDeadline,
+    async () => {
+      const streamName = `shopping_cart-${uuid()}`;
+
       await given(async (observability) => {
         const eventStore = getEventStoreDBEventStore(eventStoreDB.getClient(), {
           observability,
         });
-        await eventStore.appendToStream<ProductItemAdded>(streamName, [
-          { type: 'ProductItemAdded', data: { productItem } },
-        ]);
+        await eventStore.appendToStream<ProductItemAdded>(
+          streamName,
+          [{ type: 'ProductItemAdded', data: { productItem } }],
+          {
+            observability: {
+              context: {
+                correlationId: 'seeded-correlation',
+                causationId: 'triggering-message',
+              },
+            },
+          },
+        );
         return eventStore;
       })
         .when((eventStore) =>
           eventStore.readStream<ProductItemAdded>(streamName),
         )
         .then(({ result }) => {
-          const metadata = result.events[0]!.metadata as {
-            messageId: string;
-            correlationId?: string;
-            causationId?: string;
-            traceId?: string;
-            spanId?: string;
-          };
+          const { correlationId, causationId } = result.events[0]!.metadata;
 
-          expect(typeof metadata.correlationId).toBe('string');
-          expect(metadata.correlationId!.length).toBeGreaterThan(0);
-          // causationId self-roots to the event's own messageId when unset
-          expect(metadata.causationId).toBe(metadata.correlationId);
-          expect(typeof metadata.traceId).toBe('string');
-          expect(metadata.traceId!.length).toBeGreaterThan(0);
-          expect(typeof metadata.spanId).toBe('string');
-          expect(metadata.spanId!.length).toBeGreaterThan(0);
+          assertDeepEqual(
+            { correlationId, causationId },
+            {
+              correlationId: 'seeded-correlation',
+              causationId: 'triggering-message',
+            },
+          );
         });
     },
   );

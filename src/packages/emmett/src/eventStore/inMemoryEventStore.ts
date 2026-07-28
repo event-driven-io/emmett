@@ -234,7 +234,7 @@ export const getInMemoryEventStore = (
               globalPosition: bigIntProcessorCheckpoint(globalPosition),
               checkpoint: bigIntProcessorCheckpoint(globalPosition),
               correlationId: context.correlationId,
-              causationId: context.causationId ?? context.correlationId,
+              causationId: context.causationId,
               traceId: context.traceId,
               spanId: context.spanId,
             };

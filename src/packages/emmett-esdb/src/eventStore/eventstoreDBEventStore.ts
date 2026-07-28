@@ -287,7 +287,7 @@ export const getEventStoreDBEventStore = (
                 metadata: {
                   messageId,
                   correlationId: context.correlationId,
-                  causationId: context.causationId ?? context.correlationId,
+                  causationId: context.causationId,
                   traceId: context.traceId,
                   spanId: context.spanId,
                   ...metadata,

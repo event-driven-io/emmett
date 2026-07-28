@@ -213,15 +213,21 @@ describe('commandHandlerCollector', () => {
       );
   });
 
-  it('does not set messaging.message.causation_id when causationId is absent', async () => {
-    await given((config) => commandHandlerCollector(config))
+  it('roots messaging.message.causation_id on the correlationId when causationId is absent', async () => {
+    await given((config) => commandHandlerCollector(config), {
+      contextGenerator: testObservabilityContextGenerator({
+        traceIds: 'trace-1',
+        spanIds: 'span-1',
+        correlationIds: 'gen-corr',
+      }),
+    })
       .when((collector) =>
         collector.startScope({ streamName: 'test' }, () => Promise.resolve()),
       )
       .then(({ spans }) =>
         spans
           .hasSingleSpanNamed('command.handle')
-          .hasAttribute(M.message.causationId, undefined),
+          .hasAttribute(M.message.causationId, 'gen-corr'),
       );
   });
 

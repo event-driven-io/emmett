@@ -414,7 +414,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
             streamName,
             streamPosition: ++streamOffset,
             correlationId: context.correlationId,
-            causationId: context.causationId ?? context.correlationId,
+            causationId: context.causationId,
             traceId: context.traceId,
             spanId: context.spanId,
           };

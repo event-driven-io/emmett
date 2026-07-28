@@ -189,7 +189,15 @@ export const processorCollector = (
           });
           return fn(scope);
         },
-        { parent, links },
+        {
+          parent,
+          links,
+          // whatever the handler appends is caused by the message it handles
+          context: {
+            correlationId: meta?.correlationId as string | undefined,
+            causationId: meta?.messageId as string | undefined,
+          },
+        },
       );
     },
 

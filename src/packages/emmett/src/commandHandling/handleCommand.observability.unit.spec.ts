@@ -202,7 +202,7 @@ describe('handler observability', () => {
         });
     });
 
-    void it('does not record a causationId on the append span when not provided (it self-roots per event)', async () => {
+    void it('roots the causationId on the correlationId when not provided', async () => {
       const eventStore = getInMemoryEventStore();
       const streamId = uuid();
       const context = testObservabilityContextGenerator({
@@ -242,12 +242,12 @@ describe('handler observability', () => {
             .hasAttributes({
               [MessagingAttributes.message.correlationId]:
                 expectedCorrelationId,
-              [MessagingAttributes.message.causationId]: undefined,
+              [MessagingAttributes.message.causationId]: expectedCorrelationId,
             });
 
           commandSpan.hasChildNamed('eventStore.appendToStream').hasAttributes({
             [MessagingAttributes.message.correlationId]: expectedCorrelationId,
-            [MessagingAttributes.message.causationId]: undefined,
+            [MessagingAttributes.message.causationId]: expectedCorrelationId,
           });
         });
     });
