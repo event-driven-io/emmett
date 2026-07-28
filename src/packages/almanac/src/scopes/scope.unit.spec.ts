@@ -383,7 +383,7 @@ describe('ObservabilityScope', () => {
   });
 
   describe('observabilityContext', () => {
-    it('generates all four ids when nothing is seeded', async () => {
+    it('generates all four ids when nothing is seeded, rooting causation on the correlation', async () => {
       const o11y = defaultObservability({
         tracer: noopTracer(),
         contextGenerator: testObservabilityContextGenerator({
@@ -398,7 +398,7 @@ describe('ObservabilityScope', () => {
           traceId: 'trace-1',
           spanId: 'span-1',
           correlationId: 'corr-1',
-          causationId: undefined,
+          causationId: 'corr-1',
         });
         return Promise.resolve();
       });
@@ -495,7 +495,7 @@ describe('ObservabilityScope', () => {
             traceId: 'trace-1',
             spanId: 'span-1',
             correlationId: 'corr-1',
-            causationId: undefined,
+            causationId: 'corr-1',
           });
           return Promise.resolve();
         },

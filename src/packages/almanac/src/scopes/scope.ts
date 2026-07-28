@@ -22,28 +22,28 @@ export type SetAttributesOptions = {
 };
 
 /**
- * The message-flow context an operation carries alongside its span:
- * `correlationId` groups a whole flow, `causationId` names the direct cause.
- * Used to *seed* a scope; the scope resolves it into the full
- * {@link ObservabilityContext}.
+ * The message-flow half of {@link ObservabilityContext}, used to *seed* a
+ * scope: `correlationId` groups a whole flow, `causationId` names the direct
+ * cause. Trace and span aren't seedable here, they come from the scope's span
+ * (or its `parent`).
  */
-export type MessageContext = {
-  correlationId?: string;
-  causationId?: string;
-};
+export type MessageContext = Partial<
+  Pick<ObservabilityContext, 'correlationId' | 'causationId'>
+>;
 
 /**
  * The full observability context a scope carries: trace/span identify the
  * operation, correlation/causation trace the message flow. All four are the
  * same kind of data, read through one accessor: trace/span come from the
  * scope's span, correlation/causation from the context it carries; anything
- * absent is filled by the generator.
+ * absent is filled by the generator, and an unseeded causation roots itself on
+ * the correlation.
  */
 export type ObservabilityContext = {
   traceId: string;
   spanId: string;
   correlationId: string;
-  causationId?: string;
+  causationId: string;
 };
 
 export type ScopeOptions = {
@@ -106,6 +106,8 @@ const makeScope = (
   const generator =
     observability.contextGenerator ?? defaultObservabilityContextGenerator;
   const spanContext = span.spanContext();
+  const correlationId =
+    inherited.correlationId ?? generator.generateCorrelationId();
   // The four ids resolve the same way: trace/span come from this scope's span
   // (a child always mints its own), correlation/causation from the inherited
   // context; anything absent is generated once and inherited by children.
@@ -113,8 +115,8 @@ const makeScope = (
     traceId:
       spanContext.traceId || inherited.traceId || generator.generateTraceId(),
     spanId: spanContext.spanId || generator.generateSpanId(),
-    correlationId: inherited.correlationId ?? generator.generateCorrelationId(),
-    causationId: inherited.causationId,
+    correlationId,
+    causationId: inherited.causationId ?? correlationId,
   };
 
   return {

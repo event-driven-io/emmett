@@ -77,8 +77,7 @@ export const appendToStream = async <MessageType extends Message>(
           messageId,
           streamPosition: BigInt(i + 1),
           correlationId: options?.context?.correlationId,
-          causationId:
-            options?.context?.causationId ?? options?.context?.correlationId,
+          causationId: options?.context?.causationId,
           traceId: options?.context?.traceId,
           spanId: options?.context?.spanId,
           ...('metadata' in m ? (m.metadata ?? {}) : {}),

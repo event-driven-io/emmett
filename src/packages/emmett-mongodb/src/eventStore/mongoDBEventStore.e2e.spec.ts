@@ -1,6 +1,7 @@
 import {
   MessagingAttributes,
   ObservabilitySpec,
+  testObservabilityContextGenerator,
 } from '@event-driven-io/almanac';
 import {
   assertDeepEqual,
@@ -157,6 +158,105 @@ void describe('MongoDBEventStore', () => {
           [M.destination.name]: streamName,
           [M.system]: MessagingSystemName,
         });
+      });
+  });
+
+  void it('roots the persisted causationId on the correlationId when unset', async () => {
+    const streamType = 'shopping_cart';
+    const shoppingCartId = uuid();
+    const streamName = toStreamName(streamType, shoppingCartId);
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given(
+      async (observability) => {
+        const eventStore = getMongoDBEventStore({
+          client,
+          observability,
+        });
+        await eventStore.appendToStream<ShoppingCartEvent>(
+          streamName,
+          [{ type: 'ProductItemAdded', data: { productItem } }],
+          { expectedStreamVersion: STREAM_DOES_NOT_EXIST },
+        );
+        return eventStore;
+      },
+      {
+        contextGenerator: testObservabilityContextGenerator({
+          traceIds: 'append-trace',
+          spanIds: 'append-span',
+          messageIds: 'appended-message',
+          correlationIds: 'generated-correlation',
+        }),
+      },
+    )
+      .when((eventStore) =>
+        eventStore.readStream<ShoppingCartEvent>(streamName),
+      )
+      .then(({ result }) => {
+        const { messageId, correlationId, causationId, traceId, spanId } =
+          result.events[0]!.metadata;
+
+        assertDeepEqual(
+          { messageId, correlationId, causationId, traceId, spanId },
+          {
+            messageId: 'appended-message',
+            correlationId: 'generated-correlation',
+            // an unseeded causation roots itself on the correlation
+            causationId: 'generated-correlation',
+            traceId: 'append-trace',
+            spanId: 'append-span',
+          },
+        );
+      });
+  });
+
+  void it('persists the triggering messageId as causationId when seeded', async () => {
+    const streamType = 'shopping_cart';
+    const shoppingCartId = uuid();
+    const streamName = toStreamName(streamType, shoppingCartId);
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given(async (observability) => {
+      const eventStore = getMongoDBEventStore({
+        client,
+        observability,
+      });
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        streamName,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+        {
+          expectedStreamVersion: STREAM_DOES_NOT_EXIST,
+          observability: {
+            context: {
+              correlationId: 'seeded-correlation',
+              causationId: 'triggering-message',
+            },
+          },
+        },
+      );
+      return eventStore;
+    })
+      .when((eventStore) =>
+        eventStore.readStream<ShoppingCartEvent>(streamName),
+      )
+      .then(({ result }) => {
+        const { correlationId, causationId } = result.events[0]!.metadata;
+
+        assertDeepEqual(
+          { correlationId, causationId },
+          {
+            correlationId: 'seeded-correlation',
+            causationId: 'triggering-message',
+          },
+        );
       });
   });
 

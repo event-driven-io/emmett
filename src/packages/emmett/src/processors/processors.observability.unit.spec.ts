@@ -1,9 +1,15 @@
-import { ObservabilitySpec } from '@event-driven-io/almanac';
+import {
+  ObservabilitySpec,
+  testObservabilityContextGenerator,
+} from '@event-driven-io/almanac';
 import { describe, it } from 'vitest';
+import { getInMemoryEventStore } from '../eventStore';
 import {
   EmmettAttributes,
   MessagingSystemName,
 } from '../observability/attributes';
+import { withOperationScope } from '../observability/options';
+import { assertDeepEqual } from '../testing';
 import type { AnyRecordedMessageMetadata } from '../typing';
 import { reactor } from './processors';
 
@@ -185,5 +191,61 @@ describe('processors observability wiring', () => {
             'Error during message processing for processor test with instance id test. Stopping the processor.',
           ),
       );
+  });
+
+  it('what a reactor appends is caused by the message it handles', async () => {
+    const eventStore = getInMemoryEventStore({
+      observability: {
+        contextGenerator: testObservabilityContextGenerator({
+          traceIds: 'store-trace',
+          spanIds: 'store-span',
+          messageIds: 'appended-message',
+        }),
+      },
+    });
+    const streamName = 'reaction-1';
+    let metadata: AnyRecordedMessageMetadata | undefined;
+
+    await given((config) =>
+      reactor({
+        processorId: 'test',
+        eachMessage: async (_message, context) => {
+          await eventStore.appendToStream(
+            streamName,
+            [{ type: 'OrderConfirmed', kind: 'Event', data: {} }],
+            { observability: withOperationScope(context.observabilityScope) },
+          );
+        },
+        observability: config,
+      }),
+    )
+      .when(async (reactor) => {
+        await reactor.start({});
+        await reactor.handle(
+          [
+            makeMessage('OrderPlaced', {
+              messageId: 'trigger-message',
+              correlationId: 'flow-1',
+            }),
+          ],
+          {},
+        );
+        await reactor.close({});
+
+        const { events } = await eventStore.readStream(streamName);
+        metadata = events[0]?.metadata;
+      })
+      .then(() => {
+        const { messageId, correlationId, causationId } = metadata!;
+
+        assertDeepEqual(
+          { messageId, correlationId, causationId },
+          {
+            messageId: 'appended-message',
+            correlationId: 'flow-1',
+            causationId: 'trigger-message',
+          },
+        );
+      });
   });
 });
