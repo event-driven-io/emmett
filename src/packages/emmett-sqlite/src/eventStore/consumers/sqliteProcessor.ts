@@ -10,6 +10,7 @@ import type {
   AnyRecordedMessageMetadata,
   BatchRecordedMessageHandlerWithContext,
   Checkpointer,
+  CurrentMessageProcessorPosition,
   Message,
   MessageHandlerContext,
   MessageProcessingScope,
@@ -39,7 +40,6 @@ import {
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import type { EventStoreSchemaMigrationOptions } from '../schema';
-import type { SQLiteEventStoreMessageBatchPullerStartFrom } from './messageBatchProcessing';
 import { sqliteCheckpointer } from './sqliteCheckpointer';
 
 export type SQLiteProcessorEventsBatch<EventType extends Event = Event> = {
@@ -79,7 +79,7 @@ export type SQLiteProcessorEachBatchHandler<
 >;
 
 export type SQLiteProcessorStartFrom =
-  SQLiteEventStoreMessageBatchPullerStartFrom | 'CURRENT';
+  CurrentMessageProcessorPosition | 'CURRENT';
 
 export type SQLiteProcessorConnectionOptions = {
   connection?: AnySQLiteConnection;

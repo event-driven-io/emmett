@@ -1,3 +1,4 @@
+import type { MessageSource } from '../consumers/messageSource';
 import type { ProcessorCheckpoint } from '../processors';
 import type { OperationObservabilityOptions } from '../observability';
 import type { JSONSerializationOptions } from '../serialization';
@@ -50,6 +51,14 @@ export interface EventStore<
   ): Promise<AppendToStreamResult>;
 
   streamExists(streamName: string): Promise<StreamExistsResult>;
+
+  /**
+   * The store's unified read side, backing {@link consumer}. Optional because a
+   * store can be appended to and read from without supporting subscriptions,
+   * and because consumers are also built straight from a connection string,
+   * with no store instance involved.
+   */
+  messageSource?(): MessageSource<Event, ReadEventMetadataType>;
 
   // streamEvents(): ReadableStream<
   //   ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent

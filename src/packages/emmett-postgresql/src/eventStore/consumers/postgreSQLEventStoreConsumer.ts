@@ -1,38 +1,22 @@
-import { dumbo, JSONSerializer, type Dumbo } from '@event-driven-io/dumbo';
+import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import {
-  asyncAwaiter,
-  ConsumerStartPositions,
-  EmmettError,
+  consumer,
   mergeObservability,
   type AnyCommand,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
-  type AsyncAwaiter,
-  type BatchRecordedMessageHandlerWithoutContext,
+  type ConsumerObservabilityConfig,
   type JSONSerializationOptions,
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
-  type MessageHandlerContext,
-  type MessageProcessor,
   type ProcessorCheckpoint,
-  type ReadEventMetadataWithGlobalPosition,
+  type RecordedMessageMetadataWithGlobalPosition,
   type WaitOptions,
   type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
-import { v7 as uuid } from 'uuid';
-import {
-  PostgreSQLEventStoreCheckpoint,
-  readLastCommittedMessageCheckpoint,
-  readLastMessageCheckpoint,
-} from '../schema';
-import {
-  DefaultPostgreSQLEventStoreProcessorBatchSize,
-  DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
-  postgreSQLEventStoreMessageBatchPuller,
-  type PostgreSQLEventStoreMessageBatchPuller,
-} from './messageBatchProcessing';
+import { postgreSQLMessageSource } from './postgreSQLMessageSource';
 import {
   postgreSQLProjector,
   postgreSQLReactor,
@@ -115,18 +99,6 @@ export const postgreSQLEventStoreConsumer = <
 >(
   options: PostgreSQLEventStoreConsumerOptions<ConsumerMessageType>,
 ): PostgreSQLEventStoreConsumer<ConsumerMessageType> => {
-  let isRunning = false;
-  let isInitialized = false;
-  const { pulling } = options;
-  const processors = options.processors ?? [];
-  let abortController: AbortController | null = null;
-
-  let start: Promise<void>;
-
-  let messagePuller: PostgreSQLEventStoreMessageBatchPuller | undefined;
-
-  const startedAwaiter: AsyncAwaiter<void> = asyncAwaiter<void>();
-
   const isOwnPool = !options.pool;
   const pool = options.pool
     ? options.pool
@@ -147,136 +119,63 @@ export const postgreSQLEventStoreConsumer = <
       transaction: undefined as never,
       messageStore: undefined as never,
     },
-  };
+  } as unknown as PostgreSQLProcessorHandlerContext;
 
-  const stopProcessors = () =>
-    Promise.all(processors.map((p) => p.close(processorContext)));
+  const messageConsumer = consumer<
+    ConsumerMessageType,
+    RecordedMessageMetadataWithGlobalPosition,
+    PostgreSQLProcessorHandlerContext
+  >({
+    ...options,
+    source: postgreSQLMessageSource<ConsumerMessageType>({
+      pool,
+      batchSize: options.pulling?.batchSize,
+      pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
+    }),
+    scope: (handler) => handler(processorContext),
+    until:
+      options.until ??
+      (options.stopWhen?.noMessagesLeft === true
+        ? { noMessagesLeft: true }
+        : undefined),
+    hooks: {
+      onClose: async () => {
+        if (isOwnPool) await pool.close();
+      },
+    },
+  });
 
-  const stop = async () => {
-    if (!isRunning) return;
-    isRunning = false;
-    if (messagePuller) {
-      abortController?.abort();
-      await messagePuller.stop();
-    }
-    try {
-      await start;
-    } catch (error) {
-      console.log('Error during consumer stop:', error);
-    }
-
-    messagePuller = undefined;
-    abortController = null;
-
-    await stopProcessors();
-  };
-
-  const init = async (): Promise<void> => {
-    if (isInitialized) return;
-
-    const postgresProcessors = processors as unknown as PostgreSQLProcessor[];
-
-    for (const processor of postgresProcessors) {
-      if (processor.init) {
-        try {
-          await processor.init(processorContext);
-        } catch (error) {
-          console.log(
-            `Error during processor initialization for processor: ${processor.id}. Stopping it.`,
-            error,
-          );
-          await processor.close(processorContext).catch((closeError) => {
-            console.log(
-              `Error during processor cleanup after failed initialization for processor: ${processor.id}`,
-              closeError,
-            );
-          });
-          console.log(
-            `Processor ${processor.id} stopped successfully after failed initialization.`,
-          );
-          throw error;
-        }
-      }
-    }
-
-    isInitialized = true;
-  };
+  const withMergedObservability = <
+    ProcessorOptionsType extends {
+      observability?: ConsumerObservabilityConfig;
+    },
+  >(
+    processorOptions: ProcessorOptionsType,
+  ): ProcessorOptionsType => ({
+    ...processorOptions,
+    observability: mergeObservability(
+      options.observability,
+      processorOptions.observability,
+    ),
+  });
 
   return {
-    consumerId: options.consumerId ?? uuid(),
+    ...messageConsumer,
     get isRunning() {
-      return isRunning;
+      return messageConsumer.isRunning;
     },
-    whenStarted: (): Promise<void> => startedAwaiter.wait,
-    whenProcessed: (position, options): Promise<void> =>
-      Promise.all(
-        processors.map((p) => p.whenProcessed(position, options)),
-      ).then(() => undefined),
-    whenCaughtUp: async (options): Promise<void> => {
-      const tail = await pool.withConnection(async (connection) => {
-        const { currentCheckpoint } = await readLastCommittedMessageCheckpoint(
-          connection.execute,
-        );
-        return currentCheckpoint;
-      });
-
-      if (tail === null) return;
-
-      await Promise.all(
-        processors.map((p) =>
-          p.whenProcessed(
-            PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(tail),
-            options,
-          ),
-        ),
-      );
-    },
-    processors,
-    init,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       processorOptions: PostgreSQLReactorOptions<MessageType>,
-    ): PostgreSQLProcessor<MessageType> => {
-      const processor = postgreSQLReactor({
-        ...processorOptions,
-        observability: mergeObservability(
-          options.observability,
-          processorOptions.observability,
-        ),
-      });
-
-      processors.push(
-        // TODO: change that
-        processor as unknown as MessageProcessor<
-          ConsumerMessageType,
-          AnyRecordedMessageMetadata,
-          MessageHandlerContext
-        >,
-      );
-
-      return processor;
-    },
+    ): PostgreSQLProcessor<MessageType> =>
+      messageConsumer.register(
+        postgreSQLReactor(withMergedObservability(processorOptions)),
+      ),
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
       processorOptions: PostgreSQLProjectorOptions<EventType>,
-    ): PostgreSQLProcessor<EventType> => {
-      const processor = postgreSQLProjector({
-        ...processorOptions,
-        observability: mergeObservability(
-          options.observability,
-          processorOptions.observability,
-        ),
-      });
-
-      processors.push(
-        // TODO: change that
-        processor as unknown as MessageProcessor<
-          ConsumerMessageType,
-          AnyRecordedMessageMetadata,
-          MessageHandlerContext
-        >,
-      );
-
-      return processor;
-    },
+    ): PostgreSQLProcessor<EventType> =>
+      messageConsumer.register(
+        postgreSQLProjector(withMergedObservability(processorOptions)),
+      ),
     workflowProcessor: <
       Input extends AnyEvent | AnyCommand,
       State,
@@ -296,168 +195,9 @@ export const postgreSQLEventStoreConsumer = <
         HandlerContext,
         StoredMessage
       >,
-    ): PostgreSQLProcessor<Input | Output> => {
-      const processor = postgreSQLWorkflowProcessor({
-        ...processorOptions,
-        observability: mergeObservability(
-          options.observability,
-          processorOptions.observability,
-        ),
-      });
-
-      processors.push(
-        // TODO: change that
-        processor as unknown as MessageProcessor<
-          ConsumerMessageType,
-          AnyRecordedMessageMetadata,
-          MessageHandlerContext
-        >,
-      );
-
-      return processor;
-    },
-    start: () => {
-      if (isRunning) {
-        console.log(
-          'Consumer is already running. Returning the existing start promise.',
-        );
-        return start;
-      }
-
-      startedAwaiter.reset();
-
-      if (processors.length === 0) {
-        console.log(
-          'Cannot start consumer without at least a single processor',
-        );
-        const error = new EmmettError(
-          'Cannot start consumer without at least a single processor',
-        );
-        startedAwaiter.reject(error);
-        return Promise.reject(error);
-      }
-
-      isRunning = true;
-      abortController = new AbortController();
-
-      start = (async () => {
-        if (!isRunning) return;
-
-        let startPositions: ConsumerStartPositions = undefined!;
-
-        const eachBatch: BatchRecordedMessageHandlerWithoutContext<
-          ConsumerMessageType,
-          ReadEventMetadataWithGlobalPosition
-        > = async (messagesBatch) => {
-          const activeProcessors = processors.filter((s) => s.isActive);
-
-          if (activeProcessors.length === 0)
-            return {
-              type: 'STOP',
-              reason: 'No active processors',
-            };
-
-          const result = await Promise.allSettled(
-            activeProcessors.map(async (s) => {
-              const batch = startPositions.afterStartPosition(
-                s.id,
-                messagesBatch,
-              );
-              try {
-                return await s.handle(batch, {
-                  connection: {
-                    connectionString: options.connectionString,
-                    pool,
-                  },
-                });
-              } catch (error) {
-                console.log(
-                  `Error during message batch processing for processor: ${s.id}`,
-                  error,
-                );
-                throw error;
-              }
-            }),
-          );
-
-          return result.some(
-            (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
-          )
-            ? undefined
-            : {
-                type: 'STOP',
-              };
-        };
-
-        try {
-          messagePuller = postgreSQLEventStoreMessageBatchPuller({
-            stopWhen: options.stopWhen,
-            executor: pool.execute,
-            eachBatch,
-            batchSize:
-              pulling?.batchSize ??
-              DefaultPostgreSQLEventStoreProcessorBatchSize,
-            pullingFrequencyInMs:
-              pulling?.pullingFrequencyInMs ??
-              DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
-            signal: abortController.signal,
-          });
-
-          if (!isInitialized) {
-            console.log(
-              'Initializing consumer before starting message pulling.',
-            );
-            await init();
-          }
-
-          startPositions = await pool.withConnection((connection) =>
-            ConsumerStartPositions.resolve({
-              processors,
-              handlerContext: {
-                execute: pool.execute,
-                connection: {
-                  connectionString: options.connectionString,
-                  pool,
-                },
-              },
-              readLastMessageCheckpoint: async () => {
-                const { currentCheckpoint } = await readLastMessageCheckpoint(
-                  connection.execute,
-                );
-                return currentCheckpoint !== null
-                  ? PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
-                      currentCheckpoint,
-                    )
-                  : null;
-              },
-            }),
-          );
-
-          console.log(
-            `Starting message pulling with start position: ${JSONSerializer.serialize(
-              startPositions.earliestPosition,
-            )}. Waiting for messages...`,
-          );
-
-          await messagePuller.start({
-            startFrom: startPositions.earliestPosition,
-            started: startedAwaiter,
-          });
-        } catch (error) {
-          isRunning = false;
-          startedAwaiter.reject(error);
-          throw error;
-        } finally {
-          await stopProcessors();
-        }
-      })();
-
-      return start;
-    },
-    stop,
-    close: async () => {
-      await stop();
-      if (isOwnPool) await pool.close();
-    },
+    ): PostgreSQLProcessor<Input | Output> =>
+      messageConsumer.register(
+        postgreSQLWorkflowProcessor(withMergedObservability(processorOptions)),
+      ),
   };
 };
