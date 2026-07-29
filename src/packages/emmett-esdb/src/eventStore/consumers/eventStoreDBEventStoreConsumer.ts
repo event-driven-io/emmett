@@ -1,20 +1,12 @@
-import type {
-  AsyncAwaiter,
-  MessageHandlerContext,
-  MessageProcessor,
-} from '@event-driven-io/emmett';
 import {
-  asyncAwaiter,
-  ConsumerStartPositions,
-  EmmettError,
+  consumer,
   inMemoryProjector,
   inMemoryReactor,
   mergeObservability,
   type AnyEvent,
   type AnyMessage,
-  type AnyRecordedMessageMetadata,
   type AsyncRetryOptions,
-  type BatchRecordedMessageHandlerWithoutContext,
+  type ConsumerObservabilityConfig,
   type InMemoryProcessor,
   type InMemoryProjectorOptions,
   type InMemoryReactorOptions,
@@ -29,14 +21,8 @@ import {
   type SubscribeToAllOptions,
   type SubscribeToStreamOptions,
 } from '@eventstore/db-client';
-import { v7 as uuid } from 'uuid';
 import type { EventStoreDBReadEventMetadata } from '../eventstoreDBEventStore';
-import {
-  DefaultEventStoreDBEventStoreProcessorBatchSize,
-  eventStoreDBSubscription,
-  readLastCommittedMessageCheckpoint,
-  type EventStoreDBSubscription,
-} from './subscriptions';
+import { eventStoreDBMessageSource } from './eventStoreDBMessageSource';
 
 export type EventStoreDBEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -105,208 +91,59 @@ export const eventStoreDBEventStoreConsumer = <
 >(
   options: EventStoreDBEventStoreConsumerOptions<ConsumerMessageType>,
 ): EventStoreDBEventStoreConsumer<ConsumerMessageType> => {
-  let isRunning = false;
-  let isInitialized = false;
-  const { pulling } = options;
-  const from = options.from;
-  const processors = options.processors ?? [];
-  let abortController: AbortController | null = null;
-  let startPositions: ConsumerStartPositions | undefined;
-
-  let start: Promise<void>;
-
-  let currentSubscription: EventStoreDBSubscription | undefined;
-
-  const startedAwaiter: AsyncAwaiter<void> = asyncAwaiter<void>();
-
+  const isOwnClient = !options.client;
   const client =
-    'client' in options && options.client
-      ? options.client
-      : EventStoreDBClient.connectionString(options.connectionString);
+    options.client ??
+    EventStoreDBClient.connectionString(options.connectionString);
 
-  const eachBatch: BatchRecordedMessageHandlerWithoutContext<
+  const messageConsumer = consumer<
     ConsumerMessageType,
     EventStoreDBReadEventMetadata
-  > = async (messagesBatch) => {
-    const activeProcessors = processors.filter((s) => s.isActive);
+  >({
+    ...options,
+    source: eventStoreDBMessageSource<ConsumerMessageType>({
+      client,
+      from: options.from,
+      batchSize: options.pulling?.batchSize,
+      resilience: options.resilience,
+    }),
+    hooks: {
+      onClose: async () => {
+        if (isOwnClient) await client.dispose();
+      },
+    },
+  });
 
-    if (activeProcessors.length === 0)
-      return {
-        type: 'STOP',
-        reason: 'No active processors',
-      };
-
-    const result = await Promise.allSettled(
-      activeProcessors.map(async (s) => {
-        // TODO: Add here filtering to only pass messages that can be handled by
-        const batch =
-          startPositions?.afterStartPosition(s.id, messagesBatch) ??
-          messagesBatch;
-
-        return await s.handle(batch, { client });
-      }),
-    );
-
-    const error = result.find((r) => r.status === 'rejected')?.reason as
-      Error | undefined;
-
-    return result.some(
-      (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
-    )
-      ? undefined
-      : {
-          type: 'STOP',
-          error: error ? EmmettError.mapFrom(error) : undefined,
-        };
-  };
-
-  const subscription = (currentSubscription = eventStoreDBSubscription({
-    client,
-    from: options.from,
-    eachBatch,
-    batchSize:
-      pulling?.batchSize ?? DefaultEventStoreDBEventStoreProcessorBatchSize,
-    resilience: options.resilience,
-  }));
-
-  const init = async (): Promise<void> => {
-    if (isInitialized) return;
-    for (const processor of processors) {
-      await processor.init({});
-    }
-    isInitialized = true;
-  };
-
-  const stopProcessors = () => Promise.all(processors.map((p) => p.close({})));
-
-  const stop = async () => {
-    if (!isRunning) return;
-    isRunning = false;
-    abortController?.abort();
-    if (currentSubscription) {
-      await currentSubscription.stop();
-      currentSubscription = undefined;
-    }
-    await start;
-    abortController = null;
-    await stopProcessors();
-  };
+  const withMergedObservability = <
+    ProcessorOptionsType extends {
+      observability?: ConsumerObservabilityConfig;
+    },
+  >(
+    processorOptions: ProcessorOptionsType,
+  ): ProcessorOptionsType => ({
+    ...processorOptions,
+    observability: mergeObservability(
+      options.observability,
+      processorOptions.observability,
+    ),
+  });
 
   return {
-    consumerId: options.consumerId ?? uuid(),
+    ...messageConsumer,
     get isRunning() {
-      return isRunning;
+      return messageConsumer.isRunning;
     },
-    whenStarted: (): Promise<void> => startedAwaiter.wait,
-    whenProcessed: (position, options): Promise<void> =>
-      Promise.all(
-        processors.map((p) => p.whenProcessed(position, options)),
-      ).then(() => undefined),
-    whenCaughtUp: async (options): Promise<void> => {
-      const tail = await readLastCommittedMessageCheckpoint(client, from);
-
-      if (tail === undefined) return;
-
-      await Promise.all(processors.map((p) => p.whenProcessed(tail, options)));
-    },
-    processors,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       processorOptions: InMemoryReactorOptions<MessageType>,
-    ): InMemoryProcessor<MessageType> => {
-      const processor = inMemoryReactor<MessageType>({
-        ...processorOptions,
-        observability: mergeObservability(
-          options.observability,
-          processorOptions.observability,
-        ),
-      });
-
-      processors.push(
-        // TODO: change that
-        processor as unknown as MessageProcessor<
-          ConsumerMessageType,
-          AnyRecordedMessageMetadata,
-          MessageHandlerContext
-        >,
-      );
-
-      return processor;
-    },
+    ): InMemoryProcessor<MessageType> =>
+      messageConsumer.register(
+        inMemoryReactor<MessageType>(withMergedObservability(processorOptions)),
+      ),
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
       processorOptions: InMemoryProjectorOptions<EventType>,
-    ): InMemoryProcessor<EventType> => {
-      const processor = inMemoryProjector({
-        ...processorOptions,
-        observability: mergeObservability(
-          options.observability,
-          processorOptions.observability,
-        ),
-      });
-
-      processors.push(
-        // TODO: change that
-        processor as unknown as MessageProcessor<
-          ConsumerMessageType,
-          AnyRecordedMessageMetadata,
-          MessageHandlerContext
-        >,
-      );
-
-      return processor;
-    },
-    start: () => {
-      if (isRunning) return start;
-
-      startedAwaiter.reset();
-
-      if (processors.length === 0) {
-        const error = new EmmettError(
-          'Cannot start consumer without at least a single processor',
-        );
-        startedAwaiter.reject(error);
-        return Promise.reject(error);
-      }
-      isRunning = true;
-      abortController = new AbortController();
-
-      start = (async () => {
-        if (!isRunning) return;
-
-        try {
-          if (!isInitialized) {
-            await init();
-          }
-
-          startPositions = await ConsumerStartPositions.resolve({
-            processors,
-            handlerContext: client as never,
-            readLastMessageCheckpoint: async () => {
-              const tail = await readLastCommittedMessageCheckpoint(
-                client,
-                from,
-              );
-
-              return tail ?? null;
-            },
-          });
-
-          currentSubscription = subscription;
-          await subscription.start({
-            startFrom: startPositions.earliestPosition,
-            started: startedAwaiter,
-          });
-        } catch (error) {
-          isRunning = false;
-          startedAwaiter.reject(error);
-          throw error;
-        } finally {
-          await stopProcessors();
-        }
-      })();
-
-      return start;
-    },
-    stop,
-    close: stop,
+    ): InMemoryProcessor<EventType> =>
+      messageConsumer.register(
+        inMemoryProjector(withMergedObservability(processorOptions)),
+      ),
   };
 };

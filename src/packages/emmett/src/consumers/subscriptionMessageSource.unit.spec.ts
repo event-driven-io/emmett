@@ -1,4 +1,4 @@
-import { describe, it } from 'vitest';
+import { describe, it, vi } from 'vitest';
 import { ProcessorCheckpoint } from '../processors';
 import {
   assertDeepEqual,
@@ -115,7 +115,7 @@ void describe('subscriptionMessageSource', () => {
         })();
       },
       readLastCheckpoint: () => Promise.resolve(null),
-      resilience: { resubscribeDelayInMs: 0 },
+      resilience: { minTimeout: 0, randomize: false },
     });
 
     const controller = new AbortController();
@@ -146,7 +146,8 @@ void describe('subscriptionMessageSource', () => {
         })(),
       readLastCheckpoint: () => Promise.resolve(null),
       resilience: {
-        resubscribeDelayInMs: 0,
+        minTimeout: 0,
+        randomize: false,
         shouldRetryError: (error) =>
           (error as Error).message !== 'server unavailable',
       },
@@ -177,7 +178,7 @@ void describe('subscriptionMessageSource', () => {
         })();
       },
       readLastCheckpoint: () => Promise.resolve(null),
-      resilience: { resubscribeDelayInMs: 0 },
+      resilience: { minTimeout: 0, randomize: false },
     });
 
     const controller = new AbortController();
@@ -191,6 +192,152 @@ void describe('subscriptionMessageSource', () => {
     assertEqual(attempts, 1);
   });
 
+  void it('surfaces repeated failures after the configured retry limit', async () => {
+    let attempts = 0;
+    const failure = new Error('connection reset');
+    const source = subscriptionMessageSource<AnyMessage, never>({
+      subscribe: () => {
+        attempts++;
+        return (async function* () {
+          await Promise.resolve();
+          yield* [] as MessageSourceBatch<AnyMessage, never>[];
+          throw failure;
+        })();
+      },
+      readLastCheckpoint: () => Promise.resolve(null),
+      resilience: {
+        retries: 2,
+        minTimeout: 0,
+        randomize: false,
+      },
+    });
+    const controller = new AbortController();
+
+    await assertRejects(
+      (async () => {
+        for await (const _ of source.read({
+          from: 'BEGINNING',
+          signal: controller.signal,
+        }));
+      })(),
+      failure,
+    );
+
+    assertEqual(3, attempts);
+  });
+
+  void it('restores the reconnect allowance after receiving messages', async () => {
+    let attempts = 0;
+    const source = subscriptionMessageSource<AnyMessage, never>({
+      subscribe: () => {
+        attempts++;
+        return (async function* () {
+          await Promise.resolve();
+          yield batchAt(`${attempts}`);
+          throw new Error('connection reset');
+        })();
+      },
+      readLastCheckpoint: () => Promise.resolve(null),
+      resilience: {
+        retries: 1,
+        minTimeout: 0,
+        randomize: false,
+      },
+    });
+    const controller = new AbortController();
+
+    const batches = await drain(
+      source.read({ from: 'BEGINNING', signal: controller.signal }),
+      3,
+      controller,
+    );
+
+    assertEqual(3, attempts);
+    assertEqual(3, batches.length);
+  });
+
+  void it('waits according to the configured reconnect schedule', async () => {
+    vi.useFakeTimers();
+    let attempts = 0;
+    const failure = new Error('connection reset');
+    const source = subscriptionMessageSource<AnyMessage, never>({
+      subscribe: () => {
+        attempts++;
+        return (async function* () {
+          await Promise.resolve();
+          yield* [] as MessageSourceBatch<AnyMessage, never>[];
+          throw failure;
+        })();
+      },
+      readLastCheckpoint: () => Promise.resolve(null),
+      resilience: {
+        retries: 2,
+        minTimeout: 10,
+        factor: 2,
+        randomize: false,
+      },
+    });
+    const controller = new AbortController();
+
+    try {
+      const reading = assertRejects(
+        (async () => {
+          for await (const _ of source.read({
+            from: 'BEGINNING',
+            signal: controller.signal,
+          }));
+        })(),
+        failure,
+      );
+
+      await vi.advanceTimersByTimeAsync(9);
+      assertEqual(1, attempts);
+
+      await vi.advanceTimersByTimeAsync(1);
+      assertEqual(2, attempts);
+
+      await vi.advanceTimersByTimeAsync(19);
+      assertEqual(2, attempts);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await reading;
+
+      assertEqual(3, attempts);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  void it('keeps receiving after a live subscription closes', async () => {
+    let attempts = 0;
+    const source = subscriptionMessageSource<AnyMessage, never>({
+      subscribe: () => {
+        attempts++;
+        return (async function* () {
+          await Promise.resolve();
+          yield batchAt(`${attempts}`);
+        })();
+      },
+      readLastCheckpoint: () => Promise.resolve(null),
+      resilience: {
+        forever: true,
+        minTimeout: 0,
+        randomize: false,
+        shouldRetryResult: () => true,
+      },
+    });
+    const controller = new AbortController();
+
+    const batches = await drain(
+      source.read({ from: 'BEGINNING', signal: controller.signal }),
+      2,
+      controller,
+    );
+
+    assertEqual(2, attempts);
+    assertEqual(2, batches.length);
+  });
+
   void it('ends when the subscription completes on its own', async () => {
     const source = subscriptionMessageSource<AnyMessage, never>({
       subscribe: () =>
@@ -199,7 +346,7 @@ void describe('subscriptionMessageSource', () => {
           yield batchAt('1');
         })(),
       readLastCheckpoint: () => Promise.resolve(null),
-      resilience: { resubscribeDelayInMs: 0 },
+      resilience: { minTimeout: 0, randomize: false },
     });
 
     const controller = new AbortController();

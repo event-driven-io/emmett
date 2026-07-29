@@ -12,6 +12,7 @@ import {
   END,
   StreamNotFoundError,
   type AllStreamResolvedEvent,
+  type ReadPosition,
   type ResolvedEvent,
 } from '@eventstore/db-client';
 import { mapFromESDBEvent } from '../../eventstoreDBEventStore';
@@ -74,27 +75,65 @@ const asProcessorCheckpoint = (
     ? undefined
     : bigIntProcessorCheckpoint(BigInt(checkpoint));
 
+const AllStreamReadPageSize = 32;
+
+const readLastMatchingAllCheckpoint = async (
+  client: EventStoreDBClient,
+  matches: (event: AllStreamResolvedEvent) => boolean,
+): Promise<ProcessorCheckpoint | undefined> => {
+  let fromPosition: ReadPosition = END;
+  let overlapEventId: string | undefined;
+
+  while (true) {
+    const stream = client.readAll({
+      direction: BACKWARDS,
+      fromPosition,
+      resolveLinkTos: false,
+      maxCount: AllStreamReadPageSize,
+    });
+    let inspected = 0;
+    let oldestPosition: ReadPosition | undefined;
+    let oldestEventId: string | undefined;
+    let checkpoint: ProcessorCheckpoint | undefined;
+
+    for await (const resolvedEvent of stream) {
+      inspected++;
+      oldestPosition =
+        resolvedEvent.event?.position ?? resolvedEvent.link?.position;
+      oldestEventId = resolvedEvent.event?.id ?? resolvedEvent.link?.id;
+
+      if (
+        resolvedEvent.event?.id === overlapEventId ||
+        checkpoint !== undefined ||
+        !matches(resolvedEvent)
+      )
+        continue;
+
+      checkpoint =
+        getCheckpoint(
+          mapFromESDBEvent(resolvedEvent as ResolvedEvent, { stream: $all }),
+        ) ?? undefined;
+    }
+
+    if (checkpoint !== undefined) return checkpoint;
+
+    if (
+      inspected < AllStreamReadPageSize ||
+      oldestPosition === undefined ||
+      oldestEventId === undefined ||
+      oldestEventId === overlapEventId
+    )
+      return undefined;
+
+    fromPosition = oldestPosition;
+    overlapEventId = oldestEventId;
+  }
+};
+
 const readLastAllCheckpoint = async (
   client: EventStoreDBClient,
-  from: EventStoreDBEventStoreConsumerType | undefined,
-): Promise<ProcessorCheckpoint | undefined> => {
-  const stream = client.readAll({
-    direction: BACKWARDS,
-    fromPosition: END,
-    resolveLinkTos: false,
-  });
-
-  for await (const resolvedEvent of stream) {
-    if (isSystemEvent(resolvedEvent)) continue;
-
-    return (
-      getCheckpoint(mapFromESDBEvent(resolvedEvent as ResolvedEvent, from)) ??
-      undefined
-    );
-  }
-
-  return undefined;
-};
+): Promise<ProcessorCheckpoint | undefined> =>
+  readLastMatchingAllCheckpoint(client, (event) => !isSystemEvent(event));
 
 const readLastStreamCheckpoint = async (
   client: EventStoreDBClient,
@@ -107,12 +146,14 @@ const readLastStreamCheckpoint = async (
       maxCount: 1,
       ...(from.options ?? {}),
     });
+    let checkpoint: ProcessorCheckpoint | undefined;
 
     for await (const resolvedEvent of stream) {
-      return getCheckpoint(mapFromESDBEvent(resolvedEvent, from)) ?? undefined;
+      checkpoint =
+        getCheckpoint(mapFromESDBEvent(resolvedEvent, from)) ?? undefined;
     }
 
-    return undefined;
+    return checkpoint;
   } catch (error) {
     if (error instanceof StreamNotFoundError) return undefined;
     throw error;
@@ -136,14 +177,20 @@ const readLastProjectionStreamCheckpoint = async (
       maxCount: 1,
       ...(from.options ?? {}),
     });
+    let tail:
+      | {
+          checkpoint: ProcessorCheckpoint;
+          originalGlobalCheckpoint: ProcessorCheckpoint | undefined;
+        }
+      | undefined;
 
     for await (const resolvedEvent of stream) {
       const message = mapFromESDBEvent(resolvedEvent, from);
       const checkpoint = getCheckpoint(message);
 
-      if (checkpoint === null) return undefined;
+      if (checkpoint === null) continue;
 
-      return {
+      tail = {
         checkpoint,
         originalGlobalCheckpoint: asProcessorCheckpoint(
           message.metadata.globalPosition,
@@ -151,7 +198,7 @@ const readLastProjectionStreamCheckpoint = async (
       };
     }
 
-    return undefined;
+    return tail;
   } catch (error) {
     if (error instanceof StreamNotFoundError) return undefined;
     throw error;
@@ -161,26 +208,10 @@ const readLastProjectionStreamCheckpoint = async (
 const readLastProjectionGlobalCheckpoint = async (
   client: EventStoreDBClient,
   from: EventStoreDBEventStoreConsumerType,
-): Promise<ProcessorCheckpoint | undefined> => {
-  const stream = client.readAll({
-    direction: BACKWARDS,
-    fromPosition: END,
-    resolveLinkTos: false,
-  });
-
-  for await (const resolvedEvent of stream) {
-    if (isSystemEvent(resolvedEvent)) continue;
-    if (!isEventInProjection(resolvedEvent, from.stream)) continue;
-
-    return (
-      getCheckpoint(
-        mapFromESDBEvent(resolvedEvent as ResolvedEvent, { stream: $all }),
-      ) ?? undefined
-    );
-  }
-
-  return undefined;
-};
+): Promise<ProcessorCheckpoint | undefined> =>
+  readLastMatchingAllCheckpoint(client, (event) =>
+    isEventInProjection(event, from.stream),
+  );
 
 const waitForProjection = async (
   client: EventStoreDBClient,
@@ -218,7 +249,7 @@ export const readLastCommittedMessageCheckpoint = async (
   from: EventStoreDBEventStoreConsumerType | undefined,
 ): Promise<ProcessorCheckpoint | undefined> => {
   if (from === undefined || from.stream === $all)
-    return readLastAllCheckpoint(client, from);
+    return readLastAllCheckpoint(client);
 
   if (isProjectionStreamWithLinks(from)) return waitForProjection(client, from);
 

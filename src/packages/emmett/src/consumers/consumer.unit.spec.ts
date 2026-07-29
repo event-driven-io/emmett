@@ -1,4 +1,4 @@
-import { describe, it } from 'vitest';
+import { describe, it, vi } from 'vitest';
 import { globalStreamCaughtUp } from '../eventStore/events';
 import {
   ProcessorCheckpoint,
@@ -263,6 +263,48 @@ void describe('consumer', () => {
     assertFalse(messageConsumer.isRunning);
   });
 
+  void it('reports started only when new messages can be received', async () => {
+    let releaseSource!: () => void;
+    let reportSourceEntered!: () => void;
+    const sourceReleased = new Promise<void>((resolve) => {
+      releaseSource = resolve;
+    });
+    const sourceEntered = new Promise<void>((resolve) => {
+      reportSourceEntered = resolve;
+    });
+    const { processor } = testProcessor('a');
+    const source: MessageSource = {
+      read: async function* () {
+        reportSourceEntered();
+        await sourceReleased;
+        yield caughtUpBatch('0');
+      },
+      readLastCheckpoint: () => Promise.resolve(null),
+    };
+    const messageConsumer = consumer({
+      source,
+      processors: [processor],
+      until: { noMessagesLeft: true },
+    });
+
+    let started = false;
+    const start = messageConsumer.start();
+    void messageConsumer.whenStarted().then(() => {
+      started = true;
+    });
+
+    await sourceEntered;
+    await Promise.resolve();
+
+    assertFalse(started);
+
+    releaseSource();
+    await messageConsumer.whenStarted();
+    await start;
+
+    assertTrue(started);
+  });
+
   void it('stops reading once every processor went inactive', async () => {
     const { source, state: sourceState } = testSource([
       batch('1'),
@@ -443,8 +485,13 @@ void describe('consumer', () => {
       source,
       processors: [processor],
     });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await assertRejects(messageConsumer.start(), failure);
+    try {
+      await assertRejects(messageConsumer.start(), failure);
+    } finally {
+      log.mockRestore();
+    }
 
     assertEqual(state.closes, 1);
   });

@@ -3,7 +3,7 @@ import type {
   ProcessorCheckpoint,
 } from '../processors';
 import type { AnyMessage, AnyReadEventMetadata, Message } from '../typing';
-import { delayOrAbort } from '../utils';
+import { delayOrAbort, type AsyncRetryOptions } from '../utils';
 import type {
   MessageSource,
   MessageSourceBatch,
@@ -96,10 +96,7 @@ export type SubscribeOptions = {
   signal: AbortSignal;
 };
 
-export type SubscriptionResilienceOptions = {
-  shouldRetryError?: (error: unknown) => boolean;
-  resubscribeDelayInMs?: number;
-};
+export type SubscriptionResilienceOptions = AsyncRetryOptions<void>;
 
 export type SubscriptionMessageSourceOptions<
   MessageType extends Message = AnyMessage,
@@ -134,9 +131,13 @@ export const subscriptionMessageSource = <
     close,
   } = options;
 
-  const shouldRetryError = resilience?.shouldRetryError ?? (() => true);
-  const resubscribeDelayInMs =
-    resilience?.resubscribeDelayInMs ?? DefaultResubscribeDelayInMs;
+  const retryOptions: AsyncRetryOptions<void> = resilience ?? {
+    forever: true,
+    minTimeout: DefaultResubscribeDelayInMs,
+    factor: 1,
+    randomize: false,
+  };
+  const shouldRetryError = retryOptions.shouldRetryError ?? (() => true);
 
   return {
     read: async function* (readOptions: MessageSourceReadOptions) {
@@ -147,23 +148,64 @@ export const subscriptionMessageSource = <
         DefaultSubscriptionQueueCapacity;
 
       let from = readOptions.from;
+      let retries = 0;
+      let retryStartedAt: number | undefined;
 
       while (!signal.aborted) {
+        let retryReason: unknown;
+
         try {
           for await (const batch of subscribe({ from, batchSize, signal })) {
             yield batch;
 
+            retries = 0;
+            retryStartedAt = undefined;
+
             if (batch.lastCheckpoint !== null)
               from = { lastCheckpoint: batch.lastCheckpoint };
           }
-          return;
+
+          if (signal.aborted || !retryOptions.shouldRetryResult?.(undefined))
+            return;
+
+          retryReason = new Error(
+            'Subscription ended while the source was still active',
+          );
         } catch (error) {
           if (signal.aborted) return;
           if (!shouldRetryError(error)) throw error;
 
-          console.log('Subscription dropped, resubscribing.', error);
-          await delayOrAbort(resubscribeDelayInMs, signal);
+          retryReason = error;
         }
+
+        retryStartedAt ??= Date.now();
+
+        if (!retryOptions.forever && retries >= (retryOptions.retries ?? 10))
+          throw retryReason;
+
+        if (
+          retryOptions.maxRetryTime !== undefined &&
+          Date.now() - retryStartedAt >= retryOptions.maxRetryTime
+        )
+          throw retryReason;
+
+        retries++;
+        retryOptions.onRetry?.(retryReason, retries);
+
+        const minTimeout =
+          retryOptions.minTimeout ?? DefaultResubscribeDelayInMs;
+        const factor = retryOptions.factor ?? 2;
+        const maxTimeout = retryOptions.maxTimeout ?? Number.POSITIVE_INFINITY;
+        const randomize = retryOptions.randomize ?? true;
+        const randomFactor = randomize ? 1 + Math.random() : 1;
+        const resubscribeDelayInMs = Math.min(
+          minTimeout * Math.pow(factor, retries - 1) * randomFactor,
+          maxTimeout,
+        );
+
+        await delayOrAbort(resubscribeDelayInMs, signal, {
+          unref: retryOptions.unref,
+        });
       }
     },
     readLastCheckpoint,
