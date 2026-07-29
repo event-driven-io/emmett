@@ -407,6 +407,48 @@ void describe('consumer', () => {
     assertFalse(readTailFromInsideScope);
   });
 
+  void it('does not read the source tail when no processor starts from END', async () => {
+    const { source } = testSource([caughtUpBatch('1')], {
+      lastCheckpoint: '1',
+    });
+    const { processor } = testProcessor('a', { startFrom: 'BEGINNING' });
+
+    let tailReads = 0;
+
+    const readLastCheckpoint = source.readLastCheckpoint.bind(source);
+    source.readLastCheckpoint = () => {
+      tailReads++;
+      return readLastCheckpoint();
+    };
+
+    const messageConsumer = consumer({
+      source,
+      processors: [processor],
+      until: { noMessagesLeft: true },
+    });
+
+    await messageConsumer.start();
+
+    assertEqual(tailReads, 0);
+  });
+
+  void it('closes a processor that failed to initialise exactly once', async () => {
+    const { source } = testSource([]);
+    const { processor, state } = testProcessor('a');
+
+    const failure = new Error('Init failed');
+    processor.init = () => Promise.reject(failure);
+
+    const messageConsumer = consumer({
+      source,
+      processors: [processor],
+    });
+
+    await assertRejects(messageConsumer.start(), failure);
+
+    assertEqual(state.closes, 1);
+  });
+
   void it('closes the source and runs the close hook', async () => {
     const { source, state: sourceState } = testSource([]);
     const { processor } = testProcessor('a');

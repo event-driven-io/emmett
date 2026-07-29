@@ -1,5 +1,6 @@
 import type { EmmettError } from '@event-driven-io/emmett';
 import {
+  assertEqual,
   assertFails,
   assertFalse,
   assertThrowsAsync,
@@ -81,6 +82,52 @@ void describe('mongoDB event store consumer', () => {
       });
 
       assertFalse(consumer.isRunning);
+    },
+  );
+
+  void it('generates a uuid v7 consumer id', withDeadline, () => {
+    const consumer = mongoDBEventStoreConsumer({
+      connectionString,
+      clientOptions: { directConnection: true },
+      processors: [dummyProcessor],
+    });
+
+    assertEqual('7', consumer.consumerId[14]);
+  });
+
+  void it(
+    'closes the processor that failed to initialise',
+    withDeadline,
+    async () => {
+      let closes = 0;
+      const failure = new Error('Init failed');
+
+      const failingProcessor: MessageProcessor = {
+        ...dummyProcessor,
+        id: uuid(),
+        init: () => Promise.reject(failure),
+        close: () => {
+          closes++;
+          return Promise.resolve();
+        },
+      };
+
+      const consumer = mongoDBEventStoreConsumer({
+        connectionString,
+        clientOptions: { directConnection: true },
+        processors: [failingProcessor],
+      });
+
+      try {
+        await assertThrowsAsync(
+          () => consumer.start(),
+          (error) => error === failure,
+        );
+
+        assertEqual(1, closes);
+      } finally {
+        await consumer.close();
+      }
     },
   );
 

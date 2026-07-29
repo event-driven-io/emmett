@@ -9,7 +9,6 @@ import {
   type Event,
   type Message,
   type MessageProcessingScope,
-  type ProcessorCheckpoint,
   type ProjectorOptions,
   type ReactorOptions,
   type SingleMessageHandlerResult,
@@ -21,7 +20,6 @@ import { MongoClient } from 'mongodb';
 import type { MongoDBEventStoreConnectionOptions } from '../mongoDBEventStore';
 import { mongoDBCheckpointer } from './mongoDBCheckpointer';
 import type { MongoDBChangeStreamMessageMetadata } from './mongoDBEventStoreConsumer';
-import { compareTwoMongoDBCheckpoints } from './subscriptions';
 
 type MongoDBConnectionOptions = {
   connectionOptions: MongoDBEventStoreConnectionOptions;
@@ -117,10 +115,6 @@ export const mongoDBProjector = <EventType extends Event = Event>(
     }),
 
     checkpoints: mongoDBCheckpointer<EventType>(),
-    compareCheckpoints: compareTwoMongoDBCheckpoints as (
-      a: ProcessorCheckpoint,
-      b: ProcessorCheckpoint,
-    ) => number,
   });
 };
 
@@ -151,9 +145,5 @@ export const changeStreamReactor = <
       processorId: options.processorId,
     }),
     checkpoints: mongoDBCheckpointer<MessageType>(),
-    compareCheckpoints: compareTwoMongoDBCheckpoints as (
-      a: ProcessorCheckpoint,
-      b: ProcessorCheckpoint,
-    ) => number,
   });
 };

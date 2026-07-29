@@ -25,18 +25,8 @@ import {
   type MongoDBEventStore,
 } from '../mongoDBEventStore';
 import { mongoDBEventStoreConsumer } from './mongoDBEventStoreConsumer';
-import { compareTwoMongoDBCheckpoints } from './subscriptions';
 
 const withDeadline = { timeout: 30000 };
-
-/**
- * MongoDB checkpoints are resume tokens, not lexicographically ordered values,
- * so processors must compare them via the MongoDB-specific comparator.
- */
-const compareCheckpoints = compareTwoMongoDBCheckpoints as (
-  a: ProcessorCheckpoint,
-  b: ProcessorCheckpoint,
-) => number;
 
 void describe('mongoDB event store started consumer', () => {
   let sharedDatabase: SharedMongoDBDatabase;
@@ -87,7 +77,6 @@ void describe('mongoDB event store started consumer', () => {
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
-          compareCheckpoints,
           stopAfter: (event) =>
             event.metadata.streamName === streamName &&
             event.metadata.streamPosition ===
@@ -129,7 +118,6 @@ void describe('mongoDB event store started consumer', () => {
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
-          compareCheckpoints,
         });
         const consumer = mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>({
           connectionString,
@@ -191,7 +179,6 @@ void describe('mongoDB event store started consumer', () => {
           processors: [
             inMemoryReactor<ShoppingCartSummaryEvent>({
               processorId: uuid(),
-              compareCheckpoints,
               eachMessage: (event) => {
                 if (event.metadata.streamName !== streamName) return;
                 startCheckpoint = event.metadata
@@ -222,7 +209,6 @@ void describe('mongoDB event store started consumer', () => {
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
-          compareCheckpoints,
           startFrom: {
             lastCheckpoint: startCheckpoint as ProcessorCheckpoint,
           },
@@ -280,7 +266,6 @@ void describe('mongoDB event store started consumer', () => {
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
-          compareCheckpoints,
           startFrom: 'CURRENT',
         });
 
@@ -338,7 +323,6 @@ void describe('mongoDB event store started consumer', () => {
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
-          compareCheckpoints,
           startFrom: 'CURRENT',
           stopAfter: (event) =>
             event.metadata.streamName === streamName &&
@@ -403,7 +387,6 @@ void describe('mongoDB event store started consumer', () => {
           processorId,
           projection: shoppingCartsSummaryProjection,
           connectionOptions: { database },
-          compareCheckpoints,
           startFrom: 'CURRENT',
           stopAfter: (event) =>
             event.metadata.streamName === streamName &&
@@ -427,7 +410,6 @@ void describe('mongoDB event store started consumer', () => {
             processorId,
             projection: shoppingCartsSummaryProjection,
             connectionOptions: { database },
-            compareCheckpoints,
             startFrom: 'CURRENT',
           });
         const newConsumer = mongoDBEventStoreConsumer<ShoppingCartSummaryEvent>(

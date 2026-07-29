@@ -5,8 +5,8 @@ import {
 } from '@event-driven-io/emmett';
 import type { MongoClient } from 'mongodb';
 import type { MongoDBCheckpointer } from './mongoDBProcessor';
-import { compareTwoTokens } from './subscriptions';
-import { DefaultProcessotCheckpointCollectionName, defaultTag } from './types';
+import { compareTwoCheckpoints } from './subscriptions';
+import { DefaultProcessorCheckpointCollectionName, defaultTag } from './types';
 
 export const mongoDBCheckpointer = <
   MessageType extends Message = Message,
@@ -53,7 +53,7 @@ export const readProcessorCheckpoint = async (
   const result = await client
     .db(options.databaseName)
     .collection<ReadProcessorCheckpointMongoDBResult>(
-      options.collectionName || DefaultProcessotCheckpointCollectionName,
+      options.collectionName || DefaultProcessorCheckpointCollectionName,
     )
     .findOne({
       processorId: options.processorId,
@@ -100,7 +100,7 @@ export const storeProcessorCheckpoint = async <Position>(
   const checkpoints = client
     .db(dbName)
     .collection<ReadProcessorCheckpointMongoDBResult>(
-      collectionName || DefaultProcessotCheckpointCollectionName,
+      collectionName || DefaultProcessorCheckpointCollectionName,
     );
 
   const filter = {
@@ -113,8 +113,10 @@ export const storeProcessorCheckpoint = async <Position>(
   // MISMATCH: we have a checkpoint but lastProcessedCheckpoint doesn’t match
   if (
     current &&
-    compareTwoTokens(current.lastProcessedCheckpoint, lastStoredCheckpoint) !==
-      0
+    compareTwoCheckpoints(
+      current.lastProcessedCheckpoint,
+      lastStoredCheckpoint,
+    ) !== 0
   ) {
     return { success: false, reason: 'MISMATCH' };
   }
@@ -122,7 +124,8 @@ export const storeProcessorCheckpoint = async <Position>(
   // IGNORED: same or earlier position
   if (current?.lastProcessedCheckpoint && newCheckpoint) {
     if (
-      compareTwoTokens(current.lastProcessedCheckpoint, newCheckpoint) !== -1
+      compareTwoCheckpoints(current.lastProcessedCheckpoint, newCheckpoint) !==
+      -1
     ) {
       return { success: false, reason: 'IGNORED' };
     }

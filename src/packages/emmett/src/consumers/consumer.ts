@@ -129,12 +129,18 @@ export const consumer = <
 
   const startedAwaiter: AsyncAwaiter<void> = asyncAwaiter<void>();
 
+  // A processor that fails to initialise is closed there and then, so the
+  // teardown that follows the failed start must not close it a second time and
+  // run its onClose hook twice.
+  const closedDuringInit = new Set<string>();
+
   const stopProcessors = () =>
-    scope((context) =>
-      Promise.all(processors.map((p) => p.close(context))).then(
-        () => undefined,
-      ),
-    );
+    scope(async (context) => {
+      const toClose = processors.filter((p) => !closedDuringInit.has(p.id));
+      closedDuringInit.clear();
+
+      await Promise.all(toClose.map((p) => p.close(context)));
+    });
 
   const init = (): Promise<void> =>
     scope(async (context) => {
@@ -148,6 +154,7 @@ export const consumer = <
             `Error during processor initialization for processor: ${processor.id}. Stopping it.`,
             error,
           );
+          closedDuringInit.add(processor.id);
           await processor.close(context).catch((closeError) => {
             console.log(
               `Error during processor cleanup after failed initialization for processor: ${processor.id}`,
@@ -234,19 +241,13 @@ export const consumer = <
         try {
           if (!isInitialized) await init();
 
-          // Read outside the scope: a scope can hold an exclusive store
-          // resource (SQLite's is a single pooled connection), and reading the
-          // tail from within it would deadlock waiting for itself.
-          const lastCheckpoint = await source.readLastCheckpoint();
-
-          const startPositions = await scope((context) =>
-            ConsumerStartPositions.resolve({
-              processors,
-              handlerContext: context,
-              readLastMessageCheckpoint: () => Promise.resolve(lastCheckpoint),
-              compareCheckpoints: source.compareCheckpoints,
-            }),
-          );
+          const startPositions = await ConsumerStartPositions.resolve({
+            processors,
+            handlerContext: {},
+            scope,
+            readLastMessageCheckpoint: () => source.readLastCheckpoint(),
+            compareCheckpoints: source.compareCheckpoints,
+          });
 
           const startTail = until?.caughtUp ? await readTail() : null;
 
