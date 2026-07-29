@@ -1,13 +1,18 @@
 import {
-  CurrentMessageProcessorPosition,
   IllegalStateError,
-  type ProcessorCheckpoint,
+  ProcessorCheckpoint,
+  bigIntProcessorCheckpoint,
 } from '@event-driven-io/emmett';
 
 export type MongoDBResumeToken = Readonly<{ _data: string }>;
 
+/**
+ * Both parts are fixed width, so checkpoints sort with the default comparator:
+ * the resume token is hex of a stable length and the message position is zero
+ * padded.
+ */
 export type MongoDBCheckpoint =
-  `emt:chkpt:mongodb:${MongoDBResumeToken['_data']}:${bigint}` &
+  `emt:chkpt:mongodb:${MongoDBResumeToken['_data']}:${string}` &
     ProcessorCheckpoint;
 
 export const isMongoDBCheckpoint = (
@@ -19,7 +24,7 @@ export const toMongoDBCheckpoint = (
   resumeToken: MongoDBResumeToken,
   position: bigint | number | undefined,
 ): MongoDBCheckpoint => {
-  return `emt:chkpt:mongodb:${resumeToken._data}:${position ?? 0}` as MongoDBCheckpoint;
+  return `emt:chkpt:mongodb:${resumeToken._data}:${bigIntProcessorCheckpoint(BigInt(position ?? 0))}` as MongoDBCheckpoint;
 };
 
 export const toMongoDBCheckpointValues = (
@@ -47,94 +52,32 @@ export const toMongoDBResumeToken = (
   return { _data: resumeToken };
 };
 
-export const isMongoDBResumeToken = (
-  value: unknown,
-): value is MongoDBResumeToken => {
-  return !!(
-    typeof value === 'object' &&
-    value &&
-    '_data' in value &&
-    typeof value._data === 'string'
-  );
-};
-
 /**
- * Compares two MongoDB Resume Tokens.
- * @param token1 Token 1.
- * @param token2 Token 2.
- * @returns 0 - if the tokens are the same, 1 - if the token1 is later, -1 - is the token1 is earlier.
+ * Compares two checkpoints, either of which may be missing.
+ * @returns 0 - if they are the same, 1 - if the checkpoint1 is later, -1 - if the checkpoint1 is earlier.
  */
-export const compareTwoMongoDBTokens = (
-  token1: MongoDBResumeToken,
-  token2: MongoDBResumeToken,
-) => compareTwoHexBuffers(token1._data, token2._data);
-
-/**
- * Compares two MongoDB Resume Tokens.
- * @param token1 Token 1.
- * @param token2 Token 2.
- * @returns 0 - if the tokens are the same, 1 - if the token1 is later, -1 - is the token1 is earlier.
- */
-export const compareTwoHexBuffers = (
-  token1: MongoDBResumeToken['_data'],
-  token2: MongoDBResumeToken['_data'],
+export const compareTwoCheckpoints = (
+  checkpoint1: unknown,
+  checkpoint2: unknown,
 ) => {
-  const bufA = Buffer.from(token1, 'hex');
-  const bufB = Buffer.from(token2, 'hex');
-
-  return Buffer.compare(bufA, bufB);
-};
-
-export const compareTwoMongoDBCheckpoints = (
-  checkpoint1: MongoDBCheckpoint,
-  checkpoint2: MongoDBCheckpoint,
-) => {
-  const { resumeToken: rt1, position: pos1 } =
-    toMongoDBCheckpointValues(checkpoint1);
-  const { resumeToken: rt2, position: pos2 } =
-    toMongoDBCheckpointValues(checkpoint2);
-  const tokenComparison = compareTwoHexBuffers(rt1, rt2);
-
-  if (tokenComparison !== 0) {
-    return tokenComparison;
-  }
-
-  return pos1 < pos2 ? -1 : pos1 > pos2 ? 1 : 0;
-};
-
-export const compareTwoTokens = (token1: unknown, token2: unknown) => {
-  if (token1 === null && token2) {
+  if (checkpoint1 === null && checkpoint2) {
     return -1;
   }
 
-  if (token1 && token2 === null) {
+  if (checkpoint1 && checkpoint2 === null) {
     return 1;
   }
 
-  if (token1 === null && token2 === null) {
+  if (checkpoint1 === null && checkpoint2 === null) {
     return 0;
   }
 
-  if (isMongoDBCheckpoint(token1) && isMongoDBCheckpoint(token2)) {
-    return compareTwoMongoDBCheckpoints(token1, token2);
-  }
-
-  if (typeof token1 === 'string' && typeof token2 === 'string') {
-    return compareTwoHexBuffers(token1, token2);
-  }
-
-  throw new IllegalStateError(`Type of tokens is not comparable`);
-};
-
-export const zipMongoDBMessageBatchPullerStartFrom = (
-  options: (CurrentMessageProcessorPosition | undefined)[],
-): CurrentMessageProcessorPosition => {
-  return CurrentMessageProcessorPosition.zip(options, (a, b) => {
-    if (isMongoDBCheckpoint(a) && isMongoDBCheckpoint(b)) {
-      return compareTwoMongoDBCheckpoints(a, b);
-    }
-    throw new IllegalStateError(
-      `Checkpoints are not comparable MongoDB tokens: ${String(a)} vs ${String(b)}`,
+  if (typeof checkpoint1 === 'string' && typeof checkpoint2 === 'string') {
+    return ProcessorCheckpoint.compare(
+      checkpoint1 as ProcessorCheckpoint,
+      checkpoint2 as ProcessorCheckpoint,
     );
-  });
+  }
+
+  throw new IllegalStateError(`Type of checkpoints is not comparable`);
 };

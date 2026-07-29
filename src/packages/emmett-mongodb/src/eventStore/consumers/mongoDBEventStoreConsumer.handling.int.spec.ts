@@ -7,7 +7,6 @@ import {
   type Event,
   type ProcessorCheckpoint,
 } from '@event-driven-io/emmett';
-import { compareTwoMongoDBCheckpoints } from './subscriptions';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
@@ -86,8 +85,6 @@ void describe('MongoDB event store started consumer', () => {
       });
 
       try {
-        await consumer.start();
-
         await consumer.start();
 
         assertThatArray(
@@ -241,10 +238,6 @@ void describe('MongoDB event store started consumer', () => {
           processors: [
             inMemoryReactor<GuestStayEvent>({
               processorId: uuid(),
-              compareCheckpoints: compareTwoMongoDBCheckpoints as (
-                a: ProcessorCheckpoint,
-                b: ProcessorCheckpoint,
-              ) => number,
               eachMessage: (event) => {
                 if (event.metadata.streamName !== streamName) return;
                 result.push(event);
@@ -295,11 +288,6 @@ void describe('MongoDB event store started consumer', () => {
           { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
         ];
 
-        const compareCheckpoints = compareTwoMongoDBCheckpoints as (
-          a: ProcessorCheckpoint,
-          b: ProcessorCheckpoint,
-        ) => number;
-
         // First, capture the checkpoint of the last initial event
         let startCheckpoint: ProcessorCheckpoint | undefined;
         const captureConsumer = mongoDBEventStoreConsumer({
@@ -308,7 +296,6 @@ void describe('MongoDB event store started consumer', () => {
           processors: [
             inMemoryReactor<GuestStayEvent>({
               processorId: uuid(),
-              compareCheckpoints,
               stopAfter: (event) =>
                 event.metadata.streamName === streamName &&
                 event.metadata.streamPosition === 2n,
@@ -340,7 +327,6 @@ void describe('MongoDB event store started consumer', () => {
             inMemoryReactor<GuestStayEvent>({
               processorId: uuid(),
               startFrom: { lastCheckpoint: startCheckpoint! },
-              compareCheckpoints,
               eachMessage: (event) => {
                 if (event.metadata.streamName !== streamName) return;
                 result.push(event);
@@ -401,10 +387,6 @@ void describe('MongoDB event store started consumer', () => {
             inMemoryReactor<GuestStayEvent>({
               processorId: uuid(),
               startFrom: 'CURRENT',
-              compareCheckpoints: compareTwoMongoDBCheckpoints as (
-                a: ProcessorCheckpoint,
-                b: ProcessorCheckpoint,
-              ) => number,
               eachMessage: (event) => {
                 if (event.metadata.streamName === streamName)
                   result.push(event);
@@ -546,10 +528,6 @@ void describe('MongoDB event store started consumer', () => {
             inMemoryReactor<GuestStayEvent>({
               processorId: uuid(),
               startFrom: 'END',
-              compareCheckpoints: compareTwoMongoDBCheckpoints as (
-                a: ProcessorCheckpoint,
-                b: ProcessorCheckpoint,
-              ) => number,
               eachMessage: (event) => {
                 if (event.metadata.streamName === streamName)
                   result.push(event);
@@ -598,10 +576,6 @@ void describe('MongoDB event store started consumer', () => {
             inMemoryReactor<GuestStayEvent>({
               processorId: uuid(),
               startFrom: 'END',
-              compareCheckpoints: compareTwoMongoDBCheckpoints as (
-                a: ProcessorCheckpoint,
-                b: ProcessorCheckpoint,
-              ) => number,
               eachMessage: (event) => {
                 if (event.metadata.streamName === streamName)
                   result.push(event);
@@ -647,10 +621,6 @@ void describe('MongoDB event store started consumer', () => {
 
         const firstEnd: GuestStayEvent[] = [];
         const secondEnd: GuestStayEvent[] = [];
-        const compareCheckpoints = compareTwoMongoDBCheckpoints as (
-          a: ProcessorCheckpoint,
-          b: ProcessorCheckpoint,
-        ) => number;
 
         const consumer = mongoDBEventStoreConsumer({
           connectionString,
@@ -659,7 +629,6 @@ void describe('MongoDB event store started consumer', () => {
             inMemoryReactor<GuestStayEvent>({
               processorId: uuid(),
               startFrom: 'END',
-              compareCheckpoints,
               eachMessage: (event) => {
                 if (event.metadata.streamName === streamName)
                   firstEnd.push(event);
@@ -668,7 +637,6 @@ void describe('MongoDB event store started consumer', () => {
             inMemoryReactor<GuestStayEvent>({
               processorId: uuid(),
               startFrom: 'END',
-              compareCheckpoints,
               eachMessage: (event) => {
                 if (event.metadata.streamName === streamName)
                   secondEnd.push(event);
@@ -724,10 +692,6 @@ void describe('MongoDB event store started consumer', () => {
             inMemoryReactor<GuestStayEvent>({
               processorId: uuid(),
               startFrom: 'END',
-              compareCheckpoints: compareTwoMongoDBCheckpoints as (
-                a: ProcessorCheckpoint,
-                b: ProcessorCheckpoint,
-              ) => number,
               eachMessage: (event) => {
                 if (event.metadata.streamName === streamName)
                   fromEnd.push(event);
@@ -784,10 +748,6 @@ void describe('MongoDB event store started consumer', () => {
               processorId: uuid(),
               startFrom: 'BEGINNING',
               canHandle: ['GuestCheckedIn'], // Only handle check-in events
-              compareCheckpoints: compareTwoMongoDBCheckpoints as (
-                a: ProcessorCheckpoint,
-                b: ProcessorCheckpoint,
-              ) => number,
               stopAfter: (event) =>
                 event.metadata.streamName === streamName &&
                 event.type === 'GuestCheckedIn' &&
@@ -837,10 +797,6 @@ void describe('MongoDB event store started consumer', () => {
 
           const fromBeginning: GuestStayEvent[] = [];
           const fromEnd: GuestStayEvent[] = [];
-          const compareCheckpoints = compareTwoMongoDBCheckpoints as (
-            a: ProcessorCheckpoint,
-            b: ProcessorCheckpoint,
-          ) => number;
 
           // When
           const consumer = mongoDBEventStoreConsumer({
@@ -850,7 +806,6 @@ void describe('MongoDB event store started consumer', () => {
               inMemoryReactor<GuestStayEvent>({
                 processorId: uuid(),
                 startFrom: 'BEGINNING',
-                compareCheckpoints,
                 eachMessage: (event) => {
                   if (event.metadata.streamName === streamName)
                     fromBeginning.push(event);
@@ -859,7 +814,6 @@ void describe('MongoDB event store started consumer', () => {
               inMemoryReactor<GuestStayEvent>({
                 processorId: uuid(),
                 startFrom: 'END',
-                compareCheckpoints,
                 eachMessage: (event) => {
                   if (event.metadata.streamName === streamName)
                     fromEnd.push(event);

@@ -6,6 +6,7 @@ import type {
   Message,
   RecordedMessage,
 } from '../typing';
+import { delayOrAbort } from '../utils';
 import type {
   MessageSource,
   MessageSourceBatch,
@@ -64,26 +65,6 @@ export const nextPollingWaitTime = (
     ? pullingFrequencyInMs
     : Math.min(current * 2, DefaultPollingBackoffCeilingInMs);
 
-const waitOrAbort = (ms: number, signal: AbortSignal): Promise<void> =>
-  new Promise<void>((resolve) => {
-    if (signal.aborted || ms <= 0) {
-      resolve();
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-
-    const onAbort = () => {
-      clearTimeout(timeout);
-      resolve();
-    };
-
-    signal.addEventListener('abort', onAbort, { once: true });
-  });
-
 export const pollingMessageSource = <
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -141,7 +122,7 @@ export const pollingMessageSource = <
           pullingFrequencyInMs,
         );
 
-        await waitOrAbort(waitTime, signal);
+        await delayOrAbort(waitTime, signal);
       }
     },
     readLastCheckpoint,

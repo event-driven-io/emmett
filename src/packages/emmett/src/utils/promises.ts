@@ -2,6 +2,30 @@ export const delay = (ms: number): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
+/**
+ * Waits, but gives up the moment the signal aborts, so a source sitting on its
+ * polling delay tears down as promptly as one mid-read.
+ */
+export const delayOrAbort = (ms: number, signal: AbortSignal): Promise<void> =>
+  new Promise<void>((resolve) => {
+    if (signal.aborted || ms <= 0) {
+      resolve();
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+
+    const onAbort = () => {
+      clearTimeout(timeout);
+      resolve();
+    };
+
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+
 export type AsyncAwaiter<T = void> = {
   wait: Promise<T>;
   resolve: (value: T | PromiseLike<T>) => void;

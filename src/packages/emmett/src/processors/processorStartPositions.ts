@@ -102,6 +102,14 @@ export type ResolveConsumerStartPositionsOptions<
     context: Partial<HandlerContext>,
   ) => Promise<ProcessorCheckpoint | null>;
   handlerContext: Partial<HandlerContext>;
+  /**
+   * Wraps only the processors' own start calls. The tail read stays outside it,
+   * because a scope can hold an exclusive store resource (SQLite's is a single
+   * pooled connection) that reading the tail would wait on forever.
+   */
+  scope?: <Result>(
+    handler: (context: Partial<HandlerContext>) => Promise<Result>,
+  ) => Promise<Result>;
   compareCheckpoints?: (
     a: ProcessorCheckpoint,
     b: ProcessorCheckpoint,
@@ -117,6 +125,7 @@ export const ConsumerStartPositions = {
     processors,
     handlerContext: handlerOptions,
     readLastMessageCheckpoint,
+    scope,
     compareCheckpoints,
   }: ResolveConsumerStartPositionsOptions<
     ConsumerMessageType,
@@ -124,20 +133,27 @@ export const ConsumerStartPositions = {
   >): Promise<ConsumerStartPositions> => {
     const positions = ProcessorStartPositions({ compareCheckpoints });
 
-    await Promise.all(
-      processors.map(async (o) => {
-        try {
-          const position = await o.start(handlerOptions);
+    const inScope =
+      scope ??
+      ((handler: (context: Partial<HandlerContext>) => Promise<void>) =>
+        handler(handlerOptions));
 
-          positions.set(o.id, position);
-        } catch (error) {
-          console.log(
-            `Error during processor start position retrieval for processor: ${o.id}. Stopping it.`,
-            error,
-          );
-          throw error;
-        }
-      }),
+    await inScope((context) =>
+      Promise.all(
+        processors.map(async (o) => {
+          try {
+            const position = await o.start(context);
+
+            positions.set(o.id, position);
+          } catch (error) {
+            console.log(
+              `Error during processor start position retrieval for processor: ${o.id}. Stopping it.`,
+              error,
+            );
+            throw error;
+          }
+        }),
+      ).then(() => undefined),
     );
 
     const endProcessorIds = positions.with('END');

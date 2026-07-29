@@ -1,40 +1,27 @@
-import type {
-  MessageHandlerContext,
-  MessageProcessor,
-  RecordedMessageMetadataWithoutGlobalPosition,
-} from '@event-driven-io/emmett';
 import {
-  asyncAwaiter,
-  ConsumerStartPositions,
-  EmmettError,
+  consumer,
   mergeObservability,
   type AnyEvent,
   type AnyMessage,
-  type AnyRecordedMessageMetadata,
-  type AsyncAwaiter,
   type AsyncRetryOptions,
-  type BatchRecordedMessageHandlerWithoutContext,
+  type ConsumerObservabilityConfig,
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
   type ProcessorCheckpoint,
+  type RecordedMessageMetadataWithoutGlobalPosition,
   type WaitOptions,
 } from '@event-driven-io/emmett';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
-import { v4 as uuid } from 'uuid';
+import { mongoDBMessageSource } from './mongoDBMessageSource';
 import {
   changeStreamReactor,
   mongoDBProjector,
   type MongoDBProcessor,
+  type MongoDBProcessorHandlerContext,
   type MongoDBProcessorOptions,
   type MongoDBProjectorOptions,
 } from './mongoDBProcessor';
-import {
-  mongoDBSubscription,
-  readLastCommittedMessageCheckpoint,
-  type MongoDBSubscription,
-} from './subscriptions';
-import { compareTwoMongoDBCheckpoints } from './subscriptions/mongoDBCheckpoint';
 
 export type MongoDBChangeStreamMessageMetadata =
   RecordedMessageMetadataWithoutGlobalPosition;
@@ -45,6 +32,10 @@ export type MongoDBEventStoreConsumerConfig<
 > = MessageConsumerOptions<ConsumerMessageType> & {
   resilience?: {
     resubscribeOptions?: AsyncRetryOptions;
+  };
+  pulling?: {
+    batchSize?: number;
+    pullingFrequencyInMs?: number;
   };
 };
 
@@ -113,200 +104,63 @@ export const mongoDBEventStoreConsumer = <
 >(
   options: MongoDBConsumerOptions<ConsumerMessageType>,
 ): MongoDBEventStoreConsumer<ConsumerMessageType> => {
-  let start: Promise<void>;
-  let stream: MongoDBSubscription | undefined;
-  let isRunning = false;
-  let isInitialized = false;
-  let startPositions: ConsumerStartPositions | undefined;
-
-  const startedAwaiter: AsyncAwaiter<void> = asyncAwaiter<void>();
-
+  const isOwnClient = !options.client;
   const client =
-    'client' in options && options.client
-      ? options.client
-      : new MongoClient(options.connectionString, options.clientOptions);
-  const processors = options.processors ?? [];
+    options.client ??
+    new MongoClient(options.connectionString, options.clientOptions);
 
-  const eachBatch: BatchRecordedMessageHandlerWithoutContext<
+  const messageConsumer = consumer<
     ConsumerMessageType,
-    MongoDBChangeStreamMessageMetadata
-  > = async (messagesBatch) => {
-    const activeProcessors = processors.filter((s) => s.isActive);
+    MongoDBChangeStreamMessageMetadata,
+    MongoDBProcessorHandlerContext
+  >({
+    ...options,
+    source: mongoDBMessageSource<ConsumerMessageType>({
+      client,
+      batchSize: options.pulling?.batchSize,
+      pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
+      resilience: options.resilience,
+    }),
+    scope: (handler) => handler({ client }),
+    hooks: {
+      onClose: async () => {
+        if (isOwnClient) await client.close();
+      },
+    },
+  });
 
-    if (activeProcessors.length === 0)
-      return {
-        type: 'STOP',
-        reason: 'No active processors',
-      };
-
-    const result = await Promise.allSettled(
-      activeProcessors.map(async (s) => {
-        // TODO: Add here filtering to only pass messages that can be handled by
-        const batch =
-          startPositions?.afterStartPosition(s.id, messagesBatch) ??
-          messagesBatch;
-
-        return await s.handle(batch, { client });
-      }),
-    );
-
-    const error = result.find((r) => r.status === 'rejected')?.reason as
-      Error | undefined;
-
-    return result.some(
-      (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
-    )
-      ? undefined
-      : {
-          type: 'STOP',
-          error: error ? EmmettError.mapFrom(error) : undefined,
-        };
-  };
-
-  const init = async (): Promise<void> => {
-    if (isInitialized) return;
-    for (const processor of processors) {
-      await processor.init({ client });
-    }
-    isInitialized = true;
-  };
-
-  const stopProcessors = () =>
-    Promise.all(processors.map((p) => p.close({ client })));
-
-  const stop = async () => {
-    if (!isRunning) return;
-
-    isRunning = false;
-
-    if (stream?.isRunning === true) await stream.stop();
-
-    await start;
-    await stopProcessors();
-  };
+  const withMergedObservability = <
+    ProcessorOptionsType extends {
+      observability?: ConsumerObservabilityConfig;
+    },
+  >(
+    processorOptions: ProcessorOptionsType,
+  ): ProcessorOptionsType => ({
+    ...processorOptions,
+    observability: mergeObservability(
+      options.observability,
+      processorOptions.observability,
+    ),
+  });
 
   return {
-    consumerId: options.consumerId ?? uuid(),
+    ...messageConsumer,
     get isRunning() {
-      return isRunning;
+      return messageConsumer.isRunning;
     },
-    whenStarted: (): Promise<void> => startedAwaiter.wait,
-    whenProcessed: (position, options): Promise<void> =>
-      Promise.all(
-        processors.map((p) => p.whenProcessed(position, options)),
-      ).then(() => undefined),
-    whenCaughtUp: async (options): Promise<void> => {
-      const tail = await readLastCommittedMessageCheckpoint(client.db());
-
-      if (tail === undefined) return;
-
-      await Promise.all(processors.map((p) => p.whenProcessed(tail, options)));
-    },
-    processors,
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       processorOptions: MongoDBProcessorOptions<MessageType>,
-    ): MongoDBProcessor<MessageType> => {
-      const processor = changeStreamReactor<MessageType>({
-        ...processorOptions,
-        observability: mergeObservability(
-          options.observability,
-          processorOptions.observability,
+    ): MongoDBProcessor<MessageType> =>
+      messageConsumer.register(
+        changeStreamReactor<MessageType>(
+          withMergedObservability(processorOptions),
         ),
-      });
-
-      processors.push(
-        // TODO: change that
-        processor as unknown as MessageProcessor<
-          ConsumerMessageType,
-          AnyRecordedMessageMetadata,
-          MessageHandlerContext
-        >,
-      );
-
-      return processor;
-    },
+      ),
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
       processorOptions: MongoDBProjectorOptions<EventType>,
-    ): MongoDBProcessor<EventType> => {
-      const processor = mongoDBProjector({
-        ...processorOptions,
-        observability: mergeObservability(
-          options.observability,
-          processorOptions.observability,
-        ),
-      });
-
-      processors.push(
-        // TODO: change that
-        processor as unknown as MessageProcessor<
-          ConsumerMessageType,
-          AnyRecordedMessageMetadata,
-          MessageHandlerContext
-        >,
-      );
-
-      return processor;
-    },
-    start: () => {
-      if (isRunning) return start;
-
-      startedAwaiter.reset();
-
-      if (processors.length === 0) {
-        const error = new EmmettError(
-          'Cannot start consumer without at least a single processor',
-        );
-        startedAwaiter.reject(error);
-        return Promise.reject(error);
-      }
-
-      isRunning = true;
-
-      start = (async () => {
-        try {
-          if (!isInitialized) {
-            await init();
-          }
-
-          startPositions = await ConsumerStartPositions.resolve({
-            processors,
-            handlerContext: { client },
-            readLastMessageCheckpoint: async () =>
-              (await readLastCommittedMessageCheckpoint(client.db())) ?? null,
-            compareCheckpoints: compareTwoMongoDBCheckpoints as (
-              a: ProcessorCheckpoint,
-              b: ProcessorCheckpoint,
-            ) => number,
-          });
-
-          stream = mongoDBSubscription<ConsumerMessageType>({
-            client,
-            from: startPositions.earliestPosition,
-            eachBatch,
-          });
-
-          await stream.start({
-            startFrom: startPositions.earliestPosition,
-            started: startedAwaiter,
-          });
-        } catch (error) {
-          isRunning = false;
-          startedAwaiter.reject(error);
-          throw error;
-        } finally {
-          await stopProcessors();
-        }
-      })();
-
-      return start;
-    },
-    stop,
-    close: async () => {
-      try {
-        await stop();
-      } finally {
-        if (!options.client) await client.close();
-      }
-    },
+    ): MongoDBProcessor<EventType> =>
+      messageConsumer.register(
+        mongoDBProjector(withMergedObservability(processorOptions)),
+      ),
   };
 };

@@ -3,6 +3,7 @@ import type {
   ProcessorCheckpoint,
 } from '../processors';
 import type { AnyMessage, AnyReadEventMetadata, Message } from '../typing';
+import { delayOrAbort } from '../utils';
 import type {
   MessageSource,
   MessageSourceBatch,
@@ -118,26 +119,6 @@ export type SubscriptionMessageSourceOptions<
   close?: () => Promise<void>;
 };
 
-const waitOrAbort = (ms: number, signal: AbortSignal): Promise<void> =>
-  new Promise<void>((resolve) => {
-    if (signal.aborted || ms <= 0) {
-      resolve();
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-
-    const onAbort = () => {
-      clearTimeout(timeout);
-      resolve();
-    };
-
-    signal.addEventListener('abort', onAbort, { once: true });
-  });
-
 export const subscriptionMessageSource = <
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -181,7 +162,7 @@ export const subscriptionMessageSource = <
           if (!shouldRetryError(error)) throw error;
 
           console.log('Subscription dropped, resubscribing.', error);
-          await waitOrAbort(resubscribeDelayInMs, signal);
+          await delayOrAbort(resubscribeDelayInMs, signal);
         }
       }
     },

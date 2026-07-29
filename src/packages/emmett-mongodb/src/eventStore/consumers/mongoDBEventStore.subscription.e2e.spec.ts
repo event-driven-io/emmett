@@ -5,6 +5,7 @@ import {
   assertNotEqual,
   assertOk,
   assertTrue,
+  ProcessorCheckpoint,
   STREAM_DOES_NOT_EXIST,
 } from '@event-driven-io/emmett';
 import { MongoClient, type Collection } from 'mongodb';
@@ -28,7 +29,6 @@ import {
   type MongoDBEventStoreConsumer,
 } from './mongoDBEventStoreConsumer';
 import type { MongoDBProcessor } from './mongoDBProcessor';
-import { compareTwoMongoDBCheckpoints } from './subscriptions';
 import type { MongoDBCheckpoint } from './subscriptions/mongoDBCheckpoint';
 
 const withDeadline = { timeout: 30000 };
@@ -203,7 +203,7 @@ void describe('MongoDBEventStore subscription', () => {
     // processor after restart is renewed after the 3rd position.
     assertEqual(
       0,
-      compareTwoMongoDBCheckpoints(
+      ProcessorCheckpoint.compare(
         position.lastCheckpoint as MongoDBCheckpoint,
         lastResumeToken!,
       ),
@@ -236,7 +236,7 @@ void describe('MongoDBEventStore subscription', () => {
     // lastResumeToken has changed after the last message
     assertEqual(
       1,
-      compareTwoMongoDBCheckpoints(
+      ProcessorCheckpoint.compare(
         lastResumeToken!,
         position.lastCheckpoint as MongoDBCheckpoint,
       ),
