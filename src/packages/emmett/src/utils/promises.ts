@@ -6,7 +6,11 @@ export const delay = (ms: number): Promise<void> => {
  * Waits, but gives up the moment the signal aborts, so a source sitting on its
  * polling delay tears down as promptly as one mid-read.
  */
-export const delayOrAbort = (ms: number, signal: AbortSignal): Promise<void> =>
+export const delayOrAbort = (
+  ms: number,
+  signal: AbortSignal,
+  options?: { unref?: boolean },
+): Promise<void> =>
   new Promise<void>((resolve) => {
     if (signal.aborted || ms <= 0) {
       resolve();
@@ -17,6 +21,7 @@ export const delayOrAbort = (ms: number, signal: AbortSignal): Promise<void> =>
       signal.removeEventListener('abort', onAbort);
       resolve();
     }, ms);
+    if (options?.unref) timeout.unref();
 
     const onAbort = () => {
       clearTimeout(timeout);

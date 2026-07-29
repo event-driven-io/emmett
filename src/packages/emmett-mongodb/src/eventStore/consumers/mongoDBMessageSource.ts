@@ -14,7 +14,6 @@ import type { MongoClient } from 'mongodb';
 import type { MongoDBChangeStreamMessageMetadata } from './mongoDBEventStoreConsumer';
 import {
   getDatabaseVersionPolicies,
-  isDatabaseUnavailableError,
   MongoDBResubscribeDefaultOptions,
   oplogChangeToMessages,
   readLastCommittedMessageCheckpoint,
@@ -52,8 +51,10 @@ export const mongoDBMessageSource = <MessageType extends Message = AnyMessage>({
     pullingFrequencyInMs ??
     DefaultMongoDBEventStoreProcessorPullingFrequencyInMs;
 
-  const resubscribeOptions =
-    resilience?.resubscribeOptions ?? MongoDBResubscribeDefaultOptions;
+  const resubscribeOptions = resilience?.resubscribeOptions ?? {
+    ...MongoDBResubscribeDefaultOptions,
+    shouldRetryResult: () => true,
+  };
 
   return subscriptionMessageSource<
     MessageType,
@@ -134,11 +135,6 @@ export const mongoDBMessageSource = <MessageType extends Message = AnyMessage>({
     readLastCheckpoint: async (): Promise<ProcessorCheckpoint | null> =>
       (await readLastCommittedMessageCheckpoint(db())) ?? null,
     batchSize: batchSize ?? DefaultMongoDBEventStoreProcessorBatchSize,
-    resilience: {
-      shouldRetryError: (error) =>
-        resubscribeOptions.shouldRetryError?.(error) ??
-        !isDatabaseUnavailableError(error),
-      resubscribeDelayInMs: resubscribeOptions.minTimeout,
-    },
+    resilience: resubscribeOptions,
   });
 };

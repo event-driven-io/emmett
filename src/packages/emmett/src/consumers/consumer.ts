@@ -223,9 +223,6 @@ export const consumer = <
       startedAwaiter.reset();
 
       if (processors.length === 0) {
-        console.log(
-          'Cannot start consumer without at least a single processor',
-        );
         const error = new EmmettError(
           'Cannot start consumer without at least a single processor',
         );
@@ -251,9 +248,12 @@ export const consumer = <
 
           const startTail = until?.caughtUp ? await readTail() : null;
 
-          startedAwaiter.resolve();
+          if (until?.caughtUp && startTail === null) {
+            startedAwaiter.resolve();
+            return;
+          }
 
-          if (until?.caughtUp && startTail === null) return;
+          let sourceStarted = false;
 
           const handleBatch = (
             messages: RecordedMessage<
@@ -305,6 +305,11 @@ export const consumer = <
             batchSize,
             signal: controller.signal,
           })) {
+            if (!sourceStarted) {
+              sourceStarted = true;
+              startedAwaiter.resolve();
+            }
+
             const { messages, caughtUp } = splitControlMessages(
               sourceBatch.messages,
             );
@@ -322,6 +327,8 @@ export const consumer = <
             )
               break;
           }
+
+          if (!sourceStarted) startedAwaiter.resolve();
         } catch (error) {
           startedAwaiter.reject(error);
           throw error;
