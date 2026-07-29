@@ -1,10 +1,10 @@
 import { defineConfig } from 'vitest/config';
-import shared from '../../vitest.shared';
+import { containersShared } from '../../vitest.shared';
 
 export default defineConfig({
-  ...shared,
+  ...containersShared,
   test: {
-    ...shared.test,
+    ...containersShared.test,
     globalSetup: ['./src/testing/sharedMongoDBGlobalSetup.ts'],
   },
 });
