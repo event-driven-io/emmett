@@ -1,9 +1,11 @@
 import { dumbo, type Dumbo, SQL } from '@event-driven-io/dumbo';
 import { assertEqual, type Event } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -13,14 +15,14 @@ import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 const withDeadline = { timeout: 30000 };
 
 void describe('PostgreSQL processor transaction handling', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let eventStore: PostgresEventStore;
   let observerPool: Dumbo;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
     eventStore = getPostgreSQLEventStore(connectionString);
     await eventStore.schema.migrate();
     observerPool = dumbo({ connectionString });
@@ -37,7 +39,7 @@ void describe('PostgreSQL processor transaction handling', () => {
     try {
       await observerPool?.close();
       await eventStore?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

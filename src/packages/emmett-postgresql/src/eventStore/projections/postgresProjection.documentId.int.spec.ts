@@ -1,7 +1,9 @@
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import {
   eventInStream,
   expectPongoDocuments,
@@ -75,7 +77,7 @@ const fanOutProjection = pongoMultiStreamProjection<
 });
 
 void describe('Pongo projection document id behaviour', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let givenNullableId: PostgreSQLProjectionSpec<ProductItemAdded>;
   let givenFanOut: PostgreSQLProjectionSpec<ProductItemAdded>;
@@ -84,8 +86,8 @@ void describe('Pongo projection document id behaviour', () => {
   let allId: string;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
 
     givenNullableId = PostgreSQLProjectionSpec.for({
       projection: nullableIdProjection,
@@ -106,7 +108,7 @@ void describe('Pongo projection document id behaviour', () => {
 
   afterAll(async () => {
     try {
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

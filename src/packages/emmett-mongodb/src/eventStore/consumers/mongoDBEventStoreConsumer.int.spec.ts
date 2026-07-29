@@ -6,7 +6,6 @@ import {
   assertTrue,
   type MessageProcessor,
 } from '@event-driven-io/emmett';
-import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import {
   afterAll,
   afterEach,
@@ -17,16 +16,19 @@ import {
 } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
+  sharedMongoDBDatabase,
+  type SharedMongoDBDatabase,
+} from '../../testing/sharedMongoDBDatabase';
+import {
   mongoDBEventStoreConsumer,
   type MongoDBEventStoreConsumer,
 } from './mongoDBEventStoreConsumer';
 import { isDatabaseUnavailableError } from './subscriptions';
-import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 30000 };
 
 void describe('mongoDB event store consumer', () => {
-  let mongoDB: StartedMongoDBContainer;
+  let database: SharedMongoDBDatabase;
   let connectionString: string;
   const dummyProcessor: MessageProcessor = {
     type: 'reactor',
@@ -40,14 +42,14 @@ void describe('mongoDB event store consumer', () => {
     isActive: false,
   };
 
-  beforeAll(async () => {
-    mongoDB = await getMongoDBStartedContainer();
-    connectionString = mongoDB.getConnectionString();
+  beforeAll(() => {
+    database = sharedMongoDBDatabase();
+    connectionString = database.connectionString;
   });
 
   afterAll(async () => {
     try {
-      await mongoDB.stop();
+      await database.close();
     } catch (error) {
       console.log(error);
     }

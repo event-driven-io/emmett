@@ -1,7 +1,10 @@
-import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient } from 'mongodb';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import {
+  sharedMongoDBDatabase,
+  type SharedMongoDBDatabase,
+} from '../../testing/sharedMongoDBDatabase';
 import type {
   DiscountApplied,
   ProductItemAdded,
@@ -16,12 +19,11 @@ import {
   expectInlineReadModel,
   MongoDBInlineProjectionSpec,
 } from './mongoDBInlineProjectionSpec';
-import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 type ShoppingCartId = StreamName<'shopping_cart'>;
 
 void describe('MongoDB Projections', () => {
-  let mongodb: StartedMongoDBContainer;
+  let database: SharedMongoDBDatabase;
   let client: MongoClient;
   let given: MongoDBInlineProjectionSpec<
     ShoppingCartId,
@@ -29,9 +31,9 @@ void describe('MongoDB Projections', () => {
   >;
   let streamName: ShoppingCartId;
 
-  beforeAll(async () => {
-    mongodb = await getMongoDBStartedContainer();
-    client = new MongoClient(mongodb.getConnectionString(), {
+  beforeAll(() => {
+    database = sharedMongoDBDatabase();
+    client = new MongoClient(database.connectionString, {
       directConnection: true,
     });
 
@@ -48,7 +50,7 @@ void describe('MongoDB Projections', () => {
   afterAll(async () => {
     try {
       await client.close();
-      await mongodb.stop();
+      await database.close();
     } catch (error) {
       console.log(error);
     }

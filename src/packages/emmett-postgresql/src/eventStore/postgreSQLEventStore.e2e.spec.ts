@@ -13,10 +13,8 @@ import {
   type Event,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { v4 as uuid } from 'uuid';
 import {
   afterAll,
@@ -27,6 +25,10 @@ import {
   it,
 } from 'vitest';
 import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../testing/postgreSQLTestDatabase';
+import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from './postgreSQLEventStore';
@@ -36,7 +38,7 @@ import { pongoSingleStreamProjection } from './projections/pongo/pongoProjection
 void describe('EventStoreDBEventStore', () => {
   const M = MessagingAttributes;
   const given = ObservabilitySpec.for();
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let eventStore: PostgresEventStore;
   let connectionString: string;
   let pongo: PongoClient;
@@ -51,8 +53,8 @@ void describe('EventStoreDBEventStore', () => {
   let schemaHookCreationHookCalls = 0;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
     pongo = pongoClient({
       connectionString,
       driver: pgDriver,
@@ -92,7 +94,7 @@ void describe('EventStoreDBEventStore', () => {
   afterAll(async () => {
     try {
       await pongo?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

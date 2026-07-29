@@ -3,16 +3,18 @@ import {
   assertMatches,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import {
   pongoClient,
   type PongoClient,
   type PongoCollection,
 } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import type {
   ProductItemAdded,
   ShoppingCartConfirmed,
@@ -29,7 +31,7 @@ import type { PostgreSQLProjectorOptions } from './postgreSQLProcessor';
 const withDeadline = { timeout: 30000 };
 
 void describe('PostgreSQL event store started consumer', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let eventStore: PostgresEventStore;
   let pongo: PongoClient;
@@ -38,8 +40,8 @@ void describe('PostgreSQL event store started consumer', () => {
   const confirmedAt = new Date();
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
     eventStore = getPostgreSQLEventStore(connectionString);
     pongo = pongoClient({
       connectionString,
@@ -58,7 +60,7 @@ void describe('PostgreSQL event store started consumer', () => {
     try {
       await eventStore?.close();
       await pongo?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

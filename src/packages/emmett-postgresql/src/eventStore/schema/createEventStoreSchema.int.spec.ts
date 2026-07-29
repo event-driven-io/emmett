@@ -6,18 +6,20 @@ import {
   type PgPool,
 } from '@event-driven-io/dumbo/pg';
 import { assertFalse, assertTrue } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import { createEventStoreSchema } from '../schema';
 
 void describe('createEventStoreSchema', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let pool: PgPool;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    const connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    const connectionString = database.connectionString;
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
@@ -31,7 +33,7 @@ void describe('createEventStoreSchema', () => {
   afterAll(async () => {
     try {
       await pool?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

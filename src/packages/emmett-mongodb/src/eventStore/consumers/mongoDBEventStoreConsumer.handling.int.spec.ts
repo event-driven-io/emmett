@@ -8,10 +8,12 @@ import {
   type ProcessorCheckpoint,
 } from '@event-driven-io/emmett';
 import { compareTwoMongoDBCheckpoints } from './subscriptions';
-import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import {
+  sharedMongoDBDatabase,
+  type SharedMongoDBDatabase,
+} from '../../testing/sharedMongoDBDatabase';
 import {
   getMongoDBEventStore,
   type MongoDBEventStore,
@@ -21,16 +23,16 @@ import { mongoDBEventStoreConsumer } from './mongoDBEventStoreConsumer';
 const withDeadline = { timeout: 30000 };
 
 void describe('MongoDB event store started consumer', () => {
-  let mongoDB: StartedMongoDBContainer;
+  let database: SharedMongoDBDatabase;
   let connectionString: string;
   let eventStore: MongoDBEventStore & Closeable;
   //const database = getInMemoryDatabase();
 
-  beforeAll(async () => {
-    mongoDB = await getMongoDBStartedContainer();
-    connectionString = mongoDB.getConnectionString();
+  beforeAll(() => {
+    database = sharedMongoDBDatabase();
+    connectionString = database.connectionString;
     eventStore = getMongoDBEventStore({
-      connectionString: mongoDB.getConnectionString(),
+      connectionString,
       clientOptions: { directConnection: true },
     });
   });
@@ -38,7 +40,7 @@ void describe('MongoDB event store started consumer', () => {
   afterAll(async () => {
     try {
       await eventStore.close();
-      await mongoDB.stop();
+      await database.close();
     } catch (error) {
       console.log(error);
     }

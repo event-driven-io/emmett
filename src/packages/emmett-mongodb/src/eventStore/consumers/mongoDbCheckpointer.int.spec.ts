@@ -1,7 +1,10 @@
 import { assertDeepEqual } from '@event-driven-io/emmett';
-import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient } from 'mongodb';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import {
+  sharedMongoDBDatabase,
+  type SharedMongoDBDatabase,
+} from '../../testing/sharedMongoDBDatabase';
 import {
   readProcessorCheckpoint,
   storeProcessorCheckpoint,
@@ -10,10 +13,9 @@ import {
   toMongoDBCheckpoint,
   type MongoDBCheckpoint,
 } from './subscriptions/mongoDBCheckpoint';
-import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () => {
-  let mongodb: StartedMongoDBContainer;
+  let database: SharedMongoDBDatabase;
   let client: MongoClient;
 
   const processorId = 'processorId-1';
@@ -39,8 +41,8 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
     2,
   );
   beforeAll(async () => {
-    mongodb = await getMongoDBStartedContainer();
-    client = new MongoClient(mongodb.getConnectionString(), {
+    database = sharedMongoDBDatabase();
+    client = new MongoClient(database.connectionString, {
       directConnection: true,
     });
 
@@ -49,7 +51,7 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
 
   afterAll(async () => {
     await client.close();
-    await mongodb.stop();
+    await database.close();
   });
 
   void it('should store successfully last proceeded MongoDB resume token for the first time', async () => {

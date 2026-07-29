@@ -14,12 +14,14 @@ import {
   STREAM_DOES_NOT_EXIST,
   type Event,
 } from '@event-driven-io/emmett';
-import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient, type Collection } from 'mongodb';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import type { PricedProductItem, ShoppingCartEvent } from '../testing';
+import {
+  sharedMongoDBDatabase,
+  type SharedMongoDBDatabase,
+} from '../testing/sharedMongoDBDatabase';
 import {
   getMongoDBEventStore,
   toStreamCollectionName,
@@ -31,14 +33,14 @@ import {
 void describe('MongoDBEventStore', () => {
   const M = MessagingAttributes;
   const given = ObservabilitySpec.for();
-  let mongodb: StartedMongoDBContainer;
+  let database: SharedMongoDBDatabase;
   let eventStore: MongoDBEventStore;
   let client: MongoClient;
   let collection: Collection<EventStream>;
 
   beforeAll(async () => {
-    mongodb = await getMongoDBStartedContainer();
-    client = new MongoClient(mongodb.getConnectionString(), {
+    database = sharedMongoDBDatabase();
+    client = new MongoClient(database.connectionString, {
       directConnection: true,
     });
 
@@ -57,7 +59,7 @@ void describe('MongoDBEventStore', () => {
   afterAll(async () => {
     try {
       await client.close();
-      await mongodb.stop();
+      await database.close();
     } catch (error) {
       console.log(error);
     }

@@ -6,10 +6,12 @@ import {
   workflowStreamName,
   type WorkflowOptions,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import {
   GroupCheckoutWorkflow,
   type CheckOut,
@@ -51,13 +53,13 @@ const workflowProcessorOptions: WorkflowOptions<
 const handleWorkflow = WorkflowHandler(workflowProcessorOptions);
 
 void describe('PostgreSQL event store workflow processor', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let eventStore: PostgresEventStore;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
     eventStore = getPostgreSQLEventStore(connectionString);
     await eventStore.schema.migrate();
   });
@@ -72,7 +74,7 @@ void describe('PostgreSQL event store workflow processor', () => {
   afterAll(async () => {
     try {
       await eventStore?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

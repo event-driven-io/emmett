@@ -10,9 +10,12 @@ import {
   type ProcessorCheckpoint,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import {
+  sharedMongoDBDatabase,
+  type SharedMongoDBDatabase,
+} from '../../testing/sharedMongoDBDatabase';
 import type {
   ProductItemAdded,
   ShoppingCartConfirmed,
@@ -22,7 +25,6 @@ import {
   type MongoDBEventStore,
 } from '../mongoDBEventStore';
 import { mongoDBEventStoreConsumer } from './mongoDBEventStoreConsumer';
-import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { compareTwoMongoDBCheckpoints } from './subscriptions';
 
 const withDeadline = { timeout: 30000 };
@@ -37,7 +39,7 @@ const compareCheckpoints = compareTwoMongoDBCheckpoints as (
 ) => number;
 
 void describe('mongoDB event store started consumer', () => {
-  let mongoDB: StartedMongoDBContainer;
+  let sharedDatabase: SharedMongoDBDatabase;
   let connectionString: string;
   let eventStore: MongoDBEventStore & Closeable;
   let summaries: InMemoryDocumentsCollection<ShoppingCartSummary>;
@@ -45,11 +47,11 @@ void describe('mongoDB event store started consumer', () => {
   const confirmedAt = new Date();
   const database = getInMemoryDatabase();
 
-  beforeAll(async () => {
-    mongoDB = await getMongoDBStartedContainer();
-    connectionString = mongoDB.getConnectionString();
+  beforeAll(() => {
+    sharedDatabase = sharedMongoDBDatabase();
+    connectionString = sharedDatabase.connectionString;
     eventStore = getMongoDBEventStore({
-      connectionString: mongoDB.getConnectionString(),
+      connectionString,
       clientOptions: { directConnection: true },
     });
     summaries = database.collection(shoppingCartsSummaryCollectionName);
@@ -58,7 +60,7 @@ void describe('mongoDB event store started consumer', () => {
   afterAll(async () => {
     try {
       await eventStore.close();
-      await mongoDB.stop();
+      await sharedDatabase.close();
     } catch (error) {
       console.log(error);
     }

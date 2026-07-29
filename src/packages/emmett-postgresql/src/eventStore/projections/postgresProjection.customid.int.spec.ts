@@ -1,14 +1,16 @@
 import type { Event } from '@event-driven-io/emmett';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import {
   expectPongoDocuments,
   pongoSingleStreamProjection,
   PostgreSQLProjectionSpec,
 } from '.';
 import type { PricedProductItem } from '../../testing/shoppingCart.domain';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -16,15 +18,15 @@ export type ProductItemAdded = Event<
 >;
 
 void describe('Postgres Projections', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let given: PostgreSQLProjectionSpec<ProductItemAdded>;
   let shoppingCartId: string;
   let streamName: string;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
 
     given = PostgreSQLProjectionSpec.for({
       projection: shoppingCartShortInfoProjection,
@@ -39,7 +41,7 @@ void describe('Postgres Projections', () => {
 
   afterAll(async () => {
     try {
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }
