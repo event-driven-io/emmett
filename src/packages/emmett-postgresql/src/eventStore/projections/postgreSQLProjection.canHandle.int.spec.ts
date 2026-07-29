@@ -1,7 +1,9 @@
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import {
   eventInStream,
   expectPongoDocuments,
@@ -68,7 +70,7 @@ const shoppingCartShortInfoProjection = pongoSingleStreamProjection<
 });
 
 void describe('PostgreSQL handleProjections canHandle filtering', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let given: PostgreSQLProjectionSpec<
     ProductItemAdded | DiscountApplied | ShoppingCartConfirmed
@@ -76,8 +78,8 @@ void describe('PostgreSQL handleProjections canHandle filtering', () => {
   let shoppingCartId: string;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
 
     given = PostgreSQLProjectionSpec.for({
       projection: shoppingCartShortInfoProjection,
@@ -91,7 +93,7 @@ void describe('PostgreSQL handleProjections canHandle filtering', () => {
 
   afterAll(async () => {
     try {
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

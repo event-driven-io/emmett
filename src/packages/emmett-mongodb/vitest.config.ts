@@ -3,4 +3,8 @@ import shared from '../../vitest.shared';
 
 export default defineConfig({
   ...shared,
+  test: {
+    ...shared.test,
+    globalSetup: ['./src/testing/sharedMongoDBGlobalSetup.ts'],
+  },
 });

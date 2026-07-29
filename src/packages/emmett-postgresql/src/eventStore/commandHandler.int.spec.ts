@@ -4,12 +4,14 @@ import {
   assertIsNotNull,
   CommandHandler,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../testing/postgreSQLTestDatabase';
 import {
   getPostgreSQLEventStore,
   pongoSingleStreamProjection,
@@ -24,14 +26,14 @@ import {
 } from '../testing/shoppingCart.domain';
 
 void describe('Postgres Projections', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let eventStore: PostgresEventStore;
   let connectionString: string;
   let pongo: PongoClient;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
     eventStore = getPostgreSQLEventStore(connectionString, {
       projections: [
         { type: 'inline', projection: shoppingCartShortInfoProjection },
@@ -57,7 +59,7 @@ void describe('Postgres Projections', () => {
     try {
       await eventStore?.close();
       await pongo?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

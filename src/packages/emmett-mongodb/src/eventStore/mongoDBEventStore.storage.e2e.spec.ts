@@ -3,7 +3,6 @@ import {
   assertOk,
   assertThatArray,
 } from '@event-driven-io/emmett';
-import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import type { Collection, Db } from 'mongodb';
 import { MongoClient } from 'mongodb';
 import { afterAll, beforeAll, describe, it } from 'vitest';
@@ -21,15 +20,18 @@ import {
   type DiscountApplied,
   type ProductItemAdded,
 } from '../testing';
-import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
+import {
+  sharedMongoDBDatabase,
+  type SharedMongoDBDatabase,
+} from '../testing/sharedMongoDBDatabase';
 
 void describe('MongoDBEventStore storage resolution', () => {
-  let mongodb: StartedMongoDBContainer;
+  let database: SharedMongoDBDatabase;
   let client: MongoClient;
 
-  beforeAll(async () => {
-    mongodb = await getMongoDBStartedContainer();
-    client = new MongoClient(mongodb.getConnectionString(), {
+  beforeAll(() => {
+    database = sharedMongoDBDatabase();
+    client = new MongoClient(database.connectionString, {
       directConnection: true,
     });
   });
@@ -37,7 +39,7 @@ void describe('MongoDBEventStore storage resolution', () => {
   afterAll(async () => {
     try {
       await client.close();
-      await mongodb.stop();
+      await database.close();
     } catch (error) {
       console.log(error);
     }

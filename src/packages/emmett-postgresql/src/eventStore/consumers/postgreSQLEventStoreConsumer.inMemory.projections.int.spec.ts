@@ -6,10 +6,12 @@ import {
   type InMemoryDocumentsCollection,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import type {
   ProductItemAdded,
   ShoppingCartConfirmed,
@@ -23,7 +25,7 @@ import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 const withDeadline = { timeout: 30000 };
 
 void describe('PostgreSQL event store started consumer', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let postgresDatabase: PostgreSQLTestDatabase;
   let connectionString: string;
   let eventStore: PostgresEventStore;
   let summaries: InMemoryDocumentsCollection<ShoppingCartSummary>;
@@ -32,8 +34,8 @@ void describe('PostgreSQL event store started consumer', () => {
   const database = getInMemoryDatabase();
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    postgresDatabase = await sharedPostgreSQLDatabase();
+    connectionString = postgresDatabase.connectionString;
     eventStore = getPostgreSQLEventStore(connectionString);
     summaries = database.collection(shoppingCartsSummaryCollectionName);
     await eventStore.schema.migrate();
@@ -42,7 +44,7 @@ void describe('PostgreSQL event store started consumer', () => {
   afterAll(async () => {
     try {
       await eventStore?.close();
-      await postgres?.stop();
+      await postgresDatabase?.close();
     } catch (error) {
       console.log(error);
     }

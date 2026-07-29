@@ -7,13 +7,13 @@ import {
   assertTrue,
   STREAM_DOES_NOT_EXIST,
 } from '@event-driven-io/emmett';
-import {
-  MongoDBContainer,
-  type StartedMongoDBContainer,
-} from '@testcontainers/mongodb';
 import { MongoClient, type Collection } from 'mongodb';
 import { v4 as uuid, v4 } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import {
+  sharedMongoDBDatabase,
+  type SharedMongoDBDatabase,
+} from '../../testing/sharedMongoDBDatabase';
 import {
   getMongoDBEventStore,
   toStreamCollectionName,
@@ -34,7 +34,7 @@ import type { MongoDBCheckpoint } from './subscriptions/mongoDBCheckpoint';
 const withDeadline = { timeout: 30000 };
 
 void describe('MongoDBEventStore subscription', () => {
-  let mongodb: StartedMongoDBContainer;
+  let database: SharedMongoDBDatabase;
   let eventStore: MongoDBEventStore;
   let client: MongoClient;
   let collection: Collection<EventStream>;
@@ -63,8 +63,8 @@ void describe('MongoDBEventStore subscription', () => {
   });
 
   beforeAll(async () => {
-    mongodb = await new MongoDBContainer('mongo:8.0.10').start();
-    client = new MongoClient(mongodb.getConnectionString(), {
+    database = sharedMongoDBDatabase();
+    client = new MongoClient(database.connectionString, {
       directConnection: true,
     });
 
@@ -88,7 +88,7 @@ void describe('MongoDBEventStore subscription', () => {
       await consumer.close();
     }
     await client.close();
-    await mongodb.stop();
+    await database.close();
   });
 
   void it(

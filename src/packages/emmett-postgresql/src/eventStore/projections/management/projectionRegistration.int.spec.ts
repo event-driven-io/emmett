@@ -11,9 +11,11 @@ import {
   defaultTag,
   type ProjectionRegistration,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../../testing/postgreSQLTestDatabase';
 import type { PostgreSQLProjectionHandlerContext } from '..';
 import type { PostgresReadEventMetadata } from '../../postgreSQLEventStore';
 import { createEventStoreSchema } from '../../schema';
@@ -25,12 +27,12 @@ import {
 } from './projectionManagement';
 
 void describe('projectionRegistration', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let pool: PgPool;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    const connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    const connectionString = database.connectionString;
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
@@ -44,7 +46,7 @@ void describe('projectionRegistration', () => {
   afterAll(async () => {
     try {
       await pool?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

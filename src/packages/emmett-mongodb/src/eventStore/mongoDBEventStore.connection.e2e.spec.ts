@@ -1,21 +1,23 @@
 import { assertIsNotNull, assertThrowsAsync } from '@event-driven-io/emmett';
-import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient, MongoNotConnectedError } from 'mongodb';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { getMongoDBEventStore, toStreamCollectionName } from '.';
 import { assertCanAppend, ShoppingCartStreamType } from '../testing';
-import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
+import {
+  sharedMongoDBDatabase,
+  type SharedMongoDBDatabase,
+} from '../testing/sharedMongoDBDatabase';
 
 void describe('MongoDBEventStore connection', () => {
-  let mongodb: StartedMongoDBContainer;
+  let database: SharedMongoDBDatabase;
 
-  beforeAll(async () => {
-    mongodb = await getMongoDBStartedContainer();
+  beforeAll(() => {
+    database = sharedMongoDBDatabase();
   });
 
   afterAll(async () => {
     try {
-      await mongodb.stop();
+      await database.close();
     } catch (error) {
       console.log(error);
     }
@@ -23,7 +25,7 @@ void describe('MongoDBEventStore connection', () => {
 
   void it('connects using connection string', async () => {
     const eventStore = getMongoDBEventStore({
-      connectionString: mongodb.getConnectionString(),
+      connectionString: database.connectionString,
       clientOptions: { directConnection: true },
     });
     try {
@@ -36,7 +38,7 @@ void describe('MongoDBEventStore connection', () => {
   void it('disconnects on close', async () => {
     // given
     const eventStore = getMongoDBEventStore({
-      connectionString: mongodb.getConnectionString(),
+      connectionString: database.connectionString,
       clientOptions: { directConnection: true },
     });
     // and
@@ -53,7 +55,7 @@ void describe('MongoDBEventStore connection', () => {
   });
 
   void it('connects using not-connected client', async () => {
-    const client = new MongoClient(mongodb.getConnectionString(), {
+    const client = new MongoClient(database.connectionString, {
       directConnection: true,
     });
     try {
@@ -75,7 +77,7 @@ void describe('MongoDBEventStore connection', () => {
   });
 
   void it('connects using connected client', async () => {
-    const client = new MongoClient(mongodb.getConnectionString(), {
+    const client = new MongoClient(database.connectionString, {
       directConnection: true,
     });
 

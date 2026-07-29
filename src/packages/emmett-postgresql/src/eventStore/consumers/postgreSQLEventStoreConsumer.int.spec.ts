@@ -6,7 +6,6 @@ import {
   assertTrue,
   MessageProcessorType,
 } from '@event-driven-io/emmett';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import {
   afterAll,
   afterEach,
@@ -17,6 +16,10 @@ import {
 } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
+import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
@@ -25,12 +28,11 @@ import {
   type PostgreSQLEventStoreConsumer,
 } from './postgreSQLEventStoreConsumer';
 import type { PostgreSQLProcessor } from './postgreSQLProcessor';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 
 const withDeadline = { timeout: 30000 };
 
 void describe('PostgreSQL event store consumer', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let eventStore: PostgresEventStore;
   const dummyProcessor: PostgreSQLProcessor = {
@@ -46,8 +48,8 @@ void describe('PostgreSQL event store consumer', () => {
   };
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
     eventStore = getPostgreSQLEventStore(connectionString);
     await eventStore.schema.migrate();
   });
@@ -55,7 +57,7 @@ void describe('PostgreSQL event store consumer', () => {
   afterAll(async () => {
     try {
       await eventStore?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

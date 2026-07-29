@@ -5,16 +5,11 @@ import {
   assertThatArray,
   type Event,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  it,
-} from 'vitest';
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../../../testing/postgreSQLTestDatabase';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -42,20 +37,14 @@ export type OrderInitiated = Event<
 >;
 
 void describe('Schema migrations tests', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let pool: PgPool;
   let eventStore: PostgresEventStore;
   let connectionString: string;
 
-  beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
-
-    await postgres.snapshot();
-  });
-
   beforeEach(async () => {
-    await postgres.restoreSnapshot();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
 
     pool = dumbo({
       connectionString,
@@ -76,14 +65,7 @@ void describe('Schema migrations tests', () => {
     try {
       await eventStore?.close();
       await pool?.close();
-    } catch (error) {
-      console.log(error);
-    }
-  });
-
-  afterAll(async () => {
-    try {
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

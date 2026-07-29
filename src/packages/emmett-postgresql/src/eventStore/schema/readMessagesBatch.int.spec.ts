@@ -7,10 +7,12 @@ import {
   type Event,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import {
+  isolatedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import { createEventStoreSchema } from '.';
 import { appentToStreamRaw } from './appendToStream';
 import {
@@ -21,12 +23,12 @@ import {
 export type TestEvent = Event<'TestEvent', { meta: string }>;
 
 void describe('reading messages in batches', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let pool: PgPool;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    const connectionString = postgres.getConnectionUri();
+    database = await isolatedPostgreSQLDatabase();
+    const connectionString = database.connectionString;
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
@@ -47,7 +49,7 @@ void describe('reading messages in batches', () => {
 
   afterAll(async () => {
     await pool?.close();
-    await postgres?.stop();
+    await database?.close();
   });
 
   const createTestEvent = (

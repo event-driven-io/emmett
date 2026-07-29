@@ -1,9 +1,11 @@
 import { SQL } from '@event-driven-io/dumbo';
 import { tableExists } from '@event-driven-io/dumbo/pg';
 import { assertTrue, type Event } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import { postgreSQLRawSQLProjection } from './postgreSQLProjection';
 import { expectSQL, PostgreSQLProjectionSpec } from './postgresProjectionSpec';
 
@@ -13,17 +15,17 @@ type ProductItemAdded = Event<
 >;
 
 void describe('PostgreSQL Projections', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let connectionString: string;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
   });
 
   afterAll(async () => {
     try {
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

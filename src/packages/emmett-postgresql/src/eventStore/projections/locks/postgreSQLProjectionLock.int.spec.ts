@@ -8,9 +8,11 @@ import {
   defaultTag,
   hashText,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../../testing/postgreSQLTestDatabase';
 import { createEventStoreSchema } from '../../schema';
 import {
   postgreSQLProjectionLock,
@@ -18,14 +20,14 @@ import {
 } from './postgreSQLProjectionLock';
 
 void describe('tryAcquireProjectionLock', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let pool: PgPool;
   const defaultPartitionAndVersion1 = { partition: defaultTag, version: 1 };
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
@@ -39,7 +41,7 @@ void describe('tryAcquireProjectionLock', () => {
   afterAll(async () => {
     try {
       await pool?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

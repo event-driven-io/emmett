@@ -6,10 +6,12 @@ import {
   projections,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import {
+  isolatedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import type { ProductItemAdded } from '../../testing/shoppingCart.domain';
 import {
   getPostgreSQLEventStore,
@@ -21,14 +23,14 @@ import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
 const withDeadline = { timeout: 10000 };
 
 void describe('PostgreSQL projection rebuild with advisory locking', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let eventStore: PostgresEventStore;
   let pool: Dumbo;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await isolatedPostgreSQLDatabase();
+    connectionString = database.connectionString;
 
     eventStore = getPostgreSQLEventStore(connectionString, {
       projections: projections.inline([]),
@@ -50,7 +52,7 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
     try {
       await eventStore?.close();
       await pool?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

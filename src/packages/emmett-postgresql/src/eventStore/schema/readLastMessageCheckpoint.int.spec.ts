@@ -7,10 +7,12 @@ import {
   assertTrue,
   type Event,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import {
+  isolatedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import { createEventStoreSchema, readLastMessageCheckpoint } from '.';
 import { appendToStream } from './appendToStream';
 import { messagesTable } from './typing';
@@ -28,12 +30,12 @@ export type ProductItemAdded = Event<
 >;
 
 void describe('readLastMessageGlobalPosition', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let pool: PgPool;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    const connectionString = postgres.getConnectionUri();
+    database = await isolatedPostgreSQLDatabase();
+    const connectionString = database.connectionString;
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
@@ -54,7 +56,7 @@ void describe('readLastMessageGlobalPosition', () => {
   afterAll(async () => {
     try {
       await pool?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

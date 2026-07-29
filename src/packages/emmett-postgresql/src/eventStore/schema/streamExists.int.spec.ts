@@ -6,10 +6,12 @@ import {
   defaultTag,
   type Event,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import { createEventStoreSchema } from '.';
 import { appendToStream } from './appendToStream';
 import { streamExists } from './streamExists';
@@ -36,12 +38,12 @@ export type DiscountApplied = Event<
 export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
 void describe('streamExists', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let pool: PgPool;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    const connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    const connectionString = database.connectionString;
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
@@ -56,7 +58,7 @@ void describe('streamExists', () => {
   afterAll(async () => {
     try {
       await pool?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

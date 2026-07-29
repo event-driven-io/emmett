@@ -1,9 +1,11 @@
 import { assertEqual, type Event } from '@event-driven-io/emmett';
-import { getMongoDBStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedMongoDBContainer } from '@testcontainers/mongodb';
 import { MongoClient } from 'mongodb';
 import { v7 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import {
+  sharedMongoDBDatabase,
+  type SharedMongoDBDatabase,
+} from '../testing/sharedMongoDBDatabase';
 import {
   getMongoDBEventStore,
   type MongoDBReadEvent,
@@ -12,12 +14,12 @@ import {
 type TestEvent = Event<'test', { counter: number }, { some: boolean }>;
 
 void describe('MongoDBEventStore onAfterCommit', () => {
-  let mongodb: StartedMongoDBContainer;
+  let database: SharedMongoDBDatabase;
   let client: MongoClient;
 
   beforeAll(async () => {
-    mongodb = await getMongoDBStartedContainer();
-    client = new MongoClient(mongodb.getConnectionString(), {
+    database = sharedMongoDBDatabase();
+    client = new MongoClient(database.connectionString, {
       directConnection: true,
     });
 
@@ -27,7 +29,7 @@ void describe('MongoDBEventStore onAfterCommit', () => {
   afterAll(async () => {
     try {
       await client.close();
-      await mongodb.stop();
+      await database.close();
     } catch (error) {
       console.log(error);
     }

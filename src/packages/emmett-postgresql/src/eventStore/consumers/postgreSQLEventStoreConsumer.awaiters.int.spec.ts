@@ -3,10 +3,12 @@ import {
   assertThatArray,
   type Event,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -22,13 +24,13 @@ type GuestStayEvent = Event<
 const withDeadline = { timeout: 30000 };
 
 void describe('waiting for a PostgreSQL consumer to catch up in a test', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let eventStore: PostgresEventStore;
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
     eventStore = getPostgreSQLEventStore(connectionString);
     await eventStore.schema.migrate();
   });
@@ -43,7 +45,7 @@ void describe('waiting for a PostgreSQL consumer to catch up in a test', () => {
   afterAll(async () => {
     try {
       await eventStore?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }

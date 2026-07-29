@@ -5,15 +5,17 @@ import {
   assertIsNotNull,
   defaultTag,
 } from '@event-driven-io/emmett';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 import { createEventStoreSchema, PostgreSQLEventStoreCheckpoint } from '.';
 import { readProcessorCheckpoint } from './readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from './storeProcessorCheckpoint';
 
 void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let pool: PgPool;
 
@@ -31,8 +33,8 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
   });
 
   beforeAll(async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
@@ -48,7 +50,7 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
   afterAll(async () => {
     try {
       await pool?.close();
-      await postgres?.stop();
+      await database?.close();
     } catch (error) {
       console.log(error);
     }
