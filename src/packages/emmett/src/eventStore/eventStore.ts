@@ -1,12 +1,17 @@
-import type { MessageSource } from '../consumers/messageSource';
+import type {
+  MessageConsumer,
+  MessageConsumerOptions,
+} from '../consumers/consumers';
 import type { ProcessorCheckpoint } from '../processors';
 import type { OperationObservabilityOptions } from '../observability';
 import type { JSONSerializationOptions } from '../serialization';
 import type {
+  AnyMessage,
   AnyReadEventMetadata,
   CommonReadEventMetadata,
   DefaultRecord,
   Event,
+  Message,
   ReadEvent,
   ReadEventMetadata,
   StreamPosition,
@@ -53,16 +58,24 @@ export interface EventStore<
   streamExists(streamName: string): Promise<StreamExistsResult>;
 
   /**
-   * The store's unified read side, backing {@link consumer}. Optional because a
-   * store can be appended to and read from without supporting subscriptions,
-   * and because consumers are also built straight from a connection string,
-   * with no store instance involved.
+   * Runs projectors and reactors in the background over the messages this
+   * store records.
+   *
+   * ```ts
+   * const consumer = eventStore.consumer<ShoppingCartEvent>();
+   *
+   * consumer.projector({ processorId: 'cart-summary', projection });
+   *
+   * await consumer.start();
+   * ```
+   *
+   * Call it again whenever you need another consumer running its own
+   * processors. Stopping or closing one leaves the store open, so keep using
+   * the store afterwards and close it when you are done with it.
    */
-  messageSource?(): MessageSource<Event, ReadEventMetadataType>;
-
-  // streamEvents(): ReadableStream<
-  //   ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent
-  // >;
+  consumer?<ConsumerMessageType extends Message = AnyMessage>(
+    options?: MessageConsumerOptions<ConsumerMessageType>,
+  ): MessageConsumer<ConsumerMessageType>;
 }
 
 export type EventStoreReadEventMetadata<Store extends EventStore> =

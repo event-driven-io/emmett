@@ -6,7 +6,9 @@ import {
   type SQLitePool,
 } from '@event-driven-io/dumbo/sqlite3';
 import {
+  assertNotEqual,
   assertThatArray,
+  assertThrowsAsync,
   asyncAwaiter,
   type Event,
 } from '@event-driven-io/emmett';
@@ -25,7 +27,10 @@ import {
   type SQLiteEventStore,
 } from '../SQLiteEventStore';
 import { sqliteEventStoreConsumer } from './sqliteEventStoreConsumer';
-import type { SQLiteReactorOptions } from './sqliteProcessor';
+import type {
+  SQLiteProjectorOptions,
+  SQLiteReactorOptions,
+} from './sqliteProcessor';
 
 const withDeadline = { timeout: 30000 };
 
@@ -104,6 +109,184 @@ void describe('SQLite event store started consumer', () => {
         );
 
         assertThatArray(errors).hasSize(0);
+      },
+    );
+  });
+
+  void describe('consumer created by the event store', () => {
+    const collectingProjection = (
+      collected: GuestStayEvent[],
+    ): SQLiteProjectorOptions<GuestStayEvent>['projection'] => ({
+      name: `guestStays-${uuid()}`,
+      canHandle: ['GuestCheckedIn', 'GuestCheckedOut'],
+      handle: (events) => {
+        collected.push(...events);
+      },
+    });
+
+    void it(
+      'catches up with events appended before it was created',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, events);
+
+        const projected: GuestStayEvent[] = [];
+
+        // When
+        const consumer = eventStore.consumer();
+        consumer.projector<GuestStayEvent>({
+          processorId: uuid(),
+          projection: collectingProjection(projected),
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await consumer.whenCaughtUp();
+
+          // Then
+          assertThatArray(projected).containsOnlyElementsMatching(events);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'leaves the event store usable after the consumer was closed',
+      withDeadline,
+      async () => {
+        // Given
+        const ownedStore = getSQLiteEventStore({
+          driver: sqlite3EventStoreDriver,
+          schema: { autoMigration: 'None' },
+          fileName,
+        });
+
+        const guestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const consumer = ownedStore.consumer();
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          eachMessage: () => {},
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+
+        // When
+        await ownedStore.appendToStream(streamName, [
+          { type: 'GuestCheckedIn', data: { guestId } },
+        ]);
+
+        // Then
+        const { events: read } =
+          await ownedStore.readStream<GuestStayEvent>(streamName);
+        assertThatArray(read).hasSize(1);
+
+        // And closing the event store tears its own pool down
+        await ownedStore.close();
+
+        await assertThrowsAsync(() =>
+          ownedStore.appendToStream(streamName, [
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ]),
+        );
+      },
+    );
+
+    void it(
+      'returns distinct consumers that consume independently',
+      withDeadline,
+      async () => {
+        // Given
+        const first = eventStore.consumer();
+        const second = eventStore.consumer();
+
+        assertNotEqual(first.consumerId, second.consumerId);
+
+        const firstResult: GuestStayEvent[] = [];
+        const secondResult: GuestStayEvent[] = [];
+
+        first.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          eachMessage: (event) => {
+            firstResult.push(event);
+          },
+        });
+        second.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          eachMessage: (event) => {
+            secondResult.push(event);
+          },
+        });
+
+        const guestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+
+        let firstPromise: Promise<void> | undefined;
+        let secondPromise: Promise<void> | undefined;
+        try {
+          // When
+          firstPromise = first.start();
+          secondPromise = second.start();
+          await Promise.all([first.whenStarted(), second.whenStarted()]);
+
+          await eventStore.appendToStream(streamName, events);
+
+          await Promise.all([first.whenCaughtUp(), second.whenCaughtUp()]);
+
+          // Then
+          assertThatArray(firstResult).containsElementsMatching(events);
+          assertThatArray(secondResult).containsElementsMatching(events);
+
+          // And closing the first one keeps the second one consuming
+          await first.close();
+          await firstPromise;
+          firstPromise = undefined;
+
+          const otherGuestId = uuid();
+          const newEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          ];
+          await eventStore.appendToStream(
+            `guestStay-${otherGuestId}`,
+            newEvents,
+          );
+
+          await second.whenCaughtUp();
+
+          assertThatArray(secondResult).containsElementsMatching([
+            ...events,
+            ...newEvents,
+          ]);
+        } finally {
+          await first.close();
+          await firstPromise;
+          await second.close();
+          await secondPromise;
+        }
       },
     );
   });

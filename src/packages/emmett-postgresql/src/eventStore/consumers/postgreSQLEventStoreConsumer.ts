@@ -11,6 +11,7 @@ import {
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
+  type MessageSource,
   type ProcessorCheckpoint,
   type RecordedMessageMetadataWithGlobalPosition,
   type WaitOptions,
@@ -46,6 +47,10 @@ export type PostgreSQLEventStoreConsumerOptions<
 > = PostgreSQLEventStoreConsumerConfig<ConsumerMessageType> & {
   connectionString: string;
   pool?: Dumbo;
+  source?: MessageSource<
+    NoInfer<ConsumerMessageType>,
+    RecordedMessageMetadataWithGlobalPosition
+  >;
 };
 
 export type PostgreSQLEventStoreConsumer<
@@ -110,6 +115,20 @@ export const postgreSQLEventStoreConsumer = <
         },
       });
 
+  // An injected source is borrowed, not owned, same as the pool above. Core
+  // consumer closes the source it gets, so its close is stubbed out to leave
+  // the lifecycle with whoever passed it.
+  const source: MessageSource<
+    ConsumerMessageType,
+    RecordedMessageMetadataWithGlobalPosition
+  > = options.source
+    ? { ...options.source, close: () => Promise.resolve() }
+    : postgreSQLMessageSource<ConsumerMessageType>({
+        pool,
+        batchSize: options.pulling?.batchSize,
+        pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
+      });
+
   const processorContext = {
     execute: pool.execute,
     connection: {
@@ -127,11 +146,7 @@ export const postgreSQLEventStoreConsumer = <
     PostgreSQLProcessorHandlerContext
   >({
     ...options,
-    source: postgreSQLMessageSource<ConsumerMessageType>({
-      pool,
-      batchSize: options.pulling?.batchSize,
-      pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
-    }),
+    source,
     scope: (handler) => handler(processorContext),
     until:
       options.until ??

@@ -13,6 +13,7 @@ import {
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
+  type MessageSource,
   type ProcessorCheckpoint,
   type WaitOptions,
 } from '@event-driven-io/emmett';
@@ -39,8 +40,9 @@ export type EventStoreDBEventStoreConsumerConfig<
 
 export type EventStoreDBEventStoreConsumerOptions<
   ConsumerEventType extends Message = Message,
-> = EventStoreDBEventStoreConsumerConfig<ConsumerEventType> &
-  (
+> = EventStoreDBEventStoreConsumerConfig<ConsumerEventType> & {
+  source?: MessageSource<ConsumerEventType, EventStoreDBReadEventMetadata>;
+} & (
     | {
         connectionString: string;
         client?: never;
@@ -96,17 +98,23 @@ export const eventStoreDBEventStoreConsumer = <
     options.client ??
     EventStoreDBClient.connectionString(options.connectionString);
 
+  // An injected source is borrowed, so its close is stubbed out: the core
+  // consumer closes whatever source it gets, and that's the owner's call.
+  const source = options.source
+    ? { ...options.source, close: () => Promise.resolve() }
+    : eventStoreDBMessageSource<ConsumerMessageType>({
+        client,
+        from: options.from,
+        batchSize: options.pulling?.batchSize,
+        resilience: options.resilience,
+      });
+
   const messageConsumer = consumer<
     ConsumerMessageType,
     EventStoreDBReadEventMetadata
   >({
     ...options,
-    source: eventStoreDBMessageSource<ConsumerMessageType>({
-      client,
-      from: options.from,
-      batchSize: options.pulling?.batchSize,
-      resilience: options.resilience,
-    }),
+    source,
     hooks: {
       onClose: async () => {
         if (isOwnClient) await client.dispose();
