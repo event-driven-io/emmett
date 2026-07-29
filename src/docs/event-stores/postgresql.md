@@ -173,38 +173,19 @@ const clientSummaryProjection = pongoMultiStreamProjection<
 
 ## Async Consumers
 
-For background processing with checkpointing:
+To update read models or trigger side effects in the background, build a consumer from the event store and register a projector or a reactor on it:
 
-```typescript
-const consumer = eventStore.consumer();
+<<< @/snippets/eventStores/consumers/postgreSQLConsumer.int.spec.ts#postgresql-consumer
 
-// Projector for read model updates
-consumer.projector({
-  processorId: 'cart-analytics',
-  projection: {
-    name: 'CartAnalytics',
-    canHandle: ['ShoppingCartConfirmed'],
-    handle: async (events, { execute }) => {
-      for (const event of events) {
-        await execute.command(/* SQL to update analytics */);
-      }
-    },
-  },
-});
+`whenCaughtUp()` resolves once every processor has handled what was appended so far, which is what you wait on in tests instead of sleeping.
 
-// Reactor for side effects
-consumer.reactor({
-  processorId: 'order-notifications',
-  eachMessage: async (message, context) => {
-    if (message.type === 'ShoppingCartConfirmed') {
-      await sendOrderConfirmationEmail(message.metadata.clientId);
-    }
-  },
-  canHandle: ['ShoppingCartConfirmed'],
-});
+Call `consumer()` again whenever you want another consumer running its own processors. Each one is independent, so stopping one does not affect the others.
 
-await consumer.start();
-```
+Closing a consumer leaves the event store open. Keep using the store afterwards, and close it when you are done with it:
+
+<<< @/snippets/eventStores/consumers/postgreSQLConsumer.int.spec.ts#postgresql-consumer-close
+
+You can also run a consumer without an event store, straight from a connection string, with `postgreSQLEventStoreConsumer({ connectionString })`. That consumer opens its own connection, so closing it closes the connection too.
 
 ## Transactions
 

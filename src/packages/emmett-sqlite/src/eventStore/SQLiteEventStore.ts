@@ -11,6 +11,7 @@ import {
   noopScope,
   type AggregateStreamOptions,
   type AggregateStreamResult,
+  type AnyMessage,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
   type BeforeEventStoreCommitHandler,
@@ -20,6 +21,7 @@ import {
   type EventStoreSession,
   type EventStoreSessionFactory,
   type JSONSerializationOptions,
+  type Message,
   mergeObservability,
   type ProjectionRegistration,
   type ReadEvent,
@@ -70,9 +72,9 @@ export interface SQLiteEventStore
     events: EventType[],
     options?: AppendToStreamOptions<EventType, EventPayloadType>,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
-  consumer<ConsumerEventType extends Event = Event>(
-    options?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
-  ): SQLiteEventStoreConsumer<ConsumerEventType>;
+  consumer<ConsumerMessageType extends Message = AnyMessage>(
+    options?: SQLiteEventStoreConsumerConfig<ConsumerMessageType>,
+  ): SQLiteEventStoreConsumer<ConsumerMessageType>;
   streamExists(
     streamName: string,
     options?: SQLiteStreamExistsOptions,
@@ -369,10 +371,10 @@ export const getSQLiteEventStore = <
       return streamExists(pool.execute, streamName, options);
     },
 
-    consumer: <ConsumerEventType extends Event = Event>(
-      consumerOptions?: SQLiteEventStoreConsumerConfig<ConsumerEventType>,
-    ): SQLiteEventStoreConsumer<ConsumerEventType> =>
-      sqliteEventStoreConsumer<ConsumerEventType, Driver>({
+    consumer: <ConsumerMessageType extends Message = AnyMessage>(
+      consumerOptions?: SQLiteEventStoreConsumerConfig<ConsumerMessageType>,
+    ): SQLiteEventStoreConsumer<ConsumerMessageType> =>
+      sqliteEventStoreConsumer<ConsumerMessageType, Driver>({
         ...(options ?? {}),
         ...consumerOptions,
         observability: mergeObservability(

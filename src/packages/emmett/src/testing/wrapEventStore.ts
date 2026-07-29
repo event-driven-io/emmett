@@ -84,13 +84,6 @@ export const WrapEventStore = <Store extends EventStore>(
     ): Promise<AppendToStreamResult> => {
       return eventStore.appendToStream(streamName, events);
     },
-
-    // streamEvents: (): ReadableStream<
-    //   // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-    //   ReadEvent<Event, ReadEventMetadataType> | GlobalSubscriptionEvent
-    // > => {
-    //   return eventStore.streamEvents();
-    // },
   };
 
   return wrapped;

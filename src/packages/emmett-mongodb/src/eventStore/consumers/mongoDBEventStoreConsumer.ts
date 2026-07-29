@@ -8,6 +8,7 @@ import {
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
+  type MessageSource,
   type ProcessorCheckpoint,
   type RecordedMessageMetadataWithoutGlobalPosition,
   type WaitOptions,
@@ -41,8 +42,12 @@ export type MongoDBEventStoreConsumerConfig<
 
 export type MongoDBConsumerOptions<
   ConsumerMessageType extends Message = Message,
-> = MongoDBEventStoreConsumerConfig<ConsumerMessageType> &
-  (
+> = MongoDBEventStoreConsumerConfig<ConsumerMessageType> & {
+  source?: MessageSource<
+    ConsumerMessageType,
+    MongoDBChangeStreamMessageMetadata
+  >;
+} & (
     | {
         connectionString: string;
         clientOptions?: MongoClientOptions;
@@ -109,18 +114,27 @@ export const mongoDBEventStoreConsumer = <
     options.client ??
     new MongoClient(options.connectionString, options.clientOptions);
 
+  // A provided source is borrowed, the same way a provided client is. As the
+  // consumer closes the source it reads from, the borrowed one gets a no-op close.
+  const source: MessageSource<
+    ConsumerMessageType,
+    MongoDBChangeStreamMessageMetadata
+  > = options.source
+    ? { ...options.source, close: () => Promise.resolve() }
+    : mongoDBMessageSource<ConsumerMessageType>({
+        client,
+        batchSize: options.pulling?.batchSize,
+        pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
+        resilience: options.resilience,
+      });
+
   const messageConsumer = consumer<
     ConsumerMessageType,
     MongoDBChangeStreamMessageMetadata,
     MongoDBProcessorHandlerContext
   >({
     ...options,
-    source: mongoDBMessageSource<ConsumerMessageType>({
-      client,
-      batchSize: options.pulling?.batchSize,
-      pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
-      resilience: options.resilience,
-    }),
+    source,
     scope: (handler) => handler({ client }),
     hooks: {
       onClose: async () => {

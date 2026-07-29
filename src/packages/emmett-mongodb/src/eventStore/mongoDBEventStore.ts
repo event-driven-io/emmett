@@ -5,11 +5,13 @@ import {
   eventStoreObservability,
   ExpectedVersionConflictError,
   filterProjections,
+  mergeObservability,
   tryPublishMessagesAfterCommit,
   upcastRecordedMessages,
   withOperationScope,
   type AggregateStreamOptions,
   type AggregateStreamResult,
+  type AnyMessage,
   type AppendToStreamOptions,
   type AppendToStreamResult,
   type Closeable,
@@ -17,6 +19,7 @@ import {
   type Event,
   type EventStore,
   type EventStoreObservabilityConfig,
+  type Message,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithoutGlobalPosition,
@@ -34,6 +37,11 @@ import {
   type UpdateFilter,
   type WithId,
 } from 'mongodb';
+import {
+  mongoDBEventStoreConsumer,
+  type MongoDBEventStoreConsumer,
+  type MongoDBEventStoreConsumerConfig,
+} from './consumers';
 import {
   handleInlineProjections,
   MongoDBDefaultInlineProjectionName,
@@ -187,12 +195,15 @@ export type MongoDBEventStoreOptions = {
 } & MongoDBEventStoreConnectionOptions &
   DefaultEventStoreOptions<MongoDBEventStore>;
 
-export type MongoDBEventStore = EventStore<MongoDBReadEventMetadata> & {
+export interface MongoDBEventStore extends EventStore<MongoDBReadEventMetadata> {
   projections: ProjectionQueries<StreamType>;
   collectionFor: <EventType extends Event>(
     streamType: StreamType,
   ) => Promise<Collection<EventStream<EventType>>>;
-};
+  consumer<ConsumerMessageType extends Message = AnyMessage>(
+    options?: MongoDBEventStoreConsumerConfig<ConsumerMessageType>,
+  ): MongoDBEventStoreConsumer<ConsumerMessageType>;
+}
 
 class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
   private readonly client: MongoClient;
@@ -516,6 +527,18 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
 
     return Boolean(count > 0);
   }
+
+  consumer = <ConsumerMessageType extends Message = AnyMessage>(
+    consumerOptions?: MongoDBEventStoreConsumerConfig<ConsumerMessageType>,
+  ): MongoDBEventStoreConsumer<ConsumerMessageType> =>
+    mongoDBEventStoreConsumer<ConsumerMessageType>({
+      ...consumerOptions,
+      observability: mergeObservability(
+        this.options.observability,
+        consumerOptions?.observability,
+      ),
+      client: this.client,
+    });
 
   collectionFor = async <EventType extends Event>(
     streamType: StreamType,

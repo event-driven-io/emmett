@@ -20,6 +20,7 @@ import {
   type EventStore,
   type EventStoreObservabilityConfig,
   type ExpectedStreamVersion,
+  type Message,
   type ProcessorCheckpoint,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -85,9 +86,9 @@ export interface EventStoreDBEventStore extends EventStore<EventStoreDBReadEvent
     events: EventType[],
     options?: AppendToStreamOptions<EventType, EventPayloadType>,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
-  consumer<ConsumerEventType extends Event = Event>(
-    options?: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
-  ): EventStoreDBEventStoreConsumer<ConsumerEventType>;
+  consumer<ConsumerMessageType extends Message = AnyMessage>(
+    options?: EventStoreDBEventStoreConsumerConfig<ConsumerMessageType>,
+  ): EventStoreDBEventStoreConsumer<ConsumerMessageType>;
 }
 
 export type EventStoreDBEventStoreOptions = {
@@ -330,10 +331,10 @@ export const getEventStoreDBEventStore = (
         options?.observability,
       ),
 
-    consumer: <ConsumerEventType extends Event = Event>(
-      consumerOptions?: EventStoreDBEventStoreConsumerConfig<ConsumerEventType>,
-    ): EventStoreDBEventStoreConsumer<ConsumerEventType> =>
-      eventStoreDBEventStoreConsumer<ConsumerEventType>({
+    consumer: <ConsumerMessageType extends Message = AnyMessage>(
+      consumerOptions?: EventStoreDBEventStoreConsumerConfig<ConsumerMessageType>,
+    ): EventStoreDBEventStoreConsumer<ConsumerMessageType> =>
+      eventStoreDBEventStoreConsumer<ConsumerMessageType>({
         ...(consumerOptions ?? {}),
         observability: mergeObservability(
           storeOptions?.observability,
@@ -430,64 +431,3 @@ const toExpectedVersion = (
 
   return expected;
 };
-
-// const { map } = streamTransformations;
-//
-// // eslint-disable-next-line @typescript-eslint/no-unused-vars
-// const convertToWebReadableStream = (
-//   allStreamSubscription: AllStreamSubscription,
-// ): ReadableStream<AllStreamResolvedEvent | GlobalStreamCaughtUp> => {
-//   // Validate the input type
-//   if (!(allStreamSubscription instanceof Readable)) {
-//     throw new Error('Provided stream is not a Node.js Readable stream.');
-//   }
-
-//   let globalPosition = 0n;
-
-//   const stream = Readable.toWeb(
-//     allStreamSubscription,
-//   ) as ReadableStream<AllStreamResolvedEvent>;
-
-//   const writable = new WritableStream<
-//     AllStreamResolvedEvent | GlobalStreamCaughtUp
-//   >();
-
-//   allStreamSubscription.on('caughtUp', async () => {
-//     console.log(globalPosition);
-//     await writable.getWriter().write(globalStreamCaughtUp({ globalPosition }));
-//   });
-
-//   const transform = map<
-//     AllStreamResolvedEvent,
-//     AllStreamResolvedEvent | GlobalStreamCaughtUp
-//   >((event) => {
-//     if (event?.event?.position.commit)
-//       globalPosition = event.event?.position.commit;
-
-//     return event;
-//   });
-
-//   return stream.pipeThrough<AllStreamResolvedEvent | GlobalStreamCaughtUp>(
-//     transform,
-//   );
-// };
-
-// const streamEvents = (eventStore: EventStoreDBClient) => () => {
-//   return restream<
-//     AllStreamResolvedEvent | GlobalSubscriptionEvent,
-//     | ReadEvent<Event, EventStoreDBReadEventMetadata>
-//     | GlobalSubscriptionEvent
-//   >(
-//     (): ReadableStream<AllStreamResolvedEvent | GlobalSubscriptionEvent> =>
-//       convertToWebReadableStream(
-//         eventStore.subscribeToAll({
-//           fromPosition: START,
-//           filter: excludeSystemEvents(),
-//         }),
-//       ),
-//     (
-//       resolvedEvent: AllStreamResolvedEvent | GlobalSubscriptionEvent,
-//     ): ReadEvent<Event, EventStoreDBReadEventMetadata> =>
-//       mapFromESDBEvent(resolvedEvent.event as JSONRecordedEvent<Event>),
-//   );
-// };

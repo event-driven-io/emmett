@@ -12,6 +12,7 @@ import {
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
+  type MessageSource,
   type ProcessorCheckpoint,
   type ReadEventMetadataWithGlobalPosition,
   type WaitOptions,
@@ -53,6 +54,10 @@ export type SQLiteEventStoreConsumerOptions<
 > = SQLiteEventStoreConsumerConfig<ConsumerMessageType> & {
   driver: Driver;
   pool?: Dumbo;
+  source?: MessageSource<
+    ConsumerMessageType,
+    ReadEventMetadataWithGlobalPosition
+  >;
 } & InferOptionsFromEventStoreDriver<Driver> &
   JSONSerializationOptions;
 
@@ -123,18 +128,24 @@ export const sqliteEventStoreConsumer = <
       ...options.driver.mapToDumboOptions(options),
     });
 
+  // an injected source is borrowed, so its close is stubbed out to keep the
+  // consumer from tearing down what it doesn't own
+  const source = options.source
+    ? { ...options.source, close: () => Promise.resolve() }
+    : sqliteMessageSource<ConsumerMessageType>({
+        pool,
+        batchSize: options.pulling?.batchSize,
+        pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
+        serialization: options.serialization,
+      });
+
   const messageConsumer = consumer<
     ConsumerMessageType,
     ReadEventMetadataWithGlobalPosition,
     SQLiteProcessorHandlerContext
   >({
     ...options,
-    source: sqliteMessageSource<ConsumerMessageType>({
-      pool,
-      batchSize: options.pulling?.batchSize,
-      pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
-      serialization: options.serialization,
-    }),
+    source,
     scope: (handler) =>
       pool.withConnection((connection) =>
         handler({

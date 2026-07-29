@@ -1,11 +1,23 @@
 import {
   assertEqual,
   assertRejects,
+  bigIntProcessorCheckpoint,
+  inMemoryMessageSource,
+  type Event,
   type MessageProcessor,
+  type MessageSource,
+  type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { EventStoreDBClient } from '@eventstore/db-client';
 import { describe, it, vi } from 'vitest';
-import { eventStoreDBEventStoreConsumer } from './eventStoreDBEventStoreConsumer';
+import {
+  getEventStoreDBEventStore,
+  type EventStoreDBReadEventMetadata,
+} from '../eventstoreDBEventStore';
+import {
+  eventStoreDBEventStoreConsumer,
+  type EventStoreDBEventStoreConsumer,
+} from './eventStoreDBEventStoreConsumer';
 
 const fakeClient = (): {
   client: EventStoreDBClient;
@@ -86,5 +98,109 @@ void describe('eventStoreDBEventStoreConsumer client ownership', () => {
     }
 
     assertEqual(1, closes);
+  });
+});
+
+type GuestCheckedIn = Event<'GuestCheckedIn', { guestId: string }>;
+
+const recordedAt = (
+  position: bigint,
+): RecordedMessage<GuestCheckedIn, EventStoreDBReadEventMetadata> =>
+  ({
+    kind: 'Event',
+    type: 'GuestCheckedIn',
+    data: { guestId: `guest-${position}` },
+    metadata: {
+      messageId: `message-${position}`,
+      streamName: 'guestStay-1',
+      streamPosition: position,
+      globalPosition: position,
+      checkpoint: bigIntProcessorCheckpoint(position),
+    },
+  }) as unknown as RecordedMessage<
+    GuestCheckedIn,
+    EventStoreDBReadEventMetadata
+  >;
+
+const countingSource = (): {
+  source: MessageSource<GuestCheckedIn, EventStoreDBReadEventMetadata>;
+  closes: () => number;
+} => {
+  let closes = 0;
+  const source = inMemoryMessageSource<
+    GuestCheckedIn,
+    EventStoreDBReadEventMetadata
+  >({
+    messages: [recordedAt(1n), recordedAt(2n)],
+  });
+
+  return {
+    closes: () => closes,
+    source: {
+      ...source,
+      close: () => {
+        closes++;
+        return Promise.resolve();
+      },
+    },
+  };
+};
+
+void describe('eventStoreDBEventStoreConsumer injected message source', () => {
+  void it('consumes messages from the injected source', async () => {
+    const { client } = fakeClient();
+    const { source } = countingSource();
+    const handled: RecordedMessage<
+      GuestCheckedIn,
+      EventStoreDBReadEventMetadata
+    >[] = [];
+
+    const consumer = eventStoreDBEventStoreConsumer<GuestCheckedIn>({
+      client,
+      source,
+    });
+
+    consumer.reactor<GuestCheckedIn>({
+      processorId: 'injected-source-reactor',
+      stopAfter: () => handled.length === 2,
+      eachMessage: (message) => {
+        handled.push(message);
+      },
+    });
+
+    try {
+      await consumer.start();
+    } finally {
+      await consumer.close();
+    }
+
+    assertEqual(2, handled.length);
+    assertEqual('GuestCheckedIn', handled[0]!.type);
+  });
+
+  void it('leaves an injected source to its owner on close', async () => {
+    const { client } = fakeClient();
+    const { source, closes } = countingSource();
+
+    const consumer = eventStoreDBEventStoreConsumer<GuestCheckedIn>({
+      client,
+      source,
+    });
+
+    await consumer.close();
+
+    assertEqual(0, closes());
+  });
+});
+
+void describe('eventStoreDBEventStore consumer typing', () => {
+  void it('returns the EventStoreDB consumer, not the base message consumer', () => {
+    const { client } = fakeClient();
+
+    const consumer: EventStoreDBEventStoreConsumer =
+      getEventStoreDBEventStore(client).consumer();
+
+    assertEqual('function', typeof consumer.projector);
+    assertEqual('function', typeof consumer.reactor);
   });
 });

@@ -25,14 +25,16 @@ import {
   unknownTag,
   type AggregateStreamOptions,
   type AggregateStreamResult,
+  type AnyMessage,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
-  type Event,
   type EmmettObservabilityConfig,
+  type Event,
   type EventStore,
   type EventStoreSession,
   type EventStoreSessionFactory,
   type JSONSerializationOptions,
+  type Message,
   mergeObservability,
   type ProjectionRegistration,
   type ReadEvent,
@@ -78,9 +80,9 @@ export interface PostgresEventStore
     events: EventType[],
     options?: AppendToStreamOptions<EventType, EventPayloadType>,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
-  consumer<ConsumerEventType extends Event = Event>(
-    options?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
-  ): PostgreSQLEventStoreConsumer<ConsumerEventType>;
+  consumer<ConsumerMessageType extends Message = AnyMessage>(
+    options?: PostgreSQLEventStoreConsumerConfig<ConsumerMessageType>,
+  ): PostgreSQLEventStoreConsumer<ConsumerMessageType>;
   close(): Promise<void>;
   streamExists(
     streamName: string,
@@ -504,10 +506,10 @@ export const getPostgreSQLEventStore = (
       return streamExists(pool.execute, streamName, options);
     },
 
-    consumer: <ConsumerEventType extends Event = Event>(
-      consumerOptions?: PostgreSQLEventStoreConsumerConfig<ConsumerEventType>,
-    ): PostgreSQLEventStoreConsumer<ConsumerEventType> =>
-      postgreSQLEventStoreConsumer<ConsumerEventType>({
+    consumer: <ConsumerMessageType extends Message = AnyMessage>(
+      consumerOptions?: PostgreSQLEventStoreConsumerConfig<ConsumerMessageType>,
+    ): PostgreSQLEventStoreConsumer<ConsumerMessageType> =>
+      postgreSQLEventStoreConsumer<ConsumerMessageType>({
         ...consumerOptions,
         observability: mergeObservability(
           options.observability,

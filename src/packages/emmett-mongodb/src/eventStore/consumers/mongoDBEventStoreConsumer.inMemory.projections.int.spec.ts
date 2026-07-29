@@ -1,5 +1,9 @@
 import {
+  assertEqual,
+  assertFalse,
   assertMatches,
+  assertNotEqual,
+  assertThrowsAsync,
   asyncAwaiter,
   getInMemoryDatabase,
   inMemoryProjector,
@@ -439,6 +443,184 @@ void describe('mongoDB event store started consumer', () => {
         } finally {
           await newConsumer.close();
           await consumerPromise;
+        }
+      },
+    );
+  });
+
+  void describe('created by the event store', () => {
+    void it(
+      'catches up with events appended BEFORE it was started',
+      withDeadline,
+      async () => {
+        // Given
+        const shoppingCartId = `shoppingCart:${uuid()}`;
+        const streamName = `shopping_cart-${shoppingCartId}`;
+        const events: ShoppingCartSummaryEvent[] = [
+          { type: 'ProductItemAdded', data: { productItem } },
+          { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
+        ];
+        const appendResult = await eventStore.appendToStream(
+          streamName,
+          events,
+        );
+
+        // When
+        const consumer = eventStore.consumer<ShoppingCartSummaryEvent>({
+          processors: [
+            inMemoryProjector<ShoppingCartSummaryEvent>({
+              processorId: uuid(),
+              projection: shoppingCartsSummaryProjection,
+              connectionOptions: { database },
+              stopAfter: (event) =>
+                event.metadata.streamName === streamName &&
+                event.metadata.streamPosition ===
+                  appendResult.nextExpectedStreamVersion,
+            }),
+          ],
+        });
+
+        try {
+          await consumer.start();
+
+          const summary = await summaries.findOne((d) => d._id === streamName);
+
+          assertMatches(summary, {
+            _id: streamName,
+            status: 'confirmed',
+            productItemsCount: productItem.quantity,
+          });
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
+    void it(
+      'BORROWS the event store connection, so closing it keeps the store usable',
+      withDeadline,
+      async () => {
+        // Given
+        const ownEventStore = getMongoDBEventStore({
+          connectionString,
+          clientOptions: { directConnection: true },
+        });
+        const shoppingCartId = `shoppingCart:${uuid()}`;
+        const streamName = `shopping_cart-${shoppingCartId}`;
+        const appendResult = await ownEventStore.appendToStream(streamName, [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ]);
+
+        const consumer = ownEventStore.consumer<ShoppingCartSummaryEvent>({
+          processors: [
+            inMemoryReactor<ShoppingCartSummaryEvent>({
+              processorId: uuid(),
+              stopAfter: (event) =>
+                event.metadata.streamName === streamName &&
+                event.metadata.streamPosition ===
+                  appendResult.nextExpectedStreamVersion,
+              eachMessage: () => {},
+            }),
+          ],
+        });
+
+        // When
+        await consumer.start();
+        await consumer.close();
+
+        // Then
+        await ownEventStore.appendToStream(streamName, [
+          { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
+        ]);
+        const { events } = await ownEventStore.readStream(streamName);
+
+        assertEqual(events.length, 2);
+
+        await ownEventStore.close();
+
+        await assertThrowsAsync(() => ownEventStore.readStream(streamName));
+      },
+    );
+
+    void it(
+      'returns INDEPENDENT consumers on each call',
+      withDeadline,
+      async () => {
+        // Given
+        const shoppingCartId = `shoppingCart:${uuid()}`;
+        const streamName = `shopping_cart-${shoppingCartId}`;
+
+        const first: ShoppingCartSummaryEvent[] = [];
+        const second: ShoppingCartSummaryEvent[] = [];
+        const firstHandled = asyncAwaiter();
+        const secondHandled = asyncAwaiter();
+
+        const firstConsumer = eventStore.consumer<ShoppingCartSummaryEvent>({
+          processors: [
+            inMemoryReactor<ShoppingCartSummaryEvent>({
+              processorId: uuid(),
+              eachMessage: (event) => {
+                if (event.metadata.streamName !== streamName) return;
+                first.push(event);
+                firstHandled.resolve();
+              },
+            }),
+          ],
+        });
+        const secondConsumer = eventStore.consumer<ShoppingCartSummaryEvent>({
+          processors: [
+            inMemoryReactor<ShoppingCartSummaryEvent>({
+              processorId: uuid(),
+              eachMessage: (event) => {
+                if (event.metadata.streamName !== streamName) return;
+                second.push(event);
+                secondHandled.resolve();
+              },
+            }),
+          ],
+        });
+
+        assertFalse(firstConsumer === secondConsumer);
+        assertNotEqual(firstConsumer.consumerId, secondConsumer.consumerId);
+
+        // When
+        let firstPromise: Promise<void> | undefined;
+        let secondPromise: Promise<void> | undefined;
+        try {
+          firstPromise = firstConsumer.start();
+          secondPromise = secondConsumer.start();
+          await Promise.all([
+            firstConsumer.whenStarted(),
+            secondConsumer.whenStarted(),
+          ]);
+
+          await eventStore.appendToStream(streamName, [
+            { type: 'ProductItemAdded', data: { productItem } },
+          ]);
+          await Promise.all([firstHandled.wait, secondHandled.wait]);
+
+          assertEqual(first.length, 1);
+          assertEqual(second.length, 1);
+
+          // Then closing the first one doesn't stop the second one
+          await firstConsumer.close();
+          await firstPromise;
+          firstPromise = undefined;
+
+          secondHandled.reset();
+
+          await eventStore.appendToStream(streamName, [
+            { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
+          ]);
+          await secondHandled.wait;
+
+          assertEqual(first.length, 1);
+          assertEqual(second.length, 2);
+        } finally {
+          await firstConsumer.close();
+          await firstPromise;
+          await secondConsumer.close();
+          await secondPromise;
         }
       },
     );
