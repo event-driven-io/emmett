@@ -246,10 +246,10 @@ Finally, we can declare the _command handler_ itself:
 
 ### Putting it all together with an event store
 
-[The _event store_ is logically a key-value database](https://event-driven.io/en/event_stores_are_key_value_stores/?utm_source=emmett) that records a series of events that happened in our application. It logically groups events in streams. An event stream is an ordered sequence of events and a representation of a specific process or entity. Event stream id equals the entity id (e.g. shopping cart id). To get the current state from events, we need to:
+[The _event store_ is logically a key-value database](https://event-driven.io/en/event_stores_are_key_value_stores/?utm_source=emmett) that records the series of events that have happened in your application. It groups events into streams. A stream is an ordered sequence of events representing a specific process or entity, and its id is the entity id (e.g. the shopping cart id). To reconstruct the current state from events, you:
 
-- read all that has been recorded so far.
-- take the initial state and apply it one by one to get the current state at the time.
+- read all the events recorded so far, then
+- start from the initial state and apply each event in order until you arrive at the current state.
 
 Yes, the state we'll use in business logic to validate our business rules.
 
