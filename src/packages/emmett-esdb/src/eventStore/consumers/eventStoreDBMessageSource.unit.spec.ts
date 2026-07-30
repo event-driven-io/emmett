@@ -3,11 +3,12 @@ import {
   assertFalse,
   assertRejects,
   assertTrue,
-  isGlobalStreamCaughtUp,
+  getCheckpoint,
+  MessageSourceCaughtUp,
   NoRetries,
   ProcessorCheckpoint,
   type Event,
-  type MessageSourceBatch,
+  type RecordedMessage,
 } from '@event-driven-io/emmett';
 import type { EventStoreDBClient } from '@eventstore/db-client';
 import { Readable } from 'stream';
@@ -71,56 +72,39 @@ const fakeClient = (
 };
 
 void describe('eventStoreDBMessageSource', () => {
-  void it('delivers available messages in one batch', async () => {
+  void it('delivers messages in the order the subscription got them', async () => {
     const subscription = fakeSubscription();
     const { client } = fakeClient(subscription, { caughtUp: true });
-    const source = eventStoreDBMessageSource<Tested>({ client, batchSize: 10 });
+    const source = eventStoreDBMessageSource<Tested>({ client });
     const controller = new AbortController();
 
     subscription.push(resolvedEvent(1));
     subscription.push(resolvedEvent(2));
     subscription.push(resolvedEvent(3));
 
-    for await (const batch of source.read({
+    const delivered: RecordedMessage<Tested, EventStoreDBReadEventMetadata>[] =
+      [];
+
+    for await (const message of source.read({
       from: 'BEGINNING',
       signal: controller.signal,
     })) {
-      assertEqual(3, batch.messages.length);
-      assertEqual(
-        ProcessorCheckpoint('0000000000000000003'),
-        batch.lastCheckpoint,
-      );
-      controller.abort();
-      break;
-    }
+      if (MessageSourceCaughtUp.is(message)) continue;
 
-    assertEqual(1, subscription.unsubscribes);
-  });
+      delivered.push(message);
 
-  void it('honours the configured batch size', async () => {
-    const subscription = fakeSubscription();
-    const { client } = fakeClient(subscription, { caughtUp: true });
-    const source = eventStoreDBMessageSource<Tested>({ client });
-    const controller = new AbortController();
-
-    for (let index = 1; index <= 5; index++)
-      subscription.push(resolvedEvent(index));
-
-    const batchSizes: number[] = [];
-
-    for await (const batch of source.read({
-      from: 'BEGINNING',
-      batchSize: 2,
-      signal: controller.signal,
-    })) {
-      if (batch.messages.some(isGlobalStreamCaughtUp)) {
+      if (delivered.length === 3) {
         controller.abort();
         break;
       }
-      batchSizes.push(batch.messages.length);
     }
 
-    assertEqual('2,2,1', batchSizes.join(','));
+    assertEqual('1,2,3', delivered.map((m) => m.data.index).join(','));
+    assertEqual(
+      ProcessorCheckpoint('0000000000000000003'),
+      getCheckpoint(delivered[2]!),
+    );
+    assertEqual(1, subscription.unsubscribes);
   });
 
   void it('reports caught up after reaching the live edge', async () => {
@@ -133,11 +117,11 @@ void describe('eventStoreDBMessageSource', () => {
 
     let sawCaughtUp = false;
 
-    for await (const batch of source.read({
+    for await (const message of source.read({
       from: 'BEGINNING',
       signal: controller.signal,
     })) {
-      if (batch.messages.some(isGlobalStreamCaughtUp)) {
+      if (MessageSourceCaughtUp.is(message)) {
         sawCaughtUp = true;
         controller.abort();
         break;
@@ -152,40 +136,32 @@ void describe('eventStoreDBMessageSource', () => {
     const { client } = fakeClient(subscription);
     const source = eventStoreDBMessageSource<Tested>({ client });
     const controller = new AbortController();
-    let reportFirstBatch!: (
-      batch: MessageSourceBatch<Tested, EventStoreDBReadEventMetadata>,
-    ) => void;
-    const firstBatchReceived = new Promise<
-      MessageSourceBatch<Tested, EventStoreDBReadEventMetadata>
-    >((resolve) => {
-      reportFirstBatch = resolve;
+    let reportFirstMessage!: () => void;
+    const firstMessageReceived = new Promise<void>((resolve) => {
+      reportFirstMessage = resolve;
     });
     let reportCaughtUp!: () => void;
     const caughtUpReceived = new Promise<void>((resolve) => {
       reportCaughtUp = resolve;
     });
-    const reading = (async () => {
-      let isFirstBatch = true;
 
-      for await (const batch of source.read({
+    subscription.push(resolvedEvent(1));
+
+    const reading = (async () => {
+      for await (const message of source.read({
         from: 'BEGINNING',
         signal: controller.signal,
       })) {
-        if (isFirstBatch) {
-          isFirstBatch = false;
-          reportFirstBatch(batch);
-        }
-
-        if (batch.messages.some(isGlobalStreamCaughtUp)) {
+        if (MessageSourceCaughtUp.is(message)) {
           reportCaughtUp();
           return;
         }
+
+        reportFirstMessage();
       }
     })();
 
-    const ready = await firstBatchReceived;
-
-    assertEqual(0, ready.messages.length);
+    await firstMessageReceived;
 
     let caughtUpReported = false;
     void caughtUpReceived.then(() => {
@@ -218,10 +194,12 @@ void describe('eventStoreDBMessageSource', () => {
     } as unknown as EventStoreDBClient;
     const source = eventStoreDBMessageSource<Tested>({ client });
 
-    const startAndStop = async () => {
+    const startAndStop = async (subscription: FakeSubscription) => {
       const controller = new AbortController();
 
-      for await (const _batch of source.read({
+      subscription.push(resolvedEvent(1));
+
+      for await (const _message of source.read({
         from: 'BEGINNING',
         signal: controller.signal,
       })) {
@@ -230,8 +208,8 @@ void describe('eventStoreDBMessageSource', () => {
       }
     };
 
-    await startAndStop();
-    await startAndStop();
+    await startAndStop(firstSubscription);
+    await startAndStop(secondSubscription);
 
     assertEqual(2, subscriptionCount);
     assertEqual(1, firstSubscription.unsubscribes);
@@ -247,8 +225,11 @@ void describe('eventStoreDBMessageSource', () => {
     const ready = new Promise<void>((resolve) => {
       reportReady = resolve;
     });
+
+    subscription.push(resolvedEvent(1));
+
     const reading = (async () => {
-      for await (const _batch of source.read({
+      for await (const _message of source.read({
         from: 'BEGINNING',
         signal: controller.signal,
       })) {
@@ -274,9 +255,11 @@ void describe('eventStoreDBMessageSource', () => {
     const controller = new AbortController();
     const failure = new Error('connection closed');
 
+    subscription.push(resolvedEvent(1));
+
     await assertRejects(
       (async () => {
-        for await (const _batch of source.read({
+        for await (const _message of source.read({
           from: 'BEGINNING',
           signal: controller.signal,
         }))

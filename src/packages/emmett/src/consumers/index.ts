@@ -1,4 +1,3 @@
-export * from './consumer';
 export * from './consumers';
 export * from './inMemoryMessageSource';
 export * from './messageSource';

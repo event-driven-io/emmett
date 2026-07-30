@@ -13,9 +13,7 @@ import {
   type MessageConsumer,
   type MessageConsumerOptions,
   type MessageSource,
-  type ProcessorCheckpoint,
   type ReadEventMetadataWithGlobalPosition,
-  type WaitOptions,
   type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import type {
@@ -44,6 +42,7 @@ export type SQLiteEventStoreConsumerConfig<
   };
   pulling?: {
     batchSize?: number;
+    batchDeadlineInMs?: number;
     pullingFrequencyInMs?: number;
   };
 };
@@ -66,12 +65,6 @@ export type SQLiteEventStoreConsumer<
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<ConsumerMessageType> &
   Readonly<{
-    whenProcessed: (
-      position: ProcessorCheckpoint,
-      options?: WaitOptions,
-    ) => Promise<void>;
-    whenCaughtUp: (options?: WaitOptions) => Promise<void>;
-
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       options: SQLiteReactorOptions<MessageType>,
     ) => SQLiteProcessor<MessageType>;
@@ -146,6 +139,8 @@ export const sqliteEventStoreConsumer = <
   >({
     ...options,
     source,
+    batchSize: options.pulling?.batchSize,
+    batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     scope: (handler) =>
       pool.withConnection((connection) =>
         handler({

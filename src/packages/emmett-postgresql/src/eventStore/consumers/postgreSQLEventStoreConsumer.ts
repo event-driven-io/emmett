@@ -12,9 +12,7 @@ import {
   type MessageConsumer,
   type MessageConsumerOptions,
   type MessageSource,
-  type ProcessorCheckpoint,
   type RecordedMessageMetadataWithGlobalPosition,
-  type WaitOptions,
   type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import { postgreSQLMessageSource } from './postgreSQLMessageSource';
@@ -38,6 +36,7 @@ export type PostgreSQLEventStoreConsumerConfig<
   };
   pulling?: {
     batchSize?: number;
+    batchDeadlineInMs?: number;
     pullingFrequencyInMs?: number;
   };
 } & JSONSerializationOptions;
@@ -58,12 +57,6 @@ export type PostgreSQLEventStoreConsumer<
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<ConsumerMessageType> &
   Readonly<{
-    whenProcessed: (
-      position: ProcessorCheckpoint,
-      options?: WaitOptions,
-    ) => Promise<void>;
-    whenCaughtUp: (options?: WaitOptions) => Promise<void>;
-
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       options: PostgreSQLReactorOptions<MessageType>,
     ) => PostgreSQLProcessor<MessageType>;
@@ -147,6 +140,8 @@ export const postgreSQLEventStoreConsumer = <
   >({
     ...options,
     source,
+    batchSize: options.pulling?.batchSize,
+    batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     scope: (handler) => handler(processorContext),
     until:
       options.until ??

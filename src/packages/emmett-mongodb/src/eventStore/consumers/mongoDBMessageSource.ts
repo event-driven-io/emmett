@@ -1,13 +1,12 @@
 import {
   delayOrAbort,
-  globalStreamCaughtUp,
+  MessageSourceCaughtUp,
+  ProcessorCheckpoint,
   subscriptionMessageSource,
   type AnyMessage,
   type AsyncRetryOptions,
   type Message,
   type MessageSource,
-  type MessageSourceMessage,
-  type ProcessorCheckpoint,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import type { MongoClient } from 'mongodb';
@@ -60,11 +59,7 @@ export const mongoDBMessageSource = <MessageType extends Message = AnyMessage>({
     MessageType,
     MongoDBChangeStreamMessageMetadata
   >({
-    subscribe: async function* ({
-      from,
-      batchSize: requestedBatchSize,
-      signal,
-    }) {
+    subscribe: async function* ({ from, signal }) {
       const { changeStreamFullDocumentValuePolicy } =
         await getDatabaseVersionPolicies(db());
 
@@ -83,49 +78,36 @@ export const mongoDBMessageSource = <MessageType extends Message = AnyMessage>({
 
       try {
         while (!signal.aborted) {
-          const messages: MessageSourceMessage<
-            MessageType,
-            MongoDBChangeStreamMessageMetadata
-          >[] = [];
+          const change = await changeStream.tryNext();
 
-          while (messages.length < requestedBatchSize) {
-            const change = await changeStream.tryNext();
-            if (!change) break;
+          if (!change) {
+            yield MessageSourceCaughtUp(
+              lastCheckpoint ?? ProcessorCheckpoint('0'),
+            );
 
-            for (const [index, message] of oplogChangeToMessages(
-              change,
-            ).entries()) {
-              lastCheckpoint = toMongoDBCheckpoint(change._id, index);
-
-              messages.push({
-                kind: message.kind,
-                type: message.type,
-                data: message.data,
-                metadata: {
-                  ...message.metadata,
-                  checkpoint: lastCheckpoint,
-                  globalPosition: lastCheckpoint,
-                },
-              } as unknown as RecordedMessage<
-                MessageType,
-                MongoDBChangeStreamMessageMetadata
-              >);
-            }
-          }
-
-          if (messages.length > 0) {
-            yield { messages, lastCheckpoint };
+            await delayOrAbort(idleWaitInMs, signal);
             continue;
           }
 
-          yield {
-            messages: [
-              globalStreamCaughtUp({ globalPosition: lastCheckpoint ?? '0' }),
-            ],
-            lastCheckpoint,
-          };
+          for (const [index, message] of oplogChangeToMessages(
+            change,
+          ).entries()) {
+            lastCheckpoint = toMongoDBCheckpoint(change._id, index);
 
-          await delayOrAbort(idleWaitInMs, signal);
+            yield {
+              kind: message.kind,
+              type: message.type,
+              data: message.data,
+              metadata: {
+                ...message.metadata,
+                checkpoint: lastCheckpoint,
+                globalPosition: lastCheckpoint,
+              },
+            } as unknown as RecordedMessage<
+              MessageType,
+              MongoDBChangeStreamMessageMetadata
+            >;
+          }
         }
       } finally {
         signal.removeEventListener('abort', onAbort);

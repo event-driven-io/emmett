@@ -9,9 +9,7 @@ import {
   type MessageConsumer,
   type MessageConsumerOptions,
   type MessageSource,
-  type ProcessorCheckpoint,
   type RecordedMessageMetadataWithoutGlobalPosition,
-  type WaitOptions,
 } from '@event-driven-io/emmett';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
 import { mongoDBMessageSource } from './mongoDBMessageSource';
@@ -36,6 +34,7 @@ export type MongoDBEventStoreConsumerConfig<
   };
   pulling?: {
     batchSize?: number;
+    batchDeadlineInMs?: number;
     pullingFrequencyInMs?: number;
   };
 };
@@ -65,12 +64,6 @@ export type MongoDBEventStoreConsumer<
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<ConsumerMessageType> &
   Readonly<{
-    whenProcessed: (
-      position: ProcessorCheckpoint,
-      options?: WaitOptions,
-    ) => Promise<void>;
-    whenCaughtUp: (options?: WaitOptions) => Promise<void>;
-
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       options: MongoDBProcessorOptions<MessageType>,
     ) => MongoDBProcessor<MessageType>;
@@ -135,6 +128,8 @@ export const mongoDBEventStoreConsumer = <
   >({
     ...options,
     source,
+    batchSize: options.pulling?.batchSize,
+    batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     scope: (handler) => handler({ client }),
     hooks: {
       onClose: async () => {

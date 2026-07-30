@@ -1,4 +1,5 @@
-import type { GlobalSubscriptionEvent } from '../eventStore/events';
+import { EmmettError } from '../errors';
+import type { MessageSourceControlMessage } from '../eventStore/events';
 import type {
   CurrentMessageProcessorPosition,
   ProcessorCheckpoint,
@@ -18,28 +19,23 @@ export type MessageSourceReadOptions = {
 
 /**
  * A message as delivered by a source: either a recorded message, or one of the
- * control messages (e.g. {@link GlobalStreamCaughtUp}) a source uses to report
+ * control messages (e.g. {@link MessageSourceCaughtUp}) a source uses to report
  * its own state. The consumer strips control messages before fanning a batch
  * out, so no processor ever sees one.
  */
 export type MessageSourceMessage<
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-> = RecordedMessage<MessageType, MessageMetadataType> | GlobalSubscriptionEvent;
-
-export type MessageSourceBatch<
-  MessageType extends Message = AnyMessage,
-  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-> = {
-  messages: MessageSourceMessage<MessageType, MessageMetadataType>[];
-  lastCheckpoint: ProcessorCheckpoint | null;
-};
+> =
+  | RecordedMessage<MessageType, MessageMetadataType>
+  | MessageSourceControlMessage;
 
 /**
  * The read side of a store, unified. Pull stores (PostgreSQL, SQLite) yield
- * from their poll loop, push stores (MongoDB, EventStoreDB) drain a bounded
- * queue their subscription feeds. Backpressure comes from the iterator
- * protocol: nothing is read until the consumer asks for the next batch.
+ * from their poll loop, push stores (MongoDB, EventStoreDB) yield what their
+ * subscription hands them. Grouping messages into batches is the consumer's
+ * job, and backpressure comes from the iterator protocol: nothing is read
+ * until the consumer asks for the next message.
  */
 export type MessageSource<
   MessageType extends Message = AnyMessage,
@@ -47,7 +43,7 @@ export type MessageSource<
 > = {
   read(
     options: MessageSourceReadOptions,
-  ): AsyncIterable<MessageSourceBatch<MessageType, MessageMetadataType>>;
+  ): AsyncIterable<MessageSourceMessage<MessageType, MessageMetadataType>>;
   /**
    * Tail of the store, used to resolve a processor starting from `'END'`.
    */
@@ -70,4 +66,23 @@ export type MessageSource<
     b: ProcessorCheckpoint,
   ) => number;
   close?(): Promise<void>;
+};
+
+/**
+ * A read has to bring back at least one message. Anything smaller would leave
+ * every message sitting in the store unread, so it fails loudly here instead of
+ * stalling.
+ */
+export const toBatchSize = (
+  requested: number | undefined,
+  fallback: number,
+): number => {
+  if (requested === undefined) return fallback;
+
+  if (!Number.isInteger(requested) || requested < 1)
+    throw new EmmettError(
+      `Batch size has to be an integer greater than 0, got: ${requested}`,
+    );
+
+  return requested;
 };

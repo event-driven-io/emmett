@@ -35,8 +35,7 @@ const shoppingCartsSummaryProjection = pongoSingleStreamProjection({
       case 'ProductItemAdded':
         return {
           ...document,
-          productItemsCount:
-            document.productItemsCount + event.data.quantity,
+          productItemsCount: document.productItemsCount + event.data.quantity,
         };
       case 'ShoppingCartConfirmed':
         return { ...document, status: 'confirmed' };

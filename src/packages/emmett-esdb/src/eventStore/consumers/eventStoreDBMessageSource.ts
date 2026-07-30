@@ -1,13 +1,12 @@
 import {
   getCheckpoint,
-  globalStreamCaughtUp,
+  MessageSourceCaughtUp,
+  ProcessorCheckpoint,
   subscriptionMessageSource,
   type AnyMessage,
   type AsyncRetryOptions,
   type Message,
   type MessageSource,
-  type MessageSourceMessage,
-  type ProcessorCheckpoint,
 } from '@event-driven-io/emmett';
 import type { EventStoreDBClient, ResolvedEvent } from '@eventstore/db-client';
 import {
@@ -48,11 +47,7 @@ export const eventStoreDBMessageSource = <
   };
 
   return subscriptionMessageSource<MessageType, EventStoreDBReadEventMetadata>({
-    subscribe: async function* ({
-      from: startFrom,
-      batchSize: requestedBatchSize,
-      signal,
-    }) {
+    subscribe: async function* ({ from: startFrom, signal }) {
       const subscription = subscribe(client, from, startFrom);
 
       let lastCheckpoint: ProcessorCheckpoint | null = null;
@@ -118,30 +113,16 @@ export const eventStoreDBMessageSource = <
         while (!confirmed && !ended && !failure && !signal.aborted)
           await waitForNotification();
 
-        let readinessEmitted = false;
-
         while (!signal.aborted) {
-          const messages: MessageSourceMessage<
-            MessageType,
-            EventStoreDBReadEventMetadata
-          >[] = [];
+          const resolvedEvent =
+            subscription.read() as ResolvedEvent<MessageType> | null;
 
-          // Draining what the subscription has already buffered is what makes
-          // the batch size real: iterating it would block on every message.
-          while (messages.length < requestedBatchSize) {
-            const resolvedEvent =
-              subscription.read() as ResolvedEvent<MessageType> | null;
-            if (!resolvedEvent) break;
+          if (resolvedEvent) {
             if (!resolvedEvent.event) continue;
 
             const message = mapFromESDBEvent<MessageType>(resolvedEvent, from);
             lastCheckpoint = getCheckpoint(message);
-            messages.push(message);
-          }
-
-          if (messages.length > 0) {
-            readinessEmitted = true;
-            yield { messages, lastCheckpoint };
+            yield message;
             continue;
           }
 
@@ -150,21 +131,9 @@ export const eventStoreDBMessageSource = <
 
           if (caughtUpPending) {
             caughtUpPending = false;
-            readinessEmitted = true;
-            yield {
-              messages: [
-                globalStreamCaughtUp({
-                  globalPosition: lastCheckpoint ?? '0',
-                }),
-              ],
-              lastCheckpoint,
-            };
-            continue;
-          }
-
-          if (!readinessEmitted) {
-            readinessEmitted = true;
-            yield { messages: [], lastCheckpoint };
+            yield MessageSourceCaughtUp(
+              lastCheckpoint ?? ProcessorCheckpoint('0'),
+            );
             continue;
           }
 

@@ -77,6 +77,13 @@ const asProcessorCheckpoint = (
 
 const AllStreamReadPageSize = 32;
 
+/**
+ * Caps how far back a tail read walks when every event it meets is a system
+ * event. Without it, a store whose tail is all system events would read the
+ * whole log backwards a page at a time.
+ */
+const MaxAllStreamScanPages = 64;
+
 const readLastMatchingAllCheckpoint = async (
   client: EventStoreDBClient,
   matches: (event: AllStreamResolvedEvent) => boolean,
@@ -84,7 +91,7 @@ const readLastMatchingAllCheckpoint = async (
   let fromPosition: ReadPosition = END;
   let overlapEventId: string | undefined;
 
-  while (true) {
+  for (let page = 0; page < MaxAllStreamScanPages; page++) {
     const stream = client.readAll({
       direction: BACKWARDS,
       fromPosition,
@@ -128,6 +135,8 @@ const readLastMatchingAllCheckpoint = async (
     fromPosition = oldestPosition;
     overlapEventId = oldestEventId;
   }
+
+  return undefined;
 };
 
 const readLastAllCheckpoint = async (

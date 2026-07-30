@@ -6,7 +6,7 @@ import type {
 import {
   assertDeepEqual,
   bigIntProcessorCheckpoint,
-  globalStreamCaughtUp,
+  MessageSourceCaughtUp,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { describe, it } from 'vitest';
@@ -46,7 +46,7 @@ void describe('CaughtUpTransformStream', () => {
 
     assertDeepEqual(results, [
       ...initialEvents,
-      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(3n) }),
+      MessageSourceCaughtUp(bigIntProcessorCheckpoint(3n)),
     ]);
   });
 
@@ -63,9 +63,9 @@ void describe('CaughtUpTransformStream', () => {
 
     assertDeepEqual(results, [
       ...initialEvents,
-      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(2n) }),
+      MessageSourceCaughtUp(bigIntProcessorCheckpoint(2n)),
       newEvent,
-      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(3n) }),
+      MessageSourceCaughtUp(bigIntProcessorCheckpoint(3n)),
     ]);
   });
 
@@ -76,7 +76,7 @@ void describe('CaughtUpTransformStream', () => {
     const results = await collect(stream.readable);
 
     assertDeepEqual(results, [
-      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(0n) }),
+      MessageSourceCaughtUp(bigIntProcessorCheckpoint(0n)),
     ]);
   });
 
@@ -93,7 +93,7 @@ void describe('CaughtUpTransformStream', () => {
 
     assertDeepEqual(results, [
       ...initialEvents,
-      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(5n) }),
+      MessageSourceCaughtUp(bigIntProcessorCheckpoint(5n)),
       newEvent,
     ]);
   });
@@ -111,9 +111,9 @@ void describe('CaughtUpTransformStream', () => {
 
     assertDeepEqual(results, [
       ...initialEvents,
-      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(5n) }),
+      MessageSourceCaughtUp(bigIntProcessorCheckpoint(5n)),
       newEvent,
-      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(10n) }),
+      MessageSourceCaughtUp(bigIntProcessorCheckpoint(10n)),
     ]);
   });
 });

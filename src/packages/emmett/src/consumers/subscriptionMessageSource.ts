@@ -1,14 +1,21 @@
-import type {
-  CurrentMessageProcessorPosition,
-  ProcessorCheckpoint,
+import {
+  getCheckpoint,
+  type CurrentMessageProcessorPosition,
+  type ProcessorCheckpoint,
 } from '../processors';
-import type { AnyMessage, AnyReadEventMetadata, Message } from '../typing';
+import type {
+  AnyMessage,
+  AnyReadEventMetadata,
+  Message,
+  RecordedMessage,
+} from '../typing';
 import { delayOrAbort, type AsyncRetryOptions } from '../utils';
 import type {
   MessageSource,
-  MessageSourceBatch,
+  MessageSourceMessage,
   MessageSourceReadOptions,
 } from './messageSource';
+import { toBatchSize } from './messageSource';
 
 export const DefaultResubscribeDelayInMs = 100;
 export const DefaultSubscriptionQueueCapacity = 100;
@@ -68,7 +75,7 @@ export const boundedMessageQueue = <T>(
       waitingWriters.splice(0).forEach((resolve) => resolve());
     },
     iterate: async function* (signal: AbortSignal) {
-      while (true) {
+      while (!signal.aborted) {
         while (items.length > 0) {
           if (signal.aborted) return;
 
@@ -82,8 +89,12 @@ export const boundedMessageQueue = <T>(
         if (completed || signal.aborted) return;
 
         await new Promise<void>((resolve) => {
-          waitingReader = resolve;
-          signal.addEventListener('abort', () => resolve(), { once: true });
+          const onAbort = () => resolve();
+          waitingReader = () => {
+            signal.removeEventListener('abort', onAbort);
+            resolve();
+          };
+          signal.addEventListener('abort', onAbort, { once: true });
         });
       }
     },
@@ -104,7 +115,7 @@ export type SubscriptionMessageSourceOptions<
 > = {
   subscribe: (
     options: SubscribeOptions,
-  ) => AsyncIterable<MessageSourceBatch<MessageType, MessageMetadataType>>;
+  ) => AsyncIterable<MessageSourceMessage<MessageType, MessageMetadataType>>;
   readLastCheckpoint: () => Promise<ProcessorCheckpoint | null>;
   readLastCommittedCheckpoint?: () => Promise<ProcessorCheckpoint | null>;
   compareCheckpoints?: (
@@ -142,10 +153,10 @@ export const subscriptionMessageSource = <
   return {
     read: async function* (readOptions: MessageSourceReadOptions) {
       const { signal } = readOptions;
-      const batchSize =
-        readOptions.batchSize ??
-        options.batchSize ??
-        DefaultSubscriptionQueueCapacity;
+      const batchSize = toBatchSize(
+        readOptions.batchSize ?? options.batchSize,
+        DefaultSubscriptionQueueCapacity,
+      );
 
       let from = readOptions.from;
       let retries = 0;
@@ -155,14 +166,17 @@ export const subscriptionMessageSource = <
         let retryReason: unknown;
 
         try {
-          for await (const batch of subscribe({ from, batchSize, signal })) {
-            yield batch;
+          for await (const message of subscribe({ from, batchSize, signal })) {
+            yield message;
 
             retries = 0;
             retryStartedAt = undefined;
 
-            if (batch.lastCheckpoint !== null)
-              from = { lastCheckpoint: batch.lastCheckpoint };
+            const checkpoint = getCheckpoint(
+              message as RecordedMessage<MessageType, MessageMetadataType>,
+            );
+
+            if (checkpoint !== null) from = { lastCheckpoint: checkpoint };
           }
 
           if (signal.aborted || !retryOptions.shouldRetryResult?.(undefined))

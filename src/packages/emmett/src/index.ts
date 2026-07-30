@@ -9,6 +9,7 @@ export * from './observability';
 export * from './processors';
 export * from './projections';
 export * from './serialization';
+export * from './streaming';
 export * from './taskProcessing';
 export * from './testing';
 export * from './typing';
