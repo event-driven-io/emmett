@@ -47,7 +47,7 @@ void describe('inMemoryMessageSource', () => {
     assertEqual(read.length, 2);
   });
 
-  void it('reports the last appended checkpoint as the tail', async () => {
+  void it('reports the last appended checkpoint', async () => {
     const source = inMemoryMessageSource({
       messages: [messageAt('1'), messageAt('7')],
     });
@@ -55,7 +55,7 @@ void describe('inMemoryMessageSource', () => {
     assertEqual(await source.readLastCheckpoint(), ProcessorCheckpoint('7'));
   });
 
-  void it('reports no tail while empty', async () => {
+  void it('reports no checkpoint while empty', async () => {
     const source = inMemoryMessageSource();
 
     assertEqual(await source.readLastCheckpoint(), null);

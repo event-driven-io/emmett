@@ -87,6 +87,7 @@ const testSource = (
         }
       },
       readLastCheckpoint: () => Promise.resolve(lastCheckpoint),
+      readLastCommittedCheckpoint: () => Promise.resolve(lastCheckpoint),
       compareCheckpoints: options?.compareCheckpoints,
       close: () => {
         state.closed++;
@@ -214,11 +215,13 @@ void describe('consumer', () => {
     assertFalse(messageConsumer.isRunning);
   });
 
-  void it('stops once the start tail is reached when until.caughtUp is set', async () => {
-    const { source, state: sourceState } = testSource(
-      [messageAt('1'), messageAt('2'), messageAt('3')],
-      { lastCheckpoint: '2' },
-    );
+  void it('stops once the source has nothing left when until.caughtUp is set', async () => {
+    const { source, state: sourceState } = testSource([
+      messageAt('1'),
+      messageAt('2'),
+      messageAt('3'),
+      caughtUpAt('3'),
+    ]);
     const { processor, state } = testProcessor('a');
 
     const messageConsumer = consumer({
@@ -231,9 +234,14 @@ void describe('consumer', () => {
 
     assertDeepEqual(
       state.handled.flat().map((m) => m.metadata.checkpoint),
-      [ProcessorCheckpoint('1'), ProcessorCheckpoint('2')],
+      [
+        ProcessorCheckpoint('1'),
+        ProcessorCheckpoint('2'),
+        ProcessorCheckpoint('3'),
+      ],
     );
     assertEqual(sourceState.teardowns, 1);
+    assertFalse(messageConsumer.isRunning);
   });
 
   void it('tears the source down when stopped mid read', async () => {
@@ -299,6 +307,7 @@ void describe('consumer', () => {
         yield caughtUpAt('0');
       },
       readLastCheckpoint: () => Promise.resolve(null),
+      readLastCommittedCheckpoint: () => Promise.resolve(null),
     };
     const messageConsumer = consumer({
       source,
@@ -424,18 +433,18 @@ void describe('consumer', () => {
     assertTrue(state.contexts.every((context) => context === scopeContext));
   });
 
-  void it('never reads the source tail from inside the scope', async () => {
+  void it('never reads the last checkpoint from inside the scope', async () => {
     const { source } = testSource([caughtUpAt('1')], {
       lastCheckpoint: '1',
     });
     const { processor } = testProcessor('a', { startFrom: 'END' });
 
     let isInScope = false;
-    let readTailFromInsideScope = false;
+    let readFromInsideScope = false;
 
     const readLastCheckpoint = source.readLastCheckpoint.bind(source);
     source.readLastCheckpoint = () => {
-      if (isInScope) readTailFromInsideScope = true;
+      if (isInScope) readFromInsideScope = true;
       return readLastCheckpoint();
     };
 
@@ -459,20 +468,20 @@ void describe('consumer', () => {
 
     await messageConsumer.start();
 
-    assertFalse(readTailFromInsideScope);
+    assertFalse(readFromInsideScope);
   });
 
-  void it('does not read the source tail when no processor starts from END', async () => {
+  void it('does not read the last checkpoint when no processor starts from END', async () => {
     const { source } = testSource([caughtUpAt('1')], {
       lastCheckpoint: '1',
     });
     const { processor } = testProcessor('a', { startFrom: 'BEGINNING' });
 
-    let tailReads = 0;
+    let lastCheckpointReads = 0;
 
     const readLastCheckpoint = source.readLastCheckpoint.bind(source);
     source.readLastCheckpoint = () => {
-      tailReads++;
+      lastCheckpointReads++;
       return readLastCheckpoint();
     };
 
@@ -484,7 +493,7 @@ void describe('consumer', () => {
 
     await messageConsumer.start();
 
-    assertEqual(tailReads, 0);
+    assertEqual(lastCheckpointReads, 0);
   });
 
   void it('closes a processor that failed to initialise exactly once', async () => {

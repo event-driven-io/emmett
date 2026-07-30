@@ -88,19 +88,19 @@ void describe('processorStartPositions', () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       }) as MessageProcessor<AnyMessage, any, MessageHandlerContext>;
 
-    void it('maps END to the resolved tail so zip and afterStartPosition use it', async () => {
-      const tail = bigIntProcessorCheckpoint(5n);
+    void it('maps END to the resolved checkpoint so zip and afterStartPosition use it', async () => {
+      const lastCheckpoint = bigIntProcessorCheckpoint(5n);
       const startPositions = await ConsumerStartPositions.resolve<
         AnyMessage,
         MessageHandlerContext
       >({
         handlerContext: {},
         processors: [processor('a', 'END')],
-        readLastMessageCheckpoint: () => Promise.resolve(tail),
+        readLastMessageCheckpoint: () => Promise.resolve(lastCheckpoint),
       });
 
       assertDeepEqual(startPositions.earliestPosition, {
-        lastCheckpoint: tail,
+        lastCheckpoint,
       });
       assertDeepEqual(
         startPositions.afterStartPosition('a', [
@@ -155,7 +155,7 @@ void describe('processorStartPositions', () => {
     });
 
     void it('calls the resolver exactly once and maps every END entry', async () => {
-      const tail = bigIntProcessorCheckpoint(7n);
+      const lastCheckpoint = bigIntProcessorCheckpoint(7n);
       let calls = 0;
 
       const startPositions = await ConsumerStartPositions.resolve<
@@ -166,13 +166,13 @@ void describe('processorStartPositions', () => {
         processors: [processor('a', 'END'), processor('b', 'END')],
         readLastMessageCheckpoint: () => {
           calls++;
-          return Promise.resolve(tail);
+          return Promise.resolve(lastCheckpoint);
         },
       });
 
       assertDeepEqual(calls, 1);
       assertDeepEqual(startPositions.earliestPosition, {
-        lastCheckpoint: tail,
+        lastCheckpoint,
       });
     });
   });
@@ -203,7 +203,7 @@ void describe('processorStartPositions', () => {
       );
     });
 
-    void it('keeps every message for an END processor with no resolved tail', () => {
+    void it('keeps every message for an END processor with no resolved checkpoint', () => {
       const startPositions = ProcessorStartPositions();
       startPositions.set('a', 'END');
 

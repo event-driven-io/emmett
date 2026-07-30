@@ -3,9 +3,8 @@ import { EmmettError } from '../errors';
 import { MessageSourceControlMessage } from '../eventStore/events';
 import {
   ConsumerStartPositions,
-  getCheckpoint,
-  ProcessorCheckpoint,
   type MessageProcessor,
+  type ProcessorCheckpoint,
   type WaitOptions,
 } from '../processors';
 import { FusionStreams } from '../streaming';
@@ -20,14 +19,11 @@ import type { MessageSource, MessageSourceMessage } from './messageSource';
 import type { ConsumerObservabilityConfig } from './observability';
 
 /**
- * Condition that makes a running consumer stop on its own. Keys are OR-ed:
- * the consumer stops as soon as the first satisfied condition is met.
- *
- * - `noMessagesLeft` - stop once a poll finds nothing left to process, even
- *   while the tail keeps moving (drains a live stream, e.g. blue-green
- *   projection rebuilds).
- * - `caughtUp` - stop once every processor reaches the store tail as of the
- *   start call (a bounded snapshot).
+ * Condition that makes a running consumer stop on its own. Either key stops it
+ * as soon as the source reports it has nothing left to deliver, which is what
+ * drains a live stream, e.g. a blue-green projection rebuild. A message
+ * appended while the consumer runs may still be processed, since the source
+ * delivers it before reporting that.
  */
 export type MessageConsumerUntilCondition = {
   noMessagesLeft?: boolean;
@@ -69,9 +65,9 @@ export type MessageConsumer<
     options?: WaitOptions,
   ) => Promise<void>;
   /**
-   * Resolves once every processor has processed up to the store's tail as of
-   * the call. The everyday test wait: start, append, `whenCaughtUp`, assert.
-   * Rejects on {@link WaitOptions.timeout}.
+   * Resolves once every processor has processed up to the store's last
+   * committed checkpoint as of the call. The everyday test wait: start, append,
+   * `whenCaughtUp`, assert. Rejects on {@link WaitOptions.timeout}.
    */
   whenCaughtUp: (options?: WaitOptions) => Promise<void>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -175,14 +171,6 @@ export const consumer = <
   const scope: MessageConsumerScope<HandlerContext> =
     options.scope ?? ((handler) => handler({}));
 
-  const compareCheckpoints =
-    source.compareCheckpoints ?? ProcessorCheckpoint.compare;
-
-  const readTail = () =>
-    source.readLastCommittedCheckpoint
-      ? source.readLastCommittedCheckpoint()
-      : source.readLastCheckpoint();
-
   let isRunning = false;
   let isInitialized = false;
   let abortController: AbortController | null = null;
@@ -259,12 +247,12 @@ export const consumer = <
         processors.map((p) => p.whenProcessed(position, waitOptions)),
       ).then(() => undefined),
     whenCaughtUp: async (waitOptions): Promise<void> => {
-      const tail = await readTail();
+      const lastCheckpoint = await source.readLastCommittedCheckpoint();
 
-      if (tail === null) return;
+      if (lastCheckpoint === null) return;
 
       await Promise.all(
-        processors.map((p) => p.whenProcessed(tail, waitOptions)),
+        processors.map((p) => p.whenProcessed(lastCheckpoint, waitOptions)),
       );
     },
     init,
@@ -306,13 +294,6 @@ export const consumer = <
             readLastMessageCheckpoint: () => source.readLastCheckpoint(),
             compareCheckpoints: source.compareCheckpoints,
           });
-
-          const startTail = until?.caughtUp ? await readTail() : null;
-
-          if (until?.caughtUp && startTail === null) {
-            startedAwaiter.resolve();
-            return;
-          }
 
           const handleBatch = (
             messages: RecordedMessage<
@@ -373,34 +354,6 @@ export const consumer = <
             deadlineInMs: batchDeadlineInMs ?? DefaultConsumerBatchDeadlineInMs,
           });
 
-          const isWithinStartTail = (
-            message: RecordedMessage<ConsumerMessageType, MessageMetadataType>,
-          ): boolean => {
-            const checkpoint = getCheckpoint(message);
-
-            return (
-              startTail === null ||
-              checkpoint === null ||
-              compareCheckpoints(checkpoint, startTail) <= 0
-            );
-          };
-
-          const reachesStartTail = (
-            messages: RecordedMessage<
-              ConsumerMessageType,
-              MessageMetadataType
-            >[],
-          ): boolean =>
-            startTail !== null &&
-            messages.some((message) => {
-              const checkpoint = getCheckpoint(message);
-
-              return (
-                checkpoint !== null &&
-                compareCheckpoints(checkpoint, startTail) >= 0
-              );
-            });
-
           const keepReading = async (
             batch: MessageSourceMessage<
               ConsumerMessageType,
@@ -409,17 +362,13 @@ export const consumer = <
           ): Promise<boolean> => {
             const { messages, caughtUp } = splitControlMessages(batch);
 
-            const withinStartTail = messages.filter(isWithinStartTail);
-
-            if (
-              withinStartTail.length > 0 &&
-              (await handleBatch(withinStartTail)) === 'STOP'
-            )
+            if (messages.length > 0 && (await handleBatch(messages)) === 'STOP')
               return false;
 
-            if (caughtUp && until?.noMessagesLeft) return false;
-
-            return !reachesStartTail(messages);
+            return !(
+              caughtUp &&
+              (until?.noMessagesLeft === true || until?.caughtUp === true)
+            );
           };
 
           for await (const batch of batches) {
