@@ -103,9 +103,10 @@ export type ResolveConsumerStartPositionsOptions<
   ) => Promise<ProcessorCheckpoint | null>;
   handlerContext: Partial<HandlerContext>;
   /**
-   * Wraps only the processors' own start calls. The tail read stays outside it,
+   * Wraps only the processors' own start calls. The checkpoint read stays
+   * outside it,
    * because a scope can hold an exclusive store resource (SQLite's is a single
-   * pooled connection) that reading the tail would wait on forever.
+   * pooled connection) that reading the checkpoint would wait on forever.
    */
   scope?: <Result>(
     handler: (context: Partial<HandlerContext>) => Promise<Result>,

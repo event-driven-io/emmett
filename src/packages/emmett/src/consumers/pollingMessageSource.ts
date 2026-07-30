@@ -53,9 +53,9 @@ export type PollingMessageSourceOptions<
 };
 
 /**
- * Backs off while the tail stays empty so an idle consumer stops hammering the
- * store, and snaps back to the configured frequency the moment messages flow
- * again.
+ * Backs off while the store has nothing left so an idle consumer stops
+ * hammering it, and snaps back to the configured frequency the moment messages
+ * flow again.
  */
 export const nextPollingWaitTime = (
   current: number,
@@ -125,7 +125,8 @@ export const pollingMessageSource = <
       }
     },
     readLastCheckpoint,
-    ...(readLastCommittedCheckpoint ? { readLastCommittedCheckpoint } : {}),
+    readLastCommittedCheckpoint:
+      readLastCommittedCheckpoint ?? readLastCheckpoint,
     ...(compareCheckpoints ? { compareCheckpoints } : {}),
     ...(close ? { close } : {}),
   };

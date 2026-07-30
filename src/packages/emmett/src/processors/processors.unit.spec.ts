@@ -940,7 +940,7 @@ void describe('Processors', () => {
       assertDeepEqual(currentPosition, { lastCheckpoint: stored });
     });
 
-    void it('returns END verbatim, leaving the consumer to resolve the tail', async () => {
+    void it('returns END verbatim, leaving the consumer to resolve the checkpoint', async () => {
       // Given
       const { checkpoints, wasRead } = trackingCheckpointer(
         bigIntProcessorCheckpoint(9n),

@@ -74,7 +74,7 @@ void describe('nextPollingWaitTime', () => {
     assertEqual(nextPollingWaitTime(800, true, 50), 50);
   });
 
-  void it('doubles the wait while the tail stays empty', () => {
+  void it('doubles the wait while the store has nothing left', () => {
     assertEqual(nextPollingWaitTime(100, false, 50), 200);
     assertEqual(nextPollingWaitTime(200, false, 50), 400);
   });
@@ -146,7 +146,7 @@ void describe('pollingMessageSource', () => {
     );
   });
 
-  void it('emits a caught up control message once the tail is empty', async () => {
+  void it('emits a caught up control message once nothing is left', async () => {
     const reads = scriptedReads([
       { checkpoints: ['1'], areMessagesLeft: false },
     ]);

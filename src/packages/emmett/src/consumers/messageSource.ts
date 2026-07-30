@@ -18,10 +18,9 @@ export type MessageSourceReadOptions = {
 };
 
 /**
- * A message as delivered by a source: either a recorded message, or one of the
- * control messages (e.g. {@link MessageSourceCaughtUp}) a source uses to report
- * its own state. The consumer strips control messages before fanning a batch
- * out, so no processor ever sees one.
+ * What comes out of a source: your recorded messages, plus the occasional
+ * {@link MessageSourceCaughtUp} it sends to say it has delivered everything it
+ * has for now. Processors never see the latter, the consumer takes it out.
  */
 export type MessageSourceMessage<
   MessageType extends Message = AnyMessage,
@@ -31,11 +30,13 @@ export type MessageSourceMessage<
   | MessageSourceControlMessage;
 
 /**
- * The read side of a store, unified. Pull stores (PostgreSQL, SQLite) yield
- * from their poll loop, push stores (MongoDB, EventStoreDB) yield what their
- * subscription hands them. Grouping messages into batches is the consumer's
- * job, and backpressure comes from the iterator protocol: nothing is read
- * until the consumer asks for the next message.
+ * Implement it to feed a consumer from your store, whether you poll it or
+ * subscribe to it. Deliver messages one by one in checkpoint order and take
+ * your time: nothing is read until the consumer asks for the next one, so a
+ * slow processor slows the reading down instead of piling up in memory.
+ * Batching, checkpointing and retries are the consumer's and the processors'
+ * job, not yours. Use {@link pollingMessageSource} or
+ * {@link subscriptionMessageSource} rather than writing one from scratch.
  */
 export type MessageSource<
   MessageType extends Message = AnyMessage,
@@ -45,26 +46,32 @@ export type MessageSource<
     options: MessageSourceReadOptions,
   ): AsyncIterable<MessageSourceMessage<MessageType, MessageMetadataType>>;
   /**
-   * Tail of the store, used to resolve a processor starting from `'END'`.
+   * Return how far your store goes, so a processor asking to start from `'END'`
+   * skips what is already there. `null` for an empty store, which starts it from
+   * the beginning.
    */
   readLastCheckpoint(): Promise<ProcessorCheckpoint | null>;
   /**
-   * Tail of the store as committed and visible to everyone, used by
-   * `whenCaughtUp`. Defaults to {@link readLastCheckpoint}. PostgreSQL is the
-   * reason this exists separately: its read path filters on `pg_snapshot_xmin`
-   * to avoid skipping messages from in-flight transactions, which would make a
-   * caught-up wait resolve too early.
+   * Return how far your store goes for readers other than the writer, which is
+   * what `whenCaughtUp` waits for. Return {@link readLastCheckpoint} unless your
+   * store can report a checkpoint that a read does not see yet, in which case a
+   * caught up wait would resolve before the message shows up. PostgreSQL is the
+   * one that can, because of in-flight transactions.
    */
-  readLastCommittedCheckpoint?(): Promise<ProcessorCheckpoint | null>;
+  readLastCommittedCheckpoint(): Promise<ProcessorCheckpoint | null>;
   /**
-   * Set when the checkpoint format does not sort lexicographically, e.g.
-   * MongoDB resume tokens. Propagated by the consumer to start position
-   * resolution and to every registered processor.
+   * Supply it when sorting your checkpoints as text gives the wrong order, e.g.
+   * MongoDB resume tokens. Everything that has to tell one checkpoint from
+   * another, start positions and each processor, uses what you give here.
    */
   compareCheckpoints?: (
     a: ProcessorCheckpoint,
     b: ProcessorCheckpoint,
   ) => number;
+  /**
+   * Release what you own, e.g. a connection you opened. Skip it when the
+   * lifetime of everything you use is somebody else's business.
+   */
   close?(): Promise<void>;
 };
 
