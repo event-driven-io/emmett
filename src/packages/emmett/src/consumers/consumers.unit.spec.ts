@@ -1,5 +1,5 @@
 import { describe, it, vi } from 'vitest';
-import { globalStreamCaughtUp } from '../eventStore/events';
+import { MessageSourceCaughtUp } from '../eventStore/events';
 import {
   ProcessorCheckpoint,
   type CurrentMessageProcessorPosition,
@@ -18,8 +18,8 @@ import type {
   MessageHandlerContext,
   RecordedMessage,
 } from '../typing';
-import { consumer } from './consumer';
-import type { MessageSource, MessageSourceBatch } from './messageSource';
+import { consumer } from './consumers';
+import type { MessageSource, MessageSourceMessage } from './messageSource';
 
 const messageAt = (checkpoint: string): RecordedMessage =>
   ({
@@ -28,20 +28,8 @@ const messageAt = (checkpoint: string): RecordedMessage =>
     metadata: { checkpoint: ProcessorCheckpoint(checkpoint) },
   }) as unknown as RecordedMessage;
 
-const batch = (
-  ...checkpoints: string[]
-): MessageSourceBatch<AnyMessage, never> =>
-  ({
-    messages: checkpoints.map(messageAt),
-    lastCheckpoint: ProcessorCheckpoint(checkpoints[checkpoints.length - 1]!),
-  }) as unknown as MessageSourceBatch<AnyMessage, never>;
-
-const caughtUpBatch = (
-  checkpoint: string,
-): MessageSourceBatch<AnyMessage, never> => ({
-  messages: [globalStreamCaughtUp({ globalPosition: checkpoint })],
-  lastCheckpoint: ProcessorCheckpoint(checkpoint),
-});
+const caughtUpAt = (checkpoint: string): MessageSourceMessage =>
+  MessageSourceCaughtUp(ProcessorCheckpoint(checkpoint));
 
 type TestSourceState = {
   readOptions: { from: CurrentMessageProcessorPosition } | undefined;
@@ -50,7 +38,7 @@ type TestSourceState = {
 };
 
 const testSource = (
-  batches: MessageSourceBatch<AnyMessage, never>[],
+  messages: MessageSourceMessage[],
   options?: {
     lastCheckpoint?: string;
     compareCheckpoints?: (
@@ -80,9 +68,9 @@ const testSource = (
       read: async function* (readOptions) {
         state.readOptions = readOptions;
         try {
-          for (const nextBatch of batches) {
+          for (const message of messages) {
             if (readOptions.signal.aborted) return;
-            yield nextBatch;
+            yield message;
           }
 
           await new Promise<void>((resolve) => {
@@ -178,10 +166,10 @@ const testProcessor = (
 void describe('consumer', () => {
   void it('strips caught up control messages before processor fan out', async () => {
     const { source } = testSource([
-      batch('1'),
-      caughtUpBatch('1'),
-      batch('2'),
-      caughtUpBatch('2'),
+      messageAt('1'),
+      caughtUpAt('1'),
+      messageAt('2'),
+      caughtUpAt('2'),
     ]);
     const { processor, state } = testProcessor('a');
 
@@ -196,15 +184,17 @@ void describe('consumer', () => {
 
     const handled = state.handled.flat();
 
-    assertEqual(handled.length, 1);
-    assertEqual(handled[0]!.type, 'Tested');
+    assertDeepEqual(
+      handled.map((m) => m.type),
+      ['Tested', 'Tested'],
+    );
   });
 
   void it('stops on the first caught up signal when until.noMessagesLeft is set', async () => {
     const { source, state: sourceState } = testSource([
-      batch('1'),
-      caughtUpBatch('1'),
-      batch('2'),
+      messageAt('1'),
+      caughtUpAt('1'),
+      messageAt('2'),
     ]);
     const { processor, state } = testProcessor('a');
 
@@ -218,7 +208,7 @@ void describe('consumer', () => {
 
     assertDeepEqual(
       state.handled.flat().map((m) => m.metadata.checkpoint),
-      [ProcessorCheckpoint('1')],
+      [ProcessorCheckpoint('1'), ProcessorCheckpoint('2')],
     );
     assertEqual(sourceState.teardowns, 1);
     assertFalse(messageConsumer.isRunning);
@@ -226,7 +216,7 @@ void describe('consumer', () => {
 
   void it('stops once the start tail is reached when until.caughtUp is set', async () => {
     const { source, state: sourceState } = testSource(
-      [batch('1'), batch('2'), batch('3')],
+      [messageAt('1'), messageAt('2'), messageAt('3')],
       { lastCheckpoint: '2' },
     );
     const { processor, state } = testProcessor('a');
@@ -247,7 +237,7 @@ void describe('consumer', () => {
   });
 
   void it('tears the source down when stopped mid read', async () => {
-    const { source, state: sourceState } = testSource([batch('1')]);
+    const { source, state: sourceState } = testSource([messageAt('1')]);
     const { processor } = testProcessor('a');
 
     const messageConsumer = consumer({ source, processors: [processor] });
@@ -263,21 +253,50 @@ void describe('consumer', () => {
     assertFalse(messageConsumer.isRunning);
   });
 
-  void it('reports started only when new messages can be received', async () => {
+  void it('hands over a message that arrived alone once the batch deadline passes', async () => {
+    vi.useFakeTimers();
+
+    try {
+      const { source } = testSource([messageAt('1')]);
+      const { processor, state } = testProcessor('a');
+
+      const messageConsumer = consumer({
+        source,
+        processors: [processor],
+        batchSize: 100,
+        batchDeadlineInMs: 50,
+      });
+
+      void messageConsumer.start();
+      await messageConsumer.whenStarted();
+
+      await vi.advanceTimersByTimeAsync(49);
+
+      assertDeepEqual(state.handled, []);
+
+      await vi.advanceTimersByTimeAsync(1);
+
+      assertDeepEqual(
+        state.handled.flat().map((m) => m.metadata.checkpoint),
+        [ProcessorCheckpoint('1')],
+      );
+
+      await messageConsumer.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  void it('reports started as soon as messages appended from now on will be picked up', async () => {
     let releaseSource!: () => void;
-    let reportSourceEntered!: () => void;
     const sourceReleased = new Promise<void>((resolve) => {
       releaseSource = resolve;
     });
-    const sourceEntered = new Promise<void>((resolve) => {
-      reportSourceEntered = resolve;
-    });
-    const { processor } = testProcessor('a');
+    const { processor, state } = testProcessor('a');
     const source: MessageSource = {
       read: async function* () {
-        reportSourceEntered();
         await sourceReleased;
-        yield caughtUpBatch('0');
+        yield caughtUpAt('0');
       },
       readLastCheckpoint: () => Promise.resolve(null),
     };
@@ -287,29 +306,23 @@ void describe('consumer', () => {
       until: { noMessagesLeft: true },
     });
 
-    let started = false;
     const start = messageConsumer.start();
-    void messageConsumer.whenStarted().then(() => {
-      started = true;
-    });
 
-    await sourceEntered;
-    await Promise.resolve();
+    await messageConsumer.whenStarted();
 
-    assertFalse(started);
+    assertEqual(state.starts, 1);
+    assertDeepEqual(state.handled, []);
+    assertTrue(messageConsumer.isRunning);
 
     releaseSource();
-    await messageConsumer.whenStarted();
     await start;
-
-    assertTrue(started);
   });
 
   void it('stops reading once every processor went inactive', async () => {
     const { source, state: sourceState } = testSource([
-      batch('1'),
-      batch('2'),
-      batch('3'),
+      messageAt('1'),
+      messageAt('2'),
+      messageAt('3'),
     ]);
     const { processor, state } = testProcessor('a', {
       onHandle: () => ({ type: 'STOP', reason: 'done' }),
@@ -333,8 +346,8 @@ void describe('consumer', () => {
 
   void it('resolves start positions again on restart', async () => {
     const { source, state: sourceState } = testSource([
-      batch('1'),
-      caughtUpBatch('1'),
+      messageAt('1'),
+      caughtUpAt('1'),
     ]);
     const { processor, state } = testProcessor('a');
 
@@ -358,7 +371,7 @@ void describe('consumer', () => {
       return left > right ? 1 : left < right ? -1 : 0;
     };
 
-    const { source, state: sourceState } = testSource([caughtUpBatch('20')], {
+    const { source, state: sourceState } = testSource([caughtUpAt('20')], {
       compareCheckpoints: numericCompare,
     });
 
@@ -383,7 +396,7 @@ void describe('consumer', () => {
   });
 
   void it('wraps init, start position resolution, fan out and close in the scope', async () => {
-    const { source } = testSource([batch('1'), caughtUpBatch('1')]);
+    const { source } = testSource([messageAt('1'), caughtUpAt('1')]);
     const { processor, state } = testProcessor('a');
 
     let scopeCalls = 0;
@@ -412,7 +425,7 @@ void describe('consumer', () => {
   });
 
   void it('never reads the source tail from inside the scope', async () => {
-    const { source } = testSource([caughtUpBatch('1')], {
+    const { source } = testSource([caughtUpAt('1')], {
       lastCheckpoint: '1',
     });
     const { processor } = testProcessor('a', { startFrom: 'END' });
@@ -450,7 +463,7 @@ void describe('consumer', () => {
   });
 
   void it('does not read the source tail when no processor starts from END', async () => {
-    const { source } = testSource([caughtUpBatch('1')], {
+    const { source } = testSource([caughtUpAt('1')], {
       lastCheckpoint: '1',
     });
     const { processor } = testProcessor('a', { startFrom: 'BEGINNING' });

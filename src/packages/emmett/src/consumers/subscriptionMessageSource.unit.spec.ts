@@ -7,40 +7,34 @@ import {
   assertTrue,
 } from '../testing';
 import type { AnyMessage, RecordedMessage } from '../typing';
-import type { MessageSourceBatch } from './messageSource';
+import type { MessageSourceMessage } from './messageSource';
 import {
   boundedMessageQueue,
   subscriptionMessageSource,
   type SubscribeOptions,
 } from './subscriptionMessageSource';
 
-const batchAt = (
-  checkpoint: string,
-): MessageSourceBatch<AnyMessage, never> => ({
-  messages: [
-    {
-      type: 'Tested',
-      data: {},
-      metadata: { checkpoint: ProcessorCheckpoint(checkpoint) },
-    } as unknown as RecordedMessage<AnyMessage, never>,
-  ],
-  lastCheckpoint: ProcessorCheckpoint(checkpoint),
-});
+const messageAt = (checkpoint: string): RecordedMessage<AnyMessage, never> =>
+  ({
+    type: 'Tested',
+    data: {},
+    metadata: { checkpoint: ProcessorCheckpoint(checkpoint) },
+  }) as unknown as RecordedMessage<AnyMessage, never>;
 
 const drain = async (
-  iterable: AsyncIterable<MessageSourceBatch<AnyMessage, never>>,
+  iterable: AsyncIterable<MessageSourceMessage<AnyMessage, never>>,
   take: number,
   controller: AbortController,
 ) => {
-  const batches = [];
-  for await (const batch of iterable) {
-    batches.push(batch);
-    if (batches.length >= take) {
+  const received = [];
+  for await (const message of iterable) {
+    received.push(message);
+    if (received.length >= take) {
       controller.abort();
       break;
     }
   }
-  return batches;
+  return received;
 };
 
 void describe('boundedMessageQueue', () => {
@@ -107,11 +101,11 @@ void describe('subscriptionMessageSource', () => {
 
         return (async function* () {
           if (attempt === 1) {
-            yield batchAt('1');
+            yield messageAt('1');
             await Promise.resolve();
             throw new Error('connection reset');
           }
-          yield batchAt('2');
+          yield messageAt('2');
         })();
       },
       readLastCheckpoint: () => Promise.resolve(null),
@@ -119,7 +113,7 @@ void describe('subscriptionMessageSource', () => {
     });
 
     const controller = new AbortController();
-    const batches = await drain(
+    const received = await drain(
       source.read({ from: 'BEGINNING', signal: controller.signal }),
       2,
       controller,
@@ -131,7 +125,7 @@ void describe('subscriptionMessageSource', () => {
       lastCheckpoint: ProcessorCheckpoint('1'),
     });
     assertDeepEqual(
-      batches.map((b) => b.lastCheckpoint),
+      received.map((m) => m.metadata.checkpoint),
       [ProcessorCheckpoint('1'), ProcessorCheckpoint('2')],
     );
   });
@@ -140,7 +134,7 @@ void describe('subscriptionMessageSource', () => {
     const source = subscriptionMessageSource<AnyMessage, never>({
       subscribe: () =>
         (async function* () {
-          yield batchAt('1');
+          yield messageAt('1');
           await Promise.resolve();
           throw new Error('server unavailable');
         })(),
@@ -172,7 +166,7 @@ void describe('subscriptionMessageSource', () => {
       subscribe: () => {
         attempts++;
         return (async function* () {
-          yield batchAt('1');
+          yield messageAt('1');
           await Promise.resolve();
           throw new Error('connection reset');
         })();
@@ -200,7 +194,7 @@ void describe('subscriptionMessageSource', () => {
         attempts++;
         return (async function* () {
           await Promise.resolve();
-          yield* [] as MessageSourceBatch<AnyMessage, never>[];
+          yield* [] as MessageSourceMessage<AnyMessage, never>[];
           throw failure;
         })();
       },
@@ -233,7 +227,7 @@ void describe('subscriptionMessageSource', () => {
         attempts++;
         return (async function* () {
           await Promise.resolve();
-          yield batchAt(`${attempts}`);
+          yield messageAt(`${attempts}`);
           throw new Error('connection reset');
         })();
       },
@@ -246,14 +240,14 @@ void describe('subscriptionMessageSource', () => {
     });
     const controller = new AbortController();
 
-    const batches = await drain(
+    const received = await drain(
       source.read({ from: 'BEGINNING', signal: controller.signal }),
       3,
       controller,
     );
 
     assertEqual(3, attempts);
-    assertEqual(3, batches.length);
+    assertEqual(3, received.length);
   });
 
   void it('waits according to the configured reconnect schedule', async () => {
@@ -265,7 +259,7 @@ void describe('subscriptionMessageSource', () => {
         attempts++;
         return (async function* () {
           await Promise.resolve();
-          yield* [] as MessageSourceBatch<AnyMessage, never>[];
+          yield* [] as MessageSourceMessage<AnyMessage, never>[];
           throw failure;
         })();
       },
@@ -315,7 +309,7 @@ void describe('subscriptionMessageSource', () => {
         attempts++;
         return (async function* () {
           await Promise.resolve();
-          yield batchAt(`${attempts}`);
+          yield messageAt(`${attempts}`);
         })();
       },
       readLastCheckpoint: () => Promise.resolve(null),
@@ -328,14 +322,14 @@ void describe('subscriptionMessageSource', () => {
     });
     const controller = new AbortController();
 
-    const batches = await drain(
+    const received = await drain(
       source.read({ from: 'BEGINNING', signal: controller.signal }),
       2,
       controller,
     );
 
     assertEqual(2, attempts);
-    assertEqual(2, batches.length);
+    assertEqual(2, received.length);
   });
 
   void it('ends when the subscription completes on its own', async () => {
@@ -343,21 +337,21 @@ void describe('subscriptionMessageSource', () => {
       subscribe: () =>
         (async function* () {
           await Promise.resolve();
-          yield batchAt('1');
+          yield messageAt('1');
         })(),
       readLastCheckpoint: () => Promise.resolve(null),
       resilience: { minTimeout: 0, randomize: false },
     });
 
     const controller = new AbortController();
-    const batches = [];
+    const received = [];
 
-    for await (const batch of source.read({
+    for await (const message of source.read({
       from: 'BEGINNING',
       signal: controller.signal,
     }))
-      batches.push(batch);
+      received.push(message);
 
-    assertEqual(batches.length, 1);
+    assertEqual(received.length, 1);
   });
 });

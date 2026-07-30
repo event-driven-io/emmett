@@ -1,5 +1,5 @@
-import { globalStreamCaughtUp } from '../eventStore/events';
-import type { ProcessorCheckpoint } from '../processors';
+import { MessageSourceCaughtUp } from '../eventStore/events';
+import { ProcessorCheckpoint } from '../processors';
 import type {
   AnyMessage,
   AnyReadEventMetadata,
@@ -9,9 +9,10 @@ import type {
 import { delayOrAbort } from '../utils';
 import type {
   MessageSource,
-  MessageSourceBatch,
+  MessageSourceMessage,
   MessageSourceReadOptions,
 } from './messageSource';
+import { toBatchSize } from './messageSource';
 
 export const DefaultPollingBatchSize = 100;
 export const DefaultPollingFrequencyInMs = 50;
@@ -93,10 +94,12 @@ export const pollingMessageSource = <
   return {
     read: async function* (
       readOptions: MessageSourceReadOptions,
-    ): AsyncGenerator<MessageSourceBatch<MessageType, MessageMetadataType>> {
+    ): AsyncGenerator<MessageSourceMessage<MessageType, MessageMetadataType>> {
       const { signal } = readOptions;
-      const batchSize =
-        readOptions.batchSize ?? options.batchSize ?? DefaultPollingBatchSize;
+      const batchSize = toBatchSize(
+        readOptions.batchSize ?? options.batchSize,
+        DefaultPollingBatchSize,
+      );
 
       let after = await resolveAfter(readOptions.from);
       let waitTime = DefaultPollingInitialBackoffInMs;
@@ -105,16 +108,12 @@ export const pollingMessageSource = <
         const { messages, currentCheckpoint, areMessagesLeft } =
           await readBatch({ after, batchSize, signal });
 
-        if (messages.length > 0)
-          yield { messages, lastCheckpoint: currentCheckpoint };
+        yield* messages;
 
         after = currentCheckpoint ?? after;
 
         if (!areMessagesLeft)
-          yield {
-            messages: [globalStreamCaughtUp({ globalPosition: after ?? '0' })],
-            lastCheckpoint: after,
-          };
+          yield MessageSourceCaughtUp(after ?? ProcessorCheckpoint('0'));
 
         waitTime = nextPollingWaitTime(
           waitTime,

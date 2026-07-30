@@ -1,47 +1,43 @@
-import {
-  event,
-  type Event,
-  type EventDataOf,
-  type GlobalPosition,
-  type ReadEvent,
-  type ReadEventMetadataWithGlobalPosition,
-} from '../../typing';
+import type { ProcessorCheckpoint } from '../../processors';
+import { event, type Event, type Message } from '../../typing';
 
-export const GlobalStreamCaughtUpType = '__emt:GlobalStreamCaughtUp';
+const MessageSourceCaughtUpType = '__emt:MessageSourceCaughtUp' as const;
 
-export type GlobalStreamCaughtUp = Event<
-  '__emt:GlobalStreamCaughtUp',
-  { globalPosition: GlobalPosition },
-  { globalPosition: GlobalPosition }
+/**
+ * Sent by a message source once it has nothing left to deliver as of now,
+ * reporting the checkpoint it reached. The consumer acts on it and strips it,
+ * so no processor ever sees one.
+ */
+export type MessageSourceCaughtUp = Event<
+  typeof MessageSourceCaughtUpType,
+  { checkpoint: ProcessorCheckpoint },
+  { checkpoint: ProcessorCheckpoint }
 >;
 
-export const isGlobalStreamCaughtUp = (
-  event: Event,
-): event is GlobalStreamCaughtUp => event.type === GlobalStreamCaughtUpType;
+export const MessageSourceCaughtUp = Object.assign(
+  (checkpoint: ProcessorCheckpoint): MessageSourceCaughtUp =>
+    event<MessageSourceCaughtUp>(
+      MessageSourceCaughtUpType,
+      { checkpoint },
+      { checkpoint },
+    ),
+  {
+    type: MessageSourceCaughtUpType,
+    is: (message: Message): message is MessageSourceCaughtUp =>
+      message.type === MessageSourceCaughtUpType,
+  } as const,
+);
 
-export const caughtUpEventFrom =
-  (position: string) =>
-  (
-    event: ReadEvent<Event, ReadEventMetadataWithGlobalPosition>,
-  ): event is ReadEvent<
-    GlobalStreamCaughtUp,
-    ReadEventMetadataWithGlobalPosition
-  > =>
-    event.type === GlobalStreamCaughtUpType &&
-    event.metadata?.globalPosition >= position;
+/**
+ * Everything a source sends about itself rather than about the store. Checking
+ * against the union keeps a new control message covered without touching every
+ * place that filters them out.
+ */
+export type MessageSourceControlMessage = MessageSourceCaughtUp;
 
-export const globalStreamCaughtUp = (
-  data: EventDataOf<GlobalStreamCaughtUp>,
-): GlobalStreamCaughtUp =>
-  event<GlobalStreamCaughtUp>(GlobalStreamCaughtUpType, data, {
-    globalPosition: data.globalPosition,
-  });
-
-export const isSubscriptionEvent = (
-  event: Event,
-): event is GlobalSubscriptionEvent => isGlobalStreamCaughtUp(event);
-
-export const isNotInternalEvent = (event: Event): boolean =>
-  !isGlobalStreamCaughtUp(event);
-
-export type GlobalSubscriptionEvent = GlobalStreamCaughtUp;
+export const MessageSourceControlMessage = {
+  is: (message: Message): message is MessageSourceControlMessage =>
+    MessageSourceCaughtUp.is(message),
+  isNot: (message: Message): boolean =>
+    !MessageSourceControlMessage.is(message),
+} as const;

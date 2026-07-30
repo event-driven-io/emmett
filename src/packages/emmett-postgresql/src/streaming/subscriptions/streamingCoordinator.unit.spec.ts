@@ -2,10 +2,9 @@ import {
   assertDeepEqual,
   assertEqual,
   bigIntProcessorCheckpoint,
-  caughtUpEventFrom,
-  globalStreamCaughtUp,
+  MessageSourceCaughtUp,
   type Event,
-  type GlobalStreamCaughtUp,
+  type ProcessorCheckpoint,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
@@ -53,7 +52,7 @@ void describe('StreamingCoordinator', () => {
 
     const listenerStream = streamingCoordinator
       .stream()
-      .pipeThrough(stopOn(caughtUpEventFrom(event.metadata.globalPosition)))
+      .pipeThrough(stopOn(caughtUpFrom(event.metadata.checkpoint!)))
       .pipeThrough(waitAtMost(20));
 
     const collectedEvents = collect(listenerStream);
@@ -63,12 +62,7 @@ void describe('StreamingCoordinator', () => {
     const result = await collectedEvents;
 
     assertDeepEqual(result, [
-      globalStreamCaughtUp({
-        globalPosition: bigIntProcessorCheckpoint(0n),
-      }) as ReadEvent<
-        GlobalStreamCaughtUp,
-        ReadEventMetadataWithGlobalPosition
-      >,
+      MessageSourceCaughtUp(bigIntProcessorCheckpoint(0n)),
       event,
     ]);
   });
@@ -79,11 +73,11 @@ void describe('StreamingCoordinator', () => {
 
     const listenerStream1 = streamingCoordinator
       .stream()
-      .pipeThrough(stopOn(caughtUpEventFrom(event2.metadata.globalPosition)))
+      .pipeThrough(stopOn(caughtUpFrom(event2.metadata.checkpoint!)))
       .pipeThrough(waitAtMost(20));
     const listenerStream2 = streamingCoordinator
       .stream()
-      .pipeThrough(stopOn(caughtUpEventFrom(event2.metadata.globalPosition)))
+      .pipeThrough(stopOn(caughtUpFrom(event2.metadata.checkpoint!)))
       .pipeThrough(waitAtMost(20));
 
     const collectedEvents1 = collect(listenerStream1);
@@ -95,22 +89,12 @@ void describe('StreamingCoordinator', () => {
     const result2 = await collectedEvents2;
 
     assertDeepEqual(result1, [
-      globalStreamCaughtUp({
-        globalPosition: bigIntProcessorCheckpoint(0n),
-      }) as ReadEvent<
-        GlobalStreamCaughtUp,
-        ReadEventMetadataWithGlobalPosition
-      >,
+      MessageSourceCaughtUp(bigIntProcessorCheckpoint(0n)),
       event1,
       event2,
     ]);
     assertDeepEqual(result2, [
-      globalStreamCaughtUp({
-        globalPosition: bigIntProcessorCheckpoint(0n),
-      }) as ReadEvent<
-        GlobalStreamCaughtUp,
-        ReadEventMetadataWithGlobalPosition
-      >,
+      MessageSourceCaughtUp(bigIntProcessorCheckpoint(0n)),
       event1,
       event2,
     ]);
@@ -122,7 +106,7 @@ void describe('StreamingCoordinator', () => {
     const subscription = streamingCoordinator.stream();
 
     const listenerStream = subscription
-      .pipeThrough(stopOn(caughtUpEventFrom(event.metadata.globalPosition)))
+      .pipeThrough(stopOn(caughtUpFrom(event.metadata.checkpoint!)))
       .pipeThrough(waitAtMost(20));
 
     const collectedEvents = collect(listenerStream);
@@ -156,7 +140,7 @@ void describe('StreamingCoordinator', () => {
     const result = await collectedEvents;
 
     assertDeepEqual(result, [
-      globalStreamCaughtUp({ globalPosition: bigIntProcessorCheckpoint(0n) }),
+      MessageSourceCaughtUp(bigIntProcessorCheckpoint(0n)),
     ]);
   });
 });
@@ -177,3 +161,13 @@ const createMockEvent = (
     checkpoint: bigIntProcessorCheckpoint(position),
   },
 });
+
+const caughtUpFrom =
+  (checkpoint: ProcessorCheckpoint) =>
+  (
+    message:
+      | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
+      | MessageSourceCaughtUp,
+  ): boolean =>
+    MessageSourceCaughtUp.is(message) &&
+    message.metadata.checkpoint >= checkpoint;

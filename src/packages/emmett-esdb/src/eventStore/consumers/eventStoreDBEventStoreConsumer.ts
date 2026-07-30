@@ -14,8 +14,6 @@ import {
   type MessageConsumer,
   type MessageConsumerOptions,
   type MessageSource,
-  type ProcessorCheckpoint,
-  type WaitOptions,
 } from '@event-driven-io/emmett';
 import {
   EventStoreDBClient,
@@ -32,6 +30,7 @@ export type EventStoreDBEventStoreConsumerConfig<
   from?: EventStoreDBEventStoreConsumerType;
   pulling?: {
     batchSize?: number;
+    batchDeadlineInMs?: number;
   };
   resilience?: {
     resubscribeOptions?: AsyncRetryOptions;
@@ -68,12 +67,6 @@ export type EventStoreDBEventStoreConsumer<
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<ConsumerMessageType> &
   Readonly<{
-    whenProcessed: (
-      position: ProcessorCheckpoint,
-      options?: WaitOptions,
-    ) => Promise<void>;
-    whenCaughtUp: (options?: WaitOptions) => Promise<void>;
-
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       options: InMemoryReactorOptions<MessageType>,
     ) => InMemoryProcessor<MessageType>;
@@ -115,6 +108,8 @@ export const eventStoreDBEventStoreConsumer = <
   >({
     ...options,
     source,
+    batchSize: options.pulling?.batchSize,
+    batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     hooks: {
       onClose: async () => {
         if (isOwnClient) await client.dispose();

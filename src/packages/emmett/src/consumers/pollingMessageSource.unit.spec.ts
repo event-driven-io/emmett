@@ -1,8 +1,8 @@
 import { describe, it } from 'vitest';
-import { isGlobalStreamCaughtUp } from '../eventStore/events';
+import { MessageSourceCaughtUp } from '../eventStore/events';
 import { ProcessorCheckpoint } from '../processors';
 import { assertDeepEqual, assertEqual, assertTrue } from '../testing';
-import type { AnyMessage, Event, RecordedMessage } from '../typing';
+import type { AnyMessage, RecordedMessage } from '../typing';
 import {
   DefaultPollingBackoffCeilingInMs,
   DefaultPollingInitialBackoffInMs,
@@ -56,14 +56,17 @@ const readAll = async (
   take: number,
 ) => {
   const controller = new AbortController();
-  const batches = [];
+  const received = [];
 
-  for await (const batch of source.read({ from, signal: controller.signal })) {
-    batches.push(batch);
-    if (batches.length >= take) controller.abort();
+  for await (const message of source.read({
+    from,
+    signal: controller.signal,
+  })) {
+    received.push(message);
+    if (received.length >= take) controller.abort();
   }
 
-  return batches;
+  return received;
 };
 
 void describe('nextPollingWaitTime', () => {
@@ -125,17 +128,21 @@ void describe('pollingMessageSource', () => {
       pullingFrequencyInMs: 0,
     });
 
-    const batches = await readAll(
+    const received = await readAll(
       source,
       { lastCheckpoint: ProcessorCheckpoint('0') },
-      2,
+      3,
     );
 
     assertEqual(reads.calls[0]!.after, ProcessorCheckpoint('0'));
     assertEqual(reads.calls[1]!.after, ProcessorCheckpoint('2'));
     assertDeepEqual(
-      batches.map((b) => b.lastCheckpoint),
-      [ProcessorCheckpoint('2'), ProcessorCheckpoint('3')],
+      received.map((m) => m.metadata.checkpoint),
+      [
+        ProcessorCheckpoint('1'),
+        ProcessorCheckpoint('2'),
+        ProcessorCheckpoint('3'),
+      ],
     );
   });
 
@@ -150,11 +157,11 @@ void describe('pollingMessageSource', () => {
       pullingFrequencyInMs: 0,
     });
 
-    const batches = await readAll(source, 'BEGINNING', 2);
+    const received = await readAll(source, 'BEGINNING', 2);
 
-    assertEqual(batches.length, 2);
-    assertTrue(isGlobalStreamCaughtUp(batches[1]!.messages[0]! as Event));
-    assertEqual(batches[1]!.lastCheckpoint, ProcessorCheckpoint('1'));
+    assertEqual(received.length, 2);
+    assertTrue(MessageSourceCaughtUp.is(received[1]!));
+    assertEqual(received[1]!.metadata.checkpoint, ProcessorCheckpoint('1'));
   });
 
   void it('passes the requested batch size down to the read', async () => {
@@ -189,17 +196,17 @@ void describe('pollingMessageSource', () => {
     });
 
     const controller = new AbortController();
-    const batches = [];
+    const received = [];
 
     setTimeout(() => controller.abort(), 5);
 
-    for await (const batch of source.read({
+    for await (const message of source.read({
       from: 'BEGINNING',
       signal: controller.signal,
     })) {
-      batches.push(batch);
+      received.push(message);
     }
 
-    assertTrue(batches.length >= 1);
+    assertTrue(received.length >= 1);
   });
 });

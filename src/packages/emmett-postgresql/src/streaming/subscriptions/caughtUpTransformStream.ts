@@ -6,8 +6,8 @@ import type {
 } from '@event-driven-io/emmett';
 import {
   bigIntProcessorCheckpoint,
-  globalStreamCaughtUp,
-  type GlobalSubscriptionEvent,
+  MessageSourceCaughtUp,
+  ProcessorCheckpoint,
 } from '@event-driven-io/emmett';
 import { TransformStream } from 'node:stream/web';
 
@@ -17,8 +17,7 @@ export const streamTrackingGlobalPosition = (
 
 export class CaughtUpTransformStream extends TransformStream<
   ReadEvent<Event, ReadEventMetadataWithGlobalPosition>,
-  | ReadEvent<Event, ReadEventMetadataWithGlobalPosition>
-  | GlobalSubscriptionEvent
+  ReadEvent<Event, ReadEventMetadataWithGlobalPosition> | MessageSourceCaughtUp
 > {
   private _currentPosition: GlobalPosition;
   private _logPosition: GlobalPosition;
@@ -31,7 +30,9 @@ export class CaughtUpTransformStream extends TransformStream<
           controller.enqueue(event);
           globalPosition = event.metadata.globalPosition;
         }
-        controller.enqueue(globalStreamCaughtUp({ globalPosition }));
+        controller.enqueue(
+          MessageSourceCaughtUp(ProcessorCheckpoint(globalPosition)),
+        );
       },
       transform: (event, controller) => {
         this._currentPosition = event.metadata.globalPosition;
@@ -40,7 +41,7 @@ export class CaughtUpTransformStream extends TransformStream<
         if (this._currentPosition < this._logPosition) return;
 
         controller.enqueue(
-          globalStreamCaughtUp({ globalPosition: this._currentPosition }),
+          MessageSourceCaughtUp(ProcessorCheckpoint(this._currentPosition)),
         );
       },
     });
