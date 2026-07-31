@@ -67,7 +67,11 @@ export const pollingMessageSource = <
 >(
   options: PollingMessageSourceOptions<MessageType, MessageMetadataType>,
 ): MessageSource<MessageType, MessageMetadataType> => {
-  const { readBatch, readLastMessageCheckpoint, close } = options;
+  const {
+    readBatch,
+    readLastMessageCheckpoint,
+    close = () => Promise.resolve(),
+  } = options;
 
   const pullingFrequencyInMs =
     options.pullingFrequencyInMs ?? DefaultPollingFrequencyInMs;
@@ -114,6 +118,6 @@ export const pollingMessageSource = <
       }
     },
     readLastMessageCheckpoint,
-    ...(close ? { close } : {}),
+    close,
   };
 };

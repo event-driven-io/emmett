@@ -303,7 +303,8 @@ void describe('consumer', () => {
         await sourceReleased;
         yield caughtUpAt('0');
       },
-      readLastMessageCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => null,
+      close: () => {},
     };
     const messageConsumer = consumer({
       source,
