@@ -76,12 +76,6 @@ const asProcessorCheckpoint = (
     : bigIntProcessorCheckpoint(BigInt(checkpoint));
 
 const AllStreamReadPageSize = 32;
-
-/**
- * Caps how far back a tail read walks when every event it meets is a system
- * event. Without it, a store whose tail is all system events would read the
- * whole log backwards a page at a time.
- */
 const MaxAllStreamScanPages = 64;
 
 const readLastMatchingAllCheckpoint = async (
@@ -186,7 +180,7 @@ const readLastProjectionStreamCheckpoint = async (
       maxCount: 1,
       ...(from.options ?? {}),
     });
-    let tail:
+    let result:
       | {
           checkpoint: ProcessorCheckpoint;
           originalGlobalCheckpoint: ProcessorCheckpoint | undefined;
@@ -199,7 +193,7 @@ const readLastProjectionStreamCheckpoint = async (
 
       if (checkpoint === null) continue;
 
-      tail = {
+      result = {
         checkpoint,
         originalGlobalCheckpoint: asProcessorCheckpoint(
           message.metadata.globalPosition,
@@ -207,7 +201,7 @@ const readLastProjectionStreamCheckpoint = async (
       };
     }
 
-    return tail;
+    return result;
   } catch (error) {
     if (error instanceof StreamNotFoundError) return undefined;
     throw error;
@@ -251,7 +245,7 @@ const waitForProjection = async (
 /**
  * Reads the checkpoint of the last committed message from the same logical stream
  * the subscription consumes. Projection streams can lag behind writes, so they
- * are retried until the standard EventStoreDB projection exposes the tail event.
+ * are retried until the standard EventStoreDB projection exposes the last event.
  */
 export const readLastCommittedMessageCheckpoint = async (
   client: EventStoreDBClient,

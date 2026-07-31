@@ -48,7 +48,6 @@ void describe('Testing async consumers', () => {
 
       await eventStore.appendToStream(`guestStay-${guestId}`, events);
 
-      // resolves once every processor has reached the store's tail
       await consumer.whenCaughtUp();
 
       assertThatArray(processed).containsElementsMatching(events);

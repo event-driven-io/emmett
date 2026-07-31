@@ -159,8 +159,9 @@ void describe('waiting for a PostgreSQL consumer to catch up in a test', () => {
         consumerPromise = consumer.start();
         await consumer.whenStarted();
 
-        // When / Then - a position far past the tail is never reached
+        // Then
         await assertRejects(
+          // When
           consumer.whenProcessed(
             PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
               transactionId: 99_999_999_999_999_999_999n,
