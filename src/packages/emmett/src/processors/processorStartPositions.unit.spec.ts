@@ -5,7 +5,7 @@ import type {
   MessageHandlerContext,
   RecordedMessage,
 } from '../typing';
-import { bigIntProcessorCheckpoint, ProcessorCheckpoint } from './checkpoints';
+import { bigIntProcessorCheckpoint } from './checkpoints';
 import {
   ConsumerStartPositions,
   ProcessorStartPositions,
@@ -19,19 +19,6 @@ const messageAt = (checkpoint: bigint): RecordedMessage =>
   ({
     metadata: { checkpoint: bigIntProcessorCheckpoint(checkpoint) },
   }) as unknown as RecordedMessage;
-
-const rawMessageAt = (checkpoint: string): RecordedMessage =>
-  ({
-    metadata: { checkpoint: ProcessorCheckpoint(checkpoint) },
-  }) as unknown as RecordedMessage;
-
-const numericCompareCheckpoints = (
-  a: ProcessorCheckpoint,
-  b: ProcessorCheckpoint,
-): number => {
-  const [left, right] = [BigInt(a), BigInt(b)];
-  return left > right ? 1 : left < right ? -1 : 0;
-};
 
 void describe('processorStartPositions', () => {
   void describe('zip', () => {
@@ -224,19 +211,6 @@ void describe('processorStartPositions', () => {
         startPositions.afterStartPosition('a', messages),
         messages,
       );
-    });
-
-    void it('uses the provided comparator to decide what is above the checkpoint', () => {
-      const startPositions = ProcessorStartPositions({
-        compareCheckpoints: numericCompareCheckpoints,
-      });
-      startPositions.set('a', { lastCheckpoint: ProcessorCheckpoint('9') });
-
-      const messages = [rawMessageAt('9'), rawMessageAt('10')];
-
-      assertDeepEqual(startPositions.afterStartPosition('a', messages), [
-        rawMessageAt('10'),
-      ]);
     });
   });
 });

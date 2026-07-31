@@ -51,10 +51,6 @@ export const CurrentMessageProcessorPosition = {
   compare: (
     a: CurrentMessageProcessorPosition,
     b: CurrentMessageProcessorPosition,
-    compareCheckpoints: (
-      a: ProcessorCheckpoint,
-      b: ProcessorCheckpoint,
-    ) => number = ProcessorCheckpoint.compare,
   ) => {
     if (a === b) return 0;
 
@@ -64,23 +60,18 @@ export const CurrentMessageProcessorPosition = {
     if (a === 'END') return 1;
     if (b === 'END') return -1;
 
-    return compareCheckpoints(a.lastCheckpoint, b.lastCheckpoint);
+    return ProcessorCheckpoint.compare(a.lastCheckpoint, b.lastCheckpoint);
   },
   zip: (
     checkpoints: (CurrentMessageProcessorPosition | undefined)[],
-    compareCheckpoints?: (
-      a: ProcessorCheckpoint,
-      b: ProcessorCheckpoint,
-    ) => number,
   ): CurrentMessageProcessorPosition => {
     if (checkpoints.length === 0) return 'BEGINNING';
 
     return (
       checkpoints
         .map((pos) => (pos === undefined ? 'BEGINNING' : pos))
-        .sort((a, b) =>
-          CurrentMessageProcessorPosition.compare(a, b, compareCheckpoints),
-        )[0] ?? 'BEGINNING'
+        .sort((a, b) => CurrentMessageProcessorPosition.compare(a, b))[0] ??
+      'BEGINNING'
     );
   },
 };
@@ -91,10 +82,6 @@ export const wasMessageHandled = <
 >(
   message: RecordedMessage<MessageType, MessageMetadataType>,
   checkpoint: ProcessorCheckpoint | null,
-  compareCheckpoints: (
-    a: ProcessorCheckpoint,
-    b: ProcessorCheckpoint,
-  ) => number = ProcessorCheckpoint.compare,
 ): boolean => {
   //TODO Make it smarter
   const messageCheckpoint = getCheckpoint(message);
@@ -104,7 +91,7 @@ export const wasMessageHandled = <
     messageCheckpoint !== undefined &&
     checkpoint !== null &&
     checkpoint !== undefined &&
-    compareCheckpoints(messageCheckpoint, checkpoint) <= 0
+    ProcessorCheckpoint.compare(messageCheckpoint, checkpoint) <= 0
   );
 };
 
@@ -229,10 +216,6 @@ export type BaseMessageProcessorOptions<
   checkpoints?:
     Checkpointer<MessageType, MessageMetadataType, HandlerContext> | 'DISABLED';
   canHandle?: CanHandle<MessageType>;
-  compareCheckpoints?: (
-    a: ProcessorCheckpoint,
-    b: ProcessorCheckpoint,
-  ) => number;
   hooks?: ProcessorHooks<HandlerContext>;
 } & JSONSerializationOptions & {
     observability?: ProcessorObservabilityConfig;
@@ -415,7 +398,6 @@ export const reactor = <
     startFrom,
     canHandle,
     stopAfter,
-    compareCheckpoints = ProcessorCheckpoint.compare,
   } = options;
 
   const checkpointer =
@@ -510,7 +492,8 @@ export const reactor = <
   }>();
 
   const hasProcessed = (target: ProcessorCheckpoint): boolean =>
-    lastCheckpoint !== null && compareCheckpoints(lastCheckpoint, target) >= 0;
+    lastCheckpoint !== null &&
+    ProcessorCheckpoint.compare(lastCheckpoint, target) >= 0;
 
   const notifyCheckpointWaiters = () => {
     for (const waiter of checkpointWaiters) {
@@ -731,12 +714,7 @@ export const reactor = <
             const result = await processingScope(
               async (context) => {
                 const messagesAboveCheckpoint = messages.filter(
-                  (message) =>
-                    !wasMessageHandled(
-                      message,
-                      lastCheckpoint,
-                      compareCheckpoints,
-                    ),
+                  (message) => !wasMessageHandled(message, lastCheckpoint),
                 );
 
                 const upcastedMessages = messagesAboveCheckpoint

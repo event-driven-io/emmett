@@ -22,13 +22,6 @@ export type ConsumerStartPositions = {
   ) => RecordedMessage<MessageType, MessageMetadataType>[];
 };
 
-export type ProcessorStartPositionsOptions = {
-  compareCheckpoints?: (
-    a: ProcessorCheckpoint,
-    b: ProcessorCheckpoint,
-  ) => number;
-};
-
 export type ProcessorStartPositions = {
   set: (
     processorId: string,
@@ -45,9 +38,7 @@ export type ProcessorStartPositions = {
   ) => RecordedMessage<MessageType, MessageMetadataType>[];
 };
 
-export const ProcessorStartPositions = (
-  options?: ProcessorStartPositionsOptions,
-): ProcessorStartPositions => {
+export const ProcessorStartPositions = (): ProcessorStartPositions => {
   const positions = new Map<
     string,
     CurrentMessageProcessorPosition | undefined
@@ -61,11 +52,7 @@ export const ProcessorStartPositions = (
       [...positions.entries()]
         .filter(([, position]) => position === expected)
         .map((p) => p[0]),
-    zip: () =>
-      CurrentMessageProcessorPosition.zip(
-        [...positions.values()],
-        options?.compareCheckpoints,
-      ),
+    zip: () => CurrentMessageProcessorPosition.zip([...positions.values()]),
     afterStartPosition: (processorId, messages) => {
       const position = positions.get(processorId);
 
@@ -77,14 +64,12 @@ export const ProcessorStartPositions = (
         return messages;
 
       const { lastCheckpoint } = position;
-      const compareCheckpoints =
-        options?.compareCheckpoints ?? ProcessorCheckpoint.compare;
 
       return messages.filter((message) => {
         const checkpoint = getCheckpoint(message);
         return (
           checkpoint !== null &&
-          compareCheckpoints(checkpoint, lastCheckpoint) > 0
+          ProcessorCheckpoint.compare(checkpoint, lastCheckpoint) > 0
         );
       });
     },
@@ -111,10 +96,6 @@ export type ResolveConsumerStartPositionsOptions<
   scope?: <Result>(
     handler: (context: Partial<HandlerContext>) => Promise<Result>,
   ) => Promise<Result>;
-  compareCheckpoints?: (
-    a: ProcessorCheckpoint,
-    b: ProcessorCheckpoint,
-  ) => number;
 };
 
 export const ConsumerStartPositions = {
@@ -127,12 +108,11 @@ export const ConsumerStartPositions = {
     handlerContext: handlerOptions,
     readLastMessageCheckpoint,
     scope,
-    compareCheckpoints,
   }: ResolveConsumerStartPositionsOptions<
     ConsumerMessageType,
     HandlerContext
   >): Promise<ConsumerStartPositions> => {
-    const positions = ProcessorStartPositions({ compareCheckpoints });
+    const positions = ProcessorStartPositions();
 
     const inScope =
       scope ??

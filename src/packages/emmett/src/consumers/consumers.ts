@@ -292,7 +292,6 @@ export const consumer = <
             handlerContext: {},
             scope,
             readLastMessageCheckpoint: () => source.readLastMessageCheckpoint(),
-            compareCheckpoints: source.compareCheckpoints,
           });
 
           const handleBatch = (
