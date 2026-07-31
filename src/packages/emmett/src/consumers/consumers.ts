@@ -304,18 +304,16 @@ export const consumer = <
             >[],
           ) =>
             scope(async (context) => {
-              const activeProcessors = processors.filter((p) => p.isActive);
-
-              if (activeProcessors.length === 0) return 'STOP' as const;
+              const active = processors.filter((p) => p.isActive);
+              if (active.length === 0) return 'STOP' as const;
 
               const results = await Promise.allSettled(
-                activeProcessors.map(async (p) => {
-                  const batch = startPositions.afterStartPosition(
-                    p.id,
-                    messages,
-                  );
+                active.map(async (p) => {
                   try {
-                    return await p.handle(batch, context);
+                    return await p.handle(
+                      startPositions.afterStartPosition(p.id, messages),
+                      context,
+                    );
                   } catch (error) {
                     console.log(
                       `Error during message batch processing for processor: ${p.id}`,
@@ -326,20 +324,19 @@ export const consumer = <
                 }),
               );
 
-              const kept = results.some(
+              const failure = results.find((r) => r.status === 'rejected');
+
+              if (failure) {
+                throw EmmettError.mapFrom(
+                  failure.reason as Error | { message?: string },
+                );
+              }
+
+              const allSucceeded = results.some(
                 (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
               );
 
-              if (kept) return 'CONTINUE';
-
-              const rejected = results.find((r) => r.status === 'rejected');
-
-              if (rejected)
-                throw EmmettError.mapFrom(
-                  rejected.reason as Error | { message?: string },
-                );
-
-              return 'STOP';
+              return allSucceeded ? 'CONTINUE' : 'STOP';
             });
 
           startedAwaiter.resolve();

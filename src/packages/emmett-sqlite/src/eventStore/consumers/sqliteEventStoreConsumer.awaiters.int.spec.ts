@@ -176,8 +176,9 @@ void describe('waiting for a SQLite consumer to catch up in a test', () => {
         consumerPromise = consumer.start();
         await consumer.whenStarted();
 
-        // When / Then - a position far past the tail is never reached
+        // When
         await assertRejects(
+          // When
           consumer.whenProcessed(bigIntProcessorCheckpoint(9_999_999_999n), {
             timeout: 200,
           }),
