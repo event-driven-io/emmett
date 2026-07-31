@@ -1,12 +1,12 @@
 import { describe, it, vi } from 'vitest';
-import { ProcessorCheckpoint } from '../processors';
+import { ProcessorCheckpoint } from '../../processors';
 import {
   assertDeepEqual,
   assertEqual,
   assertRejects,
   assertTrue,
-} from '../testing';
-import type { AnyMessage, RecordedMessage } from '../typing';
+} from '../../testing';
+import type { AnyMessage, RecordedMessage } from '../../typing';
 import type { MessageSourceMessage } from './messageSource';
 import {
   boundedMessageQueue,

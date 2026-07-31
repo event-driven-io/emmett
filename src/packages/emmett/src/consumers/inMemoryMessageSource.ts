@@ -5,8 +5,8 @@ import type {
   Message,
   RecordedMessage,
 } from '../typing';
-import type { MessageSource } from './messageSource';
-import { pollingMessageSource } from './pollingMessageSource';
+import type { MessageSource } from './messageSources/messageSource';
+import { pollingMessageSource } from './messageSources/pollingMessageSource';
 
 export type InMemoryMessageSourceOptions<
   MessageType extends Message = AnyMessage,

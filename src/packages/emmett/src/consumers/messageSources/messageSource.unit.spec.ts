@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
-import type { EmmettError } from '../errors';
-import { assertEqual, assertThrows } from '../testing';
+import type { EmmettError } from '../../errors';
+import { assertEqual, assertThrows } from '../../testing';
 import { toBatchSize } from './messageSource';
 
 void describe('toBatchSize', () => {
