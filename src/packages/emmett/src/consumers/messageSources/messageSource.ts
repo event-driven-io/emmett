@@ -56,7 +56,7 @@ export type MessageSource<
    * Release what you own, e.g. a connection you opened. Skip it when the
    * lifetime of everything you use is somebody else's business.
    */
-  close?(): MaybePromise<void>;
+  close(): MaybePromise<void>;
 };
 
 /**

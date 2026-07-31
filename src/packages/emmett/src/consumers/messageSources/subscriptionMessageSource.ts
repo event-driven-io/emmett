@@ -128,7 +128,12 @@ export const subscriptionMessageSource = <
 >(
   options: SubscriptionMessageSourceOptions<MessageType, MessageMetadataType>,
 ): MessageSource<MessageType, MessageMetadataType> => {
-  const { subscribe, readLastMessageCheckpoint, resilience, close } = options;
+  const {
+    subscribe,
+    readLastMessageCheckpoint,
+    resilience,
+    close = () => Promise.resolve(),
+  } = options;
 
   const retryOptions: AsyncRetryOptions<void> = resilience ?? {
     forever: true,
@@ -210,7 +215,7 @@ export const subscriptionMessageSource = <
         });
       }
     },
-    readLastMessageCheckpoint: readLastMessageCheckpoint,
-    ...(close ? { close } : {}),
+    readLastMessageCheckpoint,
+    close,
   };
 };

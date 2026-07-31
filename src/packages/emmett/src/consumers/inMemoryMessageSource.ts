@@ -34,7 +34,7 @@ export const inMemoryMessageSource = <
 ): InMemoryMessageSource<MessageType, MessageMetadataType> => {
   const messages = [...(options.messages ?? [])];
 
-  const lastCheckpoint = (): ProcessorCheckpoint | null =>
+  const readLastMessageCheckpoint = (): ProcessorCheckpoint | null =>
     messages.length > 0 ? getCheckpoint(messages[messages.length - 1]!) : null;
 
   const source = pollingMessageSource<MessageType, MessageMetadataType>({
@@ -58,7 +58,7 @@ export const inMemoryMessageSource = <
         areMessagesLeft: pending.length > batch.length,
       };
     },
-    readLastMessageCheckpoint: () => Promise.resolve(lastCheckpoint()),
+    readLastMessageCheckpoint,
   });
 
   return {
