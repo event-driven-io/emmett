@@ -14,6 +14,7 @@ import {
   type EventStoreDBReadEventMetadata,
 } from '../../eventstoreDBEventStore';
 import type { EventStoreDBEventStoreConsumerType } from '../eventStoreDBEventStoreConsumer';
+import { observeSubscriptionEvents as observeSubscriptionNotifications } from './esdbSubscriptiEvents';
 import {
   DefaultEventStoreDBEventStoreProcessorBatchSize,
   EventStoreDBResubscribeDefaultOptions,
@@ -49,110 +50,66 @@ export const eventStoreDBMessageSource = <
   return subscriptionMessageSource<MessageType, EventStoreDBReadEventMetadata>({
     subscribe: async function* ({ from: startFrom, signal }) {
       const subscription = subscribe(client, from, startFrom);
+      const notifications = observeSubscriptionNotifications(
+        subscription,
+        signal,
+      );
 
       let lastCheckpoint: ProcessorCheckpoint | null = null;
-      let confirmed = false;
-      let caughtUpPending = false;
-      let ended = false;
-      let failure: Error | undefined;
-      let notificationPending = false;
-      let notificationWaiter: (() => void) | null = null;
-
-      const notify = () => {
-        if (notificationWaiter) {
-          const resolve = notificationWaiter;
-          notificationWaiter = null;
-          resolve();
-          return;
-        }
-
-        notificationPending = true;
-      };
-      const waitForNotification = (): Promise<void> => {
-        if (notificationPending) {
-          notificationPending = false;
-          return Promise.resolve();
-        }
-
-        return new Promise<void>((resolve) => {
-          notificationWaiter = resolve;
-        });
-      };
-      const onConfirmation = () => {
-        confirmed = true;
-        notify();
-      };
-      const onCaughtUp = () => {
-        caughtUpPending = true;
-        notify();
-      };
-      const onFellBehind = () => {
-        caughtUpPending = false;
-        notify();
-      };
-      const onReadable = () => notify();
-      const onEnd = () => {
-        ended = true;
-        notify();
-      };
-      const onError = (error: Error) => {
-        failure = error;
-        notify();
-      };
-      const onAbort = () => notify();
-
-      subscription.on('confirmation', onConfirmation);
-      subscription.on('caughtUp', onCaughtUp);
-      subscription.on('fellBehind', onFellBehind);
-      subscription.on('readable', onReadable);
-      subscription.on('end', onEnd);
-      subscription.on('error', onError);
-      signal.addEventListener('abort', onAbort, { once: true });
 
       try {
-        while (!confirmed && !ended && !failure && !signal.aborted)
-          await waitForNotification();
+        while (
+          !notifications.confirmed &&
+          !notifications.ended &&
+          !notifications.failure &&
+          !signal.aborted
+        ) {
+          await notifications.waitForNotification();
+        }
 
         while (!signal.aborted) {
           const resolvedEvent =
             subscription.read() as ResolvedEvent<MessageType> | null;
 
           if (resolvedEvent) {
-            if (!resolvedEvent.event) continue;
+            if (!resolvedEvent.event) {
+              continue;
+            }
 
             const message = mapFromESDBEvent<MessageType>(resolvedEvent, from);
+
             lastCheckpoint = getCheckpoint(message);
             yield message;
             continue;
           }
 
-          if (failure) throw failure;
-          if (ended) return;
+          const failure = notifications.failure;
 
-          if (caughtUpPending) {
-            caughtUpPending = false;
+          if (failure) {
+            throw failure;
+          }
+
+          if (notifications.ended) {
+            return;
+          }
+
+          if (notifications.takeCaughtUp()) {
             yield MessageSourceCaughtUp(
               lastCheckpoint ?? ProcessorCheckpoint('0'),
             );
             continue;
           }
 
-          await waitForNotification();
+          await notifications.waitForNotification();
         }
       } finally {
-        signal.removeEventListener('abort', onAbort);
-        await subscription.unsubscribe().catch(() => {});
-        subscription.destroy();
-        subscription.off('confirmation', onConfirmation);
-        subscription.off('caughtUp', onCaughtUp);
-        subscription.off('fellBehind', onFellBehind);
-        subscription.off('readable', onReadable);
-        subscription.off('end', onEnd);
-        subscription.off('error', onError);
+        await notifications.dispose();
       }
     },
+
     readLastMessageCheckpoint: async (): Promise<ProcessorCheckpoint | null> =>
       (await readLastCommittedMessageCheckpoint(client, from)) ?? null,
+
     batchSize: batchSize ?? DefaultEventStoreDBEventStoreProcessorBatchSize,
     resilience: resubscribeOptions,
   });
