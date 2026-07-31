@@ -66,14 +66,6 @@ export const postgreSQLMessageSource = <
         );
         return toCheckpoint(currentCheckpoint);
       }),
-    readLastCommittedCheckpoint: () =>
-      pool.withConnection(async (connection) => {
-        const { currentCheckpoint } = await readLastCommittedMessageCheckpoint(
-          connection.execute,
-          { partition },
-        );
-        return toCheckpoint(currentCheckpoint);
-      }),
     batchSize: batchSize ?? DefaultPostgreSQLEventStoreProcessorBatchSize,
     pullingFrequencyInMs:
       pullingFrequencyInMs ??

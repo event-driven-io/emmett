@@ -1,8 +1,9 @@
+import type { MaybePromise } from '@event-driven-io/pongo';
 import { describe, it } from 'vitest';
-import { MessageSourceCaughtUp } from '../eventStore/events';
-import { ProcessorCheckpoint } from '../processors';
-import { assertDeepEqual, assertEqual, assertTrue } from '../testing';
-import type { AnyMessage, RecordedMessage } from '../typing';
+import { MessageSourceCaughtUp } from '../../eventStore/events';
+import { ProcessorCheckpoint } from '../../processors';
+import { assertDeepEqual, assertEqual, assertTrue } from '../../testing';
+import type { AnyMessage, RecordedMessage } from '../../typing';
 import {
   DefaultPollingBackoffCeilingInMs,
   DefaultPollingInitialBackoffInMs,
@@ -30,10 +31,9 @@ const scriptedReads = (
 
   return {
     calls,
-    // eslint-disable-next-line @typescript-eslint/require-await
-    readBatch: async (
+    readBatch: (
       options: PollingReadBatchOptions,
-    ): Promise<PollingReadBatchResult<AnyMessage, never>> => {
+    ): MaybePromise<PollingReadBatchResult<AnyMessage, never>> => {
       calls.push(options);
       const result = results[index++] ?? { checkpoints: [] };
       const last = result.checkpoints[result.checkpoints.length - 1];

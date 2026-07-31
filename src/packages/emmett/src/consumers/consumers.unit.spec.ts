@@ -19,7 +19,10 @@ import type {
   RecordedMessage,
 } from '../typing';
 import { consumer } from './consumers';
-import type { MessageSource, MessageSourceMessage } from './messageSource';
+import type {
+  MessageSource,
+  MessageSourceMessage,
+} from './messageSources/messageSource';
 
 const messageAt = (checkpoint: string): RecordedMessage =>
   ({

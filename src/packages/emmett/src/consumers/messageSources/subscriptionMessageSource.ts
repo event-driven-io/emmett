@@ -2,14 +2,14 @@ import {
   getCheckpoint,
   type CurrentMessageProcessorPosition,
   type ProcessorCheckpoint,
-} from '../processors';
+} from '../../processors';
 import type {
   AnyMessage,
   AnyReadEventMetadata,
   Message,
   RecordedMessage,
-} from '../typing';
-import { delayOrAbort, type AsyncRetryOptions } from '../utils';
+} from '../../typing';
+import { delayOrAbort, type AsyncRetryOptions } from '../../utils';
 import type {
   MessageSource,
   MessageSourceMessage,

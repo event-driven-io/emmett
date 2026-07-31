@@ -1,12 +1,12 @@
-import { MessageSourceCaughtUp } from '../eventStore/events';
-import { ProcessorCheckpoint } from '../processors';
+import { MessageSourceCaughtUp } from '../../eventStore/events';
+import { ProcessorCheckpoint } from '../../processors';
 import type {
   AnyMessage,
   AnyReadEventMetadata,
   Message,
   RecordedMessage,
-} from '../typing';
-import { delayOrAbort } from '../utils';
+} from '../../typing';
+import { delayOrAbort, type MaybePromise } from '../../utils';
 import type {
   MessageSource,
   MessageSourceMessage,
@@ -40,12 +40,11 @@ export type PollingMessageSourceOptions<
 > = {
   readBatch: (
     options: PollingReadBatchOptions,
-  ) => Promise<PollingReadBatchResult<MessageType, MessageMetadataType>>;
-  readLastMessageCheckpoint: () => Promise<ProcessorCheckpoint | null>;
-  readLastCommittedCheckpoint?: () => Promise<ProcessorCheckpoint | null>;
+  ) => MaybePromise<PollingReadBatchResult<MessageType, MessageMetadataType>>;
+  readLastMessageCheckpoint: () => MaybePromise<ProcessorCheckpoint | null>;
   batchSize?: number;
   pullingFrequencyInMs?: number;
-  close?: () => Promise<void>;
+  close?: () => MaybePromise<void>;
 };
 
 /**

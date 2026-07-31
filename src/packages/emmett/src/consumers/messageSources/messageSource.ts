@@ -1,15 +1,16 @@
-import { EmmettError } from '../errors';
-import type { MessageSourceControlMessage } from '../eventStore/events';
+import type { MaybePromise } from '@event-driven-io/pongo';
+import { EmmettError } from '../../errors';
+import type { MessageSourceControlMessage } from '../../eventStore/events';
 import type {
   CurrentMessageProcessorPosition,
   ProcessorCheckpoint,
-} from '../processors';
+} from '../../processors';
 import type {
   AnyMessage,
   AnyReadEventMetadata,
   Message,
   RecordedMessage,
-} from '../typing';
+} from '../../typing';
 
 export type MessageSourceReadOptions = {
   from: CurrentMessageProcessorPosition;
@@ -50,12 +51,12 @@ export type MessageSource<
    * skips what is already there. `null` for an empty store, which starts it from
    * the beginning.
    */
-  readLastMessageCheckpoint(): Promise<ProcessorCheckpoint | null>;
+  readLastMessageCheckpoint(): MaybePromise<ProcessorCheckpoint | null>;
   /**
    * Release what you own, e.g. a connection you opened. Skip it when the
    * lifetime of everything you use is somebody else's business.
    */
-  close?(): Promise<void>;
+  close?(): MaybePromise<void>;
 };
 
 /**

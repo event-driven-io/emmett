@@ -15,7 +15,10 @@ import type {
   RecordedMessage,
 } from '../typing';
 import { asyncAwaiter, type AsyncAwaiter } from '../utils';
-import type { MessageSource, MessageSourceMessage } from './messageSource';
+import type {
+  MessageSource,
+  MessageSourceMessage,
+} from './messageSources/messageSource';
 import type { ConsumerObservabilityConfig } from './observability';
 
 /**

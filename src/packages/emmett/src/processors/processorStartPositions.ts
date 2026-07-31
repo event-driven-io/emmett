@@ -5,6 +5,7 @@ import type {
   MessageHandlerContext,
   RecordedMessage,
 } from '../typing';
+import type { MaybePromise } from '../utils';
 import { getCheckpoint, ProcessorCheckpoint } from './checkpoints';
 import {
   CurrentMessageProcessorPosition,
@@ -85,7 +86,7 @@ export type ResolveConsumerStartPositionsOptions<
   processors: Array<MessageProcessor<ConsumerMessageType, any, HandlerContext>>;
   readLastMessageCheckpoint: (
     context: Partial<HandlerContext>,
-  ) => Promise<ProcessorCheckpoint | null>;
+  ) => MaybePromise<ProcessorCheckpoint | null>;
   handlerContext: Partial<HandlerContext>;
   /**
    * Wraps only the processors' own start calls. The checkpoint read stays
