@@ -21,7 +21,7 @@ import {
   type SubscribeToStreamOptions,
 } from '@eventstore/db-client';
 import type { EventStoreDBReadEventMetadata } from '../eventstoreDBEventStore';
-import { eventStoreDBMessageSource } from './eventStoreDBMessageSource';
+import { eventStoreDBMessageSource } from './messageSource';
 
 export type EventStoreDBEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -91,8 +91,6 @@ export const eventStoreDBEventStoreConsumer = <
     options.client ??
     EventStoreDBClient.connectionString(options.connectionString);
 
-  // An injected source is borrowed, so its close is stubbed out: the core
-  // consumer closes whatever source it gets, and that's the owner's call.
   const source = options.source
     ? { ...options.source, close: () => Promise.resolve() }
     : eventStoreDBMessageSource<ConsumerMessageType>({
@@ -139,13 +137,13 @@ export const eventStoreDBEventStoreConsumer = <
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       processorOptions: InMemoryReactorOptions<MessageType>,
     ): InMemoryProcessor<MessageType> =>
-      messageConsumer.register(
+      messageConsumer.processor(
         inMemoryReactor<MessageType>(withMergedObservability(processorOptions)),
       ),
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
       processorOptions: InMemoryProjectorOptions<EventType>,
     ): InMemoryProcessor<EventType> =>
-      messageConsumer.register(
+      messageConsumer.processor(
         inMemoryProjector(withMergedObservability(processorOptions)),
       ),
   };

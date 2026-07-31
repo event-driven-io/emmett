@@ -12,14 +12,14 @@ import type { EventStoreDBClient, ResolvedEvent } from '@eventstore/db-client';
 import {
   mapFromESDBEvent,
   type EventStoreDBReadEventMetadata,
-} from '../eventstoreDBEventStore';
-import type { EventStoreDBEventStoreConsumerType } from './eventStoreDBEventStoreConsumer';
+} from '../../eventstoreDBEventStore';
+import type { EventStoreDBEventStoreConsumerType } from '../eventStoreDBEventStoreConsumer';
 import {
   DefaultEventStoreDBEventStoreProcessorBatchSize,
   EventStoreDBResubscribeDefaultOptions,
   readLastCommittedMessageCheckpoint,
   subscribe,
-} from './subscriptions';
+} from './esdbSubscription';
 
 export type EventStoreDBMessageSourceOptions = {
   client: EventStoreDBClient;

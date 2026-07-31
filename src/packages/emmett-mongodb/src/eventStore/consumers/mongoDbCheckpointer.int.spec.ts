@@ -5,14 +5,11 @@ import {
   sharedMongoDBDatabase,
   type SharedMongoDBDatabase,
 } from '../../testing/sharedMongoDBDatabase';
+import { toMongoDBCheckpoint, type MongoDBCheckpoint } from './messageSource';
 import {
   readProcessorCheckpoint,
   storeProcessorCheckpoint,
 } from './mongoDBCheckpointer';
-import {
-  toMongoDBCheckpoint,
-  type MongoDBCheckpoint,
-} from './subscriptions/mongoDBCheckpoint';
 
 void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () => {
   let database: SharedMongoDBDatabase;

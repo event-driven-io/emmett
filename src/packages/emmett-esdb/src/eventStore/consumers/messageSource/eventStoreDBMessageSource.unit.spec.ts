@@ -13,7 +13,7 @@ import {
 import type { EventStoreDBClient } from '@eventstore/db-client';
 import { Readable } from 'stream';
 import { describe, it } from 'vitest';
-import type { EventStoreDBReadEventMetadata } from '../eventstoreDBEventStore';
+import type { EventStoreDBReadEventMetadata } from '../../eventstoreDBEventStore';
 import { eventStoreDBMessageSource } from './eventStoreDBMessageSource';
 
 type Tested = Event<'Tested', { index: number }>;

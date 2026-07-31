@@ -12,7 +12,7 @@ import {
   type RecordedMessageMetadataWithoutGlobalPosition,
 } from '@event-driven-io/emmett';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
-import { mongoDBMessageSource } from './mongoDBMessageSource';
+import { mongoDBMessageSource } from './messageSource';
 import {
   changeStreamReactor,
   mongoDBProjector,
@@ -160,7 +160,7 @@ export const mongoDBEventStoreConsumer = <
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       processorOptions: MongoDBProcessorOptions<MessageType>,
     ): MongoDBProcessor<MessageType> =>
-      messageConsumer.register(
+      messageConsumer.processor(
         changeStreamReactor<MessageType>(
           withMergedObservability(processorOptions),
         ),
@@ -168,7 +168,7 @@ export const mongoDBEventStoreConsumer = <
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
       processorOptions: MongoDBProjectorOptions<EventType>,
     ): MongoDBProcessor<EventType> =>
-      messageConsumer.register(
+      messageConsumer.processor(
         mongoDBProjector(withMergedObservability(processorOptions)),
       ),
   };

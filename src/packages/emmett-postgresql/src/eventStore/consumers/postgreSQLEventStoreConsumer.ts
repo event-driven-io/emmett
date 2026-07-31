@@ -15,7 +15,7 @@ import {
   type RecordedMessageMetadataWithGlobalPosition,
   type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
-import { postgreSQLMessageSource } from './postgreSQLMessageSource';
+import { postgreSQLMessageSource } from './messageSource';
 import {
   postgreSQLProjector,
   postgreSQLReactor,
@@ -108,9 +108,6 @@ export const postgreSQLEventStoreConsumer = <
         },
       });
 
-  // An injected source is borrowed, not owned, same as the pool above. Core
-  // consumer closes the source it gets, so its close is stubbed out to leave
-  // the lifecycle with whoever passed it.
   const source: MessageSource<
     ConsumerMessageType,
     RecordedMessageMetadataWithGlobalPosition
@@ -177,13 +174,13 @@ export const postgreSQLEventStoreConsumer = <
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       processorOptions: PostgreSQLReactorOptions<MessageType>,
     ): PostgreSQLProcessor<MessageType> =>
-      messageConsumer.register(
+      messageConsumer.processor(
         postgreSQLReactor(withMergedObservability(processorOptions)),
       ),
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
       processorOptions: PostgreSQLProjectorOptions<EventType>,
     ): PostgreSQLProcessor<EventType> =>
-      messageConsumer.register(
+      messageConsumer.processor(
         postgreSQLProjector(withMergedObservability(processorOptions)),
       ),
     workflowProcessor: <
@@ -206,7 +203,7 @@ export const postgreSQLEventStoreConsumer = <
         StoredMessage
       >,
     ): PostgreSQLProcessor<Input | Output> =>
-      messageConsumer.register(
+      messageConsumer.processor(
         postgreSQLWorkflowProcessor(withMergedObservability(processorOptions)),
       ),
   };

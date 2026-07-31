@@ -11,7 +11,7 @@ import {
   PostgreSQLEventStoreCheckpoint,
   readLastCommittedMessageCheckpoint,
   readMessagesBatch,
-} from '../schema';
+} from '../../schema';
 
 export const DefaultPostgreSQLEventStoreProcessorBatchSize = 100;
 export const DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs = 50;
