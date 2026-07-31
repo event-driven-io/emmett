@@ -1,5 +1,6 @@
 import {
   assertEqual,
+  asyncIterable,
   bigIntProcessorCheckpoint,
 } from '@event-driven-io/emmett';
 import type { EventStoreDBClient } from '@eventstore/db-client';
@@ -192,18 +193,3 @@ void describe('readLastCommittedMessageCheckpoint', () => {
     assertEqual(2, readPages);
   });
 });
-
-const asyncIterable =
-  <T>(items: T[], onDone?: () => void) =>
-  () => {
-    // eslint-disable-next-line @typescript-eslint/require-await
-    const iterable = (async function* (): AsyncIterableIterator<T> {
-      try {
-        yield* items;
-      } finally {
-        onDone?.();
-      }
-    })();
-
-    return iterable;
-  };

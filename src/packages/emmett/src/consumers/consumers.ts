@@ -330,7 +330,7 @@ export const consumer = <
                 (r) => r.status === 'fulfilled' && r.value?.type !== 'STOP',
               );
 
-              if (kept) return 'CONTINUE' as const;
+              if (kept) return 'CONTINUE';
 
               const rejected = results.find((r) => r.status === 'rejected');
 
@@ -339,7 +339,7 @@ export const consumer = <
                   rejected.reason as Error | { message?: string },
                 );
 
-              return 'STOP' as const;
+              return 'STOP';
             });
 
           startedAwaiter.resolve();
@@ -356,28 +356,25 @@ export const consumer = <
             deadlineInMs: batchDeadlineInMs ?? DefaultConsumerBatchDeadlineInMs,
           });
 
-          const keepReading = async (
-            batch: MessageSourceMessage<
-              ConsumerMessageType,
-              MessageMetadataType
-            >[],
-          ): Promise<boolean> => {
+          for await (const batch of batches) {
             const { messages, caughtUp } = splitControlMessages(batch);
 
-            if (messages.length > 0 && (await handleBatch(messages)) === 'STOP')
-              return false;
+            if (messages.length > 0) {
+              const result = await handleBatch(messages);
 
-            return !(
+              if (result === 'STOP') {
+                controller.abort();
+                break;
+              }
+            }
+
+            if (
               caughtUp &&
               (until?.noMessagesLeft === true || until?.caughtUp === true)
-            );
-          };
-
-          for await (const batch of batches) {
-            if (await keepReading(batch)) continue;
-
-            controller.abort();
-            break;
+            ) {
+              controller.abort();
+              break;
+            }
           }
         } catch (error) {
           startedAwaiter.reject(error);

@@ -149,8 +149,7 @@ const testProcessor = (
         return isActive;
       },
       whenProcessed: () => Promise.resolve(),
-      // eslint-disable-next-line @typescript-eslint/require-await
-      handle: async (messages: RecordedMessage[], context: unknown) => {
+      handle: (messages: RecordedMessage[], context: unknown) => {
         state.handled.push(messages);
         state.contexts.push(context);
         const result = options?.onHandle?.(messages);
