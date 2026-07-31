@@ -116,8 +116,7 @@ export type SubscriptionMessageSourceOptions<
   subscribe: (
     options: SubscribeOptions,
   ) => AsyncIterable<MessageSourceMessage<MessageType, MessageMetadataType>>;
-  readLastCheckpoint: () => Promise<ProcessorCheckpoint | null>;
-  readLastCommittedCheckpoint?: () => Promise<ProcessorCheckpoint | null>;
+  readLastMessageCheckpoint: () => Promise<ProcessorCheckpoint | null>;
   compareCheckpoints?: (
     a: ProcessorCheckpoint,
     b: ProcessorCheckpoint,
@@ -135,8 +134,7 @@ export const subscriptionMessageSource = <
 ): MessageSource<MessageType, MessageMetadataType> => {
   const {
     subscribe,
-    readLastCheckpoint,
-    readLastCommittedCheckpoint,
+    readLastMessageCheckpoint,
     compareCheckpoints,
     resilience,
     close,
@@ -222,7 +220,7 @@ export const subscriptionMessageSource = <
         });
       }
     },
-    readLastCheckpoint,
+    readLastMessageCheckpoint: readLastMessageCheckpoint,
     ...(compareCheckpoints ? { compareCheckpoints } : {}),
     ...(close ? { close } : {}),
   };

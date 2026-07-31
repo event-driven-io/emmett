@@ -62,7 +62,7 @@ export const inMemoryMessageSource = <
         areMessagesLeft: pending.length > batch.length,
       };
     },
-    readLastCheckpoint: () => Promise.resolve(lastCheckpoint()),
+    readLastMessageCheckpoint: () => Promise.resolve(lastCheckpoint()),
     compareCheckpoints,
   });
 

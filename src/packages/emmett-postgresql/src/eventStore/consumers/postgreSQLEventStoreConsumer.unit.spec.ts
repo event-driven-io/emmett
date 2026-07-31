@@ -106,7 +106,10 @@ void describe('PostgreSQL event store consumer', () => {
       await consumer.close();
 
       assertEqual(closeCount, 0);
-      assertEqual(await source.readLastCheckpoint(), ProcessorCheckpoint('1'));
+      assertEqual(
+        await source.readLastMessageCheckpoint(),
+        ProcessorCheckpoint('1'),
+      );
     });
   });
 

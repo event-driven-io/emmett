@@ -41,7 +41,7 @@ export type PollingMessageSourceOptions<
   readBatch: (
     options: PollingReadBatchOptions,
   ) => Promise<PollingReadBatchResult<MessageType, MessageMetadataType>>;
-  readLastCheckpoint: () => Promise<ProcessorCheckpoint | null>;
+  readLastMessageCheckpoint: () => Promise<ProcessorCheckpoint | null>;
   readLastCommittedCheckpoint?: () => Promise<ProcessorCheckpoint | null>;
   compareCheckpoints?: (
     a: ProcessorCheckpoint,
@@ -72,13 +72,8 @@ export const pollingMessageSource = <
 >(
   options: PollingMessageSourceOptions<MessageType, MessageMetadataType>,
 ): MessageSource<MessageType, MessageMetadataType> => {
-  const {
-    readBatch,
-    readLastCheckpoint,
-    readLastCommittedCheckpoint,
-    compareCheckpoints,
-    close,
-  } = options;
+  const { readBatch, readLastMessageCheckpoint, compareCheckpoints, close } =
+    options;
 
   const pullingFrequencyInMs =
     options.pullingFrequencyInMs ?? DefaultPollingFrequencyInMs;
@@ -87,7 +82,7 @@ export const pollingMessageSource = <
     from: MessageSourceReadOptions['from'],
   ): Promise<ProcessorCheckpoint | null> => {
     if (from === 'BEGINNING') return null;
-    if (from === 'END') return readLastCheckpoint();
+    if (from === 'END') return readLastMessageCheckpoint();
     return from.lastCheckpoint;
   };
 
@@ -124,7 +119,7 @@ export const pollingMessageSource = <
         await delayOrAbort(waitTime, signal);
       }
     },
-    readLastCheckpoint,
+    readLastMessageCheckpoint,
     ...(compareCheckpoints ? { compareCheckpoints } : {}),
     ...(close ? { close } : {}),
   };

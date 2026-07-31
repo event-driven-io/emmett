@@ -17,8 +17,8 @@ import type { EventStoreDBEventStoreConsumerType } from './eventStoreDBEventStor
 import {
   DefaultEventStoreDBEventStoreProcessorBatchSize,
   EventStoreDBResubscribeDefaultOptions,
-  subscribe,
   readLastCommittedMessageCheckpoint,
+  subscribe,
 } from './subscriptions';
 
 export type EventStoreDBMessageSourceOptions = {
@@ -151,7 +151,7 @@ export const eventStoreDBMessageSource = <
         subscription.off('error', onError);
       }
     },
-    readLastCheckpoint: async (): Promise<ProcessorCheckpoint | null> =>
+    readLastMessageCheckpoint: async (): Promise<ProcessorCheckpoint | null> =>
       (await readLastCommittedMessageCheckpoint(client, from)) ?? null,
     batchSize: batchSize ?? DefaultEventStoreDBEventStoreProcessorBatchSize,
     resilience: resubscribeOptions,

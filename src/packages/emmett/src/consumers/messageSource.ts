@@ -50,7 +50,7 @@ export type MessageSource<
    * skips what is already there. `null` for an empty store, which starts it from
    * the beginning.
    */
-  readLastCheckpoint(): Promise<ProcessorCheckpoint | null>;
+  readLastMessageCheckpoint(): Promise<ProcessorCheckpoint | null>;
   /**
    * Return how far your store goes for readers other than the writer, which is
    * what `whenCaughtUp` waits for. Return {@link readLastCheckpoint} unless your

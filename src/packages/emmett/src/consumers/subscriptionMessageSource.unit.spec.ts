@@ -108,7 +108,7 @@ void describe('subscriptionMessageSource', () => {
           yield messageAt('2');
         })();
       },
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
       resilience: { minTimeout: 0, randomize: false },
     });
 
@@ -138,7 +138,7 @@ void describe('subscriptionMessageSource', () => {
           await Promise.resolve();
           throw new Error('server unavailable');
         })(),
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
       resilience: {
         minTimeout: 0,
         randomize: false,
@@ -171,7 +171,7 @@ void describe('subscriptionMessageSource', () => {
           throw new Error('connection reset');
         })();
       },
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
       resilience: { minTimeout: 0, randomize: false },
     });
 
@@ -198,7 +198,7 @@ void describe('subscriptionMessageSource', () => {
           throw failure;
         })();
       },
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
       resilience: {
         retries: 2,
         minTimeout: 0,
@@ -231,7 +231,7 @@ void describe('subscriptionMessageSource', () => {
           throw new Error('connection reset');
         })();
       },
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
       resilience: {
         retries: 1,
         minTimeout: 0,
@@ -263,7 +263,7 @@ void describe('subscriptionMessageSource', () => {
           throw failure;
         })();
       },
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
       resilience: {
         retries: 2,
         minTimeout: 10,
@@ -312,7 +312,7 @@ void describe('subscriptionMessageSource', () => {
           yield messageAt(`${attempts}`);
         })();
       },
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
       resilience: {
         forever: true,
         minTimeout: 0,
@@ -339,7 +339,7 @@ void describe('subscriptionMessageSource', () => {
           await Promise.resolve();
           yield messageAt('1');
         })(),
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
       resilience: { minTimeout: 0, randomize: false },
     });
 

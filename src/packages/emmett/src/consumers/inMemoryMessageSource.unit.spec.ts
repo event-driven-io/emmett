@@ -52,13 +52,16 @@ void describe('inMemoryMessageSource', () => {
       messages: [messageAt('1'), messageAt('7')],
     });
 
-    assertEqual(await source.readLastCheckpoint(), ProcessorCheckpoint('7'));
+    assertEqual(
+      await source.readLastMessageCheckpoint(),
+      ProcessorCheckpoint('7'),
+    );
   });
 
   void it('reports no checkpoint while empty', async () => {
     const source = inMemoryMessageSource();
 
-    assertEqual(await source.readLastCheckpoint(), null);
+    assertEqual(await source.readLastMessageCheckpoint(), null);
   });
 
   void it('skips everything at or before the requested checkpoint', async () => {
