@@ -10,7 +10,7 @@ import {
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import type { MongoClient } from 'mongodb';
-import type { MongoDBChangeStreamMessageMetadata } from './mongoDBEventStoreConsumer';
+import type { MongoDBChangeStreamMessageMetadata } from '../mongoDBEventStoreConsumer';
 import {
   getDatabaseVersionPolicies,
   MongoDBResubscribeDefaultOptions,
@@ -19,7 +19,7 @@ import {
   subscribe,
   toMongoDBCheckpoint,
   type MongoDBCheckpoint,
-} from './subscriptions';
+} from './mongoDBSubscription';
 
 export const DefaultMongoDBEventStoreProcessorBatchSize = 100;
 export const DefaultMongoDBEventStoreProcessorPullingFrequencyInMs = 50;

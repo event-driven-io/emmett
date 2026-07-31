@@ -7,6 +7,7 @@ import {
   assertTrue,
   type MessageProcessor,
 } from '@event-driven-io/emmett';
+import { v4 as uuid } from 'uuid';
 import {
   afterAll,
   afterEach,
@@ -15,16 +16,15 @@ import {
   describe,
   it,
 } from 'vitest';
-import { v4 as uuid } from 'uuid';
 import {
   sharedMongoDBDatabase,
   type SharedMongoDBDatabase,
 } from '../../testing/sharedMongoDBDatabase';
+import { isDatabaseUnavailableError } from './messageSource';
 import {
   mongoDBEventStoreConsumer,
   type MongoDBEventStoreConsumer,
 } from './mongoDBEventStoreConsumer';
-import { isDatabaseUnavailableError } from './subscriptions';
 
 const withDeadline = { timeout: 30000 };
 

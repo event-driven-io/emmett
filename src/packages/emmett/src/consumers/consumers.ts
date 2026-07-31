@@ -55,6 +55,10 @@ export type MessageConsumer<
 > = Readonly<{
   consumerId: string;
   isRunning: boolean;
+  init: () => Promise<void>;
+  start: () => Promise<void>;
+  stop: () => Promise<void>;
+  close: () => Promise<void>;
   whenStarted: () => Promise<void>;
   /**
    * Resolves once every processor has processed up to the given position,
@@ -75,14 +79,10 @@ export type MessageConsumer<
   whenCaughtUp: (options?: WaitOptions) => Promise<void>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   processors: ReadonlyArray<MessageProcessor<ConsumerMessageType, any, any>>;
-  init: () => Promise<void>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  register: <ProcessorType extends MessageProcessor<any, any, any>>(
+  processor: <ProcessorType extends MessageProcessor<any, any, any>>(
     processor: ProcessorType,
   ) => ProcessorType;
-  start: () => Promise<void>;
-  stop: () => Promise<void>;
-  close: () => Promise<void>;
 }>;
 
 /**
@@ -259,7 +259,7 @@ export const consumer = <
       );
     },
     init,
-    register: (processor) => {
+    processor: (processor) => {
       processors.push(processor);
 
       return processor;

@@ -21,7 +21,7 @@ import type {
   InferOptionsFromEventStoreDriver,
 } from '../eventStoreDriver';
 import { getSQLiteEventStore } from '../SQLiteEventStore';
-import { sqliteMessageSource } from './sqliteMessageSource';
+import { sqliteMessageSource } from './messageSource';
 import {
   sqliteProjector,
   sqliteReactor,
@@ -121,8 +121,6 @@ export const sqliteEventStoreConsumer = <
       ...options.driver.mapToDumboOptions(options),
     });
 
-  // an injected source is borrowed, so its close is stubbed out to keep the
-  // consumer from tearing down what it doesn't own
   const source = options.source
     ? { ...options.source, close: () => Promise.resolve() }
     : sqliteMessageSource<ConsumerMessageType>({
@@ -182,13 +180,13 @@ export const sqliteEventStoreConsumer = <
     reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
       processorOptions: SQLiteReactorOptions<MessageType>,
     ): SQLiteProcessor<MessageType> =>
-      messageConsumer.register(
+      messageConsumer.processor(
         sqliteReactor(withMergedObservability(processorOptions)),
       ),
     projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
       processorOptions: SQLiteProjectorOptions<EventType>,
     ): SQLiteProcessor<EventType> =>
-      messageConsumer.register(
+      messageConsumer.processor(
         sqliteProjector(withMergedObservability(processorOptions)),
       ),
     workflowProcessor: <
@@ -214,7 +212,7 @@ export const sqliteEventStoreConsumer = <
         'messageStore'
       >,
     ): SQLiteProcessor<Input | Output> =>
-      messageConsumer.register(
+      messageConsumer.processor(
         sqliteWorkflowProcessor(
           withMergedObservability({
             ...processorOptions,

@@ -1,7 +1,10 @@
 import { assertEqual, type Event } from '@event-driven-io/emmett';
 import { describe, it } from 'vitest';
-import { oplogChangeToTailCheckpoint, type FullDocument } from './index';
 import { toMongoDBCheckpoint } from './mongoDBCheckpoint';
+import {
+  oplogChangeToTailCheckpoint,
+  type FullDocument,
+} from './mongoDBSubscription';
 
 void describe('readLastCommittedMessageCheckpoint', () => {
   void it('maps a multi-message change to the checkpoint of the last message', () => {

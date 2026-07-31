@@ -12,10 +12,6 @@ import { MongoClient, type Collection } from 'mongodb';
 import { v4 as uuid, v4 } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
-  sharedMongoDBDatabase,
-  type SharedMongoDBDatabase,
-} from '../../testing/sharedMongoDBDatabase';
-import {
   getMongoDBEventStore,
   toStreamCollectionName,
   toStreamName,
@@ -23,13 +19,17 @@ import {
   type MongoDBEventStore,
 } from '..';
 import type { ProductItemAdded, ShoppingCartEvent } from '../../testing';
+import {
+  sharedMongoDBDatabase,
+  type SharedMongoDBDatabase,
+} from '../../testing/sharedMongoDBDatabase';
 import { CancellationPromise } from './CancellablePromise';
+import type { MongoDBCheckpoint } from './messageSource';
 import {
   mongoDBEventStoreConsumer,
   type MongoDBEventStoreConsumer,
 } from './mongoDBEventStoreConsumer';
 import type { MongoDBProcessor } from './mongoDBProcessor';
-import type { MongoDBCheckpoint } from './subscriptions/mongoDBCheckpoint';
 
 const withDeadline = { timeout: 30000 };
 

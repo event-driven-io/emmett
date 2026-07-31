@@ -10,7 +10,7 @@ import {
   type MessageSource,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import { readLastMessageGlobalPosition, readMessagesBatch } from '../schema';
+import { readLastMessageGlobalPosition, readMessagesBatch } from '../../schema';
 
 export const DefaultSQLiteEventStoreProcessorBatchSize = 100;
 export const DefaultSQLiteEventStoreProcessorPullingFrequencyInMs = 50;

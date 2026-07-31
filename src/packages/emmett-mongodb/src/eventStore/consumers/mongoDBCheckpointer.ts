@@ -4,8 +4,8 @@ import {
   getCheckpoint,
 } from '@event-driven-io/emmett';
 import type { MongoClient } from 'mongodb';
+import { compareTwoCheckpoints } from './messageSource';
 import type { MongoDBCheckpointer } from './mongoDBProcessor';
-import { compareTwoCheckpoints } from './subscriptions';
 import { DefaultProcessorCheckpointCollectionName, defaultTag } from './types';
 
 export const mongoDBCheckpointer = <
