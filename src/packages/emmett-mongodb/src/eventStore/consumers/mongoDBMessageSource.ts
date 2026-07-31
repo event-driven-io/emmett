@@ -114,7 +114,7 @@ export const mongoDBMessageSource = <MessageType extends Message = AnyMessage>({
         await changeStream.close();
       }
     },
-    readLastCheckpoint: async (): Promise<ProcessorCheckpoint | null> =>
+    readLastMessageCheckpoint: async (): Promise<ProcessorCheckpoint | null> =>
       (await readLastCommittedMessageCheckpoint(db())) ?? null,
     batchSize: batchSize ?? DefaultMongoDBEventStoreProcessorBatchSize,
     resilience: resubscribeOptions,

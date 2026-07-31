@@ -86,7 +86,7 @@ const testSource = (
           state.teardowns++;
         }
       },
-      readLastCheckpoint: () => Promise.resolve(lastCheckpoint),
+      readLastMessageCheckpoint: () => Promise.resolve(lastCheckpoint),
       compareCheckpoints: options?.compareCheckpoints,
       close: () => {
         state.closed++;
@@ -305,7 +305,7 @@ void describe('consumer', () => {
         await sourceReleased;
         yield caughtUpAt('0');
       },
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
     };
     const messageConsumer = consumer({
       source,
@@ -440,10 +440,11 @@ void describe('consumer', () => {
     let isInScope = false;
     let readFromInsideScope = false;
 
-    const readLastCheckpoint = source.readLastCheckpoint.bind(source);
-    source.readLastCheckpoint = () => {
+    const readLastMessageCheckpoint =
+      source.readLastMessageCheckpoint.bind(source);
+    source.readLastMessageCheckpoint = () => {
       if (isInScope) readFromInsideScope = true;
-      return readLastCheckpoint();
+      return readLastMessageCheckpoint();
     };
 
     const messageConsumer = consumer<
@@ -477,10 +478,11 @@ void describe('consumer', () => {
 
     let lastCheckpointReads = 0;
 
-    const readLastCheckpoint = source.readLastCheckpoint.bind(source);
-    source.readLastCheckpoint = () => {
+    const readLastMessageCheckpoint =
+      source.readLastMessageCheckpoint.bind(source);
+    source.readLastMessageCheckpoint = () => {
       lastCheckpointReads++;
-      return readLastCheckpoint();
+      return readLastMessageCheckpoint();
     };
 
     const messageConsumer = consumer({

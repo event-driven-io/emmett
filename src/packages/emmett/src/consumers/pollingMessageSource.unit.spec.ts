@@ -93,7 +93,7 @@ void describe('pollingMessageSource', () => {
 
     const source = pollingMessageSource({
       readBatch: reads.readBatch,
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
       pullingFrequencyInMs: 0,
     });
 
@@ -107,7 +107,8 @@ void describe('pollingMessageSource', () => {
 
     const source = pollingMessageSource({
       readBatch: reads.readBatch,
-      readLastCheckpoint: () => Promise.resolve(ProcessorCheckpoint('5')),
+      readLastMessageCheckpoint: () =>
+        Promise.resolve(ProcessorCheckpoint('5')),
       pullingFrequencyInMs: 0,
     });
 
@@ -124,7 +125,7 @@ void describe('pollingMessageSource', () => {
 
     const source = pollingMessageSource({
       readBatch: reads.readBatch,
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
       pullingFrequencyInMs: 0,
     });
 
@@ -153,7 +154,7 @@ void describe('pollingMessageSource', () => {
 
     const source = pollingMessageSource({
       readBatch: reads.readBatch,
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
       pullingFrequencyInMs: 0,
     });
 
@@ -169,7 +170,7 @@ void describe('pollingMessageSource', () => {
 
     const source = pollingMessageSource({
       readBatch: reads.readBatch,
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
       pullingFrequencyInMs: 0,
     });
 
@@ -191,7 +192,7 @@ void describe('pollingMessageSource', () => {
 
     const source = pollingMessageSource({
       readBatch: reads.readBatch,
-      readLastCheckpoint: () => Promise.resolve(null),
+      readLastMessageCheckpoint: () => Promise.resolve(null),
       pullingFrequencyInMs: DefaultPollingInitialBackoffInMs,
     });
 

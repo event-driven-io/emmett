@@ -10,7 +10,6 @@ import {
 import {
   PostgreSQLEventStoreCheckpoint,
   readLastCommittedMessageCheckpoint,
-  readLastMessageCheckpoint,
   readMessagesBatch,
 } from '../schema';
 
@@ -59,9 +58,9 @@ export const postgreSQLMessageSource = <
         areMessagesLeft,
       };
     },
-    readLastCheckpoint: () =>
+    readLastMessageCheckpoint: () =>
       pool.withConnection(async (connection) => {
-        const { currentCheckpoint } = await readLastMessageCheckpoint(
+        const { currentCheckpoint } = await readLastCommittedMessageCheckpoint(
           connection.execute,
           { partition },
         );

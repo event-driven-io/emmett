@@ -32,7 +32,7 @@ export const sqliteMessageSource = <MessageType extends Message = AnyMessage>({
 > => {
   const serializer = JSONSerializer.from({ serialization });
 
-  const readLastCheckpoint = () =>
+  const readLastMessageCheckpoint = () =>
     pool.withConnection(async (connection) => {
       const { currentGlobalPosition } = await readLastMessageGlobalPosition(
         connection.execute,
@@ -58,7 +58,7 @@ export const sqliteMessageSource = <MessageType extends Message = AnyMessage>({
           areMessagesLeft,
         };
       },
-      readLastCheckpoint,
+      readLastMessageCheckpoint,
       batchSize: batchSize ?? DefaultSQLiteEventStoreProcessorBatchSize,
       pullingFrequencyInMs:
         pullingFrequencyInMs ??
