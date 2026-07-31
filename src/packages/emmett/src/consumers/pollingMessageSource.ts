@@ -125,8 +125,6 @@ export const pollingMessageSource = <
       }
     },
     readLastCheckpoint,
-    readLastCommittedCheckpoint:
-      readLastCommittedCheckpoint ?? readLastCheckpoint,
     ...(compareCheckpoints ? { compareCheckpoints } : {}),
     ...(close ? { close } : {}),
   };

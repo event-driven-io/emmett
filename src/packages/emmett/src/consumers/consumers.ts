@@ -247,7 +247,7 @@ export const consumer = <
         processors.map((p) => p.whenProcessed(position, waitOptions)),
       ).then(() => undefined),
     whenCaughtUp: async (waitOptions): Promise<void> => {
-      const lastCheckpoint = await source.readLastCommittedCheckpoint();
+      const lastCheckpoint = await source.readLastCheckpoint();
 
       if (lastCheckpoint === null) return;
 
