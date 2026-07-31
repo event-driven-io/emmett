@@ -39,8 +39,7 @@ export const inMemoryMessageSource = <
 
   const source = pollingMessageSource<MessageType, MessageMetadataType>({
     ...options,
-    // eslint-disable-next-line @typescript-eslint/require-await
-    readBatch: async ({ after, batchSize }) => {
+    readBatch: ({ after, batchSize }) => {
       const pending = messages.filter((message) => {
         const checkpoint = getCheckpoint(message);
         if (checkpoint === null) return false;
