@@ -13,10 +13,6 @@ export type InMemoryMessageSourceOptions<
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
 > = {
   messages?: RecordedMessage<MessageType, MessageMetadataType>[];
-  compareCheckpoints?: (
-    a: ProcessorCheckpoint,
-    b: ProcessorCheckpoint,
-  ) => number;
   batchSize?: number;
   pullingFrequencyInMs?: number;
 };
@@ -37,8 +33,6 @@ export const inMemoryMessageSource = <
   options: InMemoryMessageSourceOptions<MessageType, MessageMetadataType> = {},
 ): InMemoryMessageSource<MessageType, MessageMetadataType> => {
   const messages = [...(options.messages ?? [])];
-  const compareCheckpoints =
-    options.compareCheckpoints ?? ProcessorCheckpoint.compare;
 
   const lastCheckpoint = (): ProcessorCheckpoint | null =>
     messages.length > 0 ? getCheckpoint(messages[messages.length - 1]!) : null;
@@ -50,7 +44,9 @@ export const inMemoryMessageSource = <
       const pending = messages.filter((message) => {
         const checkpoint = getCheckpoint(message);
         if (checkpoint === null) return false;
-        return after === null || compareCheckpoints(checkpoint, after) > 0;
+        return (
+          after === null || ProcessorCheckpoint.compare(checkpoint, after) > 0
+        );
       });
 
       const batch = pending.slice(0, batchSize);
@@ -63,7 +59,6 @@ export const inMemoryMessageSource = <
       };
     },
     readLastMessageCheckpoint: () => Promise.resolve(lastCheckpoint()),
-    compareCheckpoints,
   });
 
   return {

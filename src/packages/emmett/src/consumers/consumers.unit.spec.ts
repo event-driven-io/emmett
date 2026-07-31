@@ -41,10 +41,6 @@ const testSource = (
   messages: MessageSourceMessage[],
   options?: {
     lastCheckpoint?: string;
-    compareCheckpoints?: (
-      a: ProcessorCheckpoint,
-      b: ProcessorCheckpoint,
-    ) => number;
   },
 ): {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,7 +83,6 @@ const testSource = (
         }
       },
       readLastMessageCheckpoint: () => Promise.resolve(lastCheckpoint),
-      compareCheckpoints: options?.compareCheckpoints,
       close: () => {
         state.closed++;
         return Promise.resolve();
@@ -370,36 +365,6 @@ void describe('consumer', () => {
 
     assertEqual(state.starts, 2);
     assertEqual(sourceState.teardowns, 2);
-  });
-
-  void it('uses the source comparator when zipping start positions', async () => {
-    const numericCompare = (a: ProcessorCheckpoint, b: ProcessorCheckpoint) => {
-      const [left, right] = [BigInt(a), BigInt(b)];
-      return left > right ? 1 : left < right ? -1 : 0;
-    };
-
-    const { source, state: sourceState } = testSource([caughtUpAt('20')], {
-      compareCheckpoints: numericCompare,
-    });
-
-    const { processor: first } = testProcessor('a', {
-      startFrom: { lastCheckpoint: ProcessorCheckpoint('10') },
-    });
-    const { processor: second } = testProcessor('b', {
-      startFrom: { lastCheckpoint: ProcessorCheckpoint('9') },
-    });
-
-    const messageConsumer = consumer({
-      source,
-      processors: [first, second],
-      until: { noMessagesLeft: true },
-    });
-
-    await messageConsumer.start();
-
-    assertDeepEqual(sourceState.readOptions?.from, {
-      lastCheckpoint: ProcessorCheckpoint('9'),
-    });
   });
 
   void it('wraps init, start position resolution, fan out and close in the scope', async () => {

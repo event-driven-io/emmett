@@ -43,10 +43,6 @@ export type PollingMessageSourceOptions<
   ) => Promise<PollingReadBatchResult<MessageType, MessageMetadataType>>;
   readLastMessageCheckpoint: () => Promise<ProcessorCheckpoint | null>;
   readLastCommittedCheckpoint?: () => Promise<ProcessorCheckpoint | null>;
-  compareCheckpoints?: (
-    a: ProcessorCheckpoint,
-    b: ProcessorCheckpoint,
-  ) => number;
   batchSize?: number;
   pullingFrequencyInMs?: number;
   close?: () => Promise<void>;
@@ -72,8 +68,7 @@ export const pollingMessageSource = <
 >(
   options: PollingMessageSourceOptions<MessageType, MessageMetadataType>,
 ): MessageSource<MessageType, MessageMetadataType> => {
-  const { readBatch, readLastMessageCheckpoint, compareCheckpoints, close } =
-    options;
+  const { readBatch, readLastMessageCheckpoint, close } = options;
 
   const pullingFrequencyInMs =
     options.pullingFrequencyInMs ?? DefaultPollingFrequencyInMs;
@@ -120,7 +115,6 @@ export const pollingMessageSource = <
       }
     },
     readLastMessageCheckpoint,
-    ...(compareCheckpoints ? { compareCheckpoints } : {}),
     ...(close ? { close } : {}),
   };
 };

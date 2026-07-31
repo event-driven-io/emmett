@@ -52,17 +52,6 @@ export type MessageSource<
    */
   readLastMessageCheckpoint(): Promise<ProcessorCheckpoint | null>;
   /**
-   * Return how far your store goes for readers other than the writer, which is
-   * what `whenCaughtUp` waits for. Return {@link readLastCheckpoint} unless your
-   * store can report a checkpoint that a read does not see yet, in which case a
-   * caught up wait would resolve before the message shows up. PostgreSQL is the
-   * one that can, because of in-flight transactions.
-   */
-  compareCheckpoints?: (
-    a: ProcessorCheckpoint,
-    b: ProcessorCheckpoint,
-  ) => number;
-  /**
    * Release what you own, e.g. a connection you opened. Skip it when the
    * lifetime of everything you use is somebody else's business.
    */
