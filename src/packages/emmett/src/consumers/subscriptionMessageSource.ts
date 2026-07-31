@@ -223,8 +223,6 @@ export const subscriptionMessageSource = <
       }
     },
     readLastCheckpoint,
-    readLastCommittedCheckpoint:
-      readLastCommittedCheckpoint ?? readLastCheckpoint,
     ...(compareCheckpoints ? { compareCheckpoints } : {}),
     ...(close ? { close } : {}),
   };

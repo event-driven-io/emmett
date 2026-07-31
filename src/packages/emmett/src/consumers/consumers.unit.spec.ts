@@ -87,7 +87,6 @@ const testSource = (
         }
       },
       readLastCheckpoint: () => Promise.resolve(lastCheckpoint),
-      readLastCommittedCheckpoint: () => Promise.resolve(lastCheckpoint),
       compareCheckpoints: options?.compareCheckpoints,
       close: () => {
         state.closed++;
@@ -307,7 +306,6 @@ void describe('consumer', () => {
         yield caughtUpAt('0');
       },
       readLastCheckpoint: () => Promise.resolve(null),
-      readLastCommittedCheckpoint: () => Promise.resolve(null),
     };
     const messageConsumer = consumer({
       source,

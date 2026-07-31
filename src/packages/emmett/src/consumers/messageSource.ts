@@ -58,12 +58,6 @@ export type MessageSource<
    * caught up wait would resolve before the message shows up. PostgreSQL is the
    * one that can, because of in-flight transactions.
    */
-  readLastCommittedCheckpoint(): Promise<ProcessorCheckpoint | null>;
-  /**
-   * Supply it when sorting your checkpoints as text gives the wrong order, e.g.
-   * MongoDB resume tokens. Everything that has to tell one checkpoint from
-   * another, start positions and each processor, uses what you give here.
-   */
   compareCheckpoints?: (
     a: ProcessorCheckpoint,
     b: ProcessorCheckpoint,
