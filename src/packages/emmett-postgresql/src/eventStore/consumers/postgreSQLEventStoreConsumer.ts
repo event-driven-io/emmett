@@ -62,9 +62,9 @@ export type PostgreSQLEventStoreConsumer<
     ) => PostgreSQLProcessor<MessageType>;
 
     workflowProcessor: <
-      Input extends AnyEvent | AnyCommand,
+      Input extends ConsumerMessageType,
       State,
-      Output extends AnyEvent | AnyCommand,
+      Output extends ConsumerMessageType,
       MetaDataType extends AnyRecordedMessageMetadata =
         AnyRecordedMessageMetadata,
       HandlerContext extends PostgreSQLProcessorHandlerContext &
@@ -172,22 +172,25 @@ export const postgreSQLEventStoreConsumer = <
     get isRunning() {
       return messageConsumer.isRunning;
     },
-    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
       processorOptions: PostgreSQLReactorOptions<MessageType>,
     ): PostgreSQLProcessor<MessageType> =>
       messageConsumer.processor(
         postgreSQLReactor(withMergedObservability(processorOptions)),
       ),
-    projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
+    projector: <
+      EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
+        AnyEvent,
+    >(
       processorOptions: PostgreSQLProjectorOptions<EventType>,
     ): PostgreSQLProcessor<EventType> =>
       messageConsumer.processor(
         postgreSQLProjector(withMergedObservability(processorOptions)),
       ),
     workflowProcessor: <
-      Input extends AnyEvent | AnyCommand,
+      Input extends ConsumerMessageType,
       State,
-      Output extends AnyEvent | AnyCommand,
+      Output extends ConsumerMessageType,
       MetaDataType extends AnyRecordedMessageMetadata =
         AnyRecordedMessageMetadata,
       HandlerContext extends PostgreSQLProcessorHandlerContext &
