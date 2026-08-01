@@ -65,7 +65,7 @@ export type SQLiteEventStoreConsumer<
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<ConsumerMessageType> &
   Readonly<{
-    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
       options: SQLiteReactorOptions<MessageType>,
     ) => SQLiteProcessor<MessageType>;
 
@@ -96,7 +96,8 @@ export type SQLiteEventStoreConsumer<
   (AnyEvent extends ConsumerMessageType
     ? Readonly<{
         projector: <
-          EventType extends AnyEvent = ConsumerMessageType & AnyEvent,
+          EventType extends ConsumerMessageType & AnyEvent =
+            ConsumerMessageType & AnyEvent,
         >(
           options: SQLiteProjectorOptions<EventType>,
         ) => SQLiteProcessor<EventType>;
@@ -177,13 +178,16 @@ export const sqliteEventStoreConsumer = <
     get isRunning() {
       return messageConsumer.isRunning;
     },
-    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
       processorOptions: SQLiteReactorOptions<MessageType>,
     ): SQLiteProcessor<MessageType> =>
       messageConsumer.processor(
         sqliteReactor(withMergedObservability(processorOptions)),
       ),
-    projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
+    projector: <
+      EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
+        AnyEvent,
+    >(
       processorOptions: SQLiteProjectorOptions<EventType>,
     ): SQLiteProcessor<EventType> =>
       messageConsumer.processor(

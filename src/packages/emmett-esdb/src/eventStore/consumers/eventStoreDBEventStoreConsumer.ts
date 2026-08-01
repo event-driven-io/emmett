@@ -67,14 +67,15 @@ export type EventStoreDBEventStoreConsumer<
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<ConsumerMessageType> &
   Readonly<{
-    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
       options: InMemoryReactorOptions<MessageType>,
     ) => InMemoryProcessor<MessageType>;
   }> &
   (AnyEvent extends ConsumerMessageType
     ? Readonly<{
         projector: <
-          EventType extends AnyEvent = ConsumerMessageType & AnyEvent,
+          EventType extends ConsumerMessageType & AnyEvent =
+            ConsumerMessageType & AnyEvent,
         >(
           options: InMemoryProjectorOptions<EventType>,
         ) => InMemoryProcessor<EventType>;
@@ -134,13 +135,16 @@ export const eventStoreDBEventStoreConsumer = <
     get isRunning() {
       return messageConsumer.isRunning;
     },
-    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
       processorOptions: InMemoryReactorOptions<MessageType>,
     ): InMemoryProcessor<MessageType> =>
       messageConsumer.processor(
         inMemoryReactor<MessageType>(withMergedObservability(processorOptions)),
       ),
-    projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
+    projector: <
+      EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
+        AnyEvent,
+    >(
       processorOptions: InMemoryProjectorOptions<EventType>,
     ): InMemoryProcessor<EventType> =>
       messageConsumer.processor(
