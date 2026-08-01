@@ -57,7 +57,7 @@ export type PostgreSQLEventStoreConsumer<
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<ConsumerMessageType> &
   Readonly<{
-    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
       options: PostgreSQLReactorOptions<MessageType>,
     ) => PostgreSQLProcessor<MessageType>;
 
@@ -85,7 +85,8 @@ export type PostgreSQLEventStoreConsumer<
   (AnyEvent extends ConsumerMessageType
     ? Readonly<{
         projector: <
-          EventType extends AnyEvent = ConsumerMessageType & AnyEvent,
+          EventType extends ConsumerMessageType & AnyEvent =
+            ConsumerMessageType & AnyEvent,
         >(
           options: PostgreSQLProjectorOptions<EventType>,
         ) => PostgreSQLProcessor<EventType>;

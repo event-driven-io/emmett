@@ -167,6 +167,9 @@ export type MessageProcessor<
   >;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyMessageProcessor = MessageProcessor<AnyMessage, any, any>;
+
 export const MessageProcessor = {
   result: {
     skip: (options?: { reason?: string }): SingleMessageHandlerResult => ({

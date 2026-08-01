@@ -64,14 +64,15 @@ export type MongoDBEventStoreConsumer<
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<ConsumerMessageType> &
   Readonly<{
-    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
       options: MongoDBProcessorOptions<MessageType>,
     ) => MongoDBProcessor<MessageType>;
   }> &
   (AnyEvent extends ConsumerMessageType
     ? Readonly<{
         projector: <
-          EventType extends AnyEvent = ConsumerMessageType & AnyEvent,
+          EventType extends ConsumerMessageType & AnyEvent =
+            ConsumerMessageType & AnyEvent,
         >(
           options: MongoDBProjectorOptions<EventType>,
         ) => MongoDBProcessor<EventType>;
@@ -157,7 +158,7 @@ export const mongoDBEventStoreConsumer = <
     get isRunning() {
       return messageConsumer.isRunning;
     },
-    reactor: <MessageType extends AnyMessage = ConsumerMessageType>(
+    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
       processorOptions: MongoDBProcessorOptions<MessageType>,
     ): MongoDBProcessor<MessageType> =>
       messageConsumer.processor(
@@ -165,7 +166,10 @@ export const mongoDBEventStoreConsumer = <
           withMergedObservability(processorOptions),
         ),
       ),
-    projector: <EventType extends AnyEvent = ConsumerMessageType & AnyEvent>(
+    projector: <
+      EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
+        AnyEvent,
+    >(
       processorOptions: MongoDBProjectorOptions<EventType>,
     ): MongoDBProcessor<EventType> =>
       messageConsumer.processor(
