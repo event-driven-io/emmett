@@ -70,9 +70,9 @@ export type SQLiteEventStoreConsumer<
     ) => SQLiteProcessor<MessageType>;
 
     workflowProcessor: <
-      Input extends AnyEvent | AnyCommand,
+      Input extends ConsumerMessageType,
       State,
-      Output extends AnyEvent | AnyCommand,
+      Output extends ConsumerMessageType,
       MetaDataType extends AnyRecordedMessageMetadata =
         AnyRecordedMessageMetadata,
       HandlerContext extends SQLiteProcessorHandlerContext &
@@ -194,9 +194,9 @@ export const sqliteEventStoreConsumer = <
         sqliteProjector(withMergedObservability(processorOptions)),
       ),
     workflowProcessor: <
-      Input extends AnyEvent | AnyCommand,
+      Input extends ConsumerMessageType,
       State,
-      Output extends AnyEvent | AnyCommand,
+      Output extends ConsumerMessageType,
       MetaDataType extends AnyRecordedMessageMetadata =
         AnyRecordedMessageMetadata,
       HandlerContext extends SQLiteProcessorHandlerContext &

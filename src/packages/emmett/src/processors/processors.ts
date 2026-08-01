@@ -170,6 +170,27 @@ export type MessageProcessor<
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyMessageProcessor = MessageProcessor<AnyMessage, any, any>;
 
+export type ProcessorMessageType<ProcessorType> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ProcessorType extends MessageProcessor<infer MessageType, any, any>
+    ? MessageType
+    : never;
+
+export type EnsureCompatibleProcessor<
+  ProcessorType,
+  ConsumerMessageType extends Message,
+> = [ProcessorType] extends [
+  MessageProcessor<
+    infer _ProcessorMessageType extends ConsumerMessageType,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any
+  >,
+]
+  ? unknown
+  : never;
+
 export const MessageProcessor = {
   result: {
     skip: (options?: { reason?: string }): SingleMessageHandlerResult => ({

@@ -3,6 +3,7 @@ import { EmmettError } from '../errors';
 import { MessageSourceControlMessage } from '../eventStore/events';
 import {
   ConsumerStartPositions,
+  type EnsureCompatibleProcessor,
   type MessageProcessor,
   type ProcessorCheckpoint,
   type WaitOptions,
@@ -79,9 +80,13 @@ export type MessageConsumer<
   whenCaughtUp: (options?: WaitOptions) => Promise<void>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   processors: ReadonlyArray<MessageProcessor<ConsumerMessageType, any, any>>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  processor: <ProcessorType extends MessageProcessor<any, any, any>>(
-    processor: ProcessorType,
+
+  processor: <
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ProcessorType extends MessageProcessor<any, any, any>,
+  >(
+    processor: ProcessorType &
+      EnsureCompatibleProcessor<ProcessorType, ConsumerMessageType>,
   ) => ProcessorType;
 }>;
 

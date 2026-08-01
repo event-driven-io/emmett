@@ -542,7 +542,7 @@ export const postgreSQLWorkflowProcessor = <
 };
 
 export const postgreSQLReactor = <
-  MessageType extends Message = Message,
+  MessageType extends AnyMessage = AnyMessage,
   MessagePayloadType extends AnyMessage = MessageType,
 >(
   options: PostgreSQLReactorOptions<MessageType, MessagePayloadType>,
