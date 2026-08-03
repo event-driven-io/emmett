@@ -33,119 +33,56 @@ void describe('readLastCommittedMessageCheckpoint', () => {
     assertEqual(checkpoint, expectedCheckpoint);
   });
 
-  void it('waits for $et projection streams and returns the projection checkpoint', async () => {
-    const streamName = '$et-SomeEvent';
-    const expectedCheckpoint = bigIntProcessorCheckpoint(7n);
-    let releasedReads = 0;
-    const client = {
-      readAll: asyncIterable(
-        [
-          {
-            event: {
-              id: 'original-event-id',
-              type: 'SomeEvent',
-              streamId: 'regular-stream',
-              revision: 3n,
-              position: { commit: 99n, prepare: 99n },
-              data: {},
-              metadata: {},
-            },
-          },
-        ],
-        () => releasedReads++,
-      ),
-      readStream: asyncIterable(
-        [
-          {
-            event: {
-              id: 'original-event-id',
-              type: 'SomeEvent',
-              streamId: 'regular-stream',
-              revision: 3n,
-              position: { commit: 99n, prepare: 99n },
-              data: {},
-              metadata: {},
-            },
-            link: {
-              id: 'link-event-id',
-              type: '$>',
-              streamId: streamName,
-              revision: 7n,
-              position: { commit: 101n, prepare: 101n },
-              data: {},
-              metadata: {},
-            },
-          },
-        ],
-        () => releasedReads++,
-      ),
-    } as unknown as EventStoreDBClient;
+  const projectionStreams = [
+    ['$by_category', '$ce-order'],
+    ['$by_event_type', '$et-OrderPlaced'],
+    ['$by_correlation_id', '$bc-correlation-id'],
+    ['$stream_by_category', '$category-order'],
+    ['$streams', '$streams'],
+  ] as const;
 
-    const checkpoint = await readLastCommittedMessageCheckpoint(client, {
-      stream: streamName,
-      options: { resolveLinkTos: true },
-    });
-
-    assertEqual(checkpoint, expectedCheckpoint);
-    assertEqual(2, releasedReads);
-  });
-
-  void it('waits for $ce category streams and returns the category checkpoint', async () => {
-    const streamName = '$ce-order';
-    const expectedCheckpoint = bigIntProcessorCheckpoint(5n);
-    let releasedReads = 0;
-    const client = {
-      readAll: asyncIterable(
-        [
-          {
-            event: {
-              id: 'original-event-id',
-              type: 'OrderPlaced',
-              streamId: 'order-123',
-              revision: 2n,
-              position: { commit: 80n, prepare: 80n },
-              data: {},
-              metadata: {},
+  void it.each(projectionStreams)(
+    'reads the last link revision from the %s projection stream',
+    async (_projection, streamName) => {
+      const expectedCheckpoint = bigIntProcessorCheckpoint(7n);
+      let releasedReads = 0;
+      const client = {
+        readStream: asyncIterable(
+          [
+            {
+              event: {
+                id: 'original-event-id',
+                type: 'OrderPlaced',
+                streamId: 'order-123',
+                revision: 3n,
+                position: { commit: 99n, prepare: 99n },
+                data: {},
+                metadata: {},
+              },
+              link: {
+                id: 'link-event-id',
+                type: '$>',
+                streamId: streamName,
+                revision: 7n,
+                position: { commit: 101n, prepare: 101n },
+                data: {},
+                metadata: {},
+              },
             },
-          },
-        ],
-        () => releasedReads++,
-      ),
-      readStream: asyncIterable(
-        [
-          {
-            event: {
-              id: 'original-event-id',
-              type: 'OrderPlaced',
-              streamId: 'order-123',
-              revision: 2n,
-              position: { commit: 80n, prepare: 80n },
-              data: {},
-              metadata: {},
-            },
-            link: {
-              id: 'link-event-id',
-              type: '$>',
-              streamId: streamName,
-              revision: 5n,
-              position: { commit: 82n, prepare: 82n },
-              data: {},
-              metadata: {},
-            },
-          },
-        ],
-        () => releasedReads++,
-      ),
-    } as unknown as EventStoreDBClient;
+          ],
+          () => releasedReads++,
+        ),
+      } as unknown as EventStoreDBClient;
 
-    const checkpoint = await readLastCommittedMessageCheckpoint(client, {
-      stream: streamName,
-      options: { resolveLinkTos: true },
-    });
+      const checkpoint = await readLastCommittedMessageCheckpoint(client, {
+        stream: streamName,
+        options: { resolveLinkTos: true },
+      });
 
-    assertEqual(expectedCheckpoint, checkpoint);
-    assertEqual(2, releasedReads);
-  });
+      assertEqual(checkpoint, expectedCheckpoint);
+      assertEqual(1, releasedReads);
+    },
+  );
 
   void it('finds the latest event behind a full page of system events', async () => {
     const systemEvents = Array.from({ length: 32 }, (_, index) => ({

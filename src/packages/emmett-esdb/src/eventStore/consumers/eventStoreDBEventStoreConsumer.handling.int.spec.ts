@@ -1,14 +1,18 @@
 import {
   assertThatArray,
+  asyncRetry,
   bigIntProcessorCheckpoint,
   delay,
   getInMemoryDatabase,
+  parseBigIntProcessorCheckpoint,
   type Event,
   type InMemoryReactorOptions,
+  type ProcessorCheckpoint,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
+import { BACKWARDS, END } from '@eventstore/db-client';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
@@ -21,7 +25,7 @@ import {
   type EventStoreDBEventStoreConsumerType,
 } from './eventStoreDBEventStoreConsumer';
 
-const withDeadline = { timeout: 10000 };
+const withDeadline = { timeout: 30000 };
 
 void describe('EventStoreDB event store started consumer', () => {
   let eventStoreDB: StartedEventStoreDBContainer;
@@ -54,6 +58,45 @@ void describe('EventStoreDB event store started consumer', () => {
       () => ({ stream: '$ce-guestStay', options: { resolveLinkTos: true } }),
     ],
   ];
+
+  const waitForProjectionToCommit = async (
+    from: EventStoreDBEventStoreConsumerType,
+    expectedGlobalPosition: ProcessorCheckpoint,
+  ): Promise<void> => {
+    if (from.stream === $all || !from.options?.resolveLinkTos) return;
+
+    const expected = parseBigIntProcessorCheckpoint(expectedGlobalPosition);
+
+    await asyncRetry(
+      async () => {
+        const stream = eventStoreDB.getClient().readStream(from.stream, {
+          direction: BACKWARDS,
+          fromRevision: END,
+          maxCount: 1,
+          ...from.options,
+        });
+
+        for await (const resolvedEvent of stream) {
+          const actual = resolvedEvent.event?.position?.commit;
+          if (actual !== undefined && actual >= expected) return;
+        }
+
+        throw new Error(
+          `Projection stream ${from.stream} has not reached global position ${expectedGlobalPosition}`,
+        );
+      },
+      { retries: 300, minTimeout: 50, factor: 1 },
+    );
+  };
+
+  const appendAndWaitForProjection = async (
+    from: EventStoreDBEventStoreConsumerType,
+    streamName: string,
+    events: GuestStayEvent[],
+  ): Promise<void> => {
+    const result = await eventStore.appendToStream(streamName, events);
+    await waitForProjectionToCommit(from, result.lastEventGlobalPosition);
+  };
 
   void describe('eachMessage', () => {
     void it(
@@ -466,7 +509,7 @@ void describe('EventStoreDB event store started consumer', () => {
             { type: 'GuestCheckedIn', data: { guestId } },
             { type: 'GuestCheckedOut', data: { guestId } },
           ];
-          await eventStore.appendToStream(streamName, initialEvents);
+          await appendAndWaitForProjection(from, streamName, initialEvents);
 
           const events: GuestStayEvent[] = [
             { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
@@ -493,7 +536,7 @@ void describe('EventStoreDB event store started consumer', () => {
             consumerPromise = consumer.start();
             await consumer.whenStarted();
 
-            await eventStore.appendToStream(streamName, events);
+            await appendAndWaitForProjection(from, streamName, events);
 
             await consumer.whenCaughtUp();
 
@@ -629,11 +672,12 @@ void describe('EventStoreDB event store started consumer', () => {
 
           const guestId = uuid();
           const streamName = `guestStay-${guestId}`;
+          const subscription = from(streamName);
 
           // When
           const consumer = eventStoreDBEventStoreConsumer({
             connectionString,
-            from: from(streamName),
+            from: subscription,
           });
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
@@ -652,7 +696,7 @@ void describe('EventStoreDB event store started consumer', () => {
             consumerPromise = consumer.start();
             await consumer.whenStarted();
 
-            await eventStore.appendToStream(streamName, events);
+            await appendAndWaitForProjection(subscription, streamName, events);
 
             await consumer.whenCaughtUp();
 
@@ -678,7 +722,12 @@ void describe('EventStoreDB event store started consumer', () => {
             { type: 'GuestCheckedOut', data: { guestId } },
           ];
 
-          await eventStore.appendToStream(streamName, initialEvents);
+          const subscription = from(streamName);
+          await appendAndWaitForProjection(
+            subscription,
+            streamName,
+            initialEvents,
+          );
 
           const events: GuestStayEvent[] = [
             { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
@@ -690,7 +739,7 @@ void describe('EventStoreDB event store started consumer', () => {
           // When
           const consumer = eventStoreDBEventStoreConsumer({
             connectionString,
-            from: from(streamName),
+            from: subscription,
           });
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
@@ -705,7 +754,7 @@ void describe('EventStoreDB event store started consumer', () => {
             consumerPromise = consumer.start();
             await consumer.whenStarted();
 
-            await eventStore.appendToStream(streamName, events);
+            await appendAndWaitForProjection(subscription, streamName, events);
 
             await consumer.whenCaughtUp();
 
@@ -733,7 +782,12 @@ void describe('EventStoreDB event store started consumer', () => {
             { type: 'GuestCheckedIn', data: { guestId } },
             { type: 'GuestCheckedOut', data: { guestId } },
           ];
-          await eventStore.appendToStream(streamName, initialEvents);
+          const subscription = from(streamName);
+          await appendAndWaitForProjection(
+            subscription,
+            streamName,
+            initialEvents,
+          );
 
           const events: GuestStayEvent[] = [
             { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
@@ -745,7 +799,7 @@ void describe('EventStoreDB event store started consumer', () => {
           // When
           const consumer = eventStoreDBEventStoreConsumer({
             connectionString,
-            from: from(streamName),
+            from: subscription,
           });
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
@@ -767,7 +821,7 @@ void describe('EventStoreDB event store started consumer', () => {
             consumerPromise = consumer.start();
             await consumer.whenStarted();
 
-            await eventStore.appendToStream(streamName, events);
+            await appendAndWaitForProjection(subscription, streamName, events);
 
             await consumer.whenCaughtUp();
 
@@ -792,7 +846,12 @@ void describe('EventStoreDB event store started consumer', () => {
             { type: 'GuestCheckedIn', data: { guestId } },
             { type: 'GuestCheckedOut', data: { guestId } },
           ];
-          await eventStore.appendToStream(streamName, initialEvents);
+          const subscription = from(streamName);
+          await appendAndWaitForProjection(
+            subscription,
+            streamName,
+            initialEvents,
+          );
 
           const events: GuestStayEvent[] = [
             { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
@@ -813,7 +872,7 @@ void describe('EventStoreDB event store started consumer', () => {
           // When
           const consumer = eventStoreDBEventStoreConsumer({
             connectionString,
-            from: from(streamName),
+            from: subscription,
           });
           let consumerPromise: Promise<void> | undefined;
           try {
@@ -831,7 +890,7 @@ void describe('EventStoreDB event store started consumer', () => {
 
           const newConsumer = eventStoreDBEventStoreConsumer({
             connectionString,
-            from: from(streamName),
+            from: subscription,
           });
           newConsumer.reactor<GuestStayEvent>(processorOptions);
 
@@ -840,7 +899,7 @@ void describe('EventStoreDB event store started consumer', () => {
             newConsumerPromise = newConsumer.start();
             await newConsumer.whenStarted();
 
-            await eventStore.appendToStream(streamName, events);
+            await appendAndWaitForProjection(subscription, streamName, events);
 
             await newConsumer.whenCaughtUp();
 
