@@ -2,10 +2,9 @@ import { v7 as uuid } from 'uuid';
 import { EmmettError } from '../errors';
 import { MessageSourceControlMessage } from '../eventStore/events';
 import {
-  type AnyMessageProcessor,
+  type AnyMessageProcessorFactory,
   ConsumerStartPositions,
   type MessageProcessor,
-  type MessageProcessorFactory,
   type ProcessorCheckpoint,
   type RegisterMessageProcessor,
   type WaitOptions,
@@ -17,6 +16,7 @@ import {
 } from '../observability';
 import { FusionStreams } from '../streaming';
 import type {
+  AnyEvent,
   AnyReadEventMetadata,
   Message,
   MessageHandlerContext,
@@ -60,12 +60,12 @@ export type MessageConsumerOptions<
 export type MessageConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
-  ReactorFactory extends MessageProcessorFactory<
-    ConsumerMessageType,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any,
-    AnyMessageProcessor
-  > = never,
+  ReactorFactory extends AnyMessageProcessorFactory<ConsumerMessageType> =
+    never,
+  ProjectorFactory extends AnyMessageProcessorFactory<ConsumerMessageType> =
+    never,
+  WorkflowProcessorFactory extends
+    AnyMessageProcessorFactory<ConsumerMessageType> = never,
 > = Readonly<{
   consumerId: string;
   isRunning: boolean;
@@ -94,8 +94,14 @@ export type MessageConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   processors: ReadonlyArray<MessageProcessor<ConsumerMessageType, any, any>>;
 
-  reactor: RegisterMessageProcessor<ConsumerMessageType> &
-    ([ReactorFactory] extends [never] ? unknown : ReactorFactory);
+  reactor: ([ReactorFactory] extends [never] ? unknown : ReactorFactory) &
+    RegisterMessageProcessor<ConsumerMessageType>;
+  projector: ([ProjectorFactory] extends [never] ? unknown : ProjectorFactory) &
+    RegisterMessageProcessor<ConsumerMessageType & AnyEvent>;
+  workflowProcessor: ([WorkflowProcessorFactory] extends [never]
+    ? unknown
+    : WorkflowProcessorFactory) &
+    RegisterMessageProcessor<ConsumerMessageType>;
 }>;
 
 /**
@@ -126,15 +132,17 @@ export type MessageConsumerSetup<
   ConsumerMessageType extends Message = any,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends MessageHandlerContext | undefined = undefined,
-  ReactorFactory extends MessageProcessorFactory<
-    ConsumerMessageType,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any,
-    AnyMessageProcessor
-  > = never,
+  ReactorFactory extends AnyMessageProcessorFactory<ConsumerMessageType> =
+    never,
+  ProjectorFactory extends AnyMessageProcessorFactory<ConsumerMessageType> =
+    never,
+  WorkflowProcessorFactory extends
+    AnyMessageProcessorFactory<ConsumerMessageType> = never,
 > = MessageConsumerOptions<ConsumerMessageType> & {
   source: MessageSource<ConsumerMessageType, MessageMetadataType>;
   reactorFactory: ReactorFactory;
+  projectorFactory: ProjectorFactory;
+  workflowProcessorFactory: WorkflowProcessorFactory;
   scope?: MessageConsumerScope<HandlerContext>;
   batchSize?: number;
   /**
@@ -180,20 +188,27 @@ export const consumer = <
   ConsumerMessageType extends Message = any,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends MessageHandlerContext | undefined = undefined,
-  ReactorFactory extends MessageProcessorFactory<
-    ConsumerMessageType,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any,
-    AnyMessageProcessor
-  > = never,
+  ReactorFactory extends AnyMessageProcessorFactory<ConsumerMessageType> =
+    never,
+  ProjectorFactory extends AnyMessageProcessorFactory<ConsumerMessageType> =
+    never,
+  WorkflowProcessorFactory extends
+    AnyMessageProcessorFactory<ConsumerMessageType> = never,
 >(
   options: MessageConsumerSetup<
     ConsumerMessageType,
     MessageMetadataType,
     HandlerContext,
-    ReactorFactory
+    ReactorFactory,
+    ProjectorFactory,
+    WorkflowProcessorFactory
   >,
-): MessageConsumer<ConsumerMessageType, ReactorFactory> => {
+): MessageConsumer<
+  ConsumerMessageType,
+  ReactorFactory,
+  ProjectorFactory,
+  WorkflowProcessorFactory
+> => {
   const { source, batchSize, batchDeadlineInMs, hooks, until } = options;
 
   const processors = options.processors ?? [];
@@ -314,6 +329,16 @@ export const consumer = <
     reactor: withMessageProcessorFactory(
       register,
       options.reactorFactory,
+      withMergedObservability,
+    ),
+    projector: withMessageProcessorFactory(
+      register,
+      options.projectorFactory,
+      withMergedObservability,
+    ),
+    workflowProcessor: withMessageProcessorFactory(
+      register,
+      options.workflowProcessorFactory,
       withMergedObservability,
     ),
     start: () => {

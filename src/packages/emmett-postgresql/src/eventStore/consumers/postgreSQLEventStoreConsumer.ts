@@ -1,12 +1,10 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import {
   consumer,
-  mergeObservability,
   type AnyCommand,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
-  type ConsumerObservabilityConfig,
   type JSONSerializationOptions,
   type Message,
   type MessageConsumer,
@@ -59,45 +57,48 @@ export type PostgreSQLReactorFactory<
   options: PostgreSQLReactorOptions<MessageType>,
 ) => PostgreSQLProcessor<MessageType>;
 
+export type PostgreSQLProjectorFactory<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = <
+  EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
+    AnyEvent,
+>(
+  options: PostgreSQLProjectorOptions<EventType>,
+) => PostgreSQLProcessor<EventType>;
+
+export type PostgreSQLWorkflowProcessorFactory<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = <
+  Input extends ConsumerMessageType,
+  State,
+  Output extends ConsumerMessageType,
+  MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  HandlerContext extends PostgreSQLProcessorHandlerContext &
+    WorkflowProcessorContext = PostgreSQLProcessorHandlerContext &
+    WorkflowProcessorContext,
+  StoredMessage extends AnyEvent | AnyCommand = Output,
+>(
+  options: PostgreSQLWorkflowProcessorOptions<
+    Input,
+    State,
+    Output,
+    MetaDataType,
+    HandlerContext,
+    StoredMessage
+  >,
+) => PostgreSQLProcessor<Input | Output>;
+
 export type PostgreSQLEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<
   ConsumerMessageType,
-  PostgreSQLReactorFactory<ConsumerMessageType>
-> &
-  Readonly<{
-    workflowProcessor: <
-      Input extends ConsumerMessageType,
-      State,
-      Output extends ConsumerMessageType,
-      MetaDataType extends AnyRecordedMessageMetadata =
-        AnyRecordedMessageMetadata,
-      HandlerContext extends PostgreSQLProcessorHandlerContext &
-        WorkflowProcessorContext = PostgreSQLProcessorHandlerContext &
-        WorkflowProcessorContext,
-      StoredMessage extends AnyEvent | AnyCommand = Output,
-    >(
-      options: PostgreSQLWorkflowProcessorOptions<
-        Input,
-        State,
-        Output,
-        MetaDataType,
-        HandlerContext,
-        StoredMessage
-      >,
-    ) => PostgreSQLProcessor<Input | Output>;
-  }> &
-  (AnyEvent extends ConsumerMessageType
-    ? Readonly<{
-        projector: <
-          EventType extends ConsumerMessageType & AnyEvent =
-            ConsumerMessageType & AnyEvent,
-        >(
-          options: PostgreSQLProjectorOptions<EventType>,
-        ) => PostgreSQLProcessor<EventType>;
-      }>
-    : object);
+  PostgreSQLReactorFactory<ConsumerMessageType>,
+  PostgreSQLProjectorFactory<ConsumerMessageType>,
+  PostgreSQLWorkflowProcessorFactory<ConsumerMessageType>
+>;
 
 export const postgreSQLEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
@@ -137,29 +138,19 @@ export const postgreSQLEventStoreConsumer = <
     },
   } as unknown as PostgreSQLProcessorHandlerContext;
 
-  const withMergedObservability = <
-    ProcessorOptionsType extends {
-      observability?: ConsumerObservabilityConfig;
-    },
-  >(
-    processorOptions: ProcessorOptionsType,
-  ): ProcessorOptionsType => ({
-    ...processorOptions,
-    observability: mergeObservability(
-      options.observability,
-      processorOptions.observability,
-    ),
-  });
-
   const messageConsumer = consumer<
     ConsumerMessageType,
     RecordedMessageMetadataWithGlobalPosition,
     PostgreSQLProcessorHandlerContext,
-    PostgreSQLReactorFactory<ConsumerMessageType>
+    PostgreSQLReactorFactory<ConsumerMessageType>,
+    PostgreSQLProjectorFactory<ConsumerMessageType>,
+    PostgreSQLWorkflowProcessorFactory<ConsumerMessageType>
   >({
     ...options,
     source,
     reactorFactory: postgreSQLReactor,
+    projectorFactory: postgreSQLProjector,
+    workflowProcessorFactory: postgreSQLWorkflowProcessor,
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     scope: (handler) => handler(processorContext),
@@ -175,42 +166,5 @@ export const postgreSQLEventStoreConsumer = <
     },
   });
 
-  return {
-    ...messageConsumer,
-    get isRunning() {
-      return messageConsumer.isRunning;
-    },
-    projector: <
-      EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
-        AnyEvent,
-    >(
-      processorOptions: PostgreSQLProjectorOptions<EventType>,
-    ): PostgreSQLProcessor<EventType> =>
-      messageConsumer.reactor(
-        postgreSQLProjector(withMergedObservability(processorOptions)),
-      ),
-    workflowProcessor: <
-      Input extends ConsumerMessageType,
-      State,
-      Output extends ConsumerMessageType,
-      MetaDataType extends AnyRecordedMessageMetadata =
-        AnyRecordedMessageMetadata,
-      HandlerContext extends PostgreSQLProcessorHandlerContext &
-        WorkflowProcessorContext = PostgreSQLProcessorHandlerContext &
-        WorkflowProcessorContext,
-      StoredMessage extends AnyEvent | AnyCommand = Output,
-    >(
-      processorOptions: PostgreSQLWorkflowProcessorOptions<
-        Input,
-        State,
-        Output,
-        MetaDataType,
-        HandlerContext,
-        StoredMessage
-      >,
-    ): PostgreSQLProcessor<Input | Output> =>
-      messageConsumer.reactor(
-        postgreSQLWorkflowProcessor(withMergedObservability(processorOptions)),
-      ),
-  };
+  return messageConsumer;
 };

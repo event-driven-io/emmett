@@ -1,6 +1,7 @@
 import {
   assertEqual,
   assertRejects,
+  assertThrows,
   bigIntProcessorCheckpoint,
   inMemoryMessageSource,
   inMemoryReactor,
@@ -193,7 +194,7 @@ void describe('eventStoreDBEventStoreConsumer injected message source', () => {
     assertEqual(0, closes());
   });
 
-  void it('registers an existing processor through reactor', async () => {
+  void it('registers an existing processor through all processor methods', async () => {
     const { client } = fakeClient();
     const { source } = countingSource();
     const processor = inMemoryReactor<GuestCheckedIn>({
@@ -206,9 +207,14 @@ void describe('eventStoreDBEventStoreConsumer injected message source', () => {
     });
 
     const registered = consumer.reactor(processor);
+    const registeredAsProjector = consumer.projector(processor);
+    const registeredAsWorkflow = consumer.workflowProcessor(processor);
 
     assertEqual(processor, registered);
+    assertEqual(processor, registeredAsProjector);
+    assertEqual(processor, registeredAsWorkflow);
     assertEqual(consumer.processors[0], processor);
+    assertEqual(consumer.processors.length, 1);
     await consumer.close();
   });
 });
@@ -222,5 +228,7 @@ void describe('eventStoreDBEventStore consumer typing', () => {
 
     assertEqual('function', typeof consumer.projector);
     assertEqual('function', typeof consumer.reactor);
+    assertEqual('function', typeof consumer.workflowProcessor);
+    assertThrows(() => consumer.workflowProcessor({ workflow: {} }));
   });
 });

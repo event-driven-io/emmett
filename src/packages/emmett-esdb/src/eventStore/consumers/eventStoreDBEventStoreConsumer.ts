@@ -2,11 +2,10 @@ import {
   consumer,
   inMemoryProjector,
   inMemoryReactor,
-  mergeObservability,
+  unsupportedWorkflowProcessor,
   type AnyEvent,
   type AnyMessage,
   type AsyncRetryOptions,
-  type ConsumerObservabilityConfig,
   type InMemoryProcessor,
   type InMemoryProjectorOptions,
   type InMemoryReactorOptions,
@@ -69,23 +68,25 @@ export type EventStoreDBReactorFactory<
   options: InMemoryReactorOptions<MessageType>,
 ) => InMemoryProcessor<MessageType>;
 
+export type EventStoreDBProjectorFactory<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = <
+  EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
+    AnyEvent,
+>(
+  options: InMemoryProjectorOptions<EventType>,
+) => InMemoryProcessor<EventType>;
+
 export type EventStoreDBEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<
   ConsumerMessageType,
-  EventStoreDBReactorFactory<ConsumerMessageType>
-> &
-  (AnyEvent extends ConsumerMessageType
-    ? Readonly<{
-        projector: <
-          EventType extends ConsumerMessageType & AnyEvent =
-            ConsumerMessageType & AnyEvent,
-        >(
-          options: InMemoryProjectorOptions<EventType>,
-        ) => InMemoryProcessor<EventType>;
-      }>
-    : object);
+  EventStoreDBReactorFactory<ConsumerMessageType>,
+  EventStoreDBProjectorFactory<ConsumerMessageType>,
+  typeof unsupportedWorkflowProcessor
+>;
 
 export const eventStoreDBEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
@@ -106,29 +107,19 @@ export const eventStoreDBEventStoreConsumer = <
         resilience: options.resilience,
       });
 
-  const withMergedObservability = <
-    ProcessorOptionsType extends {
-      observability?: ConsumerObservabilityConfig;
-    },
-  >(
-    processorOptions: ProcessorOptionsType,
-  ): ProcessorOptionsType => ({
-    ...processorOptions,
-    observability: mergeObservability(
-      options.observability,
-      processorOptions.observability,
-    ),
-  });
-
   const messageConsumer = consumer<
     ConsumerMessageType,
     EventStoreDBReadEventMetadata,
     undefined,
-    EventStoreDBReactorFactory<ConsumerMessageType>
+    EventStoreDBReactorFactory<ConsumerMessageType>,
+    EventStoreDBProjectorFactory<ConsumerMessageType>,
+    typeof unsupportedWorkflowProcessor
   >({
     ...options,
     source,
     reactorFactory: inMemoryReactor,
+    projectorFactory: inMemoryProjector,
+    workflowProcessorFactory: unsupportedWorkflowProcessor,
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     hooks: {
@@ -138,19 +129,5 @@ export const eventStoreDBEventStoreConsumer = <
     },
   });
 
-  return {
-    ...messageConsumer,
-    get isRunning() {
-      return messageConsumer.isRunning;
-    },
-    projector: <
-      EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
-        AnyEvent,
-    >(
-      processorOptions: InMemoryProjectorOptions<EventType>,
-    ): InMemoryProcessor<EventType> =>
-      messageConsumer.reactor(
-        inMemoryProjector(withMergedObservability(processorOptions)),
-      ),
-  };
+  return messageConsumer;
 };

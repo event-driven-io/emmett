@@ -1,10 +1,9 @@
 import {
   consumer,
-  mergeObservability,
+  unsupportedWorkflowProcessor,
   type AnyEvent,
   type AnyMessage,
   type AsyncRetryOptions,
-  type ConsumerObservabilityConfig,
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
@@ -66,23 +65,25 @@ export type MongoDBReactorFactory<
   options: MongoDBProcessorOptions<MessageType>,
 ) => MongoDBProcessor<MessageType>;
 
+export type MongoDBProjectorFactory<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = <
+  EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
+    AnyEvent,
+>(
+  options: MongoDBProjectorOptions<EventType>,
+) => MongoDBProcessor<EventType>;
+
 export type MongoDBEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<
   ConsumerMessageType,
-  MongoDBReactorFactory<ConsumerMessageType>
-> &
-  (AnyEvent extends ConsumerMessageType
-    ? Readonly<{
-        projector: <
-          EventType extends ConsumerMessageType & AnyEvent =
-            ConsumerMessageType & AnyEvent,
-        >(
-          options: MongoDBProjectorOptions<EventType>,
-        ) => MongoDBProcessor<EventType>;
-      }>
-    : object);
+  MongoDBReactorFactory<ConsumerMessageType>,
+  MongoDBProjectorFactory<ConsumerMessageType>,
+  typeof unsupportedWorkflowProcessor
+>;
 
 export type MongoDBConsumerHandlerContext = {
   client?: MongoClient;
@@ -127,29 +128,19 @@ export const mongoDBEventStoreConsumer = <
         resilience: options.resilience,
       });
 
-  const withMergedObservability = <
-    ProcessorOptionsType extends {
-      observability?: ConsumerObservabilityConfig;
-    },
-  >(
-    processorOptions: ProcessorOptionsType,
-  ): ProcessorOptionsType => ({
-    ...processorOptions,
-    observability: mergeObservability(
-      options.observability,
-      processorOptions.observability,
-    ),
-  });
-
   const messageConsumer = consumer<
     ConsumerMessageType,
     MongoDBChangeStreamMessageMetadata,
     MongoDBProcessorHandlerContext,
-    MongoDBReactorFactory<ConsumerMessageType>
+    MongoDBReactorFactory<ConsumerMessageType>,
+    MongoDBProjectorFactory<ConsumerMessageType>,
+    typeof unsupportedWorkflowProcessor
   >({
     ...options,
     source,
     reactorFactory: changeStreamReactor,
+    projectorFactory: mongoDBProjector,
+    workflowProcessorFactory: unsupportedWorkflowProcessor,
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     scope: (handler) => handler({ client }),
@@ -160,19 +151,5 @@ export const mongoDBEventStoreConsumer = <
     },
   });
 
-  return {
-    ...messageConsumer,
-    get isRunning() {
-      return messageConsumer.isRunning;
-    },
-    projector: <
-      EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
-        AnyEvent,
-    >(
-      processorOptions: MongoDBProjectorOptions<EventType>,
-    ): MongoDBProcessor<EventType> =>
-      messageConsumer.reactor(
-        mongoDBProjector(withMergedObservability(processorOptions)),
-      ),
-  };
+  return messageConsumer;
 };
