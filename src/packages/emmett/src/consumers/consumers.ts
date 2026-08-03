@@ -2,12 +2,19 @@ import { v7 as uuid } from 'uuid';
 import { EmmettError } from '../errors';
 import { MessageSourceControlMessage } from '../eventStore/events';
 import {
+  type AnyMessageProcessor,
   ConsumerStartPositions,
-  type EnsureCompatibleProcessor,
   type MessageProcessor,
+  type MessageProcessorFactory,
   type ProcessorCheckpoint,
+  type RegisterMessageProcessor,
   type WaitOptions,
+  withMessageProcessorFactory,
 } from '../processors';
+import {
+  mergeObservability,
+  type EmmettObservabilityConfig,
+} from '../observability';
 import { FusionStreams } from '../streaming';
 import type {
   AnyReadEventMetadata,
@@ -53,6 +60,12 @@ export type MessageConsumerOptions<
 export type MessageConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
+  ReactorFactory extends MessageProcessorFactory<
+    ConsumerMessageType,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
+    AnyMessageProcessor
+  > = never,
 > = Readonly<{
   consumerId: string;
   isRunning: boolean;
@@ -81,13 +94,8 @@ export type MessageConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   processors: ReadonlyArray<MessageProcessor<ConsumerMessageType, any, any>>;
 
-  processor: <
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ProcessorType extends MessageProcessor<any, any, any>,
-  >(
-    processor: ProcessorType &
-      EnsureCompatibleProcessor<ProcessorType, ConsumerMessageType>,
-  ) => ProcessorType;
+  reactor: RegisterMessageProcessor<ConsumerMessageType> &
+    ([ReactorFactory] extends [never] ? unknown : ReactorFactory);
 }>;
 
 /**
@@ -118,8 +126,15 @@ export type MessageConsumerSetup<
   ConsumerMessageType extends Message = any,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends MessageHandlerContext | undefined = undefined,
+  ReactorFactory extends MessageProcessorFactory<
+    ConsumerMessageType,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
+    AnyMessageProcessor
+  > = never,
 > = MessageConsumerOptions<ConsumerMessageType> & {
   source: MessageSource<ConsumerMessageType, MessageMetadataType>;
+  reactorFactory: ReactorFactory;
   scope?: MessageConsumerScope<HandlerContext>;
   batchSize?: number;
   /**
@@ -165,13 +180,20 @@ export const consumer = <
   ConsumerMessageType extends Message = any,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends MessageHandlerContext | undefined = undefined,
+  ReactorFactory extends MessageProcessorFactory<
+    ConsumerMessageType,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
+    AnyMessageProcessor
+  > = never,
 >(
   options: MessageConsumerSetup<
     ConsumerMessageType,
     MessageMetadataType,
-    HandlerContext
+    HandlerContext,
+    ReactorFactory
   >,
-): MessageConsumer<ConsumerMessageType> => {
+): MessageConsumer<ConsumerMessageType, ReactorFactory> => {
   const { source, batchSize, batchDeadlineInMs, hooks, until } = options;
 
   const processors = options.processors ?? [];
@@ -185,6 +207,31 @@ export const consumer = <
   let start: Promise<void>;
 
   const startedAwaiter: AsyncAwaiter<void> = asyncAwaiter<void>();
+
+  const register: RegisterMessageProcessor<ConsumerMessageType> = (
+    processor,
+  ) => {
+    if (!processors.includes(processor)) processors.push(processor);
+
+    return processor;
+  };
+
+  const withMergedObservability = (processorOptions: unknown): unknown => {
+    if (typeof processorOptions !== 'object' || processorOptions === null)
+      return processorOptions;
+
+    const optionsWithObservability = processorOptions as {
+      observability?: EmmettObservabilityConfig;
+    };
+
+    return {
+      ...processorOptions,
+      observability: mergeObservability(
+        options.observability,
+        optionsWithObservability.observability,
+      ),
+    };
+  };
 
   // A processor that fails to initialise is closed there and then, so the
   // teardown that follows the failed start must not close it a second time and
@@ -264,11 +311,11 @@ export const consumer = <
       );
     },
     init,
-    processor: (processor) => {
-      processors.push(processor);
-
-      return processor;
-    },
+    reactor: withMessageProcessorFactory(
+      register,
+      options.reactorFactory,
+      withMergedObservability,
+    ),
     start: () => {
       if (isRunning) {
         console.log(

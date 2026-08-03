@@ -168,7 +168,25 @@ export type MessageProcessor<
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyMessageProcessor = MessageProcessor<AnyMessage, any, any>;
+export type AnyMessageProcessor<MessageType extends AnyMessage = any> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  MessageProcessor<MessageType, any, any>;
+
+const isMessageProcessor = (value: unknown): value is AnyMessageProcessor => {
+  if (typeof value !== 'object' || value === null) return false;
+
+  const candidate = value as Partial<AnyMessageProcessor>;
+
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.instanceId === 'string' &&
+    typeof candidate.init === 'function' &&
+    typeof candidate.start === 'function' &&
+    typeof candidate.close === 'function' &&
+    typeof candidate.whenProcessed === 'function' &&
+    typeof candidate.handle === 'function'
+  );
+};
 
 export type ProcessorMessageType<ProcessorType> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -190,6 +208,53 @@ export type EnsureCompatibleProcessor<
 ]
   ? unknown
   : never;
+
+export type CompatibleProcessor<
+  ConsumerMessageType extends AnyMessage,
+  ProcessorType extends AnyMessageProcessor,
+> = ProcessorType &
+  EnsureCompatibleProcessor<ProcessorType, ConsumerMessageType>;
+
+export type RegisterMessageProcessor<ConsumerMessageType extends Message> = <
+  ProcessorType extends AnyMessageProcessor,
+>(
+  processor: CompatibleProcessor<ConsumerMessageType, ProcessorType>,
+) => ProcessorType;
+
+export type MessageProcessorFactory<
+  ConsumerMessageType extends AnyMessage,
+  OptionsType,
+  ProcessorType extends AnyMessageProcessor,
+> = (
+  options: OptionsType,
+) => CompatibleProcessor<ConsumerMessageType, ProcessorType>;
+
+export const withMessageProcessorFactory = <
+  ConsumerMessageType extends Message,
+  ProcessorFactory extends MessageProcessorFactory<
+    ConsumerMessageType,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
+    AnyMessageProcessor
+  >,
+>(
+  register: RegisterMessageProcessor<ConsumerMessageType>,
+  factory: ProcessorFactory,
+  mapFactoryOptions: (options: unknown) => unknown = (options) => options,
+): RegisterMessageProcessor<ConsumerMessageType> & ProcessorFactory => {
+  const registerOrCreate = (
+    processorOrOptions: unknown,
+  ): AnyMessageProcessor => {
+    const processor = isMessageProcessor(processorOrOptions)
+      ? processorOrOptions
+      : factory(mapFactoryOptions(processorOrOptions));
+
+    return register(processor);
+  };
+
+  return registerOrCreate as RegisterMessageProcessor<ConsumerMessageType> &
+    ProcessorFactory;
+};
 
 export const MessageProcessor = {
   result: {

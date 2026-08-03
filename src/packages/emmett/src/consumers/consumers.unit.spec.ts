@@ -2,6 +2,7 @@ import { describe, it, vi } from 'vitest';
 import { MessageSourceCaughtUp } from '../eventStore/events';
 import {
   ProcessorCheckpoint,
+  type AnyMessageProcessor,
   type CurrentMessageProcessorPosition,
   type MessageProcessor,
 } from '../processors';
@@ -12,13 +13,15 @@ import {
   assertRejects,
   assertTrue,
 } from '../testing';
+import type { EmmettObservabilityConfig } from '../observability';
 import type {
   AnyMessage,
   AnyReadEventMetadata,
+  Message,
   MessageHandlerContext,
   RecordedMessage,
 } from '../typing';
-import { consumer } from './consumers';
+import { consumer, type MessageConsumerSetup } from './consumers';
 import type {
   MessageSource,
   MessageSourceMessage,
@@ -160,7 +163,106 @@ const testProcessor = (
   };
 };
 
+type TestReactorFactory = (options: {
+  processor: AnyMessageProcessor;
+}) => AnyMessageProcessor;
+
+const testReactorFactory: TestReactorFactory = ({ processor }) => processor;
+
+const testConsumer = <
+  ConsumerMessageType extends Message = AnyMessage,
+  MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
+  HandlerContext extends MessageHandlerContext | undefined = undefined,
+>(
+  options: Omit<
+    MessageConsumerSetup<
+      ConsumerMessageType,
+      MessageMetadataType,
+      HandlerContext,
+      TestReactorFactory
+    >,
+    'reactorFactory'
+  >,
+) =>
+  consumer<
+    ConsumerMessageType,
+    MessageMetadataType,
+    HandlerContext,
+    TestReactorFactory
+  >({ ...options, reactorFactory: testReactorFactory });
+
 void describe('consumer', () => {
+  void it('registers and returns a processor through reactor', () => {
+    const { source } = testSource([]);
+    const { processor } = testProcessor('a');
+    const messageConsumer = testConsumer({ source });
+
+    const registered = messageConsumer.reactor(processor);
+
+    assertEqual(registered, processor);
+    assertEqual(messageConsumer.processors[0], processor);
+  });
+
+  void it('does not register the same processor instance twice', () => {
+    const { source } = testSource([]);
+    const { processor } = testProcessor('a');
+    const messageConsumer = testConsumer({ source });
+
+    messageConsumer.reactor(processor);
+    messageConsumer.reactor(processor);
+
+    assertEqual(messageConsumer.processors.length, 1);
+  });
+
+  void it('creates, registers and returns a processor through the reactor factory', () => {
+    const { source } = testSource([]);
+    const { processor } = testProcessor('a');
+    const messageConsumer = testConsumer({ source });
+
+    const registered = messageConsumer.reactor({ processor });
+
+    assertEqual(registered, processor);
+    assertEqual(messageConsumer.processors[0], processor);
+  });
+
+  void it('merges consumer observability into reactor factory options', () => {
+    const { source } = testSource([]);
+    const { processor } = testProcessor('a');
+    const consumerTracer = {} as NonNullable<
+      EmmettObservabilityConfig['tracer']
+    >;
+    const processorTracer = {} as NonNullable<
+      EmmettObservabilityConfig['tracer']
+    >;
+    const meter = {} as NonNullable<EmmettObservabilityConfig['meter']>;
+    let receivedOptions:
+      | {
+          processor: AnyMessageProcessor;
+          observability?: EmmettObservabilityConfig;
+        }
+      | undefined;
+
+    const messageConsumer = consumer({
+      source,
+      observability: { tracer: consumerTracer, meter },
+      reactorFactory: (options: {
+        processor: AnyMessageProcessor;
+        observability?: EmmettObservabilityConfig;
+      }) => {
+        receivedOptions = options;
+        return options.processor;
+      },
+    });
+
+    messageConsumer.reactor({
+      processor,
+      observability: { tracer: processorTracer },
+    });
+
+    assertEqual(receivedOptions?.observability?.tracer, processorTracer);
+    assertEqual(receivedOptions?.observability?.meter, meter);
+  });
+
   void it('strips caught up control messages before processor fan out', async () => {
     const { source } = testSource([
       messageAt('1'),
@@ -170,7 +272,7 @@ void describe('consumer', () => {
     ]);
     const { processor, state } = testProcessor('a');
 
-    const messageConsumer = consumer({
+    const messageConsumer = testConsumer({
       source,
       processors: [processor],
       until: { noMessagesLeft: true },
@@ -195,7 +297,7 @@ void describe('consumer', () => {
     ]);
     const { processor, state } = testProcessor('a');
 
-    const messageConsumer = consumer({
+    const messageConsumer = testConsumer({
       source,
       processors: [processor],
       until: { noMessagesLeft: true },
@@ -220,7 +322,7 @@ void describe('consumer', () => {
     ]);
     const { processor, state } = testProcessor('a');
 
-    const messageConsumer = consumer({
+    const messageConsumer = testConsumer({
       source,
       processors: [processor],
       until: { caughtUp: true },
@@ -244,7 +346,7 @@ void describe('consumer', () => {
     const { source, state: sourceState } = testSource([messageAt('1')]);
     const { processor } = testProcessor('a');
 
-    const messageConsumer = consumer({ source, processors: [processor] });
+    const messageConsumer = testConsumer({ source, processors: [processor] });
 
     void messageConsumer.start();
     await messageConsumer.whenStarted();
@@ -264,7 +366,7 @@ void describe('consumer', () => {
       const { source } = testSource([messageAt('1')]);
       const { processor, state } = testProcessor('a');
 
-      const messageConsumer = consumer({
+      const messageConsumer = testConsumer({
         source,
         processors: [processor],
         batchSize: 100,
@@ -305,7 +407,7 @@ void describe('consumer', () => {
       readLastMessageCheckpoint: () => null,
       close: () => {},
     };
-    const messageConsumer = consumer({
+    const messageConsumer = testConsumer({
       source,
       processors: [processor],
       until: { noMessagesLeft: true },
@@ -333,7 +435,7 @@ void describe('consumer', () => {
       onHandle: () => ({ type: 'STOP', reason: 'done' }),
     });
 
-    const messageConsumer = consumer({ source, processors: [processor] });
+    const messageConsumer = testConsumer({ source, processors: [processor] });
 
     await messageConsumer.start();
 
@@ -344,7 +446,7 @@ void describe('consumer', () => {
   void it('rejects the start when there is no processor registered', async () => {
     const { source } = testSource([]);
 
-    const messageConsumer = consumer({ source });
+    const messageConsumer = testConsumer({ source });
 
     await assertRejects(messageConsumer.start());
   });
@@ -356,7 +458,7 @@ void describe('consumer', () => {
     ]);
     const { processor, state } = testProcessor('a');
 
-    const messageConsumer = consumer({
+    const messageConsumer = testConsumer({
       source,
       processors: [processor],
       until: { noMessagesLeft: true },
@@ -379,7 +481,7 @@ void describe('consumer', () => {
       marker: 'scoped',
     } as unknown as MessageHandlerContext<{ marker: string }>;
 
-    const messageConsumer = consumer<
+    const messageConsumer = testConsumer<
       AnyMessage,
       AnyReadEventMetadata,
       typeof scopeContext
@@ -415,7 +517,7 @@ void describe('consumer', () => {
       return readLastMessageCheckpoint();
     };
 
-    const messageConsumer = consumer<
+    const messageConsumer = testConsumer<
       AnyMessage,
       AnyReadEventMetadata,
       MessageHandlerContext
@@ -453,7 +555,7 @@ void describe('consumer', () => {
       return readLastMessageCheckpoint();
     };
 
-    const messageConsumer = consumer({
+    const messageConsumer = testConsumer({
       source,
       processors: [processor],
       until: { noMessagesLeft: true },
@@ -471,7 +573,7 @@ void describe('consumer', () => {
     const failure = new Error('Init failed');
     processor.init = () => Promise.reject(failure);
 
-    const messageConsumer = consumer({
+    const messageConsumer = testConsumer({
       source,
       processors: [processor],
     });
@@ -492,7 +594,7 @@ void describe('consumer', () => {
 
     let closeHookCalls = 0;
 
-    const messageConsumer = consumer({
+    const messageConsumer = testConsumer({
       source,
       processors: [processor],
       hooks: {

@@ -4,6 +4,7 @@ import {
   assertThatArray,
   inMemoryMessageSource,
   ProcessorCheckpoint,
+  reactor,
   type Event,
   type MessageSource,
   type ReadEventMetadataWithGlobalPosition,
@@ -132,6 +133,29 @@ void describe('SQLite event store consumer with injected message source', () => 
     await consumerPromise;
 
     assertEqual(closes(), 0);
+  });
+
+  void it('registers an existing processor through reactor', async () => {
+    const { source } = injectedSource();
+    const processor = reactor<GuestStayEvent>({
+      processorId: uuid(),
+      checkpoints: 'DISABLED',
+      eachMessage: () => {},
+    });
+    const consumer = sqliteEventStoreConsumer<
+      GuestStayEvent,
+      typeof sqlite3EventStoreDriver
+    >({
+      driver: sqlite3EventStoreDriver,
+      fileName: InMemorySQLiteDatabase,
+      source,
+    });
+
+    const registered = consumer.reactor(processor);
+
+    assertEqual(registered, processor);
+    assertEqual(consumer.processors[0], processor);
+    await consumer.close();
   });
 
   void it('event store returns the strongly typed SQLite consumer', () => {
