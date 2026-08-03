@@ -59,15 +59,20 @@ export type MongoDBConsumerOptions<
       }
   );
 
+export type MongoDBReactorFactory<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = <MessageType extends ConsumerMessageType = ConsumerMessageType>(
+  options: MongoDBProcessorOptions<MessageType>,
+) => MongoDBProcessor<MessageType>;
+
 export type MongoDBEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
-> = MessageConsumer<ConsumerMessageType> &
-  Readonly<{
-    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
-      options: MongoDBProcessorOptions<MessageType>,
-    ) => MongoDBProcessor<MessageType>;
-  }> &
+> = MessageConsumer<
+  ConsumerMessageType,
+  MongoDBReactorFactory<ConsumerMessageType>
+> &
   (AnyEvent extends ConsumerMessageType
     ? Readonly<{
         projector: <
@@ -122,23 +127,6 @@ export const mongoDBEventStoreConsumer = <
         resilience: options.resilience,
       });
 
-  const messageConsumer = consumer<
-    ConsumerMessageType,
-    MongoDBChangeStreamMessageMetadata,
-    MongoDBProcessorHandlerContext
-  >({
-    ...options,
-    source,
-    batchSize: options.pulling?.batchSize,
-    batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
-    scope: (handler) => handler({ client }),
-    hooks: {
-      onClose: async () => {
-        if (isOwnClient) await client.close();
-      },
-    },
-  });
-
   const withMergedObservability = <
     ProcessorOptionsType extends {
       observability?: ConsumerObservabilityConfig;
@@ -153,26 +141,37 @@ export const mongoDBEventStoreConsumer = <
     ),
   });
 
+  const messageConsumer = consumer<
+    ConsumerMessageType,
+    MongoDBChangeStreamMessageMetadata,
+    MongoDBProcessorHandlerContext,
+    MongoDBReactorFactory<ConsumerMessageType>
+  >({
+    ...options,
+    source,
+    reactorFactory: changeStreamReactor,
+    batchSize: options.pulling?.batchSize,
+    batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
+    scope: (handler) => handler({ client }),
+    hooks: {
+      onClose: async () => {
+        if (isOwnClient) await client.close();
+      },
+    },
+  });
+
   return {
     ...messageConsumer,
     get isRunning() {
       return messageConsumer.isRunning;
     },
-    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
-      processorOptions: MongoDBProcessorOptions<MessageType>,
-    ): MongoDBProcessor<MessageType> =>
-      messageConsumer.processor(
-        changeStreamReactor<MessageType>(
-          withMergedObservability(processorOptions),
-        ),
-      ),
     projector: <
       EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
         AnyEvent,
     >(
       processorOptions: MongoDBProjectorOptions<EventType>,
     ): MongoDBProcessor<EventType> =>
-      messageConsumer.processor(
+      messageConsumer.reactor(
         mongoDBProjector(withMergedObservability(processorOptions)),
       ),
   };

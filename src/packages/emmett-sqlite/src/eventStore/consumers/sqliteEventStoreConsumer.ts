@@ -60,15 +60,21 @@ export type SQLiteEventStoreConsumerOptions<
 } & InferOptionsFromEventStoreDriver<Driver> &
   JSONSerializationOptions;
 
+export type SQLiteReactorFactory<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = <MessageType extends ConsumerMessageType = ConsumerMessageType>(
+  options: SQLiteReactorOptions<MessageType>,
+) => SQLiteProcessor<MessageType>;
+
 export type SQLiteEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
-> = MessageConsumer<ConsumerMessageType> &
+> = MessageConsumer<
+  ConsumerMessageType,
+  SQLiteReactorFactory<ConsumerMessageType>
+> &
   Readonly<{
-    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
-      options: SQLiteReactorOptions<MessageType>,
-    ) => SQLiteProcessor<MessageType>;
-
     workflowProcessor: <
       Input extends ConsumerMessageType,
       State,
@@ -131,13 +137,29 @@ export const sqliteEventStoreConsumer = <
         serialization: options.serialization,
       });
 
+  const withMergedObservability = <
+    ProcessorOptionsType extends {
+      observability?: ConsumerObservabilityConfig;
+    },
+  >(
+    processorOptions: ProcessorOptionsType,
+  ): ProcessorOptionsType => ({
+    ...processorOptions,
+    observability: mergeObservability(
+      options.observability,
+      processorOptions.observability,
+    ),
+  });
+
   const messageConsumer = consumer<
     ConsumerMessageType,
     ReadEventMetadataWithGlobalPosition,
-    SQLiteProcessorHandlerContext
+    SQLiteProcessorHandlerContext,
+    SQLiteReactorFactory<ConsumerMessageType>
   >({
     ...options,
     source,
+    reactorFactory: sqliteReactor,
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     scope: (handler) =>
@@ -159,38 +181,18 @@ export const sqliteEventStoreConsumer = <
     },
   });
 
-  const withMergedObservability = <
-    ProcessorOptionsType extends {
-      observability?: ConsumerObservabilityConfig;
-    },
-  >(
-    processorOptions: ProcessorOptionsType,
-  ): ProcessorOptionsType => ({
-    ...processorOptions,
-    observability: mergeObservability(
-      options.observability,
-      processorOptions.observability,
-    ),
-  });
-
   return {
     ...messageConsumer,
     get isRunning() {
       return messageConsumer.isRunning;
     },
-    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
-      processorOptions: SQLiteReactorOptions<MessageType>,
-    ): SQLiteProcessor<MessageType> =>
-      messageConsumer.processor(
-        sqliteReactor(withMergedObservability(processorOptions)),
-      ),
     projector: <
       EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
         AnyEvent,
     >(
       processorOptions: SQLiteProjectorOptions<EventType>,
     ): SQLiteProcessor<EventType> =>
-      messageConsumer.processor(
+      messageConsumer.reactor(
         sqliteProjector(withMergedObservability(processorOptions)),
       ),
     workflowProcessor: <
@@ -216,7 +218,7 @@ export const sqliteEventStoreConsumer = <
         'messageStore'
       >,
     ): SQLiteProcessor<Input | Output> =>
-      messageConsumer.processor(
+      messageConsumer.reactor(
         sqliteWorkflowProcessor(
           withMergedObservability({
             ...processorOptions,

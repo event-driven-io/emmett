@@ -2,6 +2,7 @@ import {
   assertDeepEqual,
   assertEqual,
   assertMatches,
+  type AnyMessageProcessor,
   type AnyMessage,
   type Event,
   type EventStore,
@@ -27,11 +28,11 @@ export type PaymentFailed = Event<
 
 export type PaymentEvent = OrderPlaced | PaymentCharged | PaymentFailed;
 
-export type ReactorConsumer = MessageConsumer & {
-  reactor: <MessageType extends AnyMessage>(
-    options: ReactorOptions<MessageType>,
-  ) => unknown;
-};
+type ReactorFactory = <MessageType extends AnyMessage>(
+  options: ReactorOptions<MessageType>,
+) => AnyMessageProcessor<MessageType>;
+
+export type ReactorConsumer = MessageConsumer<AnyMessage, ReactorFactory>;
 
 export type ConsumerTestContext = {
   eventStore: EventStore;
@@ -95,7 +96,11 @@ const registerRecordingReactor = () =>
 // #endregion failure-as-event
 
 // #region reactor-skip-stop
-import { EmmettError, MessageProcessor } from '@event-driven-io/emmett';
+import {
+  EmmettError,
+  MessageProcessor,
+  withMessageProcessorFactory,
+} from '@event-driven-io/emmett';
 
 const { skip, stop } = MessageProcessor.result;
 
@@ -137,16 +142,21 @@ const stoppingAfterOrder = (
   lastOrderId: string,
 ): ReactorConsumer => ({
   ...source,
-  reactor: (options) =>
-    source.reactor({
-      ...options,
-      stopAfter: (message) => {
-        const order = message as RecordedMessage<OrderPlaced>;
-        return (
-          order.type === 'OrderPlaced' && order.data.orderId === lastOrderId
-        );
-      },
-    }),
+  reactor: withMessageProcessorFactory(
+    source.reactor,
+    <MessageType extends AnyMessage>(
+      options: ReactorOptions<MessageType>,
+    ): AnyMessageProcessor<MessageType> =>
+      source.reactor({
+        ...options,
+        stopAfter: (message) => {
+          const order = message as RecordedMessage<OrderPlaced>;
+          return (
+            order.type === 'OrderPlaced' && order.data.orderId === lastOrderId
+          );
+        },
+      }),
+  ),
 });
 
 const setupStore = (consumerFactory: ConsumerFactory) => {

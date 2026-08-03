@@ -3,6 +3,7 @@ import {
   assertRejects,
   bigIntProcessorCheckpoint,
   inMemoryMessageSource,
+  inMemoryReactor,
   type Event,
   type MessageProcessor,
   type MessageSource,
@@ -190,6 +191,25 @@ void describe('eventStoreDBEventStoreConsumer injected message source', () => {
     await consumer.close();
 
     assertEqual(0, closes());
+  });
+
+  void it('registers an existing processor through reactor', async () => {
+    const { client } = fakeClient();
+    const { source } = countingSource();
+    const processor = inMemoryReactor<GuestCheckedIn>({
+      processorId: 'existing-processor',
+      eachMessage: () => {},
+    });
+    const consumer = eventStoreDBEventStoreConsumer<GuestCheckedIn>({
+      client,
+      source,
+    });
+
+    const registered = consumer.reactor(processor);
+
+    assertEqual(processor, registered);
+    assertEqual(consumer.processors[0], processor);
+    await consumer.close();
   });
 });
 

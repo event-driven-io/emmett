@@ -62,15 +62,20 @@ export type EventStoreDBEventStoreConsumerType =
       options?: Exclude<SubscribeToStreamOptions, 'fromRevision'>;
     };
 
+export type EventStoreDBReactorFactory<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = <MessageType extends ConsumerMessageType = ConsumerMessageType>(
+  options: InMemoryReactorOptions<MessageType>,
+) => InMemoryProcessor<MessageType>;
+
 export type EventStoreDBEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
-> = MessageConsumer<ConsumerMessageType> &
-  Readonly<{
-    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
-      options: InMemoryReactorOptions<MessageType>,
-    ) => InMemoryProcessor<MessageType>;
-  }> &
+> = MessageConsumer<
+  ConsumerMessageType,
+  EventStoreDBReactorFactory<ConsumerMessageType>
+> &
   (AnyEvent extends ConsumerMessageType
     ? Readonly<{
         projector: <
@@ -101,21 +106,6 @@ export const eventStoreDBEventStoreConsumer = <
         resilience: options.resilience,
       });
 
-  const messageConsumer = consumer<
-    ConsumerMessageType,
-    EventStoreDBReadEventMetadata
-  >({
-    ...options,
-    source,
-    batchSize: options.pulling?.batchSize,
-    batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
-    hooks: {
-      onClose: async () => {
-        if (isOwnClient) await client.dispose();
-      },
-    },
-  });
-
   const withMergedObservability = <
     ProcessorOptionsType extends {
       observability?: ConsumerObservabilityConfig;
@@ -130,24 +120,36 @@ export const eventStoreDBEventStoreConsumer = <
     ),
   });
 
+  const messageConsumer = consumer<
+    ConsumerMessageType,
+    EventStoreDBReadEventMetadata,
+    undefined,
+    EventStoreDBReactorFactory<ConsumerMessageType>
+  >({
+    ...options,
+    source,
+    reactorFactory: inMemoryReactor,
+    batchSize: options.pulling?.batchSize,
+    batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
+    hooks: {
+      onClose: async () => {
+        if (isOwnClient) await client.dispose();
+      },
+    },
+  });
+
   return {
     ...messageConsumer,
     get isRunning() {
       return messageConsumer.isRunning;
     },
-    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
-      processorOptions: InMemoryReactorOptions<MessageType>,
-    ): InMemoryProcessor<MessageType> =>
-      messageConsumer.processor(
-        inMemoryReactor<MessageType>(withMergedObservability(processorOptions)),
-      ),
     projector: <
       EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
         AnyEvent,
     >(
       processorOptions: InMemoryProjectorOptions<EventType>,
     ): InMemoryProcessor<EventType> =>
-      messageConsumer.processor(
+      messageConsumer.reactor(
         inMemoryProjector(withMergedObservability(processorOptions)),
       ),
   };

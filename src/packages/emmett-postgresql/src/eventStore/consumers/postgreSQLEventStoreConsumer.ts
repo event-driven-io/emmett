@@ -52,15 +52,21 @@ export type PostgreSQLEventStoreConsumerOptions<
   >;
 };
 
+export type PostgreSQLReactorFactory<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = <MessageType extends ConsumerMessageType = ConsumerMessageType>(
+  options: PostgreSQLReactorOptions<MessageType>,
+) => PostgreSQLProcessor<MessageType>;
+
 export type PostgreSQLEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
-> = MessageConsumer<ConsumerMessageType> &
+> = MessageConsumer<
+  ConsumerMessageType,
+  PostgreSQLReactorFactory<ConsumerMessageType>
+> &
   Readonly<{
-    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
-      options: PostgreSQLReactorOptions<MessageType>,
-    ) => PostgreSQLProcessor<MessageType>;
-
     workflowProcessor: <
       Input extends ConsumerMessageType,
       State,
@@ -131,13 +137,29 @@ export const postgreSQLEventStoreConsumer = <
     },
   } as unknown as PostgreSQLProcessorHandlerContext;
 
+  const withMergedObservability = <
+    ProcessorOptionsType extends {
+      observability?: ConsumerObservabilityConfig;
+    },
+  >(
+    processorOptions: ProcessorOptionsType,
+  ): ProcessorOptionsType => ({
+    ...processorOptions,
+    observability: mergeObservability(
+      options.observability,
+      processorOptions.observability,
+    ),
+  });
+
   const messageConsumer = consumer<
     ConsumerMessageType,
     RecordedMessageMetadataWithGlobalPosition,
-    PostgreSQLProcessorHandlerContext
+    PostgreSQLProcessorHandlerContext,
+    PostgreSQLReactorFactory<ConsumerMessageType>
   >({
     ...options,
     source,
+    reactorFactory: postgreSQLReactor,
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     scope: (handler) => handler(processorContext),
@@ -153,38 +175,18 @@ export const postgreSQLEventStoreConsumer = <
     },
   });
 
-  const withMergedObservability = <
-    ProcessorOptionsType extends {
-      observability?: ConsumerObservabilityConfig;
-    },
-  >(
-    processorOptions: ProcessorOptionsType,
-  ): ProcessorOptionsType => ({
-    ...processorOptions,
-    observability: mergeObservability(
-      options.observability,
-      processorOptions.observability,
-    ),
-  });
-
   return {
     ...messageConsumer,
     get isRunning() {
       return messageConsumer.isRunning;
     },
-    reactor: <MessageType extends ConsumerMessageType = ConsumerMessageType>(
-      processorOptions: PostgreSQLReactorOptions<MessageType>,
-    ): PostgreSQLProcessor<MessageType> =>
-      messageConsumer.processor(
-        postgreSQLReactor(withMergedObservability(processorOptions)),
-      ),
     projector: <
       EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
         AnyEvent,
     >(
       processorOptions: PostgreSQLProjectorOptions<EventType>,
     ): PostgreSQLProcessor<EventType> =>
-      messageConsumer.processor(
+      messageConsumer.reactor(
         postgreSQLProjector(withMergedObservability(processorOptions)),
       ),
     workflowProcessor: <
@@ -207,7 +209,7 @@ export const postgreSQLEventStoreConsumer = <
         StoredMessage
       >,
     ): PostgreSQLProcessor<Input | Output> =>
-      messageConsumer.processor(
+      messageConsumer.reactor(
         postgreSQLWorkflowProcessor(withMergedObservability(processorOptions)),
       ),
   };

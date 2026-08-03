@@ -113,6 +113,24 @@ void describe('mongoDB event store consumer', () => {
     assertFalse(wasClosed());
   });
 
+  void it('registers an existing processor through reactor', async () => {
+    const { source } = borrowedSource([]);
+    const processor = inMemoryReactor<NumberRecorded>({
+      processorId: uuid(),
+      eachMessage: () => {},
+    });
+    const consumer = mongoDBEventStoreConsumer<NumberRecorded>({
+      connectionString,
+      source,
+    });
+
+    const registered = consumer.reactor(processor);
+
+    assertEqual(registered, processor);
+    assertEqual(consumer.processors[0], processor);
+    await consumer.close();
+  });
+
   void it('is exposed from the package root', () => {
     assertEqual(typeof packageRootConsumer, 'function');
   });

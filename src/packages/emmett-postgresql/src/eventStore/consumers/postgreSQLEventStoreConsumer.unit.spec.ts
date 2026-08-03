@@ -111,6 +111,24 @@ void describe('PostgreSQL event store consumer', () => {
         ProcessorCheckpoint('1'),
       );
     });
+
+    void it('registers an existing processor through reactor', async () => {
+      const source = inMemoryMessageSource<
+        Tested,
+        RecordedMessageMetadataWithGlobalPosition
+      >({ messages: [] });
+      const processor = collectingReactor([]);
+      const consumer = postgreSQLEventStoreConsumer<Tested>({
+        connectionString,
+        source,
+      });
+
+      const registered = consumer.reactor(processor);
+
+      assertEqual(registered, processor);
+      assertEqual(consumer.processors[0], processor);
+      await consumer.close();
+    });
   });
 
   void describe('created by the event store', () => {
