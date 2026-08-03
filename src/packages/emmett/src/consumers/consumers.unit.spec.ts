@@ -1,8 +1,9 @@
-import { describe, it, vi } from 'vitest';
+import { describe, expectTypeOf, it, vi } from 'vitest';
 import { MessageSourceCaughtUp } from '../eventStore/events';
 import {
   ProcessorCheckpoint,
   type AnyMessageProcessor,
+  type CompatibleProcessor,
   type CurrentMessageProcessorPosition,
   type MessageProcessor,
 } from '../processors';
@@ -15,8 +16,11 @@ import {
 } from '../testing';
 import type { EmmettObservabilityConfig } from '../observability';
 import type {
+  AnyEvent,
   AnyMessage,
   AnyReadEventMetadata,
+  Command,
+  Event,
   Message,
   MessageHandlerContext,
   RecordedMessage,
@@ -163,11 +167,11 @@ const testProcessor = (
   };
 };
 
-type TestReactorFactory = (options: {
+type TestProcessorFactory = (options: {
   processor: AnyMessageProcessor;
 }) => AnyMessageProcessor;
 
-const testReactorFactory: TestReactorFactory = ({ processor }) => processor;
+const testProcessorFactory: TestProcessorFactory = ({ processor }) => processor;
 
 const testConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
@@ -179,17 +183,26 @@ const testConsumer = <
       ConsumerMessageType,
       MessageMetadataType,
       HandlerContext,
-      TestReactorFactory
+      TestProcessorFactory,
+      TestProcessorFactory,
+      TestProcessorFactory
     >,
-    'reactorFactory'
+    'reactorFactory' | 'projectorFactory' | 'workflowProcessorFactory'
   >,
 ) =>
   consumer<
     ConsumerMessageType,
     MessageMetadataType,
     HandlerContext,
-    TestReactorFactory
-  >({ ...options, reactorFactory: testReactorFactory });
+    TestProcessorFactory,
+    TestProcessorFactory,
+    TestProcessorFactory
+  >({
+    ...options,
+    reactorFactory: testProcessorFactory,
+    projectorFactory: testProcessorFactory,
+    workflowProcessorFactory: testProcessorFactory,
+  });
 
 void describe('consumer', () => {
   void it('registers and returns a processor through reactor', () => {
@@ -225,7 +238,50 @@ void describe('consumer', () => {
     assertEqual(messageConsumer.processors[0], processor);
   });
 
-  void it('merges consumer observability into reactor factory options', () => {
+  void it('creates, registers and returns a processor through the projector factory', () => {
+    const { source } = testSource([]);
+    const { processor } = testProcessor('a');
+    const messageConsumer = testConsumer({ source });
+
+    const registered = messageConsumer.projector({ processor });
+
+    assertEqual(registered, processor);
+    assertEqual(messageConsumer.processors[0], processor);
+  });
+
+  void it('only accepts event processors through projector registration', () => {
+    type TestedEvent = Event<'EventTested', Record<string, never>>;
+    type TestedCommand = Command<'CommandTested', Record<string, never>>;
+    type TestedMessage = TestedEvent | TestedCommand;
+
+    const { source } = testSource([]);
+    const messageConsumer = testConsumer<TestedMessage>({ source });
+    const eventProcessor = testProcessor('event')
+      .processor as AnyMessageProcessor<TestedEvent>;
+
+    const registered = messageConsumer.projector(eventProcessor);
+
+    expectTypeOf(registered).toEqualTypeOf<AnyMessageProcessor<TestedEvent>>();
+    expectTypeOf<
+      CompatibleProcessor<
+        TestedMessage & AnyEvent,
+        AnyMessageProcessor<TestedCommand>
+      >
+    >().toBeNever();
+  });
+
+  void it('creates, registers and returns a processor through the workflow factory', () => {
+    const { source } = testSource([]);
+    const { processor } = testProcessor('a');
+    const messageConsumer = testConsumer({ source });
+
+    const registered = messageConsumer.workflowProcessor({ processor });
+
+    assertEqual(registered, processor);
+    assertEqual(messageConsumer.processors[0], processor);
+  });
+
+  void it('merges consumer observability into all processor factory options', () => {
     const { source } = testSource([]);
     const { processor } = testProcessor('a');
     const consumerTracer = {} as NonNullable<
@@ -235,32 +291,41 @@ void describe('consumer', () => {
       EmmettObservabilityConfig['tracer']
     >;
     const meter = {} as NonNullable<EmmettObservabilityConfig['meter']>;
-    let receivedOptions:
-      | {
-          processor: AnyMessageProcessor;
-          observability?: EmmettObservabilityConfig;
-        }
-      | undefined;
+    const receivedOptions: {
+      processor: AnyMessageProcessor;
+      observability?: EmmettObservabilityConfig;
+    }[] = [];
+
+    const processorFactory = (factoryOptions: {
+      processor: AnyMessageProcessor;
+      observability?: EmmettObservabilityConfig;
+    }) => {
+      receivedOptions.push(factoryOptions);
+      return factoryOptions.processor;
+    };
 
     const messageConsumer = consumer({
       source,
       observability: { tracer: consumerTracer, meter },
-      reactorFactory: (options: {
-        processor: AnyMessageProcessor;
-        observability?: EmmettObservabilityConfig;
-      }) => {
-        receivedOptions = options;
-        return options.processor;
-      },
+      reactorFactory: processorFactory,
+      projectorFactory: processorFactory,
+      workflowProcessorFactory: processorFactory,
     });
 
-    messageConsumer.reactor({
+    const processorOptions = {
       processor,
       observability: { tracer: processorTracer },
-    });
+    };
 
-    assertEqual(receivedOptions?.observability?.tracer, processorTracer);
-    assertEqual(receivedOptions?.observability?.meter, meter);
+    messageConsumer.reactor(processorOptions);
+    messageConsumer.projector(processorOptions);
+    messageConsumer.workflowProcessor(processorOptions);
+
+    assertEqual(receivedOptions.length, 3);
+    for (const factoryOptions of receivedOptions) {
+      assertEqual(factoryOptions.observability?.tracer, processorTracer);
+      assertEqual(factoryOptions.observability?.meter, meter);
+    }
   });
 
   void it('strips caught up control messages before processor fan out', async () => {

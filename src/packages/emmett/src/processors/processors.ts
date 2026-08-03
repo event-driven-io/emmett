@@ -229,14 +229,19 @@ export type MessageProcessorFactory<
   options: OptionsType,
 ) => CompatibleProcessor<ConsumerMessageType, ProcessorType>;
 
+export type AnyMessageProcessorFactory<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = MessageProcessorFactory<
+  ConsumerMessageType,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  any,
+  AnyMessageProcessor
+>;
+
 export const withMessageProcessorFactory = <
   ConsumerMessageType extends Message,
-  ProcessorFactory extends MessageProcessorFactory<
-    ConsumerMessageType,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any,
-    AnyMessageProcessor
-  >,
+  ProcessorFactory extends AnyMessageProcessorFactory<ConsumerMessageType>,
 >(
   register: RegisterMessageProcessor<ConsumerMessageType>,
   factory: ProcessorFactory,

@@ -2,12 +2,10 @@ import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import { sqliteAmbientConnectionPool } from '@event-driven-io/dumbo/sqlite';
 import {
   consumer,
-  mergeObservability,
   type AnyCommand,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
-  type ConsumerObservabilityConfig,
   type JSONSerializationOptions,
   type Message,
   type MessageConsumer,
@@ -67,48 +65,51 @@ export type SQLiteReactorFactory<
   options: SQLiteReactorOptions<MessageType>,
 ) => SQLiteProcessor<MessageType>;
 
+export type SQLiteProjectorFactory<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = <
+  EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
+    AnyEvent,
+>(
+  options: SQLiteProjectorOptions<EventType>,
+) => SQLiteProcessor<EventType>;
+
+export type SQLiteWorkflowProcessorFactory<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = <
+  Input extends ConsumerMessageType,
+  State,
+  Output extends ConsumerMessageType,
+  MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  HandlerContext extends SQLiteProcessorHandlerContext &
+    WorkflowProcessorContext = SQLiteProcessorHandlerContext &
+    WorkflowProcessorContext,
+  StoredMessage extends AnyEvent | AnyCommand = Output,
+>(
+  options: Omit<
+    SQLiteWorkflowProcessorOptions<
+      Input,
+      State,
+      Output,
+      MetaDataType,
+      HandlerContext,
+      StoredMessage
+    >,
+    'messageStore'
+  >,
+) => SQLiteProcessor<Input | Output>;
+
 export type SQLiteEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
 > = MessageConsumer<
   ConsumerMessageType,
-  SQLiteReactorFactory<ConsumerMessageType>
-> &
-  Readonly<{
-    workflowProcessor: <
-      Input extends ConsumerMessageType,
-      State,
-      Output extends ConsumerMessageType,
-      MetaDataType extends AnyRecordedMessageMetadata =
-        AnyRecordedMessageMetadata,
-      HandlerContext extends SQLiteProcessorHandlerContext &
-        WorkflowProcessorContext = SQLiteProcessorHandlerContext &
-        WorkflowProcessorContext,
-      StoredMessage extends AnyEvent | AnyCommand = Output,
-    >(
-      options: Omit<
-        SQLiteWorkflowProcessorOptions<
-          Input,
-          State,
-          Output,
-          MetaDataType,
-          HandlerContext,
-          StoredMessage
-        >,
-        'messageStore'
-      >,
-    ) => SQLiteProcessor<Input | Output>;
-  }> &
-  (AnyEvent extends ConsumerMessageType
-    ? Readonly<{
-        projector: <
-          EventType extends ConsumerMessageType & AnyEvent =
-            ConsumerMessageType & AnyEvent,
-        >(
-          options: SQLiteProjectorOptions<EventType>,
-        ) => SQLiteProcessor<EventType>;
-      }>
-    : object);
+  SQLiteReactorFactory<ConsumerMessageType>,
+  SQLiteProjectorFactory<ConsumerMessageType>,
+  SQLiteWorkflowProcessorFactory<ConsumerMessageType>
+>;
 
 export const sqliteEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
@@ -137,29 +138,35 @@ export const sqliteEventStoreConsumer = <
         serialization: options.serialization,
       });
 
-  const withMergedObservability = <
-    ProcessorOptionsType extends {
-      observability?: ConsumerObservabilityConfig;
-    },
-  >(
-    processorOptions: ProcessorOptionsType,
-  ): ProcessorOptionsType => ({
-    ...processorOptions,
-    observability: mergeObservability(
-      options.observability,
-      processorOptions.observability,
-    ),
-  });
+  const workflowProcessorFactory: SQLiteWorkflowProcessorFactory<
+    ConsumerMessageType
+  > = (processorOptions) =>
+    sqliteWorkflowProcessor({
+      ...processorOptions,
+      messageStore: (connection) =>
+        getSQLiteEventStore({
+          ...options,
+          pool: sqliteAmbientConnectionPool({
+            driverType: options.driver.driverType,
+            connection,
+          }),
+          schema: { autoMigration: 'None' },
+        }),
+    });
 
   const messageConsumer = consumer<
     ConsumerMessageType,
     ReadEventMetadataWithGlobalPosition,
     SQLiteProcessorHandlerContext,
-    SQLiteReactorFactory<ConsumerMessageType>
+    SQLiteReactorFactory<ConsumerMessageType>,
+    SQLiteProjectorFactory<ConsumerMessageType>,
+    SQLiteWorkflowProcessorFactory<ConsumerMessageType>
   >({
     ...options,
     source,
     reactorFactory: sqliteReactor,
+    projectorFactory: sqliteProjector,
+    workflowProcessorFactory,
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     scope: (handler) =>
@@ -181,58 +188,5 @@ export const sqliteEventStoreConsumer = <
     },
   });
 
-  return {
-    ...messageConsumer,
-    get isRunning() {
-      return messageConsumer.isRunning;
-    },
-    projector: <
-      EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
-        AnyEvent,
-    >(
-      processorOptions: SQLiteProjectorOptions<EventType>,
-    ): SQLiteProcessor<EventType> =>
-      messageConsumer.reactor(
-        sqliteProjector(withMergedObservability(processorOptions)),
-      ),
-    workflowProcessor: <
-      Input extends ConsumerMessageType,
-      State,
-      Output extends ConsumerMessageType,
-      MetaDataType extends AnyRecordedMessageMetadata =
-        AnyRecordedMessageMetadata,
-      HandlerContext extends SQLiteProcessorHandlerContext &
-        WorkflowProcessorContext = SQLiteProcessorHandlerContext &
-        WorkflowProcessorContext,
-      StoredMessage extends AnyEvent | AnyCommand = Output,
-    >(
-      processorOptions: Omit<
-        SQLiteWorkflowProcessorOptions<
-          Input,
-          State,
-          Output,
-          MetaDataType,
-          HandlerContext,
-          StoredMessage
-        >,
-        'messageStore'
-      >,
-    ): SQLiteProcessor<Input | Output> =>
-      messageConsumer.reactor(
-        sqliteWorkflowProcessor(
-          withMergedObservability({
-            ...processorOptions,
-            messageStore: (connection) =>
-              getSQLiteEventStore({
-                ...options,
-                pool: sqliteAmbientConnectionPool({
-                  driverType: options.driver.driverType,
-                  connection,
-                }),
-                schema: { autoMigration: 'None' },
-              }),
-          }),
-        ),
-      ),
-  };
+  return messageConsumer;
 };

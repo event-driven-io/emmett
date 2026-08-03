@@ -2,6 +2,7 @@ import {
   assertEqual,
   assertFalse,
   assertThatArray,
+  assertThrows,
   inMemoryMessageSource,
   inMemoryReactor,
   ProcessorCheckpoint,
@@ -113,7 +114,7 @@ void describe('mongoDB event store consumer', () => {
     assertFalse(wasClosed());
   });
 
-  void it('registers an existing processor through reactor', async () => {
+  void it('registers an existing processor through all processor methods', async () => {
     const { source } = borrowedSource([]);
     const processor = inMemoryReactor<NumberRecorded>({
       processorId: uuid(),
@@ -125,9 +126,14 @@ void describe('mongoDB event store consumer', () => {
     });
 
     const registered = consumer.reactor(processor);
+    const registeredAsProjector = consumer.projector(processor);
+    const registeredAsWorkflow = consumer.workflowProcessor(processor);
 
     assertEqual(registered, processor);
+    assertEqual(registeredAsProjector, processor);
+    assertEqual(registeredAsWorkflow, processor);
     assertEqual(consumer.processors[0], processor);
+    assertEqual(consumer.processors.length, 1);
     await consumer.close();
   });
 
@@ -145,6 +151,8 @@ void describe('mongoDB event store consumer created by the event store', () => {
 
       assertEqual(typeof consumer.reactor, 'function');
       assertEqual(typeof consumer.projector, 'function');
+      assertEqual(typeof consumer.workflowProcessor, 'function');
+      assertThrows(() => consumer.workflowProcessor({ workflow: {} }));
     } finally {
       await eventStore.close();
     }
