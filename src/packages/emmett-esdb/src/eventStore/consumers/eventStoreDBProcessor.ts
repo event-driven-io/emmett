@@ -8,6 +8,7 @@ import type {
   MessageHandlerContext,
   MessageProcessingScope,
   MessageProcessor,
+  ReactorOptions,
   ReadEventMetadataWithGlobalPosition,
   SingleMessageHandlerResult,
   WorkflowProcessorContext,
@@ -20,12 +21,14 @@ import {
   getWorkflowId,
   inMemoryCheckpointer,
   noopScope,
+  reactor,
   workflowProcessor,
 } from '@event-driven-io/emmett';
 import {
   getEventStoreDBEventStore,
   type EventStoreDBEventStore,
 } from '../eventstoreDBEventStore';
+import { eventStoreDBCheckpointer } from './eventStoreDBCheckpointer';
 
 export type EventStoreDBProcessorHandlerContext = MessageHandlerContext<{
   client: EventStoreDBClient;
@@ -63,16 +66,28 @@ export type EventStoreDBWorkflowProcessorOptions<
   client: EventStoreDBClient;
 };
 
-const eventStoreDBWorkflowProcessingScope = (options: {
+export type EventStoreDBReactorOptions<
+  MessageType extends Message = Message,
+  MessagePayloadType extends AnyMessage = MessageType,
+> = ReactorOptions<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  EventStoreDBProcessorHandlerContext,
+  MessagePayloadType
+> & {
   client: EventStoreDBClient;
-}): MessageProcessingScope<EventStoreDBWorkflowProcessorHandlerContext> => {
+};
+
+const eventStoreDBProcessingScope = (options: {
+  client: EventStoreDBClient;
+}): MessageProcessingScope<EventStoreDBProcessorHandlerContext> => {
   const processingScope: MessageProcessingScope<
-    EventStoreDBWorkflowProcessorHandlerContext
+    EventStoreDBProcessorHandlerContext
   > = async <Result = SingleMessageHandlerResult>(
     handler: (
-      context: EventStoreDBWorkflowProcessorHandlerContext,
+      context: EventStoreDBProcessorHandlerContext,
     ) => Result | Promise<Result>,
-    partialContext: Partial<EventStoreDBWorkflowProcessorHandlerContext>,
+    partialContext: Partial<EventStoreDBProcessorHandlerContext>,
   ) => {
     return handler({
       client: options.client,
@@ -121,13 +136,56 @@ export const eventStoreDBWorkflowProcessor = <
     processorInstanceId,
     version,
     partition,
-    processingScope: eventStoreDBWorkflowProcessingScope({
+    processingScope: eventStoreDBProcessingScope({
       client: options.client,
     }) as unknown as MessageProcessingScope<HandlerContext>,
-    checkpoints: inMemoryCheckpointer<
-      Input | Output,
-      MetaDataType,
-      HandlerContext
-    >(),
+    checkpoints:
+      options.checkpoints === 'DISABLED'
+        ? inMemoryCheckpointer<Input | Output, MetaDataType, HandlerContext>()
+        : eventStoreDBCheckpointer<
+            Input | Output,
+            MetaDataType,
+            HandlerContext
+          >(),
   }) as EventStoreDBProcessor<Input | Output>;
+};
+
+export const eventStoreDBReactor = <
+  MessageType extends Message = Message,
+  MessagePayloadType extends AnyMessage = MessageType,
+>(
+  options: EventStoreDBReactorOptions<MessageType, MessagePayloadType>,
+): EventStoreDBProcessor<MessageType> => {
+  const {
+    processorId,
+    processorInstanceId = getProcessorInstanceId(processorId),
+    version = defaultProcessorVersion,
+    partition = defaultProcessorPartition,
+  } = options;
+
+  return reactor<
+    MessageType,
+    ReadEventMetadataWithGlobalPosition,
+    EventStoreDBProcessorHandlerContext,
+    MessagePayloadType
+  >({
+    ...options,
+    processorId,
+    processorInstanceId,
+    version,
+    partition,
+    processingScope: eventStoreDBProcessingScope({ client: options.client }),
+    checkpoints:
+      options.checkpoints === 'DISABLED'
+        ? inMemoryCheckpointer<
+            MessageType,
+            ReadEventMetadataWithGlobalPosition,
+            EventStoreDBProcessorHandlerContext
+          >()
+        : eventStoreDBCheckpointer<
+            MessageType,
+            ReadEventMetadataWithGlobalPosition,
+            EventStoreDBProcessorHandlerContext
+          >(),
+  });
 };

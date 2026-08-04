@@ -6,12 +6,12 @@ import {
   type InMemoryDocumentsCollection,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import {
-  EventStoreDBContainer,
-  type StartedEventStoreDBContainer,
-} from '@event-driven-io/emmett-testcontainers';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { beforeAll, describe, it } from 'vitest';
+import {
+  getSharedEventStoreDB,
+  type SharedEventStoreDB,
+} from '../../testing/sharedEventStoreDB';
 import type {
   ProductItemAdded,
   ShoppingCartConfirmed,
@@ -25,7 +25,7 @@ import { eventStoreDBEventStoreConsumer } from './eventStoreDBEventStoreConsumer
 const withDeadline = { timeout: 30000 };
 
 void describe('EventStoreDB event store started consumer', () => {
-  let eventStoreDB: StartedEventStoreDBContainer;
+  let eventStoreDB: SharedEventStoreDB;
   let connectionString: string;
   let eventStore: EventStoreDBEventStore;
   let summaries: InMemoryDocumentsCollection<ShoppingCartSummary>;
@@ -33,19 +33,11 @@ void describe('EventStoreDB event store started consumer', () => {
   const confirmedAt = new Date();
   const database = getInMemoryDatabase();
 
-  beforeAll(async () => {
-    eventStoreDB = await new EventStoreDBContainer().start();
-    connectionString = eventStoreDB.getConnectionString();
+  beforeAll(() => {
+    eventStoreDB = getSharedEventStoreDB();
+    connectionString = eventStoreDB.connectionString;
     eventStore = getEventStoreDBEventStore(eventStoreDB.getClient());
     summaries = database.collection(shoppingCartsSummaryCollectionName);
-  });
-
-  afterAll(async () => {
-    try {
-      await eventStoreDB.stop();
-    } catch (error) {
-      console.log(error);
-    }
   });
 
   void describe('eachMessage', () => {

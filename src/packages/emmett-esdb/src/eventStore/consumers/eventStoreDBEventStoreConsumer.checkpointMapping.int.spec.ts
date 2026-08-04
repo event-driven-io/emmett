@@ -4,11 +4,13 @@ import {
   bigIntProcessorCheckpoint,
   type Event,
 } from '@event-driven-io/emmett';
-import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
-import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import { BACKWARDS, END, type ResolvedEvent } from '@eventstore/db-client';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { beforeAll, describe, it } from 'vitest';
+import {
+  getSharedEventStoreDB,
+  type SharedEventStoreDB,
+} from '../../testing/sharedEventStoreDB';
 import {
   getEventStoreDBEventStore,
   mapFromESDBEvent,
@@ -19,20 +21,12 @@ import { $all } from './eventStoreDBEventStoreConsumer';
 const withDeadline = { timeout: 30000 };
 
 void describe('EventStoreDB checkpoint mapping', () => {
-  let eventStoreDB: StartedEventStoreDBContainer;
+  let eventStoreDB: SharedEventStoreDB;
   let eventStore: EventStoreDBEventStore;
 
-  beforeAll(async () => {
-    eventStoreDB = await new EventStoreDBContainer().start();
+  beforeAll(() => {
+    eventStoreDB = getSharedEventStoreDB();
     eventStore = getEventStoreDBEventStore(eventStoreDB.getClient());
-  });
-
-  afterAll(async () => {
-    try {
-      await eventStoreDB.stop();
-    } catch (error) {
-      console.log(error);
-    }
   });
 
   const readLastFromAll = async (

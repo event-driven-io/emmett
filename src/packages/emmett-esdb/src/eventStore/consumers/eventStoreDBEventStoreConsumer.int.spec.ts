@@ -12,18 +12,13 @@ import {
   type MessageProcessor,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
-import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import type { EventStoreDBClient } from '@eventstore/db-client';
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  it,
-} from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import {
+  getSharedEventStoreDB,
+  type SharedEventStoreDB,
+} from '../../testing/sharedEventStoreDB';
 import type {
   ProductItemAdded,
   ShoppingCartConfirmed,
@@ -38,7 +33,7 @@ import {
 } from './eventStoreDBEventStoreConsumer';
 
 void describe('EventStoreDB event store consumer', () => {
-  let eventStoreDB: StartedEventStoreDBContainer;
+  let eventStoreDB: SharedEventStoreDB;
   let connectionString: string;
   const dummyProcessor: MessageProcessor = {
     type: 'reactor',
@@ -52,17 +47,9 @@ void describe('EventStoreDB event store consumer', () => {
     isActive: false,
   };
 
-  beforeAll(async () => {
-    eventStoreDB = await new EventStoreDBContainer().start();
-    connectionString = eventStoreDB.getConnectionString();
-  });
-
-  afterAll(async () => {
-    try {
-      await eventStoreDB.stop();
-    } catch (error) {
-      console.log(error);
-    }
+  beforeAll(() => {
+    eventStoreDB = getSharedEventStoreDB();
+    connectionString = eventStoreDB.connectionString;
   });
 
   void it('creates not-started consumer for the specified connection string', () => {

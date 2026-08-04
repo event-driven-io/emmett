@@ -9,10 +9,12 @@ import {
   MessagingSystemName,
   type Event,
 } from '@event-driven-io/emmett';
-import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
-import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { beforeAll, describe, it } from 'vitest';
+import {
+  getSharedEventStoreDB,
+  type SharedEventStoreDB,
+} from '../testing/sharedEventStoreDB';
 import { getEventStoreDBEventStore } from './eventstoreDBEventStore';
 
 type ProductItemAdded = Event<
@@ -24,18 +26,10 @@ void describe('EventStoreDBEventStore observability', () => {
   const M = MessagingAttributes;
   const given = ObservabilitySpec.for();
   const withDeadline = { timeout: 30000 };
-  let eventStoreDB: StartedEventStoreDBContainer;
+  let eventStoreDB: SharedEventStoreDB;
 
-  beforeAll(async () => {
-    eventStoreDB = await new EventStoreDBContainer().start();
-  });
-
-  afterAll(async () => {
-    try {
-      await eventStoreDB.stop();
-    } catch (error) {
-      console.log(error);
-    }
+  beforeAll(() => {
+    eventStoreDB = getSharedEventStoreDB();
   });
 
   const productItem = {

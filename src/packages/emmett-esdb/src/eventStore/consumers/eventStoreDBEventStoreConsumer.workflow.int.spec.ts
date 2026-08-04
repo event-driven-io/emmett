@@ -6,10 +6,12 @@ import {
   workflowStreamName,
   type WorkflowOptions,
 } from '@event-driven-io/emmett';
-import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
-import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import {
+  getSharedEventStoreDB,
+  type SharedEventStoreDB,
+} from '../../testing/sharedEventStoreDB';
 import {
   GroupCheckoutWorkflow,
   type CheckOut,
@@ -50,23 +52,20 @@ const workflowProcessorOptions: WorkflowOptions<
 
 const handleWorkflow = WorkflowHandler(workflowProcessorOptions);
 
+const newWorkflowProcessorOptions = () => ({
+  ...workflowProcessorOptions,
+  processorId: uuid(),
+});
+
 void describe('EventStoreDB event store workflow processor', () => {
-  let eventStoreDB: StartedEventStoreDBContainer;
+  let eventStoreDB: SharedEventStoreDB;
   let connectionString: string;
   let eventStore: EventStoreDBEventStore;
 
-  beforeAll(async () => {
-    eventStoreDB = await new EventStoreDBContainer().start();
-    connectionString = eventStoreDB.getConnectionString();
+  beforeAll(() => {
+    eventStoreDB = getSharedEventStoreDB();
+    connectionString = eventStoreDB.connectionString;
     eventStore = getEventStoreDBEventStore(eventStoreDB.getClient());
-  });
-
-  afterAll(async () => {
-    try {
-      await eventStoreDB?.stop();
-    } catch (error) {
-      console.log(error);
-    }
   });
 
   void it(
@@ -86,7 +85,7 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckout,
         GroupCheckoutOutput
       >({
-        ...workflowProcessorOptions,
+        ...newWorkflowProcessorOptions(),
         startFrom: 'END',
         separateInputInboxFromProcessing: true,
         stopAfter: (message) =>
@@ -160,7 +159,7 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckout,
         GroupCheckoutOutput
       >({
-        ...workflowProcessorOptions,
+        ...newWorkflowProcessorOptions(),
         startFrom: 'END',
         separateInputInboxFromProcessing: true,
         processorId: `workflow-${groupCheckoutId}-complete`,
@@ -222,7 +221,7 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckout,
         GroupCheckoutOutput
       >({
-        ...workflowProcessorOptions,
+        ...newWorkflowProcessorOptions(),
         startFrom: 'END',
         getWorkflowId: () => null,
         stopAfter: (message) =>
@@ -271,7 +270,7 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckout,
         GroupCheckoutOutput
       >({
-        ...workflowProcessorOptions,
+        ...newWorkflowProcessorOptions(),
         startFrom: 'END',
         separateInputInboxFromProcessing: false,
         stopAfter: (message) =>
@@ -335,7 +334,7 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckout,
         GroupCheckoutOutput
       >({
-        ...workflowProcessorOptions,
+        ...newWorkflowProcessorOptions(),
         startFrom: 'END',
         separateInputInboxFromProcessing: true,
         stopAfter: (message) =>
@@ -382,6 +381,118 @@ void describe('EventStoreDB event store workflow processor', () => {
     },
   );
 
+  (
+    [
+      ['the same client', true],
+      ['a different client', false],
+    ] as const
+  ).forEach(([clientUsage, reuseClient]) => {
+    void it(
+      `recreated workflow consumer resumes from its persisted checkpoint using ${clientUsage}`,
+      withDeadline,
+      async () => {
+        const groupCheckoutId = uuid();
+        const guestStayAccountIds = [uuid()];
+        const processorId = uuid();
+        const inputStreamName = `groupCheckout-${groupCheckoutId}`;
+        const now = new Date();
+        const firstClient = eventStoreDB.getClient();
+
+        const firstConsumer = eventStoreDBEventStoreConsumer({
+          client: firstClient,
+          from: { stream: inputStreamName },
+        });
+        firstConsumer.workflowProcessor<
+          GroupCheckoutInput,
+          GroupCheckout,
+          GroupCheckoutOutput
+        >({
+          ...newWorkflowProcessorOptions(),
+          processorId,
+          startFrom: 'END',
+          separateInputInboxFromProcessing: false,
+          stopAfter: (message) => message.type === 'InitiateGroupCheckout',
+        });
+
+        let firstConsumerPromise: Promise<void> | undefined;
+        try {
+          firstConsumerPromise = firstConsumer.start();
+          await firstConsumer.whenStarted();
+
+          await eventStore.appendToStream(inputStreamName, [
+            {
+              type: 'InitiateGroupCheckout',
+              data: {
+                groupCheckoutId,
+                clerkId: 'clerk-1',
+                guestStayAccountIds,
+                now,
+              },
+            },
+          ]);
+
+          await firstConsumerPromise;
+        } finally {
+          await firstConsumer.close();
+          await firstConsumerPromise;
+        }
+
+        await eventStore.appendToStream(inputStreamName, [
+          {
+            type: 'TimeoutGroupCheckout',
+            data: {
+              groupCheckoutId,
+              startedAt: now,
+              timeOutAt: new Date(now.getTime() + 60_000),
+            },
+          },
+        ]);
+
+        const recreatedConsumer = eventStoreDBEventStoreConsumer({
+          client: reuseClient ? firstClient : eventStoreDB.getClient(),
+          from: { stream: inputStreamName },
+          until: { caughtUp: true },
+        });
+        recreatedConsumer.workflowProcessor<
+          GroupCheckoutInput,
+          GroupCheckout,
+          GroupCheckoutOutput
+        >({
+          ...newWorkflowProcessorOptions(),
+          processorId,
+          separateInputInboxFromProcessing: false,
+        });
+
+        let recreatedConsumerPromise: Promise<void> | undefined;
+        try {
+          recreatedConsumerPromise = recreatedConsumer.start();
+          await recreatedConsumer.whenCaughtUp();
+          await recreatedConsumerPromise;
+
+          const { events } = await eventStore.readStream(
+            workflowStreamName({
+              workflowName: 'GroupCheckoutWorkflow',
+              workflowId: groupCheckoutId,
+            }),
+          );
+
+          assertThatArray(
+            events.map(({ type }) => type),
+          ).containsOnlyElementsMatching([
+            'GroupCheckoutWorkflow:InitiateGroupCheckout',
+            'GroupCheckoutInitiated',
+            'CheckOut',
+            'GroupCheckoutWorkflow:TimeoutGroupCheckout',
+            'GroupCheckoutTimedOut',
+          ]);
+        } finally {
+          await recreatedConsumer.close();
+          await recreatedConsumerPromise;
+        }
+      },
+    );
+  });
+
   void it(
     'completes group checkout when GuestCheckedOut arrives on external stream',
     withDeadline,
@@ -399,7 +510,7 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckout,
         GroupCheckoutOutput
       >({
-        ...workflowProcessorOptions,
+        ...newWorkflowProcessorOptions(),
         startFrom: 'END',
         separateInputInboxFromProcessing: true,
         stopAfter: (message) =>
@@ -473,7 +584,7 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckout,
         GroupCheckoutOutput
       >({
-        ...workflowProcessorOptions,
+        ...newWorkflowProcessorOptions(),
         startFrom: 'END',
         separateInputInboxFromProcessing: true,
         outputHandler: workflowOutputHandler<
@@ -566,7 +677,7 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckout,
         GroupCheckoutOutput
       >({
-        ...workflowProcessorOptions,
+        ...newWorkflowProcessorOptions(),
         startFrom: 'END',
         separateInputInboxFromProcessing: true,
         stopAfter: (message) =>
