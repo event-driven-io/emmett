@@ -1,7 +1,6 @@
 import {
   assertEqual,
   assertRejects,
-  assertThrows,
   bigIntProcessorCheckpoint,
   inMemoryMessageSource,
   inMemoryReactor,
@@ -229,6 +228,5 @@ void describe('eventStoreDBEventStore consumer typing', () => {
     assertEqual('function', typeof consumer.projector);
     assertEqual('function', typeof consumer.reactor);
     assertEqual('function', typeof consumer.workflowProcessor);
-    assertThrows(() => consumer.workflowProcessor({ workflow: {} }));
   });
 });

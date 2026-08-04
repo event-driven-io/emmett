@@ -2,7 +2,6 @@ import {
   assertEqual,
   assertFalse,
   assertThatArray,
-  assertThrows,
   inMemoryMessageSource,
   inMemoryReactor,
   ProcessorCheckpoint,
@@ -152,7 +151,6 @@ void describe('mongoDB event store consumer created by the event store', () => {
       assertEqual(typeof consumer.reactor, 'function');
       assertEqual(typeof consumer.projector, 'function');
       assertEqual(typeof consumer.workflowProcessor, 'function');
-      assertThrows(() => consumer.workflowProcessor({ workflow: {} }));
     } finally {
       await eventStore.close();
     }

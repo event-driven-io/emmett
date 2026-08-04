@@ -3,8 +3,12 @@ import type {
   MessageProcessor,
 } from '@event-driven-io/emmett';
 import {
+  defaultProcessorPartition,
+  defaultProcessorVersion,
   type AnyEvent,
   type AnyMessage,
+  type AnyCommand,
+  type AnyRecordedMessageMetadata,
   type Checkpointer,
   type Event,
   type Message,
@@ -12,12 +16,22 @@ import {
   type ProjectorOptions,
   type ReactorOptions,
   type SingleMessageHandlerResult,
+  type WorkflowProcessorContext,
+  type WorkflowProcessorOptions,
+  getProcessorInstanceId,
+  getWorkflowId,
   noopScope,
+  inMemoryCheckpointer,
   projector,
   reactor,
+  workflowProcessor,
 } from '@event-driven-io/emmett';
 import { MongoClient } from 'mongodb';
-import type { MongoDBEventStoreConnectionOptions } from '../mongoDBEventStore';
+import {
+  getMongoDBEventStore,
+  type MongoDBEventStore,
+  type MongoDBEventStoreConnectionOptions,
+} from '../mongoDBEventStore';
 import { mongoDBCheckpointer } from './mongoDBCheckpointer';
 import type { MongoDBChangeStreamMessageMetadata } from './mongoDBEventStoreConsumer';
 
@@ -27,6 +41,9 @@ type MongoDBConnectionOptions = {
 
 export type MongoDBProcessorHandlerContext = MessageHandlerContext<{
   client: MongoClient;
+  connection?: {
+    messageStore: MongoDBEventStore;
+  };
 }>;
 
 export type MongoDBProcessor<MessageType extends Message = AnyMessage> =
@@ -58,6 +75,27 @@ export type MongoDBProjectorOptions<EventType extends AnyEvent = AnyEvent> =
   > &
     MongoDBConnectionOptions;
 
+export type MongoDBWorkflowProcessorHandlerContext =
+  MongoDBProcessorHandlerContext & WorkflowProcessorContext;
+
+export type MongoDBWorkflowProcessorOptions<
+  Input extends AnyEvent | AnyCommand,
+  State,
+  Output extends AnyEvent | AnyCommand,
+  MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  HandlerContext extends MongoDBWorkflowProcessorHandlerContext =
+    MongoDBWorkflowProcessorHandlerContext,
+  StoredMessage extends AnyEvent | AnyCommand = Output,
+> = WorkflowProcessorOptions<
+  Input,
+  State,
+  Output,
+  MetaDataType,
+  HandlerContext,
+  StoredMessage
+> &
+  MongoDBConnectionOptions;
+
 const mongoDBProcessingScope = (options: {
   client: MongoClient;
   processorId: string;
@@ -78,6 +116,87 @@ const mongoDBProcessingScope = (options: {
   };
 
   return processingScope;
+};
+
+const mongoDBWorkflowProcessingScope = (options: {
+  client: MongoClient;
+}): MessageProcessingScope<MongoDBWorkflowProcessorHandlerContext> => {
+  const processingScope: MessageProcessingScope<
+    MongoDBWorkflowProcessorHandlerContext
+  > = async <Result = SingleMessageHandlerResult>(
+    handler: (
+      context: MongoDBWorkflowProcessorHandlerContext,
+    ) => Result | Promise<Result>,
+    partialContext: Partial<MongoDBWorkflowProcessorHandlerContext>,
+  ) => {
+    return handler({
+      client: options.client,
+      ...partialContext,
+      connection: {
+        ...partialContext.connection,
+        messageStore: getMongoDBEventStore({ client: options.client }),
+      },
+      observabilityScope: partialContext?.observabilityScope ?? noopScope,
+    });
+  };
+
+  return processingScope;
+};
+
+export const mongoDBWorkflowProcessor = <
+  Input extends AnyEvent | AnyCommand,
+  State,
+  Output extends AnyEvent | AnyCommand,
+  MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  HandlerContext extends MongoDBWorkflowProcessorHandlerContext =
+    MongoDBWorkflowProcessorHandlerContext,
+  StoredMessage extends AnyEvent | AnyCommand = Output,
+>(
+  options: MongoDBWorkflowProcessorOptions<
+    Input,
+    State,
+    Output,
+    MetaDataType,
+    HandlerContext,
+    StoredMessage
+  >,
+): MongoDBProcessor<Input | Output> => {
+  const connectionOptions = options.connectionOptions || {};
+  const client =
+    'client' in connectionOptions && connectionOptions.client
+      ? connectionOptions.client
+      : new MongoClient(
+          connectionOptions.connectionString,
+          connectionOptions.clientOptions,
+        );
+
+  const {
+    processorId = getWorkflowId({
+      workflowName: options.workflow.name ?? 'unknown',
+    }),
+    processorInstanceId = getProcessorInstanceId(processorId),
+    version = defaultProcessorVersion,
+    partition = defaultProcessorPartition,
+  } = options;
+
+  return workflowProcessor({
+    ...options,
+    processorId,
+    processorInstanceId,
+    version,
+    partition,
+    processingScope: mongoDBWorkflowProcessingScope({
+      client,
+    }) as unknown as MessageProcessingScope<HandlerContext>,
+    checkpoints:
+      options.checkpoints === 'DISABLED'
+        ? inMemoryCheckpointer<Input | Output, MetaDataType, HandlerContext>()
+        : (mongoDBCheckpointer<Input | Output>() as Checkpointer<
+            Input | Output,
+            MetaDataType,
+            HandlerContext
+          >),
+  }) as MongoDBProcessor<Input | Output>;
 };
 
 export const mongoDBProjector = <EventType extends Event = Event>(
