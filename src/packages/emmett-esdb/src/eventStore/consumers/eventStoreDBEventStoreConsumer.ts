@@ -1,10 +1,11 @@
 import {
   consumer,
+  type AnyCommand,
   inMemoryProjector,
   inMemoryReactor,
-  unsupportedWorkflowProcessor,
   type AnyEvent,
   type AnyMessage,
+  type AnyRecordedMessageMetadata,
   type AsyncRetryOptions,
   type InMemoryProcessor,
   type InMemoryProjectorOptions,
@@ -13,6 +14,7 @@ import {
   type MessageConsumer,
   type MessageConsumerOptions,
   type MessageSource,
+  type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import {
   EventStoreDBClient,
@@ -20,6 +22,11 @@ import {
   type SubscribeToStreamOptions,
 } from '@eventstore/db-client';
 import type { EventStoreDBReadEventMetadata } from '../eventstoreDBEventStore';
+import {
+  eventStoreDBWorkflowProcessor,
+  type EventStoreDBProcessor,
+  type EventStoreDBWorkflowProcessorOptions,
+} from './eventStoreDBProcessor';
 import { eventStoreDBMessageSource } from './messageSource';
 
 export type EventStoreDBEventStoreConsumerConfig<
@@ -85,8 +92,32 @@ export type EventStoreDBEventStoreConsumer<
   ConsumerMessageType,
   EventStoreDBReactorFactory<ConsumerMessageType>,
   EventStoreDBProjectorFactory<ConsumerMessageType>,
-  typeof unsupportedWorkflowProcessor
+  EventStoreDBWorkflowProcessorFactory<ConsumerMessageType>
 >;
+
+export type EventStoreDBWorkflowProcessorFactory<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = <
+  Input extends ConsumerMessageType,
+  State,
+  Output extends ConsumerMessageType,
+  MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
+  StoredMessage extends AnyEvent | AnyCommand = Output,
+>(
+  options: Omit<
+    EventStoreDBWorkflowProcessorOptions<
+      Input,
+      State,
+      Output,
+      MetaDataType,
+      HandlerContext,
+      StoredMessage
+    >,
+    'client'
+  >,
+) => EventStoreDBProcessor<Input | Output>;
 
 export const eventStoreDBEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
@@ -107,19 +138,27 @@ export const eventStoreDBEventStoreConsumer = <
         resilience: options.resilience,
       });
 
+  const workflowProcessorFactory: EventStoreDBWorkflowProcessorFactory<
+    ConsumerMessageType
+  > = (workflowOptions) =>
+    eventStoreDBWorkflowProcessor({
+      ...workflowOptions,
+      client,
+    });
+
   const messageConsumer = consumer<
     ConsumerMessageType,
     EventStoreDBReadEventMetadata,
     undefined,
     EventStoreDBReactorFactory<ConsumerMessageType>,
     EventStoreDBProjectorFactory<ConsumerMessageType>,
-    typeof unsupportedWorkflowProcessor
+    EventStoreDBEventStoreConsumer<ConsumerMessageType>['workflowProcessor']
   >({
     ...options,
     source,
     reactorFactory: inMemoryReactor,
     projectorFactory: inMemoryProjector,
-    workflowProcessorFactory: unsupportedWorkflowProcessor,
+    workflowProcessorFactory,
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     hooks: {

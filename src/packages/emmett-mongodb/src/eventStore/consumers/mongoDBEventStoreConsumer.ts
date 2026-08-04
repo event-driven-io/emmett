@@ -1,14 +1,16 @@
 import {
   consumer,
-  unsupportedWorkflowProcessor,
+  type AnyCommand,
   type AnyEvent,
   type AnyMessage,
+  type AnyRecordedMessageMetadata,
   type AsyncRetryOptions,
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
   type MessageSource,
   type RecordedMessageMetadataWithoutGlobalPosition,
+  type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
 import { mongoDBMessageSource } from './messageSource';
@@ -19,6 +21,9 @@ import {
   type MongoDBProcessorHandlerContext,
   type MongoDBProcessorOptions,
   type MongoDBProjectorOptions,
+  type MongoDBWorkflowProcessorHandlerContext,
+  mongoDBWorkflowProcessor,
+  type MongoDBWorkflowProcessorOptions,
 } from './mongoDBProcessor';
 
 export type MongoDBChangeStreamMessageMetadata =
@@ -82,8 +87,34 @@ export type MongoDBEventStoreConsumer<
   ConsumerMessageType,
   MongoDBReactorFactory<ConsumerMessageType>,
   MongoDBProjectorFactory<ConsumerMessageType>,
-  typeof unsupportedWorkflowProcessor
+  MongoDBWorkflowProcessorFactory<ConsumerMessageType>
 >;
+
+export type MongoDBWorkflowProcessorFactory<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ConsumerMessageType extends AnyMessage = any,
+> = <
+  Input extends ConsumerMessageType,
+  State,
+  Output extends ConsumerMessageType,
+  MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  HandlerContext extends MongoDBProcessorHandlerContext &
+    WorkflowProcessorContext = MongoDBProcessorHandlerContext &
+    WorkflowProcessorContext,
+  StoredMessage extends AnyEvent | AnyCommand = Output,
+>(
+  options: Omit<
+    MongoDBWorkflowProcessorOptions<
+      Input,
+      State,
+      Output,
+      MetaDataType,
+      HandlerContext,
+      StoredMessage
+    >,
+    'connectionOptions'
+  >,
+) => MongoDBProcessor<Input | Output>;
 
 export type MongoDBConsumerHandlerContext = {
   client?: MongoClient;
@@ -128,19 +159,61 @@ export const mongoDBEventStoreConsumer = <
         resilience: options.resilience,
       });
 
+  const workflowProcessorFactory: MongoDBWorkflowProcessorFactory<
+    ConsumerMessageType
+  > = <
+    Input extends ConsumerMessageType,
+    State,
+    Output extends ConsumerMessageType,
+    MetaDataType extends AnyRecordedMessageMetadata =
+      AnyRecordedMessageMetadata,
+    HandlerContext extends MongoDBWorkflowProcessorHandlerContext =
+      MongoDBWorkflowProcessorHandlerContext,
+    StoredMessage extends AnyEvent | AnyCommand = Output,
+  >(
+    processorOptions: Omit<
+      MongoDBWorkflowProcessorOptions<
+        Input,
+        State,
+        Output,
+        MetaDataType,
+        HandlerContext,
+        StoredMessage
+      >,
+      'connectionOptions'
+    >,
+  ) =>
+    mongoDBWorkflowProcessor<
+      Input,
+      State,
+      Output,
+      MetaDataType,
+      HandlerContext,
+      StoredMessage
+    >({
+      ...processorOptions,
+      connectionOptions:
+        'client' in options
+          ? { client: options.client }
+          : {
+              connectionString: options.connectionString,
+              clientOptions: options.clientOptions,
+            },
+    });
+
   const messageConsumer = consumer<
     ConsumerMessageType,
     MongoDBChangeStreamMessageMetadata,
     MongoDBProcessorHandlerContext,
     MongoDBReactorFactory<ConsumerMessageType>,
     MongoDBProjectorFactory<ConsumerMessageType>,
-    typeof unsupportedWorkflowProcessor
+    MongoDBEventStoreConsumer<ConsumerMessageType>['workflowProcessor']
   >({
     ...options,
     source,
     reactorFactory: changeStreamReactor,
     projectorFactory: mongoDBProjector,
-    workflowProcessorFactory: unsupportedWorkflowProcessor,
+    workflowProcessorFactory,
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     scope: (handler) => handler({ client }),
