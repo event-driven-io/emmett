@@ -49,6 +49,17 @@ void describe('SQLite event store started consumer', () => {
 
   let eventStore: SQLiteEventStore;
 
+  const collectingProjection = (
+    collected: GuestStayEvent[],
+    projectionName: string,
+  ): SQLiteProjectorOptions<GuestStayEvent>['projection'] => ({
+    name: projectionName,
+    canHandle: ['GuestCheckedIn', 'GuestCheckedOut'],
+    handle: (events) => {
+      collected.push(...events);
+    },
+  });
+
   beforeEach(() => {
     pool = sqlite3Pool({
       fileName,
@@ -113,16 +124,6 @@ void describe('SQLite event store started consumer', () => {
   });
 
   void describe('consumer created by the event store', () => {
-    const collectingProjection = (
-      collected: GuestStayEvent[],
-    ): SQLiteProjectorOptions<GuestStayEvent>['projection'] => ({
-      name: `guestStays-${uuid()}`,
-      canHandle: ['GuestCheckedIn', 'GuestCheckedOut'],
-      handle: (events) => {
-        collected.push(...events);
-      },
-    });
-
     void it(
       'catches up with events appended before it was created',
       withDeadline,
@@ -142,7 +143,7 @@ void describe('SQLite event store started consumer', () => {
         const consumer = eventStore.consumer();
         consumer.projector<GuestStayEvent>({
           processorId: uuid(),
-          projection: collectingProjection(projected),
+          projection: collectingProjection(projected, `guestStays-${uuid()}`),
         });
 
         let consumerPromise: Promise<void> | undefined;
@@ -739,7 +740,7 @@ void describe('SQLite event store started consumer', () => {
 
     (['BEGINNING', 'END'] as const).forEach((startFrom) => {
       void it(
-        `does not persist a checkpoint across a restart when checkpoints are DISABLED (startFrom ${startFrom})`,
+        `does not persist a reactor checkpoint across a restart when checkpoints are DISABLED (startFrom ${startFrom})`,
         withDeadline,
         async () => {
           const guestId = uuid();
@@ -800,6 +801,95 @@ void describe('SQLite event store started consumer', () => {
             eachMessage: (event) => {
               secondRun.push(event);
             },
+          });
+          let secondConsumerPromise: Promise<void> | undefined;
+          try {
+            secondConsumerPromise = secondConsumer.start();
+            await secondConsumer.whenStarted();
+            await eventStore.appendToStream(streamName, secondNewEvents);
+            await secondConsumer.whenCaughtUp();
+          } finally {
+            await secondConsumer.close();
+            await secondConsumerPromise;
+          }
+
+          const expectedFirstRun =
+            startFrom === 'BEGINNING'
+              ? [...initialEvents, ...firstNewEvents]
+              : firstNewEvents;
+          const expectedSecondRun =
+            startFrom === 'BEGINNING'
+              ? [...initialEvents, ...firstNewEvents, ...secondNewEvents]
+              : secondNewEvents;
+
+          assertThatArray(firstRun).containsOnlyElementsMatching(
+            expectedFirstRun,
+          );
+          assertThatArray(secondRun).containsOnlyElementsMatching(
+            expectedSecondRun,
+          );
+        },
+      );
+
+      void it(
+        `does not persist a projector checkpoint across a restart when checkpoints are DISABLED (startFrom ${startFrom})`,
+        withDeadline,
+        async () => {
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const thirdGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+          const processorId = uuid();
+          const projectionName = `guestStays-${uuid()}`;
+
+          const initialEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+          await eventStore.appendToStream(streamName, initialEvents);
+
+          const firstNewEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+          const secondNewEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+          ];
+
+          const firstRun: GuestStayEvent[] = [];
+          const secondRun: GuestStayEvent[] = [];
+
+          const firstConsumer = sqliteEventStoreConsumer({
+            driver: sqlite3EventStoreDriver,
+            fileName,
+          });
+          firstConsumer.projector<GuestStayEvent>({
+            processorId,
+            startFrom,
+            checkpoints: 'DISABLED',
+            projection: collectingProjection(firstRun, projectionName),
+          });
+          let firstConsumerPromise: Promise<void> | undefined;
+          try {
+            firstConsumerPromise = firstConsumer.start();
+            await firstConsumer.whenStarted();
+            await eventStore.appendToStream(streamName, firstNewEvents);
+            await firstConsumer.whenCaughtUp();
+          } finally {
+            await firstConsumer.close();
+            await firstConsumerPromise;
+          }
+
+          const secondConsumer = sqliteEventStoreConsumer({
+            driver: sqlite3EventStoreDriver,
+            fileName,
+          });
+          secondConsumer.projector<GuestStayEvent>({
+            processorId,
+            startFrom,
+            checkpoints: 'DISABLED',
+            projection: collectingProjection(secondRun, projectionName),
           });
           let secondConsumerPromise: Promise<void> | undefined;
           try {

@@ -17,6 +17,7 @@ import {
   type MongoDBEventStore,
 } from '../mongoDBEventStore';
 import { mongoDBEventStoreConsumer } from './mongoDBEventStoreConsumer';
+import type { MongoDBProjectorOptions } from './mongoDBProcessor';
 
 const withDeadline = { timeout: 30000 };
 
@@ -42,6 +43,20 @@ void describe('MongoDB event store started consumer', () => {
     } catch (error) {
       console.log(error);
     }
+  });
+
+  const collectingProjection = (
+    collected: GuestStayEvent[],
+    streamName: string,
+    projectionName: string,
+  ): MongoDBProjectorOptions<GuestStayEvent>['projection'] => ({
+    name: projectionName,
+    canHandle: ['GuestCheckedIn', 'GuestCheckedOut'],
+    handle: (events) => {
+      collected.push(
+        ...events.filter((event) => event.metadata.streamName === streamName),
+      );
+    },
   });
 
   void describe('eachMessage', () => {
@@ -706,6 +721,217 @@ void describe('MongoDB event store started consumer', () => {
         }
       },
     );
+
+    (['BEGINNING', 'END'] as const).forEach((startFrom) => {
+      void it(
+        `does not persist a reactor checkpoint across recreation when checkpoints are DISABLED (startFrom ${startFrom})`,
+        withDeadline,
+        async () => {
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const thirdGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+          const processorId = uuid();
+
+          const initialEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+          await eventStore.appendToStream(streamName, initialEvents);
+
+          const firstNewEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+          const secondNewEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+          ];
+
+          const firstRun: GuestStayEvent[] = [];
+          const secondRun: GuestStayEvent[] = [];
+
+          const firstConsumer = mongoDBEventStoreConsumer({
+            connectionString,
+            clientOptions: { directConnection: true },
+          });
+          firstConsumer.reactor<GuestStayEvent>({
+            processorId,
+            startFrom,
+            checkpoints: 'DISABLED',
+            connectionOptions: {
+              connectionString,
+              clientOptions: { directConnection: true },
+            },
+            eachMessage: (event) => {
+              if (event.metadata.streamName === streamName)
+                firstRun.push(event);
+            },
+          });
+
+          let firstConsumerPromise: Promise<void> | undefined;
+          try {
+            firstConsumerPromise = firstConsumer.start();
+            await firstConsumer.whenStarted();
+            await eventStore.appendToStream(streamName, firstNewEvents);
+            await firstConsumer.whenCaughtUp();
+          } finally {
+            await firstConsumer.close();
+            await firstConsumerPromise;
+          }
+
+          const secondConsumer = mongoDBEventStoreConsumer({
+            connectionString,
+            clientOptions: { directConnection: true },
+          });
+          secondConsumer.reactor<GuestStayEvent>({
+            processorId,
+            startFrom,
+            checkpoints: 'DISABLED',
+            connectionOptions: {
+              connectionString,
+              clientOptions: { directConnection: true },
+            },
+            eachMessage: (event) => {
+              if (event.metadata.streamName === streamName)
+                secondRun.push(event);
+            },
+          });
+
+          let secondConsumerPromise: Promise<void> | undefined;
+          try {
+            secondConsumerPromise = secondConsumer.start();
+            await secondConsumer.whenStarted();
+            await eventStore.appendToStream(streamName, secondNewEvents);
+            await secondConsumer.whenCaughtUp();
+          } finally {
+            await secondConsumer.close();
+            await secondConsumerPromise;
+          }
+
+          const expectedFirstRun =
+            startFrom === 'BEGINNING'
+              ? [...initialEvents, ...firstNewEvents]
+              : firstNewEvents;
+          const expectedSecondRun =
+            startFrom === 'BEGINNING'
+              ? [...initialEvents, ...firstNewEvents, ...secondNewEvents]
+              : secondNewEvents;
+
+          assertThatArray(firstRun).containsOnlyElementsMatching(
+            expectedFirstRun,
+          );
+          assertThatArray(secondRun).containsOnlyElementsMatching(
+            expectedSecondRun,
+          );
+        },
+      );
+
+      void it(
+        `does not persist a projector checkpoint across recreation when checkpoints are DISABLED (startFrom ${startFrom})`,
+        withDeadline,
+        async () => {
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const thirdGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+          const processorId = uuid();
+          const projectionName = `guestStays-${uuid()}`;
+
+          const initialEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+          await eventStore.appendToStream(streamName, initialEvents);
+
+          const firstNewEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+          const secondNewEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+          ];
+
+          const firstRun: GuestStayEvent[] = [];
+          const secondRun: GuestStayEvent[] = [];
+          const connectionOptions = {
+            connectionString,
+            clientOptions: { directConnection: true },
+          };
+
+          const firstConsumer = mongoDBEventStoreConsumer({
+            connectionString,
+            clientOptions: { directConnection: true },
+          });
+          firstConsumer.projector<GuestStayEvent>({
+            processorId,
+            startFrom,
+            checkpoints: 'DISABLED',
+            connectionOptions,
+            projection: collectingProjection(
+              firstRun,
+              streamName,
+              projectionName,
+            ),
+          });
+
+          let firstConsumerPromise: Promise<void> | undefined;
+          try {
+            firstConsumerPromise = firstConsumer.start();
+            await firstConsumer.whenStarted();
+            await eventStore.appendToStream(streamName, firstNewEvents);
+            await firstConsumer.whenCaughtUp();
+          } finally {
+            await firstConsumer.close();
+            await firstConsumerPromise;
+          }
+
+          const secondConsumer = mongoDBEventStoreConsumer({
+            connectionString,
+            clientOptions: { directConnection: true },
+          });
+          secondConsumer.projector<GuestStayEvent>({
+            processorId,
+            startFrom,
+            checkpoints: 'DISABLED',
+            connectionOptions,
+            projection: collectingProjection(
+              secondRun,
+              streamName,
+              projectionName,
+            ),
+          });
+
+          let secondConsumerPromise: Promise<void> | undefined;
+          try {
+            secondConsumerPromise = secondConsumer.start();
+            await secondConsumer.whenStarted();
+            await eventStore.appendToStream(streamName, secondNewEvents);
+            await secondConsumer.whenCaughtUp();
+          } finally {
+            await secondConsumer.close();
+            await secondConsumerPromise;
+          }
+
+          const expectedFirstRun =
+            startFrom === 'BEGINNING'
+              ? [...initialEvents, ...firstNewEvents]
+              : firstNewEvents;
+          const expectedSecondRun =
+            startFrom === 'BEGINNING'
+              ? [...initialEvents, ...firstNewEvents, ...secondNewEvents]
+              : secondNewEvents;
+
+          assertThatArray(firstRun).containsOnlyElementsMatching(
+            expectedFirstRun,
+          );
+          assertThatArray(secondRun).containsOnlyElementsMatching(
+            expectedSecondRun,
+          );
+        },
+      );
+    });
 
     void it(
       'handles ONLY events matching canHandle filter',
