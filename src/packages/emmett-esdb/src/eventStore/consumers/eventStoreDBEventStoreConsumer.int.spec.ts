@@ -263,7 +263,7 @@ void describe('EventStoreDB event store consumer', () => {
       assertThatArray(result.events).hasSize(summaryEvents.length);
     });
 
-    void it('returns distinct consumers, each consuming on its own', async () => {
+    void it('returns distinct consumers with separate checkpoints', async () => {
       const first = eventStore.consumer();
       const second = eventStore.consumer();
 
@@ -294,13 +294,11 @@ void describe('EventStoreDB event store consumer', () => {
       try {
         firstPromise = first.start();
         secondPromise = second.start();
-        await first.whenStarted();
-        await second.whenStarted();
+        await Promise.all([first.whenStarted(), second.whenStarted()]);
 
         await eventStore.appendToStream(streamName, summaryEvents);
 
-        await first.whenCaughtUp();
-        await second.whenCaughtUp();
+        await Promise.all([first.whenCaughtUp(), second.whenCaughtUp()]);
 
         assertThatArray(firstHandled).hasSize(summaryEvents.length);
         assertThatArray(secondHandled).hasSize(summaryEvents.length);

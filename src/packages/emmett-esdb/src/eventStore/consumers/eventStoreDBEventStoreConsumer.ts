@@ -14,7 +14,6 @@ import {
   type MessageConsumer,
   type MessageConsumerOptions,
   type MessageSource,
-  type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import {
   EventStoreDBClient,
@@ -25,6 +24,7 @@ import type { EventStoreDBReadEventMetadata } from '../eventstoreDBEventStore';
 import {
   eventStoreDBWorkflowProcessor,
   type EventStoreDBProcessor,
+  type EventStoreDBWorkflowProcessorHandlerContext,
   type EventStoreDBWorkflowProcessorOptions,
 } from './eventStoreDBProcessor';
 import { eventStoreDBMessageSource } from './messageSource';
@@ -103,7 +103,8 @@ export type EventStoreDBWorkflowProcessorFactory<
   State,
   Output extends ConsumerMessageType,
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
-  HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
+  HandlerContext extends EventStoreDBWorkflowProcessorHandlerContext =
+    EventStoreDBWorkflowProcessorHandlerContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
 >(
   options: Omit<
@@ -152,7 +153,7 @@ export const eventStoreDBEventStoreConsumer = <
     undefined,
     EventStoreDBReactorFactory<ConsumerMessageType>,
     EventStoreDBProjectorFactory<ConsumerMessageType>,
-    EventStoreDBEventStoreConsumer<ConsumerMessageType>['workflowProcessor']
+    EventStoreDBWorkflowProcessorFactory<ConsumerMessageType>
   >({
     ...options,
     source,

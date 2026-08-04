@@ -9,7 +9,6 @@ import {
   assertNotEqual,
   assertThatArray,
   assertThrowsAsync,
-  asyncAwaiter,
   type Event,
 } from '@event-driven-io/emmett';
 import path from 'path';
@@ -149,8 +148,6 @@ void describe('SQLite event store started consumer', () => {
         let consumerPromise: Promise<void> | undefined;
         try {
           consumerPromise = consumer.start();
-          await consumer.whenStarted();
-
           await consumer.whenCaughtUp();
 
           // Then
@@ -213,7 +210,7 @@ void describe('SQLite event store started consumer', () => {
     );
 
     void it(
-      'returns distinct consumers that consume independently',
+      'returns distinct consumers with separate checkpoints',
       withDeadline,
       async () => {
         // Given
@@ -401,7 +398,6 @@ void describe('SQLite event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        const resultReachedEnd = asyncAwaiter();
 
         // When
         const consumer = sqliteEventStoreConsumer({
@@ -415,11 +411,6 @@ void describe('SQLite event store started consumer', () => {
           },
           eachMessage: (event) => {
             result.push(event);
-            if (
-              event.type === 'GuestCheckedOut' &&
-              event.data.guestId === otherGuestId
-            )
-              resultReachedEnd.resolve();
           },
         });
 
@@ -430,7 +421,7 @@ void describe('SQLite event store started consumer', () => {
 
           await eventStore.appendToStream(streamName, events);
 
-          await resultReachedEnd.wait;
+          await consumer.whenCaughtUp();
 
           assertThatArray(result).containsOnlyElementsMatching(events);
         } finally {
@@ -591,8 +582,6 @@ void describe('SQLite event store started consumer', () => {
 
           const fromResuming: GuestStayEvent[] = [];
           const fromEnd: GuestStayEvent[] = [];
-          const resumingReachedEnd = asyncAwaiter();
-          const endReachedEnd = asyncAwaiter();
 
           const consumer = sqliteEventStoreConsumer({
             driver: sqlite3EventStoreDriver,
@@ -603,11 +592,6 @@ void describe('SQLite event store started consumer', () => {
             startFrom: { lastCheckpoint: resumeCheckpoint },
             eachMessage: (event) => {
               fromResuming.push(event);
-              if (
-                event.type === 'GuestCheckedOut' &&
-                event.data.guestId === guestId
-              )
-                resumingReachedEnd.resolve();
             },
           });
           consumer.reactor<GuestStayEvent>({
@@ -615,11 +599,6 @@ void describe('SQLite event store started consumer', () => {
             startFrom: 'END',
             eachMessage: (event) => {
               fromEnd.push(event);
-              if (
-                event.type === 'GuestCheckedOut' &&
-                event.data.guestId === guestId
-              )
-                endReachedEnd.resolve();
             },
           });
 
@@ -630,7 +609,7 @@ void describe('SQLite event store started consumer', () => {
 
             await eventStore.appendToStream(streamName, newEvents);
 
-            await Promise.all([resumingReachedEnd.wait, endReachedEnd.wait]);
+            await consumer.whenCaughtUp();
 
             assertThatArray(fromResuming).containsOnlyElementsMatching([
               ...backlogEvents,

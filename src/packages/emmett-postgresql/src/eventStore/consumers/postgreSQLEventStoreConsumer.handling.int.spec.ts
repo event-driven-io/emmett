@@ -4,7 +4,6 @@ import {
   assertEqual,
   assertThatArray,
   assertThrowsAsync,
-  asyncAwaiter,
   defaultTag,
   type Event,
 } from '@event-driven-io/emmett';
@@ -175,7 +174,6 @@ void describe('PostgreSQL event store started consumer', () => {
         ];
 
         const result: GuestStayEvent[] = [];
-        const resultReachedEnd = asyncAwaiter();
 
         // When
         const consumer = postgreSQLEventStoreConsumer({
@@ -188,11 +186,6 @@ void describe('PostgreSQL event store started consumer', () => {
           },
           eachMessage: (event) => {
             result.push(event);
-            if (
-              event.type === 'GuestCheckedOut' &&
-              event.data.guestId === otherGuestId
-            )
-              resultReachedEnd.resolve();
           },
         });
 
@@ -203,7 +196,7 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await eventStore.appendToStream(streamName, events);
 
-          await resultReachedEnd.wait;
+          await consumer.whenCaughtUp();
 
           assertThatArray(result).containsOnlyElementsMatching(events);
         } finally {
@@ -653,8 +646,6 @@ void describe('PostgreSQL event store started consumer', () => {
 
           const fromResuming: GuestStayEvent[] = [];
           const fromEnd: GuestStayEvent[] = [];
-          const resumingReachedEnd = asyncAwaiter();
-          const endReachedEnd = asyncAwaiter();
 
           const consumer = postgreSQLEventStoreConsumer({
             connectionString,
@@ -664,11 +655,6 @@ void describe('PostgreSQL event store started consumer', () => {
             startFrom: { lastCheckpoint: resumeCheckpoint },
             eachMessage: (event) => {
               fromResuming.push(event);
-              if (
-                event.type === 'GuestCheckedOut' &&
-                event.data.guestId === guestId
-              )
-                resumingReachedEnd.resolve();
             },
           });
           consumer.reactor<GuestStayEvent>({
@@ -676,11 +662,6 @@ void describe('PostgreSQL event store started consumer', () => {
             startFrom: 'END',
             eachMessage: (event) => {
               fromEnd.push(event);
-              if (
-                event.type === 'GuestCheckedOut' &&
-                event.data.guestId === guestId
-              )
-                endReachedEnd.resolve();
             },
           });
 
@@ -691,7 +672,7 @@ void describe('PostgreSQL event store started consumer', () => {
 
             await eventStore.appendToStream(streamName, newEvents);
 
-            await Promise.all([resumingReachedEnd.wait, endReachedEnd.wait]);
+            await consumer.whenCaughtUp();
 
             assertThatArray(fromResuming).containsOnlyElementsMatching([
               ...backlogEvents,
@@ -1361,21 +1342,21 @@ void describe('PostgreSQL event store started consumer', () => {
     );
 
     void it(
-      'concurrent consumers with different processorIds do not block each other',
+      'processes events in concurrent consumers with separate checkpoints',
       withDeadline,
       async () => {
         const guestId = uuid();
-        const { lastEventGlobalPosition } = await eventStore.appendToStream(
-          `guestStay-${guestId}`,
-          [{ type: 'GuestCheckedIn', data: { guestId } }],
-        );
+        const streamName = `guestStay-${guestId}`;
+        const event: GuestStayEvent = {
+          type: 'GuestCheckedIn',
+          data: { guestId },
+        };
 
         const result1: GuestStayEvent[] = [];
         const consumer1 = postgreSQLEventStoreConsumer({ connectionString });
         consumer1.reactor<GuestStayEvent>({
           processorId: uuid(),
-          stopAfter: (event) =>
-            event.metadata.globalPosition === lastEventGlobalPosition,
+          startFrom: 'END',
           eachMessage: (event) => {
             result1.push(event);
           },
@@ -1385,20 +1366,29 @@ void describe('PostgreSQL event store started consumer', () => {
         const consumer2 = postgreSQLEventStoreConsumer({ connectionString });
         consumer2.reactor<GuestStayEvent>({
           processorId: uuid(),
-          stopAfter: (event) =>
-            event.metadata.globalPosition === lastEventGlobalPosition,
+          startFrom: 'END',
           eachMessage: (event) => {
             result2.push(event);
           },
         });
 
-        try {
-          await Promise.all([consumer1.start(), consumer2.start()]);
+        const consumer1Promise = consumer1.start();
+        const consumer2Promise = consumer2.start();
 
-          assertThatArray(result1).isNotEmpty();
-          assertThatArray(result2).isNotEmpty();
+        try {
+          await Promise.all([consumer1.whenStarted(), consumer2.whenStarted()]);
+
+          await eventStore.appendToStream(streamName, [event]);
+          await Promise.all([
+            consumer1.whenCaughtUp(),
+            consumer2.whenCaughtUp(),
+          ]);
+
+          assertThatArray(result1).containsOnlyElementsMatching([event]);
+          assertThatArray(result2).containsOnlyElementsMatching([event]);
         } finally {
           await Promise.all([consumer1.close(), consumer2.close()]);
+          await Promise.all([consumer1Promise, consumer2Promise]);
         }
       },
     );

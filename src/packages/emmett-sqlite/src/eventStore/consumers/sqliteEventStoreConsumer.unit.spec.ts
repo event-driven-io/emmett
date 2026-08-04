@@ -99,7 +99,6 @@ void describe('SQLite event store consumer with injected message source', () => 
     let consumerPromise: Promise<void> | undefined;
     try {
       consumerPromise = consumer.start();
-      await consumer.whenStarted();
       await consumer.whenCaughtUp();
 
       assertThatArray(result).containsOnlyElementsMatching(events);
@@ -127,7 +126,6 @@ void describe('SQLite event store consumer with injected message source', () => 
     });
 
     const consumerPromise = consumer.start();
-    await consumer.whenStarted();
     await consumer.whenCaughtUp();
     await consumer.close();
     await consumerPromise;

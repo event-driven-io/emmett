@@ -21,7 +21,6 @@ import {
   type MongoDBProcessorHandlerContext,
   type MongoDBProcessorOptions,
   type MongoDBProjectorOptions,
-  type MongoDBWorkflowProcessorHandlerContext,
   mongoDBWorkflowProcessor,
   type MongoDBWorkflowProcessorOptions,
 } from './mongoDBProcessor';
@@ -161,44 +160,10 @@ export const mongoDBEventStoreConsumer = <
 
   const workflowProcessorFactory: MongoDBWorkflowProcessorFactory<
     ConsumerMessageType
-  > = <
-    Input extends ConsumerMessageType,
-    State,
-    Output extends ConsumerMessageType,
-    MetaDataType extends AnyRecordedMessageMetadata =
-      AnyRecordedMessageMetadata,
-    HandlerContext extends MongoDBWorkflowProcessorHandlerContext =
-      MongoDBWorkflowProcessorHandlerContext,
-    StoredMessage extends AnyEvent | AnyCommand = Output,
-  >(
-    processorOptions: Omit<
-      MongoDBWorkflowProcessorOptions<
-        Input,
-        State,
-        Output,
-        MetaDataType,
-        HandlerContext,
-        StoredMessage
-      >,
-      'connectionOptions'
-    >,
-  ) =>
-    mongoDBWorkflowProcessor<
-      Input,
-      State,
-      Output,
-      MetaDataType,
-      HandlerContext,
-      StoredMessage
-    >({
+  > = (processorOptions) =>
+    mongoDBWorkflowProcessor({
       ...processorOptions,
-      connectionOptions:
-        'client' in options
-          ? { client: options.client }
-          : {
-              connectionString: options.connectionString,
-              clientOptions: options.clientOptions,
-            },
+      connectionOptions: { client },
     });
 
   const messageConsumer = consumer<
@@ -207,7 +172,7 @@ export const mongoDBEventStoreConsumer = <
     MongoDBProcessorHandlerContext,
     MongoDBReactorFactory<ConsumerMessageType>,
     MongoDBProjectorFactory<ConsumerMessageType>,
-    MongoDBEventStoreConsumer<ConsumerMessageType>['workflowProcessor']
+    MongoDBWorkflowProcessorFactory<ConsumerMessageType>
   >({
     ...options,
     source,

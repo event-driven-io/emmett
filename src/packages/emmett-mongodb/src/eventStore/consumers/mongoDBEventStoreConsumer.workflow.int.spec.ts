@@ -1,7 +1,6 @@
 import {
   assertEqual,
   assertThatArray,
-  type RecordedMessage,
   WorkflowHandler,
   workflowOutputHandler,
   workflowStreamName,
@@ -28,7 +27,6 @@ import {
   type MongoDBEventStore,
 } from '../mongoDBEventStore';
 import { mongoDBEventStoreConsumer } from './mongoDBEventStoreConsumer';
-import type { MongoDBChangeStreamMessageMetadata } from './mongoDBEventStoreConsumer';
 
 const withDeadline = { timeout: 30000 };
 
@@ -55,10 +53,6 @@ const workflowProcessorOptions: WorkflowOptions<
 };
 
 const handleWorkflow = WorkflowHandler(workflowProcessorOptions);
-type GroupCheckoutRecordedMessage = RecordedMessage<
-  GroupCheckoutInput | GroupCheckoutOutput,
-  MongoDBChangeStreamMessageMetadata
->;
 
 void describe('MongoDB event store workflow processor', () => {
   let database: SharedMongoDBDatabase;
@@ -121,7 +115,7 @@ void describe('MongoDB event store workflow processor', () => {
       >({
         ...workflowProcessorOptions,
         separateInputInboxFromProcessing: true,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GroupCheckoutInitiated' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
@@ -195,7 +189,7 @@ void describe('MongoDB event store workflow processor', () => {
         ...workflowProcessorOptions,
         separateInputInboxFromProcessing: true,
         processorId: `workflow-${groupCheckoutId}-complete`,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GroupCheckoutCompleted' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
@@ -255,7 +249,7 @@ void describe('MongoDB event store workflow processor', () => {
       >({
         ...workflowProcessorOptions,
         getWorkflowId: () => null,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GuestCheckedOut' &&
           message.data.guestStayAccountId === guestId,
       });
@@ -303,7 +297,7 @@ void describe('MongoDB event store workflow processor', () => {
       >({
         ...workflowProcessorOptions,
         separateInputInboxFromProcessing: false,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'InitiateGroupCheckout' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
@@ -366,7 +360,7 @@ void describe('MongoDB event store workflow processor', () => {
       >({
         ...workflowProcessorOptions,
         separateInputInboxFromProcessing: true,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GroupCheckoutInitiated' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
@@ -429,7 +423,7 @@ void describe('MongoDB event store workflow processor', () => {
       >({
         ...workflowProcessorOptions,
         separateInputInboxFromProcessing: true,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GroupCheckoutCompleted' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
@@ -520,7 +514,7 @@ void describe('MongoDB event store workflow processor', () => {
             };
           },
         }),
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GroupCheckoutCompleted' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
@@ -594,7 +588,7 @@ void describe('MongoDB event store workflow processor', () => {
       >({
         ...workflowProcessorOptions,
         separateInputInboxFromProcessing: true,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GroupCheckoutCompleted' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });

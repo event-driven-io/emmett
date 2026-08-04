@@ -4,7 +4,6 @@ import {
   assertMatches,
   assertNotEqual,
   assertThrowsAsync,
-  asyncAwaiter,
   getInMemoryDatabase,
   inMemoryProjector,
   inMemoryReactor,
@@ -175,8 +174,6 @@ void describe('mongoDB event store started consumer', () => {
         // Capture the checkpoint of the last initial event without projecting it,
         // as MongoDB checkpoints are resume tokens that cannot be synthesised.
         let startCheckpoint: ProcessorCheckpoint | undefined;
-        let seen = 0;
-        const captured = asyncAwaiter();
         const capturingConsumer = mongoDBEventStoreConsumer({
           connectionString,
           clientOptions: { directConnection: true },
@@ -187,7 +184,6 @@ void describe('mongoDB event store started consumer', () => {
                 if (event.metadata.streamName !== streamName) return;
                 startCheckpoint = event.metadata
                   .checkpoint as ProcessorCheckpoint;
-                if (++seen === initialEvents.length) captured.resolve();
               },
             }),
           ],
@@ -196,8 +192,7 @@ void describe('mongoDB event store started consumer', () => {
         let capturingPromise: Promise<void> | undefined;
         try {
           capturingPromise = capturingConsumer.start();
-          await capturingConsumer.whenStarted();
-          await captured.wait;
+          await capturingConsumer.whenCaughtUp();
         } finally {
           await capturingConsumer.close();
           await capturingPromise;
@@ -552,8 +547,6 @@ void describe('mongoDB event store started consumer', () => {
 
         const first: ShoppingCartSummaryEvent[] = [];
         const second: ShoppingCartSummaryEvent[] = [];
-        const firstHandled = asyncAwaiter();
-        const secondHandled = asyncAwaiter();
 
         const firstConsumer = eventStore.consumer<ShoppingCartSummaryEvent>({
           processors: [
@@ -562,7 +555,6 @@ void describe('mongoDB event store started consumer', () => {
               eachMessage: (event) => {
                 if (event.metadata.streamName !== streamName) return;
                 first.push(event);
-                firstHandled.resolve();
               },
             }),
           ],
@@ -574,7 +566,6 @@ void describe('mongoDB event store started consumer', () => {
               eachMessage: (event) => {
                 if (event.metadata.streamName !== streamName) return;
                 second.push(event);
-                secondHandled.resolve();
               },
             }),
           ],
@@ -597,7 +588,10 @@ void describe('mongoDB event store started consumer', () => {
           await eventStore.appendToStream(streamName, [
             { type: 'ProductItemAdded', data: { productItem } },
           ]);
-          await Promise.all([firstHandled.wait, secondHandled.wait]);
+          await Promise.all([
+            firstConsumer.whenCaughtUp(),
+            secondConsumer.whenCaughtUp(),
+          ]);
 
           assertEqual(first.length, 1);
           assertEqual(second.length, 1);
@@ -607,12 +601,10 @@ void describe('mongoDB event store started consumer', () => {
           await firstPromise;
           firstPromise = undefined;
 
-          secondHandled.reset();
-
           await eventStore.appendToStream(streamName, [
             { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
           ]);
-          await secondHandled.wait;
+          await secondConsumer.whenCaughtUp();
 
           assertEqual(first.length, 1);
           assertEqual(second.length, 2);
