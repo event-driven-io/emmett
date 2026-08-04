@@ -3,18 +3,18 @@ import {
   asyncRetry,
   bigIntProcessorCheckpoint,
   delay,
-  getInMemoryDatabase,
   parseBigIntProcessorCheckpoint,
   type Event,
-  type InMemoryReactorOptions,
   type ProcessorCheckpoint,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
-import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
-import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
 import { BACKWARDS, END } from '@eventstore/db-client';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { beforeAll, describe, it } from 'vitest';
+import {
+  getSharedEventStoreDB,
+  type SharedEventStoreDB,
+} from '../../testing/sharedEventStoreDB';
 import {
   getEventStoreDBEventStore,
   type EventStoreDBEventStore,
@@ -23,28 +23,20 @@ import {
   $all,
   eventStoreDBEventStoreConsumer,
   type EventStoreDBEventStoreConsumerType,
+  type EventStoreDBReactorFactoryOptions,
 } from './eventStoreDBEventStoreConsumer';
 
 const withDeadline = { timeout: 30000 };
 
 void describe('EventStoreDB event store started consumer', () => {
-  let eventStoreDB: StartedEventStoreDBContainer;
+  let eventStoreDB: SharedEventStoreDB;
   let connectionString: string;
   let eventStore: EventStoreDBEventStore;
-  const database = getInMemoryDatabase();
 
-  beforeAll(async () => {
-    eventStoreDB = await new EventStoreDBContainer().start();
-    connectionString = eventStoreDB.getConnectionString();
+  beforeAll(() => {
+    eventStoreDB = getSharedEventStoreDB();
+    connectionString = eventStoreDB.connectionString;
     eventStore = getEventStoreDBEventStore(eventStoreDB.getClient());
-  });
-
-  afterAll(async () => {
-    try {
-      await eventStoreDB.stop();
-    } catch (error) {
-      console.log(error);
-    }
   });
 
   const consumeFrom: [
@@ -456,7 +448,7 @@ void describe('EventStoreDB event store started consumer', () => {
             lastCheckpoint: startPosition,
           },
           eachMessage: (event) => {
-            result.push(event);
+            if (event.metadata.streamName === streamName) result.push(event);
           },
         });
 
@@ -527,7 +519,7 @@ void describe('EventStoreDB event store started consumer', () => {
             processorId: uuid(),
             startFrom: 'END',
             eachMessage: (event) => {
-              result.push(event);
+              if (event.metadata.streamName === streamName) result.push(event);
             },
           });
 
@@ -546,6 +538,98 @@ void describe('EventStoreDB event store started consumer', () => {
           } finally {
             await consumer.close();
             await consumerPromise;
+          }
+        },
+      );
+    });
+
+    (
+      [
+        ['the same client', true],
+        ['a different client', false],
+      ] as const
+    ).forEach(([clientUsage, reuseClient]) => {
+      void it(
+        `recreated END consumer resumes from its persisted checkpoint using ${clientUsage}`,
+        withDeadline,
+        async () => {
+          const guestId = uuid();
+          const secondGuestId = uuid();
+          const thirdGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+          const processorId = uuid();
+          const from = { stream: streamName };
+          const firstClient = eventStoreDB.getClient();
+
+          await eventStore.appendToStream(streamName, [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ]);
+
+          const firstBatch: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: secondGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: secondGuestId } },
+          ];
+          const firstResult: GuestStayEvent[] = [];
+          const firstConsumer = eventStoreDBEventStoreConsumer({
+            client: firstClient,
+            from,
+          });
+          firstConsumer.reactor<GuestStayEvent>({
+            processorId,
+            startFrom: 'END',
+            eachMessage: (event) => {
+              firstResult.push(event);
+            },
+          });
+
+          let firstConsumerPromise: Promise<void> | undefined;
+          try {
+            firstConsumerPromise = firstConsumer.start();
+            await firstConsumer.whenStarted();
+
+            await eventStore.appendToStream(streamName, firstBatch);
+            await firstConsumer.whenCaughtUp();
+
+            assertThatArray(firstResult).containsOnlyElementsMatching(
+              firstBatch,
+            );
+          } finally {
+            await firstConsumer.close();
+            await firstConsumerPromise;
+          }
+
+          const secondBatch: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+          ];
+          await eventStore.appendToStream(streamName, secondBatch);
+
+          const secondResult: GuestStayEvent[] = [];
+          const recreatedConsumer = eventStoreDBEventStoreConsumer({
+            client: reuseClient ? firstClient : eventStoreDB.getClient(),
+            from,
+            until: { caughtUp: true },
+          });
+          recreatedConsumer.reactor<GuestStayEvent>({
+            processorId,
+            eachMessage: (event) => {
+              secondResult.push(event);
+            },
+          });
+
+          let recreatedConsumerPromise: Promise<void> | undefined;
+          try {
+            recreatedConsumerPromise = recreatedConsumer.start();
+            await recreatedConsumer.whenCaughtUp();
+            await recreatedConsumerPromise;
+
+            assertThatArray(secondResult).containsOnlyElementsMatching(
+              secondBatch,
+            );
+          } finally {
+            await recreatedConsumer.close();
+            await recreatedConsumerPromise;
           }
         },
       );
@@ -648,7 +732,7 @@ void describe('EventStoreDB event store started consumer', () => {
               event.metadata.globalPosition ===
               appendResult.lastEventGlobalPosition,
             eachMessage: (event) => {
-              result.push(event);
+              if (event.metadata.streamName === streamName) result.push(event);
             },
           });
 
@@ -682,7 +766,7 @@ void describe('EventStoreDB event store started consumer', () => {
           consumer.reactor<GuestStayEvent>({
             processorId: uuid(),
             eachMessage: (event) => {
-              result.push(event);
+              if (event.metadata.streamName === streamName) result.push(event);
             },
           });
 
@@ -745,7 +829,7 @@ void describe('EventStoreDB event store started consumer', () => {
             processorId: uuid(),
             startFrom: 'CURRENT',
             eachMessage: (event) => {
-              result.push(event);
+              if (event.metadata.streamName === streamName) result.push(event);
             },
           });
 
@@ -805,7 +889,7 @@ void describe('EventStoreDB event store started consumer', () => {
             processorId: uuid(),
             startFrom: 'CURRENT',
             eachMessage: (event) => {
-              result.push(event);
+              if (event.metadata.streamName === streamName) result.push(event);
             },
           });
 
@@ -859,14 +943,15 @@ void describe('EventStoreDB event store started consumer', () => {
 
           let result: GuestStayEvent[] = [];
 
-          const processorOptions: InMemoryReactorOptions<GuestStayEvent> = {
-            processorId: uuid(),
-            startFrom: 'CURRENT',
-            eachMessage: (event) => {
-              result.push(event);
-            },
-            connectionOptions: { database },
-          };
+          const processorOptions: EventStoreDBReactorFactoryOptions<GuestStayEvent> =
+            {
+              processorId: uuid(),
+              startFrom: 'CURRENT',
+              eachMessage: (event) => {
+                if (event.metadata.streamName === streamName)
+                  result.push(event);
+              },
+            };
 
           // When
           const consumer = eventStoreDBEventStoreConsumer({
@@ -887,7 +972,7 @@ void describe('EventStoreDB event store started consumer', () => {
           result = [];
 
           const newConsumer = eventStoreDBEventStoreConsumer({
-            connectionString,
+            client: eventStoreDB.getClient(),
             from: subscription,
           });
           newConsumer.reactor<GuestStayEvent>(processorOptions);

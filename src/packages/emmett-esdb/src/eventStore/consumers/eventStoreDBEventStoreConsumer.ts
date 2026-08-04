@@ -2,14 +2,12 @@ import {
   consumer,
   type AnyCommand,
   inMemoryProjector,
-  inMemoryReactor,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
   type AsyncRetryOptions,
   type InMemoryProcessor,
   type InMemoryProjectorOptions,
-  type InMemoryReactorOptions,
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
@@ -22,9 +20,11 @@ import {
 } from '@eventstore/db-client';
 import type { EventStoreDBReadEventMetadata } from '../eventstoreDBEventStore';
 import {
+  eventStoreDBReactor,
   eventStoreDBWorkflowProcessor,
   type EventStoreDBProcessor,
   type EventStoreDBWorkflowProcessorHandlerContext,
+  type EventStoreDBReactorOptions,
   type EventStoreDBWorkflowProcessorOptions,
 } from './eventStoreDBProcessor';
 import { eventStoreDBMessageSource } from './messageSource';
@@ -68,12 +68,20 @@ export type EventStoreDBEventStoreConsumerType =
       options?: Exclude<SubscribeToStreamOptions, 'fromRevision'>;
     };
 
+type WithoutClient<Options> = Options extends unknown
+  ? Omit<Options, 'client'>
+  : never;
+
+export type EventStoreDBReactorFactoryOptions<
+  MessageType extends AnyMessage = AnyMessage,
+> = WithoutClient<EventStoreDBReactorOptions<MessageType>>;
+
 export type EventStoreDBReactorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
 > = <MessageType extends ConsumerMessageType = ConsumerMessageType>(
-  options: InMemoryReactorOptions<MessageType>,
-) => InMemoryProcessor<MessageType>;
+  options: EventStoreDBReactorFactoryOptions<MessageType>,
+) => EventStoreDBProcessor<MessageType>;
 
 export type EventStoreDBProjectorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -147,6 +155,14 @@ export const eventStoreDBEventStoreConsumer = <
       client,
     });
 
+  const reactorFactory: EventStoreDBReactorFactory<ConsumerMessageType> = (
+    reactorOptions,
+  ) =>
+    eventStoreDBReactor({
+      ...reactorOptions,
+      client,
+    });
+
   const messageConsumer = consumer<
     ConsumerMessageType,
     EventStoreDBReadEventMetadata,
@@ -157,7 +173,7 @@ export const eventStoreDBEventStoreConsumer = <
   >({
     ...options,
     source,
-    reactorFactory: inMemoryReactor,
+    reactorFactory,
     projectorFactory: inMemoryProjector,
     workflowProcessorFactory,
     batchSize: options.pulling?.batchSize,

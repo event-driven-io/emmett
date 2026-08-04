@@ -163,6 +163,7 @@ void describe('eventStoreDBEventStoreConsumer injected message source', () => {
 
     consumer.reactor<GuestCheckedIn>({
       processorId: 'injected-source-reactor',
+      checkpoints: 'DISABLED',
       stopAfter: () => handled.length === 2,
       eachMessage: (message) => {
         handled.push(message);

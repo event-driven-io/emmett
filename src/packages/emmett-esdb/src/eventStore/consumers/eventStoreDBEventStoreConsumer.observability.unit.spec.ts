@@ -34,6 +34,7 @@ describe('EventStoreDB consumer observability', () => {
     });
     const processor = consumer.reactor({
       processorId: 'test',
+      checkpoints: 'DISABLED',
       eachMessage: () => Promise.resolve(),
     });
 
@@ -56,6 +57,7 @@ describe('EventStoreDB consumer observability', () => {
     });
     const processor = consumer.reactor({
       processorId: 'test',
+      checkpoints: 'DISABLED',
       eachMessage: () => Promise.resolve(),
       observability: { tracer: processorTracer, meter },
     });
@@ -78,6 +80,7 @@ describe('EventStoreDB consumer observability', () => {
     });
     const processor = consumer.reactor({
       processorId: 'test',
+      checkpoints: 'DISABLED',
       eachMessage: (_, context) => {
         context.observabilityScope.log(LogEvent.info('not exported'));
       },
