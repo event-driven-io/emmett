@@ -251,7 +251,10 @@ export const mongoDBProjector = <EventType extends Event = Event>(
         options.processorId ?? `projection:${options.projection.name}`,
     }),
 
-    checkpoints: mongoDBCheckpointer<EventType>(),
+    checkpoints:
+      options.checkpoints === 'DISABLED'
+        ? inMemoryCheckpointer<EventType>()
+        : mongoDBCheckpointer<EventType>(),
   });
 };
 
@@ -281,6 +284,9 @@ export const changeStreamReactor = <
       client,
       processorId: options.processorId,
     }),
-    checkpoints: mongoDBCheckpointer<MessageType>(),
+    checkpoints:
+      options.checkpoints === 'DISABLED'
+        ? inMemoryCheckpointer<MessageType>()
+        : mongoDBCheckpointer<MessageType>(),
   });
 };
