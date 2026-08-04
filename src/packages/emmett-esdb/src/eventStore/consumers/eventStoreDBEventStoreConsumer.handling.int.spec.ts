@@ -810,7 +810,6 @@ void describe('EventStoreDB event store started consumer', () => {
           });
 
           let consumerPromise: Promise<void> | undefined = consumer.start();
-          await consumer.whenStarted();
           await consumer.whenCaughtUp();
           await consumer.stop();
           await consumerPromise;
@@ -879,7 +878,6 @@ void describe('EventStoreDB event store started consumer', () => {
             consumer.reactor<GuestStayEvent>(processorOptions);
 
             consumerPromise = consumer.start();
-            await consumer.whenStarted();
             await consumer.whenCaughtUp();
           } finally {
             await consumer.close();

@@ -1,7 +1,6 @@
 import {
   assertEqual,
   assertThatArray,
-  type RecordedMessage,
   WorkflowHandler,
   workflowOutputHandler,
   workflowStreamName,
@@ -24,7 +23,6 @@ import {
   type EventStoreDBEventStore,
 } from '../eventstoreDBEventStore';
 import { eventStoreDBEventStoreConsumer } from './eventStoreDBEventStoreConsumer';
-import type { EventStoreDBReadEventMetadata } from '../eventstoreDBEventStore';
 
 const withDeadline = { timeout: 30000 };
 
@@ -51,10 +49,6 @@ const workflowProcessorOptions: WorkflowOptions<
 };
 
 const handleWorkflow = WorkflowHandler(workflowProcessorOptions);
-type GroupCheckoutRecordedMessage = RecordedMessage<
-  GroupCheckoutInput | GroupCheckoutOutput,
-  EventStoreDBReadEventMetadata
->;
 
 void describe('EventStoreDB event store workflow processor', () => {
   let eventStoreDB: StartedEventStoreDBContainer;
@@ -93,14 +87,16 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckoutOutput
       >({
         ...workflowProcessorOptions,
+        startFrom: 'END',
         separateInputInboxFromProcessing: true,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GroupCheckoutInitiated' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
 
       try {
         const consumerPromise = consumer.start();
+        await consumer.whenStarted();
 
         await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
           {
@@ -165,15 +161,17 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckoutOutput
       >({
         ...workflowProcessorOptions,
+        startFrom: 'END',
         separateInputInboxFromProcessing: true,
         processorId: `workflow-${groupCheckoutId}-complete`,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GroupCheckoutCompleted' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
 
       try {
         const completePromise = completeConsumer.start();
+        await completeConsumer.whenStarted();
 
         await eventStore.appendToStream(`guestStay-${guestId}`, [
           {
@@ -225,14 +223,16 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckoutOutput
       >({
         ...workflowProcessorOptions,
+        startFrom: 'END',
         getWorkflowId: () => null,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GuestCheckedOut' &&
           message.data.guestStayAccountId === guestId,
       });
 
       try {
         const consumerPromise = consumer.start();
+        await consumer.whenStarted();
 
         await eventStore.appendToStream(`guestStay-${guestId}`, [
           {
@@ -272,14 +272,16 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckoutOutput
       >({
         ...workflowProcessorOptions,
+        startFrom: 'END',
         separateInputInboxFromProcessing: false,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'InitiateGroupCheckout' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
 
       try {
         const consumerPromise = consumer.start();
+        await consumer.whenStarted();
 
         await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
           {
@@ -334,14 +336,16 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckoutOutput
       >({
         ...workflowProcessorOptions,
+        startFrom: 'END',
         separateInputInboxFromProcessing: true,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GroupCheckoutInitiated' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
 
       try {
         const consumerPromise = consumer.start();
+        await consumer.whenStarted();
 
         await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
           {
@@ -396,14 +400,16 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckoutOutput
       >({
         ...workflowProcessorOptions,
+        startFrom: 'END',
         separateInputInboxFromProcessing: true,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GroupCheckoutCompleted' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
 
       try {
         const consumerPromise = consumer.start();
+        await consumer.whenStarted();
 
         await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
           {
@@ -468,6 +474,7 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckoutOutput
       >({
         ...workflowProcessorOptions,
+        startFrom: 'END',
         separateInputInboxFromProcessing: true,
         outputHandler: workflowOutputHandler<
           GroupCheckoutInput,
@@ -487,13 +494,14 @@ void describe('EventStoreDB event store workflow processor', () => {
             };
           },
         }),
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GroupCheckoutCompleted' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
 
       try {
         const consumerPromise = consumer.start();
+        await consumer.whenStarted();
 
         await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
           {
@@ -559,14 +567,16 @@ void describe('EventStoreDB event store workflow processor', () => {
         GroupCheckoutOutput
       >({
         ...workflowProcessorOptions,
+        startFrom: 'END',
         separateInputInboxFromProcessing: true,
-        stopAfter: (message: GroupCheckoutRecordedMessage) =>
+        stopAfter: (message) =>
           message.type === 'GroupCheckoutCompleted' &&
           message.data.groupCheckoutId === groupCheckoutId,
       });
 
       try {
         const consumerPromise = consumer.start();
+        await consumer.whenStarted();
 
         await eventStore.appendToStream(`guestStay-${guestId}`, [
           {

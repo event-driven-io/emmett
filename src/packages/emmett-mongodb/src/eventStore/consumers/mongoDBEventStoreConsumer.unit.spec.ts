@@ -8,20 +8,62 @@ import {
   type Event,
   type MessageSource,
   type RecordedMessage,
+  type WorkflowOptions,
 } from '@event-driven-io/emmett';
+import { MongoClient } from 'mongodb';
 import { v4 as uuid } from 'uuid';
-import { describe, it } from 'vitest';
+import { describe, it, vi } from 'vitest';
 import { mongoDBEventStoreConsumer as packageRootConsumer } from '../../index';
+import {
+  GroupCheckoutWorkflow,
+  type GroupCheckout,
+  type GroupCheckoutInput,
+  type GroupCheckoutOutput,
+} from '../../testing/groupCheckout.domain';
 import { getMongoDBEventStore } from '../mongoDBEventStore';
 import {
   mongoDBEventStoreConsumer,
   type MongoDBChangeStreamMessageMetadata,
   type MongoDBEventStoreConsumer,
 } from './mongoDBEventStoreConsumer';
+import { mongoDBWorkflowProcessor } from './mongoDBProcessor';
+
+vi.mock('./mongoDBProcessor', async (importOriginal) => {
+  const actual = await importOriginal<{
+    mongoDBWorkflowProcessor: typeof mongoDBWorkflowProcessor;
+  }>();
+
+  return {
+    ...actual,
+    mongoDBWorkflowProcessor: vi.fn(actual.mongoDBWorkflowProcessor),
+  };
+});
 
 type NumberRecorded = Event<'NumberRecorded', { number: number }>;
 
 const connectionString = 'mongodb://localhost:27017/emmett_unit_tests';
+
+const workflowProcessorOptions: WorkflowOptions<
+  GroupCheckoutInput,
+  GroupCheckout,
+  GroupCheckoutOutput
+> = {
+  workflow: GroupCheckoutWorkflow,
+  getWorkflowId: (input) =>
+    (input.data as { groupCheckoutId?: string }).groupCheckoutId ?? null,
+  inputs: {
+    commands: ['InitiateGroupCheckout', 'TimeoutGroupCheckout'],
+    events: ['GuestCheckedOut', 'GuestCheckoutFailed'],
+  },
+  outputs: {
+    commands: ['CheckOut'],
+    events: [
+      'GroupCheckoutCompleted',
+      'GroupCheckoutFailed',
+      'GroupCheckoutTimedOut',
+    ],
+  },
+};
 
 const messageAt = (
   number: number,
@@ -136,8 +178,74 @@ void describe('mongoDB event store consumer', () => {
     await consumer.close();
   });
 
+  void it('passes its resolved client to the workflow processor', async () => {
+    const workflowProcessor = vi.mocked(mongoDBWorkflowProcessor);
+    workflowProcessor.mockClear();
+    const consumer = mongoDBEventStoreConsumer<
+      GroupCheckoutInput | GroupCheckoutOutput
+    >({
+      connectionString,
+    });
+
+    try {
+      consumer.workflowProcessor<
+        GroupCheckoutInput,
+        GroupCheckout,
+        GroupCheckoutOutput
+      >({
+        ...workflowProcessorOptions,
+      });
+
+      assertEqual(1, workflowProcessor.mock.calls.length);
+      assertEqual(
+        true,
+        'client' in workflowProcessor.mock.calls[0]![0].connectionOptions,
+      );
+    } finally {
+      await consumer.close();
+    }
+  });
+
   void it('is exposed from the package root', () => {
     assertEqual(typeof packageRootConsumer, 'function');
+  });
+});
+
+void describe('mongoDB workflow processor client ownership', () => {
+  void it('closes the client it creates from a connection string', async () => {
+    const close = vi.spyOn(MongoClient.prototype, 'close').mockResolvedValue();
+
+    try {
+      const processor = mongoDBWorkflowProcessor({
+        ...workflowProcessorOptions,
+        connectionOptions: { connectionString },
+      });
+
+      await processor.close();
+
+      assertEqual(1, close.mock.calls.length);
+    } finally {
+      close.mockRestore();
+    }
+  });
+
+  void it('leaves an injected client to its owner', async () => {
+    const client = new MongoClient(connectionString);
+    const close = vi.spyOn(client, 'close').mockResolvedValue();
+
+    try {
+      const processor = mongoDBWorkflowProcessor({
+        ...workflowProcessorOptions,
+        connectionOptions: { client },
+      });
+
+      await processor.close();
+
+      assertEqual(0, close.mock.calls.length);
+    } finally {
+      close.mockRestore();
+      await client.close();
+    }
   });
 });
 

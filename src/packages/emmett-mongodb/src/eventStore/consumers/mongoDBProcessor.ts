@@ -1,6 +1,7 @@
 import type {
   MessageHandlerContext,
   MessageProcessor,
+  ProcessorHooks,
 } from '@event-driven-io/emmett';
 import {
   defaultProcessorPartition,
@@ -162,6 +163,9 @@ export const mongoDBWorkflowProcessor = <
   >,
 ): MongoDBProcessor<Input | Output> => {
   const connectionOptions = options.connectionOptions || {};
+  const isOwnClient = !(
+    'client' in connectionOptions && connectionOptions.client
+  );
   const client =
     'client' in connectionOptions && connectionOptions.client
       ? connectionOptions.client
@@ -179,12 +183,26 @@ export const mongoDBWorkflowProcessor = <
     partition = defaultProcessorPartition,
   } = options;
 
+  const hooks: ProcessorHooks<HandlerContext> = {
+    ...(options.hooks ?? {}),
+    onClose: isOwnClient
+      ? async (context) => {
+          try {
+            if (options.hooks?.onClose) await options.hooks.onClose(context);
+          } finally {
+            await client.close();
+          }
+        }
+      : options.hooks?.onClose,
+  };
+
   return workflowProcessor({
     ...options,
     processorId,
     processorInstanceId,
     version,
     partition,
+    hooks,
     processingScope: mongoDBWorkflowProcessingScope({
       client,
     }) as unknown as MessageProcessingScope<HandlerContext>,
