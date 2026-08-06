@@ -52,7 +52,7 @@ const shoppingCartApi =
     router.get(
       '/clients/:clientId/shopping-carts/current',
       on(async (request: Request) => {
-        const shoppingCartId = `shopping_cart:${request.params.clientId}:current`;
+        const shoppingCartId = `shopping_cart:${String(request.params.clientId)}:current`;
 
         const result = await getDetailsById(readStore, shoppingCartId);
 
@@ -67,7 +67,7 @@ const shoppingCartApi =
     router.get(
       '/clients/:clientId/shopping-carts/current/short-info',
       on(async (request: Request) => {
-        const shoppingCartId = `shopping_cart:${request.params.clientId}:current`;
+        const shoppingCartId = `shopping_cart:${String(request.params.clientId)}:current`;
 
         const result = await getShortInfoById(readStore, shoppingCartId);
 

@@ -143,6 +143,7 @@
     "@testcontainers/postgresql": "^11.14.0",
     "commander": "^14.0.3",
     "dotenv": "^17.4.2",
+    "express": "^5.2.1",
     "mitata": "^1.0.34"
   }
 }
