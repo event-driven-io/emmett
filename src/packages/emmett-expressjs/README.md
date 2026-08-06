@@ -379,11 +379,11 @@ The `ApiSpecification` wraps the event store to track appended events, enabling 
 
 ### Peer Dependencies (must be installed separately)
 
-| Package                   | Version | Purpose                     |
-| ------------------------- | ------- | --------------------------- |
-| `@event-driven-io/emmett` | 0.38.3  | Core event sourcing library |
-| `express`                 | ^5.2.1  | Web framework               |
-| `http-problem-details`    | ^0.1.5  | RFC 7807 Problem Details    |
-| `supertest`               | ^7.0.0  | HTTP testing library        |
-| `@types/express`          | ^5.0.6  | Express type definitions    |
-| `@types/supertest`        | ^6.0.2  | Supertest type definitions  |
+| Package                   | Version        | Purpose                     |
+| ------------------------- | -------------- | --------------------------- |
+| `@event-driven-io/emmett` | 0.43.0-beta.38 | Core event sourcing library |
+| `express`                 | ^5.2.1         | Web framework               |
+| `http-problem-details`    | ^0.1.7         | RFC 7807 Problem Details    |
+| `supertest`               | ^7.2.2         | HTTP testing library        |
+| `@types/express`          | ^5.0.6         | Express type definitions    |
+| `@types/supertest`        | ^7.2.0         | Supertest type definitions  |
