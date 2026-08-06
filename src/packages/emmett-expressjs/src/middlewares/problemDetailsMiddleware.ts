@@ -31,11 +31,12 @@ export const defaultErrorToProblemDetailsMapping = (
     typeof error === 'object' &&
     error !== null &&
     'errorCode' in error &&
-    isNumber(error.errorCode) &&
-    error.errorCode >= 100 &&
-    error.errorCode < 600
+    isNumber(error.errorCode)
   ) {
-    statusCode = error.errorCode;
+    const code = error.errorCode;
+    if (code >= 100 && code < 600) {
+      statusCode = code;
+    }
   }
 
   if (error instanceof Error) detail = error.message;
