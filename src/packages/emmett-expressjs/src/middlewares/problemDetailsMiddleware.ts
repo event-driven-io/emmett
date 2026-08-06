@@ -6,7 +6,7 @@ import { sendProblem, type ErrorToProblemDetailsMapping } from '..';
 export const problemDetailsMiddleware =
   (mapError?: ErrorToProblemDetailsMapping) =>
   (
-    error: Error,
+    error: unknown,
     request: Request,
     response: Response,
     _next: NextFunction,
@@ -22,11 +22,14 @@ export const problemDetailsMiddleware =
   };
 
 export const defaultErrorToProblemDetailsMapping = (
-  error: Error,
+  error: unknown,
 ): ProblemDocument => {
   let statusCode = 500;
+  let detail = 'Internal Server Error';
 
   if (
+    typeof error === 'object' &&
+    error !== null &&
     'errorCode' in error &&
     isNumber(error.errorCode) &&
     error.errorCode >= 100 &&
@@ -35,8 +38,11 @@ export const defaultErrorToProblemDetailsMapping = (
     statusCode = error.errorCode;
   }
 
+  if (error instanceof Error) detail = error.message;
+  else if (typeof error === 'string') detail = error;
+
   return new ProblemDocument({
-    detail: error.message,
+    detail,
     status: statusCode,
   });
 };

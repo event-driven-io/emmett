@@ -54,7 +54,7 @@ npm install @event-driven-io/emmett-expressjs
 All dependencies are peer dependencies, so you also need to install:
 
 ```bash
-npm install @event-driven-io/emmett express express-async-errors http-problem-details supertest
+npm install @event-driven-io/emmett express http-problem-details supertest
 npm install -D @types/express @types/supertest
 ```
 
@@ -177,7 +177,7 @@ import { ProblemDocument } from 'http-problem-details';
 const application = getApplication({
   apis: [myApi],
   mapError: (error, request) => {
-    if (error.name === 'CartNotFoundError') {
+    if (error instanceof Error && error.name === 'CartNotFoundError') {
       return new ProblemDocument({
         type: 'https://example.com/problems/cart-not-found',
         title: 'Cart Not Found',
@@ -379,12 +379,11 @@ The `ApiSpecification` wraps the event store to track appended events, enabling 
 
 ### Peer Dependencies (must be installed separately)
 
-| Package                   | Version  | Purpose                     |
-| ------------------------- | -------- | --------------------------- |
-| `@event-driven-io/emmett` | 0.38.3   | Core event sourcing library |
-| `express`                 | ^4.19.2  | Web framework               |
-| `express-async-errors`    | ^3.1.1   | Async error handling        |
-| `http-problem-details`    | ^0.1.5   | RFC 7807 Problem Details    |
-| `supertest`               | ^7.0.0   | HTTP testing library        |
-| `@types/express`          | ^4.17.21 | Express type definitions    |
-| `@types/supertest`        | ^6.0.2   | Supertest type definitions  |
+| Package                   | Version | Purpose                     |
+| ------------------------- | ------- | --------------------------- |
+| `@event-driven-io/emmett` | 0.38.3  | Core event sourcing library |
+| `express`                 | ^5.2.1  | Web framework               |
+| `http-problem-details`    | ^0.1.5  | RFC 7807 Problem Details    |
+| `supertest`               | ^7.0.0  | HTTP testing library        |
+| `@types/express`          | ^5.0.6  | Express type definitions    |
+| `@types/supertest`        | ^6.0.2  | Supertest type definitions  |

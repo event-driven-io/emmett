@@ -93,26 +93,13 @@ _Related: [GitHub Issue #240](https://github.com/event-driven-io/emmett/issues/2
 
 ### How do I use Emmett with Express.js v5?
 
-Express.js v5 support is in progress. Currently, Emmett uses Express v4. You can:
+`@event-driven-io/emmett-expressjs` supports Express.js v5.
 
-1. Use Express v4 (recommended for now)
-2. Use the event store directly without `emmett-expressjs`
-3. Watch [GitHub Issue #267](https://github.com/event-driven-io/emmett/issues/267) for v5 support
+Install it together with its peer dependencies:
 
-```typescript
-// Using event store directly with Express v5
-import express from 'express';
-import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
-
-const app = express();
-const eventStore = getPostgreSQLEventStore(connectionString);
-
-app.post('/orders', async (req, res) => {
-  const result = await eventStore.appendToStream(`order-${req.body.orderId}`, [
-    { type: 'OrderCreated', data: req.body },
-  ]);
-  res.json({ streamPosition: result.nextExpectedStreamVersion });
-});
+```bash
+npm install @event-driven-io/emmett @event-driven-io/emmett-expressjs express http-problem-details supertest
+npm install -D @types/express @types/supertest
 ```
 
 ### TestContainers fails with "Could not find a working container runtime strategy"

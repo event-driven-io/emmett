@@ -115,3 +115,29 @@ void describe('mapping a foreign error', () => {
     assertEqual((response.body as ProblemDocument).title, 'Card Declined');
   });
 });
+
+const asyncStringErrorApi = (router: Router) =>
+  router.get(
+    '/async-string-error',
+    on(async () => {
+      await Promise.reject('Express 5 async rejection');
+    }),
+  );
+
+const asyncStringErrorApplication = getApplication({
+  apis: [asyncStringErrorApi],
+});
+
+void describe('async rejected values', () => {
+  void it('maps non-Error async rejections to problem details', async () => {
+    const response = await request(asyncStringErrorApplication)
+      .get('/async-string-error')
+      .send();
+
+    assertEqual(response.statusCode, 500);
+    assertEqual(
+      (response.body as ProblemDocument).detail,
+      'Express 5 async rejection',
+    );
+  });
+});

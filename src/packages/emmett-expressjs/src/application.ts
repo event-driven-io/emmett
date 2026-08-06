@@ -1,6 +1,5 @@
 import type { Observability } from '@event-driven-io/almanac';
 import express, { Router, type Application } from 'express';
-import 'express-async-errors';
 import http from 'http';
 import { context, trace } from '@opentelemetry/api';
 import { problemDetailsMiddleware } from './middlewares/problemDetailsMiddleware';

@@ -3,7 +3,7 @@ import { ProblemDocument } from 'http-problem-details';
 import { setETag, type ETag } from './etag';
 
 export type ErrorToProblemDetailsMapping = (
-  error: Error,
+  error: unknown,
   request: Request,
 ) => ProblemDocument | undefined;
 
