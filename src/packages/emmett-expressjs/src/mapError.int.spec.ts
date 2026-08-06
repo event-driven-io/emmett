@@ -119,9 +119,9 @@ void describe('mapping a foreign error', () => {
 const asyncStringErrorApi = (router: Router) =>
   router.get(
     '/async-string-error',
-    on(async () => {
+    async () => {
       await Promise.reject('Express 5 async rejection');
-    }),
+    },
   );
 
 const asyncStringErrorApplication = getApplication({
