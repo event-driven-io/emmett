@@ -3,7 +3,7 @@ import type { Router } from 'express';
 import { ProblemDocument } from 'http-problem-details';
 import request from 'supertest';
 import { describe, it } from 'vitest';
-import { getApplication, on } from '.';
+import { getApplication, on, type HttpResponse } from '.';
 
 // #region derive-emmett-error
 // derive from EmmettError so the error carries its HTTP status
@@ -119,9 +119,10 @@ void describe('mapping a foreign error', () => {
 const asyncStringErrorApi = (router: Router) =>
   router.get(
     '/async-string-error',
-    async () => {
-      await Promise.reject('Express 5 async rejection');
-    },
+    on(async (): Promise<HttpResponse> => {
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+      return await Promise.reject('Express 5 async rejection');
+    }),
   );
 
 const asyncStringErrorApplication = getApplication({

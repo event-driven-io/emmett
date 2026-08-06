@@ -102,6 +102,24 @@ npm install @event-driven-io/emmett @event-driven-io/emmett-expressjs express ht
 npm install -D @types/express @types/supertest
 ```
 
+You can also keep using the event store directly with native Express v5 async handlers:
+
+```typescript
+import express from 'express';
+import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
+
+const app = express();
+const eventStore = getPostgreSQLEventStore(connectionString);
+
+app.post('/orders', async (req, res) => {
+  const result = await eventStore.appendToStream(`order-${req.body.orderId}`, [
+    { type: 'OrderCreated', data: req.body },
+  ]);
+
+  res.json({ streamPosition: result.nextExpectedStreamVersion });
+});
+```
+
 ### TestContainers fails with "Could not find a working container runtime strategy"
 
 **Problem:** When using Podman instead of Docker, TestContainers may not detect it.
