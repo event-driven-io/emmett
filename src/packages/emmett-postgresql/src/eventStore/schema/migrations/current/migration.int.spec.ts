@@ -1,7 +1,13 @@
-import { dumbo, runSQLMigrations, type Dumbo } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  runSQLMigrations,
+  SQL,
+  type Dumbo,
+} from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
+  assertFalse,
   assertMatches,
   assertThatArray,
   assertTrue,
@@ -10,7 +16,7 @@ import {
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import { schemaMigration } from '..';
+import { pastEventStoreSchemaMigrations, schemaMigration } from '..';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
@@ -26,6 +32,7 @@ import { migrations_0_36_0 } from '../0_36_0';
 import { migrations_0_38_7 } from '../0_38_7';
 import { migrations_0_42_0 } from '../0_42_0';
 import { migrations_0_43_0 } from '../0_43_0';
+import { migration_0_44_0_addMessagesPollIndex } from '../0_44_0';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -94,6 +101,7 @@ void describe('Schema migrations tests', () => {
       ...migrations_0_42_0,
       ...migrations_0_43_0,
       schemaMigration,
+      migration_0_44_0_addMessagesPollIndex,
     ]);
     assertThatArray(skipped).isEmpty();
 
@@ -114,6 +122,7 @@ void describe('Schema migrations tests', () => {
       ...migrations_0_42_0,
       ...migrations_0_43_0,
       schemaMigration,
+      migration_0_44_0_addMessagesPollIndex,
     ]);
     assertThatArray(skipped).isEmpty();
 
@@ -133,6 +142,7 @@ void describe('Schema migrations tests', () => {
       ...migrations_0_42_0,
       ...migrations_0_43_0,
       schemaMigration,
+      migration_0_44_0_addMessagesPollIndex,
     ]);
     assertDeepEqual(skipped, [...migrations_0_38_7]);
 
@@ -152,7 +162,11 @@ void describe('Schema migrations tests', () => {
     const { applied, skipped } = await eventStore.schema.migrate();
 
     // Then
-    assertDeepEqual(applied, [...migrations_0_43_0, schemaMigration]);
+    assertDeepEqual(applied, [
+      ...migrations_0_43_0,
+      schemaMigration,
+      migration_0_44_0_addMessagesPollIndex,
+    ]);
     assertDeepEqual(skipped, [...migrations_0_38_7, ...migrations_0_42_0]);
 
     const result = await assertCanAppendAndRead(eventStore);
@@ -172,7 +186,10 @@ void describe('Schema migrations tests', () => {
     const { applied, skipped } = await eventStore.schema.migrate();
 
     // Then
-    assertDeepEqual(applied, [schemaMigration]);
+    assertDeepEqual(applied, [
+      schemaMigration,
+      migration_0_44_0_addMessagesPollIndex,
+    ]);
     assertDeepEqual(skipped, [
       ...migrations_0_38_7,
       ...migrations_0_42_0,
@@ -197,8 +214,74 @@ void describe('Schema migrations tests', () => {
       ...migrations_0_42_0,
       ...migrations_0_43_0,
       schemaMigration,
+      migration_0_44_0_addMessagesPollIndex,
     ]);
   });
+
+  // Covers upgrading a database that already recorded the initial migration. Note it
+  // cannot detect an edit to schemaSQL, since it builds the "before" state from the
+  // same schemaMigration it then upgrades; the snapshot specs guard that.
+  void it('migrates a database that already recorded the initial migration', async () => {
+    // Given the exact migration set the previous release shipped
+    await runSQLMigrations(pool, [
+      ...pastEventStoreSchemaMigrations,
+      schemaMigration,
+    ]);
+
+    // When
+    const { applied, skipped } = await eventStore.schema.migrate();
+
+    // Then only the new post-schema migration runs; the shipped ones are untouched
+    assertDeepEqual(applied, [migration_0_44_0_addMessagesPollIndex]);
+    assertDeepEqual(skipped, [
+      ...pastEventStoreSchemaMigrations,
+      schemaMigration,
+    ]);
+
+    const indexed = await pool.execute.query<{ index_name: string }>(
+      SQL`SELECT ic.relname AS index_name
+          FROM pg_index x
+          JOIN pg_class ic ON ic.oid = x.indexrelid
+          JOIN pg_class tc ON tc.oid = x.indrelid
+          WHERE tc.relname = 'emt_messages_emt_default_active'
+            AND pg_get_indexdef(x.indexrelid) LIKE '%(transaction_id, global_position)%'`,
+    );
+    assertTrue(indexed.rows.length === 1);
+
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result);
+  });
+
+  // The 0.42.3 backport also indexes global_position alone, which this version's row
+  // comparison can never seek. Upgrading has to leave the database matching a fresh
+  // install rather than carrying an index maintained on every append and never read.
+  void it('drops the single-column index carried over from the 0.42.3 backport', async () => {
+    // Given a database upgraded from the backport
+    await runSQLMigrations(pool, [
+      ...pastEventStoreSchemaMigrations,
+      schemaMigration,
+    ]);
+    await pool.execute.command(
+      SQL`CREATE INDEX idx_messages_global_position ON emt_messages(global_position)`,
+    );
+    assertTrue(await indexExists('idx_messages_global_position'));
+
+    // When
+    await eventStore.schema.migrate();
+
+    // Then
+    assertFalse(await indexExists('idx_messages_global_position'));
+    assertTrue(
+      await indexExists('idx_messages_transaction_id_global_position'),
+    );
+  });
+
+  const indexExists = async (name: string): Promise<boolean> => {
+    const result = await pool.execute.query<{ oid: number }>(
+      SQL`SELECT oid FROM pg_class WHERE relname = ${name}`,
+    );
+    return result.rows.length > 0;
+  };
 
   const assertCanAppendAndRead = async (eventStore: PostgresEventStore) => {
     const shoppingCartId = 'cart-123';
