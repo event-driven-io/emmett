@@ -24,6 +24,7 @@ import {
 import { migrations_0_38_7 } from './0_38_7';
 import { migrations_0_42_0 } from './0_42_0';
 import { migrations_0_43_0 } from './0_43_0';
+import { migration_0_44_0_addMessagesPollIndex } from './0_44_0';
 
 export const schemaSQL: SQL[] = [
   streamsTableSQL,
@@ -56,7 +57,15 @@ export const pastEventStoreSchemaMigrations: SQLMigration[] = [
   ...migrations_0_43_0,
 ];
 
+// Run after schemaMigration because they alter objects it creates. This is what lets
+// DDL ship without editing schemaSQL, which is hashed into the shipped 'initial'
+// migration and would abort every existing database on mismatch.
+const postSchemaMigrations: SQLMigration[] = [
+  migration_0_44_0_addMessagesPollIndex,
+];
+
 export const eventStoreSchemaMigrations: SQLMigration[] = [
   ...pastEventStoreSchemaMigrations,
   schemaMigration,
+  ...postSchemaMigrations,
 ];

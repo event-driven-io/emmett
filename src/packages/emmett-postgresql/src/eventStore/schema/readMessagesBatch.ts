@@ -78,23 +78,11 @@ export type ReadMessagesBatchResult<
   areMessagesLeft: boolean;
 };
 
-export const readMessagesBatch = async <
-  MessageType extends Message,
-  RecordedMessageMetadataType extends
-    RecordedMessageMetadataWithGlobalPosition =
-    RecordedMessageMetadataWithGlobalPosition,
->(
-  execute: SQLExecutor,
+export const readMessagesBatchSQL = (
   options: ReadMessagesBatchOptions & { partition?: string },
-): Promise<
-  ReadMessagesBatchResult<MessageType, RecordedMessageMetadataType>
-> => {
+): SQL => {
   const from = 'from' in options ? options.from : undefined;
   const after = 'after' in options ? options.after : undefined;
-  const batchSize =
-    'batchSize' in options
-      ? options.batchSize
-      : options.to.globalPosition - options.from.globalPosition;
 
   const fromCondition: SQL =
     from !== undefined
@@ -111,15 +99,34 @@ export const readMessagesBatch = async <
   const limitCondition: SQL =
     'batchSize' in options ? SQL`LIMIT ${options.batchSize}` : SQL.EMPTY;
 
-  const query = SQL`
+  return SQL`
     SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id, transaction_id
     FROM ${SQL.identifier(messagesTable.name)}
-    WHERE partition = ${options?.partition ?? defaultTag} 
-      AND is_archived = FALSE 
+    WHERE partition = ${options?.partition ?? defaultTag}
+      AND is_archived = FALSE
       AND transaction_id < pg_snapshot_xmin(pg_current_snapshot())
       ${fromCondition} ${toCondition}
     ORDER BY transaction_id, global_position
     ${limitCondition}`;
+};
+
+export const readMessagesBatch = async <
+  MessageType extends Message,
+  RecordedMessageMetadataType extends
+    RecordedMessageMetadataWithGlobalPosition =
+    RecordedMessageMetadataWithGlobalPosition,
+>(
+  execute: SQLExecutor,
+  options: ReadMessagesBatchOptions & { partition?: string },
+): Promise<
+  ReadMessagesBatchResult<MessageType, RecordedMessageMetadataType>
+> => {
+  const batchSize =
+    'batchSize' in options
+      ? options.batchSize
+      : options.to.globalPosition - options.from.globalPosition;
+
+  const query = readMessagesBatchSQL(options);
 
   const messages: RecordedMessage<MessageType, RecordedMessageMetadataType>[] =
     await mapRows(

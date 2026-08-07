@@ -1,5 +1,10 @@
 import { SQL, sqlMigration, type SQLMigration } from '@event-driven-io/dumbo';
-import { defaultTag, processorsTable, unknownTag } from '../../typing';
+import {
+  defaultTag,
+  messagesTable,
+  processorsTable,
+  unknownTag,
+} from '../../typing';
 
 // Removes the mixed-format checkpoint fallback from store_processor_checkpoint.
 // All deployments that ran 0.43.0 have their checkpoints migrated to txid:globalpos format,
@@ -75,3 +80,33 @@ export const migration_0_44_0_cleanupObsoleteCheckpointCompat: SQLMigration =
     'emt:postgresql:eventstore:0.44.0:cleanup-obsolete-checkpoint-compat',
     [migration_0_44_0_cleanupObsoleteCheckpointCompatSQL],
   );
+
+// Matches the consumer poll's cursor and ORDER BY, so its LIMIT stops the scan
+// instead of top-N sorting the partition on every tick - including the caught-up poll
+// that returns nothing. Also serves readLastCommittedMessageCheckpoint in reverse.
+//
+// partition/is_archived are omitted deliberately: emt_messages is partitioned by both,
+// so they are constant within every leaf this index is created on.
+//
+// Wired after schemaMigration (see ../index.ts) rather than added to messagesTableSQL,
+// because schemaSQL is hashed into the shipped 'initial' migration.
+//
+// Takes a ShareLock on the parent and every leaf, blocking writes while it builds.
+// CREATE INDEX CONCURRENTLY cannot replace it: PostgreSQL rejects it on a partitioned
+// table, and it cannot run inside the migration transaction.
+//
+// The DROP is for databases coming from the 0.42.3 backport, which also indexes
+// global_position alone. That was reachable while the cursor was a plain
+// global_position >= comparison; the row comparison here can only seek an index led by
+// transaction_id, so it would be maintained on every append and never read.
+const migration_0_44_0_addMessagesPollIndexSQL = SQL`
+CREATE INDEX IF NOT EXISTS idx_messages_transaction_id_global_position
+ON ${SQL.identifier(messagesTable.name)}(transaction_id, global_position);
+
+DROP INDEX IF EXISTS idx_messages_global_position;
+`;
+
+export const migration_0_44_0_addMessagesPollIndex: SQLMigration = sqlMigration(
+  'emt:postgresql:eventstore:0.44.0:add-messages-poll-index',
+  [migration_0_44_0_addMessagesPollIndexSQL],
+);
