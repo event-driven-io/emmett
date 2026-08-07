@@ -11,6 +11,7 @@ import {
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 import { type PostgreSQLProjectionHandlerContext } from '../projections';
 import { appendToStreamSQL } from './appendToStream';
+import { migration_0_42_3_addMessagesPollIndexes } from './migrations/0_42_3';
 import { migration_0_38_7_and_older } from './migrations/0_38_7';
 import {
   migration_0_42_0_2_AddProcessorProjectionFunctions,
@@ -80,6 +81,10 @@ export const eventStoreSchemaMigrations: SQLMigration[] = [
   migration_0_42_0_2_AddProcessorProjectionFunctions,
   migration_0_42_0_3_FixProcessorLockTimeout,
   schemaMigration,
+  // After schemaMigration, since it indexes tables schemaMigration creates. Adding the
+  // DDL to messagesTableSQL instead would change schemaSQL, which is hashed into the
+  // shipped 'initial' migration and would abort every existing database on mismatch.
+  migration_0_42_3_addMessagesPollIndexes,
 ];
 
 export type CreateEventStoreSchemaOptions = {
