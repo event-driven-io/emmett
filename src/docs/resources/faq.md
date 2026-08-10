@@ -100,7 +100,7 @@ npm install @event-driven-io/emmett-expressjs express@5
 npm install --save-dev @types/express@5
 ```
 
-Express 5 forwards rejected promises from async handlers to error middleware, so `express-async-errors` is not required. See the [Express integration guide](../frameworks/expressjs.md#express-5-behavior) for route syntax and composition details.
+Express 5 forwards rejected promises from async handlers to error middleware, so `express-async-errors` is not required. See the [Express integration reference](../frameworks/expressjs.md#compatibility) for route syntax and composition details.
 
 ### TestContainers fails with "Could not find a working container runtime strategy"
 

@@ -56,9 +56,15 @@ const shoppingCartApi =
 
         const result = await getDetailsById(readStore, shoppingCartId);
 
-        if (result === null) return NotFound();
+        if (result === null)
+          return NotFound({
+            problemDetails: 'No open shopping cart was found',
+          });
 
-        if (result.status !== 'Opened') return NotFound();
+        if (result.status !== 'Opened')
+          return NotFound({
+            problemDetails: 'No open shopping cart was found',
+          });
 
         return OK({ body: result });
       }),
@@ -71,7 +77,10 @@ const shoppingCartApi =
 
         const result = await getShortInfoById(readStore, shoppingCartId);
 
-        if (result === null) return NotFound();
+        if (result === null)
+          return NotFound({
+            problemDetails: 'Shopping cart summary was not found',
+          });
 
         return OK({ body: result });
       }),
