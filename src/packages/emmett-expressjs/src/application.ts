@@ -1,9 +1,8 @@
 import type { Observability } from '@event-driven-io/almanac';
 import express, { Router, type Application } from 'express';
-import 'express-async-errors';
 import http from 'http';
-import { context, trace } from '@opentelemetry/api';
 import { problemDetailsMiddleware } from './middlewares/problemDetailsMiddleware';
+import { traceIdMiddleware } from './middlewares/traceIdMiddleware';
 import type { ErrorToProblemDetailsMapping } from './responses';
 
 // #region web-api-setup
@@ -20,9 +19,24 @@ export type ApplicationOptions = {
   observability?: Partial<Observability<string>>;
 };
 
-export const getApplication = (options: ApplicationOptions) => {
-  const app: Application = express();
+export const registerWebApi = (
+  application: Application,
+  apis: WebApiSetup[],
+): Application => {
+  const router = Router();
 
+  for (const api of apis) {
+    api(router);
+  }
+  application.use(router);
+
+  return application;
+};
+
+export const configureApplication = (
+  application: Application,
+  options: ApplicationOptions,
+): Application => {
   const {
     apis,
     mapError,
@@ -33,42 +47,34 @@ export const getApplication = (options: ApplicationOptions) => {
     observability,
   } = options;
 
-  const router = Router();
-
   // disabling default etag behaviour
   // to use etags in if-match and if-not-match headers
-  app.set('etag', enableDefaultExpressEtag ?? false);
+  application.set('etag', enableDefaultExpressEtag ?? false);
 
   // add json middleware
-  if (!disableJsonMiddleware) app.use(express.json());
+  if (!disableJsonMiddleware) application.use(express.json());
 
   // enable url encoded urls and bodies
   if (!disableUrlEncodingMiddleware)
-    app.use(
+    application.use(
       express.urlencoded({
         extended: true,
       }),
     );
 
-  if (observability) {
-    app.use((_req, res, next) => {
-      const traceId = trace.getSpan(context.active())?.spanContext()?.traceId;
-      if (traceId) res.setHeader('x-trace-id', traceId);
-      next();
-    });
-  }
+  if (observability) application.use(traceIdMiddleware);
 
-  for (const api of apis) {
-    api(router);
-  }
-  app.use(router);
+  registerWebApi(application, apis);
 
   // add problem details middleware
   if (!disableProblemDetailsMiddleware)
-    app.use(problemDetailsMiddleware(mapError));
+    application.use(problemDetailsMiddleware(mapError));
 
-  return app;
+  return application;
 };
+
+export const getApplication = (options: ApplicationOptions): Application =>
+  configureApplication(express(), options);
 
 export type StartApiOptions = {
   port?: number;

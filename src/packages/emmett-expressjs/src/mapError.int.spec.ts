@@ -115,3 +115,25 @@ void describe('mapping a foreign error', () => {
     assertEqual((response.body as ProblemDocument).title, 'Card Declined');
   });
 });
+
+void describe('default error mapping', () => {
+  void it('maps a non-Error rejected by an async handler', async () => {
+    const rejectedValueApplication = getApplication({
+      apis: [
+        (router) => {
+          router.get('/string-error', async () => {
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+            await Promise.reject('Async rejection');
+          });
+        },
+      ],
+    });
+
+    const response = await request(rejectedValueApplication)
+      .get('/string-error')
+      .send();
+
+    assertEqual(response.statusCode, 500);
+    assertEqual((response.body as ProblemDocument).detail, 'Async rejection');
+  });
+});
