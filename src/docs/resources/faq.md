@@ -93,27 +93,14 @@ _Related: [GitHub Issue #240](https://github.com/event-driven-io/emmett/issues/2
 
 ### How do I use Emmett with Express.js v5?
 
-Express.js v5 support is in progress. Currently, Emmett uses Express v4. You can:
+`@event-driven-io/emmett-expressjs` targets Express 5. Install Express and its current type definitions alongside Emmett:
 
-1. Use Express v4 (recommended for now)
-2. Use the event store directly without `emmett-expressjs`
-3. Watch [GitHub Issue #267](https://github.com/event-driven-io/emmett/issues/267) for v5 support
-
-```typescript
-// Using event store directly with Express v5
-import express from 'express';
-import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
-
-const app = express();
-const eventStore = getPostgreSQLEventStore(connectionString);
-
-app.post('/orders', async (req, res) => {
-  const result = await eventStore.appendToStream(`order-${req.body.orderId}`, [
-    { type: 'OrderCreated', data: req.body },
-  ]);
-  res.json({ streamPosition: result.nextExpectedStreamVersion });
-});
+```bash
+npm install @event-driven-io/emmett-expressjs express@5
+npm install --save-dev @types/express@5
 ```
+
+Express 5 forwards rejected promises from async handlers to error middleware, so `express-async-errors` is not required. See the [Express integration guide](../frameworks/expressjs.md#express-5-behavior) for route syntax and composition details.
 
 ### TestContainers fails with "Could not find a working container runtime strategy"
 
@@ -376,31 +363,34 @@ _Related: [GitHub Issue #232](https://github.com/event-driven-io/emmett/issues/2
 
 ### How do I customize Express.js middleware order?
 
-If you need fine-grained control over middleware, use the event store directly instead of `emmett-expressjs`:
+Create an Express application and pass it to `registerWebApi`. Middleware and routes registered first run before Emmett's API router:
 
 ```typescript
 import express from 'express';
-import { getPostgreSQLEventStore } from '@event-driven-io/emmett-postgresql';
-import { CommandHandler } from '@event-driven-io/emmett';
+import {
+  problemDetailsMiddleware,
+  registerWebApi,
+} from '@event-driven-io/emmett-expressjs';
 
 const app = express();
 
-// Your middleware in your order
-app.use(cors());
-app.use(helmet());
+// Health is intentionally outside authentication.
+app.get('/health', (_request, response) => {
+  response.status(200).json({ status: 'ok' });
+});
+
 app.use(express.json());
 app.use(authMiddleware);
 
-const eventStore = getPostgreSQLEventStore(connectionString);
-const handle = CommandHandler({ evolve, initialState });
+registerWebApi(app, [shoppingCartApi]);
+app.use(problemDetailsMiddleware());
 
-app.post('/carts/:id/add', async (req, res) => {
-  const result = await handle(eventStore, req.params.id, (state) =>
-    addProduct(req.body, state),
-  );
-  res.json(result);
-});
+app.listen(3000);
 ```
+
+`registerWebApi` only registers routes. The caller owns ETag configuration and installs parsers, authentication, tracing, and error middleware explicitly. Register error middleware after the API routes whose errors it should handle.
+
+If you own the Express instance but want Emmett's conventional middleware stack, use `configureApplication(app, options)` instead. It accepts the same options and middleware-disable flags as `getApplication`.
 
 _Related: [GitHub Issue #267 comments](https://github.com/event-driven-io/emmett/issues/267)_
 

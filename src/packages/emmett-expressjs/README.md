@@ -54,7 +54,7 @@ npm install @event-driven-io/emmett-expressjs
 All dependencies are peer dependencies, so you also need to install:
 
 ```bash
-npm install @event-driven-io/emmett express express-async-errors http-problem-details supertest
+npm install @event-driven-io/emmett express http-problem-details supertest
 npm install -D @types/express @types/supertest
 ```
 
@@ -75,6 +75,60 @@ const application: Application = getApplication({
 
 startAPI(application, { port: 3000 });
 ```
+
+### Using an Existing Express Application
+
+Use `configureApplication` to keep ownership of the Express application while applying Emmett's conventional setup:
+
+```typescript
+import express from 'express';
+import {
+  configureApplication,
+  startAPI,
+} from '@event-driven-io/emmett-expressjs';
+
+const application = express();
+
+application.get('/health', (_request, response) => {
+  response.status(200).json({ status: 'ok' });
+});
+application.use(authMiddleware);
+
+configureApplication(application, {
+  apis: [shoppingCartApi(eventStore)],
+});
+
+startAPI(application, { port: 3000 });
+```
+
+It applies the same ETag setting, middleware, routes, and error handling as `getApplication`, including the middleware disable options.
+
+Use `registerWebApi` when infrastructure routes and middleware must be positioned completely explicitly. It registers only the supplied API routes; it does not configure the application or install middleware:
+
+```typescript
+import express from 'express';
+import {
+  problemDetailsMiddleware,
+  registerWebApi,
+  startAPI,
+} from '@event-driven-io/emmett-expressjs';
+
+const application = express();
+
+application.get('/health', (_request, response) => {
+  response.status(200).json({ status: 'ok' });
+});
+
+application.use(express.json());
+application.use(authMiddleware);
+
+registerWebApi(application, [shoppingCartApi(eventStore)]);
+application.use(problemDetailsMiddleware());
+
+startAPI(application, { port: 3000 });
+```
+
+Express runs middleware in registration order, so `/health` is outside the authentication middleware in this example. The caller also retains Express's own ETag configuration.
 
 ### Defining API Routes
 
@@ -177,7 +231,7 @@ import { ProblemDocument } from 'http-problem-details';
 const application = getApplication({
   apis: [myApi],
   mapError: (error, request) => {
-    if (error.name === 'CartNotFoundError') {
+    if (error instanceof CartNotFoundError) {
       return new ProblemDocument({
         type: 'https://example.com/problems/cart-not-found',
         title: 'Cart Not Found',
@@ -286,13 +340,15 @@ it('should confirm cart after adding products', () => {
 
 ### Application
 
-| Export               | Type                       | Description                                                             |
-| -------------------- | -------------------------- | ----------------------------------------------------------------------- |
-| `WebApiSetup`        | `(router: Router) => void` | Function type for registering API routes                                |
-| `ApplicationOptions` | Object                     | Configuration for Express app (apis, error mapping, middleware toggles) |
-| `getApplication`     | Function                   | Creates configured Express application                                  |
-| `StartApiOptions`    | Object                     | Server startup configuration                                            |
-| `startAPI`           | Function                   | Starts HTTP server on specified port                                    |
+| Export                 | Type                       | Description                                                             |
+| ---------------------- | -------------------------- | ----------------------------------------------------------------------- |
+| `WebApiSetup`          | `(router: Router) => void` | Function type for registering API routes                                |
+| `ApplicationOptions`   | Object                     | Configuration for Express app (apis, error mapping, middleware toggles) |
+| `configureApplication` | Function                   | Applies the conventional Emmett setup to an existing application        |
+| `getApplication`       | Function                   | Creates configured Express application                                  |
+| `registerWebApi`       | Function                   | Registers only Emmett API routes on an existing Express application     |
+| `StartApiOptions`      | Object                     | Server startup configuration                                            |
+| `startAPI`             | Function                   | Starts HTTP server on specified port                                    |
 
 ### Handler & Responses
 
@@ -344,6 +400,7 @@ it('should confirm cart after adding products', () => {
 | ------------------------------------- | -------- | ---------------------------------------- |
 | `problemDetailsMiddleware`            | Function | Express error middleware for RFC 7807    |
 | `defaultErrorToProblemDetailsMapping` | Function | Default error to ProblemDocument mapping |
+| `traceIdMiddleware`                   | Function | Adds the active trace ID response header |
 | `ErrorToProblemDetailsMapping`        | Type     | Custom error mapping function type       |
 
 ## Architecture
@@ -379,12 +436,11 @@ The `ApiSpecification` wraps the event store to track appended events, enabling 
 
 ### Peer Dependencies (must be installed separately)
 
-| Package                   | Version  | Purpose                     |
-| ------------------------- | -------- | --------------------------- |
-| `@event-driven-io/emmett` | 0.38.3   | Core event sourcing library |
-| `express`                 | ^4.19.2  | Web framework               |
-| `express-async-errors`    | ^3.1.1   | Async error handling        |
-| `http-problem-details`    | ^0.1.5   | RFC 7807 Problem Details    |
-| `supertest`               | ^7.0.0   | HTTP testing library        |
-| `@types/express`          | ^4.17.21 | Express type definitions    |
-| `@types/supertest`        | ^6.0.2   | Supertest type definitions  |
+| Package                   | Version        | Purpose                     |
+| ------------------------- | -------------- | --------------------------- |
+| `@event-driven-io/emmett` | 0.43.0-beta.38 | Core event sourcing library |
+| `express`                 | ^5.2.1         | Web framework               |
+| `http-problem-details`    | ^0.1.7         | RFC 7807 Problem Details    |
+| `supertest`               | ^7.2.2         | HTTP testing library        |
+| `@types/express`          | ^5.0.6         | Express type definitions    |
+| `@types/supertest`        | ^7.2.0         | Supertest type definitions  |
