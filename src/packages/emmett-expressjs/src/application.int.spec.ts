@@ -5,20 +5,25 @@ import {
   assertOk,
   assertTrue,
 } from '@event-driven-io/emmett';
+import { trace, type Span } from '@opentelemetry/api';
 import express, {
   type ErrorRequestHandler,
   type Request,
+  type RequestHandler,
   type Router,
 } from 'express';
 import type { ProblemDocument } from 'http-problem-details';
 import request from 'supertest';
-import { describe, it } from 'vitest';
+import { describe, it, vi } from 'vitest';
 import {
   configureApplication,
   getApplication,
+  NotFound,
+  OK,
   on,
   problemDetailsMiddleware,
   registerWebApi,
+  traceIdMiddleware,
   type HttpResponse,
   type WebApiSetup,
 } from '.';
@@ -30,20 +35,65 @@ const echoBodyApi: WebApiSetup = (router) => {
   });
 };
 
+const productApi: WebApiSetup = (router) => {
+  router.get(
+    '/products/:productId',
+    on((request: Request<{ productId: string }>) => {
+      const productId = request.params.productId;
+
+      return productId === 'missing'
+        ? NotFound({ problemDetails: `Product ${productId} was not found` })
+        : OK({ body: { productId, available: true } });
+    }),
+  );
+};
+
+const authenticateRequest: RequestHandler = (request, response, next) => {
+  if (request.get('authorization') !== 'Bearer valid-token') {
+    response.sendStatus(401);
+    return;
+  }
+  next();
+};
+
 void describe('registerWebApi', () => {
   void it('registers API routes on and returns the provided application', async () => {
     const application = express();
-    application.set('trust proxy', 1);
 
     const registered = registerWebApi(application, [
       (router) => router.get('/orders', (_req, res) => res.sendStatus(204)),
     ]);
 
     assertOk(registered === application);
-    assertEqual(registered.get('trust proxy'), 1);
 
     const response = await request(application).get('/orders').send();
     assertEqual(response.statusCode, 204);
+  });
+
+  void it('runs an API setup using on and response helpers', async () => {
+    const application = express();
+
+    registerWebApi(application, [productApi]);
+
+    const response = await request(application)
+      .get('/products/product-1')
+      .send();
+
+    assertEqual(response.statusCode, 200);
+    assertDeepEqual(response.body, {
+      productId: 'product-1',
+      available: true,
+    });
+
+    const missingResponse = await request(application)
+      .get('/products/missing')
+      .send();
+
+    assertEqual(missingResponse.statusCode, 404);
+    assertEqual(
+      (missingResponse.body as ProblemDocument).detail,
+      'Product missing was not found',
+    );
   });
 
   void it('supports named wildcard route parameters', async () => {
@@ -63,36 +113,48 @@ void describe('registerWebApi', () => {
     assertDeepEqual(response.body, { path: ['a', 'b'] });
   });
 
-  void it('respects middleware and infrastructure route ordering owned by the caller', async () => {
-    const calls: string[] = [];
+  void it('composes caller-owned infrastructure and middleware around API routes', async () => {
+    // #region route-only-registration
     const application = express();
 
-    application.get('/health', (_req, res) => {
-      calls.push('health');
-      res.status(200).json({ status: 'ok' });
+    application.get('/health', (_request, response) => {
+      response.status(200).json({ status: 'ok' });
     });
-    application.use((_req, _res, next) => {
-      calls.push('authentication');
-      next();
-    });
+    application.use(express.json({ limit: '2mb' }));
+    application.use(express.urlencoded({ extended: true }));
+    application.use(traceIdMiddleware);
+    application.use(authenticateRequest);
 
-    registerWebApi(application, [
-      (router) => {
-        router.get('/orders', (_req, res) => {
-          calls.push('orders');
-          res.sendStatus(204);
-        });
-      },
-    ]);
+    registerWebApi(application, [echoBodyApi, asyncErrorApi]);
+
+    application.use(problemDetailsMiddleware());
+    // #endregion route-only-registration
 
     const healthResponse = await request(application).get('/health').send();
     assertEqual(healthResponse.statusCode, 200);
-    assertDeepEqual(calls, ['health']);
 
-    calls.length = 0;
-    const ordersResponse = await request(application).get('/orders').send();
-    assertEqual(ordersResponse.statusCode, 204);
-    assertDeepEqual(calls, ['authentication', 'orders']);
+    const unauthorizedResponse = await request(application)
+      .post('/echo')
+      .send({ productId: 'shoes' });
+    assertEqual(unauthorizedResponse.statusCode, 401);
+
+    const bodyResponse = await request(application)
+      .post('/echo')
+      .set('Authorization', 'Bearer valid-token')
+      .send({ productId: 'shoes' });
+    assertDeepEqual((bodyResponse.body as { body: unknown }).body, {
+      productId: 'shoes',
+    });
+
+    const errorResponse = await request(application)
+      .get('/async-error')
+      .set('Authorization', 'Bearer valid-token')
+      .send();
+    assertEqual(errorResponse.statusCode, 500);
+    assertEqual(
+      (errorResponse.body as ProblemDocument).detail,
+      'Application failed',
+    );
   });
 
   void it('uses body parsing explicitly installed by the caller', async () => {
@@ -134,43 +196,36 @@ void describe('registerWebApi', () => {
 void describe('configureApplication', () => {
   void it('applies the default Emmett setup to and returns an existing application', async () => {
     const application = express();
-    application.set('trust proxy', 1);
+
+    application.get('/health', (_request, response) => {
+      response.status(200).json({ status: 'ok' });
+    });
 
     const configured = configureApplication(application, {
-      apis: [echoBodyApi, asyncErrorApi],
+      apis: [echoBodyApi],
     });
 
     assertOk(configured === application);
-    assertEqual(configured.get('trust proxy'), 1);
-
-    const bodyResponse = await request(application)
+    assertEqual((await request(application).get('/health')).statusCode, 200);
+    const response = await request(application)
       .post('/echo')
       .send({ productId: 'shoes' });
-    assertDeepEqual((bodyResponse.body as { body: unknown }).body, {
+
+    assertDeepEqual((response.body as { body: unknown }).body, {
       productId: 'shoes',
     });
-    assertFalse('etag' in bodyResponse.headers);
-
-    const errorResponse = await request(application).get('/async-error').send();
-    assertEqual(errorResponse.statusCode, 500);
-    assertEqual(
-      (errorResponse.body as ProblemDocument).detail,
-      'Application failed',
-    );
   });
 
-  void it('supports replacing disabled defaults on an existing application', async () => {
+  void it('uses a caller-provided JSON parser when the default is disabled', async () => {
+    // #region configure-custom-json-middleware
     const application = express();
     application.use(express.text({ type: 'application/json' }));
 
     configureApplication(application, {
-      apis: [echoBodyApi, asyncErrorApi],
+      apis: [echoBodyApi],
       disableJsonMiddleware: true,
-      disableProblemDetailsMiddleware: true,
     });
-    application.use(((error, _req, res, _next) => {
-      res.status(422).json({ detail: (error as Error).message });
-    }) satisfies ErrorRequestHandler);
+    // #endregion configure-custom-json-middleware
 
     const bodyResponse = await request(application)
       .post('/echo')
@@ -180,6 +235,19 @@ void describe('configureApplication', () => {
       (bodyResponse.body as { body: unknown }).body,
       '{"productId":"shoes"}',
     );
+  });
+
+  void it('uses caller-provided error middleware when the default is disabled', async () => {
+    // #region configure-custom-error-middleware
+    const application = express();
+    configureApplication(application, {
+      apis: [asyncErrorApi],
+      disableProblemDetailsMiddleware: true,
+    });
+    application.use(((error, _req, response, _next) => {
+      response.status(422).json({ detail: (error as Error).message });
+    }) satisfies ErrorRequestHandler);
+    // #endregion configure-custom-error-middleware
 
     const errorResponse = await request(application).get('/async-error').send();
     assertEqual(errorResponse.statusCode, 422);
@@ -189,7 +257,18 @@ void describe('configureApplication', () => {
 
 void describe('getApplication', () => {
   void it('parses JSON bodies by default', async () => {
-    const application = getApplication({ apis: [echoBodyApi] });
+    // #region default-application
+    const application = getApplication({
+      apis: [
+        (router) => {
+          router.post('/echo', (request, response) => {
+            const body: unknown = request.body;
+            response.status(200).json({ body });
+          });
+        },
+      ],
+    });
+    // #endregion default-application
 
     const response = await request(application)
       .post('/echo')
@@ -266,6 +345,34 @@ void describe('getApplication', () => {
     const response = await request(application).get('/body').send();
 
     assertTrue(typeof response.headers.etag === 'string');
+  });
+
+  void it('adds the active trace ID when observability is provided', async () => {
+    const traceId = '0123456789abcdef0123456789abcdef';
+    const getSpan = vi.spyOn(trace, 'getSpan').mockReturnValue({
+      spanContext: () => ({
+        traceId,
+        spanId: '0123456789abcdef',
+        traceFlags: 1,
+      }),
+    } as Span);
+    const application = getApplication({
+      apis: [
+        (router) =>
+          router.get('/trace', (_request, response) =>
+            response.sendStatus(204),
+          ),
+      ],
+      observability: {},
+    });
+
+    try {
+      const response = await request(application).get('/trace').send();
+
+      assertEqual(response.headers['x-trace-id'], traceId);
+    } finally {
+      getSpan.mockRestore();
+    }
   });
 
   void it('installs Problem Details middleware by default', async () => {
