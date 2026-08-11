@@ -7,6 +7,8 @@ import { createEventStoreSchema, defaultTag } from '.';
 
 // emt_add_partition sanitizes 'emt:default' into this leaf name.
 const defaultActiveLeaf = 'emt_messages_emt_default_active';
+const tenantActiveLeaf = 'emt_messages_tenant_a_active';
+const tenantArchivedLeaf = 'emt_messages_tenant_a_archived';
 
 // Below roughly this size every plan costs the same and the planner's choice carries
 // no information.
@@ -47,13 +49,16 @@ void describe('emt_messages consumer poll indexes', () => {
     await postgres?.stop();
   });
 
-  const indexNameOn = async (columns: string): Promise<string | null> => {
+  const indexNameOn = async (
+    tableName: string,
+    columns: string,
+  ): Promise<string | null> => {
     const result = await pool.execute.query<{ index_name: string }>(
       SQL`SELECT ic.relname AS index_name
           FROM pg_index x
           JOIN pg_class ic ON ic.oid = x.indexrelid
           JOIN pg_class tc ON tc.oid = x.indrelid
-          WHERE tc.relname = ${defaultActiveLeaf}
+          WHERE tc.relname = ${tableName}
             AND pg_get_indexdef(x.indexrelid) LIKE ${'%(' + columns + ')%'}`,
     );
     return result.rows[0]?.index_name ?? null;
@@ -75,12 +80,30 @@ void describe('emt_messages consumer poll indexes', () => {
   };
 
   void it('creates both poll indexes on the default active partition', async () => {
-    assertTrue((await indexNameOn('global_position')) !== null);
-    assertTrue((await indexNameOn('transaction_id, global_position')) !== null);
+    assertTrue(
+      (await indexNameOn(defaultActiveLeaf, 'global_position')) !== null,
+    );
+    assertTrue(
+      (await indexNameOn(
+        defaultActiveLeaf,
+        'transaction_id, global_position',
+      )) !== null,
+    );
+  });
+
+  void it('inherits both poll indexes on partitions created later', async () => {
+    await pool.execute.command(SQL`SELECT emt_add_partition('tenant_a')`);
+
+    for (const leaf of [tenantActiveLeaf, tenantArchivedLeaf]) {
+      assertTrue((await indexNameOn(leaf, 'global_position')) !== null);
+      assertTrue(
+        (await indexNameOn(leaf, 'transaction_id, global_position')) !== null,
+      );
+    }
   });
 
   void it('does not scan the whole partition at any cursor position', async () => {
-    for (const from of [total, total - 100, total / 2, 0]) {
+    for (const from of [total + 1, total - 100, total / 2, 0]) {
       const plan = await explainPoll(from);
       assertTrue(!new RegExp(`Seq Scan on ${defaultActiveLeaf}\\b`).test(plan));
     }
@@ -91,16 +114,24 @@ void describe('emt_messages consumer poll indexes', () => {
   // index; the single column alone cannot satisfy the ORDER BY, so a deep backlog
   // sorts everything past the cursor.
   void it('uses the single-column index when caught up', async () => {
-    const plan = await explainPoll(total);
+    const plan = await explainPoll(total + 1);
 
-    assertTrue(plan.includes((await indexNameOn('global_position'))!));
+    assertTrue(
+      plan.includes((await indexNameOn(defaultActiveLeaf, 'global_position'))!),
+    );
   });
 
   void it('uses the composite index when replaying from the beginning', async () => {
     const plan = await explainPoll(0);
 
     assertTrue(
-      plan.includes((await indexNameOn('transaction_id, global_position'))!),
+      plan.includes(
+        (await indexNameOn(
+          defaultActiveLeaf,
+          'transaction_id, global_position',
+        ))!,
+      ),
     );
+    assertTrue(!plan.includes('Sort'));
   });
 });

@@ -21,21 +21,29 @@ import { messagesTable } from '../../typing';
 // which makes the composite sufficient and (global_position) unreachable; the 0.43.0
 // migration drops it.
 //
+// Wrapped in an existence check so it is safe to run before the initial schema
+// migration on fresh databases.
+//
 // partition/is_archived are omitted deliberately: emt_messages is partitioned by both,
 // so they are constant within every leaf these indexes are created on.
 //
 // Takes a ShareLock on the parent and every leaf, blocking writes while they build.
 // CREATE INDEX CONCURRENTLY cannot replace this: PostgreSQL rejects it on a partitioned
 // table, and it cannot run inside the migration transaction.
-const migration_0_42_3_addMessagesPollIndexesSQL = rawSql(`
-CREATE INDEX IF NOT EXISTS idx_messages_global_position
-ON ${messagesTable.name}(global_position);
+const migration_0_42_4_addMessagesPollIndexesSQL = rawSql(`
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = '${messagesTable.name}') THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_messages_global_position
+      ON ${messagesTable.name}(global_position)';
 
-CREATE INDEX IF NOT EXISTS idx_messages_transaction_id_global_position
-ON ${messagesTable.name}(transaction_id, global_position);
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_messages_transaction_id_global_position
+      ON ${messagesTable.name}(transaction_id, global_position)';
+  END IF;
+END $$;
 `);
 
-export const migration_0_42_3_addMessagesPollIndexes: SQLMigration =
-  sqlMigration('emt:postgresql:eventstore:0.42.3:add-messages-poll-indexes', [
-    migration_0_42_3_addMessagesPollIndexesSQL,
+export const migration_0_42_4_addMessagesPollIndexes: SQLMigration =
+  sqlMigration('emt:postgresql:eventstore:0.42.4:add-messages-poll-indexes', [
+    migration_0_42_4_addMessagesPollIndexesSQL,
   ]);
