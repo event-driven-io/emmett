@@ -26,6 +26,7 @@ import {
   type BatchMessageHandlerResult,
   type BatchRecordedMessageHandlerWithContext,
   type CanHandle,
+  type DefaultRecord,
   type Event,
   type Message,
   type MessageHandlerContext,
@@ -35,6 +36,7 @@ import {
 } from '../typing';
 import { onShutdown } from '../utils/lifecycle';
 import { asyncAwaiter } from '../utils/promises';
+import { asyncRetry } from '../utils/retry';
 import {
   getCheckpoint,
   ProcessorCheckpoint,
@@ -43,6 +45,12 @@ import {
 } from './checkpoints';
 import { inMemoryCheckpointer } from './inMemoryProcessors';
 import { processorCollector, processorObservability } from './observability';
+import {
+  DefaultProcessorLockPolicy,
+  type LockAcquisitionPolicy,
+  type ProcessorLock,
+  type ProcessorLockOptions,
+} from './processorLock';
 
 export type CurrentMessageProcessorPosition =
   { lastCheckpoint: ProcessorCheckpoint } | 'BEGINNING' | 'END';
@@ -311,6 +319,7 @@ export type BaseMessageProcessorOptions<
     Checkpointer<MessageType, MessageMetadataType, HandlerContext> | 'DISABLED';
   canHandle?: CanHandle<MessageType>;
   hooks?: ProcessorHooks<HandlerContext>;
+  lock?: ProcessorLockOptions<HandlerContext>;
 } & JSONSerializationOptions & {
     observability?: ProcessorObservabilityConfig;
   };
@@ -467,6 +476,36 @@ export const getProjectorId = (options: { projectionName: string }): string =>
 
 const { info, error: error } = LogEvent;
 
+const acquireProcessorLock = async <HandlerContext extends DefaultRecord>(
+  options: {
+    processorId: string;
+    lock: ProcessorLock<HandlerContext>;
+    acquisitionPolicy?: LockAcquisitionPolicy;
+  },
+  context: HandlerContext,
+): Promise<boolean> => {
+  const policy = options.acquisitionPolicy ?? DefaultProcessorLockPolicy;
+
+  // exhausting the retries rejects from within asyncRetry, so the throw below
+  // is only reached by the single-attempt policies
+  const acquired =
+    policy.type === 'retry'
+      ? await asyncRetry(() => options.lock.tryAcquire(context), {
+          retries: policy.retries - 1,
+          minTimeout: policy.minTimeout,
+          maxTimeout: policy.maxTimeout,
+          shouldRetryResult: (acquired) => !acquired,
+        })
+      : await options.lock.tryAcquire(context);
+
+  if (!acquired && policy.type !== 'skip')
+    throw new EmmettError(
+      `Failed to acquire lock for processor '${options.processorId}'`,
+    );
+
+  return acquired;
+};
+
 export const reactor = <
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -488,6 +527,7 @@ export const reactor = <
     version = defaultProcessorVersion,
     partition = defaultProcessorPartition,
     hooks = {},
+    lock: lockOptions = {},
     processingScope = defaultProcessingMessageProcessingScope,
     startFrom,
     canHandle,
@@ -575,6 +615,7 @@ export const reactor = <
 
   let isInitiated = false;
   let isActive = false;
+  let isLockAcquired = false;
 
   let lastCheckpoint: ProcessorCheckpoint | null = null;
   let lastStoredCheckpoint: ProcessorCheckpoint | null = null;
@@ -645,8 +686,17 @@ export const reactor = <
       closeSignal = null;
     }
 
-    if (hooks.onClose) {
-      await processingScope(hooks.onClose, closeOptions);
+    if (isLockAcquired || hooks.onClose) {
+      await processingScope(async (context) => {
+        // released before the close hooks, as those may tear down the
+        // connection the lock is held on
+        if (isLockAcquired && lockOptions.lock) {
+          await lockOptions.lock.release(context);
+          isLockAcquired = false;
+        }
+
+        if (hooks.onClose) await hooks.onClose(context);
+      }, closeOptions);
     }
   };
 
@@ -718,6 +768,23 @@ export const reactor = <
 
       return await processingScope(async (context) => {
         const log = context.observabilityScope.log;
+
+        if (lockOptions.lock) {
+          log(
+            info(
+              `Acquiring lock for processor ${processorId} with instance id ${instanceId}`,
+            ),
+          );
+          isLockAcquired = await acquireProcessorLock(
+            {
+              processorId,
+              lock: lockOptions.lock,
+              acquisitionPolicy: lockOptions.acquisitionPolicy,
+            },
+            context,
+          );
+        }
+
         if (hooks.onStart) {
           log(
             info(
