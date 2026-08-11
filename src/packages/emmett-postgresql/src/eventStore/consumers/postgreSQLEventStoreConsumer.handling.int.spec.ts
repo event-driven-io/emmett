@@ -5,6 +5,8 @@ import {
   assertThatArray,
   assertThrowsAsync,
   defaultTag,
+  getProjectorId,
+  unknownTag,
   type Event,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
@@ -1099,6 +1101,46 @@ void describe('PostgreSQL event store started consumer', () => {
           processorId,
           startFrom: 'CURRENT',
           eachMessage: () => {},
+        });
+
+        try {
+          await assertThrowsAsync<EmmettError>(
+            () => consumer.start(),
+            (error) => error.message.includes(processorId),
+          );
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
+    void it(
+      'fails to start a projector when another instance holds the processor lock',
+      withDeadline,
+      async () => {
+        const projectionName = `lockedProjection-${uuid()}`;
+        const processorId = getProjectorId({ projectionName });
+
+        const otherInstanceLock = postgreSQLProcessorLock({
+          processorId,
+          version: 1,
+          partition: defaultTag,
+          processorInstanceId: 'other-crashed-instance',
+          projection: {
+            name: projectionName,
+            kind: unknownTag,
+            version: 1,
+            handlingType: 'async',
+          },
+        });
+        await pool.withConnection((connection) =>
+          otherInstanceLock.tryAcquire({ execute: connection.execute }),
+        );
+
+        const consumer = postgreSQLEventStoreConsumer({ connectionString });
+        consumer.projector<GuestStayEvent>({
+          projection: collectingProjection([], projectionName),
+          startFrom: 'CURRENT',
         });
 
         try {

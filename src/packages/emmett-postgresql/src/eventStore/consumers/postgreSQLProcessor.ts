@@ -10,6 +10,8 @@ import type {
 import type {
   AnyCommand,
   AnyEvent,
+  ProcessorLock,
+  ProcessorLockOptions,
   AnyMessage,
   AnyRecordedMessageMetadata,
   BatchRecordedMessageHandlerWithContext,
@@ -54,6 +56,7 @@ import {
   DefaultPostgreSQLProcessorLockPolicy,
   postgreSQLProcessorLock,
   type LockAcquisitionPolicy,
+  type PostgreSQLProcessorLock,
 } from '../projections';
 import {
   readProcessorCheckpoint,
@@ -198,6 +201,8 @@ type PostgreSQLConnectionOptions = {
 
 type PostgreSQLProcessorOptionsBase = PostgreSQLConnectionOptions & {
   lock?: {
+    /** Defaults to the PostgreSQL processor lock backed by the message store */
+    lock?: ProcessorLock<PostgreSQLProcessorHandlerContext>;
     acquisitionPolicy?: LockAcquisitionPolicy;
     timeoutSeconds?: number;
   };
@@ -341,26 +346,13 @@ const getProcessorPool = (options: PostgreSQLConnectionOptions) => {
   };
 };
 
-const wrapHooksWithProcessorLocks = <
-  HandlerContext extends PostgreSQLProcessorHandlerContext,
->(
-  hooks: ProcessorHooks<HandlerContext> | undefined,
-  processorLock: ReturnType<typeof postgreSQLProcessorLock>,
-): ProcessorHooks<HandlerContext> => ({
-  ...(hooks ?? {}),
-  onStart: async (context) => {
-    await processorLock.tryAcquire({ execute: context.execute });
-
-    if (hooks?.onStart) await hooks.onStart(context);
-  },
-  onClose:
-    hooks?.onClose || processorLock
-      ? async (context) => {
-          await processorLock.release({ execute: context.execute });
-
-          if (hooks?.onClose) await hooks.onClose(context);
-        }
-      : undefined,
+const toProcessorLockOptions = (
+  processorLock: PostgreSQLProcessorLock,
+  lock: PostgreSQLProcessorOptionsBase['lock'],
+): ProcessorLockOptions<PostgreSQLProcessorHandlerContext> => ({
+  lock: lock?.lock ?? processorLock,
+  acquisitionPolicy:
+    lock?.acquisitionPolicy ?? DefaultPostgreSQLProcessorLockPolicy,
 });
 
 export const postgreSQLProjector = <
@@ -394,44 +386,38 @@ export const postgreSQLProjector = <
           handlingType: 'async' as const,
         }
       : undefined,
-    lockAcquisitionPolicy:
-      lock?.acquisitionPolicy ?? DefaultPostgreSQLProcessorLockPolicy,
     lockTimeoutSeconds: lock?.timeoutSeconds,
   });
 
-  const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext> =
-    wrapHooksWithProcessorLocks(
-      {
-        ...(options.hooks ?? {}),
-        onInit:
-          options.projection.init !== undefined || options.hooks?.onInit
-            ? async (context) => {
-                if (options.projection.init)
-                  await options.projection.init({
-                    version: options.projection.version ?? version,
-                    status: 'active',
-                    registrationType: 'async',
-                    context: {
-                      ...context,
-                      migrationOptions: options.migrationOptions,
-                    },
-                  });
-                if (options.hooks?.onInit)
-                  await options.hooks.onInit({
-                    ...context,
-                    migrationOptions: options.migrationOptions,
-                  });
-              }
-            : options.hooks?.onInit,
-        onClose: close
-          ? async (context) => {
-              if (options.hooks?.onClose) await options.hooks?.onClose(context);
-              if (close) await close();
-            }
-          : options.hooks?.onClose,
-      },
-      processorLock,
-    );
+  const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext> = {
+    ...(options.hooks ?? {}),
+    onInit:
+      options.projection.init !== undefined || options.hooks?.onInit
+        ? async (context) => {
+            if (options.projection.init)
+              await options.projection.init({
+                version: options.projection.version ?? version,
+                status: 'active',
+                registrationType: 'async',
+                context: {
+                  ...context,
+                  migrationOptions: options.migrationOptions,
+                },
+              });
+            if (options.hooks?.onInit)
+              await options.hooks.onInit({
+                ...context,
+                migrationOptions: options.migrationOptions,
+              });
+          }
+        : options.hooks?.onInit,
+    onClose: close
+      ? async (context) => {
+          if (options.hooks?.onClose) await options.hooks?.onClose(context);
+          if (close) await close();
+        }
+      : options.hooks?.onClose,
+  };
 
   const processor = projector<
     EventType,
@@ -445,6 +431,7 @@ export const postgreSQLProjector = <
     version,
     partition,
     hooks,
+    lock: toProcessorLockOptions(processorLock, lock),
     processingScope: postgreSQLProcessingScope({
       pool,
       connectionString,
@@ -498,24 +485,19 @@ export const postgreSQLWorkflowProcessor = <
     partition,
     processorInstanceId,
     projection: undefined,
-    lockAcquisitionPolicy:
-      lock?.acquisitionPolicy ?? DefaultPostgreSQLProcessorLockPolicy,
     lockTimeoutSeconds: lock?.timeoutSeconds,
   });
 
-  const hooks: ProcessorHooks<HandlerContext> = wrapHooksWithProcessorLocks(
-    {
-      ...(options.hooks ?? {}),
-      onClose: close
-        ? async (context: PostgreSQLProcessorHandlerContext) => {
-            if (options.hooks?.onClose)
-              await options.hooks?.onClose(context as HandlerContext);
-            if (close) await close();
-          }
-        : options.hooks?.onClose,
-    },
-    processorLock,
-  );
+  const hooks: ProcessorHooks<HandlerContext> = {
+    ...(options.hooks ?? {}),
+    onClose: close
+      ? async (context: PostgreSQLProcessorHandlerContext) => {
+          if (options.hooks?.onClose)
+            await options.hooks?.onClose(context as HandlerContext);
+          if (close) await close();
+        }
+      : options.hooks?.onClose,
+  };
 
   return workflowProcessor({
     ...options,
@@ -524,6 +506,7 @@ export const postgreSQLWorkflowProcessor = <
     version,
     partition,
     hooks,
+    lock: toProcessorLockOptions(processorLock, lock),
     processingScope: postgreSQLProcessingScope({
       pool,
       connectionString,
@@ -563,24 +546,18 @@ export const postgreSQLReactor = <
     partition,
     processorInstanceId,
     projection: undefined,
-    lockAcquisitionPolicy:
-      lock?.acquisitionPolicy ?? DefaultPostgreSQLProcessorLockPolicy,
     lockTimeoutSeconds: lock?.timeoutSeconds,
   });
 
-  const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext> =
-    wrapHooksWithProcessorLocks(
-      {
-        ...(options.hooks ?? {}),
-        onClose: close
-          ? async (context) => {
-              if (options.hooks?.onClose) await options.hooks?.onClose(context);
-              if (close) await close();
-            }
-          : options.hooks?.onClose,
-      },
-      processorLock,
-    );
+  const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext> = {
+    ...(options.hooks ?? {}),
+    onClose: close
+      ? async (context) => {
+          if (options.hooks?.onClose) await options.hooks?.onClose(context);
+          if (close) await close();
+        }
+      : options.hooks?.onClose,
+  };
 
   return reactor({
     ...options,
@@ -589,6 +566,7 @@ export const postgreSQLReactor = <
     version,
     partition,
     hooks,
+    lock: toProcessorLockOptions(processorLock, lock),
     processingScope: postgreSQLProcessingScope({
       pool,
       connectionString,

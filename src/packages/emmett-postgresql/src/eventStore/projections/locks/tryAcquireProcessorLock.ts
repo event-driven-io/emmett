@@ -1,6 +1,5 @@
 import { single, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
-  asyncRetry,
   hashText,
   isBigint,
   type ProjectionHandlingType,
@@ -9,7 +8,6 @@ import {
   callReleaseProcessorLock,
   callTryAcquireProcessorLock,
 } from '../../schema/processors/processorsLocks';
-import { DefaultPostgreSQLProcessorLockPolicy } from './postgreSQLProcessorLock';
 
 export type TryAcquireProcessorLockOptions = {
   processorId: string;
@@ -32,16 +30,6 @@ export type TryAcquireProcessorLockResult =
       checkpoint: string;
     }
   | { acquired: false };
-
-export type LockAcquisitionPolicy =
-  | { type: 'fail' }
-  | { type: 'skip' }
-  | {
-      type: 'retry';
-      retries: number;
-      minTimeout?: number;
-      maxTimeout?: number;
-    };
 
 export const PROCESSOR_LOCK_DEFAULT_TIMEOUT_SECONDS = 300;
 
@@ -81,27 +69,6 @@ export const tryAcquireProcessorLock = async (
   return acquired
     ? { acquired: true, checkpoint: checkpoint! }
     : { acquired: false };
-};
-
-export const tryAcquireProcessorLockWithRetry = async (
-  execute: SQLExecutor,
-  options: TryAcquireProcessorLockOptions & {
-    lockAcquisitionPolicy?: LockAcquisitionPolicy;
-  },
-): Promise<TryAcquireProcessorLockResult> => {
-  const policy =
-    options.lockAcquisitionPolicy ?? DefaultPostgreSQLProcessorLockPolicy;
-
-  if (policy.type === 'retry') {
-    return asyncRetry(() => tryAcquireProcessorLock(execute, options), {
-      retries: policy.retries - 1,
-      minTimeout: policy.minTimeout,
-      maxTimeout: policy.maxTimeout,
-      shouldRetryResult: (r) => !r.acquired,
-    });
-  }
-
-  return tryAcquireProcessorLock(execute, options);
 };
 
 export type ReleaseProcessorLockOptions = {

@@ -1,13 +1,14 @@
 import type { SQLExecutor } from '@event-driven-io/dumbo';
 import {
-  EmmettError,
+  DefaultProcessorLockPolicy,
+  type LockAcquisitionPolicy,
+  type ProcessorLock,
   type ProjectionHandlingType,
 } from '@event-driven-io/emmett';
 import { toProjectionLockKey } from './postgreSQLProjectionLock';
 import {
   releaseProcessorLock,
-  tryAcquireProcessorLockWithRetry,
-  type LockAcquisitionPolicy,
+  tryAcquireProcessorLock,
   type TryAcquireProcessorLockOptions,
 } from './tryAcquireProcessorLock';
 
@@ -24,6 +25,7 @@ export type PostgreSQLProcessorLockOptions = {
   };
   lockKey?: string | bigint;
   lockTimeoutSeconds?: number;
+  /** @deprecated Pass `lock.acquisitionPolicy` to the processor options instead */
   lockAcquisitionPolicy?: LockAcquisitionPolicy;
 };
 
@@ -31,14 +33,11 @@ export type PostgreSQLProcessorLockContext = {
   execute: SQLExecutor;
 };
 
-export type PostgreSQLProcessorLock = {
-  tryAcquire: (options: PostgreSQLProcessorLockContext) => Promise<boolean>;
-  release: (options: PostgreSQLProcessorLockContext) => Promise<void>;
-};
+export type PostgreSQLProcessorLock =
+  ProcessorLock<PostgreSQLProcessorLockContext>;
 
-export const DefaultPostgreSQLProcessorLockPolicy: LockAcquisitionPolicy = {
-  type: 'fail',
-};
+export const DefaultPostgreSQLProcessorLockPolicy: LockAcquisitionPolicy =
+  DefaultProcessorLockPolicy;
 
 export const postgreSQLProcessorLock = (
   options: PostgreSQLProcessorLockOptions,
@@ -57,20 +56,11 @@ export const postgreSQLProcessorLock = (
         return true;
       }
 
-      const result = await tryAcquireProcessorLockWithRetry(context.execute, {
+      const result = await tryAcquireProcessorLock(context.execute, {
         ...options,
         lockKey,
       });
 
-      // TODO: This should be moved o prcessor
-      if (!result.acquired && options.lockAcquisitionPolicy?.type !== 'skip') {
-        console.log(
-          `Failed to acquire lock for processor '${options.processorId}' with policy '${options.lockAcquisitionPolicy?.type}'.`,
-        );
-        throw new EmmettError(
-          `Failed to acquire lock for processor '${options.processorId}'`,
-        );
-      }
       acquired = result.acquired;
       return acquired;
     },
