@@ -130,6 +130,48 @@ void describe('Schema migrations tests', () => {
     assertFalse(await tableExists(pool.execute, 'emt_subscriptions'));
   });
 
+  void it('adds the messages poll index when migrating from an existing 0.42.0 schema', async () => {
+    // Given
+    await runSQLMigrations(pool, [
+      ...migrations_0_36_0,
+      ...migrations_0_38_7,
+      ...migrations_0_42_0,
+    ]);
+    assertFalse(
+      await indexExists('idx_messages_transaction_id_global_position'),
+    );
+
+    // When
+    await runSQLMigrations(pool, migrations_0_43_0);
+
+    // Then
+    assertTrue(
+      await indexExists('idx_messages_transaction_id_global_position'),
+    );
+  });
+
+  void it('drops the single-column backport index when migrating from an existing 0.42.0 schema', async () => {
+    // Given
+    await runSQLMigrations(pool, [
+      ...migrations_0_36_0,
+      ...migrations_0_38_7,
+      ...migrations_0_42_0,
+    ]);
+    await pool.execute.command(
+      SQL`CREATE INDEX idx_messages_global_position ON emt_messages(global_position)`,
+    );
+    assertTrue(await indexExists('idx_messages_global_position'));
+
+    // When
+    await runSQLMigrations(pool, migrations_0_43_0);
+
+    // Then
+    assertFalse(await indexExists('idx_messages_global_position'));
+    assertTrue(
+      await indexExists('idx_messages_transaction_id_global_position'),
+    );
+  });
+
   void it('migrates from 0.43.0 schema', async () => {
     // Given
     await runSQLMigrations(pool, [
@@ -593,5 +635,12 @@ void describe('Schema migrations tests', () => {
       SQL`SELECT last_processed_checkpoint FROM emt_processors WHERE processor_id = ${processorId} LIMIT 1`,
     );
     return result.rows[0]?.last_processed_checkpoint ?? null;
+  };
+
+  const indexExists = async (name: string): Promise<boolean> => {
+    const result = await pool.execute.query<{ oid: number }>(
+      SQL`SELECT oid FROM pg_class WHERE relname = ${name}`,
+    );
+    return result.rows.length > 0;
   };
 });

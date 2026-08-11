@@ -15,6 +15,8 @@ import { defaultTag } from './typing';
 // emt_add_partition sanitizes 'emt:default' into this leaf name.
 const defaultActiveLeaf = 'emt_messages_emt_default_active';
 const pollIndexName = 'idx_messages_transaction_id_global_position';
+const tenantPartition = 'tenant_a';
+const tenantActiveLeaf = 'emt_messages_tenant_a_active';
 
 // Below roughly this size the planner picks a bitmap scan plus a Sort, so the
 // no-Sort assertions would fail on a table too small to represent a real event store.
@@ -39,7 +41,8 @@ void describe('emt_messages consumer poll index', () => {
     });
 
     await createEventStoreSchema(connectionString, pool);
-    await seedMessages();
+    await seedMessages(defaultTag, 0);
+    await pool.execute.command(SQL`ANALYZE emt_messages`);
   });
 
   afterAll(async () => {
@@ -49,22 +52,22 @@ void describe('emt_messages consumer poll index', () => {
 
   // One statement per batch, each its own transaction, so transaction_id ends up
   // correlated with global_position the way a real event store produces it.
-  const seedMessages = async () => {
+  const seedMessages = async (partition: string, streamOffset: number) => {
     for (let batch = 0; batch < seededTransactions; batch++) {
+      const from = streamOffset + batch * messagesPerTransaction + 1;
+      const to = streamOffset + (batch + 1) * messagesPerTransaction;
+
       await pool.execute.command(
         SQL`INSERT INTO emt_messages (
               stream_id, stream_position, transaction_id, partition,
               message_schema_version, message_id, message_type,
               message_data, message_metadata)
-            SELECT 'stream-' || g, 1, pg_current_xact_id(), ${defaultTag},
+            SELECT 'stream-' || g, 1, pg_current_xact_id(), ${partition},
                    '1', 'msg-' || g, 'TestEvent',
                    '{}'::jsonb, '{}'::jsonb
-            FROM generate_series(${batch * messagesPerTransaction + 1}::int, ${
-              (batch + 1) * messagesPerTransaction
-            }::int) g`,
+            FROM generate_series(${from}::int, ${to}::int) g`,
       );
     }
-    await pool.execute.command(SQL`ANALYZE emt_messages`);
   };
 
   // Walks the index inheritance tree. Child index names are generated and truncated,
@@ -109,9 +112,14 @@ void describe('emt_messages consumer poll index', () => {
   /** EXPLAINs the real poll query, not a copy of it. */
   const explainPoll = async (
     after: PostgreSQLEventStoreCheckpoint,
+    partition?: string,
   ): Promise<string> => {
     const result = await pool.execute.query<{ 'QUERY PLAN': string }>(
-      SQL`EXPLAIN ${readMessagesBatchSQL({ after, batchSize: 100 })}`,
+      SQL`EXPLAIN ${readMessagesBatchSQL({
+        after,
+        batchSize: 100,
+        partition,
+      })}`,
     );
     return result.rows.map((row) => row['QUERY PLAN']).join('\n');
   };
@@ -171,14 +179,34 @@ void describe('emt_messages consumer poll index', () => {
   }
 
   void it('is inherited by partitions created after the schema exists', async () => {
-    await pool.execute.command(SQL`SELECT emt_add_partition('tenant_a')`);
+    await pool.execute.command(
+      SQL`SELECT emt_add_partition(${tenantPartition})`,
+    );
 
     const tree = await pollIndexTree();
     const covered = tree.map((entry) => entry.tableName);
 
-    expect(covered).toContain('emt_messages_tenant_a_active');
+    expect(covered).toContain(tenantActiveLeaf);
     expect(covered).toContain('emt_messages_tenant_a_archived');
     expect(tree.every((entry) => entry.valid)).toBe(true);
+  });
+
+  void it('uses the inherited index when polling a non-default partition', async () => {
+    await pool.execute.command(
+      SQL`SELECT emt_add_partition(${tenantPartition})`,
+    );
+    await seedMessages(tenantPartition, 100_000);
+    await pool.execute.command(SQL`ANALYZE emt_messages`);
+
+    const tenantIndex = await indexNameFor(tenantActiveLeaf);
+    const plan = await explainPoll(
+      await checkpointAt(seededMessages + messagesPerTransaction),
+      tenantPartition,
+    );
+
+    expect(plan).toMatch(new RegExp(`Index Scan using ${tenantIndex}\\b`));
+    expect(plan).not.toMatch(new RegExp(`Seq Scan on ${tenantActiveLeaf}\\b`));
+    expect(plan).not.toMatch(/Sort/);
   });
 
   // Mirrors readLastCommittedMessageCheckpoint, which has no cursor to bound it and
