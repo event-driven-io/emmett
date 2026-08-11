@@ -239,3 +239,38 @@ export const migration_0_43_0_upgradeCheckpointFormat: SQLMigration =
   sqlMigration('emt:postgresql:eventstore:0.43.0:upgrade-checkpoint-format', [
     migration_0_43_0_upgradeCheckpointFormatSQL,
   ]);
+
+// Matches the consumer poll's cursor and ORDER BY, so its LIMIT stops the scan
+// instead of top-N sorting the partition on every tick - including the caught-up poll
+// that returns nothing. Also serves readLastCommittedMessageCheckpoint in reverse.
+//
+// partition/is_archived are omitted deliberately: emt_messages is partitioned by both,
+// so they are constant within every leaf this index is created on.
+//
+// Wrapped in an existence check so it is safe to run before the initial schema
+// migration on fresh databases.
+//
+// Takes a ShareLock on the parent and every leaf, blocking writes while it builds.
+// CREATE INDEX CONCURRENTLY cannot replace it: PostgreSQL rejects it on a partitioned
+// table, and it cannot run inside the migration transaction.
+//
+// The DROP is for databases coming from the 0.42.x backport, which also indexes
+// global_position alone. That was reachable while the cursor was a plain
+// global_position >= comparison; the row comparison here can only seek an index led by
+// transaction_id, so it would be maintained on every append and never read.
+const migration_0_43_0_addMessagesPollIndexSQL = SQL`
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = '${SQL.plain(messagesTable.name)}') THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_messages_transaction_id_global_position
+      ON ${SQL.plain(messagesTable.name)}(transaction_id, global_position)';
+
+    EXECUTE 'DROP INDEX IF EXISTS idx_messages_global_position';
+  END IF;
+END $$;
+`;
+
+export const migration_0_43_0_addMessagesPollIndex: SQLMigration = sqlMigration(
+  'emt:postgresql:eventstore:0.43.0:add-messages-poll-index',
+  [migration_0_43_0_addMessagesPollIndexSQL],
+);
