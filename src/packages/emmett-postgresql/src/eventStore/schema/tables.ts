@@ -44,7 +44,10 @@ export const messagesTableSQL = SQL`
       message_data           JSONB                     NOT NULL,
       message_metadata       JSONB                     NOT NULL,
       PRIMARY KEY (stream_id, stream_position, partition, is_archived)
-  ) PARTITION BY LIST (partition);`;
+  ) PARTITION BY LIST (partition);
+
+  CREATE INDEX IF NOT EXISTS idx_messages_transaction_id_global_position
+  ON ${SQL.identifier(messagesTable.name)}(transaction_id, global_position);`;
 
 export const processorsTableSQL = SQL`
   CREATE TABLE IF NOT EXISTS ${SQL.identifier(processorsTable.name)}(

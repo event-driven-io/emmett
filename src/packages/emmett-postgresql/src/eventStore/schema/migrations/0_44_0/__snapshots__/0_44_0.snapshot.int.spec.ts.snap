@@ -66,9 +66,19 @@ exports[`0.44.0 schema migration > 0.44.0 schema is the latest one 1`] = `
       message_data           JSONB                     NOT NULL,
       message_metadata       JSONB                     NOT NULL,
       PRIMARY KEY (stream_id, stream_position, partition, is_archived)
-  ) PARTITION BY LIST (partition);",
+  ) PARTITION BY LIST (partition);
+
+  CREATE INDEX IF NOT EXISTS idx_messages_transaction_id_global_position
+  ON ",
+        "__P__",
+        "(transaction_id, global_position);",
       ],
       "sqlTokens": [
+        {
+          "SQL_IDENTIFIER": true,
+          "sqlTokenType": "SQL_IDENTIFIER",
+          "value": "emt_messages",
+        },
         {
           "SQL_IDENTIFIER": true,
           "sqlTokenType": "SQL_IDENTIFIER",

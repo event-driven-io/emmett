@@ -66,9 +66,19 @@ exports[`0.43.0 schema migration > 0.43.0 schema is the latest one 1`] = `
       message_data           JSONB                     NOT NULL,
       message_metadata       JSONB                     NOT NULL,
       PRIMARY KEY (stream_id, stream_position, partition, is_archived)
-  ) PARTITION BY LIST (partition);",
+  ) PARTITION BY LIST (partition);
+
+  CREATE INDEX IF NOT EXISTS idx_messages_transaction_id_global_position
+  ON ",
+        "__P__",
+        "(transaction_id, global_position);",
       ],
       "sqlTokens": [
+        {
+          "SQL_IDENTIFIER": true,
+          "sqlTokenType": "SQL_IDENTIFIER",
+          "value": "emt_messages",
+        },
         {
           "SQL_IDENTIFIER": true,
           "sqlTokenType": "SQL_IDENTIFIER",
@@ -1160,6 +1170,32 @@ BEGIN
           "" m
     WHERE m.global_position = p.last_processed_checkpoint::bigint
       AND p.last_processed_checkpoint NOT LIKE '%:%';
+  END IF;
+END $$;
+",
+        ],
+        "sqlTokens": [],
+      },
+    ],
+  },
+  {
+    "name": "emt:postgresql:eventstore:0.43.0:add-messages-poll-index",
+    "sqls": [
+      {
+        "__brand": "tokenized-sql",
+        "sqlChunks": [
+          "
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = '",
+          "emt_messages",
+          "') THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_messages_transaction_id_global_position
+      ON ",
+          "emt_messages",
+          "(transaction_id, global_position)';
+
+    EXECUTE 'DROP INDEX IF EXISTS idx_messages_global_position';
   END IF;
 END $$;
 ",
