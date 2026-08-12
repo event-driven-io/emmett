@@ -181,6 +181,169 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
     assertDeepEqual(result, { lastProcessedCheckpoint: checkpoint2 });
   });
 
+  void it('can read a composite checkpoint as a 0.42 global position', async () => {
+    const processorId = 'processor-read-composite';
+    const compositeCheckpoint = `00000000000000000123:${checkpoint2.toString().padStart(19, '0')}`;
+
+    await pool.execute.command(
+      sql(
+        `INSERT INTO emt_processors (
+            processor_id,
+            version,
+            last_processed_checkpoint,
+            partition,
+            last_processed_transaction_id,
+            created_at,
+            last_updated
+          )
+          VALUES (%L, 1, %L, %L, pg_current_xact_id(), now(), now())`,
+        processorId,
+        compositeCheckpoint,
+        defaultTag,
+      ),
+    );
+
+    const result = await readProcessorCheckpoint(pool.execute, {
+      processorId,
+    });
+
+    assertDeepEqual(result, { lastProcessedCheckpoint: checkpoint2 });
+  });
+
+  void it('can update when the stored checkpoint is composite and caller uses 0.42 global positions', async () => {
+    const processorId = 'processor-update-composite-from-global';
+    const compositeCheckpoint = `00000000000000000123:${checkpoint1.toString().padStart(19, '0')}`;
+
+    await pool.execute.command(
+      sql(
+        `INSERT INTO emt_processors (
+            processor_id,
+            version,
+            last_processed_checkpoint,
+            partition,
+            last_processed_transaction_id,
+            created_at,
+            last_updated
+          )
+          VALUES (%L, 1, %L, %L, pg_current_xact_id(), now(), now())`,
+        processorId,
+        compositeCheckpoint,
+        defaultTag,
+      ),
+    );
+
+    const result = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      lastProcessedCheckpoint: checkpoint1,
+      newCheckpoint: checkpoint2,
+      version: 1,
+    });
+
+    assertDeepEqual(result, {
+      success: true,
+      newCheckpoint: checkpoint2,
+    });
+
+    const readResult = await readProcessorCheckpoint(pool.execute, {
+      processorId,
+    });
+
+    assertDeepEqual(readResult, { lastProcessedCheckpoint: checkpoint2 });
+  });
+
+  void it('supports mixed 0.42 and 0.43 checkpoint writes during rolling deployment', async () => {
+    const processorId = 'processor-blue-green-checkpoint-sequence';
+    const checkpoint4 = 400n;
+    const normalizedCheckpoint1 = checkpoint1.toString().padStart(19, '0');
+    const normalizedCheckpoint2 = checkpoint2.toString().padStart(19, '0');
+    const normalizedCheckpoint3 = checkpoint3.toString().padStart(19, '0');
+    const normalizedCheckpoint4 = checkpoint4.toString().padStart(19, '0');
+    const compositeCheckpoint2 = `00000000000000000102:${normalizedCheckpoint2}`;
+    const compositeCheckpoint4 = `00000000000000000104:${normalizedCheckpoint4}`;
+
+    const initialStore = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      lastProcessedCheckpoint: null,
+      newCheckpoint: checkpoint1,
+      version: 1,
+    });
+
+    assertDeepEqual(initialStore, {
+      success: true,
+      newCheckpoint: checkpoint1,
+    });
+
+    // Simulate 0.43 node writing composite checkpoint over 0.42 plain checkpoint.
+    await pool.execute.command(
+      sql(
+        `SELECT store_processor_checkpoint(%L, 1, %L, %L, pg_current_xact_id(), %L, %L)`,
+        processorId,
+        compositeCheckpoint2,
+        `00000000000000000101:${normalizedCheckpoint1}`,
+        defaultTag,
+        processorId,
+      ),
+    );
+
+    const afterCompositeWrite = await readProcessorCheckpoint(pool.execute, {
+      processorId,
+    });
+
+    assertDeepEqual(afterCompositeWrite, {
+      lastProcessedCheckpoint: checkpoint2,
+    });
+
+    // Simulate 0.42 node reading composite as bigint and writing next plain checkpoint.
+    const plainWrite = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      lastProcessedCheckpoint: checkpoint2,
+      newCheckpoint: checkpoint3,
+      version: 1,
+    });
+
+    assertDeepEqual(plainWrite, {
+      success: true,
+      newCheckpoint: checkpoint3,
+    });
+
+    // Simulate 0.43 node continuing from the 0.42 plain checkpoint.
+    await pool.execute.command(
+      sql(
+        `SELECT store_processor_checkpoint(%L, 1, %L, %L, pg_current_xact_id(), %L, %L)`,
+        processorId,
+        compositeCheckpoint4,
+        `00000000000000000103:${normalizedCheckpoint3}`,
+        defaultTag,
+        processorId,
+      ),
+    );
+
+    const finalRead = await readProcessorCheckpoint(pool.execute, {
+      processorId,
+    });
+
+    assertDeepEqual(finalRead, {
+      lastProcessedCheckpoint: checkpoint4,
+    });
+
+    const rawCheckpoint = await pool.execute.query<{
+      last_processed_checkpoint: string;
+    }>(
+      sql(
+        `SELECT last_processed_checkpoint
+         FROM emt_processors
+         WHERE processor_id = %L AND partition = %L AND version = 1`,
+        processorId,
+        defaultTag,
+      ),
+    );
+
+    assertDeepEqual(
+      rawCheckpoint.rows[0]?.last_processed_checkpoint,
+      compositeCheckpoint4,
+    );
+  });
+
   void it('can read a position of a processor with a defined partition', async () => {
     const processorId = 'processor-read-custom-partition';
 

@@ -17,7 +17,10 @@ import {
   migration_0_42_0_3_FixProcessorLockTimeout,
   migration_0_42_0_FromSubscriptionsToProcessors,
 } from './migrations/0_42_0';
-import { migration_0_42_4_addMessagesPollIndexes } from './migrations/0_42_4';
+import {
+  migration_0_42_4_addMessagesPollIndexes,
+  migration_0_42_4_forwardCompatibleCheckpoints,
+} from './migrations/0_42_4';
 import {
   releaseProcessorLockSQL,
   tryAcquireProcessorLockSQL,
@@ -85,6 +88,7 @@ export const eventStoreSchemaMigrations: SQLMigration[] = [
   // DDL to messagesTableSQL instead would change schemaSQL, which is hashed into the
   // shipped 'initial' migration and would abort every existing database on mismatch.
   migration_0_42_4_addMessagesPollIndexes,
+  migration_0_42_4_forwardCompatibleCheckpoints,
 ];
 
 export type CreateEventStoreSchemaOptions = {
