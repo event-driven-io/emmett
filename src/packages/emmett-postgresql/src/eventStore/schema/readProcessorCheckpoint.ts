@@ -29,6 +29,12 @@ export const readProcessorCheckpoint = async (
 
   return {
     lastProcessedCheckpoint:
-      result !== null ? BigInt(result.last_processed_checkpoint) : null,
+      result !== null
+        ? BigInt(
+            result.last_processed_checkpoint.includes(':')
+              ? result.last_processed_checkpoint.split(':')[1]!
+              : result.last_processed_checkpoint,
+          )
+        : null,
   };
 };

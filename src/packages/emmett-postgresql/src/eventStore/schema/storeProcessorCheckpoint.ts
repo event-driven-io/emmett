@@ -35,6 +35,38 @@ BEGIN
           RETURN 1;  -- Successfully updated
       END IF;
 
+      -- TODO: Remove once all deployments have run the 0.43.0 migration.
+      -- Handles mixed-format scenarios during blue-green deployment.
+      IF p_check_position LIKE '%:%' THEN
+          -- New code, stored value still in old format (plain global position).
+          UPDATE "${processorsTable.name}"
+          SET
+            "last_processed_checkpoint" = p_position,
+            "last_processed_transaction_id" = p_transaction_id,
+            "last_updated" = now()
+          WHERE "processor_id" = p_processor_id
+            AND "last_processed_checkpoint" = split_part(p_check_position, ':', 2)
+            AND "last_processed_checkpoint" NOT LIKE '%:%'
+            AND "partition" = p_partition
+            AND "version" = p_version;
+      ELSE
+          -- Old code, stored value already in new format (txid:globalpos).
+          UPDATE "${processorsTable.name}"
+          SET
+            "last_processed_checkpoint" = p_position,
+            "last_processed_transaction_id" = p_transaction_id,
+            "last_updated" = now()
+          WHERE "processor_id" = p_processor_id
+            AND split_part("last_processed_checkpoint", ':', 2) = p_check_position
+            AND "last_processed_checkpoint" LIKE '%:%'
+            AND "partition" = p_partition
+            AND "version" = p_version;
+      END IF;
+
+      IF FOUND THEN
+          RETURN 1;  -- Successfully updated
+      END IF;
+
       -- Retrieve the current position
       SELECT "last_processed_checkpoint" INTO current_position
       FROM "${processorsTable.name}"

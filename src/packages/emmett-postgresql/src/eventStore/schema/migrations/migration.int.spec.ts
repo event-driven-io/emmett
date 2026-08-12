@@ -373,6 +373,54 @@ void describe('Schema migrations tests', () => {
     await assertDualWriteConsistency(pool, processorId, 14n);
   });
 
+  void it('0.42.x migration accepts 0.43 composite checkpoint writes and keeps legacy dual-write consistent', async () => {
+    // Given
+    await pool.execute.command(schema_0_38_7);
+    await eventStore.schema.migrate();
+
+    const processorId = 'forward-compatible-composite-write-test';
+    const initialCheckpoint = 5n;
+    const nextCheckpoint = 10n;
+    const compositeCheckPosition = `00000000000000000100:${initialCheckpoint.toString().padStart(19, '0')}`;
+    const compositePosition = `00000000000000000101:${nextCheckpoint.toString().padStart(19, '0')}`;
+
+    const initialStore = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: initialCheckpoint,
+      lastProcessedCheckpoint: null,
+      processorInstanceId: processorId,
+    });
+    assertTrue(initialStore.success);
+
+    // When: simulate a 0.43 node writing txid:globalpos through the 0.42.x DB function.
+    await pool.execute.command(
+      sql(
+        `SELECT store_processor_checkpoint(%L, 1, %L, %L, pg_current_xact_id(), %L, %L)`,
+        processorId,
+        compositePosition,
+        compositeCheckPosition,
+        defaultTag,
+        processorId,
+      ),
+    );
+
+    // Then
+    const processorData = await queryProcessorCheckpoint(pool, processorId);
+    const subscriptionData = await querySubscriptionCheckpoint(
+      pool,
+      processorId,
+    );
+
+    assertDeepEqual(processorData.lastProcessedCheckpoint, compositePosition);
+    assertDeepEqual(subscriptionData.position, nextCheckpoint);
+    assertDeepEqual(
+      subscriptionData.transactionId,
+      processorData.transactionId,
+    );
+  });
+
   void it('concurrent inserts via different APIs handled safely', async () => {
     // Given
     await pool.execute.command(schema_0_38_7);
