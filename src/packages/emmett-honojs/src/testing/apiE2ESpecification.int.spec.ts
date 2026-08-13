@@ -8,16 +8,43 @@ import { ApiE2ESpecification } from './apiE2ESpecification';
 import { expectError, expectResponse } from './apiSpecification';
 
 void describe('ApiE2ESpecification', () => {
+  // #region api-e2e-specification-setup
+  const apiE2ESpecification = ApiE2ESpecification.for({
+    getEventStore: () => getInMemoryEventStore(),
+    getApplication: (eventStore) =>
+      getApplication({
+        apis: [shoppingCartApi(eventStore)],
+      }),
+  });
+  // #endregion api-e2e-specification-setup
+
+  // #region api-e2e-specification-example
+  void it('prepares state through HTTP requests', () => {
+    const clientId = 'client-123';
+    const productItem = { productId: 'product-123', quantity: 2 };
+
+    return apiE2ESpecification(
+      (request) =>
+        request.post(`/clients/${clientId}/shopping-carts/`).send(productItem),
+      (request) =>
+        request
+          .post(`/clients/${clientId}/shopping-carts/${clientId}/product-items`)
+          .set({ [HeaderNames.IF_MATCH]: toWeakETag(1) })
+          .send(productItem),
+    )
+      .when((request) =>
+        request
+          .post(`/clients/${clientId}/shopping-carts/${clientId}/confirm`)
+          .set({ [HeaderNames.IF_MATCH]: toWeakETag(2) }),
+      )
+      .then([expectResponse(204, { headers: { etag: toWeakETag(3) } })]);
+  });
+  // #endregion api-e2e-specification-example
+
   const testCases = [
     {
       name: 'Options API',
-      given: ApiE2ESpecification.for({
-        getEventStore: () => getInMemoryEventStore(),
-        getApplication: (eventStore) =>
-          getApplication({
-            apis: [shoppingCartApi(eventStore)],
-          }),
-      }),
+      given: apiE2ESpecification,
     },
     {
       name: 'Obsolete Two-Arg API',
