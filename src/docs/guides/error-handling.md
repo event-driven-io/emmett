@@ -153,7 +153,7 @@ For an error you cannot change, one thrown by a library you do not own, pass `ma
 
 Give the document an explicit `type` URI whenever you set your own `title`. Under the default `about:blank` type, Problem Details replaces the title with the standard reason phrase for the status, and your wording is lost.
 
-For returning Problem responses directly from a route with helpers such as `NotFound` and `BadRequest`, see the [Express.js Integration](/frameworks/expressjs#response-helpers) guide.
+For returning Problem responses directly from a route with helpers such as `NotFound` and `BadRequest`, see the [Express.js Integration](/frameworks/expressjs#response-helpers) and [Hono Integration](/frameworks/honojs#response-helpers) references.
 
 ## Why Not Returning Result {#result}
 
@@ -185,6 +185,7 @@ If your own error type comes back as a 500 rather than the status you intended, 
 - [Workflows & Sagas](/guides/workflows) - handling failures across streams
 - [Testing](/guides/testing) - asserting errors and Problem Details responses
 - [Express.js Integration](/frameworks/expressjs) - response helpers and Problem Details
+- [Hono Integration](/frameworks/honojs) - response helpers and Problem Details
 - [API Reference: Event Store](/api-reference/eventstore) - concurrency errors
 - [Against Railway-Oriented Programming](https://fsharpforfunandprofit.com/posts/against-railway-oriented-programming/)
 - [Problem Details for HTTP APIs (RFC 9457)](https://www.rfc-editor.org/rfc/rfc9457.html)

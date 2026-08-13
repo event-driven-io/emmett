@@ -17,39 +17,54 @@ export type ApplicationOptions = {
   disableProblemDetailsMiddleware?: boolean;
 };
 
-export type StartApiOptions = {
-  port?: number;
-};
-
-export const getApplication = (options: ApplicationOptions) => {
-  const app: Hono = new Hono();
-
-  const { apis, mapError, disableProblemDetailsMiddleware } = options;
-
+export const registerWebApi = (
+  application: Hono,
+  apis: WebApiSetup[],
+): Hono => {
   const router = new Hono();
-
-  app.use(etag());
 
   for (const api of apis) {
     api(router);
   }
-  app.route('/', router);
+  application.route('/', router);
+
+  return application;
+};
+
+export const configureApplication = (
+  application: Hono,
+  options: ApplicationOptions,
+): Hono => {
+  const { apis, mapError, disableProblemDetailsMiddleware } = options;
+
+  application.use(etag());
+
+  registerWebApi(application, apis);
 
   // add problem details middleware
   if (!disableProblemDetailsMiddleware) {
-    const errorMapper = mapError ?? defaultErrorToProblemDetailsMapping;
-    app.onError((error, c) => {
+    application.onError((error, c) => {
       // Replace with different mechanism as each app instance can only have defined one onError handler
-      const problemDetails = errorMapper(error);
-      return c.json(
+      const problemDetails =
+        mapError?.(error) ?? defaultErrorToProblemDetailsMapping(error);
+      const response = c.json(
         problemDetails,
         problemDetails?.status as ContentfulStatusCode,
       );
+      response.headers.set('Content-Type', 'application/problem+json');
+      return response;
     });
   }
 
-  return app;
+  return application;
 };
+
+export type StartApiOptions = {
+  port?: number;
+};
+
+export const getApplication = (options: ApplicationOptions): Hono =>
+  configureApplication(new Hono(), options);
 
 export const startAPI = (
   app: Hono,

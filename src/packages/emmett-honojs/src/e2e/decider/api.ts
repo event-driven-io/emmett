@@ -64,6 +64,7 @@ export const shoppingCartApi =
     );
     // #endregion created-example
 
+    // #region etag-command-handler
     router.post(
       '/clients/:clientId/shopping-carts/:shoppingCartId/product-items',
       async (context: AddProductItemContext) => {
@@ -100,6 +101,7 @@ export const shoppingCartApi =
         });
       },
     );
+    // #endregion etag-command-handler
 
     // Remove Product Item
     router.delete(
