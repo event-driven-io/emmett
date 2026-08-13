@@ -98,6 +98,7 @@ export default defineConfig({
         text: 'Web Frameworks',
         items: [
           { text: 'Express.js', link: '/frameworks/expressjs' },
+          { text: 'Hono', link: '/frameworks/honojs' },
           { text: 'Fastify', link: '/frameworks/fastify' },
         ],
       },

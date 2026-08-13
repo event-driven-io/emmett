@@ -17,16 +17,61 @@ import {
 } from './apiSpecification';
 
 void describe('ApiSpecification', () => {
+  // #region api-specification-setup
+  const apiSpecification = ApiSpecification.for({
+    getEventStore: () => getInMemoryEventStore(),
+    getApplication: (eventStore) =>
+      getApplication({
+        apis: [shoppingCartApi(eventStore)],
+      }),
+  });
+  // #endregion api-specification-setup
+
+  // #region api-specification-example
+  void it('checks an HTTP response and newly appended events', () => {
+    const clientId = 'client-123';
+    const shoppingCartId = `shopping_cart:${clientId}:current`;
+    const productItem = { productId: 'product-123', quantity: 2 };
+
+    return apiSpecification(
+      existingStream<ShoppingCartEvent>(shoppingCartId, [
+        {
+          type: 'ShoppingCartOpened',
+          data: {
+            shoppingCartId,
+            clientId,
+            openedAt: new Date('2024-01-01T00:00:00Z'),
+          },
+        },
+      ]),
+    )
+      .when((request) =>
+        request
+          .post(
+            `/clients/${clientId}/shopping-carts/${shoppingCartId}/product-items`,
+          )
+          .set({ [HeaderNames.IF_MATCH]: toWeakETag(1) })
+          .send(productItem),
+      )
+      .then([
+        expectResponse(204, { headers: { etag: toWeakETag(2) } }),
+        expectNewEvents(shoppingCartId, [
+          {
+            type: 'ProductItemAddedToShoppingCart',
+            data: {
+              shoppingCartId,
+              productItem: { ...productItem, unitPrice: 100 },
+            },
+          },
+        ]),
+      ]);
+  });
+  // #endregion api-specification-example
+
   const testCases = [
     {
       name: 'New API',
-      given: ApiSpecification.for({
-        getEventStore: () => getInMemoryEventStore(),
-        getApplication: (eventStore) =>
-          getApplication({
-            apis: [shoppingCartApi(eventStore)],
-          }),
-      }),
+      given: apiSpecification,
     },
     {
       name: 'Obsolete API',

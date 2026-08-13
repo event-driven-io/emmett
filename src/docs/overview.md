@@ -18,7 +18,7 @@ Welcome to Emmett's documentation!
 | **Read Models**               | Built-in [projections](/guides/projections) to build read models from events                                                                                                             |
 | **Workflows**                 | Coordinate multi-step processes with [durable execution](/guides/workflows)                                                                                                              |
 | **Type Safety**               | First-class TypeScript support with structural typing                                                                                                                                    |
-| **Web Framework Integration** | Seamless integration with [Express.js](/frameworks/expressjs) and [Fastify](/frameworks/fastify)                                                                                         |
+| **Web Framework Integration** | Seamless integration with [Express.js](/frameworks/expressjs), [Hono](/frameworks/honojs), and [Fastify](/frameworks/fastify)                                                            |
 | **Comprehensive Testing**     | [BDD-style testing](/guides/testing) with DeciderSpecification and ApiSpecification                                                                                                      |
 | **TestContainers Support**    | Docker-based testing with pre-configured containers                                                                                                                                      |
 

@@ -141,6 +141,23 @@ npm install @event-driven-io/emmett-fastify
 
 📦 [npm](https://www.npmjs.com/package/@event-driven-io/emmett-fastify) · [GitHub](https://github.com/event-driven-io/emmett/tree/main/src/packages/emmett-fastify) · [Docs](/frameworks/fastify)
 
+### @event-driven-io/emmett-honojs
+
+Hono integration with Fetch-native response helpers and testing utilities.
+
+```bash
+npm install @event-driven-io/emmett-honojs
+```
+
+**Features:**
+
+- Existing Hono application configuration
+- Problem Details error handling
+- ETag concurrency handling
+- ApiSpecification for testing
+
+📦 [npm](https://www.npmjs.com/package/@event-driven-io/emmett-honojs) · [GitHub](https://github.com/event-driven-io/emmett/tree/main/src/packages/emmett-honojs) · [Docs](/frameworks/honojs)
+
 ## Testing Package
 
 ### @event-driven-io/emmett-testcontainers
@@ -191,6 +208,7 @@ All packages follow semantic versioning. Major versions are released together to
 | emmett-sqlite         | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-sqlite)         | ≥18.0   |
 | emmett-expressjs      | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-expressjs)      | ≥18.0   |
 | emmett-fastify        | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-fastify)        | ≥18.0   |
+| emmett-honojs         | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-honojs)         | ≥18.0   |
 | emmett-testcontainers | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-testcontainers) | ≥18.0   |
 | emmett-shims          | ![npm](https://img.shields.io/npm/v/@event-driven-io/emmett-shims)          | ≥18.0   |
 
