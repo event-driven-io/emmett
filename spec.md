@@ -30,8 +30,8 @@ Normative terms such as MUST, SHOULD, and MAY have their RFC 2119 meanings.
 3. Make the API discoverable through lightweight hypermedia without requiring clients to follow hypermedia.
 4. Support safe writes through HTTP conditional requests and stream ETags.
 5. Pass message data through without upcasting, downcasting, or type revival in the HTTP layer.
-6. Work as a secured standalone server, particularly in Docker.
-7. Keep handlers and authorization abstractions framework-neutral so Express, Hono, and future embedded hosting can share the same application layer.
+6. Work both as a secured standalone server, particularly in Docker, and as an API mounted into an existing application.
+7. Keep handlers, authorization abstractions, route contracts, and OpenAPI generation framework-neutral so Express, Fastify, Hono, and future hosts can share the same application layer.
 8. Advertise backend-dependent capabilities explicitly.
 9. Establish extension points for application schemas, aggregates, commands, queries, GraphQL, gRPC, and FaaS.
 
@@ -61,18 +61,32 @@ The implementation SHOULD have these separable layers:
 
 1. **Contract model** — transport-neutral request, response, capability, principal, and permission types.
 2. **Application handlers** — authorization, validation, event-store calls, error mapping, and observability.
-3. **HTTP adapter** — routing, content negotiation, conditional headers, streaming, and framework integration.
+3. **HTTP adapters** — routing, content negotiation, conditional headers, streaming, and integration with Hono, Express, Fastify, or another host framework.
 4. **Standalone host** — configuration, CLI, authentication, TLS, lifecycle, and container packaging.
 5. **Backend adapter** — the configured `EventStore` plus optional stream-catalog and message-source capabilities.
 
-Express or Hono may host the first implementation, but framework types MUST NOT leak into the application handlers.
+Hono hosts the first standalone implementation. Express, Fastify, and Hono may host the embedded API, but their framework types MUST NOT leak into the contract model or application handlers.
 
 ### 4.2 Deployment modes
 
 - **Standalone server (v1):** first-class executable and container image with built-in API-key and OIDC authentication.
-- **Embedded package (post-v1 permitted):** host applications provide routing/security integration and pass a normalized authenticated principal into the shared handlers.
+- **Embedded package (v1):** a host application mounts the same versioned endpoints at a configurable base path, supplies an `EventStore`, and either uses Emmett authentication or maps its existing authentication result to an Emmett normalized principal.
 
 The standalone/API/UI code may live in a separate repository and use a separate license. Repository placement and license selection are outside this specification.
+
+#### 4.2.1 Embedded-host contract
+
+Embedding MUST be a supported composition mode, not a fork of the API implementation. The embedded entry point accepts at least:
+
+- the configured `EventStore` and optional backend capabilities;
+- a configurable mount path, defaulting to `/v1` when Emmett owns the application and allowing values such as `/emmett/v1` in an existing API;
+- a principal resolver that maps the host framework's authenticated request context to Emmett's normalized principal, or an explicit choice to install Emmett's own authentication middleware;
+- authorization, telemetry, error-reporting, and configuration hooks whose portable types are defined by the server core;
+- an option controlling whether Emmett's OpenAPI and human-documentation routes are mounted.
+
+The host retains ownership of server startup, shutdown, TLS, global middleware, trust-proxy policy, and its surrounding routes. Emmett retains ownership of its endpoint semantics, validation, authorization decisions, representations, and errors. A host authentication hook MUST NOT bypass Emmett authorization; it only supplies the principal and trusted authentication metadata used by the shared handlers.
+
+V1 MUST provide idiomatic Hono, Express, and Fastify registration adapters. Adapters MUST register the same route contract and pass the same HTTP conformance suite. The adapter boundary MUST remain documented so another framework adapter can be implemented without copying or importing private handler logic.
 
 ### 4.3 Backend capability model
 
@@ -92,11 +106,11 @@ Unsupported optional operations MUST NOT be advertised through hypermedia contro
 
 ### 4.4 Technical implementation direction
 
-The first implementation is **Node-first, Web-standards-based, and Hono-hosted**.
+The first implementation is **Node-first and Web-standards-based**, with Hono hosting the standalone server and Hono, Express, and Fastify adapters available for embedded use.
 
 - Node.js 24 is the GA standalone runtime baseline.
-- Hono supplies routing, middleware integration, and the Fetch-style HTTP boundary.
-- Hono is a transport shell, not the owner of event-store semantics.
+- Hono supplies routing, middleware integration, and the Fetch-style HTTP boundary for the standalone host.
+- Hono, Express, and Fastify are transport shells, not owners of event-store semantics.
 - Framework-neutral application handlers own authorization, capability checks, ETags, pagination, message mapping, and error classification.
 - Portable paths use standard `Request`, `Response`, `Headers`, `URL`, `AbortSignal`, Web Crypto, and Web Streams rather than Node-only equivalents.
 - Runtime-specific entry points provide server startup, WebSocket upgrade, configuration, secrets, TLS, lifecycle, and observability integration.
@@ -109,13 +123,16 @@ The implementation SHOULD preserve these logical boundaries, whether shipped as 
 
 1. **Contract** — route descriptions, JSON Schema-compatible request/response definitions, HAL relations, Problem Details types, OpenAPI generation, and examples. It has no Hono or Node dependency.
 2. **Server core** — event-store handlers, normalized principal/permissions, capabilities, pagination, conditional-write rules, finite streaming, and the subscription protocol state machine. It has no concrete web-server dependency.
-3. **Hono adapter** — route registration, validation integration, content negotiation, middleware, and conversion between Hono contexts and core handler inputs/outputs.
-4. **Node host** — `@hono/node-server`, WebSocket server adapter, CLI, Docker entry point, TLS, process signals, filesystem-backed configuration, and Node OpenTelemetry.
-5. **Runtime adapters** — Bun, Deno, and Cloudflare entry points importing only their runtime-specific Hono/WebSocket/configuration dependencies.
+3. **Framework adapter interface** — the public registration contract, request/principal mapping hooks, portable response/stream result, mount-path handling, and adapter conformance tests. It has no dependency on a specific framework.
+4. **Hono adapter** — Hono route registration, validation integration, middleware, and conversion between Hono contexts and core handler inputs/outputs.
+5. **Express adapter** — Express router registration and request, response, cancellation, and streaming integration without reimplementing endpoint behavior.
+6. **Fastify adapter** — a Fastify plugin with prefix support and request, reply, schema, cancellation, and streaming integration without redefining the public contract.
+7. **Node host** — `@hono/node-server`, WebSocket server adapter, CLI, Docker entry point, TLS, process signals, filesystem-backed configuration, and Node OpenTelemetry.
+8. **Runtime adapters** — Bun, Deno, and Cloudflare entry points importing only their runtime-specific Hono/WebSocket/configuration dependencies.
 
 Runtime-specific modules MUST use explicit exports/imports rather than top-level runtime detection. A Cloudflare bundle must not resolve Node-only modules such as `node:fs`, `node:http`, or the Node WebSocket server.
 
-The portable Hono application factory and the Node `start` function MUST be separate. Existing Emmett framework packages may be reused, but the server package must not make `@hono/node-server` a dependency of an otherwise edge-portable entry point.
+The portable Hono application factory, Express router registration, Fastify plugin, and Node `start` function MUST be separate exports or packages. Importing an embedded adapter MUST NOT start a listener or load CLI/TLS configuration. Existing Emmett framework packages may be reused, but the server package must not make `@hono/node-server` a dependency of an otherwise edge-portable or framework-neutral entry point.
 
 #### 4.4.2 Runtime support matrix
 
@@ -169,6 +186,22 @@ Hono route inference, Hono RPC types, or a particular validation library MUST NO
 
 A future schema-aware DSL should use JSON Schema-compatible definitions and be capable of producing transport-specific contracts, including OpenAPI, AsyncAPI, GraphQL, and Protobuf where appropriate.
 
+#### 5.1.1 Embedded OpenAPI composition
+
+The contract package MUST export both the canonical standalone OpenAPI 3.1 document and a composition API that produces an embedded document for a configured mount path. Framework adapters MUST consume the shared route/schema registry; they MUST NOT maintain separate handwritten endpoint schemas.
+
+The composition API MUST:
+
+- rebase the canonical `/v1` root and every child path to the configured API root while retaining `v1` as the final version segment, for example `/v1` to `/emmett/v1`;
+- namespace Emmett `operationId` values, component keys, tags, and security-scheme identifiers;
+- rewrite internal references and server/path metadata consistently;
+- detect and report path, operation, or component collisions rather than silently overwriting host definitions;
+- support returning an Emmett-only document or merging Emmett operations and components into a host-provided OpenAPI 3.1 document;
+- allow the host to supply or override deployment-specific `servers` and security declarations without changing endpoint schemas;
+- produce the same effective contract that the selected framework adapter registers.
+
+Adapters SHOULD expose their validation schemas to framework tooling where practical, but framework-generated OpenAPI is not canonical. The host decides whether and where to expose Swagger UI, Scalar, Redoc, or another documentation renderer. Emmett MUST NOT register a UI or overwrite an existing documentation route unless explicitly configured. When enabled, Emmett's `service-desc` link points to the effective standalone or composed OpenAPI location supplied by the host.
+
 ### 5.2 Versioning
 
 - Major versions appear in the path: `/v1`, `/v2`, and so on.
@@ -182,9 +215,9 @@ A future schema-aware DSL should use JSON Schema-compatible definitions and be c
 
 ## 6. HTTP conventions
 
-### 6.1 Base URL and resource names
+### 6.1 Base URL, mount path, and resource names
 
-The API root is `/v1`. The canonical resources are `streams` and `messages`, reflecting that Emmett streams may contain event- or command-kind messages.
+The standalone API root is `/v1`. In embedded mode, the host MAY configure a different effective API root, for example `/emmett/v1`; the `v1` version segment remains part of Emmett's contract and MUST NOT be removed. All relative links, documentation links, OpenAPI paths, `Location` headers, and Problem Details `instance` values MUST use the effective API root. The canonical resources are `streams` and `messages`, reflecting that Emmett streams may contain event- or command-kind messages.
 
 `{streamName}` represents one opaque stream name. Clients percent-encode it as a URI path segment. Routers and proxies MUST preserve encoded characters accurately, including names that contain delimiters. The server MUST NOT impose a naming convention in v1.
 
@@ -472,6 +505,8 @@ The read representation preserves Emmett's combined metadata shape:
 ### 8.0 Endpoint inventory
 
 The following paths are the stable, directly usable v1 endpoints. Hypermedia advertises the subset supported by the configured backend and authorized for the current principal.
+
+Paths in this table use the standalone `/v1` root. Embedded adapters replace that root with their configured effective API root as defined in section 6.1.
 
 | Method | Path | Purpose | Success |
 |---|---|---|---:|
@@ -901,21 +936,22 @@ The v1.1 suite additionally covers multiplexing, duplicate operation IDs, duplic
 
 Contract tests validate examples against OpenAPI/AsyncAPI schemas. Security tests cover secret redaction, authorization bypass attempts, encoded stream names, proxy-header spoofing, oversized frames/bodies, slow readers, and resource exhaustion.
 
-The HTTP conformance suite MUST be host-independent and runnable against Node, Bun, Deno, and Miniflare/Cloudflare adapters. Passing core unit tests is not sufficient to claim runtime support. A runtime/backend pair is documented as supported only after its integration suite passes continuously in CI. Tests specifically cover streaming cancellation/backpressure, runtime-specific URL decoding, Web Crypto behavior, dependency bundling, and absence of forbidden Node imports in edge builds.
+The HTTP conformance suite MUST be host-independent and runnable against the Hono, Express, and Fastify embedded adapters as well as Node, Bun, Deno, and Miniflare/Cloudflare runtime adapters where applicable. It MUST test the default and a non-default mount path, host-principal mapping, inherited middleware, relative link generation, and OpenAPI composition/collision handling. Passing core unit tests is not sufficient to claim runtime or framework support. A runtime/backend pair is documented as supported only after its integration suite passes continuously in CI. Tests specifically cover streaming cancellation/backpressure, runtime-specific URL decoding, Web Crypto behavior, dependency bundling, and absence of forbidden Node imports in edge builds.
 
 ### 17.1 Implementation sequence
 
 Recommended delivery order:
 
-1. Framework-neutral contract registry, schemas, core handlers, and unit tests.
+1. Framework-neutral contract registry, schemas, core handlers, adapter interface, and unit tests.
 2. Hono route adapter and Node standalone host.
-3. Build-time OpenAPI 3.1 generation, examples, and compatibility checks.
-4. Backend capability/catalog adapters and the Node backend conformance matrix.
-5. RFC 7464 finite streaming through Web Streams.
-6. Node WebSocket adapter and shared subscription state machine for v1.1.
-7. Bun and Deno host adapters running the same HTTP conformance suite.
-8. Cloudflare+D1 finite API with Miniflare and deployed smoke tests.
-9. Cloudflare Durable Object subscription hosting as a distinct, capability-gated extension.
+3. Build-time OpenAPI 3.1 generation, mount-path rebasing, composition, examples, and compatibility checks.
+4. Express and Fastify embedded adapters running the same HTTP conformance suite.
+5. Backend capability/catalog adapters and the Node backend conformance matrix.
+6. RFC 7464 finite streaming through Web Streams across all v1 framework adapters.
+7. Node WebSocket adapter and shared subscription state machine for v1.1.
+8. Bun and Deno host adapters running the same HTTP conformance suite.
+9. Cloudflare+D1 finite API with Miniflare and deployed smoke tests.
+10. Cloudflare Durable Object subscription hosting as a distinct, capability-gated extension.
 
 ## 18. Deliverables and acceptance criteria
 
@@ -924,7 +960,9 @@ Recommended delivery order:
 - Published OpenAPI 3.1 document and human documentation.
 - Build-time OpenAPI generation from framework-neutral route/schema definitions.
 - Framework-neutral contract and handler packages/exports.
-- Hono HTTP adapter.
+- Public framework-adapter interface and conformance kit.
+- Hono, Express, and Fastify HTTP adapters with configurable mount paths and host-principal mapping.
+- OpenAPI path rebasing, collision-safe host-document composition, and opt-in documentation-route mounting.
 - Node 24 standalone host and container image.
 - API root/capabilities.
 - Stream catalog.
@@ -940,7 +978,7 @@ Recommended delivery order:
 - Backend conformance suite and compatibility checks.
 - Published tested runtime/backend support matrix.
 
-V1 is accepted when a non-TypeScript client can discover, list, inspect, read, stream finite history, and append to a supported Emmett backend with documented concurrency and security behavior.
+V1 is accepted when a non-TypeScript client can discover, list, inspect, read, stream finite history, and append to a supported Emmett backend with documented concurrency and security behavior. The same behavior and effective OpenAPI contract must pass conformance tests when the API is standalone and when mounted at a non-default API root in Hono, Express, and Fastify applications using host-provided authentication.
 
 ### V1.1
 
@@ -963,7 +1001,7 @@ These are intentionally not blockers for v1 implementation:
 - GraphQL, gRPC, and FaaS contracts;
 - backward reads after core Emmett supports them;
 - native ACME automation;
-- embedded-host packaging details;
+- adapters for frameworks other than the v1 Hono, Express, and Fastify set;
 - structured stream-name enforcement;
 - API-key administration endpoints;
 - competing consumers;

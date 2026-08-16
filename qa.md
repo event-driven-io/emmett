@@ -468,3 +468,15 @@
 **Answer:** Approved; the architecture direction makes sense.
 
 **Decision:** Incorporate the proposal into `spec.md`. The exact runtime validation/schema library remains replaceable, but Hono, the portability boundaries, runtime support tiers, build-time contract generation, and implementation sequence become part of the implementation specification.
+
+## 23. Embedding into existing APIs
+
+**Question:** Does the architecture allow applications to add the Emmett endpoints to an existing API?
+
+**Answer:** The architecture made this possible through framework-neutral handlers and a portable Hono application, but the specification only guaranteed the standalone server in v1 and deferred embedded packaging.
+
+**Follow-up:** Can an existing Fastify, Express, or similar application mount the endpoints while using Emmett's OpenAPI contract and integrating it with the application's existing OpenAPI document?
+
+**Answer:** Yes. The server should expose a framework-neutral route/schema registry and handlers, plus thin framework adapters. Embedded configuration supplies an event store, mount path, principal mapping, and integration hooks. The contract package can return a rebased Emmett-only OpenAPI document or collision-safely merge its namespaced paths and components into a host OpenAPI 3.1 document. Framework-specific streaming and WebSocket plumbing stays in adapters while semantics remain shared.
+
+**Decision:** Make embedding a v1 capability rather than a deferred packaging detail. V1 provides Hono, Express, and Fastify adapters, a documented public adapter boundary, configurable mount paths, host-authentication integration through normalized principals, and OpenAPI rebasing/composition. All three adapters must pass the shared HTTP conformance suite. Other framework adapters may follow without changing the core contract.
