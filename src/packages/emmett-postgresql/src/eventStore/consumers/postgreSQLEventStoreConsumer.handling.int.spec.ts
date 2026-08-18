@@ -1081,7 +1081,7 @@ void describe('PostgreSQL event store started consumer', () => {
 
   void describe('processor lock', () => {
     void it(
-      'fails to start when another instance holds the processor lock',
+      'fails to start when another instance holds the processor lock and the acquisition policy is fail',
       withDeadline,
       async () => {
         const processorId = uuid();
@@ -1115,7 +1115,7 @@ void describe('PostgreSQL event store started consumer', () => {
     );
 
     void it(
-      'fails to start a projector when another instance holds the processor lock',
+      'fails to start a projector when another instance holds the processor lock and the acquisition policy is fail',
       withDeadline,
       async () => {
         const projectionName = `lockedProjection-${uuid()}`;
