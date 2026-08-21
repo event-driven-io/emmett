@@ -124,6 +124,7 @@ export const handleProjections = async <EventType extends Event = Event>(
         transaction,
       },
       execute: transaction.execute,
+      migrationOptions: options.migrationOptions,
       observabilityScope: options.observabilityScope,
     });
   }

@@ -110,6 +110,11 @@ export const postgreSQLEventStoreConsumer = <
 >(
   options: PostgreSQLEventStoreConsumerOptions<ConsumerMessageType>,
 ): PostgreSQLEventStoreConsumer<ConsumerMessageType> => {
+  const databaseSchema = eventStoreDatabaseSchema(options.schema);
+  const processorMetadataSchema = {
+    ...options.schema,
+    ...databaseSchema,
+  };
   const isOwnPool = !options.pool;
   const pool = options.pool
     ? options.pool
@@ -130,13 +135,12 @@ export const postgreSQLEventStoreConsumer = <
         pool,
         batchSize: options.pulling?.batchSize,
         pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
-        databaseSchemaName: eventStoreDatabaseSchema(options.schema)
-          .databaseSchemaName,
+        databaseSchemaName: databaseSchema.databaseSchemaName,
       });
 
   const processorContext = {
     execute: pool.execute,
-    migrationOptions: options.schema,
+    migrationOptions: processorMetadataSchema,
     connection: {
       connectionString: options.connectionString,
       pool,
@@ -159,17 +163,20 @@ export const postgreSQLEventStoreConsumer = <
     reactorFactory: (processorOptions) =>
       postgreSQLReactor({
         ...processorOptions,
-        migrationOptions: processorOptions.migrationOptions ?? options.schema,
+        migrationOptions:
+          processorOptions.migrationOptions ?? processorMetadataSchema,
       }),
     projectorFactory: (processorOptions) =>
       postgreSQLProjector({
         ...processorOptions,
-        migrationOptions: processorOptions.migrationOptions ?? options.schema,
+        migrationOptions:
+          processorOptions.migrationOptions ?? processorMetadataSchema,
       }),
     workflowProcessorFactory: (processorOptions) =>
       postgreSQLWorkflowProcessor({
         ...processorOptions,
-        migrationOptions: processorOptions.migrationOptions ?? options.schema,
+        migrationOptions:
+          processorOptions.migrationOptions ?? processorMetadataSchema,
       }),
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,

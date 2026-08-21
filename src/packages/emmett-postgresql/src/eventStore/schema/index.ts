@@ -63,11 +63,19 @@ export const createEventStoreSchema = (
     });
 
     try {
+      const databaseSchema = eventStoreDatabaseSchema(options);
+      const schemaContext = {
+        ...context,
+        migrationOptions: {
+          ...options,
+          ...databaseSchema,
+        },
+      };
+
       if (hooks?.onBeforeSchemaCreated) {
-        await hooks.onBeforeSchemaCreated(context);
+        await hooks.onBeforeSchemaCreated(schemaContext);
       }
 
-      const databaseSchema = eventStoreDatabaseSchema(options);
       const result = await runSQLMigrations(
         nestedPool,
         eventStoreSchemaMigrationsFor(options),
@@ -78,7 +86,7 @@ export const createEventStoreSchema = (
       );
 
       if (hooks?.onAfterSchemaCreated) {
-        await hooks.onAfterSchemaCreated(context);
+        await hooks.onAfterSchemaCreated(schemaContext);
       }
       return result;
     } finally {

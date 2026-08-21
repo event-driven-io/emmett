@@ -5,7 +5,13 @@ import {
   tableExists,
   type PgPool,
 } from '@event-driven-io/dumbo/pg';
-import { assertEqual, assertFalse, assertTrue } from '@event-driven-io/emmett';
+import {
+  assertEqual,
+  assertFalse,
+  assertTrue,
+  type Event,
+} from '@event-driven-io/emmett';
+import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   sharedPostgreSQLDatabase,
@@ -16,6 +22,17 @@ import {
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
 import { createEventStoreSchema } from '../schema';
+
+type ProductItemAdded = Event<
+  'ProductItemAdded',
+  {
+    productItem: {
+      productId: string;
+      quantity: number;
+      price: number;
+    };
+  }
+>;
 
 void describe('createEventStoreSchema', () => {
   let database: PostgreSQLTestDatabase;
@@ -254,6 +271,44 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     assertFalse(await tableExistsInSchema('public', 'emmett_migrations'));
   });
 
+  void it('passes the configured schema names to schema creation hooks', async () => {
+    const eventSchemaName = schemaName('events');
+    let beforeMigrationTableSchemaName: string | undefined;
+    let beforeProjectionsDatabaseSchemaName: string | undefined;
+    let afterMigrationTableSchemaName: string | undefined;
+    let afterProjectionsDatabaseSchemaName: string | undefined;
+
+    await createEventStoreSchema(
+      connectionString,
+      pool,
+      {
+        onBeforeSchemaCreated: (context) => {
+          beforeMigrationTableSchemaName =
+            context.migrationOptions?.migrationTable?.schemaName;
+          beforeProjectionsDatabaseSchemaName =
+            context.migrationOptions?.projectionsDatabaseSchemaName;
+        },
+        onAfterSchemaCreated: (context) => {
+          afterMigrationTableSchemaName =
+            context.migrationOptions?.migrationTable?.schemaName;
+          afterProjectionsDatabaseSchemaName =
+            context.migrationOptions?.projectionsDatabaseSchemaName;
+        },
+      },
+      {
+        databaseSchemaName: eventSchemaName,
+        migrationTable: {
+          tableName: 'custom_migrations',
+        },
+      },
+    );
+
+    assertEqual(beforeMigrationTableSchemaName, eventSchemaName);
+    assertEqual(beforeProjectionsDatabaseSchemaName, eventSchemaName);
+    assertEqual(afterMigrationTableSchemaName, eventSchemaName);
+    assertEqual(afterProjectionsDatabaseSchemaName, eventSchemaName);
+  });
+
   void it('stores and reads events from the schema configured by the user', async () => {
     const configuredSchemaName = 'configured_runtime';
     const streamName = `shopping_cart-${Date.now()}`;
@@ -280,6 +335,64 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     assertTrue(exists);
     assertTrue(await tableExistsInSchema(configuredSchemaName, 'emt_messages'));
     assertFalse(await tableExistsInSchema('public', 'emt_messages'));
+  });
+
+  void it('keeps streams with the same name isolated between schemas configured by the user', async () => {
+    const firstSchemaName = 'configured_runtime_first';
+    const secondSchemaName = 'configured_runtime_second';
+    const streamName = `shopping_cart-${Date.now()}`;
+    const firstEventStore = getPostgreSQLEventStore(connectionString, {
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+        databaseSchemaName: firstSchemaName,
+      },
+    });
+    const secondEventStore = getPostgreSQLEventStore(connectionString, {
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+        databaseSchemaName: secondSchemaName,
+      },
+    });
+
+    try {
+      await firstEventStore.appendToStream(streamName, [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { productId: 'sku-first', quantity: 1, price: 10 },
+          },
+        },
+      ]);
+      await secondEventStore.appendToStream(streamName, [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { productId: 'sku-second', quantity: 1, price: 20 },
+          },
+        },
+      ]);
+
+      const firstRead =
+        await firstEventStore.readStream<ProductItemAdded>(streamName);
+      const secondRead =
+        await secondEventStore.readStream<ProductItemAdded>(streamName);
+
+      assertTrue(firstRead.streamExists);
+      assertTrue(secondRead.streamExists);
+      assertEqual(firstRead.events.length, 1);
+      assertEqual(secondRead.events.length, 1);
+      assertEqual(firstRead.events[0]?.data.productItem.productId, 'sku-first');
+      assertEqual(
+        secondRead.events[0]?.data.productItem.productId,
+        'sku-second',
+      );
+      assertEqual(await messagesCountInSchema(firstSchemaName), 1);
+      assertEqual(await messagesCountInSchema(secondSchemaName), 1);
+      assertFalse(await tableExistsInSchema('public', 'emt_messages'));
+    } finally {
+      await firstEventStore.close();
+      await secondEventStore.close();
+    }
   });
 
   const schemaExists = async (schemaName: string): Promise<boolean> => {
@@ -320,4 +433,15 @@ void describe('createEventStoreSchema with configured database schemas', () => {
 
     return result.rows[0]?.exists === true;
   };
+
+  const messagesCountInSchema = async (schemaName: string): Promise<number> => {
+    const result = await pool.execute.query<{ count: string }>(SQL`
+      SELECT COUNT(*)::text AS count
+      FROM ${SQL.identifier(schemaName)}.${SQL.identifier('emt_messages')}`);
+
+    return Number(result.rows[0]?.count ?? 0);
+  };
 });
+
+const schemaName = (prefix: string): string =>
+  `${prefix}_${uuid().replaceAll('-', '_')}`;
