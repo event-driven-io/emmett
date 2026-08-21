@@ -1,6 +1,16 @@
-import { dumbo, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import {
+  DefaultDatabaseSchemaName,
+  dumbo,
+  SQL,
+  SQLTableReference,
+  type SQLExecutor,
+} from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
-import { assertEqual, assertIsNotNull } from '@event-driven-io/emmett';
+import {
+  assertEqual,
+  assertIsNotNull,
+  type Event,
+} from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
@@ -12,13 +22,19 @@ import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
-import { postgreSQLProjection, readProjectionInfo } from '../projections';
+import {
+  pongoSingleStreamProjection,
+  postgreSQLProjection,
+  readProjectionInfo,
+} from '../projections';
 import { readProcessorCheckpoint } from '../schema';
 import {
   emmettRelation,
+  messagesTable,
   processorsTable,
   projectionsTable,
 } from '../schema/typing';
+import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 
 const withDeadline = { timeout: 30000 };
 
@@ -146,10 +162,10 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
 
       assertIsNotNull(checkpoint);
       assertIsNotNull(registration);
-      assertEqual(await countProcessorRows(projectionSchemaName), 0);
-      assertEqual(await countProcessorRows(undefined), 0);
-      assertEqual(await countProjectionRows(projectionSchemaName), 0);
-      assertEqual(await countProjectionRows(undefined), 0);
+      assertEqual(0, await countProcessorRows(projectionSchemaName));
+      assertEqual(0, await countProcessorRows(undefined));
+      assertEqual(0, await countProjectionRows(projectionSchemaName));
+      assertEqual(0, await countProjectionRows(undefined));
     },
   );
 
@@ -200,6 +216,222 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
     },
   );
 
+  void it(
+    'keeps events appended by consumer handlers in the configured event-store schema',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const guestId = uuid();
+      const sourceStreamName = `guestStay-${guestId}`;
+      const reactionStreamName = `reaction-${guestId}`;
+      const store = getPostgreSQLEventStore(connectionString, {
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+        },
+      });
+      stores.push(store);
+      const appendResult = await store.appendToStream(sourceStreamName, [
+        { type: 'GuestCheckedIn', data: { guestId } },
+      ]);
+
+      const consumer = store.consumer<GuestStayEvent>({
+        stopWhen: { noMessagesLeft: true },
+      });
+      consumer.reactor({
+        processorId: `processor:${uuid()}`,
+        stopAfter: (event) =>
+          event.metadata.globalPosition ===
+          appendResult.lastEventGlobalPosition,
+        eachMessage: async (event, context) => {
+          await context.connection.messageStore.appendToStream(
+            reactionStreamName,
+            [
+              {
+                type: 'GuestCheckedOut',
+                data: { guestId: event.data.guestId },
+              },
+            ],
+          );
+        },
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      assertEqual(1, await countMessages(eventSchemaName, reactionStreamName));
+      assertEqual(0, await countMessages(undefined, reactionStreamName));
+    },
+  );
+
+  void it(
+    'keeps events appended by direct consumer handlers in the configured event-store schema',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const guestId = uuid();
+      const sourceStreamName = `guestStay-${guestId}`;
+      const reactionStreamName = `reaction-${guestId}`;
+      const store = getPostgreSQLEventStore(connectionString, {
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+        },
+      });
+      stores.push(store);
+      const appendResult = await store.appendToStream(sourceStreamName, [
+        { type: 'GuestCheckedIn', data: { guestId } },
+      ]);
+
+      const consumer = postgreSQLEventStoreConsumer<GuestStayEvent>({
+        connectionString,
+        schema: {
+          databaseSchemaName: eventSchemaName,
+        },
+        stopWhen: { noMessagesLeft: true },
+      });
+      consumer.reactor({
+        processorId: `processor:${uuid()}`,
+        stopAfter: (event) =>
+          event.metadata.globalPosition ===
+          appendResult.lastEventGlobalPosition,
+        eachMessage: async (event, context) => {
+          await context.connection.messageStore.appendToStream(
+            reactionStreamName,
+            [
+              {
+                type: 'GuestCheckedOut',
+                data: { guestId: event.data.guestId },
+              },
+            ],
+          );
+        },
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      assertEqual(1, await countMessages(eventSchemaName, reactionStreamName));
+      assertEqual(0, await countMessages(undefined, reactionStreamName));
+    },
+  );
+
+  void it(
+    'keeps events appended through a session in the configured event-store schema',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const guestId = uuid();
+      const streamName = `guestStay-${guestId}`;
+      const store = getPostgreSQLEventStore(connectionString, {
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+        },
+      });
+      stores.push(store);
+
+      await store.withSession(({ eventStore }) =>
+        eventStore.appendToStream(streamName, [
+          { type: 'GuestCheckedIn', data: { guestId } },
+        ]),
+      );
+
+      assertEqual(1, await countMessages(eventSchemaName, streamName));
+      assertEqual(0, await countMessages(undefined, streamName));
+    },
+  );
+
+  void it(
+    'keeps events appended through a supplied Dumbo pool in the configured event-store schema',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const guestId = uuid();
+      const streamName = `guestStay-${guestId}`;
+      const store = getPostgreSQLEventStore(connectionString, {
+        connectionOptions: { dumbo: pool },
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+        },
+      });
+
+      await store.appendToStream(streamName, [
+        { type: 'GuestCheckedIn', data: { guestId } },
+      ]);
+
+      assertEqual(1, await countMessages(eventSchemaName, streamName));
+      assertEqual(0, await countMessages(undefined, streamName));
+    },
+  );
+
+  void it(
+    'reads events from the event-store schema and stores async Pongo projections in the projection schema',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const projectionSchemaName = schemaName('read_models');
+      const collectionName = schemaName('shopping_cart_summary');
+      const streamName = `shopping_cart-${uuid()}`;
+      const store = getPostgreSQLEventStore(connectionString, {
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+          projectionsDatabaseSchemaName: projectionSchemaName,
+        },
+      });
+      stores.push(store);
+      await store.schema.migrate();
+
+      const consumer = store.consumer<ProductItemAdded>();
+      consumer.projector({
+        processorId: `processor:${uuid()}`,
+        projection: pongoSingleStreamProjection<
+          ShoppingCartSummary,
+          ProductItemAdded
+        >({
+          collectionName,
+          canHandle: ['ProductItemAdded'],
+          evolve: (
+            document: ShoppingCartSummary,
+            event: ProductItemAdded,
+          ): ShoppingCartSummary => ({
+            productItemsCount:
+              document.productItemsCount + event.data.productItem.quantity,
+          }),
+          initialState: () => ({
+            productItemsCount: 0,
+          }),
+        }),
+      });
+
+      void consumer.start();
+      try {
+        await consumer.whenStarted();
+
+        await store.appendToStream(streamName, [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ]);
+
+        await consumer.whenCaughtUp();
+      } finally {
+        await consumer.close();
+      }
+
+      assertEqual(1, await tableRows(projectionSchemaName, collectionName));
+      assertEqual(1, await countMessages(eventSchemaName, streamName));
+      assertEqual(0, await tableRows(eventSchemaName, collectionName));
+      assertEqual(0, await tableRows(undefined, collectionName));
+    },
+  );
+
   const countProcessorRows = async (
     databaseSchemaName: string | undefined,
   ): Promise<number> => {
@@ -235,7 +467,49 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
     );
     return Number(result.rows[0]?.count ?? 0);
   };
+
+  const countMessages = async (
+    databaseSchemaName: string | undefined,
+    streamName: string,
+  ): Promise<number> => {
+    if (
+      !(await tableExists(pool.execute, databaseSchemaName, messagesTable.name))
+    )
+      return 0;
+
+    const result = await pool.execute.query<{ count: string }>(
+      SQL`
+        SELECT COUNT(*) AS count
+        FROM ${emmettRelation(databaseSchemaName, messagesTable.name)}
+        WHERE stream_id = ${streamName}
+      `,
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  };
+
+  const tableRows = async (
+    databaseSchemaName: string | undefined,
+    tableName: string,
+  ): Promise<number> => {
+    if (!(await tableExists(pool.execute, databaseSchemaName, tableName)))
+      return 0;
+
+    const result = await pool.execute.query<{ count: string }>(
+      SQL`SELECT COUNT(*) AS count FROM ${SQLTableReference.from({ databaseSchemaName: databaseSchemaName ?? DefaultDatabaseSchemaName, tableName })}`,
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  };
 });
+
+type GuestCheckedIn = Event<'GuestCheckedIn', { guestId: string }>;
+
+type GuestCheckedOut = Event<'GuestCheckedOut', { guestId: string }>;
+
+type GuestStayEvent = GuestCheckedIn | GuestCheckedOut;
+
+type ShoppingCartSummary = {
+  productItemsCount: number;
+};
 
 const schemaName = (prefix: string): string =>
   `${prefix}_${uuid().replaceAll('-', '_')}`;
