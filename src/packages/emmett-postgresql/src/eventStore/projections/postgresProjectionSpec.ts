@@ -1,5 +1,6 @@
 import {
   dumbo,
+  type MigrationStyle,
   type Dumbo,
   type QueryResultRow,
   type SQL,
@@ -26,7 +27,11 @@ import {
   getPostgreSQLEventStore,
   type PostgresReadEventMetadata,
 } from '../postgreSQLEventStore';
-import { PostgreSQLEventStoreCheckpoint } from '../schema';
+import {
+  eventStoreDatabaseSchema,
+  PostgreSQLEventStoreCheckpoint,
+  type EventStoreDatabaseSchemaOptions,
+} from '../schema';
 
 export type PostgreSQLProjectionSpecEvent<
   EventType extends Event,
@@ -58,10 +63,14 @@ export type PostgreSQLProjectionSpec<EventType extends Event> = (
 export type PostgreSQLProjectionAssert = (options: {
   pool: Dumbo;
   connectionString: string;
+  migrationOptions?: EventStoreDatabaseSchemaOptions | undefined;
 }) => Promise<void | boolean>;
 
 export type PostgreSQLProjectionSpecOptions<EventType extends Event> = {
   projection: PostgreSQLProjectionDefinition<EventType>;
+  schema?:
+    | ({ autoMigration?: MigrationStyle } & EventStoreDatabaseSchemaOptions)
+    | undefined;
 } & PgPoolOptions;
 
 export const PostgreSQLProjectionSpec = {
@@ -78,6 +87,10 @@ export const PostgreSQLProjectionSpec = {
         },
       };
       const { connectionString } = dumboOptions;
+      const migrationOptions = {
+        ...options.schema,
+        ...eventStoreDatabaseSchema(options.schema),
+      };
 
       let wasInitialised = false;
 
@@ -85,6 +98,7 @@ export const PostgreSQLProjectionSpec = {
         const eventStore = getPostgreSQLEventStore(connectionString!, {
           // TODO: This will need to change when we support other drivers
           connectionOptions: { dumbo: pool as PgPool },
+          schema: options.schema,
         });
 
         if (wasInitialised) return;
@@ -98,11 +112,14 @@ export const PostgreSQLProjectionSpec = {
               registrationType: 'async',
               version: projection.version ?? 1,
               status: 'active',
-              context: await transactionToPostgreSQLProjectionHandlerContext(
-                connectionString!,
-                pool,
-                transaction,
-              ),
+              context: {
+                ...(await transactionToPostgreSQLProjectionHandlerContext(
+                  connectionString!,
+                  pool,
+                  transaction,
+                )),
+                migrationOptions,
+              },
             });
           });
       };
@@ -162,6 +179,7 @@ export const PostgreSQLProjectionSpec = {
                     pool,
                     transaction,
                   )),
+                  migrationOptions,
                 });
               });
             };
@@ -178,6 +196,7 @@ export const PostgreSQLProjectionSpec = {
                   const succeeded = await assert({
                     pool,
                     connectionString: connectionString!,
+                    migrationOptions,
                   });
 
                   if (succeeded !== undefined && succeeded === false)

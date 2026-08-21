@@ -1,4 +1,5 @@
 import type { Dumbo } from '@event-driven-io/dumbo';
+import type { EventStoreDatabaseSchemaOptions } from '../../schema';
 import type { PgConnection } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
@@ -35,6 +36,7 @@ const withCollection = <
   options: {
     pool: Dumbo;
     connectionString: string;
+    migrationOptions?: EventStoreDatabaseSchemaOptions | undefined;
   } & PongoAssertOptions<Doc, DocumentPayload>,
 ) => {
   const {
@@ -43,6 +45,7 @@ const withCollection = <
     inDatabase,
     inCollection,
     collectionOptions,
+    migrationOptions,
   } = options;
 
   return pool.withConnection(async (connection) => {
@@ -55,6 +58,8 @@ const withCollection = <
         },
       },
       driver: pgDriver,
+      defaultSchemaName: migrationOptions?.projectionsDatabaseSchemaName,
+      migrationTable: migrationOptions?.migrationTable,
     });
     try {
       const collection = pongo
