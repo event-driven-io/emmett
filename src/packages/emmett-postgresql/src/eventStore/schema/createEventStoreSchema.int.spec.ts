@@ -1,17 +1,35 @@
-import { dumbo } from '@event-driven-io/dumbo';
+import { dumbo, SQL } from '@event-driven-io/dumbo';
 import {
   functionExists,
   pgDumboDriver,
   tableExists,
   type PgPool,
 } from '@event-driven-io/dumbo/pg';
-import { assertFalse, assertTrue } from '@event-driven-io/emmett';
+import {
+  assertEqual,
+  assertFalse,
+  assertTrue,
+  type Event,
+} from '@event-driven-io/emmett';
+import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
+import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import { createEventStoreSchema } from '../schema';
+
+type ProductItemAdded = Event<
+  'ProductItemAdded',
+  {
+    productItem: {
+      productId: string;
+      quantity: number;
+      price: number;
+    };
+  }
+>;
 
 void describe('createEventStoreSchema', () => {
   let database: PostgreSQLTestDatabase;
@@ -180,3 +198,326 @@ void describe('createEventStoreSchema', () => {
   //   );
   // });
 });
+
+void describe('createEventStoreSchema with configured database schemas', () => {
+  let database: PostgreSQLTestDatabase;
+  let pool: PgPool;
+  let connectionString: string;
+
+  beforeAll(async () => {
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
+    pool = dumbo({
+      connectionString,
+      driver: pgDumboDriver,
+      transactionOptions: {
+        allowNestedTransactions: true,
+      },
+    });
+  });
+
+  afterAll(async () => {
+    try {
+      await pool?.close();
+      await database?.close();
+    } catch (error) {
+      console.log(error);
+    }
+  });
+
+  void it('creates the event store objects in the schema configured by the user', async () => {
+    await createEventStoreSchema(connectionString, pool, undefined, {
+      databaseSchemaName: 'events',
+    });
+
+    assertTrue(await schemaExists('events'));
+    assertTrue(await tableExistsInSchema('events', 'emt_streams'));
+    assertTrue(await tableExistsInSchema('events', 'emt_messages'));
+    assertTrue(await tableExistsInSchema('events', 'emt_messages_emt_default'));
+    assertTrue(
+      await tableExistsInSchema('events', 'emt_messages_emt_default_active'),
+    );
+    assertTrue(await tableExistsInSchema('events', 'dmb_migrations'));
+    assertTrue(await functionExistsInSchema('events', 'emt_append_to_stream'));
+    assertTrue(await functionExistsInSchema('events', 'emt_add_partition'));
+
+    assertFalse(await tableExistsInSchema('public', 'emt_streams'));
+    assertFalse(await tableExistsInSchema('public', 'dmb_migrations'));
+    assertFalse(await functionExistsInSchema('public', 'emt_append_to_stream'));
+  });
+
+  void it('uses the migration table schema and name configured by the user', async () => {
+    await createEventStoreSchema(connectionString, pool, undefined, {
+      databaseSchemaName: 'store',
+      migrationTable: {
+        schemaName: 'infrastructure',
+        tableName: 'emmett_migrations',
+      },
+    });
+
+    assertTrue(await schemaExists('store'));
+    assertTrue(await schemaExists('infrastructure'));
+    assertTrue(await tableExistsInSchema('store', 'emt_streams'));
+    assertTrue(
+      await tableExistsInSchema('infrastructure', 'emmett_migrations'),
+    );
+
+    assertFalse(await tableExistsInSchema('store', 'dmb_migrations'));
+    assertFalse(await tableExistsInSchema('public', 'emmett_migrations'));
+  });
+
+  void it('passes the configured schema names to schema creation hooks', async () => {
+    const eventSchemaName = schemaName('events');
+    let beforeMigrationTableSchemaName: string | undefined;
+    let beforeProjectionsDatabaseSchemaName: string | undefined;
+    let afterMigrationTableSchemaName: string | undefined;
+    let afterProjectionsDatabaseSchemaName: string | undefined;
+
+    await createEventStoreSchema(
+      connectionString,
+      pool,
+      {
+        onBeforeSchemaCreated: (context) => {
+          beforeMigrationTableSchemaName =
+            context.migrationOptions?.migrationTable?.schemaName;
+          beforeProjectionsDatabaseSchemaName =
+            context.migrationOptions?.projectionsDatabaseSchemaName;
+        },
+        onAfterSchemaCreated: (context) => {
+          afterMigrationTableSchemaName =
+            context.migrationOptions?.migrationTable?.schemaName;
+          afterProjectionsDatabaseSchemaName =
+            context.migrationOptions?.projectionsDatabaseSchemaName;
+        },
+      },
+      {
+        databaseSchemaName: eventSchemaName,
+        migrationTable: {
+          tableName: 'custom_migrations',
+        },
+      },
+    );
+
+    assertEqual(beforeMigrationTableSchemaName, eventSchemaName);
+    assertEqual(beforeProjectionsDatabaseSchemaName, eventSchemaName);
+    assertEqual(afterMigrationTableSchemaName, eventSchemaName);
+    assertEqual(afterProjectionsDatabaseSchemaName, eventSchemaName);
+  });
+
+  void it('stores and reads events from the schema configured by the user', async () => {
+    const configuredSchemaName = 'configured_runtime';
+    const streamName = `shopping_cart-${Date.now()}`;
+    const eventStore = getPostgreSQLEventStore(connectionString, {
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+        databaseSchemaName: configuredSchemaName,
+      },
+    });
+
+    try {
+      const appendResult = await eventStore.appendToStream(streamName, [
+        {
+          type: 'ProductItemAdded',
+          data: { productItem: { productId: 'sku-1', quantity: 1, price: 10 } },
+        },
+      ]);
+
+      const readResult = await eventStore.readStream(streamName);
+      const exists = await eventStore.streamExists(streamName);
+
+      assertEqual(appendResult.nextExpectedStreamVersion, 1n);
+      assertTrue(readResult.streamExists);
+      assertEqual(readResult.events.length, 1);
+      assertTrue(exists);
+      assertTrue(
+        await tableExistsInSchema(configuredSchemaName, 'emt_messages'),
+      );
+      assertFalse(await tableExistsInSchema('public', 'emt_messages'));
+    } finally {
+      await eventStore.close();
+    }
+  });
+
+  for (const { description, nameWith } of trickyNameStyles) {
+    void it(`stores and reads events when configured names contain ${description}`, async () => {
+      const eventSchemaName = nameWith('events');
+      const migrationSchemaName = nameWith('infrastructure');
+      const migrationTableName = nameWith('emmett_migrations');
+      const streamName = `shopping_cart-${Date.now()}`;
+      const store = getPostgreSQLEventStore(connectionString, {
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+          migrationTable: {
+            schemaName: migrationSchemaName,
+            tableName: migrationTableName,
+          },
+        },
+      });
+
+      try {
+        await store.appendToStream(streamName, [
+          {
+            type: 'ProductItemAdded',
+            data: {
+              productItem: { productId: 'sku-quoted', quantity: 1, price: 10 },
+            },
+          },
+        ]);
+
+        const readResult = await store.readStream<ProductItemAdded>(streamName);
+
+        assertTrue(readResult.streamExists);
+        assertEqual(readResult.events.length, 1);
+        assertEqual(
+          readResult.events[0]?.data.productItem.productId,
+          'sku-quoted',
+        );
+        assertTrue(await tableExistsInSchema(eventSchemaName, 'emt_messages'));
+        assertTrue(
+          await tableExistsInSchema(migrationSchemaName, migrationTableName),
+        );
+        assertFalse(await tableExistsInSchema('public', 'emt_messages'));
+        assertFalse(await tableExistsInSchema('public', migrationTableName));
+      } finally {
+        await store.close();
+      }
+    });
+  }
+
+  void it('keeps streams with the same name isolated between schemas configured by the user', async () => {
+    const firstSchemaName = 'configured_runtime_first';
+    const secondSchemaName = 'configured_runtime_second';
+    const streamName = `shopping_cart-${Date.now()}`;
+    const firstEventStore = getPostgreSQLEventStore(connectionString, {
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+        databaseSchemaName: firstSchemaName,
+      },
+    });
+    const secondEventStore = getPostgreSQLEventStore(connectionString, {
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+        databaseSchemaName: secondSchemaName,
+      },
+    });
+
+    try {
+      await firstEventStore.appendToStream(streamName, [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { productId: 'sku-first', quantity: 1, price: 10 },
+          },
+        },
+      ]);
+      await secondEventStore.appendToStream(streamName, [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { productId: 'sku-second', quantity: 1, price: 20 },
+          },
+        },
+      ]);
+
+      const firstRead =
+        await firstEventStore.readStream<ProductItemAdded>(streamName);
+      const secondRead =
+        await secondEventStore.readStream<ProductItemAdded>(streamName);
+
+      assertTrue(firstRead.streamExists);
+      assertTrue(secondRead.streamExists);
+      assertEqual(firstRead.events.length, 1);
+      assertEqual(secondRead.events.length, 1);
+      assertEqual(firstRead.events[0]?.data.productItem.productId, 'sku-first');
+      assertEqual(
+        secondRead.events[0]?.data.productItem.productId,
+        'sku-second',
+      );
+      assertEqual(await messagesCountInSchema(firstSchemaName), 1);
+      assertEqual(await messagesCountInSchema(secondSchemaName), 1);
+      assertFalse(await tableExistsInSchema('public', 'emt_messages'));
+    } finally {
+      await firstEventStore.close();
+      await secondEventStore.close();
+    }
+  });
+
+  const schemaExists = async (schemaName: string): Promise<boolean> => {
+    const result = await pool.execute.query<{ exists: boolean }>(SQL`
+      SELECT EXISTS (
+        SELECT FROM information_schema.schemata
+        WHERE schema_name = ${schemaName}
+      ) AS exists`);
+
+    return result.rows[0]?.exists === true;
+  };
+
+  const tableExistsInSchema = async (
+    schemaName: string,
+    tableName: string,
+  ): Promise<boolean> => {
+    const result = await pool.execute.query<{ exists: boolean }>(SQL`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = ${schemaName}
+          AND table_name = ${tableName}
+      ) AS exists`);
+
+    return result.rows[0]?.exists === true;
+  };
+
+  const functionExistsInSchema = async (
+    schemaName: string,
+    functionName: string,
+  ): Promise<boolean> => {
+    const result = await pool.execute.query<{ exists: boolean }>(SQL`
+      SELECT EXISTS (
+        SELECT FROM pg_proc
+        JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace
+        WHERE pg_namespace.nspname = ${schemaName}
+          AND pg_proc.proname = ${functionName}
+      ) AS exists`);
+
+    return result.rows[0]?.exists === true;
+  };
+
+  const messagesCountInSchema = async (schemaName: string): Promise<number> => {
+    const result = await pool.execute.query<{ count: string }>(SQL`
+      SELECT COUNT(*)::text AS count
+      FROM ${SQL.identifier(schemaName)}.${SQL.identifier('emt_messages')}`);
+
+    return Number(result.rows[0]?.count ?? 0);
+  };
+});
+
+const schemaName = (prefix: string): string =>
+  `${prefix}_${uuid().replaceAll('-', '_')}`;
+
+const trickyNameStyles: {
+  description: string;
+  nameWith: (prefix: string) => string;
+}[] = [
+  {
+    description: 'capital letters',
+    nameWith: (prefix) => `${prefix.toUpperCase()}_${uniqueSuffix()}`,
+  },
+  {
+    description: 'dashes',
+    nameWith: (prefix) => `${prefix}-${uniqueSuffix()}`,
+  },
+  {
+    description: 'spaces',
+    nameWith: (prefix) => `${prefix} ${uniqueSuffix()}`,
+  },
+  {
+    description: 'double quotes',
+    nameWith: (prefix) => `${prefix}"${uniqueSuffix()}`,
+  },
+  {
+    description: 'a leading digit',
+    nameWith: (prefix) => `1${prefix}_${uniqueSuffix()}`,
+  },
+];
+
+const uniqueSuffix = (): string => uuid().replaceAll('-', '_');

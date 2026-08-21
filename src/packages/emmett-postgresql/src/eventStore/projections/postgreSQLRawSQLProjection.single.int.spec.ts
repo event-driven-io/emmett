@@ -1,6 +1,7 @@
 import { SQL } from '@event-driven-io/dumbo';
 import { tableExists } from '@event-driven-io/dumbo/pg';
-import { assertTrue, type Event } from '@event-driven-io/emmett';
+import { assertEqual, assertTrue, type Event } from '@event-driven-io/emmett';
+import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   sharedPostgreSQLDatabase,
@@ -139,4 +140,66 @@ void describe('PostgreSQL Projections', () => {
           .resultRows.toBeTheSame([{ product_id: 'shoes', total_amount: 200 }]),
       );
   });
+
+  void it('passes configured schema names to raw SQL projection handlers', () => {
+    const eventSchemaName = schemaName('events');
+    const projectionSchemaName = schemaName('read_models');
+    const migrationSchemaName = schemaName('infrastructure');
+    const migrationTableName = 'emmett_migrations';
+    let initProjectionSchemaName: string | undefined;
+    let evolveProjectionSchemaName: string | undefined;
+    let initMigrationTableSchemaName: string | undefined;
+    let evolveMigrationTableSchemaName: string | undefined;
+
+    const given = PostgreSQLProjectionSpec.for({
+      connectionString,
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+        databaseSchemaName: eventSchemaName,
+        projectionsDatabaseSchemaName: projectionSchemaName,
+        migrationTable: {
+          schemaName: migrationSchemaName,
+          tableName: migrationTableName,
+        },
+      },
+      projection: postgreSQLRawSQLProjection<ProductItemAdded>({
+        name: schemaName('raw_product_sales'),
+        canHandle: ['ProductItemAdded'],
+        init: ({ context }) => {
+          initProjectionSchemaName =
+            context.migrationOptions?.projectionsDatabaseSchemaName;
+          initMigrationTableSchemaName =
+            context.migrationOptions?.migrationTable?.schemaName;
+          return SQL`SELECT 1;`;
+        },
+        evolve: (_event, context) => {
+          evolveProjectionSchemaName =
+            context.migrationOptions?.projectionsDatabaseSchemaName;
+          evolveMigrationTableSchemaName =
+            context.migrationOptions?.migrationTable?.schemaName;
+          return SQL`SELECT 1;`;
+        },
+      }),
+    });
+
+    return given([])
+      .when([
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { price: 100, productId: 'shoes', quantity: 2 },
+          },
+        },
+      ])
+      .then(async () => {
+        assertEqual(initProjectionSchemaName, projectionSchemaName);
+        assertEqual(evolveProjectionSchemaName, projectionSchemaName);
+        assertEqual(initMigrationTableSchemaName, migrationSchemaName);
+        assertEqual(evolveMigrationTableSchemaName, migrationSchemaName);
+        await Promise.resolve();
+      });
+  });
 });
+
+const schemaName = (prefix: string): string =>
+  `${prefix}_${uuid().replaceAll('-', '_')}`;

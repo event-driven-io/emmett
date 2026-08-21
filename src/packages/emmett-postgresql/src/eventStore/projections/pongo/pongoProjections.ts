@@ -26,6 +26,11 @@ export type PongoProjectionHandlerContext =
     pongo: PongoClient;
   };
 
+const pongoSchemaOptions = (context: PostgreSQLProjectionHandlerContext) => ({
+  defaultSchemaName: context.migrationOptions?.projectionsDatabaseSchemaName,
+  migrationTable: context.migrationOptions?.migrationTable,
+});
+
 export type PongoWithNotNullDocumentEvolve<
   Document extends PongoDocument,
   EventType extends Event,
@@ -108,15 +113,15 @@ export const pongoProjection = <
     eventsOptions,
     handle: async (events, context) => {
       const {
-        connection: { connectionString, client, pool },
+        connection: { connectionString, client },
       } = context;
       const pongo = pongoClient({
         connectionString,
         driver: pgDriver,
+        ...pongoSchemaOptions(context),
         schema: { autoMigration: 'None' },
         connectionOptions: {
           client,
-          pool,
           transactionOptions: {
             allowNestedTransactions: true,
           },
@@ -134,14 +139,14 @@ export const pongoProjection = <
     truncate: truncate
       ? async (context) => {
           const {
-            connection: { connectionString, client, pool },
+            connection: { connectionString, client },
           } = context;
           const pongo = pongoClient({
             connectionString,
             driver: pgDriver,
+            ...pongoSchemaOptions(context),
             connectionOptions: {
               client,
-              pool,
               transactionOptions: {
                 allowNestedTransactions: true,
               },
@@ -160,14 +165,14 @@ export const pongoProjection = <
     init: init
       ? async (options) => {
           const {
-            connection: { connectionString, client, pool },
+            connection: { connectionString, client },
           } = options.context;
           const pongo = pongoClient({
             connectionString,
             driver: pgDriver,
+            ...pongoSchemaOptions(options.context),
             connectionOptions: {
               client,
-              pool,
               transactionOptions: {
                 allowNestedTransactions: true,
               },
@@ -303,14 +308,14 @@ export const pongoMultiStreamProjection = <
     canHandle,
     truncate: async (context) => {
       const {
-        connection: { connectionString, client, pool },
+        connection: { connectionString, client },
       } = context;
       const pongo = pongoClient({
         connectionString,
         driver: pgDriver,
+        ...pongoSchemaOptions(context),
         connectionOptions: {
           client,
-          pool,
           transactionOptions: {
             allowNestedTransactions: true,
           },

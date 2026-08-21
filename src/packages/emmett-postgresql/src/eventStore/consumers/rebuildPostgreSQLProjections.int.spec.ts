@@ -1,6 +1,16 @@
-import { dumbo, single, SQL, type Dumbo } from '@event-driven-io/dumbo';
+import {
+  DefaultDatabaseSchemaName,
+  dumbo,
+  single,
+  SQL,
+  SQLTableReference,
+  type Dumbo,
+  type SQLExecutor,
+} from '@event-driven-io/dumbo';
 import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 import {
+  assertEqual,
+  assertFalse,
   assertDeepEqual,
   asyncAwaiter,
   getProjectorId,
@@ -101,6 +111,71 @@ void describe('Rebuilding PostgreSQL Projections', () => {
   });
 
   void describe('rebuildPostgreSQLProjections', () => {
+    void it(
+      'reads events from the event-store schema and rebuilds Pongo projections in the projection schema',
+      withDeadline,
+      async () => {
+        const eventSchemaName = schemaName('events');
+        const projectionSchemaName = schemaName('read_models');
+        const collectionName = schemaName('shopping_cart_summary');
+        const shoppingCartId = `shoppingCart:${uuid()}`;
+        const streamName = `shopping_cart-${shoppingCartId}`;
+        const schemaStore = getPostgreSQLEventStore(connectionString, {
+          schema: {
+            autoMigration: 'CreateOrUpdate',
+            databaseSchemaName: eventSchemaName,
+            projectionsDatabaseSchemaName: projectionSchemaName,
+          },
+        });
+
+        try {
+          await schemaStore.schema.migrate();
+          await schemaStore.appendToStream(streamName, [
+            { type: 'ProductItemAdded', data: { productItem } },
+          ]);
+
+          const consumer = rebuildPostgreSQLProjections({
+            connectionString,
+            schema: {
+              databaseSchemaName: eventSchemaName,
+              projectionsDatabaseSchemaName: projectionSchemaName,
+            },
+            projection: pongoSingleStreamProjection<
+              ShoppingCartSummary,
+              ProductItemAdded
+            >({
+              collectionName,
+              canHandle: ['ProductItemAdded'],
+              evolve: (
+                document: ShoppingCartSummary,
+                event: ReadEvent<ProductItemAdded>,
+              ): ShoppingCartSummary => ({
+                ...document,
+                productItemsCount:
+                  document.productItemsCount + event.data.productItem.quantity,
+              }),
+              initialState: () => ({
+                status: 'pending',
+                productItemsCount: 0,
+              }),
+            }),
+          });
+
+          try {
+            await consumer.start();
+          } finally {
+            await consumer.close();
+          }
+
+          assertEqual(1, await tableRows(projectionSchemaName, collectionName));
+          assertFalse(await tableExists(eventSchemaName, collectionName));
+          assertFalse(await tableExists(undefined, collectionName));
+        } finally {
+          await schemaStore.close();
+        }
+      },
+    );
+
     void it('rebuilds single inline projections', withDeadline, async () => {
       // Given
       const shoppingCartId = `shoppingCart:${uuid()}`;
@@ -493,6 +568,23 @@ void describe('Rebuilding PostgreSQL Projections', () => {
       },
     );
   });
+
+  const tableExists = (
+    databaseSchemaName: string | undefined,
+    tableName: string,
+  ) => tableExistsUsing(pool.execute, databaseSchemaName, tableName);
+
+  const tableRows = async (
+    databaseSchemaName: string | undefined,
+    tableName: string,
+  ): Promise<number> => {
+    if (!(await tableExists(databaseSchemaName, tableName))) return 0;
+
+    const result = await pool.execute.query<{ count: string }>(
+      SQL`SELECT COUNT(*) AS count FROM ${SQLTableReference.from({ databaseSchemaName: databaseSchemaName ?? DefaultDatabaseSchemaName, tableName })}`,
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  };
 });
 
 type ShoppingCartSummary = {
@@ -615,6 +707,26 @@ const otherShoppingCartsSummaryProjectionV2 = pongoSingleStreamProjection({
 
 const getTableFullName = (name: string, version: number) =>
   version === 1 ? name : `${name}_v${version}`;
+
+const schemaName = (prefix: string): string =>
+  `${prefix}_${uuid().replaceAll('-', '_')}`;
+
+const tableExistsUsing = async (
+  execute: SQLExecutor,
+  databaseSchemaName: string | undefined,
+  tableName: string,
+): Promise<boolean> => {
+  const result = await execute.query<{ exists: boolean }>(
+    SQL`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = ${databaseSchemaName ?? 'public'} AND table_name = ${tableName}
+      ) AS exists
+    `,
+  );
+  return result.rows[0]?.exists === true;
+};
 
 const createRebuildTestProjection = (
   name: string,

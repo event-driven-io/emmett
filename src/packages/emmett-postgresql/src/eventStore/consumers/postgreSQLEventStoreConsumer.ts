@@ -15,6 +15,10 @@ import {
 } from '@event-driven-io/emmett';
 import { postgreSQLMessageSource } from './messageSource';
 import {
+  eventStoreDatabaseSchema,
+  type EventStoreDatabaseSchemaOptions,
+} from '../schema';
+import {
   postgreSQLProjector,
   postgreSQLReactor,
   postgreSQLWorkflowProcessor,
@@ -37,6 +41,7 @@ export type PostgreSQLEventStoreConsumerConfig<
     batchDeadlineInMs?: number;
     pullingFrequencyInMs?: number;
   };
+  schema?: EventStoreDatabaseSchemaOptions;
 } & JSONSerializationOptions;
 
 export type PostgreSQLEventStoreConsumerOptions<
@@ -105,6 +110,11 @@ export const postgreSQLEventStoreConsumer = <
 >(
   options: PostgreSQLEventStoreConsumerOptions<ConsumerMessageType>,
 ): PostgreSQLEventStoreConsumer<ConsumerMessageType> => {
+  const databaseSchema = eventStoreDatabaseSchema(options.schema);
+  const processorMetadataSchema = {
+    ...options.schema,
+    ...databaseSchema,
+  };
   const isOwnPool = !options.pool;
   const pool = options.pool
     ? options.pool
@@ -125,10 +135,12 @@ export const postgreSQLEventStoreConsumer = <
         pool,
         batchSize: options.pulling?.batchSize,
         pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
+        databaseSchemaName: databaseSchema.databaseSchemaName,
       });
 
   const processorContext = {
     execute: pool.execute,
+    migrationOptions: processorMetadataSchema,
     connection: {
       connectionString: options.connectionString,
       pool,
@@ -148,9 +160,24 @@ export const postgreSQLEventStoreConsumer = <
   >({
     ...options,
     source,
-    reactorFactory: postgreSQLReactor,
-    projectorFactory: postgreSQLProjector,
-    workflowProcessorFactory: postgreSQLWorkflowProcessor,
+    reactorFactory: (processorOptions) =>
+      postgreSQLReactor({
+        ...processorOptions,
+        migrationOptions:
+          processorOptions.migrationOptions ?? processorMetadataSchema,
+      }),
+    projectorFactory: (processorOptions) =>
+      postgreSQLProjector({
+        ...processorOptions,
+        migrationOptions:
+          processorOptions.migrationOptions ?? processorMetadataSchema,
+      }),
+    workflowProcessorFactory: (processorOptions) =>
+      postgreSQLWorkflowProcessor({
+        ...processorOptions,
+        migrationOptions:
+          processorOptions.migrationOptions ?? processorMetadataSchema,
+      }),
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     scope: (handler) => handler(processorContext),

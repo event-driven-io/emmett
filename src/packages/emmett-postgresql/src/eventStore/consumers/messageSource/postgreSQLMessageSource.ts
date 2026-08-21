@@ -21,6 +21,7 @@ export type PostgreSQLMessageSourceOptions = {
   batchSize?: number;
   pullingFrequencyInMs?: number;
   partition?: string;
+  databaseSchemaName?: string;
 };
 
 export const postgreSQLMessageSource = <
@@ -30,6 +31,7 @@ export const postgreSQLMessageSource = <
   batchSize,
   pullingFrequencyInMs,
   partition,
+  databaseSchemaName,
 }: PostgreSQLMessageSourceOptions): MessageSource<
   MessageType,
   RecordedMessageMetadataWithGlobalPosition
@@ -50,6 +52,7 @@ export const postgreSQLMessageSource = <
         await readMessagesBatch<MessageType>(pool.execute, {
           after: PostgreSQLEventStoreCheckpoint.parse(after),
           batchSize: requestedBatchSize,
+          databaseSchemaName,
         });
 
       return {
@@ -62,7 +65,7 @@ export const postgreSQLMessageSource = <
       pool.withConnection(async (connection) => {
         const { currentCheckpoint } = await readLastCommittedMessageCheckpoint(
           connection.execute,
-          { partition },
+          { partition, databaseSchemaName },
         );
         return toCheckpoint(currentCheckpoint);
       }),

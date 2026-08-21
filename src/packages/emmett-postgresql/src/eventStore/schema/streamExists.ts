@@ -1,10 +1,13 @@
 import { SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import type { StreamExistsResult } from '@event-driven-io/emmett';
-import { defaultTag, streamsTable } from './typing';
+import { defaultTag, emmettRelation, streamsTable } from './typing';
 
 type StreamExistsSqlResult = { exists: boolean };
 
-export type PostgresStreamExistsOptions = { partition: string };
+export type PostgresStreamExistsOptions = {
+  partition?: string;
+  databaseSchemaName?: string;
+};
 
 export const streamExists = async (
   execute: SQLExecutor,
@@ -14,7 +17,7 @@ export const streamExists = async (
   const queryResult = await execute.query<StreamExistsSqlResult>(
     SQL`SELECT EXISTS (
         SELECT 1
-        from ${SQL.identifier(streamsTable.name)}
+        from ${emmettRelation(options?.databaseSchemaName, streamsTable.name)}
         WHERE stream_id = ${streamId} AND partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE)
       `,
   );

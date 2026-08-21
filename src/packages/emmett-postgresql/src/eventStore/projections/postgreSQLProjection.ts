@@ -105,6 +105,7 @@ export const handleProjections = async <EventType extends Event = Event>(
     // TODO: Make projection name mandatory
     if (projection.name) {
       const lockAcquired = await postgreSQLProjectionLock({
+        databaseSchemaName: options.migrationOptions?.databaseSchemaName,
         projectionName: projection.name,
         partition,
         version: projection.version ?? 1,
@@ -123,6 +124,7 @@ export const handleProjections = async <EventType extends Event = Event>(
         transaction,
       },
       execute: transaction.execute,
+      migrationOptions: options.migrationOptions,
       observabilityScope: options.observabilityScope,
     });
   }
@@ -146,6 +148,8 @@ export const postgreSQLProjection = <
         PostgresReadEventMetadata,
         PostgreSQLProjectionHandlerContext
       >(options.context.execute, {
+        databaseSchemaName:
+          options.context.migrationOptions?.databaseSchemaName,
         // TODO: pass partition from options
         partition: defaultTag,
         status: 'active',

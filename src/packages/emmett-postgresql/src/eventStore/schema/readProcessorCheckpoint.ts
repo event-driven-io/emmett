@@ -6,7 +6,12 @@ import {
 } from '@event-driven-io/dumbo';
 import type { ProcessorCheckpoint } from '@event-driven-io/emmett';
 import { PostgreSQLEventStoreCheckpoint } from './readMessagesBatch';
-import { defaultTag, messagesTable, processorsTable } from './typing';
+import {
+  defaultTag,
+  emmettRelation,
+  messagesTable,
+  processorsTable,
+} from './typing';
 
 type ReadProcessorCheckpointSqlResult = {
   last_processed_checkpoint: string;
@@ -20,9 +25,10 @@ export type ReadProcessorCheckpointResult = {
   lastProcessedCheckpoint: ProcessorCheckpoint | null;
 };
 
-const resolveTransactionId = async (
+const checkpointWithTransactionId = async (
   execute: SQLExecutor,
   rawCheckpoint: string,
+  databaseSchemaName?: string,
 ): Promise<ProcessorCheckpoint> => {
   if (rawCheckpoint.includes(':')) return rawCheckpoint as ProcessorCheckpoint;
 
@@ -36,7 +42,7 @@ const resolveTransactionId = async (
   const row = await single(
     execute.query<ReadTransactionIdSqlResult>(
       SQL`SELECT transaction_id
-           FROM ${SQL.identifier(messagesTable.name)}
+           FROM ${emmettRelation(databaseSchemaName, messagesTable.name)}
            WHERE global_position = ${globalPosition}
            LIMIT 1`,
     ),
@@ -50,12 +56,17 @@ const resolveTransactionId = async (
 
 export const readProcessorCheckpoint = async (
   execute: SQLExecutor,
-  options: { processorId: string; partition?: string; version?: number },
+  options: {
+    processorId: string;
+    partition?: string;
+    version?: number;
+    databaseSchemaName?: string;
+  },
 ): Promise<ReadProcessorCheckpointResult> => {
   const result = await singleOrNull(
     execute.query<ReadProcessorCheckpointSqlResult>(
       SQL`SELECT last_processed_checkpoint
-           FROM ${SQL.identifier(processorsTable.name)}
+           FROM ${emmettRelation(options.databaseSchemaName, processorsTable.name)}
            WHERE partition = ${options?.partition ?? defaultTag} AND processor_id = ${options.processorId} AND version = ${options.version ?? 1}
            LIMIT 1`,
     ),
@@ -64,9 +75,10 @@ export const readProcessorCheckpoint = async (
   if (result === null) return { lastProcessedCheckpoint: null };
 
   return {
-    lastProcessedCheckpoint: await resolveTransactionId(
+    lastProcessedCheckpoint: await checkpointWithTransactionId(
       execute,
       result.last_processed_checkpoint,
+      options.databaseSchemaName,
     ),
   };
 };

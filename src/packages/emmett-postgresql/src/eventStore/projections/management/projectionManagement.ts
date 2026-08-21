@@ -18,7 +18,7 @@ import {
   callDeactivateProjection,
   callRegisterProjection,
 } from '../../schema/projections/registerProjection';
-import { projectionsTable } from '../../schema/typing';
+import { emmettRelation, projectionsTable } from '../../schema/typing';
 import { toProjectionLockKey } from '../locks/postgreSQLProjectionLock';
 
 export const registerProjection = async <
@@ -27,6 +27,7 @@ export const registerProjection = async <
 >(
   execute: SQLExecutor,
   options: {
+    databaseSchemaName?: string;
     partition: string;
     status: 'active' | 'inactive';
     registration: ProjectionRegistration<
@@ -55,6 +56,7 @@ export const registerProjection = async <
   const { registered } = await single<{ registered: boolean }>(
     execute.query(
       callRegisterProjection({
+        databaseSchemaName: options.databaseSchemaName,
         lockKey: lockKeyBigInt.toString(),
         name: name!,
         partition,
@@ -72,7 +74,12 @@ export const registerProjection = async <
 
 export const activateProjection = async (
   execute: SQLExecutor,
-  options: { name: string; partition: string; version: number },
+  options: {
+    databaseSchemaName?: string;
+    name: string;
+    partition: string;
+    version: number;
+  },
 ): Promise<{ activated: boolean }> => {
   const { name, partition, version } = options;
 
@@ -87,6 +94,7 @@ export const activateProjection = async (
   const { activated } = await single<{ activated: boolean }>(
     execute.query(
       callActivateProjection({
+        databaseSchemaName: options.databaseSchemaName,
         lockKey: lockKeyBigInt.toString(),
         name,
         partition,
@@ -100,7 +108,12 @@ export const activateProjection = async (
 
 export const deactivateProjection = async (
   execute: SQLExecutor,
-  options: { name: string; partition: string; version: number },
+  options: {
+    databaseSchemaName?: string;
+    name: string;
+    partition: string;
+    version: number;
+  },
 ): Promise<{ deactivated: boolean }> => {
   const { name, partition, version } = options;
 
@@ -115,6 +128,7 @@ export const deactivateProjection = async (
   const { deactivated } = await single<{ deactivated: boolean }>(
     execute.query(
       callDeactivateProjection({
+        databaseSchemaName: options.databaseSchemaName,
         lockKey: lockKeyBigInt.toString(),
         name,
         partition,
@@ -155,15 +169,21 @@ type RawProjectionRow = {
 export const readProjectionInfo = async (
   execute: SQLExecutor,
   {
+    databaseSchemaName,
     name,
     partition,
     version,
-  }: { name: string; partition: string; version: number },
+  }: {
+    databaseSchemaName?: string;
+    name: string;
+    partition: string;
+    version: number;
+  },
 ): Promise<ReadProjectionInfoResult | null> => {
   const row = await singleOrNull<RawProjectionRow>(
     execute.query(
       SQL`SELECT name, version, type, kind, status, definition, created_at, last_updated
-           FROM ${SQL.identifier(projectionsTable.name)}
+           FROM ${emmettRelation(databaseSchemaName, projectionsTable.name)}
            WHERE name = ${name} AND partition = ${partition} AND version = ${version}`,
     ),
   );

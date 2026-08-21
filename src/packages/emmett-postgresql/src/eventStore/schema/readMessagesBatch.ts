@@ -11,7 +11,7 @@ import {
   type RecordedMessageMetadata,
   type RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import { defaultTag, messagesTable } from './typing';
+import { defaultTag, emmettRelation, messagesTable } from './typing';
 
 type ReadMessagesBatchSqlResult<MessageType extends Message> = {
   stream_position: string;
@@ -79,7 +79,10 @@ export type ReadMessagesBatchResult<
 };
 
 export const readMessagesBatchSQL = (
-  options: ReadMessagesBatchOptions & { partition?: string },
+  options: ReadMessagesBatchOptions & {
+    partition?: string;
+    databaseSchemaName?: string;
+  },
 ): SQL => {
   const from = 'from' in options ? options.from : undefined;
   const after = 'after' in options ? options.after : undefined;
@@ -101,7 +104,7 @@ export const readMessagesBatchSQL = (
 
   return SQL`
     SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id, transaction_id
-    FROM ${SQL.identifier(messagesTable.name)}
+    FROM ${emmettRelation(options.databaseSchemaName, messagesTable.name)}
     WHERE partition = ${options?.partition ?? defaultTag}
       AND is_archived = FALSE
       AND transaction_id < pg_snapshot_xmin(pg_current_snapshot())
@@ -117,7 +120,10 @@ export const readMessagesBatch = async <
     RecordedMessageMetadataWithGlobalPosition,
 >(
   execute: SQLExecutor,
-  options: ReadMessagesBatchOptions & { partition?: string },
+  options: ReadMessagesBatchOptions & {
+    partition?: string;
+    databaseSchemaName?: string;
+  },
 ): Promise<
   ReadMessagesBatchResult<MessageType, RecordedMessageMetadataType>
 > => {

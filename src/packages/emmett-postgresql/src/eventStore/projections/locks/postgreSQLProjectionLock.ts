@@ -5,6 +5,7 @@ import {
 } from './tryAcquireProjectionLock';
 
 export type PostgreSQLProjectionLockOptions = {
+  databaseSchemaName?: string;
   projectionName: string;
   partition: string;
   version: number;
