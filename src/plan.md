@@ -192,6 +192,26 @@ Hooks must receive the resolved configuration even when their timing means the c
 
 Raw SQL projections remain user-owned. Emmett exposes the resolved names but does not parse SQL, rewrite SQL or set `search_path`.
 
+Consumer and session validation should remain test-driven rather than adding new plumbing by default. The intended behavior is:
+
+- event-store-created consumers receive the prepared metadata from the store;
+- direct PostgreSQL consumers prepare the same metadata from their own `schema` option;
+- `context.connection.messageStore` keeps that metadata while borrowing the current transaction connection and disabling auto-migration;
+- `withSession(...)` keeps the configured schema options while replacing the underlying connection.
+
+If those paths already satisfy the behavior, do not add another options wrapper or forwarding abstraction. Keep the tests as the regression guard.
+
+### Unit-test signal listener warning follow-up
+
+Current unit-test runs pass but emit Node `MaxListenersExceededWarning` for `process` `SIGTERM` and `SIGINT` listeners. The warning means more than Node's default 10 listeners are registered on the global process object during one Vitest run. It is probably caused by repeated test helpers, containers, consumers or processors installing shutdown handlers without removing them when each test/suite finishes.
+
+This is not caused by schema support and does not fail the suite, but it should be cleaned up separately because it can hide real listener leaks. A focused follow-up should:
+
+- run unit tests with `node --trace-warnings` or an equivalent Vitest setup to identify the registration sites;
+- prefer removing listeners during test cleanup or reusing one shared shutdown registration over raising the global listener limit;
+- check long-running consumer/processor tests and testcontainers helpers first, because they are the most likely places to attach signal handlers;
+- keep the fix outside the schema PR unless the trace points to code touched by schema support.
+
 ## Pongo contract
 
 Use one internal Pongo-client factory for init, handle, truncate, rebuild and specs. It receives the resolved context and always forwards:

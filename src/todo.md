@@ -72,7 +72,7 @@
 - [x] Check follow-up changes for Dumbo and Pongo, and note them in `research.md` and `plan.md`
 - [x] Move schema hook coverage to the schema suite and keep consumer runtime schema checks in a dedicated consumer spec
 - [x] Keep Pongo projection helpers from passing both a pool and a transaction client, and close the ambient-client Pongo clients in `finally`
-- [ ] Stop for approval before Phase 4
+- [x] Stop for approval before Phase 4
 
 ## Phase 4: Pongo and raw projection schema forwarding
 
@@ -90,10 +90,25 @@
 - [x] Run `npm run test:unit`
 - [x] Review for consistency, naming, dead code, and redundant abstractions; fix only clear issues and ask Oskar when unsure
 - [x] Check follow-up changes for Dumbo and Pongo, and note them in `research.md` and `plan.md`
-- [ ] Stop for approval before Phase 5
+- [x] Stop for approval before Phase 5
+
+## Phase 5: consumers, sessions and alternate connections
+
+- [x] Started after approval
+- [x] Add user-facing tests for schema forwarding from event-store-created consumers
+- [x] Add user-facing tests for schema forwarding through consumer/session/alternate connection paths
+- [x] Add user-facing tests for async projection storage when event-store and projection schemas differ
+- [x] Add user-facing tests for rebuilding projections when event-store and projection schemas differ
+- [x] Confirm remaining event-store-created consumer/session paths already pass prepared schema metadata without coupling processors to event-store options
+- [x] Run focused tests and formatting
+- [x] Run `npm run build:ts`
+- [x] Run `npm run fix`
+- [x] Run `npm run test:unit`
+- [x] Review for consistency, naming, dead code, and redundant abstractions; fix only clear issues and ask Oskar when unsure
+- [x] Check follow-up changes for Dumbo and Pongo, and note them in `research.md` and `plan.md`
+- [ ] Stop for approval before Phase 6
 
 ## Later phases
 
-- [ ] Consumers/sessions/alternate connections
 - [ ] Identifier safety/regression/docs
 - [ ] SQLite follow-up PR

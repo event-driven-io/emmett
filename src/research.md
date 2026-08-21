@@ -248,6 +248,18 @@ Emmett creates Pongo clients during projection init, handle, truncate, rebuild a
 
 The important Pongo/Emmett boundary is that Emmett does not need to generate Pongo's qualified CRUD SQL. Emmett creates every Pongo client with the resolved `defaultSchemaName`, points it at the same migration table used by the event store and general PostgreSQL projections, and continues passing `collectionOptions`. Pongo then uses the explicit collection schema when present and its client/database default otherwise.
 
+## Consumer, session and borrowed-connection follow-up
+
+Phase 5 validation showed that the existing PostgreSQL consumer/session wiring already preserves the prepared schema metadata:
+
+- `store.consumer(...)` passes the resolved schema options to `postgreSQLEventStoreConsumer`;
+- direct `postgreSQLEventStoreConsumer({ schema })` builds the same prepared metadata value locally;
+- `context.connection.messageStore` is created with `autoMigration: 'None'` plus the prepared metadata, so events appended inside handlers stay in the configured event-store schema;
+- `withSession(...)` preserves the store schema options while swapping the connection to the borrowed transaction connection;
+- a store created over a supplied Dumbo pool still uses the configured schema for runtime operations.
+
+No Dumbo or Pongo extension is needed for those paths. The existing Pongo follow-up about borrowed pool/client ownership still stands: Emmett should continue passing either an ambient transaction client or a pool, never both, and Pongo should eventually expose explicit borrowed-pool semantics so wrappers do not need lifecycle assumptions.
+
 ## PostgreSQL advisory locks and schemas
 
 PostgreSQL advisory locks are database-wide for the current session or transaction. They are not scoped by PostgreSQL schema. Moving `emt_processors`, `emt_projections` and the lock helper functions into `events` makes the stored lifecycle state schema-specific, but it does not automatically make advisory lock keys schema-specific.
