@@ -389,6 +389,7 @@ export const getPostgreSQLEventStore = (
                 if (projection.projection.truncate)
                   await projection.projection.truncate({
                     ...projectionContext,
+                    migrationOptions: configuredSchemaOptions,
                     observabilityScope: noopScope,
                   });
               }

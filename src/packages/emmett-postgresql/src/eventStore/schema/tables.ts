@@ -1,4 +1,8 @@
 import { SQL } from '@event-driven-io/dumbo';
+import {
+  postgreSQLDynamicRelationArguments,
+  postgreSQLDynamicRelationFormat,
+} from './postgreSQLDynamicRelation';
 import { postgreSQLFunctionName } from './postgreSQLFunctionName';
 import {
   defaultTag,
@@ -12,11 +16,6 @@ import {
 } from './typing';
 
 import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
-
-const formatSchemaArgument = (databaseSchemaName: string | undefined) =>
-  databaseSchemaName === undefined
-    ? SQL.EMPTY
-    : SQL`${SQL.literal(databaseSchemaName)},`;
 
 const sequenceRegclassName = (databaseSchemaName: string | undefined) =>
   databaseSchemaName === undefined
@@ -129,21 +128,21 @@ export const addTablePartitionsFor = (databaseSchemaName?: string) =>
 
       -- create default partition
       EXECUTE format('
-          CREATE TABLE IF NOT EXISTS ${SQL.plain(databaseSchemaName === undefined ? '%I' : '%I.%I')} PARTITION OF ${SQL.plain(databaseSchemaName === undefined ? '%I' : '%I.%I')}
+          CREATE TABLE IF NOT EXISTS ${postgreSQLDynamicRelationFormat(databaseSchemaName)} PARTITION OF ${postgreSQLDynamicRelationFormat(databaseSchemaName)}
           FOR VALUES IN (%L) PARTITION BY LIST (is_archived);',
-          ${formatSchemaArgument(databaseSchemaName)} v_main_partiton_name, ${formatSchemaArgument(databaseSchemaName)} tableName, partition_name
+          ${postgreSQLDynamicRelationArguments(databaseSchemaName)} v_main_partiton_name, ${postgreSQLDynamicRelationArguments(databaseSchemaName)} tableName, partition_name
       );
   
       EXECUTE format('
-          CREATE TABLE IF NOT EXISTS ${SQL.plain(databaseSchemaName === undefined ? '%I' : '%I.%I')} PARTITION OF ${SQL.plain(databaseSchemaName === undefined ? '%I' : '%I.%I')}
+          CREATE TABLE IF NOT EXISTS ${postgreSQLDynamicRelationFormat(databaseSchemaName)} PARTITION OF ${postgreSQLDynamicRelationFormat(databaseSchemaName)}
           FOR VALUES IN (FALSE);',
-          ${formatSchemaArgument(databaseSchemaName)} v_active_partiton_name, ${formatSchemaArgument(databaseSchemaName)} v_main_partiton_name
+          ${postgreSQLDynamicRelationArguments(databaseSchemaName)} v_active_partiton_name, ${postgreSQLDynamicRelationArguments(databaseSchemaName)} v_main_partiton_name
       );
   
       EXECUTE format('
-          CREATE TABLE IF NOT EXISTS ${SQL.plain(databaseSchemaName === undefined ? '%I' : '%I.%I')} PARTITION OF ${SQL.plain(databaseSchemaName === undefined ? '%I' : '%I.%I')}
+          CREATE TABLE IF NOT EXISTS ${postgreSQLDynamicRelationFormat(databaseSchemaName)} PARTITION OF ${postgreSQLDynamicRelationFormat(databaseSchemaName)}
           FOR VALUES IN (TRUE);',
-          ${formatSchemaArgument(databaseSchemaName)} v_archived_partiton_name, ${formatSchemaArgument(databaseSchemaName)} v_main_partiton_name
+          ${postgreSQLDynamicRelationArguments(databaseSchemaName)} v_archived_partiton_name, ${postgreSQLDynamicRelationArguments(databaseSchemaName)} v_main_partiton_name
       );
   END;
   $emt_add_table_partition$ LANGUAGE plpgsql;`,
@@ -162,15 +161,15 @@ export const addPartitionSQLFor = (databaseSchemaName?: string) =>
       PERFORM ${postgreSQLFunctionName(databaseSchemaName, 'emt_add_table_partition')}('${SQL.plain(streamsTable.name)}', partition_name);
 
       EXECUTE format('
-          CREATE TABLE IF NOT EXISTS ${SQL.plain(databaseSchemaName === undefined ? '%I' : '%I.%I')} PARTITION OF ${SQL.plain(databaseSchemaName === undefined ? '%I' : '%I.%I')}
+          CREATE TABLE IF NOT EXISTS ${postgreSQLDynamicRelationFormat(databaseSchemaName)} PARTITION OF ${postgreSQLDynamicRelationFormat(databaseSchemaName)}
           FOR VALUES IN (%L);',
-          ${formatSchemaArgument(databaseSchemaName)} ${postgreSQLFunctionName(databaseSchemaName, 'emt_sanitize_name')}('${SQL.plain(processorsTable.name)}' || '_' || partition_name), ${formatSchemaArgument(databaseSchemaName)} '${SQL.plain(processorsTable.name)}', partition_name
+          ${postgreSQLDynamicRelationArguments(databaseSchemaName)} ${postgreSQLFunctionName(databaseSchemaName, 'emt_sanitize_name')}('${SQL.plain(processorsTable.name)}' || '_' || partition_name), ${postgreSQLDynamicRelationArguments(databaseSchemaName)} '${SQL.plain(processorsTable.name)}', partition_name
       );
 
       EXECUTE format('
-          CREATE TABLE IF NOT EXISTS ${SQL.plain(databaseSchemaName === undefined ? '%I' : '%I.%I')} PARTITION OF ${SQL.plain(databaseSchemaName === undefined ? '%I' : '%I.%I')}
+          CREATE TABLE IF NOT EXISTS ${postgreSQLDynamicRelationFormat(databaseSchemaName)} PARTITION OF ${postgreSQLDynamicRelationFormat(databaseSchemaName)}
           FOR VALUES IN (%L);',
-          ${formatSchemaArgument(databaseSchemaName)} ${postgreSQLFunctionName(databaseSchemaName, 'emt_sanitize_name')}('${SQL.plain(projectionsTable.name)}' || '_' || partition_name), ${formatSchemaArgument(databaseSchemaName)} '${SQL.plain(projectionsTable.name)}', partition_name
+          ${postgreSQLDynamicRelationArguments(databaseSchemaName)} ${postgreSQLFunctionName(databaseSchemaName, 'emt_sanitize_name')}('${SQL.plain(projectionsTable.name)}' || '_' || partition_name), ${postgreSQLDynamicRelationArguments(databaseSchemaName)} '${SQL.plain(projectionsTable.name)}', partition_name
       );
   END;
   $emt_add_partition$ LANGUAGE plpgsql;`,

@@ -74,9 +74,26 @@
 - [x] Keep Pongo projection helpers from passing both a pool and a transaction client, and close the ambient-client Pongo clients in `finally`
 - [ ] Stop for approval before Phase 4
 
+## Phase 4: Pongo and raw projection schema forwarding
+
+- [x] Started after approval
+- [x] Add failing user-facing tests proving Pongo projection tables use the configured projection schema
+- [x] Add failing user-facing tests proving explicit Pongo collection schema overrides the projection default
+- [x] Add failing user-facing tests proving Pongo projection migrations use the shared migration table
+- [x] Add failing user-facing tests proving projection specs forward configured schema options
+- [x] Add failing user-facing tests proving raw SQL projections receive configured schema names
+- [x] Forward projection schema and migration-table options to every PostgreSQL Pongo client construction path
+- [x] Forward configured schema options to projection truncation
+- [x] Run focused tests and formatting
+- [x] Run `npm run build:ts`
+- [x] Run `npm run fix`
+- [x] Run `npm run test:unit`
+- [x] Review for consistency, naming, dead code, and redundant abstractions; fix only clear issues and ask Oskar when unsure
+- [x] Check follow-up changes for Dumbo and Pongo, and note them in `research.md` and `plan.md`
+- [ ] Stop for approval before Phase 5
+
 ## Later phases
 
-- [ ] Pongo/raw projection forwarding
 - [ ] Consumers/sessions/alternate connections
 - [ ] Identifier safety/regression/docs
 - [ ] SQLite follow-up PR

@@ -195,6 +195,8 @@ format('CREATE TABLE IF NOT EXISTS %I.%I PARTITION OF %I.%I ...', schema, child,
 
 This would keep schema-qualified dynamic SQL consistent with `SQLTableReference` and reduce the chance that consumers accidentally create `"events.emt_messages"` as a single identifier.
 
+Emmett currently carries a narrow local helper, `postgreSQLDynamicRelationFormat` / `postgreSQLDynamicRelationArguments`, only for these PL/pgSQL dynamic partition statements. It is a removable workaround and should be replaced by the Dumbo helper above.
+
 ### Useful Pongo extensions
 
 #### 1. Keep migration-table placement independent from the default schema

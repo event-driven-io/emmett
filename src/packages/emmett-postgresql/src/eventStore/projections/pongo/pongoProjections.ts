@@ -26,6 +26,11 @@ export type PongoProjectionHandlerContext =
     pongo: PongoClient;
   };
 
+const pongoSchemaOptions = (context: PostgreSQLProjectionHandlerContext) => ({
+  defaultSchemaName: context.migrationOptions?.projectionsDatabaseSchemaName,
+  migrationTable: context.migrationOptions?.migrationTable,
+});
+
 export type PongoWithNotNullDocumentEvolve<
   Document extends PongoDocument,
   EventType extends Event,
@@ -113,6 +118,7 @@ export const pongoProjection = <
       const pongo = pongoClient({
         connectionString,
         driver: pgDriver,
+        ...pongoSchemaOptions(context),
         schema: { autoMigration: 'None' },
         connectionOptions: {
           client,
@@ -138,6 +144,7 @@ export const pongoProjection = <
           const pongo = pongoClient({
             connectionString,
             driver: pgDriver,
+            ...pongoSchemaOptions(context),
             connectionOptions: {
               client,
               transactionOptions: {
@@ -163,6 +170,7 @@ export const pongoProjection = <
           const pongo = pongoClient({
             connectionString,
             driver: pgDriver,
+            ...pongoSchemaOptions(options.context),
             connectionOptions: {
               client,
               transactionOptions: {
@@ -305,6 +313,7 @@ export const pongoMultiStreamProjection = <
       const pongo = pongoClient({
         connectionString,
         driver: pgDriver,
+        ...pongoSchemaOptions(context),
         connectionOptions: {
           client,
           transactionOptions: {
