@@ -25,6 +25,8 @@ The same fields can be offered by the SQLite event store. They have different ph
 
 `projectionsDatabaseSchemaName` should be optional and fall back to `databaseSchemaName`, so one setting moves all Emmett-managed infrastructure together. It is the intended default for every projection type. Pongo can apply it automatically; raw PostgreSQL projections receive it in their context and must use it when constructing their own structured table references. An explicit Pongo collection setting still wins.
 
+Only omission selects fallback or dialect-default behavior. Every supplied schema name, including `public`, remains explicit. Emmett should not compare it with `current_schema()`, inspect `search_path`, or normalize it based on whether PostgreSQL would ordinarily resolve unqualified objects there.
+
 ## What Dumbo and Pongo expose now
 
 The new API is sufficient, but it is not a single option that can be passed only when the pool is created.
@@ -208,7 +210,7 @@ Explicit configured references are preferable because they:
 This is more than forwarding `defaultSchemaName` into Pongo.
 
 1. Build a schema-bound event-store model/factory once from `databaseSchemaName`. Tables and all SQL using them should use `SQLTableReference` (or Dumbo table components), not `SQL.identifier(table.name)` and not interpolated dotted strings.
-2. Parameterize the current schema SQL and every historical migration. A fresh custom-schema database currently runs past migrations before the current schema migration; leaving old migrations unqualified could inspect or mutate objects in the default schema.
+2. Parameterize the current schema SQL. Keep pre-schema-support migrations unchanged on the default path, but omit them for a configured schema: schema configuration is a new supported deployment mode and has no older configured stores to upgrade. Migrations added after schema support must be schema-aware and run on both paths.
 3. Qualify PostgreSQL functions as well as tables. Function bodies call other functions and access tables, and partition helpers currently pass bare table-name strings into dynamic SQL. Those paths need schema-aware references or a deliberately fixed function-local `search_path`. Fully qualified references are less stateful.
 4. Put the shared migration table in the resolved `migrationTableDatabaseSchemaName ?? databaseSchemaName`. Forward the exact same migration-table options to Pongo and expose them to general PostgreSQL projections. Dumbo must create that schema before creating the table.
 5. Generate `eventStore.schema.sql()`/`print()` from the resolved instance schema. The current exported `schemaSQL` and `schemaMigration` constants can remain default-schema compatibility exports, while custom stores use factory output.
@@ -247,9 +249,9 @@ There are two viable function-body strategies:
 
   The setting is stored with the function and PostgreSQL restores the caller's setting after the call, so it does not leak to the pool. The configured schema must be rendered as an identifier and must be trusted because placing writable schemas on a routine path has security implications. The behavior of function `SET` clauses is defined by [`CREATE FUNCTION`](https://www.postgresql.org/docs/current/sql-createfunction.html).
 
-Explicit qualification is the selected strategy. It does complicate historical migrations: a fresh custom-schema store runs the old migrations, and their table DDL, function definition names, function bodies, default expressions, catalog queries and dynamic SQL are currently unqualified. Those migrations therefore need schema-bound factories or equivalent structured references. The default-schema factory output should remain unchanged to preserve existing hashes; custom schemas use their own migration table and stable schema-specific output.
+Explicit qualification is the selected strategy. It does not require rewriting pre-schema-support migrations because configured schemas have no supported historical installations. Preserve the existing migration list and hashes for the default path; for a configured schema, omit those migrations and start with the qualified current schema migration. All migrations introduced after this feature must use schema-bound references.
 
-A function-local `search_path` would reduce qualification inside function bodies only. It would not select where `CREATE FUNCTION` places the function, qualify calls from Emmett, fix namespace-blind catalog checks, or target table DDL in migrations. Avoiding historical migration parameterization would require a second mechanism such as a configuration-derived transaction-local `SET LOCAL search_path` around the migration runner. That hybrid is viable, but it makes migration correctness depend on session state and makes generated SQL less self-contained, so it is not recommended given the explicit-qualification decision.
+A function-local `search_path` would reduce qualification inside function bodies only. It would not select where `CREATE FUNCTION` places the function, qualify calls from Emmett, fix namespace-blind catalog checks, or target table DDL in future migrations. It therefore does not replace the explicit-qualification strategy.
 
 Mere co-location is therefore not a third strategy. Without qualification or a function-local path, a function can fail to find its tables or, more dangerously, operate on same-named objects earlier in the caller's path.
 
@@ -258,7 +260,7 @@ Mere co-location is therefore not a third strategy. Without qualification or a f
 Use the same logical schema-bound table model so SQLite gets Dumbo's established physical naming rules.
 
 1. Replace plain table identifiers with Dumbo table references. A configured `events` schema then consistently targets `"events.emt_streams"`, `"events.emt_messages"`, and so on.
-2. Parameterize the legacy SQLite migration and current create-table SQL. Running a legacy migration against unprefixed tables while runtime queries use prefixed tables would split the store.
+2. Keep the legacy SQLite migration unchanged for the default path and omit it for a newly configured logical schema. Parameterize the current create-table SQL, and require every migration introduced after schema support to use schema-bound references.
 3. Carry the resolved projection default through `SQLiteProjectionHandlerContext`, because Pongo clients are created separately for init, handle and truncate.
 4. Forward it through SQLite consumers, sessions, `SQLiteProjectionSpec` and Pongo assertion helpers for both sqlite3 and D1.
 5. Configure Emmett and Pongo to use the same migration table at `migrationTableDatabaseSchemaName ?? databaseSchemaName`. On SQLite this yields one prefixed physical table such as `"events.dmb_migrations"`; it does not create a namespace.
@@ -270,6 +272,8 @@ Do not interpret a SQLite schema as an `ATTACH DATABASE` name. Dumbo reports `su
 
 - Omitting the new settings must produce byte-for-byte equivalent default SQL where practical and preserve existing migration hashes.
 - Changing `databaseSchemaName` on an existing deployment should be documented as selecting a different store, not moving an existing store. Emmett should not copy or rename data automatically.
+- A configured schema starts its migration history at the schema-support boundary. Do not execute or record no-op markers for migrations that predate supported schema configuration.
+- The unreferenced PostgreSQL `0_44_0` migration remains reserved for the next release or manual execution. Schema support must not activate it; if a later release adds it to the normal migration list, it must be schema-aware and run for both deployment modes.
 - A custom event-store schema needs a separate migration history by default. Otherwise equal migration names in different stores collide in the default `dmb_migrations` table.
 - `migrationTableDatabaseSchemaName` defaults to the event-store schema. The same physical table is used by the event store and all projections that run Dumbo migrations, including Pongo, even when projection objects live elsewhere.
 - Pointing multiple event stores at one explicitly shared migration table is unsafe unless their migration identities are also isolated: equal migration names with different schema-qualified SQL can produce hash conflicts.
@@ -298,7 +302,7 @@ The precise contract is:
 1. Include schema creation followed by the current schema-qualified Emmett core objects.
 2. Do not add `dmb_migrations`, migration-history inserts, historical upgrade steps, or projection-owned tables to this output; those are not returned by `schema.sql()` today.
 3. Make `schema.print()` print exactly the value returned by `schema.sql()`.
-4. Keep `schema.migrate()` responsible for the shared migration table, historical migrations, current schema, and projection initialization.
+4. Keep `schema.migrate()` responsible for the shared migration table, the migration list appropriate to the selected deployment mode, the current schema, and projection initialization.
 
 Thus `schema.sql()` and `schema.migrate()` must create the same definitions for core event-store objects, but they are not intended to execute the same complete workflow.
 
@@ -347,7 +351,7 @@ At minimum:
 1. **Configuration placement -- accepted:** add the names under the existing `schema` option beside `autoMigration`.
 2. **Projection inheritance -- accepted:** `projectionsDatabaseSchemaName` falls back to `databaseSchemaName`.
 3. **Projection scope and name -- accepted:** use `projectionsDatabaseSchemaName`. Pongo applies it automatically; raw PostgreSQL projections receive the resolved value and explicitly use it in their SQL references.
-4. **Function resolution -- accepted:** explicitly qualify Emmett-owned function definitions, calls and dependencies rather than relying on a function-local `search_path`. Historical migrations must be made schema-aware as described above.
+4. **Function resolution -- accepted:** explicitly qualify Emmett-owned function definitions, calls and dependencies rather than relying on a function-local `search_path`. Pre-schema-support migrations remain default-only; future migrations must be schema-aware.
 5. **Migration-table schema -- accepted:** add `migrationTableDatabaseSchemaName`, defaulting to `databaseSchemaName`. The event store and all PostgreSQL projections use the same physical migration table; Pongo receives the options automatically, and custom projections receive them through context.
 6. **Low-level API -- accepted:** introduce schema-bound factories and retain current constants/wrappers for default-schema compatibility rather than threading optional schema arguments through unrelated helpers.
 7. **Hook/context contract -- accepted:** expose the resolved event, projection and migration-table schema names to hooks and projection contexts.
@@ -355,6 +359,7 @@ At minimum:
 9. **Data relocation -- document explicitly:** changing a configured schema selects a different store; it does not move existing data from `public` or unprefixed SQLite tables.
 10. **Portable validation -- accepted:** rely on Dumbo's dialect-specific validation and document SQLite's `.` restriction.
 11. **Standalone consumers/specs -- recommended as required:** support the same resolved configuration there in the initial change; otherwise production async projections and tests can silently address different schemas.
+12. **Explicit names -- accepted:** only omission selects fallback/default behavior. Do not special-case `public` or compare a supplied name with the database's effective default schema.
 
 ## Local evidence reviewed
 
