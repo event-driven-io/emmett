@@ -17,10 +17,7 @@ import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../../testing/postgreSQLTestDatabase';
-import {
-  getPostgreSQLEventStore,
-  type PostgresEventStore,
-} from '../../postgreSQLEventStore';
+import { getPostgreSQLEventStore } from '../../postgreSQLEventStore';
 import { PostgreSQLProjectionSpec } from '../postgresProjectionSpec';
 import { pongoSingleStreamProjection } from './pongoProjections';
 
@@ -30,7 +27,6 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
   let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let pool: PgPool;
-  const stores: PostgresEventStore[] = [];
 
   beforeAll(async () => {
     database = await sharedPostgreSQLDatabase();
@@ -46,7 +42,6 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
 
   afterAll(async () => {
     try {
-      for (const store of stores) await store.close();
       await pool?.close();
       await database?.close();
     } catch (error) {
@@ -82,20 +77,23 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           },
         ],
       });
-      stores.push(store);
 
-      await store.appendToStream(streamName, [
-        { type: 'ProductItemAdded', data: { quantity: 3 } },
-      ]);
+      try {
+        await store.appendToStream(streamName, [
+          { type: 'ProductItemAdded', data: { quantity: 3 } },
+        ]);
 
-      assertEqual(await tableRows(projectionSchemaName, collectionName), 1);
-      assertFalse(await tableExists(eventSchemaName, collectionName));
-      assertFalse(await tableExists(undefined, collectionName));
-      assertTrue(
-        (await migrationRows(migrationSchemaName, migrationTableName)).some(
-          (name) => name.includes(collectionName),
-        ),
-      );
+        assertEqual(await tableRows(projectionSchemaName, collectionName), 1);
+        assertFalse(await tableExists(eventSchemaName, collectionName));
+        assertFalse(await tableExists(undefined, collectionName));
+        assertTrue(
+          (await migrationRows(migrationSchemaName, migrationTableName)).some(
+            (name) => name.includes(collectionName),
+          ),
+        );
+      } finally {
+        await store.close();
+      }
     },
   );
 
@@ -123,15 +121,66 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           },
         ],
       });
-      stores.push(store);
 
-      await store.appendToStream(streamName, [
-        { type: 'ProductItemAdded', data: { quantity: 4 } },
-      ]);
+      try {
+        await store.appendToStream(streamName, [
+          { type: 'ProductItemAdded', data: { quantity: 4 } },
+        ]);
 
-      assertEqual(await tableRows(collectionSchemaName, collectionName), 1);
-      assertFalse(await tableExists(projectionSchemaName, collectionName));
-      assertFalse(await tableExists(eventSchemaName, collectionName));
+        assertEqual(await tableRows(collectionSchemaName, collectionName), 1);
+        assertFalse(await tableExists(projectionSchemaName, collectionName));
+        assertFalse(await tableExists(eventSchemaName, collectionName));
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'stores Pongo projection documents when configured schema names require quoting',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaNameRequiringQuotes('Events');
+      const projectionSchemaName = schemaNameRequiringQuotes('Read-Models');
+      const migrationSchemaName = schemaNameRequiringQuotes('Infrastructure');
+      const migrationTableName = tableNameRequiringQuotes('Emmett-Migrations');
+      const collectionName = tableNameRequiringQuotes('Shopping-Cart-Summary');
+      const streamName = `shopping_cart:${uuid()}`;
+
+      const store = getPostgreSQLEventStore(connectionString, {
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+          projectionsDatabaseSchemaName: projectionSchemaName,
+          migrationTable: {
+            schemaName: migrationSchemaName,
+            tableName: migrationTableName,
+          },
+        },
+        projections: [
+          {
+            type: 'inline',
+            projection: shoppingCartProjection(collectionName),
+          },
+        ],
+      });
+
+      try {
+        await store.appendToStream(streamName, [
+          { type: 'ProductItemAdded', data: { quantity: 7 } },
+        ]);
+
+        assertEqual(await tableRows(projectionSchemaName, collectionName), 1);
+        assertTrue(
+          (await migrationRows(migrationSchemaName, migrationTableName)).some(
+            (name) => name.includes(collectionName),
+          ),
+        );
+        assertFalse(await tableExists(eventSchemaName, collectionName));
+        assertFalse(await tableExists(undefined, collectionName));
+      } finally {
+        await store.close();
+      }
     },
   );
 
@@ -198,16 +247,19 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           },
         ],
       });
-      stores.push(store);
 
-      await store.appendToStream(streamName, [
-        { type: 'ProductItemAdded', data: { quantity: 6 } },
-      ]);
-      assertEqual(await tableRows(projectionSchemaName, collectionName), 1);
+      try {
+        await store.appendToStream(streamName, [
+          { type: 'ProductItemAdded', data: { quantity: 6 } },
+        ]);
+        assertEqual(await tableRows(projectionSchemaName, collectionName), 1);
 
-      await store.schema.dangerous.truncate({ truncateProjections: true });
+        await store.schema.dangerous.truncate({ truncateProjections: true });
 
-      assertEqual(await tableRows(projectionSchemaName, collectionName), 0);
+        assertEqual(await tableRows(projectionSchemaName, collectionName), 0);
+      } finally {
+        await store.close();
+      }
     },
   );
 
@@ -263,6 +315,12 @@ const shoppingCartProjection = (
 
 const schemaName = (prefix: string): string =>
   `${prefix}_${uuid().replaceAll('-', '_')}`;
+
+const schemaNameRequiringQuotes = (prefix: string): string =>
+  `${prefix}"-${uuid().replaceAll('-', '_')}`;
+
+const tableNameRequiringQuotes = (prefix: string): string =>
+  `${prefix}-${uuid().replaceAll('-', '_')}`;
 
 const tableExistsUsing = async (
   execute: SQLExecutor,

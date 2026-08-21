@@ -17,10 +17,12 @@ import {
 
 import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
 
-const sequenceRegclassName = (databaseSchemaName: string | undefined) =>
+const globalMessagePositionSequenceRegclass = (
+  databaseSchemaName: string | undefined,
+) =>
   databaseSchemaName === undefined
     ? SQL.literal('emt_global_message_position')
-    : SQL.literal(`${databaseSchemaName}.emt_global_message_position`);
+    : SQL`format(${SQL.literal('%I.%I')}, ${SQL.literal(databaseSchemaName)}, ${SQL.literal('emt_global_message_position')})`;
 
 export const streamsTableSQLFor = (databaseSchemaName?: string) => SQL`
   CREATE TABLE IF NOT EXISTS ${emmettRelation(databaseSchemaName, streamsTable.name)}(
@@ -44,7 +46,7 @@ export const messagesTableSQLFor = (databaseSchemaName?: string) => SQL`
 
   CREATE TABLE IF NOT EXISTS ${emmettRelation(databaseSchemaName, messagesTable.name)}(
       stream_position        BIGINT                    NOT NULL,
-      global_position        BIGINT                    DEFAULT nextval(${sequenceRegclassName(databaseSchemaName)}::regclass),
+      global_position        BIGINT                    DEFAULT nextval(${globalMessagePositionSequenceRegclass(databaseSchemaName)}::regclass),
       transaction_id         XID8                      NOT NULL,
       created                TIMESTAMPTZ               NOT NULL DEFAULT now(),
       is_archived            BOOLEAN                   NOT NULL DEFAULT FALSE,
