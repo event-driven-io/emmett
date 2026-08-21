@@ -12,6 +12,7 @@
 - Names must match the actual database concept. For PostgreSQL table/sequence references, prefer a relation-oriented name over an event-store-table name.
 - Name tests from the user's perspective, as use cases and observable behavior.
 - Before claiming a phase works, run `npm run build:ts`, `npm run fix`, `npm run test:unit` and all touched tests, then fix any issues found.
+- If running all integration or e2e test suites is needed, ask Oskar.
 - The current schema migration must ignore hash mismatches explicitly.
 - Do not manually escape or wrap identifiers/literals with `"` or `'` in Emmett. Use Dumbo primitives or change the SQL shape.
 
@@ -45,14 +46,33 @@
 
 ## Phase 2: core append and read isolation
 
-- [ ] Waiting for approval
-- [ ] Make runtime function calls use the configured event-store schema instead of unqualified function names.
-- [ ] Make runtime table reads/writes use the configured event-store schema instead of unqualified table names.
-- [ ] Add failing user-facing tests proving a configured schema works beyond schema creation.
+- [x] Started after approval
+- [x] Add failing user-facing tests proving runtime isolation between configured schemas.
+- [x] Make runtime function calls use the configured event-store schema instead of unqualified function names.
+- [x] Make runtime table reads/writes use the configured event-store schema instead of unqualified table names.
+- [x] Run focused tests and formatting
+- [x] Run `npm run build:ts`
+- [x] Run `npm run fix`
+- [x] Run `npm run test:unit`
+- [x] Review for consistency, naming, dead code, and redundant abstractions; fix only clear issues and ask Oskar when unsure
+- [x] Stop for approval before Phase 3
 
 ## Phase 3: checkpoints, locks, processors and hooks
 
-- [ ] Waiting for approval
+- [x] Started after approval
+- [x] Add failing user-facing tests proving processors use configured schema for checkpoints and locks
+- [x] Add failing user-facing tests proving projection registration and locks use configured schema
+- [x] Make consumer and processor lifecycle operations use the configured event-store schema consistently
+- [x] Make PostgreSQL projection management operations use the configured event-store schema consistently
+- [x] Run focused tests and formatting
+- [x] Run `npm run build:ts`
+- [x] Run `npm run fix`
+- [x] Run `npm run test:unit`
+- [x] Review for consistency, naming, dead code, and redundant abstractions; fix only clear issues and ask Oskar when unsure
+- [x] Check follow-up changes for Dumbo and Pongo, and note them in `research.md` and `plan.md`
+- [x] Move schema hook coverage to the schema suite and keep consumer runtime schema checks in a dedicated consumer spec
+- [x] Keep Pongo projection helpers from passing both a pool and a transaction client, and close the ambient-client Pongo clients in `finally`
+- [ ] Stop for approval before Phase 4
 
 ## Later phases
 

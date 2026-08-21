@@ -60,14 +60,6 @@ type EventStoreDatabaseSchema = {
   projectionsDatabaseSchemaName: string | undefined;
   migrationTable: MigrationTableOptions | undefined;
 };
-
-export type EventStoreDatabaseSchemaContext = {
-  databaseSchema: Readonly<{
-    databaseSchemaName: string | undefined;
-    projectionsDatabaseSchemaName: string | undefined;
-    migrationTable: MigrationTableOptions | undefined;
-  }>;
-};
 ```
 
 Resolve fallback from property presence only. Default-schema mode is selected only when `databaseSchemaName` is `undefined`. Do not inspect PostgreSQL metadata or compare supplied values with `public`, `current_schema()` or Dumbo's default-schema concepts.
@@ -179,11 +171,15 @@ Keep the existing name-only `pg_proc` guard byte-identical on the default path. 
 
 Do not use a connection-level or function-local `search_path` as Emmett's ownership mechanism.
 
+The current schema must include every routine used by configured runtime paths. In particular, `emt_try_acquire_projection_lock` is required by inline projection handling and must be part of the current generated schema, not only exported as a standalone helper.
+
+Advisory locks are not schema-scoped. Schema-qualified lock functions store/read lifecycle rows from schema-qualified tables, but identical lock keys in the same physical database still contend. Keep tests that assert schema placement on distinct processor/projection names. Treat schema-prefixed generated lock keys as a separate compatibility decision, not an implicit side effect of table qualification.
+
 ## Context and hook contract
 
-Add `EventStoreDatabaseSchemaContext` to every PostgreSQL projection handler context, including init, handle, truncate and rebuild paths.
+Do not make reusable PostgreSQL processors or projections depend on the event-store schema option model. PostgreSQL processor/projection metadata may eventually be used by non-PostgreSQL event sources. The event store is allowed to translate its `schema` option into PostgreSQL metadata options when it creates a PostgreSQL consumer; after that, processor/projection modules consume the prepared metadata context only.
 
-Pass the same context value to:
+Pass the prepared metadata context value to:
 
 - `onBeforeSchemaCreated`;
 - `onAfterSchemaCreated`;
@@ -273,7 +269,7 @@ Exit criteria: the basic event-store workflow is independent of `search_path` an
 
 Start with failing workflow tests for a configured schema covering processor checkpoints, projection registration, projection/processor locks and schema hooks receiving the resolved context.
 
-Implement the remaining runtime references and propagate `EventStoreDatabaseSchemaContext` through transaction conversion and hook invocation. Verify both hooks receive the same immutable resolved value.
+Implement the remaining runtime references and propagate the prepared PostgreSQL metadata options through transaction conversion and hook invocation. Verify hooks receive the same resolved values.
 
 Exit criteria: processing infrastructure and hooks target or describe the configured store consistently.
 
@@ -288,7 +284,7 @@ Start with failing projection tests proving:
 - Pongo records migrations in the event store's physical migration table, not a second table in the projection schema;
 - a raw projection receives event, projection and migration-table schema information in context.
 
-Implement the single Pongo-client factory and use it in every construction path. Do not rewrite raw SQL.
+Make every Pongo construction path pass the same schema and migration-table intent. Use either the pool form or the ambient client/connection form, never both. Close the Pongo client created for the ambient client form in `finally`. Do not rewrite raw SQL.
 
 Exit criteria: projection object placement is independent from migration-history placement and no duplicate Pongo migration table is created.
 
@@ -367,5 +363,6 @@ Plan that PR as the same kind of test-first behavioral slices after PostgreSQL e
 
 - Projection-inclusive `schema.sql()` output. It needs a separate projection schema-rendering contract.
 - Upstream Dumbo namespace/signature overloads for `tableExistsSQL` and `functionExistsSQL`, and an `SQLRoutineReference`. They remain useful follow-ups but do not block a local Emmett implementation.
+- Upstream Pongo borrowed-pool support. The current Emmett fix should use the ambient client form when running inside an Emmett transaction, but Pongo should still grow an explicit way to accept an external pool without owning it on `close()`.
 - The exported but apparently unused `addModuleSQL`, `addTenantSQL`, `addModuleForAllTenantsSQL` and `addTenantForAllModulesSQL`. They reference a legacy tenant/`pg_partman` model and are not part of current `schemaSQL`; open a separate issue before changing or removing this public surface.
 - Automatically moving existing data between schemas.

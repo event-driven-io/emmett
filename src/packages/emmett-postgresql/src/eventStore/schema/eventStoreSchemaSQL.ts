@@ -12,6 +12,7 @@ import {
   activateProjectionSQLFor,
   deactivateProjectionSQLFor,
   registerProjectionSQLFor,
+  tryAcquireProjectionLockSQLFor,
 } from './projections';
 import { storeSubscriptionCheckpointSQLFor } from './storeProcessorCheckpoint';
 import {
@@ -49,6 +50,7 @@ export const eventStoreSchemaSQL = (
     storeSubscriptionCheckpointSQLFor(databaseSchemaName),
     tryAcquireProcessorLockSQLFor(databaseSchemaName),
     releaseProcessorLockSQLFor(databaseSchemaName),
+    tryAcquireProjectionLockSQLFor(databaseSchemaName),
     registerProjectionSQLFor(databaseSchemaName),
     activateProjectionSQLFor(databaseSchemaName),
     deactivateProjectionSQLFor(databaseSchemaName),
