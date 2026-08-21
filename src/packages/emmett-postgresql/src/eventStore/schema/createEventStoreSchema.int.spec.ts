@@ -17,10 +17,7 @@ import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
-import {
-  getPostgreSQLEventStore,
-  type PostgresEventStore,
-} from '../postgreSQLEventStore';
+import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import { createEventStoreSchema } from '../schema';
 
 type ProductItemAdded = Event<
@@ -206,7 +203,6 @@ void describe('createEventStoreSchema with configured database schemas', () => {
   let database: PostgreSQLTestDatabase;
   let pool: PgPool;
   let connectionString: string;
-  let eventStore: PostgresEventStore | undefined;
 
   beforeAll(async () => {
     database = await sharedPostgreSQLDatabase();
@@ -222,7 +218,6 @@ void describe('createEventStoreSchema with configured database schemas', () => {
 
   afterAll(async () => {
     try {
-      await eventStore?.close();
       await pool?.close();
       await database?.close();
     } catch (error) {
@@ -312,30 +307,83 @@ void describe('createEventStoreSchema with configured database schemas', () => {
   void it('stores and reads events from the schema configured by the user', async () => {
     const configuredSchemaName = 'configured_runtime';
     const streamName = `shopping_cart-${Date.now()}`;
-    eventStore = getPostgreSQLEventStore(connectionString, {
+    const eventStore = getPostgreSQLEventStore(connectionString, {
       schema: {
         autoMigration: 'CreateOrUpdate',
         databaseSchemaName: configuredSchemaName,
       },
     });
 
-    const appendResult = await eventStore.appendToStream(streamName, [
-      {
-        type: 'ProductItemAdded',
-        data: { productItem: { productId: 'sku-1', quantity: 1, price: 10 } },
-      },
-    ]);
+    try {
+      const appendResult = await eventStore.appendToStream(streamName, [
+        {
+          type: 'ProductItemAdded',
+          data: { productItem: { productId: 'sku-1', quantity: 1, price: 10 } },
+        },
+      ]);
 
-    const readResult = await eventStore.readStream(streamName);
-    const exists = await eventStore.streamExists(streamName);
+      const readResult = await eventStore.readStream(streamName);
+      const exists = await eventStore.streamExists(streamName);
 
-    assertEqual(appendResult.nextExpectedStreamVersion, 1n);
-    assertTrue(readResult.streamExists);
-    assertEqual(readResult.events.length, 1);
-    assertTrue(exists);
-    assertTrue(await tableExistsInSchema(configuredSchemaName, 'emt_messages'));
-    assertFalse(await tableExistsInSchema('public', 'emt_messages'));
+      assertEqual(appendResult.nextExpectedStreamVersion, 1n);
+      assertTrue(readResult.streamExists);
+      assertEqual(readResult.events.length, 1);
+      assertTrue(exists);
+      assertTrue(
+        await tableExistsInSchema(configuredSchemaName, 'emt_messages'),
+      );
+      assertFalse(await tableExistsInSchema('public', 'emt_messages'));
+    } finally {
+      await eventStore.close();
+    }
   });
+
+  for (const { description, nameWith } of trickyNameStyles) {
+    void it(`stores and reads events when configured names contain ${description}`, async () => {
+      const eventSchemaName = nameWith('events');
+      const migrationSchemaName = nameWith('infrastructure');
+      const migrationTableName = nameWith('emmett_migrations');
+      const streamName = `shopping_cart-${Date.now()}`;
+      const store = getPostgreSQLEventStore(connectionString, {
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+          migrationTable: {
+            schemaName: migrationSchemaName,
+            tableName: migrationTableName,
+          },
+        },
+      });
+
+      try {
+        await store.appendToStream(streamName, [
+          {
+            type: 'ProductItemAdded',
+            data: {
+              productItem: { productId: 'sku-quoted', quantity: 1, price: 10 },
+            },
+          },
+        ]);
+
+        const readResult = await store.readStream<ProductItemAdded>(streamName);
+
+        assertTrue(readResult.streamExists);
+        assertEqual(readResult.events.length, 1);
+        assertEqual(
+          readResult.events[0]?.data.productItem.productId,
+          'sku-quoted',
+        );
+        assertTrue(await tableExistsInSchema(eventSchemaName, 'emt_messages'));
+        assertTrue(
+          await tableExistsInSchema(migrationSchemaName, migrationTableName),
+        );
+        assertFalse(await tableExistsInSchema('public', 'emt_messages'));
+        assertFalse(await tableExistsInSchema('public', migrationTableName));
+      } finally {
+        await store.close();
+      }
+    });
+  }
 
   void it('keeps streams with the same name isolated between schemas configured by the user', async () => {
     const firstSchemaName = 'configured_runtime_first';
@@ -445,3 +493,31 @@ void describe('createEventStoreSchema with configured database schemas', () => {
 
 const schemaName = (prefix: string): string =>
   `${prefix}_${uuid().replaceAll('-', '_')}`;
+
+const trickyNameStyles: {
+  description: string;
+  nameWith: (prefix: string) => string;
+}[] = [
+  {
+    description: 'capital letters',
+    nameWith: (prefix) => `${prefix.toUpperCase()}_${uniqueSuffix()}`,
+  },
+  {
+    description: 'dashes',
+    nameWith: (prefix) => `${prefix}-${uniqueSuffix()}`,
+  },
+  {
+    description: 'spaces',
+    nameWith: (prefix) => `${prefix} ${uniqueSuffix()}`,
+  },
+  {
+    description: 'double quotes',
+    nameWith: (prefix) => `${prefix}"${uniqueSuffix()}`,
+  },
+  {
+    description: 'a leading digit',
+    nameWith: (prefix) => `1${prefix}_${uniqueSuffix()}`,
+  },
+];
+
+const uniqueSuffix = (): string => uuid().replaceAll('-', '_');

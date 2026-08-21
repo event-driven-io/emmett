@@ -165,7 +165,7 @@ PostgreSQL sequence defaults need a relation name inside a string literal, for e
 DEFAULT nextval('events.emt_global_message_position'::regclass)
 ```
 
-This is not the same as rendering an identifier expression. Emmett currently has to build the sequence regclass name separately and pass it through `SQL.literal`. A Dumbo helper for "relation name as a literal/regclass target" would make this intent explicit and remove another local helper.
+This is not the same as rendering an identifier expression. Emmett keeps the default-schema expression byte-identical and uses PostgreSQL `format('%I.%I', schema, sequence)::regclass` for configured schemas, with values rendered through Dumbo literals because multi-statement migration batches cannot use prepared parameters. A Dumbo helper for "relation name as a literal/regclass target" would make this intent explicit and remove another local helper.
 
 The API could be narrow and PostgreSQL-focused, for example:
 

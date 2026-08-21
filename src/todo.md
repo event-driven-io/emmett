@@ -42,7 +42,7 @@
 - [x] Run `npm run test:unit`
 - [x] Review for consistency, naming, dead code, and redundant abstractions; fix only clear issues and ask Oskar when unsure
 - [x] Check follow-up changes for Dumbo and Pongo, and note them in `research.md` and `plan.md`
-- [ ] Stop for approval before Phase 2
+- [x] Stop for approval before Phase 2
 
 ## Phase 2: core append and read isolation
 
@@ -106,9 +106,21 @@
 - [x] Run `npm run test:unit`
 - [x] Review for consistency, naming, dead code, and redundant abstractions; fix only clear issues and ask Oskar when unsure
 - [x] Check follow-up changes for Dumbo and Pongo, and note them in `research.md` and `plan.md`
-- [ ] Stop for approval before Phase 6
+- [x] Stop for approval before Phase 6
+
+## Phase 6: identifier safety, regression coverage and docs
+
+- [x] Started after approval
+- [x] Add user-facing regression tests for configured names that require PostgreSQL quoting
+- [x] Remove or document any remaining local identifier/rendering stopgaps
+- [x] Update `research.md` and `plan.md` with any final follow-ups found
+- [x] Run focused tests and formatting
+- [x] Run `npm run build:ts`
+- [x] Run `npm run fix`
+- [x] Run `npm run test:unit`
+- [x] Review for consistency, naming, dead code, and redundant abstractions; fix only clear issues and ask Oskar when unsure
+- [ ] Stop for approval before SQLite follow-up
 
 ## Later phases
 
-- [ ] Identifier safety/regression/docs
 - [ ] SQLite follow-up PR

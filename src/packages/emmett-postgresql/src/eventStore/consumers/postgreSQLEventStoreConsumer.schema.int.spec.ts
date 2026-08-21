@@ -18,10 +18,7 @@ import {
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
 import type { ProductItemAdded } from '../../testing/shoppingCart.domain';
-import {
-  getPostgreSQLEventStore,
-  type PostgresEventStore,
-} from '../postgreSQLEventStore';
+import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import {
   pongoSingleStreamProjection,
   postgreSQLProjection,
@@ -42,7 +39,6 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
   let database: PostgreSQLTestDatabase;
   let connectionString: string;
   let pool: PgPool;
-  const stores: PostgresEventStore[] = [];
   const productItem = { price: 10, productId: uuid(), quantity: 10 };
 
   beforeAll(async () => {
@@ -59,7 +55,6 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
 
   afterAll(async () => {
     try {
-      for (const store of stores) await store.close();
       await pool?.close();
       await database?.close();
     } catch (error) {
@@ -98,14 +93,17 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
           },
         ],
       });
-      stores.push(store);
 
-      await store.appendToStream(`shopping_cart-${uuid()}`, [
-        { type: 'ProductItemAdded', data: { productItem } },
-      ]);
+      try {
+        await store.appendToStream(`shopping_cart-${uuid()}`, [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ]);
 
-      assertEqual(migrationTableSchemaName, eventSchemaName);
-      assertEqual(projectionsDatabaseSchemaName, eventSchemaName);
+        assertEqual(migrationTableSchemaName, eventSchemaName);
+        assertEqual(projectionsDatabaseSchemaName, eventSchemaName);
+      } finally {
+        await store.close();
+      }
     },
   );
 
@@ -119,7 +117,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const projectionName = schemaName('projection');
       const store = getPostgreSQLEventStore(connectionString, {
         schema: {
-          autoMigration: 'CreateOrUpdate',
+          autoMigration: 'None',
           databaseSchemaName: eventSchemaName,
           projectionsDatabaseSchemaName: projectionSchemaName,
           migrationTable: {
@@ -128,44 +126,47 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
           },
         },
       });
-      stores.push(store);
 
-      await store.schema.migrate();
+      try {
+        await store.schema.migrate();
 
-      const consumer = store.consumer<ProductItemAdded>({
-        stopWhen: { noMessagesLeft: true },
-      });
-      consumer.projector({
-        processorId,
-        projection: postgreSQLProjection<ProductItemAdded>({
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+        consumer.projector({
+          processorId,
+          projection: postgreSQLProjection<ProductItemAdded>({
+            name: projectionName,
+            canHandle: ['ProductItemAdded'],
+            handle: () => {},
+          }),
+        });
+
+        await store.appendToStream(`shopping_cart-${uuid()}`, [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ]);
+        await consumer.start();
+
+        const checkpoint = await readProcessorCheckpoint(pool.execute, {
+          processorId,
+          databaseSchemaName: eventSchemaName,
+        });
+        const registration = await readProjectionInfo(pool.execute, {
+          databaseSchemaName: eventSchemaName,
           name: projectionName,
-          canHandle: ['ProductItemAdded'],
-          handle: () => {},
-        }),
-      });
+          partition: 'emt:default',
+          version: 1,
+        });
 
-      await store.appendToStream(`shopping_cart-${uuid()}`, [
-        { type: 'ProductItemAdded', data: { productItem } },
-      ]);
-      await consumer.start();
-
-      const checkpoint = await readProcessorCheckpoint(pool.execute, {
-        processorId,
-        databaseSchemaName: eventSchemaName,
-      });
-      const registration = await readProjectionInfo(pool.execute, {
-        databaseSchemaName: eventSchemaName,
-        name: projectionName,
-        partition: 'emt:default',
-        version: 1,
-      });
-
-      assertIsNotNull(checkpoint);
-      assertIsNotNull(registration);
-      assertEqual(0, await countProcessorRows(projectionSchemaName));
-      assertEqual(0, await countProcessorRows(undefined));
-      assertEqual(0, await countProjectionRows(projectionSchemaName));
-      assertEqual(0, await countProjectionRows(undefined));
+        assertIsNotNull(checkpoint);
+        assertIsNotNull(registration);
+        assertEqual(0, await countProcessorRows(projectionSchemaName));
+        assertEqual(0, await countProcessorRows(undefined));
+        assertEqual(0, await countProjectionRows(projectionSchemaName));
+        assertEqual(0, await countProjectionRows(undefined));
+      } finally {
+        await store.close();
+      }
     },
   );
 
@@ -178,41 +179,45 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const projectionName = schemaName('projection');
       const store = getPostgreSQLEventStore(connectionString, {
         schema: {
-          autoMigration: 'CreateOrUpdate',
+          autoMigration: 'None',
           databaseSchemaName: eventSchemaName,
           migrationTable: {
             tableName: 'custom_migrations',
           },
         },
       });
-      stores.push(store);
-      await store.schema.migrate();
 
-      let migrationTableSchemaName: string | undefined;
-      let projectionsDatabaseSchemaName: string | undefined;
+      try {
+        await store.schema.migrate();
 
-      const consumer = store.consumer<ProductItemAdded>({
-        stopWhen: { noMessagesLeft: true },
-      });
-      consumer.projector({
-        processorId,
-        projection: postgreSQLProjection<ProductItemAdded>({
-          name: projectionName,
-          canHandle: ['ProductItemAdded'],
-          handle: () => {},
-          init: ({ context }) => {
-            migrationTableSchemaName =
-              context.migrationOptions?.migrationTable?.schemaName;
-            projectionsDatabaseSchemaName =
-              context.migrationOptions?.projectionsDatabaseSchemaName;
-          },
-        }),
-      });
+        let migrationTableSchemaName: string | undefined;
+        let projectionsDatabaseSchemaName: string | undefined;
 
-      await consumer.start();
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+        consumer.projector({
+          processorId,
+          projection: postgreSQLProjection<ProductItemAdded>({
+            name: projectionName,
+            canHandle: ['ProductItemAdded'],
+            handle: () => {},
+            init: ({ context }) => {
+              migrationTableSchemaName =
+                context.migrationOptions?.migrationTable?.schemaName;
+              projectionsDatabaseSchemaName =
+                context.migrationOptions?.projectionsDatabaseSchemaName;
+            },
+          }),
+        });
 
-      assertEqual(migrationTableSchemaName, eventSchemaName);
-      assertEqual(projectionsDatabaseSchemaName, eventSchemaName);
+        await consumer.start();
+
+        assertEqual(migrationTableSchemaName, eventSchemaName);
+        assertEqual(projectionsDatabaseSchemaName, eventSchemaName);
+      } finally {
+        await store.close();
+      }
     },
   );
 
@@ -226,44 +231,50 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const reactionStreamName = `reaction-${guestId}`;
       const store = getPostgreSQLEventStore(connectionString, {
         schema: {
-          autoMigration: 'CreateOrUpdate',
+          autoMigration: 'None',
           databaseSchemaName: eventSchemaName,
-        },
-      });
-      stores.push(store);
-      const appendResult = await store.appendToStream(sourceStreamName, [
-        { type: 'GuestCheckedIn', data: { guestId } },
-      ]);
-
-      const consumer = store.consumer<GuestStayEvent>({
-        stopWhen: { noMessagesLeft: true },
-      });
-      consumer.reactor({
-        processorId: `processor:${uuid()}`,
-        stopAfter: (event) =>
-          event.metadata.globalPosition ===
-          appendResult.lastEventGlobalPosition,
-        eachMessage: async (event, context) => {
-          await context.connection.messageStore.appendToStream(
-            reactionStreamName,
-            [
-              {
-                type: 'GuestCheckedOut',
-                data: { guestId: event.data.guestId },
-              },
-            ],
-          );
         },
       });
 
       try {
-        await consumer.start();
-      } finally {
-        await consumer.close();
-      }
+        await store.schema.migrate();
+        const consumer = store.consumer<GuestStayEvent>();
+        consumer.reactor({
+          processorId: `processor:${uuid()}`,
+          startFrom: 'CURRENT',
+          canHandle: ['GuestCheckedIn'],
+          eachMessage: async (event, context) => {
+            await context.connection.messageStore.appendToStream(
+              reactionStreamName,
+              [
+                {
+                  type: 'GuestCheckedOut',
+                  data: { guestId: event.data.guestId },
+                },
+              ],
+            );
+          },
+        });
 
-      assertEqual(1, await countMessages(eventSchemaName, reactionStreamName));
-      assertEqual(0, await countMessages(undefined, reactionStreamName));
+        try {
+          void consumer.start();
+          await consumer.whenStarted();
+          await store.appendToStream(sourceStreamName, [
+            { type: 'GuestCheckedIn', data: { guestId } },
+          ]);
+          await consumer.whenCaughtUp();
+        } finally {
+          await consumer.close();
+        }
+
+        assertEqual(
+          1,
+          await countMessages(eventSchemaName, reactionStreamName),
+        );
+        assertEqual(0, await countMessages(undefined, reactionStreamName));
+      } finally {
+        await store.close();
+      }
     },
   );
 
@@ -277,48 +288,55 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const reactionStreamName = `reaction-${guestId}`;
       const store = getPostgreSQLEventStore(connectionString, {
         schema: {
-          autoMigration: 'CreateOrUpdate',
+          autoMigration: 'None',
           databaseSchemaName: eventSchemaName,
-        },
-      });
-      stores.push(store);
-      const appendResult = await store.appendToStream(sourceStreamName, [
-        { type: 'GuestCheckedIn', data: { guestId } },
-      ]);
-
-      const consumer = postgreSQLEventStoreConsumer<GuestStayEvent>({
-        connectionString,
-        schema: {
-          databaseSchemaName: eventSchemaName,
-        },
-        stopWhen: { noMessagesLeft: true },
-      });
-      consumer.reactor({
-        processorId: `processor:${uuid()}`,
-        stopAfter: (event) =>
-          event.metadata.globalPosition ===
-          appendResult.lastEventGlobalPosition,
-        eachMessage: async (event, context) => {
-          await context.connection.messageStore.appendToStream(
-            reactionStreamName,
-            [
-              {
-                type: 'GuestCheckedOut',
-                data: { guestId: event.data.guestId },
-              },
-            ],
-          );
         },
       });
 
       try {
-        await consumer.start();
-      } finally {
-        await consumer.close();
-      }
+        await store.schema.migrate();
+        const consumer = postgreSQLEventStoreConsumer<GuestStayEvent>({
+          connectionString,
+          schema: {
+            databaseSchemaName: eventSchemaName,
+          },
+        });
+        consumer.reactor({
+          processorId: `processor:${uuid()}`,
+          startFrom: 'CURRENT',
+          canHandle: ['GuestCheckedIn'],
+          eachMessage: async (event, context) => {
+            await context.connection.messageStore.appendToStream(
+              reactionStreamName,
+              [
+                {
+                  type: 'GuestCheckedOut',
+                  data: { guestId: event.data.guestId },
+                },
+              ],
+            );
+          },
+        });
 
-      assertEqual(1, await countMessages(eventSchemaName, reactionStreamName));
-      assertEqual(0, await countMessages(undefined, reactionStreamName));
+        try {
+          void consumer.start();
+          await consumer.whenStarted();
+          await store.appendToStream(sourceStreamName, [
+            { type: 'GuestCheckedIn', data: { guestId } },
+          ]);
+          await consumer.whenCaughtUp();
+        } finally {
+          await consumer.close();
+        }
+
+        assertEqual(
+          1,
+          await countMessages(eventSchemaName, reactionStreamName),
+        );
+        assertEqual(0, await countMessages(undefined, reactionStreamName));
+      } finally {
+        await store.close();
+      }
     },
   );
 
@@ -335,16 +353,19 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
           databaseSchemaName: eventSchemaName,
         },
       });
-      stores.push(store);
 
-      await store.withSession(({ eventStore }) =>
-        eventStore.appendToStream(streamName, [
-          { type: 'GuestCheckedIn', data: { guestId } },
-        ]),
-      );
+      try {
+        await store.withSession(({ eventStore }) =>
+          eventStore.appendToStream(streamName, [
+            { type: 'GuestCheckedIn', data: { guestId } },
+          ]),
+        );
 
-      assertEqual(1, await countMessages(eventSchemaName, streamName));
-      assertEqual(0, await countMessages(undefined, streamName));
+        assertEqual(1, await countMessages(eventSchemaName, streamName));
+        assertEqual(0, await countMessages(undefined, streamName));
+      } finally {
+        await store.close();
+      }
     },
   );
 
@@ -382,53 +403,57 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const streamName = `shopping_cart-${uuid()}`;
       const store = getPostgreSQLEventStore(connectionString, {
         schema: {
-          autoMigration: 'CreateOrUpdate',
+          autoMigration: 'None',
           databaseSchemaName: eventSchemaName,
           projectionsDatabaseSchemaName: projectionSchemaName,
         },
       });
-      stores.push(store);
-      await store.schema.migrate();
 
-      const consumer = store.consumer<ProductItemAdded>();
-      consumer.projector({
-        processorId: `processor:${uuid()}`,
-        projection: pongoSingleStreamProjection<
-          ShoppingCartSummary,
-          ProductItemAdded
-        >({
-          collectionName,
-          canHandle: ['ProductItemAdded'],
-          evolve: (
-            document: ShoppingCartSummary,
-            event: ProductItemAdded,
-          ): ShoppingCartSummary => ({
-            productItemsCount:
-              document.productItemsCount + event.data.productItem.quantity,
-          }),
-          initialState: () => ({
-            productItemsCount: 0,
-          }),
-        }),
-      });
-
-      void consumer.start();
       try {
-        await consumer.whenStarted();
+        await store.schema.migrate();
 
-        await store.appendToStream(streamName, [
-          { type: 'ProductItemAdded', data: { productItem } },
-        ]);
+        const consumer = store.consumer<ProductItemAdded>();
+        consumer.projector({
+          processorId: `processor:${uuid()}`,
+          projection: pongoSingleStreamProjection<
+            ShoppingCartSummary,
+            ProductItemAdded
+          >({
+            collectionName,
+            canHandle: ['ProductItemAdded'],
+            evolve: (
+              document: ShoppingCartSummary,
+              event: ProductItemAdded,
+            ): ShoppingCartSummary => ({
+              productItemsCount:
+                document.productItemsCount + event.data.productItem.quantity,
+            }),
+            initialState: () => ({
+              productItemsCount: 0,
+            }),
+          }),
+        });
 
-        await consumer.whenCaughtUp();
+        void consumer.start();
+        try {
+          await consumer.whenStarted();
+
+          await store.appendToStream(streamName, [
+            { type: 'ProductItemAdded', data: { productItem } },
+          ]);
+
+          await consumer.whenCaughtUp();
+        } finally {
+          await consumer.close();
+        }
+
+        assertEqual(1, await tableRows(projectionSchemaName, collectionName));
+        assertEqual(1, await countMessages(eventSchemaName, streamName));
+        assertEqual(0, await tableRows(eventSchemaName, collectionName));
+        assertEqual(0, await tableRows(undefined, collectionName));
       } finally {
-        await consumer.close();
+        await store.close();
       }
-
-      assertEqual(1, await tableRows(projectionSchemaName, collectionName));
-      assertEqual(1, await countMessages(eventSchemaName, streamName));
-      assertEqual(0, await tableRows(eventSchemaName, collectionName));
-      assertEqual(0, await tableRows(undefined, collectionName));
     },
   );
 
