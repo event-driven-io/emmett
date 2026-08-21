@@ -2,6 +2,7 @@ import {
   dumbo,
   runSQLMigrations,
   SQL,
+  sqlMigration,
   type Dumbo,
 } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
@@ -16,7 +17,7 @@ import {
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import { schemaMigration } from '..';
+import { schemaMigration, schemaMigrationFor } from '..';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
@@ -105,6 +106,57 @@ void describe('Schema migrations tests', () => {
 
     const result = await assertCanAppendAndRead(eventStore);
     await assertCanStoreAndReadCheckpoints(pool, result);
+  });
+
+  void it('migrates fresh schema into the mixed database schemas configured by the user', async () => {
+    // Given
+    const schemaOptions = {
+      databaseSchemaName: 'events',
+      projectionsDatabaseSchemaName: 'read_models',
+      migrationTable: {
+        schemaName: 'infrastructure',
+        tableName: 'emmett_migrations',
+      },
+    };
+    eventStore = getPostgreSQLEventStore(connectionString, {
+      connectionOptions: { dumbo: pool },
+      schema: {
+        autoMigration: 'None',
+        ...schemaOptions,
+      },
+    });
+
+    // When
+    const { applied, skipped } = await eventStore.schema.migrate();
+
+    // Then
+    assertDeepEqual(applied, [schemaMigrationFor(schemaOptions)]);
+    assertThatArray(skipped).isEmpty();
+    assertTrue(await schemaExists('events'));
+    assertTrue(await schemaExists('infrastructure'));
+    assertTrue(await tableExistsInSchema('events', 'emt_streams'));
+    assertTrue(await tableExistsInSchema('events', 'emt_messages'));
+    assertTrue(
+      await sequenceExistsInSchema('events', 'emt_global_message_position'),
+    );
+    assertTrue(await functionExistsInSchema('events', 'emt_append_to_stream'));
+    assertTrue(
+      await functionExistsInSchema('events', 'store_processor_checkpoint'),
+    );
+    assertTrue(
+      await tableExistsInSchema('infrastructure', 'emmett_migrations'),
+    );
+    assertFalse(await tableExistsInSchema('public', 'emt_streams'));
+    assertFalse(await tableExistsInSchema('read_models', 'emt_streams'));
+    assertFalse(await tableExistsInSchema('events', 'emmett_migrations'));
+    assertFalse(await tableExistsInSchema('infrastructure', 'dmb_migrations'));
+    assertFalse(
+      await sequenceExistsInSchema('public', 'emt_global_message_position'),
+    );
+    assertFalse(await functionExistsInSchema('public', 'emt_append_to_stream'));
+
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(pool, result, 'events');
   });
 
   void it('migrates from 0.36.0 schema', async () => {
@@ -204,6 +256,25 @@ void describe('Schema migrations tests', () => {
       ...migrations_0_43_0,
       schemaMigration,
     ]);
+  });
+
+  void it('skips the current schema migration when its SQL changed but the user already applied it', async () => {
+    // Given
+    await runSQLMigrations(pool, [schemaMigration]);
+    const sameMigrationChangedSQL = sqlMigration(
+      schemaMigration.name,
+      [SQL`SELECT 1`],
+      { ignoreHashMismatch: true },
+    );
+
+    // When
+    const { applied, skipped } = await runSQLMigrations(pool, [
+      sameMigrationChangedSQL,
+    ]);
+
+    // Then
+    assertThatArray(applied).isEmpty();
+    assertDeepEqual(skipped, [sameMigrationChangedSQL]);
   });
 
   // The 0.42.3 backport also indexes global_position alone, which this version's row
@@ -315,6 +386,7 @@ void describe('Schema migrations tests', () => {
         lastEvent: ReadEvent<OrderInitiated, PostgresReadEventMetadata>;
       };
     },
+    databaseSchemaName?: string,
   ) => {
     const shoppingCartProcessorId = `processor-shopping-cart-${shoppingCart.streamId}`;
 
@@ -325,6 +397,7 @@ void describe('Schema migrations tests', () => {
       newCheckpoint: bigIntProcessorCheckpoint(1n),
       lastProcessedCheckpoint: null,
       processorInstanceId: shoppingCartProcessorId,
+      databaseSchemaName,
     });
 
     assertTrue(storeResult.success);
@@ -337,6 +410,7 @@ void describe('Schema migrations tests', () => {
       newCheckpoint: shoppingCart.lastEvent.metadata.checkpoint!,
       lastProcessedCheckpoint: bigIntProcessorCheckpoint(1n),
       processorInstanceId: shoppingCartProcessorId,
+      databaseSchemaName,
     });
 
     assertTrue(storeResult.success);
@@ -348,6 +422,7 @@ void describe('Schema migrations tests', () => {
     const shoppingCartCheckpoint = await readProcessorCheckpoint(pool.execute, {
       processorId: shoppingCartProcessorId,
       partition: undefined,
+      databaseSchemaName,
     });
 
     assertDeepEqual(
@@ -360,6 +435,7 @@ void describe('Schema migrations tests', () => {
     let orderCheckpoint = await readProcessorCheckpoint(pool.execute, {
       processorId: orderProcessorId,
       partition: undefined,
+      databaseSchemaName,
     });
 
     assertDeepEqual(orderCheckpoint, { lastProcessedCheckpoint: null });
@@ -371,6 +447,7 @@ void describe('Schema migrations tests', () => {
       newCheckpoint: order.lastEvent.metadata.checkpoint!,
       lastProcessedCheckpoint: null,
       processorInstanceId: orderProcessorId,
+      databaseSchemaName,
     });
 
     assertTrue(storeResult.success);
@@ -382,11 +459,65 @@ void describe('Schema migrations tests', () => {
     orderCheckpoint = await readProcessorCheckpoint(pool.execute, {
       processorId: orderProcessorId,
       partition: undefined,
+      databaseSchemaName,
     });
 
     assertDeepEqual(
       orderCheckpoint.lastProcessedCheckpoint,
       order.lastEvent.metadata.checkpoint!,
     );
+  };
+
+  const schemaExists = async (schemaName: string): Promise<boolean> => {
+    const result = await pool.execute.query<{ exists: boolean }>(SQL`
+      SELECT EXISTS (
+        SELECT FROM information_schema.schemata
+        WHERE schema_name = ${schemaName}
+      ) AS exists`);
+
+    return result.rows[0]?.exists === true;
+  };
+
+  const tableExistsInSchema = async (
+    schemaName: string,
+    tableName: string,
+  ): Promise<boolean> => {
+    const result = await pool.execute.query<{ exists: boolean }>(SQL`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = ${schemaName}
+          AND table_name = ${tableName}
+      ) AS exists`);
+
+    return result.rows[0]?.exists === true;
+  };
+
+  const sequenceExistsInSchema = async (
+    schemaName: string,
+    sequenceName: string,
+  ): Promise<boolean> => {
+    const result = await pool.execute.query<{ exists: boolean }>(SQL`
+      SELECT EXISTS (
+        SELECT FROM information_schema.sequences
+        WHERE sequence_schema = ${schemaName}
+          AND sequence_name = ${sequenceName}
+      ) AS exists`);
+
+    return result.rows[0]?.exists === true;
+  };
+
+  const functionExistsInSchema = async (
+    schemaName: string,
+    functionName: string,
+  ): Promise<boolean> => {
+    const result = await pool.execute.query<{ exists: boolean }>(SQL`
+      SELECT EXISTS (
+        SELECT FROM pg_proc
+        JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace
+        WHERE pg_namespace.nspname = ${schemaName}
+          AND pg_proc.proname = ${functionName}
+      ) AS exists`);
+
+    return result.rows[0]?.exists === true;
   };
 });

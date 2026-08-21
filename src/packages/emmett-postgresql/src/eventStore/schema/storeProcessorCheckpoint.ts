@@ -1,12 +1,21 @@
 import { single, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import type { ProcessorCheckpoint } from '@event-driven-io/emmett';
 import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
-import { defaultTag, processorsTable, unknownTag } from './typing';
+import { postgreSQLFunctionName } from './postgreSQLFunctionName';
+import {
+  defaultTag,
+  processorsTable,
+  emmettRelation,
+  unknownTag,
+} from './typing';
 
-export const storeSubscriptionCheckpointSQL = createFunctionIfDoesNotExistSQL(
-  'store_processor_checkpoint',
-  SQL`
-CREATE OR REPLACE FUNCTION store_processor_checkpoint(
+export const storeSubscriptionCheckpointSQLFor = (
+  databaseSchemaName?: string,
+) =>
+  createFunctionIfDoesNotExistSQL(
+    'store_processor_checkpoint',
+    SQL`
+CREATE OR REPLACE FUNCTION ${postgreSQLFunctionName(databaseSchemaName, 'store_processor_checkpoint')}(
   p_processor_id           TEXT,
   p_version                BIGINT,
   p_position               TEXT,
@@ -21,7 +30,7 @@ BEGIN
   -- Handle the case when p_check_position is provided
   IF p_check_position IS NOT NULL THEN
       -- Try to update if the position matches p_check_position (new format)
-      UPDATE "${SQL.plain(processorsTable.name)}"
+      UPDATE ${emmettRelation(databaseSchemaName, processorsTable.name)}
       SET
         "last_processed_checkpoint" = p_position,
         "last_processed_transaction_id" = p_transaction_id,
@@ -39,7 +48,7 @@ BEGIN
       -- Handles mixed-format scenarios during blue-green deployment.
       IF p_check_position LIKE '%:%' THEN
           -- new code, stored value still in old format (plain globalpos)
-          UPDATE "${SQL.plain(processorsTable.name)}"
+          UPDATE ${emmettRelation(databaseSchemaName, processorsTable.name)}
           SET
             "last_processed_checkpoint" = p_position,
             "last_processed_transaction_id" = p_transaction_id,
@@ -51,7 +60,7 @@ BEGIN
             AND "version" = p_version;
       ELSE
           -- old code, stored value already migrated to new format (txid:globalpos)
-          UPDATE "${SQL.plain(processorsTable.name)}"
+          UPDATE ${emmettRelation(databaseSchemaName, processorsTable.name)}
           SET
             "last_processed_checkpoint" = p_position,
             "last_processed_transaction_id" = p_transaction_id,
@@ -69,7 +78,7 @@ BEGIN
 
       -- Retrieve the current position
       SELECT "last_processed_checkpoint" INTO current_position
-      FROM "${SQL.plain(processorsTable.name)}"
+      FROM ${emmettRelation(databaseSchemaName, processorsTable.name)}
       WHERE "processor_id" = p_processor_id 
         AND "partition" = p_partition 
         AND "version" = p_version;
@@ -86,13 +95,13 @@ BEGIN
 
   -- Handle the case when p_check_position is NULL: Insert if not exists
   BEGIN
-      INSERT INTO "${SQL.plain(processorsTable.name)}"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id", "created_at", "last_updated")
+      INSERT INTO ${emmettRelation(databaseSchemaName, processorsTable.name)}("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id", "created_at", "last_updated")
       VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id, now(), now());
       RETURN 1;  -- Successfully inserted
   EXCEPTION WHEN unique_violation THEN
       -- If insertion failed, it means the row already exists
       SELECT "last_processed_checkpoint" INTO current_position
-      FROM "${SQL.plain(processorsTable.name)}"
+      FROM ${emmettRelation(databaseSchemaName, processorsTable.name)}
       WHERE "processor_id" = p_processor_id 
         AND "partition" = p_partition 
         AND "version" = p_version;
@@ -108,9 +117,14 @@ BEGIN
 END;
 $spc$ LANGUAGE plpgsql;
 `,
-);
+    databaseSchemaName,
+  );
+
+export const storeSubscriptionCheckpointSQL =
+  storeSubscriptionCheckpointSQLFor();
 
 type CallStoreProcessorCheckpointParams = {
+  databaseSchemaName?: string;
   processorId: string;
   version: number;
   position: string | null;
@@ -123,7 +137,7 @@ export const callStoreProcessorCheckpoint = (
   params: CallStoreProcessorCheckpointParams,
 ) =>
   SQL`
-    SELECT store_processor_checkpoint(
+    SELECT ${postgreSQLFunctionName(params.databaseSchemaName, 'store_processor_checkpoint')}(
       ${params.processorId}, 
       ${params.version}, 
       ${params.position}, 
@@ -149,12 +163,14 @@ export const storeProcessorCheckpoint = async (
     lastProcessedCheckpoint: ProcessorCheckpoint | null;
     partition?: string;
     processorInstanceId?: string;
+    databaseSchemaName?: string;
   },
 ): Promise<StoreProcessorCheckpointResult> => {
   try {
     const { result } = await single(
       execute.command<{ result: 0 | 1 | 2 | 3 }>(
         callStoreProcessorCheckpoint({
+          databaseSchemaName: options.databaseSchemaName,
           processorId: options.processorId,
           version: options.version ?? 1,
           position:

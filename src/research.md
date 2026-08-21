@@ -129,6 +129,72 @@ A future PostgreSQL function component could own a routine's qualified name, sig
 
 A Dumbo helper that mutates the connection/session `search_path` would not remove the need for qualified migration SQL, stored-routine calls, catalog checks, or safe dynamic SQL. It would also introduce pooled-connection state. Structured references and explicit qualification are the more consistent extension point.
 
+#### 5. Make default-schema table references easier to consume
+
+**Priority: medium; removes Emmett glue.**
+
+Dumbo's `SQLTableReference` requires a `databaseSchemaName`, and the default/unqualified case is represented by `DefaultDatabaseSchemaName`. That is consistent internally, but consumers that accept `string | undefined` schema options need a small helper like Emmett's current `emmettRelation(databaseSchemaName, tableName)` to translate omission into Dumbo's sentinel.
+
+A compatible Dumbo improvement could be either:
+
+```ts
+SQLTableReference.from({
+  databaseSchemaName: undefined,
+  tableName: 'emt_messages',
+});
+```
+
+or a named helper such as:
+
+```ts
+SQLTableReference.fromOptionalSchema({
+  databaseSchemaName,
+  tableName: 'emt_messages',
+});
+```
+
+The goal is not a new Emmett abstraction. The goal is to remove one local compatibility helper while preserving Dumbo's dialect-specific rendering of the default schema.
+
+#### 6. Add a relation-literal or regclass helper
+
+**Priority: medium; reduces delicate PostgreSQL SQL.**
+
+PostgreSQL sequence defaults need a relation name inside a string literal, for example:
+
+```sql
+DEFAULT nextval('events.emt_global_message_position'::regclass)
+```
+
+This is not the same as rendering an identifier expression. Emmett currently has to build the sequence regclass name separately and pass it through `SQL.literal`. A Dumbo helper for "relation name as a literal/regclass target" would make this intent explicit and remove another local helper.
+
+The API could be narrow and PostgreSQL-focused, for example:
+
+```ts
+SQL.regclass(SQLTableReference.from({ databaseSchemaName, tableName }));
+```
+
+or:
+
+```ts
+SQLRelationLiteral.from({ databaseSchemaName, relationName });
+```
+
+The exact naming matters less than preventing consumers from manually concatenating schema and object names for `regclass`.
+
+#### 7. Document or wrap schema-qualified dynamic SQL formatting
+
+**Priority: medium; prevents subtle partition bugs.**
+
+PL/pgSQL `format('%I', value)` formats one identifier. For qualified names, callers must use two arguments and `%I.%I`, not pass `events.emt_messages` as one value. Emmett's partition functions now need this distinction for both parent and child partitions.
+
+Dumbo does not need a full PL/pgSQL builder, but a small documented recipe or helper for qualified dynamic-SQL references would be useful. It could generate the format fragment and argument list for:
+
+```sql
+format('CREATE TABLE IF NOT EXISTS %I.%I PARTITION OF %I.%I ...', schema, child, schema, parent)
+```
+
+This would keep schema-qualified dynamic SQL consistent with `SQLTableReference` and reduce the chance that consumers accidentally create `"events.emt_messages"` as a single identifier.
+
 ### Useful Pongo extensions
 
 #### 1. Keep migration-table placement independent from the default schema
@@ -140,7 +206,7 @@ Pongo deliberately treats `defaultSchemaName` and `migrationTable.schemaName` as
 ```ts
 pongoClient(connection, {
   defaultSchemaName: projectionSchemaName,
-  migrationTable: { schemaName: migrationTableDatabaseSchemaName },
+  migrationTable,
 });
 ```
 
@@ -150,15 +216,33 @@ Both Dumbo and Pongo currently default the physical table name to `dmb_migration
 
 No new SQL-access API is needed for Emmett. Pongo already resolves an explicit collection `databaseSchemaName` before the database/client default and uses the collection component's qualified name for CRUD and migrations. If a schema-aware Pongo query is found to bypass that component, it should be fixed inside Pongo as a consistency bug rather than worked around by Emmett.
 
+#### 3. Expose or document resolved collection placement
+
+**Priority: low to medium; diagnostics and tests.**
+
+Emmett should not reimplement Pongo's fallback rules for collection schemas. A small Pongo diagnostic API, or clearly documented resolution contract, would let Emmett report where a Pongo projection writes when `collectionOptions.databaseSchemaName`, client `defaultSchemaName`, and omitted values interact.
+
+This does not block schema support because Pongo owns the actual SQL. It would make projection diagnostics and future projection-inclusive `schema.sql()` work less guessy.
+
+#### 4. Centralize Pongo client option construction
+
+**Priority: medium if Pongo has repeated branches; otherwise documentation-only.**
+
+Emmett creates Pongo clients during projection init, handle, truncate, rebuild and tests. If Pongo itself has similar repeated construction paths, it should expose or use one internal factory that always carries `defaultSchemaName` and nested `migrationTable` options together. That keeps the current PR #204 schema behavior from regressing in one branch.
+
 ### Upstream recommendation summary
 
 | Extension                                        | Project | Recommendation                                              | Blocks Emmett |
 | ------------------------------------------------ | ------- | ----------------------------------------------------------- | ------------- |
 | Namespace- and signature-aware existence helpers | Dumbo   | Implement as a compatibility-preserving correctness fix     | No            |
 | `SQLRoutineReference`                            | Dumbo   | Add when convenient; reuse for functions and procedures     | No            |
+| Default-schema table-reference ergonomics        | Dumbo   | Add optional-schema helper or document sentinel usage       | No            |
+| Relation literal / regclass helper               | Dumbo   | Add a PostgreSQL helper for sequence defaults               | No            |
+| Qualified dynamic-SQL formatting helper          | Dumbo   | Document or wrap `%I.%I` patterns for PL/pgSQL              | No            |
 | Full function/procedure schema component         | Dumbo   | Defer until multiple consumers establish the required model | No            |
 | Shared migration-table option forwarding         | Pongo   | Already delivered; Emmett must pass the event-store option  | No            |
-| More collection schema forwarding                | Pongo   | Not currently required; existing schema resolution suffices | No            |
+| Resolved collection placement diagnostics        | Pongo   | Useful for Emmett diagnostics and future SQL generation     | No            |
+| Centralized Pongo client option construction     | Pongo   | Useful if repeated branches exist                           | No            |
 
 The important Pongo/Emmett boundary is that Emmett does not need to generate Pongo's qualified CRUD SQL. Emmett creates every Pongo client with the resolved `defaultSchemaName`, points it at the same migration table used by the event store and general PostgreSQL projections, and continues passing `collectionOptions`. Pongo then uses the explicit collection schema when present and its client/database default otherwise.
 
@@ -171,24 +255,27 @@ type EventStoreSchemaOptions = {
   autoMigration?: MigrationStyle;
   databaseSchemaName?: string;
   projectionsDatabaseSchemaName?: string;
-  migrationTableDatabaseSchemaName?: string;
+  migrationTable?: {
+    schemaName?: string;
+    tableName?: string;
+  };
 };
 ```
 
 Recommended resolution:
 
-| Object                                                                  | Resolved schema                                                             |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Emmett event tables, functions, indexes and locks                       | `databaseSchemaName` or dialect default                                     |
-| Projection without a more specific schema                               | `projectionsDatabaseSchemaName ?? databaseSchemaName` or dialect default    |
-| Pongo projection collection with `collectionOptions.databaseSchemaName` | explicit collection schema                                                  |
-| Shared event-store/projection migration table                           | `migrationTableDatabaseSchemaName ?? databaseSchemaName` or dialect default |
+| Object                                                                  | Resolved schema                                                                                    |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Emmett event tables, functions, indexes and locks                       | `databaseSchemaName` or dialect default                                                            |
+| Projection without a more specific schema                               | `projectionsDatabaseSchemaName ?? databaseSchemaName` or dialect default                           |
+| Pongo projection collection with `collectionOptions.databaseSchemaName` | explicit collection schema                                                                         |
+| Shared event-store/projection migration table                           | `migrationTable.schemaName ?? databaseSchemaName` and `migrationTable.tableName` or Dumbo defaults |
 
 This preserves current behavior when all new properties are omitted. In particular, do not replace an omitted PostgreSQL schema with the literal `public`; unqualified/default behavior may intentionally be controlled by the database role.
 
 `projectionsDatabaseSchemaName` communicates broader intent than a Pongo-specific name. Raw SQL cannot be transparently rewritten, so this setting means "the projection schema Emmett resolves and exposes," not "Emmett automatically qualifies arbitrary SQL." Pongo consumes it as its `defaultSchemaName`; raw projection hooks and handlers consume the resolved value from their context.
 
-`migrationTableDatabaseSchemaName` selects the schema of one physical migration table shared by the event store and its PostgreSQL projections, including Pongo projections. It is useful when migration history belongs in an infrastructure schema distinct from both event and projection objects. Defaulting it to `databaseSchemaName` keeps two stores with different event schemas isolated even if their projection defaults happen to coincide. Emmett should expose the resolved migration-table options in the general PostgreSQL projection context so custom projections can pass them to Dumbo just as the Pongo adapter does automatically.
+`migrationTable` selects the physical migration table shared by the event store and its PostgreSQL projections, including Pongo projections. It follows Dumbo/Pongo's nested shape: `migrationTable.schemaName` controls placement, and `migrationTable.tableName` controls the physical table name. When `migrationTable.schemaName` is omitted, it defaults to `databaseSchemaName`, keeping two stores with different event schemas isolated even if their projection defaults happen to coincide. Emmett should expose the resolved migration-table options in the general PostgreSQL projection context so custom projections can pass them to Dumbo just as the Pongo adapter does automatically.
 
 ## Why not connection-string or search-path inference
 
@@ -212,7 +299,7 @@ This is more than forwarding `defaultSchemaName` into Pongo.
 1. Build a schema-bound event-store model/factory once from `databaseSchemaName`. Tables and all SQL using them should use `SQLTableReference` (or Dumbo table components), not `SQL.identifier(table.name)` and not interpolated dotted strings.
 2. Parameterize the current schema SQL. Keep pre-schema-support migrations unchanged on the default path, but omit them for a configured schema: schema configuration is a new supported deployment mode and has no older configured stores to upgrade. Migrations added after schema support must be schema-aware and run on both paths.
 3. Qualify PostgreSQL functions as well as tables. Function bodies call other functions and access tables, and partition helpers currently pass bare table-name strings into dynamic SQL. Those paths need schema-aware references or a deliberately fixed function-local `search_path`. Fully qualified references are less stateful.
-4. Put the shared migration table in the resolved `migrationTableDatabaseSchemaName ?? databaseSchemaName`. Forward the exact same migration-table options to Pongo and expose them to general PostgreSQL projections. Dumbo must create that schema before creating the table.
+4. Put the shared migration table in the resolved `migrationTable.schemaName ?? databaseSchemaName` and preserve `migrationTable.tableName` when supplied. Forward the exact same migration-table options to Pongo and expose them to general PostgreSQL projections. Dumbo must create that schema before creating the table.
 5. Generate `eventStore.schema.sql()`/`print()` from the resolved instance schema. The current exported `schemaSQL` and `schemaMigration` constants can remain default-schema compatibility exports, while custom stores use factory output.
 6. Carry resolved schema configuration through `PostgreSQLProjectionHandlerContext`. Passing it only to projection `init` is insufficient: Pongo clients are also created during handle and truncate operations.
 7. Use one internal Pongo-client factory for init, handle, truncate and test assertions. The current wrappers construct clients in several branches, which makes partial forwarding likely.
@@ -263,7 +350,7 @@ Use the same logical schema-bound table model so SQLite gets Dumbo's established
 2. Keep the legacy SQLite migration unchanged for the default path and omit it for a newly configured logical schema. Parameterize the current create-table SQL, and require every migration introduced after schema support to use schema-bound references.
 3. Carry the resolved projection default through `SQLiteProjectionHandlerContext`, because Pongo clients are created separately for init, handle and truncate.
 4. Forward it through SQLite consumers, sessions, `SQLiteProjectionSpec` and Pongo assertion helpers for both sqlite3 and D1.
-5. Configure Emmett and Pongo to use the same migration table at `migrationTableDatabaseSchemaName ?? databaseSchemaName`. On SQLite this yields one prefixed physical table such as `"events.dmb_migrations"`; it does not create a namespace.
+5. Configure Emmett and Pongo to use the same nested `migrationTable` options, defaulting `migrationTable.schemaName` to `databaseSchemaName`. On SQLite this yields one prefixed physical table such as `"events.dmb_migrations"`; it does not create a namespace.
 6. Render `schema.sql()` with the selected SQLite formatter. The current `schemaSQL.join('')` does not provide dialect formatting and will not be sufficient for schema-aware tokens.
 
 Do not interpret a SQLite schema as an `ATTACH DATABASE` name. Dumbo reports `supportsSchemas: false`; PR #204's supported behavior is logical prefixing.
@@ -275,7 +362,7 @@ Do not interpret a SQLite schema as an `ATTACH DATABASE` name. Dumbo reports `su
 - A configured schema starts its migration history at the schema-support boundary. Do not execute or record no-op markers for migrations that predate supported schema configuration.
 - The unreferenced PostgreSQL `0_44_0` migration remains reserved for the next release or manual execution. Schema support must not activate it; if a later release adds it to the normal migration list, it must be schema-aware and run for both deployment modes.
 - A custom event-store schema needs a separate migration history by default. Otherwise equal migration names in different stores collide in the default `dmb_migrations` table.
-- `migrationTableDatabaseSchemaName` defaults to the event-store schema. The same physical table is used by the event store and all projections that run Dumbo migrations, including Pongo, even when projection objects live elsewhere.
+- `migrationTable.schemaName` defaults to the event-store schema and `migrationTable.tableName` uses Dumbo's default unless supplied. The same physical table is used by the event store and all projections that run Dumbo migrations, including Pongo, even when projection objects live elsewhere.
 - Pointing multiple event stores at one explicitly shared migration table is unsafe unless their migration identities are also isolated: equal migration names with different schema-qualified SQL can produce hash conflicts.
 - Dry-run behavior needs coverage: schema creation, migration-table creation, event objects and inline Pongo projection objects should all target the configured names without leaving database changes.
 - Custom names must remain values passed to structured Dumbo tokens. No schema name should enter `SQL.plain` or string-built PL/pgSQL without identifier-safe formatting.
@@ -352,7 +439,7 @@ At minimum:
 2. **Projection inheritance -- accepted:** `projectionsDatabaseSchemaName` falls back to `databaseSchemaName`.
 3. **Projection scope and name -- accepted:** use `projectionsDatabaseSchemaName`. Pongo applies it automatically; raw PostgreSQL projections receive the resolved value and explicitly use it in their SQL references.
 4. **Function resolution -- accepted:** explicitly qualify Emmett-owned function definitions, calls and dependencies rather than relying on a function-local `search_path`. Pre-schema-support migrations remain default-only; future migrations must be schema-aware.
-5. **Migration-table schema -- accepted:** add `migrationTableDatabaseSchemaName`, defaulting to `databaseSchemaName`. The event store and all PostgreSQL projections use the same physical migration table; Pongo receives the options automatically, and custom projections receive them through context.
+5. **Migration-table options -- accepted:** add nested `migrationTable` options matching Dumbo/Pongo. `migrationTable.schemaName` defaults to `databaseSchemaName`; `migrationTable.tableName` is forwarded when supplied. The event store and all PostgreSQL projections use the same physical migration table; Pongo receives the options automatically, and custom projections receive them through context.
 6. **Low-level API -- accepted:** introduce schema-bound factories and retain current constants/wrappers for default-schema compatibility rather than threading optional schema arguments through unrelated helpers.
 7. **Hook/context contract -- accepted:** expose the resolved event, projection and migration-table schema names to hooks and projection contexts.
 8. **Generated SQL -- accepted for issue #95:** preserve the existing core-schema meaning described above. The only schema-support addition is schema creation and qualification of those core objects. Projection-inclusive output is a separate follow-up.
