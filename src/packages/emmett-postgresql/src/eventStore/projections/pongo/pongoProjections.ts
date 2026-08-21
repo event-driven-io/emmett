@@ -1,3 +1,4 @@
+import type { PgPool } from '@event-driven-io/dumbo/pg';
 import {
   reduceAsync,
   type CanHandle,
@@ -114,9 +115,9 @@ export const pongoProjection = <
         connectionString,
         driver: pgDriver,
         schema: { autoMigration: 'None' },
+        pool: pool as PgPool,
         connectionOptions: {
           client,
-          pool,
           transactionOptions: {
             allowNestedTransactions: true,
           },
@@ -134,14 +135,13 @@ export const pongoProjection = <
     truncate: truncate
       ? async (context) => {
           const {
-            connection: { connectionString, client, pool },
+            connection: { connectionString, client },
           } = context;
           const pongo = pongoClient({
             connectionString,
             driver: pgDriver,
             connectionOptions: {
               client,
-              pool,
               transactionOptions: {
                 allowNestedTransactions: true,
               },
@@ -160,14 +160,13 @@ export const pongoProjection = <
     init: init
       ? async (options) => {
           const {
-            connection: { connectionString, client, pool },
+            connection: { connectionString, client },
           } = options.context;
           const pongo = pongoClient({
             connectionString,
             driver: pgDriver,
             connectionOptions: {
               client,
-              pool,
               transactionOptions: {
                 allowNestedTransactions: true,
               },
@@ -303,14 +302,13 @@ export const pongoMultiStreamProjection = <
     canHandle,
     truncate: async (context) => {
       const {
-        connection: { connectionString, client, pool },
+        connection: { connectionString, client },
       } = context;
       const pongo = pongoClient({
         connectionString,
         driver: pgDriver,
         connectionOptions: {
           client,
-          pool,
           transactionOptions: {
             allowNestedTransactions: true,
           },
