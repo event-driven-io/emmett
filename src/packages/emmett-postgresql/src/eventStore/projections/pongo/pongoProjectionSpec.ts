@@ -1,4 +1,5 @@
 import type { Dumbo } from '@event-driven-io/dumbo';
+import type { PgConnection } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   assertEqual,
@@ -48,7 +49,7 @@ const withCollection = <
     const pongo = pongoClient({
       connectionString,
       connectionOptions: {
-        connection,
+        connection: connection as PgConnection,
         transactionOptions: {
           allowNestedTransactions: true,
         },

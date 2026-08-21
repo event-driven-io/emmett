@@ -82,7 +82,7 @@ export const PostgreSQLProjectionSpec = {
       let wasInitialised = false;
 
       const initialize = async (pool: Dumbo): Promise<void> => {
-        const eventStore = getPostgreSQLEventStore(connectionString, {
+        const eventStore = getPostgreSQLEventStore(connectionString!, {
           // TODO: This will need to change when we support other drivers
           connectionOptions: { dumbo: pool as PgPool },
         });
@@ -99,7 +99,7 @@ export const PostgreSQLProjectionSpec = {
               version: projection.version ?? 1,
               status: 'active',
               context: await transactionToPostgreSQLProjectionHandlerContext(
-                connectionString,
+                connectionString!,
                 pool,
                 transaction,
               ),
@@ -158,7 +158,7 @@ export const PostgreSQLProjectionSpec = {
                   events: allEvents,
                   projections: [projection],
                   ...(await transactionToPostgreSQLProjectionHandlerContext(
-                    connectionString,
+                    connectionString!,
                     pool,
                     transaction,
                   )),
@@ -175,7 +175,10 @@ export const PostgreSQLProjectionSpec = {
                 try {
                   await run(pool);
 
-                  const succeeded = await assert({ pool, connectionString });
+                  const succeeded = await assert({
+                    pool,
+                    connectionString: connectionString!,
+                  });
 
                   if (succeeded !== undefined && succeeded === false)
                     assertFails(
