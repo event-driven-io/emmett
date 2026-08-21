@@ -236,14 +236,22 @@ export const getPostgreSQLEventStore = (
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
   const databaseSchema = eventStoreDatabaseSchema(options.schema);
+  const configuredSchemaOptions = {
+    ...options.schema,
+    ...databaseSchema,
+  };
   const observability = eventStoreObservability(options);
   const collector = eventStoreCollector(observability);
 
   const migrate = async (migrationOptions?: CreateEventStoreSchemaOptions) => {
     if (!migrateSchema) {
-      const schemaMigrationOptions = {
+      const migrationSchemaOptions = {
         ...options.schema,
         ...migrationOptions,
+      };
+      const schemaMigrationOptions = {
+        ...migrationSchemaOptions,
+        ...eventStoreDatabaseSchema(migrationSchemaOptions),
       };
 
       // TODO: Fix this cast when introducing more drivers
@@ -341,7 +349,7 @@ export const getPostgreSQLEventStore = (
                   pool,
                   transaction,
                 )),
-                migrationOptions: options.schema,
+                migrationOptions: configuredSchemaOptions,
                 observabilityScope,
               }),
           )
@@ -524,7 +532,7 @@ export const getPostgreSQLEventStore = (
     ): PostgreSQLEventStoreConsumer<ConsumerMessageType> =>
       postgreSQLEventStoreConsumer<ConsumerMessageType>({
         ...consumerOptions,
-        schema: options.schema,
+        schema: configuredSchemaOptions,
         observability: mergeObservability(
           options.observability,
           consumerOptions?.observability,

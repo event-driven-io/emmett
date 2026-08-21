@@ -246,6 +246,46 @@ Emmett creates Pongo clients during projection init, handle, truncate, rebuild a
 
 The important Pongo/Emmett boundary is that Emmett does not need to generate Pongo's qualified CRUD SQL. Emmett creates every Pongo client with the resolved `defaultSchemaName`, points it at the same migration table used by the event store and general PostgreSQL projections, and continues passing `collectionOptions`. Pongo then uses the explicit collection schema when present and its client/database default otherwise.
 
+## PostgreSQL advisory locks and schemas
+
+PostgreSQL advisory locks are database-wide for the current session or transaction. They are not scoped by PostgreSQL schema. Moving `emt_processors`, `emt_projections` and the lock helper functions into `events` makes the stored lifecycle state schema-specific, but it does not automatically make advisory lock keys schema-specific.
+
+That means two stores in the same physical database can still block each other if they use the same advisory lock key, even when their Emmett tables live in different schemas. Tests that prove data/schema isolation should therefore use distinct processor and projection names unless they intentionally assert cross-schema locking behavior.
+
+Potential Emmett follow-up: decide whether configured schemas should be part of generated lock keys for processor/projection locks. The tradeoff is compatibility versus stronger same-database multi-schema isolation:
+
+- keeping current keys preserves existing lock identity and avoids surprising users who use multiple schemas as one logical deployment;
+- adding the event schema to generated lock keys isolates same-named processors/projections across configured schemas, but changes lock behavior for configured-schema deployments.
+
+This does not require a Dumbo or Pongo change because the lock key is an Emmett domain key.
+
+## PostgreSQL processor/projection decoupling
+
+PostgreSQL processors and PostgreSQL projections should not depend on the event-store schema option model. They can eventually be used by non-PostgreSQL event sources such as MongoDB, EventStoreDB, SQS or other consumers while still storing their own processor metadata in PostgreSQL.
+
+The event store can translate its `schema` configuration into a PostgreSQL metadata context when it creates a PostgreSQL consumer. After that boundary, processors and projections should only consume the already-prepared metadata options:
+
+```ts
+{
+  migrationOptions: {
+    databaseSchemaName: 'processor_metadata',
+    migrationTable: {
+      schemaName: 'processor_metadata',
+      tableName: 'emmett_migrations',
+    },
+  },
+}
+```
+
+This keeps these modules reusable:
+
+- `getPostgreSQLEventStore(...)` may use `eventStoreDatabaseSchema(...)` because it owns event-store configuration;
+- `postgreSQLEventStoreConsumer(...)` may prepare PostgreSQL processor metadata options from its own config;
+- `createEventStoreSchema(...)` may normalize the event-store schema config for migrations and schema hooks;
+- `postgreSQLProcessor(...)`, `postgreSQLProjector(...)`, `postgreSQLReactor(...)`, `postgreSQLWorkflowProcessor(...)` and `postgreSQLProjection(...)` should not import `eventStoreDatabaseSchema(...)` or apply event-store fallback rules themselves.
+
+The current helper name `eventStoreDatabaseSchema` is therefore correct only at the event-store boundary. If the same fallback rules become useful for standalone PostgreSQL processor metadata, they should be extracted into a separate PostgreSQL metadata configuration concept instead of reused from the event-store module.
+
 ## Recommended configuration contract
 
 Extend the existing `schema` option in both stores:
@@ -414,6 +454,12 @@ The setting is not complete if only `getPostgreSQLEventStore` and `getSQLiteEven
 - PostgreSQL and SQLite projection specs and Pongo assertion helpers;
 - `schema.sql()`, `schema.print()` and `schema.migrate()`;
 - sqlite3, D1, PostgreSQL-owned pools, supplied Dumbo pools and ambient native pools/clients.
+
+## Pongo client ownership
+
+Emmett's PostgreSQL Pongo projections should pass either a pool or an ambient transaction client to Pongo, never both. When the projection is already running inside an Emmett transaction, the Pongo client should be created with `connectionString + connectionOptions.client` and then closed in `finally`. That gives Pongo its own client-scoped connection facade without transferring ownership of Emmett's shared pool.
+
+Useful Pongo follow-up: support borrowed pools explicitly. Today the type models `pool` versus `connectionOptions`, but a supplied pool is treated as client-owned on close. Pongo should expose an ownership option or borrowed-pool construction mode so integrations can pass an existing pool, close the Pongo client, and leave the borrowed pool open.
 
 ## Suggested verification matrix
 

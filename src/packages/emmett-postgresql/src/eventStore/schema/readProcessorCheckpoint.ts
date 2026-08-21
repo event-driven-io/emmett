@@ -25,7 +25,7 @@ export type ReadProcessorCheckpointResult = {
   lastProcessedCheckpoint: ProcessorCheckpoint | null;
 };
 
-const resolveTransactionId = async (
+const checkpointWithTransactionId = async (
   execute: SQLExecutor,
   rawCheckpoint: string,
   databaseSchemaName?: string,
@@ -75,7 +75,7 @@ export const readProcessorCheckpoint = async (
   if (result === null) return { lastProcessedCheckpoint: null };
 
   return {
-    lastProcessedCheckpoint: await resolveTransactionId(
+    lastProcessedCheckpoint: await checkpointWithTransactionId(
       execute,
       result.last_processed_checkpoint,
       options.databaseSchemaName,

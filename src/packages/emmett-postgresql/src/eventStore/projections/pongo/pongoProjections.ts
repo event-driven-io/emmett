@@ -1,4 +1,3 @@
-import type { PgPool } from '@event-driven-io/dumbo/pg';
 import {
   reduceAsync,
   type CanHandle,
@@ -109,13 +108,12 @@ export const pongoProjection = <
     eventsOptions,
     handle: async (events, context) => {
       const {
-        connection: { connectionString, client, pool },
+        connection: { connectionString, client },
       } = context;
       const pongo = pongoClient({
         connectionString,
         driver: pgDriver,
         schema: { autoMigration: 'None' },
-        pool: pool as PgPool,
         connectionOptions: {
           client,
           transactionOptions: {
