@@ -1,6 +1,6 @@
 import { singleOrNull, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import type { PostgreSQLEventStoreCheckpoint } from './readMessagesBatch';
-import { defaultTag, messagesTable } from './typing';
+import { defaultTag, emmettRelation, messagesTable } from './typing';
 
 type ReadLastMessageCheckpointSqlResult = {
   transaction_id: string;
@@ -13,12 +13,12 @@ export type ReadLastMessageCheckpointResult = {
 
 export const readLastCommittedMessageCheckpoint = async (
   execute: SQLExecutor,
-  options?: { partition?: string },
+  options?: { partition?: string; databaseSchemaName?: string },
 ): Promise<ReadLastMessageCheckpointResult> => {
   const result = await singleOrNull(
     execute.query<ReadLastMessageCheckpointSqlResult>(
       SQL`SELECT transaction_id, global_position
-           FROM ${SQL.identifier(messagesTable.name)}
+           FROM ${emmettRelation(options?.databaseSchemaName, messagesTable.name)}
            WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE
            ORDER BY transaction_id DESC, global_position DESC
            LIMIT 1`,

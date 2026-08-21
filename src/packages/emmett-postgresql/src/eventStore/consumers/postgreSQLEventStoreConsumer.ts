@@ -15,6 +15,10 @@ import {
 } from '@event-driven-io/emmett';
 import { postgreSQLMessageSource } from './messageSource';
 import {
+  eventStoreDatabaseSchema,
+  type EventStoreDatabaseSchemaOptions,
+} from '../schema';
+import {
   postgreSQLProjector,
   postgreSQLReactor,
   postgreSQLWorkflowProcessor,
@@ -37,6 +41,7 @@ export type PostgreSQLEventStoreConsumerConfig<
     batchDeadlineInMs?: number;
     pullingFrequencyInMs?: number;
   };
+  schema?: EventStoreDatabaseSchemaOptions;
 } & JSONSerializationOptions;
 
 export type PostgreSQLEventStoreConsumerOptions<
@@ -125,10 +130,13 @@ export const postgreSQLEventStoreConsumer = <
         pool,
         batchSize: options.pulling?.batchSize,
         pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
+        databaseSchemaName: eventStoreDatabaseSchema(options.schema)
+          .databaseSchemaName,
       });
 
   const processorContext = {
     execute: pool.execute,
+    migrationOptions: options.schema,
     connection: {
       connectionString: options.connectionString,
       pool,
@@ -148,9 +156,21 @@ export const postgreSQLEventStoreConsumer = <
   >({
     ...options,
     source,
-    reactorFactory: postgreSQLReactor,
-    projectorFactory: postgreSQLProjector,
-    workflowProcessorFactory: postgreSQLWorkflowProcessor,
+    reactorFactory: (processorOptions) =>
+      postgreSQLReactor({
+        ...processorOptions,
+        migrationOptions: processorOptions.migrationOptions ?? options.schema,
+      }),
+    projectorFactory: (processorOptions) =>
+      postgreSQLProjector({
+        ...processorOptions,
+        migrationOptions: processorOptions.migrationOptions ?? options.schema,
+      }),
+    workflowProcessorFactory: (processorOptions) =>
+      postgreSQLWorkflowProcessor({
+        ...processorOptions,
+        migrationOptions: processorOptions.migrationOptions ?? options.schema,
+      }),
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     scope: (handler) => handler(processorContext),

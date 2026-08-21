@@ -1,16 +1,20 @@
-import { dumbo } from '@event-driven-io/dumbo';
+import { dumbo, SQL } from '@event-driven-io/dumbo';
 import {
   functionExists,
   pgDumboDriver,
   tableExists,
   type PgPool,
 } from '@event-driven-io/dumbo/pg';
-import { assertFalse, assertTrue } from '@event-driven-io/emmett';
+import { assertEqual, assertFalse, assertTrue } from '@event-driven-io/emmett';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
+import {
+  getPostgreSQLEventStore,
+  type PostgresEventStore,
+} from '../postgreSQLEventStore';
 import { createEventStoreSchema } from '../schema';
 
 void describe('createEventStoreSchema', () => {
@@ -179,4 +183,141 @@ void describe('createEventStoreSchema', () => {
   //     'Tenant for all modules was not created',
   //   );
   // });
+});
+
+void describe('createEventStoreSchema with configured database schemas', () => {
+  let database: PostgreSQLTestDatabase;
+  let pool: PgPool;
+  let connectionString: string;
+  let eventStore: PostgresEventStore | undefined;
+
+  beforeAll(async () => {
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
+    pool = dumbo({
+      connectionString,
+      driver: pgDumboDriver,
+      transactionOptions: {
+        allowNestedTransactions: true,
+      },
+    });
+  });
+
+  afterAll(async () => {
+    try {
+      await eventStore?.close();
+      await pool?.close();
+      await database?.close();
+    } catch (error) {
+      console.log(error);
+    }
+  });
+
+  void it('creates the event store objects in the schema configured by the user', async () => {
+    await createEventStoreSchema(connectionString, pool, undefined, {
+      databaseSchemaName: 'events',
+    });
+
+    assertTrue(await schemaExists('events'));
+    assertTrue(await tableExistsInSchema('events', 'emt_streams'));
+    assertTrue(await tableExistsInSchema('events', 'emt_messages'));
+    assertTrue(await tableExistsInSchema('events', 'emt_messages_emt_default'));
+    assertTrue(
+      await tableExistsInSchema('events', 'emt_messages_emt_default_active'),
+    );
+    assertTrue(await tableExistsInSchema('events', 'dmb_migrations'));
+    assertTrue(await functionExistsInSchema('events', 'emt_append_to_stream'));
+    assertTrue(await functionExistsInSchema('events', 'emt_add_partition'));
+
+    assertFalse(await tableExistsInSchema('public', 'emt_streams'));
+    assertFalse(await tableExistsInSchema('public', 'dmb_migrations'));
+    assertFalse(await functionExistsInSchema('public', 'emt_append_to_stream'));
+  });
+
+  void it('uses the migration table schema and name configured by the user', async () => {
+    await createEventStoreSchema(connectionString, pool, undefined, {
+      databaseSchemaName: 'store',
+      migrationTable: {
+        schemaName: 'infrastructure',
+        tableName: 'emmett_migrations',
+      },
+    });
+
+    assertTrue(await schemaExists('store'));
+    assertTrue(await schemaExists('infrastructure'));
+    assertTrue(await tableExistsInSchema('store', 'emt_streams'));
+    assertTrue(
+      await tableExistsInSchema('infrastructure', 'emmett_migrations'),
+    );
+
+    assertFalse(await tableExistsInSchema('store', 'dmb_migrations'));
+    assertFalse(await tableExistsInSchema('public', 'emmett_migrations'));
+  });
+
+  void it('stores and reads events from the schema configured by the user', async () => {
+    const configuredSchemaName = 'configured_runtime';
+    const streamName = `shopping_cart-${Date.now()}`;
+    eventStore = getPostgreSQLEventStore(connectionString, {
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+        databaseSchemaName: configuredSchemaName,
+      },
+    });
+
+    const appendResult = await eventStore.appendToStream(streamName, [
+      {
+        type: 'ProductItemAdded',
+        data: { productItem: { productId: 'sku-1', quantity: 1, price: 10 } },
+      },
+    ]);
+
+    const readResult = await eventStore.readStream(streamName);
+    const exists = await eventStore.streamExists(streamName);
+
+    assertEqual(appendResult.nextExpectedStreamVersion, 1n);
+    assertTrue(readResult.streamExists);
+    assertEqual(readResult.events.length, 1);
+    assertTrue(exists);
+    assertTrue(await tableExistsInSchema(configuredSchemaName, 'emt_messages'));
+    assertFalse(await tableExistsInSchema('public', 'emt_messages'));
+  });
+
+  const schemaExists = async (schemaName: string): Promise<boolean> => {
+    const result = await pool.execute.query<{ exists: boolean }>(SQL`
+      SELECT EXISTS (
+        SELECT FROM information_schema.schemata
+        WHERE schema_name = ${schemaName}
+      ) AS exists`);
+
+    return result.rows[0]?.exists === true;
+  };
+
+  const tableExistsInSchema = async (
+    schemaName: string,
+    tableName: string,
+  ): Promise<boolean> => {
+    const result = await pool.execute.query<{ exists: boolean }>(SQL`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = ${schemaName}
+          AND table_name = ${tableName}
+      ) AS exists`);
+
+    return result.rows[0]?.exists === true;
+  };
+
+  const functionExistsInSchema = async (
+    schemaName: string,
+    functionName: string,
+  ): Promise<boolean> => {
+    const result = await pool.execute.query<{ exists: boolean }>(SQL`
+      SELECT EXISTS (
+        SELECT FROM pg_proc
+        JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace
+        WHERE pg_namespace.nspname = ${schemaName}
+          AND pg_proc.proname = ${functionName}
+      ) AS exists`);
+
+    return result.rows[0]?.exists === true;
+  };
 });

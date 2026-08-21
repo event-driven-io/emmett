@@ -14,18 +14,21 @@ getPostgreSQLEventStore(connectionString, {
     autoMigration: 'CreateOrUpdate',
     databaseSchemaName: 'events',
     projectionsDatabaseSchemaName: 'read_models',
-    migrationTableDatabaseSchemaName: 'infrastructure',
+    migrationTable: {
+      schemaName: 'infrastructure',
+      tableName: 'emmett_migrations',
+    },
   },
 });
 ```
 
-All three names are optional. A common configuration only needs `databaseSchemaName`.
+All schema settings are optional. A common configuration only needs `databaseSchemaName`.
 
 ## Accepted behavior
 
 1. Configuration belongs under the existing `schema` option. Schema selection is never inferred from the connection string or `search_path`.
 2. `projectionsDatabaseSchemaName` falls back to `databaseSchemaName`.
-3. `migrationTableDatabaseSchemaName` falls back to `databaseSchemaName`.
+3. `migrationTable.schemaName` falls back to `databaseSchemaName`; `migrationTable.tableName` is forwarded when supplied.
 4. The event store and every PostgreSQL projection using Dumbo migrations, including Pongo, use one physical migration table.
 5. An explicit Pongo collection `databaseSchemaName` overrides the projection default.
 6. Emmett-owned tables, sequences, functions, calls, function bodies, dynamic SQL and catalog checks are explicitly qualified.
@@ -45,18 +48,17 @@ Add the public configuration type beside the current PostgreSQL schema options:
 export type EventStoreDatabaseSchemaOptions = {
   databaseSchemaName?: string | undefined;
   projectionsDatabaseSchemaName?: string | undefined;
-  migrationTableDatabaseSchemaName?: string | undefined;
+  migrationTable?: MigrationTableOptions | undefined;
 };
 ```
 
-Resolve it once when constructing the store. Keep the resolved type internal and expose a smaller immutable context value to hooks and projections:
+Map it once when constructing the store. Keep the internal value small and expose the same immutable context value to hooks and projections:
 
 ```ts
-type ResolvedEventStoreSchemaOptions = {
+type EventStoreDatabaseSchema = {
   databaseSchemaName: string | undefined;
   projectionsDatabaseSchemaName: string | undefined;
   migrationTable: MigrationTableOptions | undefined;
-  isDefaultSchema: boolean;
 };
 
 export type EventStoreDatabaseSchemaContext = {
@@ -68,7 +70,7 @@ export type EventStoreDatabaseSchemaContext = {
 };
 ```
 
-Resolve fallback from property presence only. `isDefaultSchema` is true only when `databaseSchemaName` is `undefined`. Do not inspect PostgreSQL metadata or compare supplied values with `public`, `current_schema()` or Dumbo's default-schema concepts.
+Resolve fallback from property presence only. Default-schema mode is selected only when `databaseSchemaName` is `undefined`. Do not inspect PostgreSQL metadata or compare supplied values with `public`, `current_schema()` or Dumbo's default-schema concepts.
 
 Expected resolution:
 
@@ -80,14 +82,30 @@ Expected resolution:
 | migration name only            | default       | default                    | explicit migration schema |
 | `databaseSchemaName: 'public'` | `public`      | `public`                   | `public`                  |
 
+## Upstream follow-ups for Dumbo and Pongo
+
+The first Emmett implementation needs a few small local helpers because Dumbo/Pongo do not yet expose the exact primitives. They should stay removable; once upstream support lands, Emmett should switch to those APIs instead of growing local abstractions.
+
+Useful Dumbo follow-ups:
+
+- Add a structured routine-name token, for example `SQLRoutineReference.from({ databaseSchemaName, routineName })`. This would replace Emmett's local `postgreSQLFunctionName` helper and avoid every consumer hand-rendering `schema.routine` from two identifiers.
+- Add namespace-aware and signature-aware routine existence helpers. Emmett still has to guard `CREATE FUNCTION`, but the reusable behavior belongs with Dumbo's PostgreSQL catalog helpers.
+- Consider a relation/regclass helper for sequence references used in defaults, such as `nextval(<qualified sequence>::regclass)`. Emmett currently builds that with `SQL.literal` because `nextval` needs a string literal that names a relation, not an identifier expression.
+- Consider a small PostgreSQL dynamic-SQL helper for schema-qualified `%I.%I` format fragments. Emmett's partition functions need to pass schema and object name as separate `format()` arguments; the rule is easy to get wrong and would benefit from one Dumbo-owned utility or documented recipe.
+- Allow `SQLTableReference.from` ergonomics that accept an omitted schema and internally use Dumbo's default-schema sentinel, or document that consumers should pass `DefaultDatabaseSchemaName`. Emmett's local `emmettRelation` helper exists mostly to hide that sentinel conversion.
+
+Useful Pongo follow-ups:
+
+- Keep and document the current split between `defaultSchemaName` and nested `migrationTable`; Emmett depends on projection tables living in one schema while migration history is shared elsewhere.
+- If Pongo has any remaining client creation branches that do not forward `defaultSchemaName` and `migrationTable`, centralize them behind a Pongo-owned client/options factory. Emmett will otherwise need its own wrapper for init, handle, truncate and rebuild.
+- Expose or document the resolved collection/schema choice used by Pongo collections, so Emmett projection diagnostics can report where a Pongo projection will write without reimplementing Pongo's fallback rules.
+
 ## Schema-bound SQL model
 
 Create one schema-bound factory per store instance:
 
 ```ts
-const postgreSQLEventStoreSchema = (
-  options: ResolvedEventStoreSchemaOptions,
-) => ({
+const postgreSQLEventStoreSchema = (options: EventStoreDatabaseSchema) => ({
   tables,
   sequences,
   routines,

@@ -1,21 +1,30 @@
 import { SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
+  emmettRelation,
   messagesTable,
   processorsTable,
   projectionsTable,
   streamsTable,
 } from './typing';
 
+const globalMessagePositionSequence = 'emt_global_message_position';
+
 export const truncateTables = async (
   execute: SQLExecutor,
-  options?: { resetSequences?: boolean },
+  options?: { resetSequences?: boolean; databaseSchemaName?: string },
 ): Promise<void> => {
   await execute.command(
     SQL`TRUNCATE TABLE 
-        ${SQL.identifier(streamsTable.name)}, 
-        ${SQL.identifier(messagesTable.name)}, 
-        ${SQL.identifier(processorsTable.name)}, 
-        ${SQL.identifier(projectionsTable.name)} 
-        CASCADE${SQL.plain(options?.resetSequences ? '; ALTER SEQUENCE emt_global_message_position RESTART WITH 1' : '')};`,
+        ${emmettRelation(options?.databaseSchemaName, streamsTable.name)}, 
+        ${emmettRelation(options?.databaseSchemaName, messagesTable.name)}, 
+        ${emmettRelation(options?.databaseSchemaName, processorsTable.name)}, 
+        ${emmettRelation(options?.databaseSchemaName, projectionsTable.name)} 
+        CASCADE;`,
   );
+
+  if (options?.resetSequences === true) {
+    await execute.command(
+      SQL`ALTER SEQUENCE ${emmettRelation(options.databaseSchemaName, globalMessagePositionSequence)} RESTART WITH 1;`,
+    );
+  }
 };
