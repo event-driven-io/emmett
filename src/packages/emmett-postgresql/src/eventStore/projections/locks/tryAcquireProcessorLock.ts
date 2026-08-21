@@ -12,6 +12,7 @@ import {
 import { DefaultPostgreSQLProcessorLockPolicy } from './postgreSQLProcessorLock';
 
 export type TryAcquireProcessorLockOptions = {
+  databaseSchemaName?: string;
   processorId: string;
   version: number;
   partition: string;
@@ -56,6 +57,7 @@ export const tryAcquireProcessorLock = async (
   const { acquired, checkpoint } = await single(
     execute.command<{ acquired: boolean; checkpoint: string | null }>(
       callTryAcquireProcessorLock({
+        databaseSchemaName: options.databaseSchemaName,
         lockKey: lockKeyBigInt.toString(),
         processorId: options.processorId,
         version: options.version,
@@ -105,6 +107,7 @@ export const tryAcquireProcessorLockWithRetry = async (
 };
 
 export type ReleaseProcessorLockOptions = {
+  databaseSchemaName?: string;
   processorId: string;
   version: number;
   partition: string;
@@ -124,6 +127,7 @@ export const releaseProcessorLock = async (
   const { result } = await single(
     execute.command<{ result: boolean }>(
       callReleaseProcessorLock({
+        databaseSchemaName: options.databaseSchemaName,
         lockKey: lockKeyBigInt.toString(),
         processorId: options.processorId,
         partition: options.partition,

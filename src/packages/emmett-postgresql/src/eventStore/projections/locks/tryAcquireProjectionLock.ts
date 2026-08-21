@@ -3,6 +3,7 @@ import { hashText, isBigint } from '@event-driven-io/emmett';
 import { callTryAcquireProjectionLock } from '../../schema/projections/projectionsLocks';
 
 export type TryAcquireProjectionLockOptions = {
+  databaseSchemaName?: string;
   projectionName: string;
   partition: string;
   version: number;
@@ -13,6 +14,7 @@ export const tryAcquireProjectionLock = async (
   execute: SQLExecutor,
   {
     lockKey,
+    databaseSchemaName,
     projectionName,
     partition,
     version,
@@ -26,6 +28,7 @@ export const tryAcquireProjectionLock = async (
       is_active: boolean;
     }>(
       callTryAcquireProjectionLock({
+        databaseSchemaName,
         lockKey: lockKeyBigInt.toString(),
         partition,
         name: projectionName,

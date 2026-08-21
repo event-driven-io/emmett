@@ -12,6 +12,7 @@ import {
 } from './tryAcquireProcessorLock';
 
 export type PostgreSQLProcessorLockOptions = {
+  databaseSchemaName?: string;
   processorId: string;
   version: number;
   partition: string;

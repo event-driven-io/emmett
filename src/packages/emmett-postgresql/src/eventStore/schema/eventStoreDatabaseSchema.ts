@@ -3,14 +3,13 @@ import type { MigrationTableOptions } from '@event-driven-io/dumbo';
 export type EventStoreDatabaseSchemaOptions = {
   databaseSchemaName?: string | undefined;
   projectionsDatabaseSchemaName?: string | undefined;
-  migrationTableDatabaseSchemaName?: string | undefined;
+  migrationTable?: MigrationTableOptions | undefined;
 };
 
 export type EventStoreDatabaseSchema = {
   databaseSchemaName: string | undefined;
   projectionsDatabaseSchemaName: string | undefined;
   migrationTable: MigrationTableOptions | undefined;
-  isDefaultSchema: boolean;
 };
 
 export const eventStoreDatabaseSchema = (
@@ -19,16 +18,24 @@ export const eventStoreDatabaseSchema = (
   const databaseSchemaName = options?.databaseSchemaName;
   const projectionsDatabaseSchemaName =
     options?.projectionsDatabaseSchemaName ?? databaseSchemaName;
-  const migrationTableDatabaseSchemaName =
-    options?.migrationTableDatabaseSchemaName ?? databaseSchemaName;
+  const migrationTableSchemaName =
+    options?.migrationTable?.schemaName ?? databaseSchemaName;
+  const migrationTableName = options?.migrationTable?.tableName;
+  const migrationTable =
+    migrationTableSchemaName === undefined && migrationTableName === undefined
+      ? undefined
+      : {
+          ...(migrationTableSchemaName === undefined
+            ? {}
+            : { schemaName: migrationTableSchemaName }),
+          ...(migrationTableName === undefined
+            ? {}
+            : { tableName: migrationTableName }),
+        };
 
   return {
     databaseSchemaName,
     projectionsDatabaseSchemaName,
-    migrationTable:
-      migrationTableDatabaseSchemaName === undefined
-        ? undefined
-        : { schemaName: migrationTableDatabaseSchemaName },
-    isDefaultSchema: databaseSchemaName === undefined,
+    migrationTable,
   };
 };

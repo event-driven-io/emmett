@@ -19,12 +19,19 @@ import {
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
+import { postgreSQLFunctionName } from './postgreSQLFunctionName';
 import { PostgreSQLEventStoreCheckpoint } from './readMessagesBatch';
-import { defaultTag, messagesTable, streamsTable } from './typing';
+import {
+  defaultTag,
+  messagesTable,
+  streamsTable,
+  emmettRelation,
+} from './typing';
 
-export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
-  'emt_append_to_stream',
-  SQL`CREATE OR REPLACE FUNCTION emt_append_to_stream(
+export const appendToStreamSQLFor = (databaseSchemaName?: string) =>
+  createFunctionIfDoesNotExistSQL(
+    'emt_append_to_stream',
+    SQL`CREATE OR REPLACE FUNCTION ${postgreSQLFunctionName(databaseSchemaName, 'emt_append_to_stream')}(
       v_message_ids text[],
       v_messages_data jsonb[],
       v_messages_metadata jsonb[],
@@ -34,7 +41,7 @@ export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
       v_stream_id text,
       v_stream_type text,
       v_expected_stream_position bigint DEFAULT NULL,
-      v_partition text DEFAULT emt_sanitize_name('default_partition')
+      v_partition text DEFAULT ${postgreSQLFunctionName(databaseSchemaName, 'emt_sanitize_name')}('default_partition')
   ) RETURNS TABLE (
       success boolean,
       next_stream_position bigint,
@@ -54,7 +61,7 @@ export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
       IF v_expected_stream_position IS NULL THEN
           SELECT COALESCE(
             (SELECT stream_position 
-            FROM ${SQL.identifier(streamsTable.name)}
+            FROM ${emmettRelation(databaseSchemaName, streamsTable.name)}
             WHERE stream_id = v_stream_id 
               AND partition = v_partition 
               AND is_archived = FALSE
@@ -66,12 +73,12 @@ export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
       v_next_stream_position := v_expected_stream_position + array_upper(v_messages_data, 1);
 
       IF v_expected_stream_position = 0 THEN
-          INSERT INTO ${SQL.identifier(streamsTable.name)}
+          INSERT INTO ${emmettRelation(databaseSchemaName, streamsTable.name)}
               (stream_id, stream_position, partition, stream_type, stream_metadata, is_archived)
           VALUES
               (v_stream_id, v_next_stream_position, v_partition, v_stream_type, '{}', FALSE);
       ELSE
-          UPDATE ${SQL.identifier(streamsTable.name)} as s              
+          UPDATE ${emmettRelation(databaseSchemaName, streamsTable.name)} as s              
           SET stream_position = v_next_stream_position
           WHERE stream_id = v_stream_id AND stream_position = v_expected_stream_position AND partition = v_partition AND is_archived = FALSE;
 
@@ -99,7 +106,7 @@ export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
           ) AS message
       ),
       all_messages_insert AS (
-          INSERT INTO ${SQL.identifier(messagesTable.name)}
+          INSERT INTO ${emmettRelation(databaseSchemaName, messagesTable.name)}
               (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_kind, message_id, transaction_id)
           SELECT 
               v_stream_id, ev.stream_position, v_partition, ev.message_data, ev.message_metadata, ev.schema_version, ev.message_type, ev.message_kind, ev.message_id, v_transaction_id
@@ -115,9 +122,13 @@ export const appendToStreamSQL = createFunctionIfDoesNotExistSQL(
   END;
   $emt_append_to_stream$;
   `,
-);
+    databaseSchemaName,
+  );
+
+export const appendToStreamSQL = appendToStreamSQLFor();
 
 type CallAppendToStreamParams = {
+  databaseSchemaName?: string;
   messageIds: string[];
   messagesData: DefaultRecord[];
   messagesMetadata: DefaultRecord[];
@@ -132,7 +143,7 @@ type CallAppendToStreamParams = {
 
 // TODO: check if we need all those casts
 export const callAppendToStream = (params: CallAppendToStreamParams) =>
-  SQL`SELECT * FROM emt_append_to_stream(
+  SQL`SELECT * FROM ${postgreSQLFunctionName(params.databaseSchemaName, 'emt_append_to_stream')}(
       ${params.messageIds},
       ${params.messagesData},
       ${params.messagesMetadata},
@@ -170,6 +181,7 @@ export const appendToStream = (
     messageIdGenerator?: () => string;
     context?: ObservabilityContext;
     beforeCommitHook?: AppendToStreamBeforeCommitHook;
+    databaseSchemaName?: string;
   },
 ): Promise<AppendToStreamResult> =>
   connection.withTransaction<AppendToStreamResult>(async (transaction) => {
@@ -211,6 +223,7 @@ export const appendToStream = (
         messagesToAppend,
         {
           expectedStreamVersion,
+          databaseSchemaName: options?.databaseSchemaName,
         },
       );
 
@@ -309,11 +322,13 @@ export const appentToStreamRaw = (
   options?: {
     expectedStreamVersion: bigint | null;
     partition?: string;
+    databaseSchemaName?: string;
   },
 ): Promise<AppendToStreamSqlResult> =>
   single(
     execute.command<AppendToStreamSqlResult>(
       callAppendToStream({
+        databaseSchemaName: options?.databaseSchemaName,
         messageIds: messages.map((e) => e.metadata.messageId),
         messagesData: messages.map((e) => e.data),
         messagesMetadata: messages.map((e) => {

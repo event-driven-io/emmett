@@ -171,7 +171,10 @@ export const postgreSQLCheckpointer = <
   MessageType extends Message = Message,
 >(): PostgreSQLCheckpointer<MessageType> => ({
   read: async (options, context) => {
-    const result = await readProcessorCheckpoint(context.execute, options);
+    const result = await readProcessorCheckpoint(context.execute, {
+      ...options,
+      databaseSchemaName: context.migrationOptions?.databaseSchemaName,
+    });
 
     return { lastCheckpoint: result?.lastProcessedCheckpoint };
   },
@@ -184,6 +187,7 @@ export const postgreSQLCheckpointer = <
       processorId: options.processorId,
       partition: options.partition,
       version: options.version,
+      databaseSchemaName: context.migrationOptions?.databaseSchemaName,
     });
 
     return result.success
@@ -202,7 +206,7 @@ type PostgreSQLProcessorOptionsBase = PostgreSQLConnectionOptions & {
     timeoutSeconds?: number;
   };
   partition?: string;
-};
+} & EventStoreSchemaMigrationOptions;
 export type PostgreSQLReactorOptions<
   MessageType extends Message = Message,
   MessagePayloadType extends AnyMessage = MessageType,
@@ -248,6 +252,7 @@ const postgreSQLProcessingScope = (options: {
   connectionString: string | null;
   processorId: string;
   partition: string;
+  migrationOptions?: EventStoreSchemaMigrationOptions['migrationOptions'];
 }): MessageProcessingScope<PostgreSQLProcessorHandlerContext> => {
   const processorConnectionString = options.connectionString;
 
@@ -297,9 +302,13 @@ const postgreSQLProcessingScope = (options: {
             connectionOptions: {
               connection: transaction.connection as PgPoolClientConnection,
             },
-            schema: { autoMigration: 'None' },
+            schema: {
+              autoMigration: 'None',
+              ...options.migrationOptions,
+            },
           }),
         },
+        migrationOptions: options.migrationOptions,
         observabilityScope: partialContext?.observabilityScope ?? noopScope,
       });
     });
@@ -382,6 +391,7 @@ export const postgreSQLProjector = <
   const { pool, connectionString, close } = getProcessorPool(options);
 
   const processorLock = postgreSQLProcessorLock({
+    databaseSchemaName: options.migrationOptions?.databaseSchemaName,
     processorId,
     version,
     partition,
@@ -450,6 +460,7 @@ export const postgreSQLProjector = <
       connectionString,
       processorId,
       partition,
+      migrationOptions: options.migrationOptions,
     }),
     checkpoints:
       options.checkpoints === 'DISABLED'
@@ -493,6 +504,7 @@ export const postgreSQLWorkflowProcessor = <
   const { pool, connectionString, close } = getProcessorPool(options);
 
   const processorLock = postgreSQLProcessorLock({
+    databaseSchemaName: options.migrationOptions?.databaseSchemaName,
     processorId,
     version,
     partition,
@@ -529,6 +541,7 @@ export const postgreSQLWorkflowProcessor = <
       connectionString,
       processorId,
       partition,
+      migrationOptions: options.migrationOptions,
     }) as unknown as MessageProcessingScope<HandlerContext>,
     checkpoints:
       options.checkpoints === 'DISABLED'
@@ -558,6 +571,7 @@ export const postgreSQLReactor = <
   const { pool, connectionString, close } = getProcessorPool(options);
 
   const processorLock = postgreSQLProcessorLock({
+    databaseSchemaName: options.migrationOptions?.databaseSchemaName,
     processorId,
     version,
     partition,
@@ -594,6 +608,7 @@ export const postgreSQLReactor = <
       connectionString,
       processorId,
       partition,
+      migrationOptions: options.migrationOptions,
     }),
     checkpoints:
       options.checkpoints === 'DISABLED'

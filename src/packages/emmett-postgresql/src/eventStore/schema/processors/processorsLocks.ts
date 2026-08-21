@@ -1,17 +1,20 @@
 import { SQL } from '@event-driven-io/dumbo';
 import { bigInt } from '@event-driven-io/emmett';
 import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
+import { postgreSQLFunctionName } from '../postgreSQLFunctionName';
 import {
   defaultTag,
   processorsTable,
   projectionsTable,
+  emmettRelation,
   unknownTag,
 } from '../typing';
 
-export const tryAcquireProcessorLockSQL = createFunctionIfDoesNotExistSQL(
-  'emt_try_acquire_processor_lock',
-  SQL`
-CREATE OR REPLACE FUNCTION emt_try_acquire_processor_lock(
+export const tryAcquireProcessorLockSQLFor = (databaseSchemaName?: string) =>
+  createFunctionIfDoesNotExistSQL(
+    'emt_try_acquire_processor_lock',
+    SQL`
+CREATE OR REPLACE FUNCTION ${postgreSQLFunctionName(databaseSchemaName, 'emt_try_acquire_processor_lock')}(
     p_lock_key               BIGINT,
     p_processor_id           TEXT,
     p_version                INT,
@@ -34,7 +37,7 @@ BEGIN
         SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
     ),
     ownership_check AS (
-        INSERT INTO ${SQL.plain(processorsTable.name)} (
+        INSERT INTO ${emmettRelation(databaseSchemaName, processorsTable.name)} (
             processor_id,
             partition,
             version,
@@ -51,14 +54,14 @@ BEGIN
         SET processor_instance_id = p_processor_instance_id,
             status = 'running',
             last_updated = v_current_time
-        WHERE ${SQL.plain(processorsTable.name)}.processor_instance_id = p_processor_instance_id
-           OR ${SQL.plain(processorsTable.name)}.processor_instance_id = '${SQL.plain(unknownTag)}'
-           OR ${SQL.plain(processorsTable.name)}.status = 'stopped'
-           OR ${SQL.plain(processorsTable.name)}.last_updated < v_current_time - (p_lock_timeout_seconds || ' seconds')::interval
+        WHERE ${SQL.identifier(processorsTable.name)}.processor_instance_id = p_processor_instance_id
+           OR ${SQL.identifier(processorsTable.name)}.processor_instance_id = '${SQL.plain(unknownTag)}'
+           OR ${SQL.identifier(processorsTable.name)}.status = 'stopped'
+           OR ${SQL.identifier(processorsTable.name)}.last_updated < v_current_time - (p_lock_timeout_seconds || ' seconds')::interval
         RETURNING last_processed_checkpoint
     ),
     projection_status AS (
-        INSERT INTO ${SQL.plain(projectionsTable.name)} (
+        INSERT INTO ${emmettRelation(databaseSchemaName, projectionsTable.name)} (
             name,
             partition,
             version,
@@ -80,12 +83,16 @@ BEGIN
 END;
 $emt_try_acquire_processor_lock$;
 `,
-);
+    databaseSchemaName,
+  );
 
-export const releaseProcessorLockSQL = createFunctionIfDoesNotExistSQL(
-  'emt_release_processor_lock',
-  SQL`
-CREATE OR REPLACE FUNCTION emt_release_processor_lock(
+export const tryAcquireProcessorLockSQL = tryAcquireProcessorLockSQLFor();
+
+export const releaseProcessorLockSQLFor = (databaseSchemaName?: string) =>
+  createFunctionIfDoesNotExistSQL(
+    'emt_release_processor_lock',
+    SQL`
+CREATE OR REPLACE FUNCTION ${postgreSQLFunctionName(databaseSchemaName, 'emt_release_processor_lock')}(
     p_lock_key              BIGINT,
     p_processor_id          TEXT,
     p_partition             TEXT,
@@ -100,7 +107,7 @@ DECLARE
     v_rows_updated INT;
 BEGIN
     IF p_projection_name IS NOT NULL THEN
-        UPDATE ${SQL.plain(projectionsTable.name)}
+        UPDATE ${emmettRelation(databaseSchemaName, projectionsTable.name)}
         SET status = 'active',
             last_updated = now()
         WHERE partition = p_partition
@@ -108,7 +115,7 @@ BEGIN
           AND version = p_version;
     END IF;
 
-    UPDATE ${SQL.plain(processorsTable.name)}
+    UPDATE ${emmettRelation(databaseSchemaName, processorsTable.name)}
     SET status = 'stopped',
         processor_instance_id = '${SQL.plain(unknownTag)}',
         last_updated = now()
@@ -125,9 +132,13 @@ BEGIN
 END;
 $emt_release_processor_lock$;
 `,
-);
+    databaseSchemaName,
+  );
+
+export const releaseProcessorLockSQL = releaseProcessorLockSQLFor();
 
 type CallTryAcquireProcessorLockParams = {
+  databaseSchemaName?: string;
   lockKey: string;
   processorId: string;
   version: number;
@@ -143,7 +154,7 @@ export const callTryAcquireProcessorLock = (
   params: CallTryAcquireProcessorLockParams,
 ) =>
   SQL`
-    SELECT * FROM emt_try_acquire_processor_lock(
+    SELECT * FROM ${postgreSQLFunctionName(params.databaseSchemaName, 'emt_try_acquire_processor_lock')}(
       ${params.lockKey}, 
       ${params.processorId}, 
       ${params.version}, 
@@ -157,6 +168,7 @@ export const callTryAcquireProcessorLock = (
   `;
 
 type CallReleaseProcessorLockParams = {
+  databaseSchemaName?: string;
   lockKey: string;
   processorId: string;
   partition: string;
@@ -168,7 +180,7 @@ type CallReleaseProcessorLockParams = {
 export const callReleaseProcessorLock = (
   params: CallReleaseProcessorLockParams,
 ) =>
-  SQL`SELECT emt_release_processor_lock(
+  SQL`SELECT ${postgreSQLFunctionName(params.databaseSchemaName, 'emt_release_processor_lock')}(
     ${params.lockKey}, 
     ${params.processorId}, 
     ${params.partition}, 
