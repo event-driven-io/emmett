@@ -34,6 +34,7 @@ const rejectedResult = {
 };
 
 const application = new Hono();
+// #region hono-response-from-events-route
 application.get('/success', (context) =>
   ResponseFromEvents({
     context,
@@ -58,6 +59,7 @@ application.get('/failure', (context) =>
         : undefined,
   }),
 );
+// #endregion hono-response-from-events-route
 application.get('/numeric', (context) =>
   ResponseFromEvents({
     context,
