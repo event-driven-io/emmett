@@ -171,9 +171,17 @@ exports[`0.43.0 schema migration > 0.43.0 schema is the latest one 1`] = `
         "
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '",
+IF NOT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = ",
+        "current_schema()",
+        "
+    AND p.proname = '",
         "emt_sanitize_name",
-        "') THEN
+        "'
+) THEN
   ",
         "CREATE OR REPLACE FUNCTION ",
         "emt_sanitize_name",
@@ -195,9 +203,17 @@ END $$;
         "
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '",
+IF NOT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = ",
+        "current_schema()",
+        "
+    AND p.proname = '",
         "emt_add_table_partition",
-        "') THEN
+        "'
+) THEN
   ",
         "
   CREATE OR REPLACE FUNCTION ",
@@ -276,9 +292,17 @@ END $$;
         "
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '",
+IF NOT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = ",
+        "current_schema()",
+        "
+    AND p.proname = '",
         "emt_add_partition",
-        "') THEN
+        "'
+) THEN
   ",
         "
   CREATE OR REPLACE FUNCTION ",
@@ -350,9 +374,17 @@ END $$;
         "
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '",
+IF NOT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = ",
+        "current_schema()",
+        "
+    AND p.proname = '",
         "emt_append_to_stream",
-        "') THEN
+        "'
+) THEN
   ",
         "CREATE OR REPLACE FUNCTION ",
         "emt_append_to_stream",
@@ -506,9 +538,17 @@ END $$;
         "
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '",
+IF NOT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = ",
+        "current_schema()",
+        "
+    AND p.proname = '",
         "store_processor_checkpoint",
-        "') THEN
+        "'
+) THEN
   ",
         "
 CREATE OR REPLACE FUNCTION ",
@@ -681,9 +721,17 @@ END $$;
         "
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '",
+IF NOT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = ",
+        "current_schema()",
+        "
+    AND p.proname = '",
         "emt_try_acquire_processor_lock",
-        "') THEN
+        "'
+) THEN
   ",
         "
 CREATE OR REPLACE FUNCTION ",
@@ -823,9 +871,17 @@ END $$;
         "
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '",
+IF NOT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = ",
+        "current_schema()",
+        "
+    AND p.proname = '",
         "emt_release_processor_lock",
-        "') THEN
+        "'
+) THEN
   ",
         "
 CREATE OR REPLACE FUNCTION ",
@@ -904,9 +960,17 @@ END $$;
         "
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '",
+IF NOT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = ",
+        "current_schema()",
+        "
+    AND p.proname = '",
         "emt_try_acquire_projection_lock",
-        "') THEN
+        "'
+) THEN
   ",
         "
 CREATE OR REPLACE FUNCTION ",
@@ -958,9 +1022,17 @@ END $$;
         "
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '",
+IF NOT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = ",
+        "current_schema()",
+        "
+    AND p.proname = '",
         "emt_register_projection",
-        "') THEN
+        "'
+) THEN
   ",
         "
 CREATE OR REPLACE FUNCTION ",
@@ -1023,9 +1095,17 @@ END $$;
         "
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '",
+IF NOT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = ",
+        "current_schema()",
+        "
+    AND p.proname = '",
         "emt_activate_projection",
-        "') THEN
+        "'
+) THEN
   ",
         "
 CREATE OR REPLACE FUNCTION ",
@@ -1083,9 +1163,17 @@ END $$;
         "
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '",
+IF NOT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = ",
+        "current_schema()",
+        "
+    AND p.proname = '",
         "emt_deactivate_projection",
-        "') THEN
+        "'
+) THEN
   ",
         "
 CREATE OR REPLACE FUNCTION ",
@@ -1388,6 +1476,7 @@ $spc$ LANGUAGE plpgsql;
     ],
   },
   {
+    "ignoreHashMismatch": true,
     "name": "emt:postgresql:eventstore:0.43.0:upgrade-checkpoint-format",
     "sqls": [
       {
@@ -1396,7 +1485,7 @@ $spc$ LANGUAGE plpgsql;
           "
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = '",
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = current_schema() AND tablename = '",
           "emt_processors",
           "') THEN
     UPDATE "",
@@ -1418,6 +1507,7 @@ END $$;
     ],
   },
   {
+    "ignoreHashMismatch": true,
     "name": "emt:postgresql:eventstore:0.43.0:add-messages-poll-index",
     "sqls": [
       {
@@ -1426,7 +1516,7 @@ END $$;
           "
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = '",
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = current_schema() AND tablename = '",
           "emt_messages",
           "') THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS idx_messages_transaction_id_global_position

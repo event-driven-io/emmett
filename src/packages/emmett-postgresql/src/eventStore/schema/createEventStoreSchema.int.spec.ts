@@ -491,6 +491,80 @@ void describe('createEventStoreSchema with configured database schemas', () => {
   };
 });
 
+void describe('createEventStoreSchema sharing a database with a configured schema', () => {
+  let database: PostgreSQLTestDatabase;
+  let connectionString: string;
+
+  beforeAll(async () => {
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
+  });
+
+  afterAll(async () => {
+    try {
+      await database?.close();
+    } catch (error) {
+      console.log(error);
+    }
+  });
+
+  void it('stores and reads events in the default schema when another schema configured by the user already exists', async () => {
+    const configuredSchemaName = schemaName('events');
+    const streamName = `shopping_cart-${Date.now()}`;
+
+    const configuredStore = getPostgreSQLEventStore(connectionString, {
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+        databaseSchemaName: configuredSchemaName,
+      },
+    });
+
+    try {
+      await configuredStore.appendToStream(streamName, [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: {
+              productId: 'sku-configured',
+              quantity: 1,
+              price: 10,
+            },
+          },
+        },
+      ]);
+    } finally {
+      await configuredStore.close();
+    }
+
+    const defaultStore = getPostgreSQLEventStore(connectionString, {
+      schema: { autoMigration: 'CreateOrUpdate' },
+    });
+
+    try {
+      await defaultStore.appendToStream(streamName, [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { productId: 'sku-default', quantity: 1, price: 20 },
+          },
+        },
+      ]);
+
+      const readResult =
+        await defaultStore.readStream<ProductItemAdded>(streamName);
+
+      assertTrue(readResult.streamExists);
+      assertEqual(readResult.events.length, 1);
+      assertEqual(
+        readResult.events[0]?.data.productItem.productId,
+        'sku-default',
+      );
+    } finally {
+      await defaultStore.close();
+    }
+  });
+});
+
 const schemaName = (prefix: string): string =>
   `${prefix}_${uuid().replaceAll('-', '_')}`;
 

@@ -131,6 +131,10 @@ Migrations introduced after schema support must be schema-aware and included in 
 
 The configured store normally has its own migration table. Explicitly pointing multiple stores, or a configured store and an existing default store, at one migration table remains unsupported unless their migration identities are isolated.
 
+Historical migrations run only for the default schema, but they still share the database with configured schemas. Their catalog checks look up objects by bare name, so a table or function that a configured schema owns can satisfy a check whose statement then runs unqualified against the default schema and fails. Checks naming objects a configured schema also creates must therefore be scoped with `schemaname = current_schema()`. Checks naming pre-schema-support objects (`emt_events`, `emt_subscriptions`, `emt_global_event_position`, `add_module` and friends) stay untouched: no configured schema ever creates them, and rewriting them would change the hashes of migrations older than schema support.
+
+Two 0.43.0 migrations needed that scoping, `upgrade-checkpoint-format` and `add-messages-poll-index`, so both carry `ignoreHashMismatch: true`. Databases that already applied the beta form log a mismatch and skip instead of aborting startup; fresh databases get the corrected SQL.
+
 The current migration index and `currentPostgreSQLEventStoreSchemaVersion` stop at `0.43.0`. The unreferenced `0_44_0` migration is intentionally reserved for the next release or manual execution, so this PR must not activate it. If it is activated after schema support, its normal migration form must be schema-aware and included in both migration lists; manual execution does not change the compatibility boundary.
 
 ## Migration-table and schema creation
@@ -351,18 +355,19 @@ Exit criteria: the PostgreSQL package build, lint, unit, integration and end-to-
 
 ## PostgreSQL verification matrix
 
-| Scenario                       | Required result                                                      |
-| ------------------------------ | -------------------------------------------------------------------- |
-| Default configuration          | Existing SQL, snapshots and migration hashes remain unchanged        |
-| Fresh configured schema        | Core objects and migration table are created in the resolved schemas |
-| Configured migration history   | Starts at the schema-support boundary without no-op history          |
-| Separate projection schema     | Projection objects move; event objects and migration table do not    |
-| Collection override            | Explicit collection schema wins in every operation                   |
-| Two event schemas              | Stores remain isolated with identical stream and projection names    |
-| Supplied or ambient connection | Configured targeting ignores unrelated `search_path` values          |
-| Auto-migration disabled        | Runtime still targets configured objects                             |
-| Dry run                        | SQL is correctly qualified and no changes persist                    |
-| Unusual valid identifier       | All static, dynamic and regclass references remain safe              |
+| Scenario                                     | Required result                                                            |
+| -------------------------------------------- | -------------------------------------------------------------------------- |
+| Default configuration                        | Existing SQL, snapshots and migration hashes remain unchanged              |
+| Fresh configured schema                      | Core objects and migration table are created in the resolved schemas       |
+| Configured migration history                 | Starts at the schema-support boundary without no-op history                |
+| Separate projection schema                   | Projection objects move; event objects and migration table do not          |
+| Collection override                          | Explicit collection schema wins in every operation                         |
+| Two event schemas                            | Stores remain isolated with identical stream and projection names          |
+| Supplied or ambient connection               | Configured targeting ignores unrelated `search_path` values                |
+| Auto-migration disabled                      | Runtime still targets configured objects                                   |
+| Dry run                                      | SQL is correctly qualified and no changes persist                          |
+| Unusual valid identifier                     | All static, dynamic and regclass references remain safe                    |
+| Default and configured store in one database | The default store migrates and runs without touching the configured schema |
 
 ## SQLite follow-up PR
 
