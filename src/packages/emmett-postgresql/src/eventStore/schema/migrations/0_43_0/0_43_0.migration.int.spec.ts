@@ -172,6 +172,42 @@ void describe('Schema migrations tests', () => {
     );
   });
 
+  void it('leaves the event store tables of another database schema alone when migrating the default schema', async () => {
+    // Given
+    const otherSchemaName = 'events';
+    const otherSchemaStore = getPostgreSQLEventStore(connectionString, {
+      schema: {
+        autoMigration: 'None',
+        databaseSchemaName: otherSchemaName,
+      },
+    });
+    try {
+      await otherSchemaStore.schema.migrate();
+    } finally {
+      await otherSchemaStore.close();
+    }
+
+    // When
+    const { applied } = await runSQLMigrations(pool, migrations_0_43_0);
+
+    // Then
+    assertDeepEqual(applied, migrations_0_43_0);
+    assertFalse(await tableExistsInSchema('public', 'emt_messages'));
+    assertFalse(await tableExistsInSchema('public', 'emt_processors'));
+    assertFalse(
+      await indexExistsInSchema(
+        'public',
+        'idx_messages_transaction_id_global_position',
+      ),
+    );
+    assertTrue(
+      await indexExistsInSchema(
+        otherSchemaName,
+        'idx_messages_transaction_id_global_position',
+      ),
+    );
+  });
+
   void it('migrates from 0.43.0 schema', async () => {
     // Given
     await runSQLMigrations(pool, [
@@ -635,6 +671,32 @@ void describe('Schema migrations tests', () => {
       SQL`SELECT last_processed_checkpoint FROM emt_processors WHERE processor_id = ${processorId} LIMIT 1`,
     );
     return result.rows[0]?.last_processed_checkpoint ?? null;
+  };
+
+  const tableExistsInSchema = async (
+    schemaName: string,
+    tableName: string,
+  ): Promise<boolean> => {
+    const result = await pool.execute.query<{ exists: boolean }>(SQL`
+      SELECT EXISTS (
+        SELECT FROM pg_tables
+        WHERE schemaname = ${schemaName} AND tablename = ${tableName}
+      ) AS exists`);
+
+    return result.rows[0]?.exists === true;
+  };
+
+  const indexExistsInSchema = async (
+    schemaName: string,
+    indexName: string,
+  ): Promise<boolean> => {
+    const result = await pool.execute.query<{ exists: boolean }>(SQL`
+      SELECT EXISTS (
+        SELECT FROM pg_indexes
+        WHERE schemaname = ${schemaName} AND indexname = ${indexName}
+      ) AS exists`);
+
+    return result.rows[0]?.exists === true;
   };
 
   const indexExists = async (name: string): Promise<boolean> => {

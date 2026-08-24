@@ -224,7 +224,7 @@ export const migration_0_43_0_updateStoreProcessorCheckpoint: SQLMigration =
 const migration_0_43_0_upgradeCheckpointFormatSQL = SQL`
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = '${SQL.plain(processorsTable.name)}') THEN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = current_schema() AND tablename = '${SQL.plain(processorsTable.name)}') THEN
     UPDATE "${SQL.plain(processorsTable.name)}" p
     SET last_processed_checkpoint =
       lpad(m.transaction_id::text, 20, '0') || ':' || p.last_processed_checkpoint
@@ -236,9 +236,11 @@ END $$;
 `;
 
 export const migration_0_43_0_upgradeCheckpointFormat: SQLMigration =
-  sqlMigration('emt:postgresql:eventstore:0.43.0:upgrade-checkpoint-format', [
-    migration_0_43_0_upgradeCheckpointFormatSQL,
-  ]);
+  sqlMigration(
+    'emt:postgresql:eventstore:0.43.0:upgrade-checkpoint-format',
+    [migration_0_43_0_upgradeCheckpointFormatSQL],
+    { ignoreHashMismatch: true },
+  );
 
 // Matches the consumer poll's cursor and ORDER BY, so its LIMIT stops the scan
 // instead of top-N sorting the partition on every tick - including the caught-up poll
@@ -261,7 +263,7 @@ export const migration_0_43_0_upgradeCheckpointFormat: SQLMigration =
 const migration_0_43_0_addMessagesPollIndexSQL = SQL`
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = '${SQL.plain(messagesTable.name)}') THEN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = current_schema() AND tablename = '${SQL.plain(messagesTable.name)}') THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS idx_messages_transaction_id_global_position
       ON ${SQL.plain(messagesTable.name)}(transaction_id, global_position)';
 
@@ -273,4 +275,5 @@ END $$;
 export const migration_0_43_0_addMessagesPollIndex: SQLMigration = sqlMigration(
   'emt:postgresql:eventstore:0.43.0:add-messages-poll-index',
   [migration_0_43_0_addMessagesPollIndexSQL],
+  { ignoreHashMismatch: true },
 );

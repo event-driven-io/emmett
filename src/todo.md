@@ -119,6 +119,11 @@
 - [x] Run `npm run fix`
 - [x] Run `npm run test:unit`
 - [x] Review for consistency, naming, dead code, and redundant abstractions; fix only clear issues and ask Oskar when unsure
+- [x] Add user-facing coverage for a default store sharing a database with a configured-schema store
+- [x] Scope the 0.43.0 catalog checks that name objects a configured schema also creates, and mark those two migrations hash-tolerant
+- [x] Make `createFunctionIfDoesNotExistSQL` check the schema it is given instead of skipping the check for configured schemas
+- [ ] Add dry-run coverage for a configured schema
+- [ ] Document the configuration options and fallback rules
 - [ ] Stop for approval before SQLite follow-up
 
 ## Later phases
