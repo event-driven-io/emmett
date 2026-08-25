@@ -229,6 +229,12 @@ const eventStore = getPostgreSQLEventStore(connectionString, {
   // Schema migration
   schema: {
     autoMigration: 'CreateOrUpdate', // or 'None'
+    databaseSchemaName: 'events',
+    projectionsDatabaseSchemaName: 'read_models',
+    migrationTable: {
+      schemaName: 'infrastructure',
+      tableName: 'emmett_migrations',
+    },
   },
 
   // Connection pool
@@ -238,6 +244,23 @@ const eventStore = getPostgreSQLEventStore(connectionString, {
   },
 });
 ```
+
+### Database Schemas
+
+By default, PostgreSQL objects are created in the database's default schema.
+Set `schema.databaseSchemaName` to put the event-store tables, indexes,
+sequences, functions, processor checkpoints, and projection registrations in a
+specific PostgreSQL schema.
+
+`schema.projectionsDatabaseSchemaName` controls the default schema for
+PostgreSQL projection data such as Pongo collections. If it is omitted, it falls
+back to `schema.databaseSchemaName`. A projection can still override its own
+collection schema.
+
+`schema.migrationTable.schemaName` and `schema.migrationTable.tableName` control
+the shared Dumbo migration table used by the event store and PostgreSQL
+projections. If `schemaName` is omitted, it falls back to
+`schema.databaseSchemaName`.
 
 ## Querying Read Models
 

@@ -1,4 +1,10 @@
-import { dumbo, SQL } from '@event-driven-io/dumbo';
+import {
+  count,
+  dumbo,
+  exists,
+  SQL,
+  SQLTableReference,
+} from '@event-driven-io/dumbo';
 import {
   functionExists,
   pgDumboDriver,
@@ -6,6 +12,7 @@ import {
   type PgPool,
 } from '@event-driven-io/dumbo/pg';
 import {
+  assertDeepEqual,
   assertEqual,
   assertFalse,
   assertTrue,
@@ -19,6 +26,8 @@ import {
 } from '../../testing/postgreSQLTestDatabase';
 import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import { createEventStoreSchema } from '../schema';
+import type { EventStoreDatabaseSchemaOptions } from './eventStoreDatabaseSchema';
+import { schemaMigrationFor } from './migrations';
 
 type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -266,6 +275,55 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     assertFalse(await tableExistsInSchema('public', 'emmett_migrations'));
   });
 
+  void it('applies the configured migration after the user dry-runs it first', async () => {
+    const schemaOptions = {
+      databaseSchemaName: schemaName('events'),
+      migrationTable: {
+        schemaName: schemaName('infrastructure'),
+        tableName: schemaName('emmett_migrations'),
+      },
+    } satisfies EventStoreDatabaseSchemaOptions;
+    const store = getPostgreSQLEventStore(connectionString, {
+      schema: {
+        autoMigration: 'None',
+        ...schemaOptions,
+      },
+    });
+
+    try {
+      const dryRun = await store.schema.migrate({ dryRun: true });
+
+      assertDeepEqual(dryRun.applied, [schemaMigrationFor(schemaOptions)]);
+      assertTrue(
+        await tableExistsInSchema(
+          schemaOptions.migrationTable.schemaName,
+          schemaOptions.migrationTable.tableName,
+        ),
+      );
+
+      await dropSchema(schemaOptions.databaseSchemaName);
+      await dropSchema(schemaOptions.migrationTable.schemaName);
+
+      const actualMigration = await store.schema.migrate();
+
+      assertDeepEqual(actualMigration.applied, [
+        schemaMigrationFor(schemaOptions),
+      ]);
+      assertTrue(await schemaExists(schemaOptions.databaseSchemaName));
+      assertTrue(await schemaExists(schemaOptions.migrationTable.schemaName));
+      assertEqual(
+        1,
+        await migrationRows({
+          schemaName: schemaOptions.migrationTable.schemaName,
+          tableName: schemaOptions.migrationTable.tableName,
+          migrationName: schemaMigrationFor(schemaOptions).name,
+        }),
+      );
+    } finally {
+      await store.close();
+    }
+  });
+
   void it('passes the configured schema names to schema creation hooks', async () => {
     const eventSchemaName = schemaName('events');
     let beforeMigrationTableSchemaName: string | undefined;
@@ -434,8 +492,8 @@ void describe('createEventStoreSchema with configured database schemas', () => {
         secondRead.events[0]?.data.productItem.productId,
         'sku-second',
       );
-      assertEqual(await messagesCountInSchema(firstSchemaName), 1);
-      assertEqual(await messagesCountInSchema(secondSchemaName), 1);
+      assertEqual(1, await messagesCountInSchema(firstSchemaName));
+      assertEqual(1, await messagesCountInSchema(secondSchemaName));
       assertFalse(await tableExistsInSchema('public', 'emt_messages'));
     } finally {
       await firstEventStore.close();
@@ -444,51 +502,79 @@ void describe('createEventStoreSchema with configured database schemas', () => {
   });
 
   const schemaExists = async (schemaName: string): Promise<boolean> => {
-    const result = await pool.execute.query<{ exists: boolean }>(SQL`
-      SELECT EXISTS (
-        SELECT FROM information_schema.schemata
-        WHERE schema_name = ${schemaName}
-      ) AS exists`);
-
-    return result.rows[0]?.exists === true;
+    return exists(
+      pool.execute.query<{ exists: boolean }>(SQL`
+        SELECT EXISTS (
+          SELECT FROM information_schema.schemata
+          WHERE schema_name = ${schemaName}
+        ) AS exists`),
+    );
   };
 
   const tableExistsInSchema = async (
     schemaName: string,
     tableName: string,
   ): Promise<boolean> => {
-    const result = await pool.execute.query<{ exists: boolean }>(SQL`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_schema = ${schemaName}
-          AND table_name = ${tableName}
-      ) AS exists`);
-
-    return result.rows[0]?.exists === true;
+    return exists(
+      pool.execute.query<{ exists: boolean }>(SQL`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_schema = ${schemaName}
+            AND table_name = ${tableName}
+        ) AS exists`),
+    );
   };
 
   const functionExistsInSchema = async (
     schemaName: string,
     functionName: string,
   ): Promise<boolean> => {
-    const result = await pool.execute.query<{ exists: boolean }>(SQL`
-      SELECT EXISTS (
-        SELECT FROM pg_proc
-        JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace
-        WHERE pg_namespace.nspname = ${schemaName}
-          AND pg_proc.proname = ${functionName}
-      ) AS exists`);
-
-    return result.rows[0]?.exists === true;
+    return exists(
+      pool.execute.query<{ exists: boolean }>(SQL`
+        SELECT EXISTS (
+          SELECT FROM pg_proc
+          JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace
+          WHERE pg_namespace.nspname = ${schemaName}
+            AND pg_proc.proname = ${functionName}
+        ) AS exists`),
+    );
   };
 
   const messagesCountInSchema = async (schemaName: string): Promise<number> => {
-    const result = await pool.execute.query<{ count: string }>(SQL`
-      SELECT COUNT(*)::text AS count
-      FROM ${SQL.identifier(schemaName)}.${SQL.identifier('emt_messages')}`);
-
-    return Number(result.rows[0]?.count ?? 0);
+    return count(
+      pool.execute.query<{ count: number }>(SQL`
+        SELECT COUNT(*)::integer AS count
+        FROM ${SQLTableReference.from({
+          databaseSchemaName: schemaName,
+          tableName: 'emt_messages',
+        })}`),
+    );
   };
+
+  const migrationRows = async ({
+    schemaName,
+    tableName,
+    migrationName,
+  }: {
+    schemaName: string;
+    tableName: string;
+    migrationName: string;
+  }): Promise<number> => {
+    return count(
+      pool.execute.query<{ count: number }>(SQL`
+        SELECT COUNT(*)::integer AS count
+        FROM ${SQLTableReference.from({
+          databaseSchemaName: schemaName,
+          tableName,
+        })}
+        WHERE name = ${migrationName}`),
+    );
+  };
+
+  const dropSchema = (schemaName: string): Promise<unknown> =>
+    pool.execute.command(SQL`
+      DROP SCHEMA IF EXISTS ${SQL.identifier(schemaName)} CASCADE
+    `);
 });
 
 void describe('createEventStoreSchema sharing a database with a configured schema', () => {
@@ -587,6 +673,10 @@ const trickyNameStyles: {
   {
     description: 'double quotes',
     nameWith: (prefix) => `${prefix}"${uniqueSuffix()}`,
+  },
+  {
+    description: 'apostrophes',
+    nameWith: (prefix) => `${prefix}'${uniqueSuffix()}`,
   },
   {
     description: 'a leading digit',

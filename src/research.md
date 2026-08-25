@@ -79,11 +79,19 @@ These should be independent Dumbo changes rather than prerequisites hidden insid
 
 **Priority: high; recommended correctness fix, but not an Emmett blocker.**
 
-Dumbo's current PostgreSQL `tableExistsSQL(tableName)` checks `pg_tables.tablename`, and `functionExistsSQL(functionName)` checks `pg_proc.proname`. Neither check constrains the namespace. The function helper also does not distinguish overloads. After adding schema support, either helper can return `true` because a same-named object exists in another schema; a function with the wrong signature can also satisfy the function check.
+Dumbo's current PostgreSQL `tableExistsSQL(tableName)` and the convenience `tableExists(execute, tableName)` check `pg_tables.tablename`; `functionExistsSQL(functionName)` and `functionExists(...)` check `pg_proc.proname`. These helpers do not constrain the namespace. The function helpers also do not distinguish overloads. After adding schema support, either helper can return `true` because a same-named object exists in another schema; a function with the wrong signature can also satisfy the function check.
 
 A compatible extension could retain the string overload and add structured input:
 
 ```ts
+tableExists(
+  execute,
+  SQLTableReference.from({
+    databaseSchemaName: 'events',
+    tableName: 'emt_messages',
+  }),
+);
+
 tableExistsSQL(
   SQLTableReference.from({
     databaseSchemaName: 'events',
@@ -418,7 +426,7 @@ Do not interpret a SQLite schema as an `ATTACH DATABASE` name. Dumbo reports `su
 - A custom event-store schema needs a separate migration history by default. Otherwise equal migration names in different stores collide in the default `dmb_migrations` table.
 - `migrationTable.schemaName` defaults to the event-store schema and `migrationTable.tableName` uses Dumbo's default unless supplied. The same physical table is used by the event store and all projections that run Dumbo migrations, including Pongo, even when projection objects live elsewhere.
 - Pointing multiple event stores at one explicitly shared migration table is unsafe unless their migration identities are also isolated: equal migration names with different schema-qualified SQL can produce hash conflicts.
-- Dry-run behavior needs coverage: schema creation, migration-table creation, event objects and inline Pongo projection objects should all target the configured names without leaving database changes.
+- Dry-run behavior needs coverage: schema creation, migration-table creation, event objects and inline Pongo projection objects should all target the configured names. Emmett must not cache dry-run results as completed store migrations.
 - Custom names must remain values passed to structured Dumbo tokens. No schema name should enter `SQL.plain` or string-built PL/pgSQL without identifier-safe formatting.
 - PostgreSQL names can legally contain characters that SQLite's logical mapping reserves (notably `.`). Emmett will rely on Dumbo's dialect-specific validation and document SQLite's `.` restriction rather than defining a separate portable subset or silently normalizing names.
 - Supplied pools may have their own `search_path`. Explicit event-store references should still target the configured schema. With no configured schema, current pool/session behavior should remain intact.
@@ -474,6 +482,14 @@ The setting is not complete if only `getPostgreSQLEventStore` and `getSQLiteEven
 Emmett's PostgreSQL Pongo projections should pass either a pool or an ambient transaction client to Pongo, never both. When the projection is already running inside an Emmett transaction, the Pongo client should be created with `connectionString + connectionOptions.client` and then closed in `finally`. That gives Pongo its own client-scoped connection facade without transferring ownership of Emmett's shared pool.
 
 Useful Pongo follow-up: support borrowed pools explicitly. Today the type models `pool` versus `connectionOptions`, but a supplied pool is treated as client-owned on close. Pongo should expose an ownership option or borrowed-pool construction mode so integrations can pass an existing pool, close the Pongo client, and leave the borrowed pool open.
+
+## Dumbo dry-run behavior
+
+Dumbo's migration dry run currently can still create configured PostgreSQL
+schemas, tables and migration rows. Emmett should not treat a dry-run result as a
+completed store migration in its own cache. A useful Dumbo follow-up is to make
+the dry-run contract explicit: either document that dry-run objects may be
+created, or make dry run leave no database objects behind.
 
 ## Suggested verification matrix
 
