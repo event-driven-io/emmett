@@ -9,6 +9,7 @@
 - If a change starts looking like a hack, stop and ask for approval.
 - Avoid process names like `resolve`, `provide` and `define` unless that is truly the concept. Prefer domain names.
 - Do not add abstractions unless they remove real complexity or represent a clear domain concept.
+- Test helpers are fine when they reduce noisy raw SQL and reuse Dumbo helpers; avoid helpers that hide the behavior being asserted.
 - Names must match the actual database concept. For PostgreSQL table/sequence references, prefer a relation-oriented name over an event-store-table name.
 - Name tests from the user's perspective, as use cases and observable behavior.
 - Before claiming a phase works, run `npm run build:ts`, `npm run fix`, `npm run test:unit` and all touched tests, then fix any issues found.
@@ -122,9 +123,11 @@
 - [x] Add user-facing coverage for a default store sharing a database with a configured-schema store
 - [x] Scope the 0.43.0 catalog checks that name objects a configured schema also creates, and mark those two migrations hash-tolerant
 - [x] Make `createFunctionIfDoesNotExistSQL` check the schema it is given instead of skipping the check for configured schemas
-- [ ] Add dry-run coverage for a configured schema
-- [ ] Document the configuration options and fallback rules
-- [ ] Stop for approval before SQLite follow-up
+- [x] Replace hand-rolled row-count and boolean selectors in touched schema specs with Dumbo helpers where they are not the behavior under test
+- [x] Separate table-existence assertions from row-count assertions in touched schema specs
+- [x] Add dry-run coverage for a configured schema
+- [x] Document the configuration options and fallback rules
+- [x] Stop for approval before SQLite follow-up
 
 ## Later phases
 

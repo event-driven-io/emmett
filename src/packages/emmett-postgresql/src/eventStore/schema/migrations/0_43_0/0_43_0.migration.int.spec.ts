@@ -1,6 +1,7 @@
 import type { InvalidOperationError } from '@event-driven-io/dumbo';
 import {
   dumbo,
+  exists,
   runSQLMigrations,
   SQL,
   type Dumbo,
@@ -677,26 +678,26 @@ void describe('Schema migrations tests', () => {
     schemaName: string,
     tableName: string,
   ): Promise<boolean> => {
-    const result = await pool.execute.query<{ exists: boolean }>(SQL`
-      SELECT EXISTS (
-        SELECT FROM pg_tables
-        WHERE schemaname = ${schemaName} AND tablename = ${tableName}
-      ) AS exists`);
-
-    return result.rows[0]?.exists === true;
+    return exists(
+      pool.execute.query<{ exists: boolean }>(SQL`
+        SELECT EXISTS (
+          SELECT FROM pg_tables
+          WHERE schemaname = ${schemaName} AND tablename = ${tableName}
+        ) AS exists`),
+    );
   };
 
   const indexExistsInSchema = async (
     schemaName: string,
     indexName: string,
   ): Promise<boolean> => {
-    const result = await pool.execute.query<{ exists: boolean }>(SQL`
-      SELECT EXISTS (
-        SELECT FROM pg_indexes
-        WHERE schemaname = ${schemaName} AND indexname = ${indexName}
-      ) AS exists`);
-
-    return result.rows[0]?.exists === true;
+    return exists(
+      pool.execute.query<{ exists: boolean }>(SQL`
+        SELECT EXISTS (
+          SELECT FROM pg_indexes
+          WHERE schemaname = ${schemaName} AND indexname = ${indexName}
+        ) AS exists`),
+    );
   };
 
   const indexExists = async (name: string): Promise<boolean> => {

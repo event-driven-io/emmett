@@ -271,7 +271,7 @@ Start with failing integration tests proving that:
 - an event schema distinct from the migration-table schema is created in the correct order;
 - configured migration history contains no pre-schema-support migration names or no-op markers;
 - an older default-schema installation still upgrades without a hash mismatch;
-- dry run renders configured names and leaves no changes.
+- dry run renders configured names and does not cache dry-run results as completed store migrations.
 
 Expose the public option and implement the schema-bound tables, sequence, routines, current schema SQL, migration options and creation ordering needed for those tests. Add focused rendering tests for the sequence `nextval` regclass and qualified routine names before implementing those delicate fragments.
 
@@ -389,5 +389,6 @@ Plan that PR as the same kind of test-first behavioral slices after PostgreSQL e
 - Projection-inclusive `schema.sql()` output. It needs a separate projection schema-rendering contract.
 - Upstream Dumbo namespace/signature overloads for `tableExistsSQL` and `functionExistsSQL`, and an `SQLRoutineReference`. They remain useful follow-ups but do not block a local Emmett implementation.
 - Upstream Pongo borrowed-pool support. The current Emmett fix should use the ambient client form when running inside an Emmett transaction, but Pongo should still grow an explicit way to accept an external pool without owning it on `close()`.
+- Clarify Dumbo dry-run semantics for migration infrastructure. Current behavior can leave PostgreSQL schemas, tables and migration rows behind; either document that explicitly or make dry run leave no database objects behind.
 - The exported but apparently unused `addModuleSQL`, `addTenantSQL`, `addModuleForAllTenantsSQL` and `addTenantForAllModulesSQL`. They reference a legacy tenant/`pg_partman` model and are not part of current `schemaSQL`; open a separate issue before changing or removing this public surface.
 - Automatically moving existing data between schemas.

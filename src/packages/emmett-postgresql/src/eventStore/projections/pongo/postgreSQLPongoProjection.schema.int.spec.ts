@@ -1,5 +1,8 @@
 import {
+  count,
   dumbo,
+  exists,
+  mapRows,
   SQL,
   SQLTableReference,
   type SQLExecutor,
@@ -83,7 +86,14 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           { type: 'ProductItemAdded', data: { quantity: 3 } },
         ]);
 
-        assertEqual(await tableRows(projectionSchemaName, collectionName), 1);
+        assertEqual(
+          1,
+          await count(
+            pool.execute.query<{ count: number }>(
+              SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName: collectionName })}`,
+            ),
+          ),
+        );
         assertFalse(await tableExists(eventSchemaName, collectionName));
         assertFalse(await tableExists(undefined, collectionName));
         assertTrue(
@@ -127,7 +137,14 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           { type: 'ProductItemAdded', data: { quantity: 4 } },
         ]);
 
-        assertEqual(await tableRows(collectionSchemaName, collectionName), 1);
+        assertEqual(
+          1,
+          await count(
+            pool.execute.query<{ count: number }>(
+              SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: collectionSchemaName, tableName: collectionName })}`,
+            ),
+          ),
+        );
         assertFalse(await tableExists(projectionSchemaName, collectionName));
         assertFalse(await tableExists(eventSchemaName, collectionName));
       } finally {
@@ -170,19 +187,82 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           { type: 'ProductItemAdded', data: { quantity: 7 } },
         ]);
 
-        assertEqual(await tableRows(projectionSchemaName, collectionName), 1);
+        assertEqual(
+          1,
+          await count(
+            pool.execute.query<{ count: number }>(
+              SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName: collectionName })}`,
+            ),
+          ),
+        );
+        assertFalse(await tableExists(eventSchemaName, collectionName));
+        assertFalse(await tableExists(undefined, collectionName));
         assertTrue(
           (await migrationRows(migrationSchemaName, migrationTableName)).some(
             (name) => name.includes(collectionName),
           ),
         );
-        assertFalse(await tableExists(eventSchemaName, collectionName));
-        assertFalse(await tableExists(undefined, collectionName));
       } finally {
         await store.close();
       }
     },
   );
+
+  for (const { description, nameWith } of trickySchemaNameStyles) {
+    void it(
+      `stores Pongo projection documents when configured schema names contain ${description}`,
+      withDeadline,
+      async () => {
+        const eventSchemaName = nameWith('events');
+        const projectionSchemaName = nameWith('read_models');
+        const migrationSchemaName = nameWith('infrastructure');
+        const migrationTableName = schemaName('emmett_migrations');
+        const collectionName = schemaName('shopping_cart_summary');
+        const streamName = `shopping_cart:${uuid()}`;
+
+        const store = getPostgreSQLEventStore(connectionString, {
+          schema: {
+            autoMigration: 'CreateOrUpdate',
+            databaseSchemaName: eventSchemaName,
+            projectionsDatabaseSchemaName: projectionSchemaName,
+            migrationTable: {
+              schemaName: migrationSchemaName,
+              tableName: migrationTableName,
+            },
+          },
+          projections: [
+            {
+              type: 'inline',
+              projection: shoppingCartProjection(collectionName),
+            },
+          ],
+        });
+
+        try {
+          await store.appendToStream(streamName, [
+            { type: 'ProductItemAdded', data: { quantity: 8 } },
+          ]);
+
+          assertEqual(
+            1,
+            await count(
+              pool.execute.query<{ count: number }>(
+                SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName: collectionName })}`,
+              ),
+            ),
+          );
+          assertFalse(await tableExists(eventSchemaName, collectionName));
+          assertTrue(
+            (await migrationRows(migrationSchemaName, migrationTableName)).some(
+              (name) => name.includes(collectionName),
+            ),
+          );
+        } finally {
+          await store.close();
+        }
+      },
+    );
+  }
 
   void it(
     'uses configured schema names in PostgreSQL projection specs',
@@ -216,7 +296,14 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           },
         ])
         .then(async () => {
-          assertEqual(await tableRows(projectionSchemaName, collectionName), 1);
+          assertEqual(
+            1,
+            await count(
+              pool.execute.query<{ count: number }>(
+                SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName: collectionName })}`,
+              ),
+            ),
+          );
           assertTrue(
             (await migrationRows(migrationSchemaName, migrationTableName)).some(
               (name) => name.includes(collectionName),
@@ -252,11 +339,25 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
         await store.appendToStream(streamName, [
           { type: 'ProductItemAdded', data: { quantity: 6 } },
         ]);
-        assertEqual(await tableRows(projectionSchemaName, collectionName), 1);
+        assertEqual(
+          1,
+          await count(
+            pool.execute.query<{ count: number }>(
+              SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName: collectionName })}`,
+            ),
+          ),
+        );
 
         await store.schema.dangerous.truncate({ truncateProjections: true });
 
-        assertEqual(await tableRows(projectionSchemaName, collectionName), 0);
+        assertEqual(
+          0,
+          await count(
+            pool.execute.query<{ count: number }>(
+              SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName: collectionName })}`,
+            ),
+          ),
+        );
       } finally {
         await store.close();
       }
@@ -268,28 +369,16 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
     tableName: string,
   ) => tableExistsUsing(pool.execute, databaseSchemaName, tableName);
 
-  const tableRows = async (
-    databaseSchemaName: string,
-    tableName: string,
-  ): Promise<number> => {
-    if (!(await tableExists(databaseSchemaName, tableName))) return 0;
-
-    const result = await pool.execute.query<{ count: string }>(
-      SQL`SELECT COUNT(*) AS count FROM ${SQLTableReference.from({ databaseSchemaName, tableName })}`,
-    );
-    return Number(result.rows[0]?.count ?? 0);
-  };
-
   const migrationRows = async (
     databaseSchemaName: string,
     tableName: string,
   ): Promise<string[]> => {
-    if (!(await tableExists(databaseSchemaName, tableName))) return [];
-
-    const result = await pool.execute.query<{ name: string }>(
-      SQL`SELECT name FROM ${SQLTableReference.from({ databaseSchemaName, tableName })}`,
+    return mapRows(
+      pool.execute.query<{ name: string }>(
+        SQL`SELECT name FROM ${SQLTableReference.from({ databaseSchemaName, tableName })}`,
+      ),
+      ({ name }) => name,
     );
-    return result.rows.map(({ name }) => name);
   };
 });
 
@@ -322,19 +411,52 @@ const schemaNameRequiringQuotes = (prefix: string): string =>
 const tableNameRequiringQuotes = (prefix: string): string =>
   `${prefix}-${uuid().replaceAll('-', '_')}`;
 
+const trickySchemaNameStyles: {
+  description: string;
+  nameWith: (prefix: string) => string;
+}[] = [
+  {
+    description: 'capital letters',
+    nameWith: (prefix) => `${prefix.toUpperCase()}_${uniqueSuffix()}`,
+  },
+  {
+    description: 'dashes',
+    nameWith: (prefix) => `${prefix}-${uniqueSuffix()}`,
+  },
+  {
+    description: 'spaces',
+    nameWith: (prefix) => `${prefix} ${uniqueSuffix()}`,
+  },
+  {
+    description: 'double quotes',
+    nameWith: (prefix) => `${prefix}"${uniqueSuffix()}`,
+  },
+  {
+    description: 'apostrophes',
+    nameWith: (prefix) => `${prefix}'${uniqueSuffix()}`,
+  },
+  {
+    description: 'a leading digit',
+    nameWith: (prefix) => `1${prefix}_${uniqueSuffix()}`,
+  },
+];
+
+const uniqueSuffix = (): string => uuid().replaceAll('-', '_');
+
 const tableExistsUsing = async (
   execute: SQLExecutor,
   databaseSchemaName: string | undefined,
   tableName: string,
 ): Promise<boolean> => {
-  const result = await execute.query<{ exists: boolean }>(
-    SQL`
-      SELECT EXISTS (
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = ${databaseSchemaName ?? 'public'} AND table_name = ${tableName}
-      ) AS exists
-    `,
+  return exists(
+    execute.query<{ exists: boolean }>(
+      SQL`
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = ${databaseSchemaName ?? 'public'} AND table_name = ${tableName}
+        ) AS exists
+      `,
+    ),
   );
-  return result.rows[0]?.exists === true;
 };

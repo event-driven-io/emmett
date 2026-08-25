@@ -1,6 +1,7 @@
 import {
-  DefaultDatabaseSchemaName,
+  count,
   dumbo,
+  exists,
   SQL,
   SQLTableReference,
   type SQLExecutor,
@@ -8,6 +9,7 @@ import {
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertEqual,
+  assertFalse,
   assertIsNotNull,
   type Event,
 } from '@event-driven-io/emmett';
@@ -160,10 +162,26 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
 
         assertIsNotNull(checkpoint);
         assertIsNotNull(registration);
-        assertEqual(0, await countProcessorRows(projectionSchemaName));
-        assertEqual(0, await countProcessorRows(undefined));
-        assertEqual(0, await countProjectionRows(projectionSchemaName));
-        assertEqual(0, await countProjectionRows(undefined));
+        assertFalse(
+          await tableExists(
+            pool.execute,
+            projectionSchemaName,
+            processorsTable.name,
+          ),
+        );
+        assertFalse(
+          await tableExists(pool.execute, undefined, processorsTable.name),
+        );
+        assertFalse(
+          await tableExists(
+            pool.execute,
+            projectionSchemaName,
+            projectionsTable.name,
+          ),
+        );
+        assertFalse(
+          await tableExists(pool.execute, undefined, projectionsTable.name),
+        );
       } finally {
         await store.close();
       }
@@ -269,9 +287,11 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
 
         assertEqual(
           1,
-          await countMessages(eventSchemaName, reactionStreamName),
+          await messagesInStream(eventSchemaName, reactionStreamName),
         );
-        assertEqual(0, await countMessages(undefined, reactionStreamName));
+        assertFalse(
+          await tableExists(pool.execute, undefined, messagesTable.name),
+        );
       } finally {
         await store.close();
       }
@@ -331,9 +351,11 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
 
         assertEqual(
           1,
-          await countMessages(eventSchemaName, reactionStreamName),
+          await messagesInStream(eventSchemaName, reactionStreamName),
         );
-        assertEqual(0, await countMessages(undefined, reactionStreamName));
+        assertFalse(
+          await tableExists(pool.execute, undefined, messagesTable.name),
+        );
       } finally {
         await store.close();
       }
@@ -361,8 +383,10 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
           ]),
         );
 
-        assertEqual(1, await countMessages(eventSchemaName, streamName));
-        assertEqual(0, await countMessages(undefined, streamName));
+        assertEqual(1, await messagesInStream(eventSchemaName, streamName));
+        assertFalse(
+          await tableExists(pool.execute, undefined, messagesTable.name),
+        );
       } finally {
         await store.close();
       }
@@ -388,8 +412,10 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         { type: 'GuestCheckedIn', data: { guestId } },
       ]);
 
-      assertEqual(1, await countMessages(eventSchemaName, streamName));
-      assertEqual(0, await countMessages(undefined, streamName));
+      assertEqual(1, await messagesInStream(eventSchemaName, streamName));
+      assertFalse(
+        await tableExists(pool.execute, undefined, messagesTable.name),
+      );
     },
   );
 
@@ -447,83 +473,44 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
           await consumer.close();
         }
 
-        assertEqual(1, await tableRows(projectionSchemaName, collectionName));
-        assertEqual(1, await countMessages(eventSchemaName, streamName));
-        assertEqual(0, await tableRows(eventSchemaName, collectionName));
-        assertEqual(0, await tableRows(undefined, collectionName));
+        assertEqual(1, await rowsInTable(projectionSchemaName, collectionName));
+        assertEqual(1, await messagesInStream(eventSchemaName, streamName));
+        assertFalse(
+          await tableExists(pool.execute, eventSchemaName, collectionName),
+        );
+        assertFalse(await tableExists(pool.execute, undefined, collectionName));
       } finally {
         await store.close();
       }
     },
   );
 
-  const countProcessorRows = async (
-    databaseSchemaName: string | undefined,
-  ): Promise<number> => {
-    if (
-      !(await tableExists(
-        pool.execute,
-        databaseSchemaName,
-        processorsTable.name,
-      ))
-    )
-      return 0;
-
-    const result = await pool.execute.query<{ count: string }>(
-      SQL`SELECT COUNT(*) AS count FROM ${emmettRelation(databaseSchemaName, processorsTable.name)}`,
-    );
-    return Number(result.rows[0]?.count ?? 0);
-  };
-
-  const countProjectionRows = async (
-    databaseSchemaName: string | undefined,
-  ): Promise<number> => {
-    if (
-      !(await tableExists(
-        pool.execute,
-        databaseSchemaName,
-        projectionsTable.name,
-      ))
-    )
-      return 0;
-
-    const result = await pool.execute.query<{ count: string }>(
-      SQL`SELECT COUNT(*) AS count FROM ${emmettRelation(databaseSchemaName, projectionsTable.name)}`,
-    );
-    return Number(result.rows[0]?.count ?? 0);
-  };
-
-  const countMessages = async (
-    databaseSchemaName: string | undefined,
+  const messagesInStream = (
+    databaseSchemaName: string,
     streamName: string,
-  ): Promise<number> => {
-    if (
-      !(await tableExists(pool.execute, databaseSchemaName, messagesTable.name))
-    )
-      return 0;
-
-    const result = await pool.execute.query<{ count: string }>(
-      SQL`
-        SELECT COUNT(*) AS count
-        FROM ${emmettRelation(databaseSchemaName, messagesTable.name)}
-        WHERE stream_id = ${streamName}
-      `,
+  ): Promise<number> =>
+    count(
+      pool.execute.query<{ count: number }>(
+        SQL`
+          SELECT COUNT(*)::integer AS count
+          FROM ${emmettRelation(databaseSchemaName, messagesTable.name)}
+          WHERE stream_id = ${streamName}
+        `,
+      ),
     );
-    return Number(result.rows[0]?.count ?? 0);
-  };
 
-  const tableRows = async (
-    databaseSchemaName: string | undefined,
+  const rowsInTable = (
+    databaseSchemaName: string,
     tableName: string,
-  ): Promise<number> => {
-    if (!(await tableExists(pool.execute, databaseSchemaName, tableName)))
-      return 0;
-
-    const result = await pool.execute.query<{ count: string }>(
-      SQL`SELECT COUNT(*) AS count FROM ${SQLTableReference.from({ databaseSchemaName: databaseSchemaName ?? DefaultDatabaseSchemaName, tableName })}`,
+  ): Promise<number> =>
+    count(
+      pool.execute.query<{ count: number }>(
+        SQL`
+          SELECT COUNT(*)::integer AS count
+          FROM ${SQLTableReference.from({ databaseSchemaName, tableName })}
+        `,
+      ),
     );
-    return Number(result.rows[0]?.count ?? 0);
-  };
 });
 
 type GuestCheckedIn = Event<'GuestCheckedIn', { guestId: string }>;
@@ -544,14 +531,15 @@ const tableExists = async (
   databaseSchemaName: string | undefined,
   tableName: string,
 ): Promise<boolean> => {
-  const result = await execute.query<{ exists: boolean }>(
-    SQL`
-      SELECT EXISTS (
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = ${databaseSchemaName ?? 'public'} AND table_name = ${tableName}
-      ) AS exists
-    `,
+  return exists(
+    execute.query<{ exists: boolean }>(
+      SQL`
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = ${databaseSchemaName ?? 'public'} AND table_name = ${tableName}
+        ) AS exists
+      `,
+    ),
   );
-  return result.rows[0]?.exists === true;
 };

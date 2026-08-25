@@ -1,6 +1,7 @@
 import {
-  DefaultDatabaseSchemaName,
+  count,
   dumbo,
+  exists,
   single,
   SQL,
   SQLTableReference,
@@ -122,7 +123,7 @@ void describe('Rebuilding PostgreSQL Projections', () => {
         const streamName = `shopping_cart-${shoppingCartId}`;
         const schemaStore = getPostgreSQLEventStore(connectionString, {
           schema: {
-            autoMigration: 'CreateOrUpdate',
+            autoMigration: 'None',
             databaseSchemaName: eventSchemaName,
             projectionsDatabaseSchemaName: projectionSchemaName,
           },
@@ -167,7 +168,14 @@ void describe('Rebuilding PostgreSQL Projections', () => {
             await consumer.close();
           }
 
-          assertEqual(1, await tableRows(projectionSchemaName, collectionName));
+          assertEqual(
+            1,
+            await count(
+              pool.execute.query<{ count: number }>(
+                SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName: collectionName })}`,
+              ),
+            ),
+          );
           assertFalse(await tableExists(eventSchemaName, collectionName));
           assertFalse(await tableExists(undefined, collectionName));
         } finally {
@@ -573,18 +581,6 @@ void describe('Rebuilding PostgreSQL Projections', () => {
     databaseSchemaName: string | undefined,
     tableName: string,
   ) => tableExistsUsing(pool.execute, databaseSchemaName, tableName);
-
-  const tableRows = async (
-    databaseSchemaName: string | undefined,
-    tableName: string,
-  ): Promise<number> => {
-    if (!(await tableExists(databaseSchemaName, tableName))) return 0;
-
-    const result = await pool.execute.query<{ count: string }>(
-      SQL`SELECT COUNT(*) AS count FROM ${SQLTableReference.from({ databaseSchemaName: databaseSchemaName ?? DefaultDatabaseSchemaName, tableName })}`,
-    );
-    return Number(result.rows[0]?.count ?? 0);
-  };
 });
 
 type ShoppingCartSummary = {
@@ -716,16 +712,17 @@ const tableExistsUsing = async (
   databaseSchemaName: string | undefined,
   tableName: string,
 ): Promise<boolean> => {
-  const result = await execute.query<{ exists: boolean }>(
-    SQL`
-      SELECT EXISTS (
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = ${databaseSchemaName ?? 'public'} AND table_name = ${tableName}
-      ) AS exists
-    `,
+  return exists(
+    execute.query<{ exists: boolean }>(
+      SQL`
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = ${databaseSchemaName ?? 'public'} AND table_name = ${tableName}
+        ) AS exists
+      `,
+    ),
   );
-  return result.rows[0]?.exists === true;
 };
 
 const createRebuildTestProjection = (

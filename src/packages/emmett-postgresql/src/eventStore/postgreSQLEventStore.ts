@@ -255,7 +255,7 @@ export const getPostgreSQLEventStore = (
       };
 
       // TODO: Fix this cast when introducing more drivers
-      migrateSchema = createEventStoreSchema(
+      const migration = createEventStoreSchema(
         connectionString,
         pool as PgPool,
         {
@@ -287,14 +287,14 @@ export const getPostgreSQLEventStore = (
         schemaMigrationOptions,
       );
 
-      return migrateSchema;
+      if (migrationOptions?.dryRun) {
+        return migration;
+      }
+
+      migrateSchema = migration;
+      return migration;
     }
     const result = await migrateSchema;
-
-    if (migrationOptions?.dryRun) {
-      // In case of dry run we want to reset the state so that actual migration can be run later
-      migrateSchema = undefined;
-    }
 
     return { applied: [], skipped: result.applied.concat(result.skipped) };
   };

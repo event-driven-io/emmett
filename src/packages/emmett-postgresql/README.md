@@ -223,6 +223,32 @@ const eventStore = getPostgreSQLEventStore(connectionString, {
 });
 ```
 
+### Configuring PostgreSQL Schemas
+
+```typescript
+const eventStore = getPostgreSQLEventStore(connectionString, {
+  schema: {
+    autoMigration: 'CreateOrUpdate',
+    databaseSchemaName: 'events',
+    projectionsDatabaseSchemaName: 'read_models',
+    migrationTable: {
+      schemaName: 'infrastructure',
+      tableName: 'emmett_migrations',
+    },
+  },
+});
+```
+
+`databaseSchemaName` stores the event-store tables, indexes, sequences,
+functions, processor checkpoints, and projection registrations in that
+PostgreSQL schema. `projectionsDatabaseSchemaName` sets the default schema for
+PostgreSQL projection data, including Pongo collections. If it is omitted, it
+falls back to `databaseSchemaName`.
+
+`migrationTable` is shared by the event store and PostgreSQL projections. Its
+`schemaName` falls back to `databaseSchemaName`, and its `tableName` is
+forwarded to Dumbo/Pongo when supplied.
+
 ### Setting Up Async Consumers
 
 ```typescript
@@ -323,7 +349,7 @@ Creates a PostgreSQL event store instance.
 - `connectionString: string` - PostgreSQL connection string
 - `options?: PostgresEventStoreOptions`
   - `projections?: ProjectionRegistration[]` - Inline projections to register
-  - `schema?: { autoMigration?: MigrationStyle }` - Schema migration settings (`'CreateOrUpdate'` | `'None'`)
+  - `schema?: { autoMigration?: MigrationStyle; databaseSchemaName?: string; projectionsDatabaseSchemaName?: string; migrationTable?: { schemaName?: string; tableName?: string } }` - Schema migration and PostgreSQL schema settings
   - `connectionOptions?: PostgresEventStoreConnectionOptions` - Connection pool settings
 
 **Returns:** `PostgresEventStore`

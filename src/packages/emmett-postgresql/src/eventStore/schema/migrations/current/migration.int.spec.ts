@@ -1,5 +1,6 @@
 import {
   dumbo,
+  exists,
   runSQLMigrations,
   SQL,
   sqlMigration,
@@ -469,55 +470,55 @@ void describe('Schema migrations tests', () => {
   };
 
   const schemaExists = async (schemaName: string): Promise<boolean> => {
-    const result = await pool.execute.query<{ exists: boolean }>(SQL`
-      SELECT EXISTS (
-        SELECT FROM information_schema.schemata
-        WHERE schema_name = ${schemaName}
-      ) AS exists`);
-
-    return result.rows[0]?.exists === true;
+    return exists(
+      pool.execute.query<{ exists: boolean }>(SQL`
+        SELECT EXISTS (
+          SELECT FROM information_schema.schemata
+          WHERE schema_name = ${schemaName}
+        ) AS exists`),
+    );
   };
 
   const tableExistsInSchema = async (
     schemaName: string,
     tableName: string,
   ): Promise<boolean> => {
-    const result = await pool.execute.query<{ exists: boolean }>(SQL`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_schema = ${schemaName}
-          AND table_name = ${tableName}
-      ) AS exists`);
-
-    return result.rows[0]?.exists === true;
+    return exists(
+      pool.execute.query<{ exists: boolean }>(SQL`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_schema = ${schemaName}
+            AND table_name = ${tableName}
+        ) AS exists`),
+    );
   };
 
   const sequenceExistsInSchema = async (
     schemaName: string,
     sequenceName: string,
   ): Promise<boolean> => {
-    const result = await pool.execute.query<{ exists: boolean }>(SQL`
-      SELECT EXISTS (
-        SELECT FROM information_schema.sequences
-        WHERE sequence_schema = ${schemaName}
-          AND sequence_name = ${sequenceName}
-      ) AS exists`);
-
-    return result.rows[0]?.exists === true;
+    return exists(
+      pool.execute.query<{ exists: boolean }>(SQL`
+        SELECT EXISTS (
+          SELECT FROM information_schema.sequences
+          WHERE sequence_schema = ${schemaName}
+            AND sequence_name = ${sequenceName}
+        ) AS exists`),
+    );
   };
 
   const functionExistsInSchema = async (
     schemaName: string,
     functionName: string,
   ): Promise<boolean> => {
-    const result = await pool.execute.query<{ exists: boolean }>(SQL`
-      SELECT EXISTS (
-        SELECT FROM pg_proc
-        JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace
-        WHERE pg_namespace.nspname = ${schemaName}
-          AND pg_proc.proname = ${functionName}
-      ) AS exists`);
-
-    return result.rows[0]?.exists === true;
+    return exists(
+      pool.execute.query<{ exists: boolean }>(SQL`
+        SELECT EXISTS (
+          SELECT FROM pg_proc
+          JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace
+          WHERE pg_namespace.nspname = ${schemaName}
+            AND pg_proc.proname = ${functionName}
+        ) AS exists`),
+    );
   };
 });
