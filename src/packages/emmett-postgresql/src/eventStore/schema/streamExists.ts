@@ -1,6 +1,6 @@
 import { SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import type { StreamExistsResult } from '@event-driven-io/emmett';
-import { defaultTag, emmettRelation, streamsTable } from './typing';
+import { defaultTag, streamsTable, tableReference } from './typing';
 
 type StreamExistsSqlResult = { exists: boolean };
 
@@ -17,7 +17,7 @@ export const streamExists = async (
   const queryResult = await execute.query<StreamExistsSqlResult>(
     SQL`SELECT EXISTS (
         SELECT 1
-        from ${emmettRelation(options?.databaseSchemaName, streamsTable.name)}
+        from ${tableReference(options?.databaseSchemaName, streamsTable.name)}
         WHERE stream_id = ${streamId} AND partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE)
       `,
   );

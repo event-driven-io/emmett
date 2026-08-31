@@ -1,7 +1,7 @@
 import { SQL } from '@event-driven-io/dumbo';
 import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
 import { postgreSQLFunctionName } from '../postgreSQLFunctionName';
-import { projectionsTable, emmettRelation } from '../typing';
+import { projectionsTable, tableReference } from '../typing';
 
 export const registerProjectionSQLFor = (databaseSchemaName?: string) =>
   createFunctionIfDoesNotExistSQL(
@@ -27,7 +27,7 @@ BEGIN
         SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
     ),
     upsert_result AS (
-        INSERT INTO ${emmettRelation(databaseSchemaName, projectionsTable.name)} (
+        INSERT INTO ${tableReference(databaseSchemaName, projectionsTable.name)} (
             name, partition, version, type, kind, status, definition, created_at, last_updated
         )
         SELECT p_name, p_partition, p_version, p_type, p_kind, p_status, p_definition, now(), now()
@@ -68,7 +68,7 @@ BEGIN
         SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
     ),
     update_result AS (
-        UPDATE ${emmettRelation(databaseSchemaName, projectionsTable.name)}
+        UPDATE ${tableReference(databaseSchemaName, projectionsTable.name)}
         SET status = 'active',
             last_updated = now()
         WHERE name = p_name
@@ -108,7 +108,7 @@ BEGIN
         SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
     ),
     update_result AS (
-        UPDATE ${emmettRelation(databaseSchemaName, projectionsTable.name)}
+        UPDATE ${tableReference(databaseSchemaName, projectionsTable.name)}
         SET status = 'inactive',
             last_updated = now()
         WHERE name = p_name

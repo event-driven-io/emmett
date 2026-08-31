@@ -12,6 +12,7 @@ import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
+import { tableExists } from '../../testing/schemaObjects';
 import type { ProductItemAdded } from '../../testing/shoppingCart.domain';
 import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import {
@@ -19,13 +20,12 @@ import {
   postgreSQLProjection,
   readProjectionInfo,
 } from '../projections';
-import { tableExists } from '../../testing/schemaObjects';
 import { readProcessorCheckpoint } from '../schema';
 import {
-  emmettRelation,
   messagesTable,
   processorsTable,
   projectionsTable,
+  tableReference,
 } from '../schema/typing';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 
@@ -475,7 +475,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       pool.execute.query<{ count: number }>(
         SQL`
           SELECT COUNT(*)::integer AS count
-          FROM ${emmettRelation(databaseSchemaName, messagesTable.name)}
+          FROM ${tableReference(databaseSchemaName, messagesTable.name)}
           WHERE stream_id = ${streamName}
         `,
       ),

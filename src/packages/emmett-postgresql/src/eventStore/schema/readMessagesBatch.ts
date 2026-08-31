@@ -11,7 +11,7 @@ import {
   type RecordedMessageMetadata,
   type RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import { defaultTag, emmettRelation, messagesTable } from './typing';
+import { defaultTag, messagesTable, tableReference } from './typing';
 
 type ReadMessagesBatchSqlResult<MessageType extends Message> = {
   stream_position: string;
@@ -104,7 +104,7 @@ export const readMessagesBatchSQL = (
 
   return SQL`
     SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id, transaction_id
-    FROM ${emmettRelation(options.databaseSchemaName, messagesTable.name)}
+    FROM ${tableReference(options.databaseSchemaName, messagesTable.name)}
     WHERE partition = ${options?.partition ?? defaultTag}
       AND is_archived = FALSE
       AND transaction_id < pg_snapshot_xmin(pg_current_snapshot())

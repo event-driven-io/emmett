@@ -18,7 +18,7 @@ import {
   callDeactivateProjection,
   callRegisterProjection,
 } from '../../schema/projections/registerProjection';
-import { emmettRelation, projectionsTable } from '../../schema/typing';
+import { projectionsTable, tableReference } from '../../schema/typing';
 import { toProjectionLockKey } from '../locks/postgreSQLProjectionLock';
 
 export const registerProjection = async <
@@ -183,7 +183,7 @@ export const readProjectionInfo = async (
   const row = await singleOrNull<RawProjectionRow>(
     execute.query(
       SQL`SELECT name, version, type, kind, status, definition, created_at, last_updated
-           FROM ${emmettRelation(databaseSchemaName, projectionsTable.name)}
+           FROM ${tableReference(databaseSchemaName, projectionsTable.name)}
            WHERE name = ${name} AND partition = ${partition} AND version = ${version}`,
     ),
   );

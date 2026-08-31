@@ -1,7 +1,7 @@
 import { SQL } from '@event-driven-io/dumbo';
 import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
 import { postgreSQLFunctionName } from '../postgreSQLFunctionName';
-import { projectionsTable, emmettRelation } from '../typing';
+import { projectionsTable, tableReference } from '../typing';
 
 export const tryAcquireProjectionLockSQLFor = (databaseSchemaName?: string) =>
   createFunctionIfDoesNotExistSQL(
@@ -23,7 +23,7 @@ BEGIN
     ),
     status_check AS (
         SELECT status = 'active' AS is_active
-        FROM ${emmettRelation(databaseSchemaName, projectionsTable.name)}
+        FROM ${tableReference(databaseSchemaName, projectionsTable.name)}
         WHERE partition = p_partition AND name = p_name AND version = p_version
     )
     SELECT

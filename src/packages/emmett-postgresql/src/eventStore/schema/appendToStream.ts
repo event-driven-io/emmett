@@ -25,7 +25,7 @@ import {
   defaultTag,
   messagesTable,
   streamsTable,
-  emmettRelation,
+  tableReference,
 } from './typing';
 
 export const appendToStreamSQLFor = (databaseSchemaName?: string) =>
@@ -61,7 +61,7 @@ export const appendToStreamSQLFor = (databaseSchemaName?: string) =>
       IF v_expected_stream_position IS NULL THEN
           SELECT COALESCE(
             (SELECT stream_position 
-            FROM ${emmettRelation(databaseSchemaName, streamsTable.name)}
+            FROM ${tableReference(databaseSchemaName, streamsTable.name)}
             WHERE stream_id = v_stream_id 
               AND partition = v_partition 
               AND is_archived = FALSE
@@ -73,12 +73,12 @@ export const appendToStreamSQLFor = (databaseSchemaName?: string) =>
       v_next_stream_position := v_expected_stream_position + array_upper(v_messages_data, 1);
 
       IF v_expected_stream_position = 0 THEN
-          INSERT INTO ${emmettRelation(databaseSchemaName, streamsTable.name)}
+          INSERT INTO ${tableReference(databaseSchemaName, streamsTable.name)}
               (stream_id, stream_position, partition, stream_type, stream_metadata, is_archived)
           VALUES
               (v_stream_id, v_next_stream_position, v_partition, v_stream_type, '{}', FALSE);
       ELSE
-          UPDATE ${emmettRelation(databaseSchemaName, streamsTable.name)} as s              
+          UPDATE ${tableReference(databaseSchemaName, streamsTable.name)} as s              
           SET stream_position = v_next_stream_position
           WHERE stream_id = v_stream_id AND stream_position = v_expected_stream_position AND partition = v_partition AND is_archived = FALSE;
 
@@ -106,7 +106,7 @@ export const appendToStreamSQLFor = (databaseSchemaName?: string) =>
           ) AS message
       ),
       all_messages_insert AS (
-          INSERT INTO ${emmettRelation(databaseSchemaName, messagesTable.name)}
+          INSERT INTO ${tableReference(databaseSchemaName, messagesTable.name)}
               (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_kind, message_id, transaction_id)
           SELECT 
               v_stream_id, ev.stream_position, v_partition, ev.message_data, ev.message_metadata, ev.schema_version, ev.message_type, ev.message_kind, ev.message_id, v_transaction_id

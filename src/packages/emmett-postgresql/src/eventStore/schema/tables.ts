@@ -11,7 +11,7 @@ import {
   processorsTable,
   projectionsTable,
   streamsTable,
-  emmettRelation,
+  tableReference,
   unknownTag,
 } from './typing';
 
@@ -25,7 +25,7 @@ const globalMessagePositionSequenceRegclass = (
     : SQL`format(${SQL.literal('%I.%I')}, ${SQL.literal(databaseSchemaName)}, ${SQL.literal('emt_global_message_position')})`;
 
 export const streamsTableSQLFor = (databaseSchemaName?: string) => SQL`
-  CREATE TABLE IF NOT EXISTS ${emmettRelation(databaseSchemaName, streamsTable.name)}(
+  CREATE TABLE IF NOT EXISTS ${tableReference(databaseSchemaName, streamsTable.name)}(
       stream_id         TEXT                      NOT NULL,
       stream_position   BIGINT                    NOT NULL,
       partition         TEXT                      NOT NULL DEFAULT '${SQL.plain(defaultTag)}',
@@ -36,15 +36,15 @@ export const streamsTableSQLFor = (databaseSchemaName?: string) => SQL`
   ) PARTITION BY LIST (partition);
    
   CREATE UNIQUE INDEX IF NOT EXISTS idx_streams_unique 
-  ON ${emmettRelation(databaseSchemaName, streamsTable.name)}(stream_id, partition, is_archived) 
+  ON ${tableReference(databaseSchemaName, streamsTable.name)}(stream_id, partition, is_archived) 
   INCLUDE (stream_position);`;
 
 export const streamsTableSQL = streamsTableSQLFor();
 
 export const messagesTableSQLFor = (databaseSchemaName?: string) => SQL`
-  CREATE SEQUENCE IF NOT EXISTS ${emmettRelation(databaseSchemaName, 'emt_global_message_position')};
+  CREATE SEQUENCE IF NOT EXISTS ${tableReference(databaseSchemaName, 'emt_global_message_position')};
 
-  CREATE TABLE IF NOT EXISTS ${emmettRelation(databaseSchemaName, messagesTable.name)}(
+  CREATE TABLE IF NOT EXISTS ${tableReference(databaseSchemaName, messagesTable.name)}(
       stream_position        BIGINT                    NOT NULL,
       global_position        BIGINT                    DEFAULT nextval(${globalMessagePositionSequenceRegclass(databaseSchemaName)}::regclass),
       transaction_id         XID8                      NOT NULL,
@@ -62,12 +62,12 @@ export const messagesTableSQLFor = (databaseSchemaName?: string) => SQL`
   ) PARTITION BY LIST (partition);
 
   CREATE INDEX IF NOT EXISTS idx_messages_transaction_id_global_position
-  ON ${emmettRelation(databaseSchemaName, messagesTable.name)}(transaction_id, global_position);`;
+  ON ${tableReference(databaseSchemaName, messagesTable.name)}(transaction_id, global_position);`;
 
 export const messagesTableSQL = messagesTableSQLFor();
 
 export const processorsTableSQLFor = (databaseSchemaName?: string) => SQL`
-  CREATE TABLE IF NOT EXISTS ${emmettRelation(databaseSchemaName, processorsTable.name)}(
+  CREATE TABLE IF NOT EXISTS ${tableReference(databaseSchemaName, processorsTable.name)}(
       last_processed_transaction_id XID8                   NOT NULL,
       version                       INT                    NOT NULL DEFAULT 1,
       processor_id                  TEXT                   NOT NULL,
@@ -84,7 +84,7 @@ export const processorsTableSQLFor = (databaseSchemaName?: string) => SQL`
 export const processorsTableSQL = processorsTableSQLFor();
 
 export const projectionsTableSQLFor = (databaseSchemaName?: string) => SQL`
-  CREATE TABLE IF NOT EXISTS ${emmettRelation(databaseSchemaName, projectionsTable.name)}(
+  CREATE TABLE IF NOT EXISTS ${tableReference(databaseSchemaName, projectionsTable.name)}(
       version                       INT                    NOT NULL DEFAULT 1,
       type                          VARCHAR(1)             NOT NULL,
       name                          TEXT                   NOT NULL,
