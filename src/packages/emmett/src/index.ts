@@ -4,6 +4,7 @@ export * from './consumers';
 export * from './database';
 export * from './errors';
 export * from './eventStore';
+export * from './http';
 export * from './messageBus';
 export * from './observability';
 export * from './processors';

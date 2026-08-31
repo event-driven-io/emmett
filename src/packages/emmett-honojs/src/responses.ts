@@ -1,7 +1,11 @@
+import {
+  StreamETags,
+  isExpectedVersionConflictError,
+} from '@event-driven-io/emmett';
 import type { Context } from 'hono';
 import type { StatusCode } from 'hono/utils/http-status';
 import { ProblemDocument } from 'http-problem-details';
-import { setETag, type ETag } from './etag';
+import { HeaderNames, setETag, type ETag } from './etag';
 
 export type HttpResponseOptions = {
   body?: unknown;
@@ -13,6 +17,7 @@ export const DefaultHttpResponseOptions: HttpResponseOptions = {};
 export type HttpProblemResponseOptions = {
   location?: string;
   eTag?: ETag;
+  error?: unknown;
 } & Omit<HttpResponseOptions, 'body'> &
   (
     | {
@@ -90,6 +95,15 @@ export const send = (
   return context.body(null);
 };
 
+const currentVersionETag = ({
+  error,
+}: HttpProblemResponseOptions): ETag | undefined =>
+  isExpectedVersionConflictError(error) &&
+  error.streamName !== undefined &&
+  error.current !== undefined
+    ? StreamETags.from(error.streamName, error.current)
+    : undefined;
+
 export const sendProblem = (
   context: Context,
   statusCode: StatusCode,
@@ -108,7 +122,11 @@ export const sendProblem = (
         });
 
   // HEADERS
-  if (eTag) setETag(context, eTag);
+  const problemETag = eTag ?? currentVersionETag(options);
+
+  if (problemETag) setETag(context, problemETag);
+  else context.header(HeaderNames.ETag, undefined);
+
   if (location) context.header('Location', location);
 
   context.status(statusCode);

@@ -38,16 +38,21 @@ export const assertExpectedVersionMatchesCurrent = (
   current: StreamPosition,
   expected: ExpectedStreamVersion | undefined,
   defaultVersion: StreamPosition,
+  streamName?: string,
 ): void => {
   expected ??= NO_CONCURRENCY_CHECK;
 
   if (!matchesExpectedVersion(current, expected, defaultVersion))
-    throw new ExpectedVersionConflictError(current, expected);
+    throw new ExpectedVersionConflictError(current, expected, streamName);
 };
 
 export class ExpectedVersionConflictError extends ConcurrencyError {
-  constructor(current: StreamPosition, expected: ExpectedStreamVersion) {
-    super(current?.toString(), expected?.toString());
+  constructor(
+    current: StreamPosition,
+    expected: ExpectedStreamVersion,
+    streamName?: string,
+  ) {
+    super(current?.toString(), expected?.toString(), undefined, streamName);
 
     // 👇️ because we are extending a built-in class
     Object.setPrototypeOf(this, ExpectedVersionConflictError.prototype);

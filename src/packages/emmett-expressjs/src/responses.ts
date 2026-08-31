@@ -1,6 +1,10 @@
+import {
+  StreamETags,
+  isExpectedVersionConflictError,
+} from '@event-driven-io/emmett';
 import type { Request, Response } from 'express';
 import { ProblemDocument } from 'http-problem-details';
-import { setETag, type ETag } from './etag';
+import { HeaderNames, setETag, type ETag } from './etag';
 
 export type ErrorToProblemDetailsMapping = (
   error: unknown,
@@ -17,6 +21,7 @@ export const DefaultHttpResponseOptions: HttpResponseOptions = {};
 export type HttpProblemResponseOptions = {
   location?: string;
   eTag?: ETag;
+  error?: unknown;
 } & Omit<HttpResponseOptions, 'body'> &
   (
     | {
@@ -89,6 +94,15 @@ export const send = (
   }
 };
 
+const currentVersionETag = ({
+  error,
+}: HttpProblemResponseOptions): ETag | undefined =>
+  isExpectedVersionConflictError(error) &&
+  error.streamName !== undefined &&
+  error.current !== undefined
+    ? StreamETags.from(error.streamName, error.current)
+    : undefined;
+
 export const sendProblem = (
   response: Response,
   statusCode: number,
@@ -107,13 +121,22 @@ export const sendProblem = (
         });
 
   // HEADERS
-  if (eTag) setETag(response, eTag);
+  const problemETag = eTag ?? currentVersionETag(options);
+
+  if (problemETag) setETag(response, problemETag);
+  else response.removeHeader(HeaderNames.ETag);
+
   if (location) response.setHeader('Location', location);
 
   response.setHeader('Content-Type', 'application/problem+json');
 
   response.statusCode = statusCode;
-  response.json(problemDetails);
+
+  // `response.json` hashes the body into the `ETag` header of a response that carries none, and
+  // that hash is not the validator of the target resource, so the document is written here.
+  const body = JSON.stringify(problemDetails);
+  response.setHeader('Content-Length', Buffer.byteLength(body).toString());
+  response.end(body);
 };
 
 export type EventResponseSource<Event> = Event[] | { events: Event[] };

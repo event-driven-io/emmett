@@ -313,6 +313,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
           stream.metadata.streamPosition,
           expectedStreamVersion,
           MongoDBEventStoreDefaultStreamVersion,
+          streamName,
         );
 
         const events = upcastRecordedMessages(
@@ -410,6 +411,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
           currentStreamVersion,
           expectedStreamVersion,
           MongoDBEventStoreDefaultStreamVersion,
+          streamName,
         );
 
         let streamOffset = currentStreamVersion;
@@ -489,6 +491,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
           throw new ExpectedVersionConflictError(
             currentStreamVersion,
             options?.expectedStreamVersion ?? 0n,
+            streamName,
           );
         }
 

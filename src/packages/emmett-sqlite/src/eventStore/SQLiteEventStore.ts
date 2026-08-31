@@ -269,6 +269,7 @@ export const getSQLiteEventStore = <
             currentStreamVersion,
             expectedStreamVersion,
             SQLiteEventStoreDefaultStreamVersion,
+            streamName,
           );
 
           for (const event of result.events) {
@@ -349,6 +350,7 @@ export const getSQLiteEventStore = <
             throw new ExpectedVersionConflictError(
               -1n, //TODO: Return actual version in case of error
               appendOptions?.expectedStreamVersion ?? NO_CONCURRENCY_CHECK,
+              streamName,
             );
 
           return {

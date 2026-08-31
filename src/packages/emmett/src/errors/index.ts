@@ -24,6 +24,7 @@ export class EmmettError extends Error {
     IllegalStateError: 403,
     NotFoundError: 404,
     ConcurrencyError: 412,
+    PreconditionRequiredError: 428,
     InternalServerError: 500,
   };
 
@@ -89,6 +90,7 @@ export class ConcurrencyError extends EmmettError {
     public current: string | undefined,
     public expected: string,
     message?: string,
+    public streamName?: string,
   ) {
     super({
       errorCode: EmmettError.Codes.ConcurrencyError,
@@ -125,6 +127,20 @@ export class ValidationError extends EmmettError {
 
     // 👇️ because we are extending a built-in class
     Object.setPrototypeOf(this, ValidationError.prototype);
+  }
+}
+
+export class PreconditionRequiredError extends EmmettError {
+  constructor(message?: string) {
+    super({
+      errorCode: EmmettError.Codes.PreconditionRequiredError,
+      message:
+        message ??
+        `This request is required to be conditional; try using "If-Match"`,
+    });
+
+    // 👇️ because we are extending a built-in class
+    Object.setPrototypeOf(this, PreconditionRequiredError.prototype);
   }
 }
 

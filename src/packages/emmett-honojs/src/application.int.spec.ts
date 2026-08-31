@@ -1,8 +1,10 @@
 import {
+  StreamETags,
   assertDeepEqual,
   assertEqual,
   assertNotEmptyString,
   assertOk,
+  ExpectedVersionConflictError,
 } from '@event-driven-io/emmett';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
@@ -16,6 +18,14 @@ import {
   registerWebApi,
   type WebApiSetup,
 } from '.';
+
+const conflictStreamName = 'shopping_cart-123';
+
+const conflictApi: WebApiSetup = (router) => {
+  router.post('/product-items', () => {
+    throw new ExpectedVersionConflictError(7n, 4n, conflictStreamName);
+  });
+};
 
 const echoBodyApi: WebApiSetup = (router) => {
   router.post('/echo', async (context) => {
@@ -336,6 +346,93 @@ void describe('getApplication', () => {
     assertEqual(
       ((await response.json()) as ProblemDocument).detail,
       'Application failed',
+    );
+  });
+
+  void it('keeps the created response when If-None-Match matches its ETag', async () => {
+    const eTag = 'W/"1"';
+    const application = getApplication({
+      apis: [
+        (router) =>
+          router.post('/shopping-carts', (context) => {
+            context.header('ETag', eTag);
+            context.header('Location', '/shopping-carts/cart-1');
+            return context.json({ id: 'cart-1' }, 201);
+          }),
+      ],
+    });
+
+    const response = await application.request('/shopping-carts', {
+      method: 'POST',
+      headers: { 'If-None-Match': eTag },
+    });
+
+    assertEqual(response.status, 201);
+    assertEqual(response.headers.get('location'), '/shopping-carts/cart-1');
+    assertOk((await response.text()).length > 0);
+  });
+
+  void it('reports the current stream version in the ETag of a concurrency conflict', async () => {
+    const application = getApplication({ apis: [conflictApi] });
+
+    const response = await application.request('/product-items', {
+      method: 'POST',
+      headers: { 'If-Match': StreamETags.from(conflictStreamName, 4) },
+    });
+
+    assertEqual(response.status, 412);
+    assertEqual(
+      response.headers.get('content-type'),
+      'application/problem+json',
+    );
+    assertEqual(
+      response.headers.get('etag'),
+      StreamETags.from(conflictStreamName, 7),
+    );
+  });
+
+  void it('sends no ETag with a problem that is not a concurrency conflict', async () => {
+    const application = getApplication({ apis: [asyncErrorApi] });
+
+    const response = await application.request('/async-error');
+
+    assertEqual(response.status, 500);
+    assertEqual(response.headers.get('etag'), null);
+  });
+
+  void it('keeps Problem Details when If-None-Match matches the failed response ETag', async () => {
+    const application = getApplication({
+      apis: [
+        (router) =>
+          router.post('/failing', () => {
+            throw new Error('Application failed');
+          }),
+      ],
+    });
+
+    const firstResponse = await application.request('/failing', {
+      method: 'POST',
+    });
+
+    assertEqual(firstResponse.status, 500);
+    assertEqual(
+      firstResponse.headers.get('content-type'),
+      'application/problem+json',
+    );
+
+    // The middleware sets no tag on a failed response, so the wildcard is the
+    // only value a client can send back here.
+    assertEqual(firstResponse.headers.get('etag'), null);
+
+    const secondResponse = await application.request('/failing', {
+      method: 'POST',
+      headers: { 'If-None-Match': '*' },
+    });
+
+    assertEqual(secondResponse.status, 500);
+    assertEqual(
+      secondResponse.headers.get('content-type'),
+      'application/problem+json',
     );
   });
 });

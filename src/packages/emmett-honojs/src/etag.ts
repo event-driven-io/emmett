@@ -1,46 +1,38 @@
-import { type Brand, EmmettError } from '@event-driven-io/emmett';
+import {
+  ETags,
+  StreamETags,
+  EmmettError,
+  ETagErrors,
+  getWeakETagValue,
+  HeaderNames,
+  isWeakETag,
+  PreconditionRequiredError,
+  toWeakETag,
+  WeakETagRegex,
+  type ETag,
+  type ExpectedStreamVersion,
+  type WeakETag,
+} from '@event-driven-io/emmett';
 import type { Context } from 'hono';
 
-//////////////////////////////////////
-/// ETAG
-//////////////////////////////////////
-
-export const HeaderNames = {
-  IF_MATCH: 'if-match',
-  IF_NOT_MATCH: 'if-not-match',
-  ETag: 'etag',
+export {
+  ETagErrors,
+  ETags,
+  StreamETags,
+  getWeakETagValue,
+  HeaderNames,
+  isWeakETag,
+  PreconditionRequiredError,
+  toWeakETag,
+  WeakETagRegex,
+  type ETag,
+  type WeakETag,
 };
 
-export type WeakETag = Brand<`W/${string}`, 'ETag'>;
-export type ETag = Brand<string, 'ETag'>;
-
-export const WeakETagRegex = /W\/"(-?\d+.*)"/;
-
-export const enum ETagErrors {
-  WRONG_WEAK_ETAG_FORMAT = 'WRONG_WEAK_ETAG_FORMAT',
-  MISSING_IF_MATCH_HEADER = 'MISSING_IF_MATCH_HEADER',
-  MISSING_IF_NOT_MATCH_HEADER = 'MISSING_IF_NOT_MATCH_HEADER',
-}
-
-export const isWeakETag = (etag: ETag): etag is WeakETag => {
-  return WeakETagRegex.test(etag);
-};
-
-export const getWeakETagValue = (etag: ETag): string => {
-  const result = WeakETagRegex.exec(etag);
-  if (result === null || result.length === 0) {
-    throw new EmmettError({
-      errorCode: EmmettError.Codes.ConcurrencyError,
-      message: ETagErrors.WRONG_WEAK_ETAG_FORMAT,
-    });
-  }
-  return result[1]!;
-};
-
-export const toWeakETag = (value: number | bigint | string): WeakETag => {
-  return `W/"${value}"` as WeakETag;
-};
-
+/**
+ * @deprecated Use {@link getExpectedStreamVersionFromIfMatch} instead. It returns an
+ * `ExpectedStreamVersion` and never a raw header value.
+ */
 export const getETagFromIfMatch = (context: Context): ETag => {
   const etag = context.req.header(HeaderNames.IF_MATCH);
 
@@ -54,23 +46,48 @@ export const getETagFromIfMatch = (context: Context): ETag => {
   return etag as ETag;
 };
 
-export const getETagFromIfNotMatch = (context: Context): ETag => {
-  const etag = context.req.header(HeaderNames.IF_NOT_MATCH);
+export const getETagFromIfNoneMatch = (context: Context): ETag => {
+  const etag = context.req.header(HeaderNames.IF_NONE_MATCH);
 
   if (etag === undefined) {
     throw new EmmettError({
       errorCode: EmmettError.Codes.ConcurrencyError,
-      message: ETagErrors.MISSING_IF_NOT_MATCH_HEADER,
+      message: ETagErrors.MISSING_IF_NONE_MATCH_HEADER,
     });
   }
 
-  return (Array.isArray(etag) ? etag[0] : etag) as ETag;
+  return etag as ETag;
 };
+
+/**
+ * @deprecated Use {@link getETagFromIfNoneMatch} instead. There is no `If-Not-Match` header.
+ */
+export const getETagFromIfNotMatch = getETagFromIfNoneMatch;
+
+export const getExpectedStreamVersionFromIfMatch = (
+  context: Context,
+  streamName: string,
+  options?: { required?: boolean },
+): ExpectedStreamVersion =>
+  StreamETags.ifMatch(
+    context.req.header(HeaderNames.IF_MATCH),
+    streamName,
+    options,
+  );
+
+export const getExpectedStreamVersionFromIfNoneMatch = (
+  context: Context,
+): ExpectedStreamVersion =>
+  StreamETags.ifNoneMatch(context.req.header(HeaderNames.IF_NONE_MATCH));
 
 export const setETag = (context: Context, etag: ETag): void => {
   context.header(HeaderNames.ETag, etag);
 };
 
+/**
+ * @deprecated Use {@link getExpectedStreamVersionFromIfMatch} instead. This returns the raw header
+ * value for a strong entity tag, so the quotation marks reach the caller.
+ */
 export const getETagValueFromIfMatch = (context: Context): string => {
   const eTagValue: ETag = getETagFromIfMatch(context);
 
