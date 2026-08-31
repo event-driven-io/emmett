@@ -1,3 +1,4 @@
+import type { ObservabilityScope } from '@event-driven-io/almanac';
 import {
   dumbo,
   fromDatabaseDriverType,
@@ -6,7 +7,6 @@ import {
   type MigrationStyle,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
-import type { ObservabilityScope } from '@event-driven-io/almanac';
 import type {
   PgClientConnection,
   PgConnection,
@@ -20,9 +20,11 @@ import {
   eventStoreCollector,
   eventStoreObservability,
   ExpectedVersionConflictError,
+  mergeObservability,
   NO_CONCURRENCY_CHECK,
   noopScope,
   unknownTag,
+  withOperationScope,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AnyMessage,
@@ -35,14 +37,12 @@ import {
   type EventStoreSessionFactory,
   type JSONSerializationOptions,
   type Message,
-  mergeObservability,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
   type StreamExistsResult,
-  withOperationScope,
 } from '@event-driven-io/emmett';
 import type pg from 'pg';
 import {
@@ -236,10 +236,6 @@ export const getPostgreSQLEventStore = (
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
   const databaseSchema = eventStoreDatabaseSchema(options.schema);
-  const configuredSchemaOptions = {
-    ...options.schema,
-    ...databaseSchema,
-  };
   const observability = eventStoreObservability(options);
   const collector = eventStoreCollector(observability);
 
@@ -349,7 +345,7 @@ export const getPostgreSQLEventStore = (
                   pool,
                   transaction,
                 )),
-                migrationOptions: configuredSchemaOptions,
+                migrationOptions: databaseSchema,
                 observabilityScope,
               }),
           )
@@ -389,7 +385,7 @@ export const getPostgreSQLEventStore = (
                 if (projection.projection.truncate)
                   await projection.projection.truncate({
                     ...projectionContext,
-                    migrationOptions: configuredSchemaOptions,
+                    migrationOptions: databaseSchema,
                     observabilityScope: noopScope,
                   });
               }
@@ -533,7 +529,7 @@ export const getPostgreSQLEventStore = (
     ): PostgreSQLEventStoreConsumer<ConsumerMessageType> =>
       postgreSQLEventStoreConsumer<ConsumerMessageType>({
         ...consumerOptions,
-        schema: configuredSchemaOptions,
+        schema: databaseSchema,
         observability: mergeObservability(
           options.observability,
           consumerOptions?.observability,

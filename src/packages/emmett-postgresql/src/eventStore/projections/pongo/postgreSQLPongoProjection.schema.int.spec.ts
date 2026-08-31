@@ -1,11 +1,9 @@
 import {
   count,
   dumbo,
-  exists,
   mapRows,
   SQL,
   SQLTableReference,
-  type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
@@ -21,6 +19,7 @@ import {
   type PostgreSQLTestDatabase,
 } from '../../../testing/postgreSQLTestDatabase';
 import { getPostgreSQLEventStore } from '../../postgreSQLEventStore';
+import { tableExists } from '../../../testing/schemaObjects';
 import { PostgreSQLProjectionSpec } from '../postgresProjectionSpec';
 import { pongoSingleStreamProjection } from './pongoProjections';
 
@@ -94,8 +93,10 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
             ),
           ),
         );
-        assertFalse(await tableExists(eventSchemaName, collectionName));
-        assertFalse(await tableExists(undefined, collectionName));
+        assertFalse(
+          await tableExists(pool.execute, collectionName, eventSchemaName),
+        );
+        assertFalse(await tableExists(pool.execute, collectionName));
         assertTrue(
           (await migrationRows(migrationSchemaName, migrationTableName)).some(
             (name) => name.includes(collectionName),
@@ -145,8 +146,12 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
             ),
           ),
         );
-        assertFalse(await tableExists(projectionSchemaName, collectionName));
-        assertFalse(await tableExists(eventSchemaName, collectionName));
+        assertFalse(
+          await tableExists(pool.execute, collectionName, projectionSchemaName),
+        );
+        assertFalse(
+          await tableExists(pool.execute, collectionName, eventSchemaName),
+        );
       } finally {
         await store.close();
       }
@@ -195,8 +200,10 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
             ),
           ),
         );
-        assertFalse(await tableExists(eventSchemaName, collectionName));
-        assertFalse(await tableExists(undefined, collectionName));
+        assertFalse(
+          await tableExists(pool.execute, collectionName, eventSchemaName),
+        );
+        assertFalse(await tableExists(pool.execute, collectionName));
         assertTrue(
           (await migrationRows(migrationSchemaName, migrationTableName)).some(
             (name) => name.includes(collectionName),
@@ -251,7 +258,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
               ),
             ),
           );
-          assertFalse(await tableExists(eventSchemaName, collectionName));
+          assertFalse(
+            await tableExists(pool.execute, collectionName, eventSchemaName),
+          );
           assertTrue(
             (await migrationRows(migrationSchemaName, migrationTableName)).some(
               (name) => name.includes(collectionName),
@@ -364,11 +373,6 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
     },
   );
 
-  const tableExists = (
-    databaseSchemaName: string | undefined,
-    tableName: string,
-  ) => tableExistsUsing(pool.execute, databaseSchemaName, tableName);
-
   const migrationRows = async (
     databaseSchemaName: string,
     tableName: string,
@@ -442,21 +446,3 @@ const trickySchemaNameStyles: {
 ];
 
 const uniqueSuffix = (): string => uuid().replaceAll('-', '_');
-
-const tableExistsUsing = async (
-  execute: SQLExecutor,
-  databaseSchemaName: string | undefined,
-  tableName: string,
-): Promise<boolean> => {
-  return exists(
-    execute.query<{ exists: boolean }>(
-      SQL`
-        SELECT EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = ${databaseSchemaName ?? 'public'} AND table_name = ${tableName}
-        ) AS exists
-      `,
-    ),
-  );
-};

@@ -1,6 +1,5 @@
 import {
   dumbo,
-  exists,
   runSQLMigrations,
   SQL,
   sqlMigration,
@@ -23,6 +22,13 @@ import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../../../testing/postgreSQLTestDatabase';
+import {
+  functionExists,
+  indexExists,
+  schemaExists,
+  sequenceExists,
+  tableExists,
+} from '../../../../testing/schemaObjects';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -133,28 +139,46 @@ void describe('Schema migrations tests', () => {
     // Then
     assertDeepEqual(applied, [schemaMigrationFor(schemaOptions)]);
     assertThatArray(skipped).isEmpty();
-    assertTrue(await schemaExists('events'));
-    assertTrue(await schemaExists('infrastructure'));
-    assertTrue(await tableExistsInSchema('events', 'emt_streams'));
-    assertTrue(await tableExistsInSchema('events', 'emt_messages'));
+    assertTrue(await schemaExists(pool.execute, 'events'));
+    assertTrue(await schemaExists(pool.execute, 'infrastructure'));
+    assertTrue(await tableExists(pool.execute, 'emt_streams', 'events'));
+    assertTrue(await tableExists(pool.execute, 'emt_messages', 'events'));
     assertTrue(
-      await sequenceExistsInSchema('events', 'emt_global_message_position'),
+      await sequenceExists(
+        pool.execute,
+        'emt_global_message_position',
+        'events',
+      ),
     );
-    assertTrue(await functionExistsInSchema('events', 'emt_append_to_stream'));
     assertTrue(
-      await functionExistsInSchema('events', 'store_processor_checkpoint'),
+      await functionExists(pool.execute, 'emt_append_to_stream', 'events'),
     );
     assertTrue(
-      await tableExistsInSchema('infrastructure', 'emmett_migrations'),
+      await functionExists(
+        pool.execute,
+        'store_processor_checkpoint',
+        'events',
+      ),
     );
-    assertFalse(await tableExistsInSchema('public', 'emt_streams'));
-    assertFalse(await tableExistsInSchema('read_models', 'emt_streams'));
-    assertFalse(await tableExistsInSchema('events', 'emmett_migrations'));
-    assertFalse(await tableExistsInSchema('infrastructure', 'dmb_migrations'));
+    assertTrue(
+      await tableExists(pool.execute, 'emmett_migrations', 'infrastructure'),
+    );
+    assertFalse(await tableExists(pool.execute, 'emt_streams', 'public'));
+    assertFalse(await tableExists(pool.execute, 'emt_streams', 'read_models'));
+    assertFalse(await tableExists(pool.execute, 'emmett_migrations', 'events'));
     assertFalse(
-      await sequenceExistsInSchema('public', 'emt_global_message_position'),
+      await tableExists(pool.execute, 'dmb_migrations', 'infrastructure'),
     );
-    assertFalse(await functionExistsInSchema('public', 'emt_append_to_stream'));
+    assertFalse(
+      await sequenceExists(
+        pool.execute,
+        'emt_global_message_position',
+        'public',
+      ),
+    );
+    assertFalse(
+      await functionExists(pool.execute, 'emt_append_to_stream', 'public'),
+    );
 
     const result = await assertCanAppendAndRead(eventStore);
     await assertCanStoreAndReadCheckpoints(pool, result, 'events');
@@ -292,24 +316,22 @@ void describe('Schema migrations tests', () => {
     await pool.execute.command(
       SQL`CREATE INDEX idx_messages_global_position ON emt_messages(global_position)`,
     );
-    assertTrue(await indexExists('idx_messages_global_position'));
+    assertTrue(await indexExists(pool.execute, 'idx_messages_global_position'));
 
     // When
     await eventStore.schema.migrate();
 
     // Then
-    assertFalse(await indexExists('idx_messages_global_position'));
+    assertFalse(
+      await indexExists(pool.execute, 'idx_messages_global_position'),
+    );
     assertTrue(
-      await indexExists('idx_messages_transaction_id_global_position'),
+      await indexExists(
+        pool.execute,
+        'idx_messages_transaction_id_global_position',
+      ),
     );
   });
-
-  const indexExists = async (name: string): Promise<boolean> => {
-    const result = await pool.execute.query<{ oid: number }>(
-      SQL`SELECT oid FROM pg_class WHERE relname = ${name}`,
-    );
-    return result.rows.length > 0;
-  };
 
   const assertCanAppendAndRead = async (eventStore: PostgresEventStore) => {
     const shoppingCartId = 'cart-123';
@@ -466,59 +488,6 @@ void describe('Schema migrations tests', () => {
     assertDeepEqual(
       orderCheckpoint.lastProcessedCheckpoint,
       order.lastEvent.metadata.checkpoint!,
-    );
-  };
-
-  const schemaExists = async (schemaName: string): Promise<boolean> => {
-    return exists(
-      pool.execute.query<{ exists: boolean }>(SQL`
-        SELECT EXISTS (
-          SELECT FROM information_schema.schemata
-          WHERE schema_name = ${schemaName}
-        ) AS exists`),
-    );
-  };
-
-  const tableExistsInSchema = async (
-    schemaName: string,
-    tableName: string,
-  ): Promise<boolean> => {
-    return exists(
-      pool.execute.query<{ exists: boolean }>(SQL`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables
-          WHERE table_schema = ${schemaName}
-            AND table_name = ${tableName}
-        ) AS exists`),
-    );
-  };
-
-  const sequenceExistsInSchema = async (
-    schemaName: string,
-    sequenceName: string,
-  ): Promise<boolean> => {
-    return exists(
-      pool.execute.query<{ exists: boolean }>(SQL`
-        SELECT EXISTS (
-          SELECT FROM information_schema.sequences
-          WHERE sequence_schema = ${schemaName}
-            AND sequence_name = ${sequenceName}
-        ) AS exists`),
-    );
-  };
-
-  const functionExistsInSchema = async (
-    schemaName: string,
-    functionName: string,
-  ): Promise<boolean> => {
-    return exists(
-      pool.execute.query<{ exists: boolean }>(SQL`
-        SELECT EXISTS (
-          SELECT FROM pg_proc
-          JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace
-          WHERE pg_namespace.nspname = ${schemaName}
-            AND pg_proc.proname = ${functionName}
-        ) AS exists`),
     );
   };
 });

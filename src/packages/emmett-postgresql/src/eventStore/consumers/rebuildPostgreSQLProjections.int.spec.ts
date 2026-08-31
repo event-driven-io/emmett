@@ -1,18 +1,16 @@
 import {
   count,
   dumbo,
-  exists,
   single,
   SQL,
   SQLTableReference,
   type Dumbo,
-  type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 import {
+  assertDeepEqual,
   assertEqual,
   assertFalse,
-  assertDeepEqual,
   asyncAwaiter,
   getProjectorId,
   projections,
@@ -43,6 +41,7 @@ import {
   pongoSingleStreamProjection,
   postgreSQLRawSQLProjection,
 } from '../projections';
+import { tableExists } from '../../testing/schemaObjects';
 import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
 
 const withDeadline = { timeout: 30000 };
@@ -176,8 +175,10 @@ void describe('Rebuilding PostgreSQL Projections', () => {
               ),
             ),
           );
-          assertFalse(await tableExists(eventSchemaName, collectionName));
-          assertFalse(await tableExists(undefined, collectionName));
+          assertFalse(
+            await tableExists(pool.execute, collectionName, eventSchemaName),
+          );
+          assertFalse(await tableExists(pool.execute, collectionName));
         } finally {
           await schemaStore.close();
         }
@@ -576,11 +577,6 @@ void describe('Rebuilding PostgreSQL Projections', () => {
       },
     );
   });
-
-  const tableExists = (
-    databaseSchemaName: string | undefined,
-    tableName: string,
-  ) => tableExistsUsing(pool.execute, databaseSchemaName, tableName);
 });
 
 type ShoppingCartSummary = {
@@ -706,24 +702,6 @@ const getTableFullName = (name: string, version: number) =>
 
 const schemaName = (prefix: string): string =>
   `${prefix}_${uuid().replaceAll('-', '_')}`;
-
-const tableExistsUsing = async (
-  execute: SQLExecutor,
-  databaseSchemaName: string | undefined,
-  tableName: string,
-): Promise<boolean> => {
-  return exists(
-    execute.query<{ exists: boolean }>(
-      SQL`
-        SELECT EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = ${databaseSchemaName ?? 'public'} AND table_name = ${tableName}
-        ) AS exists
-      `,
-    ),
-  );
-};
 
 const createRebuildTestProjection = (
   name: string,

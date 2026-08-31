@@ -1,17 +1,11 @@
 import type { InvalidOperationError } from '@event-driven-io/dumbo';
 import {
   dumbo,
-  exists,
   runSQLMigrations,
   SQL,
   type Dumbo,
 } from '@event-driven-io/dumbo';
-import {
-  functionExists,
-  pgDumboDriver,
-  tableExists,
-  type PgPool,
-} from '@event-driven-io/dumbo/pg';
+import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   assertFalse,
@@ -28,6 +22,11 @@ import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../../../testing/postgreSQLTestDatabase';
+import {
+  functionExists,
+  indexExists,
+  tableExists,
+} from '../../../../testing/schemaObjects';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -139,7 +138,10 @@ void describe('Schema migrations tests', () => {
       ...migrations_0_42_0,
     ]);
     assertFalse(
-      await indexExists('idx_messages_transaction_id_global_position'),
+      await indexExists(
+        pool.execute,
+        'idx_messages_transaction_id_global_position',
+      ),
     );
 
     // When
@@ -147,7 +149,10 @@ void describe('Schema migrations tests', () => {
 
     // Then
     assertTrue(
-      await indexExists('idx_messages_transaction_id_global_position'),
+      await indexExists(
+        pool.execute,
+        'idx_messages_transaction_id_global_position',
+      ),
     );
   });
 
@@ -161,15 +166,20 @@ void describe('Schema migrations tests', () => {
     await pool.execute.command(
       SQL`CREATE INDEX idx_messages_global_position ON emt_messages(global_position)`,
     );
-    assertTrue(await indexExists('idx_messages_global_position'));
+    assertTrue(await indexExists(pool.execute, 'idx_messages_global_position'));
 
     // When
     await runSQLMigrations(pool, migrations_0_43_0);
 
     // Then
-    assertFalse(await indexExists('idx_messages_global_position'));
+    assertFalse(
+      await indexExists(pool.execute, 'idx_messages_global_position'),
+    );
     assertTrue(
-      await indexExists('idx_messages_transaction_id_global_position'),
+      await indexExists(
+        pool.execute,
+        'idx_messages_transaction_id_global_position',
+      ),
     );
   });
 
@@ -193,18 +203,20 @@ void describe('Schema migrations tests', () => {
 
     // Then
     assertDeepEqual(applied, migrations_0_43_0);
-    assertFalse(await tableExistsInSchema('public', 'emt_messages'));
-    assertFalse(await tableExistsInSchema('public', 'emt_processors'));
+    assertFalse(await tableExists(pool.execute, 'emt_messages', 'public'));
+    assertFalse(await tableExists(pool.execute, 'emt_processors', 'public'));
     assertFalse(
-      await indexExistsInSchema(
-        'public',
+      await indexExists(
+        pool.execute,
         'idx_messages_transaction_id_global_position',
+        'public',
       ),
     );
     assertTrue(
-      await indexExistsInSchema(
-        otherSchemaName,
+      await indexExists(
+        pool.execute,
         'idx_messages_transaction_id_global_position',
+        otherSchemaName,
       ),
     );
   });
@@ -672,38 +684,5 @@ void describe('Schema migrations tests', () => {
       SQL`SELECT last_processed_checkpoint FROM emt_processors WHERE processor_id = ${processorId} LIMIT 1`,
     );
     return result.rows[0]?.last_processed_checkpoint ?? null;
-  };
-
-  const tableExistsInSchema = async (
-    schemaName: string,
-    tableName: string,
-  ): Promise<boolean> => {
-    return exists(
-      pool.execute.query<{ exists: boolean }>(SQL`
-        SELECT EXISTS (
-          SELECT FROM pg_tables
-          WHERE schemaname = ${schemaName} AND tablename = ${tableName}
-        ) AS exists`),
-    );
-  };
-
-  const indexExistsInSchema = async (
-    schemaName: string,
-    indexName: string,
-  ): Promise<boolean> => {
-    return exists(
-      pool.execute.query<{ exists: boolean }>(SQL`
-        SELECT EXISTS (
-          SELECT FROM pg_indexes
-          WHERE schemaname = ${schemaName} AND indexname = ${indexName}
-        ) AS exists`),
-    );
-  };
-
-  const indexExists = async (name: string): Promise<boolean> => {
-    const result = await pool.execute.query<{ oid: number }>(
-      SQL`SELECT oid FROM pg_class WHERE relname = ${name}`,
-    );
-    return result.rows.length > 0;
   };
 });

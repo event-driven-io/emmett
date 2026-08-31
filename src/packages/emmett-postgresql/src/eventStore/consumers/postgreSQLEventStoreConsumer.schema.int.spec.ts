@@ -1,11 +1,4 @@
-import {
-  count,
-  dumbo,
-  exists,
-  SQL,
-  SQLTableReference,
-  type SQLExecutor,
-} from '@event-driven-io/dumbo';
+import { count, dumbo, SQL, SQLTableReference } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertEqual,
@@ -26,6 +19,7 @@ import {
   postgreSQLProjection,
   readProjectionInfo,
 } from '../projections';
+import { tableExists } from '../../testing/schemaObjects';
 import { readProcessorCheckpoint } from '../schema';
 import {
   emmettRelation,
@@ -165,23 +159,19 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         assertFalse(
           await tableExists(
             pool.execute,
-            projectionSchemaName,
             processorsTable.name,
+            projectionSchemaName,
           ),
         );
-        assertFalse(
-          await tableExists(pool.execute, undefined, processorsTable.name),
-        );
+        assertFalse(await tableExists(pool.execute, processorsTable.name));
         assertFalse(
           await tableExists(
             pool.execute,
-            projectionSchemaName,
             projectionsTable.name,
+            projectionSchemaName,
           ),
         );
-        assertFalse(
-          await tableExists(pool.execute, undefined, projectionsTable.name),
-        );
+        assertFalse(await tableExists(pool.execute, projectionsTable.name));
       } finally {
         await store.close();
       }
@@ -289,9 +279,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
           1,
           await messagesInStream(eventSchemaName, reactionStreamName),
         );
-        assertFalse(
-          await tableExists(pool.execute, undefined, messagesTable.name),
-        );
+        assertFalse(await tableExists(pool.execute, messagesTable.name));
       } finally {
         await store.close();
       }
@@ -353,9 +341,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
           1,
           await messagesInStream(eventSchemaName, reactionStreamName),
         );
-        assertFalse(
-          await tableExists(pool.execute, undefined, messagesTable.name),
-        );
+        assertFalse(await tableExists(pool.execute, messagesTable.name));
       } finally {
         await store.close();
       }
@@ -384,9 +370,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         );
 
         assertEqual(1, await messagesInStream(eventSchemaName, streamName));
-        assertFalse(
-          await tableExists(pool.execute, undefined, messagesTable.name),
-        );
+        assertFalse(await tableExists(pool.execute, messagesTable.name));
       } finally {
         await store.close();
       }
@@ -413,9 +397,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       ]);
 
       assertEqual(1, await messagesInStream(eventSchemaName, streamName));
-      assertFalse(
-        await tableExists(pool.execute, undefined, messagesTable.name),
-      );
+      assertFalse(await tableExists(pool.execute, messagesTable.name));
     },
   );
 
@@ -476,9 +458,9 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         assertEqual(1, await rowsInTable(projectionSchemaName, collectionName));
         assertEqual(1, await messagesInStream(eventSchemaName, streamName));
         assertFalse(
-          await tableExists(pool.execute, eventSchemaName, collectionName),
+          await tableExists(pool.execute, collectionName, eventSchemaName),
         );
-        assertFalse(await tableExists(pool.execute, undefined, collectionName));
+        assertFalse(await tableExists(pool.execute, collectionName));
       } finally {
         await store.close();
       }
@@ -525,21 +507,3 @@ type ShoppingCartSummary = {
 
 const schemaName = (prefix: string): string =>
   `${prefix}_${uuid().replaceAll('-', '_')}`;
-
-const tableExists = async (
-  execute: SQLExecutor,
-  databaseSchemaName: string | undefined,
-  tableName: string,
-): Promise<boolean> => {
-  return exists(
-    execute.query<{ exists: boolean }>(
-      SQL`
-        SELECT EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = ${databaseSchemaName ?? 'public'} AND table_name = ${tableName}
-        ) AS exists
-      `,
-    ),
-  );
-};
