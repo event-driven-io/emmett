@@ -1,9 +1,11 @@
 import { describe, it } from 'vitest';
-import { assertEqual, assertOk } from '../testing';
+import { assertEqual, assertOk, assertThrows } from '../testing';
 import {
+  ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
+  assertExpectedVersionMatchesCurrent,
   matchesExpectedVersion,
 } from './expectedVersion';
 
@@ -97,5 +99,42 @@ void describe('matchesExpectedVersion', () => {
         false,
       );
     }
+  });
+});
+
+void describe('ExpectedVersionConflictError', () => {
+  void it('carries the stream name it was constructed with', () => {
+    const error = new ExpectedVersionConflictError(7n, 4n, 'shopping_cart-123');
+
+    assertEqual(error.streamName, 'shopping_cart-123');
+    assertEqual(error.current, '7');
+    assertEqual(error.expected, '4');
+  });
+
+  void it('has no stream name when none was provided', () => {
+    const error = new ExpectedVersionConflictError(7n, 4n);
+
+    assertEqual(error.streamName, undefined);
+  });
+});
+
+void describe('assertExpectedVersionMatchesCurrent', () => {
+  void it('passes the stream name to the thrown conflict', () => {
+    assertThrows<ExpectedVersionConflictError>(
+      () =>
+        assertExpectedVersionMatchesCurrent(7n, 4n, -1n, 'shopping_cart-123'),
+      (error) =>
+        error instanceof ExpectedVersionConflictError &&
+        error.streamName === 'shopping_cart-123',
+    );
+  });
+
+  void it('throws a conflict without a stream name when none was provided', () => {
+    assertThrows<ExpectedVersionConflictError>(
+      () => assertExpectedVersionMatchesCurrent(7n, 4n, -1n),
+      (error) =>
+        error instanceof ExpectedVersionConflictError &&
+        error.streamName === undefined,
+    );
   });
 });

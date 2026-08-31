@@ -18,7 +18,10 @@ export const problemDetailsMiddleware =
     problemDetails =
       problemDetails ?? defaultErrorToProblemDetailsMapping(error);
 
-    sendProblem(response, problemDetails.status, { problem: problemDetails });
+    sendProblem(response, problemDetails.status, {
+      problem: problemDetails,
+      error,
+    });
   };
 
 export const defaultErrorToProblemDetailsMapping = (

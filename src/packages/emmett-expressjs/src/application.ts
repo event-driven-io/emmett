@@ -12,7 +12,6 @@ export type WebApiSetup = (router: Router) => void;
 export type ApplicationOptions = {
   apis: WebApiSetup[];
   mapError?: ErrorToProblemDetailsMapping;
-  enableDefaultExpressEtag?: boolean;
   disableJsonMiddleware?: boolean;
   disableUrlEncodingMiddleware?: boolean;
   disableProblemDetailsMiddleware?: boolean;
@@ -40,16 +39,11 @@ export const configureApplication = (
   const {
     apis,
     mapError,
-    enableDefaultExpressEtag,
     disableJsonMiddleware,
     disableUrlEncodingMiddleware,
     disableProblemDetailsMiddleware,
     observability,
   } = options;
-
-  // disabling default etag behaviour
-  // to use etags in if-match and if-not-match headers
-  application.set('etag', enableDefaultExpressEtag ?? false);
 
   // add json middleware
   if (!disableJsonMiddleware) application.use(express.json());

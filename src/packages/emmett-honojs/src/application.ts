@@ -4,6 +4,7 @@ import { etag } from 'hono/etag';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { ProblemDocument } from 'http-problem-details';
 import { defaultErrorToProblemDetailsMapping } from './middlewares/problemDetailsMiddleware';
+import { sendProblem } from './responses';
 
 export type ErrorToProblemDetailsMapping = (
   error: Error,
@@ -47,12 +48,11 @@ export const configureApplication = (
       // Replace with different mechanism as each app instance can only have defined one onError handler
       const problemDetails =
         mapError?.(error) ?? defaultErrorToProblemDetailsMapping(error);
-      const response = c.json(
-        problemDetails,
-        problemDetails?.status as ContentfulStatusCode,
-      );
-      response.headers.set('Content-Type', 'application/problem+json');
-      return response;
+
+      return sendProblem(c, problemDetails.status as ContentfulStatusCode, {
+        problem: problemDetails,
+        error,
+      });
     });
   }
 

@@ -2,7 +2,6 @@ import {
   assertDeepEqual,
   assertEqual,
   assertMatches,
-  assertOk,
 } from '@event-driven-io/emmett';
 import type { Response } from 'express';
 import { ProblemDocument } from 'http-problem-details';
@@ -36,6 +35,12 @@ const mockResponse = () => {
     body: undefined as unknown,
     setHeader: vi.fn((name: string, value: string) => {
       res.headers[name.toLowerCase()] = value;
+    }),
+    removeHeader: vi.fn((name: string) => {
+      delete res.headers[name.toLowerCase()];
+    }),
+    end: vi.fn((body: string) => {
+      res.body = JSON.parse(body) as unknown;
     }),
     send: vi.fn((body: unknown) => {
       res.body = body;
@@ -260,7 +265,7 @@ void describe('sendProblem', () => {
       status: 404,
     });
     sendProblem(res, 404, { problem });
-    assertOk(res.body === problem);
+    assertDeepEqual(res.body, JSON.parse(JSON.stringify(problem)));
   });
 
   void it('uses default options when none are provided', () => {

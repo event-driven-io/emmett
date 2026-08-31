@@ -172,6 +172,7 @@ export const getEventStoreDBEventStore = (
             readResult.currentStreamVersion,
             expectedStreamVersion,
             EventStoreDBEventStoreDefaultStreamVersion,
+            streamName,
           );
 
           for (const event of readResult.events) {
@@ -322,6 +323,7 @@ export const getEventStoreDBEventStore = (
               throw new ExpectedVersionConflictError(
                 BigInt(error.actualVersion),
                 toExpectedVersion(error.expectedVersion),
+                streamName,
               );
             }
 

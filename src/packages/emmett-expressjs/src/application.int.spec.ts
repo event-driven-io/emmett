@@ -1,18 +1,23 @@
 import {
+  StreamETags,
   assertDeepEqual,
   assertEqual,
   assertFalse,
   assertOk,
   assertTrue,
+  ExpectedVersionConflictError,
 } from '@event-driven-io/emmett';
 import { trace, type Span } from '@opentelemetry/api';
 import express, {
+  type Application,
   type ErrorRequestHandler,
   type Request,
   type RequestHandler,
   type Router,
 } from 'express';
 import type { ProblemDocument } from 'http-problem-details';
+import http, { type IncomingHttpHeaders } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import request from 'supertest';
 import { describe, it, vi } from 'vitest';
 import {
@@ -27,6 +32,49 @@ import {
   type HttpResponse,
   type WebApiSetup,
 } from '.';
+
+// Node `fetch` sends `cache-control: no-cache`, and the `fresh` module then reports every response
+// as stale, so a revalidation never answers 304. `node:http` sends what the test asks for.
+const sendHttpRequest = (
+  application: Application,
+  path: string,
+  headers: Record<string, string> = {},
+): Promise<{ statusCode: number; headers: IncomingHttpHeaders }> =>
+  new Promise((resolve, reject) => {
+    const server = application.listen(0, () => {
+      const { port } = server.address() as AddressInfo;
+
+      http
+        .get({ port, path, headers }, (response) => {
+          response.resume();
+          response.on('end', () => {
+            server.close();
+            resolve({
+              statusCode: response.statusCode!,
+              headers: response.headers,
+            });
+          });
+        })
+        .on('error', (error) => {
+          server.close();
+          reject(error);
+        });
+    });
+  });
+
+const bodyApi: WebApiSetup = (router) => {
+  router.get('/body', (_request, response) =>
+    response.status(200).send('body'),
+  );
+};
+
+const conflictStreamName = 'shopping_cart-123';
+
+const conflictApi: WebApiSetup = (router) => {
+  router.post('/product-items', () => {
+    throw new ExpectedVersionConflictError(7n, 4n, conflictStreamName);
+  });
+};
 
 const echoBodyApi: WebApiSetup = (router) => {
   router.post('/echo', (req, res) => {
@@ -320,31 +368,71 @@ void describe('getApplication', () => {
     assertEqual((response.body as { body: unknown }).body, null);
   });
 
-  void it('preserves disabled generated ETags as the Emmett default', async () => {
+  void it('keeps the Express default of generated ETags', async () => {
+    const application = getApplication({ apis: [bodyApi] });
+
+    const response = await sendHttpRequest(application, '/body');
+    assertEqual(response.statusCode, 200);
+    assertTrue(typeof response.headers.etag === 'string');
+
+    const revalidated = await sendHttpRequest(application, '/body', {
+      'If-None-Match': response.headers.etag!,
+    });
+
+    assertEqual(revalidated.statusCode, 304);
+  });
+
+  void it('keeps an explicit version ETag instead of a generated hash', async () => {
+    const eTag = StreamETags.from(conflictStreamName, 4);
     const application = getApplication({
       apis: [
         (router) =>
-          router.get('/body', (_req, res) => res.status(200).send('body')),
+          router.get('/cart', (_request, response) =>
+            response.status(200).setHeader('ETag', eTag).json({ id: 'cart-1' }),
+          ),
       ],
     });
 
-    const response = await request(application).get('/body').send();
+    const response = await sendHttpRequest(application, '/cart');
 
+    assertEqual(response.statusCode, 200);
+    assertEqual(response.headers.etag, eTag);
+  });
+
+  void it('leaves the ETag setting of an application that disabled it alone', async () => {
+    const application = express();
+    application.set('etag', false);
+
+    configureApplication(application, { apis: [bodyApi] });
+
+    const response = await sendHttpRequest(application, '/body');
+
+    assertEqual(response.statusCode, 200);
     assertFalse('etag' in response.headers);
   });
 
-  void it('can enable generated Express ETags', async () => {
-    const application = getApplication({
-      apis: [
-        (router) =>
-          router.get('/body', (_req, res) => res.status(200).send('body')),
-      ],
-      enableDefaultExpressEtag: true,
-    });
+  void it('reports the current stream version in the ETag of a concurrency conflict', async () => {
+    const application = getApplication({ apis: [conflictApi] });
 
-    const response = await request(application).get('/body').send();
+    const response = await request(application)
+      .post('/product-items')
+      .set('If-Match', StreamETags.from(conflictStreamName, 4))
+      .send();
 
-    assertTrue(typeof response.headers.etag === 'string');
+    assertEqual(response.statusCode, 412);
+    assertOk(
+      response.headers['content-type']?.includes('application/problem+json'),
+    );
+    assertEqual(response.headers.etag, StreamETags.from(conflictStreamName, 7));
+  });
+
+  void it('sends no ETag with a problem that is not a concurrency conflict', async () => {
+    const application = getApplication({ apis: [asyncErrorApi] });
+
+    const response = await request(application).get('/async-error').send();
+
+    assertEqual(response.statusCode, 500);
+    assertFalse('etag' in response.headers);
   });
 
   void it('adds the active trace ID when observability is provided', async () => {

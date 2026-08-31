@@ -108,6 +108,7 @@ export const getInMemoryEventStore = (
           currentStreamVersion,
           readOptions?.expectedStreamVersion,
           InMemoryEventStoreDefaultStreamVersion,
+          streamName,
         );
 
         const from = Number(readOptions?.from ?? 0);
@@ -217,6 +218,7 @@ export const getInMemoryEventStore = (
             currentStreamVersion,
             options?.expectedStreamVersion,
             InMemoryEventStoreDefaultStreamVersion,
+            streamName,
           );
 
           const context = scope.context;

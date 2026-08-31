@@ -176,6 +176,7 @@ const appendToStreamRaw = async (
     throw new ExpectedVersionConflictError(
       currentStreamVersion,
       expectedStreamVersion,
+      streamId,
     );
   }
 
@@ -221,7 +222,11 @@ const appendToStreamRaw = async (
   const globalPosition = messagesResult?.rows.at(-1)?.global_position;
 
   if (!streamPosition)
-    throw new ExpectedVersionConflictError(0n, expectedStreamVersion ?? 0n);
+    throw new ExpectedVersionConflictError(
+      0n,
+      expectedStreamVersion ?? 0n,
+      streamId,
+    );
   if (!globalPosition) throw new Error('Could not find global position');
 
   return {
