@@ -13,7 +13,7 @@ import {
 } from '@event-driven-io/emmett';
 import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
 import { PostgreSQLEventStoreCheckpoint } from './readMessagesBatch';
-import { defaultTag, emmettRelation, messagesTable } from './typing';
+import { defaultTag, messagesTable, tableReference } from './typing';
 
 type ReadStreamSqlResult<EventType extends Event> = {
   stream_position: string;
@@ -55,7 +55,7 @@ export const readStream = async <
     await mapRows(
       execute.query<ReadStreamSqlResult<EventPayloadType>>(
         SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id, transaction_id
-           FROM ${emmettRelation(options?.databaseSchemaName, messagesTable.name)}
+           FROM ${tableReference(options?.databaseSchemaName, messagesTable.name)}
            WHERE stream_id = ${streamId} AND partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE ${SQL.plain(fromCondition)} ${SQL.plain(toCondition)}
            ORDER BY stream_position ASC`,
       ),

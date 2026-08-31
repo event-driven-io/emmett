@@ -45,7 +45,7 @@ export const projectionsTable = {
   name: `${emmettPrefix}_projections`,
 };
 
-export const emmettRelation = (
+export const tableReference = (
   databaseSchemaName: string | undefined,
   tableName: string,
 ) =>

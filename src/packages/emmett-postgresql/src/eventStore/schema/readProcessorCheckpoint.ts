@@ -8,9 +8,9 @@ import type { ProcessorCheckpoint } from '@event-driven-io/emmett';
 import { PostgreSQLEventStoreCheckpoint } from './readMessagesBatch';
 import {
   defaultTag,
-  emmettRelation,
   messagesTable,
   processorsTable,
+  tableReference,
 } from './typing';
 
 type ReadProcessorCheckpointSqlResult = {
@@ -42,7 +42,7 @@ const checkpointWithTransactionId = async (
   const row = await single(
     execute.query<ReadTransactionIdSqlResult>(
       SQL`SELECT transaction_id
-           FROM ${emmettRelation(databaseSchemaName, messagesTable.name)}
+           FROM ${tableReference(databaseSchemaName, messagesTable.name)}
            WHERE global_position = ${globalPosition}
            LIMIT 1`,
     ),
@@ -66,7 +66,7 @@ export const readProcessorCheckpoint = async (
   const result = await singleOrNull(
     execute.query<ReadProcessorCheckpointSqlResult>(
       SQL`SELECT last_processed_checkpoint
-           FROM ${emmettRelation(options.databaseSchemaName, processorsTable.name)}
+           FROM ${tableReference(options.databaseSchemaName, processorsTable.name)}
            WHERE partition = ${options?.partition ?? defaultTag} AND processor_id = ${options.processorId} AND version = ${options.version ?? 1}
            LIMIT 1`,
     ),

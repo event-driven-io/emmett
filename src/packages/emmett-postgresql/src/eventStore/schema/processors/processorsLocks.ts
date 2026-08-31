@@ -6,7 +6,7 @@ import {
   defaultTag,
   processorsTable,
   projectionsTable,
-  emmettRelation,
+  tableReference,
   unknownTag,
 } from '../typing';
 
@@ -37,7 +37,7 @@ BEGIN
         SELECT pg_try_advisory_xact_lock(p_lock_key) AS lock_acquired
     ),
     ownership_check AS (
-        INSERT INTO ${emmettRelation(databaseSchemaName, processorsTable.name)} (
+        INSERT INTO ${tableReference(databaseSchemaName, processorsTable.name)} (
             processor_id,
             partition,
             version,
@@ -61,7 +61,7 @@ BEGIN
         RETURNING last_processed_checkpoint
     ),
     projection_status AS (
-        INSERT INTO ${emmettRelation(databaseSchemaName, projectionsTable.name)} (
+        INSERT INTO ${tableReference(databaseSchemaName, projectionsTable.name)} (
             name,
             partition,
             version,
@@ -107,7 +107,7 @@ DECLARE
     v_rows_updated INT;
 BEGIN
     IF p_projection_name IS NOT NULL THEN
-        UPDATE ${emmettRelation(databaseSchemaName, projectionsTable.name)}
+        UPDATE ${tableReference(databaseSchemaName, projectionsTable.name)}
         SET status = 'active',
             last_updated = now()
         WHERE partition = p_partition
@@ -115,7 +115,7 @@ BEGIN
           AND version = p_version;
     END IF;
 
-    UPDATE ${emmettRelation(databaseSchemaName, processorsTable.name)}
+    UPDATE ${tableReference(databaseSchemaName, processorsTable.name)}
     SET status = 'stopped',
         processor_instance_id = '${SQL.plain(unknownTag)}',
         last_updated = now()
