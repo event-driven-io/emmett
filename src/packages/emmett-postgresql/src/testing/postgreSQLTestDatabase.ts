@@ -2,6 +2,7 @@ import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testconta
 import { randomUUID } from 'crypto';
 import pg from 'pg';
 import { inject } from 'vitest';
+import { endPgPool } from '@event-driven-io/dumbo/pg';
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -53,17 +54,20 @@ export const sharedPostgreSQLDatabase =
       client.query(`CREATE DATABASE "${databaseName}"`),
     );
 
+    const connectionString = withDatabaseName(
+      inject('sharedPostgreSQLConnectionString'),
+      databaseName,
+    );
+
     return {
-      connectionString: withDatabaseName(
-        inject('sharedPostgreSQLConnectionString'),
-        databaseName,
-      ),
-      close: () =>
-        onServer(async (client) => {
-          await client.query(
-            `DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`,
-          );
-        }),
+      connectionString,
+      close: async () => {
+        await endPgPool({ connectionString, force: true });
+
+        await onServer(async (client) => {
+          await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+        });
+      },
     };
   };
 
