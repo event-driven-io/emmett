@@ -8,6 +8,7 @@ import {
   InMemorySQLiteDatabase,
   sqlite3Connection,
   sqlite3Pool,
+  tableExists,
   type SQLite3Connection,
 } from '@event-driven-io/dumbo/sqlite3';
 import {
@@ -192,12 +193,7 @@ void describe('Schema migrations tests', () => {
   };
 
   const assertProjectionsTableExists = async (execute: SQLExecutor) => {
-    const tableExists = await single(
-      execute.query<{ name: string }>(
-        SQL`SELECT name FROM sqlite_master WHERE type='table' AND name='emt_projections'`,
-      ),
-    );
-    assertTrue(tableExists !== null);
+    assertTrue(await tableExists(execute, 'emt_projections'));
   };
 
   const assertCanStoreAndReadCheckpoints = async (
