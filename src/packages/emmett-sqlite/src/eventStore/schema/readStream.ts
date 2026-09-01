@@ -11,8 +11,7 @@ import {
   type ReadStreamResult,
 } from '@event-driven-io/emmett';
 import { SQLiteEventStoreDefaultStreamVersion } from '../SQLiteEventStore';
-import { defaultTag, messagesTable } from './typing';
-const { identifier } = SQL;
+import { defaultTag, messagesTable, tableReference } from './typing';
 
 type ReadStreamSqlResult = {
   stream_position: string;
@@ -33,6 +32,7 @@ export const readStream = async <
   streamId: string,
   options: ReadStreamOptions<EventType, EventPayloadType> & {
     partition?: string;
+    databaseSchemaName?: string;
     serializer: JSONSerializer;
   },
 ): Promise<
@@ -54,7 +54,7 @@ export const readStream = async <
 
   const { rows: results } = await execute.query<ReadStreamSqlResult>(
     SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
-        FROM ${identifier(messagesTable.name)}
+        FROM ${tableReference(options?.databaseSchemaName, messagesTable.name)}
         WHERE stream_id = ${streamId} AND partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE ${fromCondition} ${toCondition}
         ORDER BY stream_position ASC`,
   );

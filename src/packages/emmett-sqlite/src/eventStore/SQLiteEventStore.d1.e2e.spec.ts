@@ -3,8 +3,10 @@ import type { ExpectedVersionConflictError } from '@event-driven-io/emmett';
 import {
   assertDeepEqual,
   assertEqual,
+  assertFalse,
   assertIsNotNull,
   assertThrowsAsync,
+  assertTrue,
   type Event,
 } from '@event-driven-io/emmett';
 import { Miniflare } from 'miniflare';
@@ -17,6 +19,11 @@ import {
   describe,
   it,
 } from 'vitest';
+import {
+  d1Pool,
+  sqliteTableName,
+  tableExists,
+} from '@event-driven-io/dumbo/cloudflare';
 import { d1EventStoreDriver, type D1EventStoreDriver } from '../cloudflare';
 import type {
   DiscountApplied,
@@ -265,6 +272,92 @@ void describe('SQLiteEventStore', () => {
     ]);
 
     assertEqual(savedEvents.length, 1);
+  });
+});
+
+void describe('SQLiteEventStore with a database schema configured by the user', () => {
+  let mf: Miniflare;
+  let database: D1Database;
+  let eventStore: SQLiteEventStore;
+
+  beforeAll(async () => {
+    mf = new Miniflare({
+      modules: true,
+      script: 'export default { fetch() { return new Response("ok"); } }',
+      d1Databases: { DB: 'test-db-id' },
+    });
+    database = await mf.getD1Database('DB');
+  });
+
+  afterAll(async () => {
+    await mf.dispose();
+  });
+
+  beforeEach(() => {
+    eventStore = getSQLiteEventStore({
+      driver: d1EventStoreDriver,
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+        databaseSchemaName: 'events',
+      },
+      database,
+    });
+  });
+
+  afterEach(async () => {
+    await eventStore.close();
+  });
+
+  void it('should append and read events from the configured schema', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    const appendResult = await eventStore.appendToStream<ShoppingCartEvent>(
+      shoppingCartId,
+      [{ type: 'ProductItemAdded', data: { productItem } }],
+    );
+
+    const { events, streamExists } =
+      await eventStore.readStream<ShoppingCartEvent>(shoppingCartId);
+
+    assertEqual(appendResult.nextExpectedStreamVersion, 1n);
+    assertTrue(streamExists);
+    assertEqual(1, events.length);
+    assertTrue(await eventStore.streamExists(shoppingCartId));
+  });
+
+  void it('should keep the default schema tables uncreated', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    const pool = d1Pool({ database });
+
+    try {
+      assertTrue(
+        await tableExists(
+          pool.execute,
+          sqliteTableName({
+            databaseSchemaName: 'events',
+            tableName: 'emt_messages',
+          }),
+        ),
+      );
+      assertFalse(await tableExists(pool.execute, 'emt_messages'));
+    } finally {
+      await pool.close();
+    }
   });
 });
 

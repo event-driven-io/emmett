@@ -1,4 +1,10 @@
-import { InMemorySQLiteDatabase } from '@event-driven-io/dumbo/sqlite3';
+import {
+  InMemorySQLiteDatabase,
+  sqlite3Pool,
+  tableExists,
+  type Sqlite3Pool,
+} from '@event-driven-io/dumbo/sqlite3';
+import { sqliteTableName } from '@event-driven-io/dumbo/sqlite';
 import {
   MessagingAttributes,
   ObservabilitySpec,
@@ -8,8 +14,10 @@ import type { ExpectedVersionConflictError } from '@event-driven-io/emmett';
 import {
   assertDeepEqual,
   assertEqual,
+  assertFalse,
   assertIsNotNull,
   assertThrowsAsync,
+  assertTrue,
   EmmettAttributes,
   MessagingSystemName,
   projections,
@@ -105,6 +113,23 @@ void describe('SQLiteEventStore', () => {
 
       assertIsNotNull(events);
       assertEqual(3, events.length);
+    });
+
+    void it('should tell whether a stream exists', async () => {
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 10,
+        price: 3,
+      };
+      const shoppingCartId = `shopping_cart-${uuid()}`;
+
+      assertFalse(await eventStore.streamExists(shoppingCartId));
+
+      await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+        { type: 'ProductItemAdded', data: { productItem } },
+      ]);
+
+      assertTrue(await eventStore.streamExists(shoppingCartId));
     });
 
     void it('should aggregate stream', async () => {
@@ -616,6 +641,84 @@ const evolve = (
       return document;
   }
 };
+
+void describe('SQLiteEventStore with a database schema configured by the user', () => {
+  const testDatabasePath = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    'testing',
+  );
+  const fileName = path.resolve(testDatabasePath, 'configured-schema.db');
+  let eventStore: SQLiteEventStore;
+
+  beforeEach(() => {
+    eventStore = getSQLiteEventStore({
+      driver: sqlite3EventStoreDriver,
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+        databaseSchemaName: 'events',
+      },
+      fileName,
+    });
+  });
+
+  afterEach(async () => {
+    await eventStore.close();
+    deleteSQLiteDatabaseFiles(fileName);
+  });
+
+  void it('should append and read events from the configured schema', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    const appendResult = await eventStore.appendToStream<ShoppingCartEvent>(
+      shoppingCartId,
+      [{ type: 'ProductItemAdded', data: { productItem } }],
+    );
+
+    const { events, streamExists } =
+      await eventStore.readStream<ShoppingCartEvent>(shoppingCartId);
+
+    assertEqual(appendResult.nextExpectedStreamVersion, 1n);
+    assertTrue(streamExists);
+    assertEqual(1, events.length);
+    assertTrue(await eventStore.streamExists(shoppingCartId));
+  });
+
+  void it('should keep the default schema tables uncreated', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    const pool: Sqlite3Pool = sqlite3Pool({ fileName });
+
+    try {
+      assertTrue(
+        await tableExists(
+          pool.execute,
+          sqliteTableName({
+            databaseSchemaName: 'events',
+            tableName: 'emt_messages',
+          }),
+        ),
+      );
+      assertFalse(await tableExists(pool.execute, 'emt_messages'));
+    } finally {
+      await pool.close();
+    }
+  });
+});
 
 void describe('SQLiteEventStore upcasting', () => {
   type ShoppingCartOpenedFromDB = Event<

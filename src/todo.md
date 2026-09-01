@@ -189,7 +189,7 @@ Decisions:
 - [x] Widen the public `schema` option
 - [x] Add configured-schema dry-run coverage, matching the PostgreSQL test
 - [x] Add mixed-schema migration coverage through `eventStore.schema.migrate()`, matching the PostgreSQL test
-- [x] Set `currentSQLiteEventStoreSchemaVersion` to `'0.42.0'` and snapshot the current schema in the newest version folder
+- [x] Set `currentSQLiteEventStoreSchemaVersion` and snapshot the current schema in the newest version folder
 - [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
 - [x] Review for consistency, naming, dead code and redundant abstractions
 - [ ] Stop for approval before Phase 3
@@ -197,21 +197,38 @@ Decisions:
 Notes:
 
 - `schemaSQL` moved from `tables.ts` to `eventStoreSchemaSQL.ts`, as PostgreSQL has it. The package still exports it.
-- `currentSQLiteEventStoreSchemaVersion` is `'0.42.0'`. SQLite has no 0.43.0 migration, so 0.42.0 is the latest version, and `0_42_0.snapshot.int.spec.ts` now also snapshots `schemaMigration` as `'0.42.0 schema is the latest one'`, matching what PostgreSQL does in its newest version folder.
+- `currentSQLiteEventStoreSchemaVersion` was `'0.42.0'` at the end of Phase 2, because SQLite had no 0.43.0 migration. Phase 3 added one, so it is now `'0.43.0'` and the newest-version snapshot moved to `0_43_0.snapshot.int.spec.ts`.
 - The mixed-schema migration test stops at object placement. PostgreSQL's also appends and reads; SQLite gains that in Phase 3, when the runtime SQL is qualified.
 - PostgreSQL's `public` cases have no SQLite counterpart. SQLite has no default database schema name: Pongo and Dumbo both fall back to the `DefaultDatabaseSchemaName` sentinel, which renders as no prefix at all. The spec pins that instead, with a test proving omitted names render unprefixed.
 
 ## Phase 3: append and read isolation
 
-- [ ] Start phase after approval
-- [ ] Add failing tests for append and read against a configured prefix
-- [ ] Add failing tests for two prefixes staying isolated with identical stream names
-- [ ] Add failing tests for `autoMigration: 'None'` against an existing configured store
-- [ ] Mirror append and read coverage on D1
-- [ ] Qualify append, stream existence, stream read, batch read and last position
-- [ ] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
-- [ ] Review for consistency, naming, dead code and redundant abstractions
+- [x] Start phase after approval
+- [x] Add failing tests for append and read against a configured prefix
+- [x] Add failing tests for two prefixes staying isolated with identical stream names
+- [x] Add failing tests for `autoMigration: 'None'` against an existing configured store
+- [x] Mirror append and read coverage on D1
+- [x] Qualify append, stream existence, stream read, batch read and last position
+- [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
+- [x] Review for consistency, naming, dead code and redundant abstractions
 - [ ] Stop for approval before Phase 4
+
+Notes:
+
+- The mixed-schema migration test in `migrations/current/migration.int.spec.ts` now appends and reads, closing the Phase 2 gap against PostgreSQL.
+- `readMessagesBatch` and `readLastMessageGlobalPosition` take `databaseSchemaName` but nothing in production reads it yet. `sqliteMessageSource` forwards it in Phase 4, together with the consumer `schema` option.
+- `SQLiteStreamExistsOptions.partition` changed from required to optional, matching `PostgresStreamExistsOptions`. The event store needs to add the resolved schema name to the user's options, and the implementation already defaulted the partition.
+
+Two pre-existing `streamExists` bugs found and fixed on Oskar's approval:
+
+- The SQL aliased the result as `as exists`, which SQLite rejects as a syntax error, so `eventStore.streamExists` always threw. The alias now goes through `SQL.identifier`.
+- `appendToStream` wrote the `emt_streams` partition as `streamsTable.columns.partition`, the column descriptor object, so the row stored `{"name":"partition"}` while `streamExists` filtered on `emt:default`. Both the insert and the update now use `defaultTag`, as PostgreSQL does.
+
+The partition fix breaks appends to streams in released databases, because the append `UPDATE` no longer matches their rows. `migrations/0_43_0` repairs them. It sits in `pastEventStoreSchemaMigrations`, the default chain only: a configured prefix never ran the buggy code, so recording it there would be a no-op history entry. Like the 0.42.0 step it opens with `CREATE TABLE IF NOT EXISTS emt_streams`, because SQLite has no conditional statement and the repair runs before the current schema migration creates the table.
+
+- `migrations/0_42_0/legacyApi.ts` reproduces the 0.42.0 append, including its stream partition, so the repair tests seed through the released write path instead of raw inserts. `migrations/0_43_0/legacyApi.ts` re-exports it, as PostgreSQL chains its own per-version legacy APIs.
+
+Both drivers now have the same configured-schema e2e coverage. Phase 3 first mirrored append and read on D1 only, which left `SQLiteEventStore.sqlite3.e2e.spec.ts` behind.
 
 ## Phase 4: checkpoints, processors, consumers and hooks
 

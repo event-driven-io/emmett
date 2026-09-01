@@ -1,6 +1,5 @@
 import { SQL, type SQLExecutor, singleOrNull } from '@event-driven-io/dumbo';
-import { defaultTag, messagesTable } from './typing';
-const { identifier } = SQL;
+import { defaultTag, messagesTable, tableReference } from './typing';
 
 type ReadLastMessageGlobalPositionSqlResult = {
   global_position: string;
@@ -12,13 +11,13 @@ export type ReadLastMessageGlobalPositionResult = {
 
 export const readLastMessageGlobalPosition = async (
   execute: SQLExecutor,
-  options?: { partition?: string },
+  options?: { partition?: string; databaseSchemaName?: string },
 ): Promise<ReadLastMessageGlobalPositionResult> => {
   const result = await singleOrNull(
     execute.query<ReadLastMessageGlobalPositionSqlResult>(
       SQL`
          SELECT global_position
-         FROM ${identifier(messagesTable.name)}
+         FROM ${tableReference(options?.databaseSchemaName, messagesTable.name)}
          WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE
          ORDER BY global_position DESC
          LIMIT 1`,
