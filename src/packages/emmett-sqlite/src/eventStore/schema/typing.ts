@@ -1,3 +1,8 @@
+import {
+  DefaultDatabaseSchemaName,
+  SQLTableReference,
+} from '@event-driven-io/dumbo';
+
 export const emmettPrefix = 'emt';
 
 export const globalTag = 'global';
@@ -38,3 +43,12 @@ export const processorsTable = {
 export const projectionsTable = {
   name: `${emmettPrefix}_projections`,
 };
+
+export const tableReference = (
+  databaseSchemaName: string | undefined,
+  tableName: string,
+) =>
+  SQLTableReference.from({
+    databaseSchemaName: databaseSchemaName ?? DefaultDatabaseSchemaName,
+    tableName,
+  });

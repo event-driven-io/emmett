@@ -5,9 +5,15 @@ import {
 } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import type { SQLiteEventStoreOptions } from '../SQLiteEventStore';
-import { eventStoreSchemaMigrations } from './migrations';
+import {
+  eventStoreDatabaseSchema,
+  type EventStoreDatabaseSchemaOptions,
+} from './eventStoreDatabaseSchema';
+import { eventStoreSchemaMigrationsFor } from './migrations';
 
 export * from './appendToStream';
+export * from './eventStoreDatabaseSchema';
+export * from './eventStoreSchemaSQL';
 export * from './migrations';
 export * from './readLastMessageGlobalPosition';
 export * from './readMessagesBatch';
@@ -22,7 +28,7 @@ export type CreateEventStoreSchemaOptions = {
   dryRun?: boolean | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
   migrationTimeoutMs?: number | undefined;
-};
+} & EventStoreDatabaseSchemaOptions;
 
 export type EventStoreSchemaMigrationOptions = {
   migrationOptions?: CreateEventStoreSchemaOptions;
@@ -34,16 +40,23 @@ export const createEventStoreSchema = (
   options?: CreateEventStoreSchemaOptions,
 ): Promise<RunSQLMigrationsResult> =>
   pool.withTransaction<RunSQLMigrationsResult>(async (tx) => {
+    const databaseSchema = eventStoreDatabaseSchema(options);
+
     if (hooks?.onBeforeSchemaCreated) {
       await hooks.onBeforeSchemaCreated({
         connection: tx.connection as AnySQLiteConnection,
       });
     }
 
-    const result = await runSQLMigrations(pool, eventStoreSchemaMigrations, {
-      ...options,
-      execute: tx.execute,
-    });
+    const result = await runSQLMigrations(
+      pool,
+      eventStoreSchemaMigrationsFor(options),
+      {
+        ...options,
+        migrationTable: databaseSchema.migrationTable,
+        execute: tx.execute,
+      },
+    );
 
     if (hooks?.onAfterSchemaCreated) {
       await hooks.onAfterSchemaCreated();
