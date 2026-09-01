@@ -19,6 +19,7 @@ export type SQLiteMessageSourceOptions = {
   pool: Dumbo;
   batchSize?: number;
   pullingFrequencyInMs?: number;
+  databaseSchemaName?: string;
 } & JSONSerializationOptions;
 
 export const sqliteMessageSource = <MessageType extends Message = AnyMessage>({
@@ -26,6 +27,7 @@ export const sqliteMessageSource = <MessageType extends Message = AnyMessage>({
   batchSize,
   pullingFrequencyInMs,
   serialization,
+  databaseSchemaName,
 }: SQLiteMessageSourceOptions): MessageSource<
   MessageType,
   ReadEventMetadataWithGlobalPosition
@@ -36,6 +38,7 @@ export const sqliteMessageSource = <MessageType extends Message = AnyMessage>({
     pool.withConnection(async (connection) => {
       const { currentGlobalPosition } = await readLastMessageGlobalPosition(
         connection.execute,
+        { databaseSchemaName },
       );
       return currentGlobalPosition !== null
         ? bigIntProcessorCheckpoint(currentGlobalPosition)
@@ -50,6 +53,7 @@ export const sqliteMessageSource = <MessageType extends Message = AnyMessage>({
             after: after !== null ? parseBigIntProcessorCheckpoint(after) : 0n,
             batchSize: requestedBatchSize,
             serializer,
+            databaseSchemaName,
           });
 
         return {

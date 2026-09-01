@@ -18,7 +18,10 @@ export const sqliteCheckpointer = <
   MessageType extends Message = Message,
 >(): SQLiteCheckpointer<MessageType> => ({
   read: async (options, context) => {
-    const result = await readProcessorCheckpoint(context.execute, options);
+    const result = await readProcessorCheckpoint(context.execute, {
+      ...options,
+      databaseSchemaName: context.migrationOptions?.databaseSchemaName,
+    });
 
     return { lastCheckpoint: result?.lastProcessedCheckpoint };
   },
@@ -31,6 +34,7 @@ export const sqliteCheckpointer = <
       processorId: options.processorId,
       partition: options.partition,
       version: options.version,
+      databaseSchemaName: context.migrationOptions?.databaseSchemaName,
     });
 
     return result.success

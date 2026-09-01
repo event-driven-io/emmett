@@ -14,7 +14,6 @@ import {
   ExpectedVersionConflictError,
   JSONSerializer,
   NO_CONCURRENCY_CHECK,
-  noopScope,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AnyMessage,
@@ -122,9 +121,9 @@ export type SQLiteEventStoreOptions<
     /**
      * This hook will be called **BEFORE** event store schema is created
      */
-    onBeforeSchemaCreated?: (context: {
-      connection: AnySQLiteConnection;
-    }) => Promise<void> | void;
+    onBeforeSchemaCreated?: (
+      context: SQLiteProjectionHandlerContext,
+    ) => Promise<void> | void;
     /**
      * This hook will be called **BEFORE** events were stored in the event store.
      * @type {BeforeEventStoreCommitHandler<SQLiteEventStore, HandlerContext>}
@@ -136,7 +135,9 @@ export type SQLiteEventStoreOptions<
     /**
      * This hook will be called **AFTER** event store schema was created
      */
-    onAfterSchemaCreated?: () => Promise<void> | void;
+    onAfterSchemaCreated?: (
+      context: SQLiteProjectionHandlerContext,
+    ) => Promise<void> | void;
   };
 } & { pool?: Dumbo } & InferOptionsFromEventStoreDriver<EventStoreDriver> &
   JSONSerializationOptions;
@@ -201,12 +202,7 @@ export const getSQLiteEventStore = <
                   version: projection.version ?? 1,
                   registrationType: 'async',
                   status: 'active',
-                  context: {
-                    execute: context.connection.execute,
-                    connection: context.connection,
-                    driverType: options.driver.driverType,
-                    observabilityScope: noopScope,
-                  },
+                  context,
                 });
               }
             }
@@ -214,7 +210,11 @@ export const getSQLiteEventStore = <
               await options.hooks.onBeforeSchemaCreated(context);
             }
           },
-          onAfterSchemaCreated: options.hooks?.onAfterSchemaCreated,
+          onAfterSchemaCreated: async (context) => {
+            if (options.hooks?.onAfterSchemaCreated) {
+              await options.hooks.onAfterSchemaCreated(context);
+            }
+          },
         },
         schemaMigrationOptions,
       );
@@ -424,6 +424,7 @@ export const getSQLiteEventStore = <
       sqliteEventStoreConsumer<ConsumerMessageType, Driver>({
         ...(options ?? {}),
         ...consumerOptions,
+        schema: databaseSchema,
         observability: mergeObservability(
           options.observability,
           consumerOptions?.observability,

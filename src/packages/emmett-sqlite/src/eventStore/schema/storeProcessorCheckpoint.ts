@@ -6,9 +6,12 @@ import {
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import type { ProcessorCheckpoint } from '@event-driven-io/emmett';
-import { defaultTag, processorsTable, unknownTag } from './typing';
-
-const { identifier } = SQL;
+import {
+  defaultTag,
+  processorsTable,
+  tableReference,
+  unknownTag,
+} from './typing';
 
 // for more infos see the postgresql stored procedure version
 async function storeSubscriptionCheckpointSQLite(
@@ -18,13 +21,14 @@ async function storeSubscriptionCheckpointSQLite(
   position: ProcessorCheckpoint | null,
   checkPosition: ProcessorCheckpoint | null,
   partition: string,
+  databaseSchemaName?: string,
   processorInstanceId?: string,
 ): Promise<0 | 1 | 2> {
   processorInstanceId ??= unknownTag;
   if (checkPosition !== null) {
     const updateResult = await execute.command(
       SQL`
-          UPDATE ${identifier(processorsTable.name)}
+          UPDATE ${tableReference(databaseSchemaName, processorsTable.name)}
           SET 
             last_processed_checkpoint = ${position},
             processor_instance_id = ${processorInstanceId}
@@ -39,7 +43,7 @@ async function storeSubscriptionCheckpointSQLite(
     const current_position = await singleOrNull(
       execute.query<{ last_processed_checkpoint: string }>(
         SQL`
-          SELECT last_processed_checkpoint FROM ${identifier(processorsTable.name)} 
+          SELECT last_processed_checkpoint FROM ${tableReference(databaseSchemaName, processorsTable.name)} 
                WHERE processor_id = ${processorId} AND partition = ${partition}`,
       ),
     );
@@ -63,7 +67,7 @@ async function storeSubscriptionCheckpointSQLite(
   } else {
     try {
       await execute.command(
-        SQL`INSERT INTO ${identifier(processorsTable.name)} (processor_id, version, last_processed_checkpoint, partition, processor_instance_id) 
+        SQL`INSERT INTO ${tableReference(databaseSchemaName, processorsTable.name)} (processor_id, version, last_processed_checkpoint, partition, processor_instance_id) 
         VALUES (${processorId}, ${version}, ${position}, ${partition}, ${processorInstanceId})`,
       );
       return 1;
@@ -79,7 +83,7 @@ async function storeSubscriptionCheckpointSQLite(
       const current = await singleOrNull(
         execute.query<{ last_processed_checkpoint: string }>(
           SQL`
-            SELECT last_processed_checkpoint FROM ${identifier(processorsTable.name)} 
+            SELECT last_processed_checkpoint FROM ${tableReference(databaseSchemaName, processorsTable.name)} 
             WHERE processor_id = ${processorId} AND partition = ${partition}`,
         ),
       );
@@ -113,6 +117,7 @@ export async function storeProcessorCheckpoint(
     lastProcessedCheckpoint: ProcessorCheckpoint | null;
     partition?: string;
     processorInstanceId?: string;
+    databaseSchemaName?: string;
   },
 ): Promise<StoreProcessorCheckpointResult> {
   try {
@@ -123,6 +128,7 @@ export async function storeProcessorCheckpoint(
       options.newCheckpoint,
       options.lastProcessedCheckpoint,
       options.partition ?? defaultTag,
+      options.databaseSchemaName,
     );
 
     return result === 1

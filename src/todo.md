@@ -232,17 +232,37 @@ Both drivers now have the same configured-schema e2e coverage. Phase 3 first mir
 
 ## Phase 4: checkpoints, processors, consumers and hooks
 
-- [ ] Start phase after approval
-- [ ] Add failing tests for processor checkpoints landing in the configured prefix
-- [ ] Add failing tests for store-created and standalone consumers targeting it
-- [ ] Add failing tests for `withSession`, a supplied pool, the ambient connection path and the D1 session mode
-- [ ] Add failing tests for both schema hooks receiving the resolved names
-- [ ] Add the consumer `schema` option and build the prepared metadata once
-- [ ] Forward the metadata to the message source, the checkpointer and the processing scopes
-- [ ] Change the hook signatures to carry the resolved context
-- [ ] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
-- [ ] Review for consistency, naming, dead code and redundant abstractions
+- [x] Start phase after approval
+- [x] Add failing tests for processor checkpoints landing in the configured prefix
+- [x] Add failing tests for store-created and standalone consumers targeting it
+- [x] Add failing tests for `withSession`, a supplied pool, the ambient connection path and the D1 session mode
+- [x] Add failing tests for both schema hooks receiving the resolved names
+- [x] Add the consumer `schema` option and build the prepared metadata once
+- [x] Forward the metadata to the message source, the checkpointer and the processing scopes
+- [x] Change the hook signatures to carry the resolved context
+- [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
+- [x] Review for consistency, naming, dead code and redundant abstractions
 - [ ] Stop for approval before Phase 5
+
+Notes:
+
+- `readProcessorCheckpoint` and `storeProcessorCheckpoint` take `databaseSchemaName`, and `sqliteCheckpointer` reads it from `context.migrationOptions`, as PostgreSQL does.
+- `sqliteProcessingScope` and `sqliteWorkflowProcessingScope` put `migrationOptions` in the handler context, so a processor keeps working outside the consumer.
+- `SQLiteProcessorOptionsBase` gives reactor, projector and workflow options the same `EventStoreSchemaMigrationOptions`. Only the projector had it before.
+- The workflow message store built on `sqliteAmbientConnectionPool` now keeps the configured schema next to `autoMigration: 'None'`. Without it the workflow wrote its output to the unprefixed tables.
+- Both hooks take `SQLiteProjectionHandlerContext`, which gained `EventStoreSchemaMigrationOptions` as PostgreSQL's projection context has. `createEventStoreSchema` builds that context once from the migration transaction and passes it to both hooks and to inline projection init, which stops rebuilding its own.
+- The hook context executes on `tx.execute` rather than `connection.execute`, so inline projection init shares the migration transaction. Its `driverType` comes from the pool instead of the driver option.
+- `withSession` and a supplied pool needed no change. Both have regression coverage now, matching the PostgreSQL consumer schema spec.
+- Reactor handler context has no `messageStore` on SQLite, so the PostgreSQL tests that append from a reactor have no direct counterpart. The workflow processor covers the same message-store path.
+- SQLite deadlocks when a test appends through a pool that a running consumer shares, so these tests append before starting the consumer, as the other SQLite consumer specs do.
+
+Alignment pass against PostgreSQL found three gaps, all closed:
+
+- `eventStore.consumer()` passed its whole `options.schema`, including `autoMigration`. It now passes the resolved `databaseSchema`, as PostgreSQL does, so the consumer never sees a migration style it has no use for.
+- The two processing scopes took `migrationOptions` differently, one in an options object and one positionally. Both take it positionally now.
+- Each test that builds its own store closes it, as the PostgreSQL spec does. Only the supplied-pool test keeps the shared pool, which PostgreSQL also leaves to its `afterAll`.
+
+One difference stays on purpose: the consumer's `scope` hands a partial context, and `sqliteProcessingScope` fills in `migrationOptions` for every processor. PostgreSQL puts it in the consumer scope because there the scope builds the whole context.
 
 ## Phase 5: Pongo and raw projections
 
@@ -288,6 +308,8 @@ Both drivers now have the same configured-schema e2e coverage. Phase 3 first mir
 
 ## Follow-up issues to open
 
+- [ ] Schema migration observability. `schema.migrate()` is not instrumented in either dialect, so the schema context always carries `noopScope` and hooks, inline projection init and the migration itself produce no span. See the follow-up section in `plan.md`. Discuss after the SQLite work lands.
+- [ ] Schema hook context naming. Both schema hooks take a projection handler context in both dialects, although they receive the migration transaction and the resolved schema names, nothing projection-specific. See the follow-up section in `plan.md`. Discuss after the SQLite work lands.
 - [ ] SQLite processor and projection locks, including a design that works on D1
 - [ ] SQLite projection management in `emt_projections`
 - [ ] `rebuildSQLiteProjections`, after locks and projection management land
