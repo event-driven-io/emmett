@@ -4,6 +4,8 @@ import {
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
+import { noopScope } from '@event-driven-io/emmett';
+import type { SQLiteProjectionHandlerContext } from '../projections';
 import type { SQLiteEventStoreOptions } from '../SQLiteEventStore';
 import {
   eventStoreDatabaseSchema,
@@ -41,11 +43,19 @@ export const createEventStoreSchema = (
 ): Promise<RunSQLMigrationsResult> =>
   pool.withTransaction<RunSQLMigrationsResult>(async (tx) => {
     const databaseSchema = eventStoreDatabaseSchema(options);
+    const schemaContext: SQLiteProjectionHandlerContext = {
+      execute: tx.execute,
+      connection: tx.connection as AnySQLiteConnection,
+      driverType: pool.driverType,
+      migrationOptions: {
+        ...options,
+        ...databaseSchema,
+      },
+      observabilityScope: noopScope,
+    };
 
     if (hooks?.onBeforeSchemaCreated) {
-      await hooks.onBeforeSchemaCreated({
-        connection: tx.connection as AnySQLiteConnection,
-      });
+      await hooks.onBeforeSchemaCreated(schemaContext);
     }
 
     const result = await runSQLMigrations(
@@ -59,7 +69,7 @@ export const createEventStoreSchema = (
     );
 
     if (hooks?.onAfterSchemaCreated) {
-      await hooks.onAfterSchemaCreated();
+      await hooks.onAfterSchemaCreated(schemaContext);
     }
 
     return options?.dryRun ? { success: false, result } : result;

@@ -160,6 +160,40 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     );
   });
 
+  void it('passes the configured schema names to schema creation hooks', async () => {
+    let beforeMigrationTableSchemaName: string | undefined;
+    let beforeProjectionsDatabaseSchemaName: string | undefined;
+    let afterMigrationTableSchemaName: string | undefined;
+    let afterProjectionsDatabaseSchemaName: string | undefined;
+
+    await createEventStoreSchema(
+      pool,
+      {
+        onBeforeSchemaCreated: (context) => {
+          beforeMigrationTableSchemaName =
+            context.migrationOptions?.migrationTable?.schemaName;
+          beforeProjectionsDatabaseSchemaName =
+            context.migrationOptions?.projectionsDatabaseSchemaName;
+        },
+        onAfterSchemaCreated: (context) => {
+          afterMigrationTableSchemaName =
+            context.migrationOptions?.migrationTable?.schemaName;
+          afterProjectionsDatabaseSchemaName =
+            context.migrationOptions?.projectionsDatabaseSchemaName;
+        },
+      },
+      {
+        databaseSchemaName: 'events',
+        migrationTable: { tableName: 'emmett_migrations' },
+      },
+    );
+
+    assertEqual(beforeMigrationTableSchemaName, 'events');
+    assertEqual(beforeProjectionsDatabaseSchemaName, 'events');
+    assertEqual(afterMigrationTableSchemaName, 'events');
+    assertEqual(afterProjectionsDatabaseSchemaName, 'events');
+  });
+
   void it('stores and reads events from the schema configured by the user', async () => {
     const streamName = `shopping_cart-${uuid()}`;
     const eventStore = getSQLiteEventStore({

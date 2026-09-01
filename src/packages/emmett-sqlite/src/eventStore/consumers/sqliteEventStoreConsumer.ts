@@ -18,6 +18,10 @@ import type {
   AnyEventStoreDriver,
   InferOptionsFromEventStoreDriver,
 } from '../eventStoreDriver';
+import {
+  eventStoreDatabaseSchema,
+  type EventStoreDatabaseSchemaOptions,
+} from '../schema';
 import { getSQLiteEventStore } from '../SQLiteEventStore';
 import { sqliteMessageSource } from './messageSource';
 import {
@@ -43,6 +47,7 @@ export type SQLiteEventStoreConsumerConfig<
     batchDeadlineInMs?: number;
     pullingFrequencyInMs?: number;
   };
+  schema?: EventStoreDatabaseSchemaOptions;
 };
 
 export type SQLiteEventStoreConsumerOptions<
@@ -117,6 +122,11 @@ export const sqliteEventStoreConsumer = <
 >(
   options: SQLiteEventStoreConsumerOptions<ConsumerMessageType, Driver>,
 ): SQLiteEventStoreConsumer<ConsumerMessageType> => {
+  const databaseSchema = eventStoreDatabaseSchema(options.schema);
+  const processorMetadataSchema = {
+    ...options.schema,
+    ...databaseSchema,
+  };
   const isOwnPool = !options.pool;
   const pool =
     options.pool ??
@@ -136,6 +146,7 @@ export const sqliteEventStoreConsumer = <
         batchSize: options.pulling?.batchSize,
         pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
         serialization: options.serialization,
+        databaseSchemaName: databaseSchema.databaseSchemaName,
       });
 
   const workflowProcessorFactory: SQLiteWorkflowProcessorFactory<
@@ -143,6 +154,8 @@ export const sqliteEventStoreConsumer = <
   > = (processorOptions) =>
     sqliteWorkflowProcessor({
       ...processorOptions,
+      migrationOptions:
+        processorOptions.migrationOptions ?? processorMetadataSchema,
       messageStore: (connection) =>
         getSQLiteEventStore({
           ...options,
@@ -150,7 +163,7 @@ export const sqliteEventStoreConsumer = <
             driverType: options.driver.driverType,
             connection,
           }),
-          schema: { autoMigration: 'None' },
+          schema: { autoMigration: 'None', ...databaseSchema },
         }),
     });
 
@@ -164,8 +177,18 @@ export const sqliteEventStoreConsumer = <
   >({
     ...options,
     source,
-    reactorFactory: sqliteReactor,
-    projectorFactory: sqliteProjector,
+    reactorFactory: (processorOptions) =>
+      sqliteReactor({
+        ...processorOptions,
+        migrationOptions:
+          processorOptions.migrationOptions ?? processorMetadataSchema,
+      }),
+    projectorFactory: (processorOptions) =>
+      sqliteProjector({
+        ...processorOptions,
+        migrationOptions:
+          processorOptions.migrationOptions ?? processorMetadataSchema,
+      }),
     workflowProcessorFactory,
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,

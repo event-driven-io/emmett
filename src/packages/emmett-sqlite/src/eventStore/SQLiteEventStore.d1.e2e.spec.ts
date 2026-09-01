@@ -31,6 +31,7 @@ import type {
   ProductItemAdded,
   ShoppingCartEvent,
 } from '../testing/shoppingCart.domain';
+import { readProcessorCheckpoint } from './schema';
 import {
   getSQLiteEventStore,
   type SQLiteEventStore,
@@ -328,6 +329,49 @@ void describe('SQLiteEventStore with a database schema configured by the user', 
     assertTrue(streamExists);
     assertEqual(1, events.length);
     assertTrue(await eventStore.streamExists(shoppingCartId));
+  });
+
+  void it('should keep processor checkpoints in the configured schema', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const processorId = `processor:${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    const consumer = eventStore.consumer<ShoppingCartEvent>({
+      stopWhen: { noMessagesLeft: true },
+    });
+    consumer.reactor({
+      processorId,
+      canHandle: ['ProductItemAdded'],
+      eachMessage: () => {},
+    });
+
+    try {
+      await consumer.start();
+    } finally {
+      await consumer.close();
+    }
+
+    const pool = d1Pool({ database });
+
+    try {
+      const { lastProcessedCheckpoint } = await readProcessorCheckpoint(
+        pool.execute,
+        { processorId, databaseSchemaName: 'events' },
+      );
+
+      assertIsNotNull(lastProcessedCheckpoint);
+      assertFalse(await tableExists(pool.execute, 'emt_processors'));
+    } finally {
+      await pool.close();
+    }
   });
 
   void it('should keep the default schema tables uncreated', async () => {

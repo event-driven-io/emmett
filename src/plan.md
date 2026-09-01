@@ -216,6 +216,31 @@ This is not caused by schema support and does not fail the suite, but it should 
 - check long-running consumer/processor tests and testcontainers helpers first, because they are the most likely places to attach signal handlers;
 - keep the fix outside the schema PR unless the trace points to code touched by schema support.
 
+### Schema migration observability follow-up
+
+Schema creation always reports `noopScope`. The collector instruments read, aggregate, append and the inline projection that runs during append. It does not instrument `migrate()` in either dialect, so no operation scope exists when the schema context is built. PostgreSQL hardcodes `noopScope` in `transactionToPostgreSQLProjectionHandlerContext` and again for inline projection init during migration, and SQLite now does the same.
+
+A permanent `noopScope` is not acceptable. Migrations are the slowest and the most failure-prone startup step, and today they produce no span at all. Everything a hook or an inline projection does during migration is invisible too, because it inherits that scope.
+
+The follow-up should:
+
+- add a migration operation to the event store collector, so `schema.migrate()` opens a real scope;
+- pass that scope into the schema context, replacing `noopScope` in both dialects;
+- decide what the span reports: applied and skipped migration names, the resolved schema names, the migration table, and whether the run was a dry run;
+- keep PostgreSQL and SQLite on the same shape, PostgreSQL first.
+
+Discuss it after the SQLite schema work lands. It is not caused by schema support, but schema support is what made the gap visible.
+
+### Schema hook context naming follow-up
+
+Both schema hooks take a projection handler context. PostgreSQL declares `onBeforeSchemaCreated` and `onAfterSchemaCreated` as `(context: PostgreSQLProjectionHandlerContext) => Promise<void> | void`, and SQLite now matches it.
+
+The name is wrong. What the hooks receive is the migration transaction plus the resolved schema names: `execute`, `connection`, `driverType`, `migrationOptions` and `observabilityScope`. Nothing in it is projection-specific. The projection type ended up there because the store initializes inline projections inside those hooks, projection init needs a projection handler context, and one object serves both.
+
+The follow-up should name the hook contract for what it is, for example `SchemaCreationContext` per dialect, and let the projection handler context stay assignable to it so inline projection init keeps working. PostgreSQL first, SQLite following, so the two packages stay readable side by side.
+
+This is a naming defect, not a behavior one. Renaming in SQLite alone would make the packages diverge on a problem PostgreSQL owns first, so it waits.
+
 ## Pongo contract
 
 Use one internal Pongo-client factory for init, handle, truncate, rebuild and specs. It receives the resolved context and always forwards:

@@ -16,13 +16,19 @@ import {
   type ProjectionInitOptions,
   type ReadEvent,
 } from '@event-driven-io/emmett';
+import type { EventStoreSchemaMigrationOptions } from '../schema';
 import type { SQLiteReadEventMetadata } from '../SQLiteEventStore';
 
-export type SQLiteProjectionHandlerContext = ProjectionHandlerContext<{
-  execute: SQLExecutor;
-  connection: AnySQLiteConnection;
-  driverType: DatabaseDriverType;
-}>;
+export type SQLiteProjectionHandlerContext = ProjectionHandlerContext<
+  {
+    execute: SQLExecutor;
+    connection: AnySQLiteConnection;
+    driverType: DatabaseDriverType;
+  } &
+    // TODO: This should be only for Init options
+    // Make init options type configurable for projections
+    EventStoreSchemaMigrationOptions
+>;
 
 export type SQLiteProjectionHandler<
   EventType extends Event = Event,

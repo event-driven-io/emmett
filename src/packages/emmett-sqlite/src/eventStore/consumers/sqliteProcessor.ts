@@ -85,6 +85,9 @@ export type SQLiteProcessorConnectionOptions = {
   connection?: AnySQLiteConnection;
 };
 
+type SQLiteProcessorOptionsBase = SQLiteProcessorConnectionOptions &
+  EventStoreSchemaMigrationOptions;
+
 export type SQLiteReactorOptions<
   MessageType extends Message = Message,
   MessagePayloadType extends AnyMessage = MessageType,
@@ -94,7 +97,7 @@ export type SQLiteReactorOptions<
   SQLiteProcessorHandlerContext,
   MessagePayloadType
 > &
-  SQLiteProcessorConnectionOptions;
+  SQLiteProcessorOptionsBase;
 
 export type SQLiteProjectorOptions<
   EventType extends AnyEvent = AnyEvent,
@@ -105,8 +108,7 @@ export type SQLiteProjectorOptions<
   SQLiteProcessorHandlerContext,
   EventPayloadType
 > &
-  SQLiteProcessorConnectionOptions &
-  EventStoreSchemaMigrationOptions;
+  SQLiteProcessorOptionsBase;
 
 export type SQLiteWorkflowProcessorOptions<
   Input extends AnyEvent | AnyCommand,
@@ -123,7 +125,7 @@ export type SQLiteWorkflowProcessorOptions<
   HandlerContext,
   StoredMessage
 > &
-  SQLiteProcessorConnectionOptions & {
+  SQLiteProcessorOptionsBase & {
     messageStore: SQLiteWorkflowMessageStoreFactory;
   };
 
@@ -131,39 +133,42 @@ export type SQLiteWorkflowMessageStoreFactory = (
   connection: AnySQLiteConnection,
 ) => WorkflowProcessorContext['connection']['messageStore'];
 
-const sqliteProcessingScope =
-  (): MessageProcessingScope<SQLiteProcessorHandlerContext> => {
-    const processingScope: MessageProcessingScope<
-      SQLiteProcessorHandlerContext
-    > = async <Result = SingleMessageHandlerResult>(
-      handler: (
-        context: SQLiteProcessorHandlerContext,
-      ) => Result | Promise<Result>,
-      partialContext: Partial<SQLiteProcessorHandlerContext>,
-    ) => {
-      const connection = partialContext?.connection;
+const sqliteProcessingScope = (
+  migrationOptions?: EventStoreSchemaMigrationOptions['migrationOptions'],
+): MessageProcessingScope<SQLiteProcessorHandlerContext> => {
+  const processingScope: MessageProcessingScope<
+    SQLiteProcessorHandlerContext
+  > = async <Result = SingleMessageHandlerResult>(
+    handler: (
+      context: SQLiteProcessorHandlerContext,
+    ) => Result | Promise<Result>,
+    partialContext: Partial<SQLiteProcessorHandlerContext>,
+  ) => {
+    const connection = partialContext?.connection;
 
-      if (!connection)
-        // TODO: Map it to dumbo connection correctly
-        throw new EmmettError('Connection is required in context or options');
+    if (!connection)
+      // TODO: Map it to dumbo connection correctly
+      throw new EmmettError('Connection is required in context or options');
 
-      return connection.withTransaction(
-        async (transaction: SQLiteTransaction) => {
-          return handler({
-            ...partialContext,
-            connection: connection,
-            execute: transaction.execute,
-            observabilityScope: partialContext?.observabilityScope ?? noopScope,
-          });
-        },
-      );
-    };
-
-    return processingScope;
+    return connection.withTransaction(
+      async (transaction: SQLiteTransaction) => {
+        return handler({
+          ...partialContext,
+          connection: connection,
+          execute: transaction.execute,
+          migrationOptions,
+          observabilityScope: partialContext?.observabilityScope ?? noopScope,
+        });
+      },
+    );
   };
+
+  return processingScope;
+};
 
 const sqliteWorkflowProcessingScope = (
   createMessageStore: SQLiteWorkflowMessageStoreFactory,
+  migrationOptions?: EventStoreSchemaMigrationOptions['migrationOptions'],
 ): MessageProcessingScope<
   SQLiteProcessorHandlerContext & WorkflowProcessorContext
 > => {
@@ -190,6 +195,7 @@ const sqliteWorkflowProcessingScope = (
             messageStore: createMessageStore(transaction.connection),
           },
           execute: transaction.execute,
+          migrationOptions,
           observabilityScope: partialContext?.observabilityScope ?? noopScope,
         });
       },
@@ -242,6 +248,7 @@ export const sqliteWorkflowProcessor = <
     hooks,
     processingScope: sqliteWorkflowProcessingScope(
       options.messageStore,
+      options.migrationOptions,
     ) as unknown as MessageProcessingScope<HandlerContext>,
     checkpoints:
       options.checkpoints === 'DISABLED'
@@ -275,7 +282,7 @@ export const sqliteReactor = <
     version,
     partition,
     hooks,
-    processingScope: sqliteProcessingScope(),
+    processingScope: sqliteProcessingScope(options.migrationOptions),
 
     checkpoints:
       options.checkpoints === 'DISABLED'
@@ -336,7 +343,7 @@ export const sqliteProjector = <
     version,
     partition,
     hooks,
-    processingScope: sqliteProcessingScope(),
+    processingScope: sqliteProcessingScope(options.migrationOptions),
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<EventType>()
