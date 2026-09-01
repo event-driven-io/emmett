@@ -1,6 +1,5 @@
 import { JSONSerializer } from '@event-driven-io/dumbo';
 import {
-  sqlite3Connection,
   sqlite3Pool,
   type SQLite3Connection,
   type SQLitePool,
@@ -55,7 +54,7 @@ void describe('waiting for a SQLite consumer to catch up in a test', () => {
     });
     eventStore = getSQLiteEventStore({ ...config, pool });
     return createEventStoreSchema(
-      sqlite3Connection({ fileName, serializer: JSONSerializer }),
+      sqlite3Pool({ fileName, serializer: JSONSerializer }),
     );
   });
 

@@ -1,7 +1,4 @@
-import { SQL, type AnyDatabaseTransaction } from '@event-driven-io/dumbo';
-import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
-import type { SQLiteEventStoreOptions } from '../SQLiteEventStore';
-import { migration_0_42_0_FromSubscriptionsToProcessors } from './migrations';
+import { SQL } from '@event-driven-io/dumbo';
 import {
   globalTag,
   messagesTable,
@@ -72,33 +69,3 @@ export const schemaSQL: SQL[] = [
   processorsTableSQL,
   projectionsTableSQL,
 ];
-
-export type CreateEventStoreSchemaOptions = {
-  dryRun?: boolean | undefined;
-  ignoreMigrationHashMismatch?: boolean | undefined;
-  migrationTimeoutMs?: number | undefined;
-};
-
-export type EventStoreSchemaMigrationOptions = {
-  migrationOptions?: CreateEventStoreSchemaOptions;
-};
-
-export const createEventStoreSchema = async (
-  pool: AnySQLiteConnection,
-  hooks?: SQLiteEventStoreOptions['hooks'],
-): Promise<void> => {
-  await pool.withTransaction(async (tx: AnyDatabaseTransaction) => {
-    await migration_0_42_0_FromSubscriptionsToProcessors(tx.execute);
-
-    if (hooks?.onBeforeSchemaCreated) {
-      await hooks.onBeforeSchemaCreated({
-        connection: tx.connection as AnySQLiteConnection,
-      });
-    }
-    await tx.execute.batchCommand(schemaSQL);
-
-    if (hooks?.onAfterSchemaCreated) {
-      await hooks.onAfterSchemaCreated();
-    }
-  });
-};

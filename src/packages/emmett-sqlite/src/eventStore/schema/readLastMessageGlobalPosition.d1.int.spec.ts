@@ -1,7 +1,11 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
-import { d1Connection } from '@event-driven-io/dumbo/cloudflare';
-import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite3';
+import {
+  d1Connection,
+  d1Pool,
+  type D1Connection,
+  type D1ConnectionPool,
+} from '@event-driven-io/dumbo/cloudflare';
 import {
   assertEqual,
   assertIsNotNull,
@@ -28,7 +32,8 @@ export type ProductItemAdded = Event<
 >;
 
 void describe('readLastMessageGlobalPosition', () => {
-  let connection: AnySQLiteConnection;
+  let connection: D1Connection;
+  let pool: D1ConnectionPool;
   let mf: Miniflare;
   let database: D1Database;
 
@@ -47,7 +52,8 @@ void describe('readLastMessageGlobalPosition', () => {
         mode: 'session_based',
       },
     });
-    await createEventStoreSchema(connection);
+    pool = d1Pool({ database, connection });
+    await createEventStoreSchema(pool);
   });
 
   beforeEach(async () => {

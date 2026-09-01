@@ -1,0 +1,108 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`0.42.0 schema is unchanged 1`] = `
+[
+  {
+    "name": "emt:sqlite:eventstore:0.42.0:from-subscriptions-to-processors",
+    "sqls": [
+      {
+        "__brand": "tokenized-sql",
+        "sqlChunks": [
+          "CREATE TABLE IF NOT EXISTS ",
+          "__P__",
+          "(
+    processor_id                 TEXT                  NOT NULL,
+    version                      INTEGER               NOT NULL DEFAULT 1,
+    partition                    TEXT                  NOT NULL DEFAULT '",
+          "global",
+          "',
+    status                       TEXT                  NOT NULL DEFAULT 'stopped',
+    last_processed_checkpoint    TEXT                  NOT NULL,
+    processor_instance_id        TEXT                  DEFAULT 'emt:unknown',
+    PRIMARY KEY (processor_id, partition, version)
+)",
+        ],
+        "sqlTokens": [
+          {
+            "SQL_IDENTIFIER": true,
+            "sqlTokenType": "SQL_IDENTIFIER",
+            "value": "emt_processors",
+          },
+        ],
+      },
+      {
+        "__brand": "tokenized-sql",
+        "sqlChunks": [
+          "CREATE TABLE IF NOT EXISTS ",
+          "__P__",
+          "(
+    name                         TEXT                  NOT NULL,
+    version                      INTEGER               NOT NULL DEFAULT 1,
+    partition                    TEXT                  NOT NULL DEFAULT '",
+          "global",
+          "',
+    type                         CHAR(1)               NOT NULL,
+    kind                         TEXT                  NOT NULL,
+    status                       TEXT                  NOT NULL,
+    definition                   JSONB                 NOT NULL DEFAULT '{}',
+    PRIMARY KEY (name, partition, version)
+)",
+        ],
+        "sqlTokens": [
+          {
+            "SQL_IDENTIFIER": true,
+            "sqlTokenType": "SQL_IDENTIFIER",
+            "value": "emt_projections",
+          },
+        ],
+      },
+      {
+        "__brand": "tokenized-sql",
+        "sqlChunks": [
+          "CREATE TABLE IF NOT EXISTS emt_subscriptions(
+    subscription_id                 TEXT                   NOT NULL,
+    version                         INTEGER                NOT NULL DEFAULT 1,
+    partition                       TEXT                   NOT NULL DEFAULT '",
+          "global",
+          "',
+    last_processed_position         BIGINT                 NOT NULL,
+    PRIMARY KEY (subscription_id, partition, version)
+)",
+        ],
+        "sqlTokens": [],
+      },
+      {
+        "__brand": "tokenized-sql",
+        "sqlChunks": [
+          "INSERT INTO ",
+          "__P__",
+          "
+    (processor_id, version, partition, status, last_processed_checkpoint, processor_instance_id)
+  SELECT
+    subscription_id,
+    version,
+    partition,
+    'stopped',
+    printf('%019d', last_processed_position),
+    'emt:unknown'
+  FROM emt_subscriptions",
+        ],
+        "sqlTokens": [
+          {
+            "SQL_IDENTIFIER": true,
+            "sqlTokenType": "SQL_IDENTIFIER",
+            "value": "emt_processors",
+          },
+        ],
+      },
+      {
+        "__brand": "tokenized-sql",
+        "sqlChunks": [
+          "DROP TABLE emt_subscriptions",
+        ],
+        "sqlTokens": [],
+      },
+    ],
+  },
+]
+`;

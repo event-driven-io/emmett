@@ -2,7 +2,9 @@ import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
   InMemorySQLiteDatabase,
   sqlite3Connection,
+  sqlite3Pool,
   type AnySQLiteConnection,
+  type Sqlite3Pool,
 } from '@event-driven-io/dumbo/sqlite3';
 import {
   assertEqual,
@@ -30,13 +32,19 @@ export type ProductItemAdded = Event<
 
 void describe('readLastMessageGlobalPosition', () => {
   let connection: AnySQLiteConnection;
+  let pool: Sqlite3Pool;
 
   beforeAll(async () => {
     connection = sqlite3Connection({
       fileName: InMemorySQLiteDatabase,
       serializer: JSONSerializer,
     });
-    await createEventStoreSchema(connection);
+    pool = sqlite3Pool({
+      fileName: InMemorySQLiteDatabase,
+      singleton: true,
+      connection,
+    });
+    await createEventStoreSchema(pool);
   });
 
   beforeEach(async () => {

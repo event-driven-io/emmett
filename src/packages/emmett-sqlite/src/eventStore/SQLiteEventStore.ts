@@ -1,4 +1,8 @@
-import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  type Dumbo,
+  type RunSQLMigrationsResult,
+} from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   assertExpectedVersionMatchesCurrent,
@@ -51,6 +55,7 @@ import {
   schemaSQL,
   streamExists,
   unknownTag,
+  type CreateEventStoreSchemaOptions,
   type SQLiteStreamExistsOptions,
 } from './schema';
 
@@ -83,7 +88,9 @@ export interface SQLiteEventStore
   schema: {
     sql(): string;
     print(): void;
-    migrate(): Promise<void>;
+    migrate(
+      options?: CreateEventStoreSchemaOptions,
+    ): Promise<RunSQLMigrationsResult>;
   };
 }
 
@@ -149,7 +156,7 @@ export const getSQLiteEventStore = <
       },
       ...options.driver.mapToDumboOptions(options),
     });
-  let migrateSchema: Promise<void> | undefined = undefined;
+  let migrateSchema: Promise<RunSQLMigrationsResult> | undefined = undefined;
 
   const inlineProjections = (options.projections ?? [])
     .filter(({ type }) => type === 'inline')
@@ -165,40 +172,54 @@ export const getSQLiteEventStore = <
       options.schema?.autoMigration !== 'None';
   }
 
-  const migrate = (connection: AnySQLiteConnection): Promise<void> => {
+  const migrate = async (
+    migrationOptions?: CreateEventStoreSchemaOptions,
+  ): Promise<RunSQLMigrationsResult> => {
     if (!migrateSchema) {
-      migrateSchema = createEventStoreSchema(connection, {
-        onBeforeSchemaCreated: async (context) => {
-          for (const projection of inlineProjections) {
-            if (projection.init) {
-              await projection.init({
-                version: projection.version ?? 1,
-                registrationType: 'async',
-                status: 'active',
-                context: {
-                  execute: context.connection.execute,
-                  connection: context.connection,
-                  driverType: options.driver.driverType,
-                  observabilityScope: noopScope,
-                },
-              });
+      const migration = createEventStoreSchema(
+        pool,
+        {
+          onBeforeSchemaCreated: async (context) => {
+            for (const projection of inlineProjections) {
+              if (projection.init) {
+                await projection.init({
+                  version: projection.version ?? 1,
+                  registrationType: 'async',
+                  status: 'active',
+                  context: {
+                    execute: context.connection.execute,
+                    connection: context.connection,
+                    driverType: options.driver.driverType,
+                    observabilityScope: noopScope,
+                  },
+                });
+              }
             }
-          }
-          if (options.hooks?.onBeforeSchemaCreated) {
-            await options.hooks.onBeforeSchemaCreated(context);
-          }
+            if (options.hooks?.onBeforeSchemaCreated) {
+              await options.hooks.onBeforeSchemaCreated(context);
+            }
+          },
+          onAfterSchemaCreated: options.hooks?.onAfterSchemaCreated,
         },
-        onAfterSchemaCreated: options.hooks?.onAfterSchemaCreated,
-      });
-    }
+        migrationOptions,
+      );
 
-    return migrateSchema;
+      if (migrationOptions?.dryRun) {
+        return migration;
+      }
+
+      migrateSchema = migration;
+      return migration;
+    }
+    const result = await migrateSchema;
+
+    return { applied: [], skipped: result.applied.concat(result.skipped) };
   };
 
-  const ensureSchemaExists = (): Promise<void> => {
+  const ensureSchemaExists = (): Promise<unknown> => {
     if (!autoGenerateSchema) return Promise.resolve();
 
-    return pool.withConnection((connection) => migrate(connection));
+    return migrate();
   };
 
   const readStreamFromSQLite = <
@@ -419,7 +440,7 @@ export const getSQLiteEventStore = <
     schema: {
       sql: () => schemaSQL.join(''),
       print: () => console.log(schemaSQL.join('')),
-      migrate: () => pool.withConnection(migrate),
+      migrate,
     },
   };
 };

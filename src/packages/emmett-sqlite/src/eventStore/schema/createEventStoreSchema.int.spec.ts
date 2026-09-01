@@ -19,9 +19,7 @@ void describe('createEventStoreSchema', () => {
       },
     });
 
-    await pool.withConnection((connection) =>
-      createEventStoreSchema(connection),
-    );
+    await createEventStoreSchema(pool);
   });
 
   afterAll(async () => {

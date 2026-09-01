@@ -1,5 +1,5 @@
 import { JSONSerializer } from '@event-driven-io/dumbo';
-import { sqlite3Connection } from '@event-driven-io/dumbo/sqlite3';
+import { sqlite3Pool } from '@event-driven-io/dumbo/sqlite3';
 import {
   assertEqual,
   assertFalse,
@@ -44,7 +44,7 @@ void describe('SQLite processor transaction handling', () => {
   beforeEach(() => {
     eventStore = getSQLiteEventStore(config);
     return createEventStoreSchema(
-      sqlite3Connection({ fileName, serializer: JSONSerializer }),
+      sqlite3Pool({ fileName, serializer: JSONSerializer }),
     );
   });
 

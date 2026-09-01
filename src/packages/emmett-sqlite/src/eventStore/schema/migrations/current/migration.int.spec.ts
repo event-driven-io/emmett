@@ -1,7 +1,8 @@
 import {
   JSONSerializer,
-  single,
+  runSQLMigrations,
   SQL,
+  sqlMigration,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import {
@@ -10,25 +11,28 @@ import {
   sqlite3Pool,
   tableExists,
   type SQLite3Connection,
+  type Sqlite3Pool,
 } from '@event-driven-io/dumbo/sqlite3';
 import {
   assertDeepEqual,
+  assertFalse,
+  assertThatArray,
   assertTrue,
   type Event,
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import { sqlite3EventStoreDriver } from '../../../sqlite3';
+import { sqlite3EventStoreDriver } from '../../../../sqlite3';
 import {
   getSQLiteEventStore,
   type SQLiteEventStore,
   type SQLiteReadEventMetadata,
-} from '../../SQLiteEventStore';
-import { readProcessorCheckpoint } from '../readProcessorCheckpoint';
-import { schemaSQL } from '../tables';
-import { defaultTag } from '../typing';
-import { schema_0_41_0 } from './0_41_0';
-import { schema_0_42_0 } from './0_42_0';
+} from '../../../SQLiteEventStore';
+import { readProcessorCheckpoint } from '../../readProcessorCheckpoint';
+import { schemaSQL } from '../../tables';
+import { migrations_0_41_0 } from '../0_41_0';
+import { migrations_0_42_0 } from '../0_42_0';
+import { schemaMigration } from '../index';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -52,6 +56,7 @@ export type OrderInitiated = Event<
 
 void describe('Schema migrations tests', () => {
   let connection: SQLite3Connection;
+  let pool: Sqlite3Pool;
   let eventStore: SQLiteEventStore;
 
   beforeEach(() => {
@@ -60,7 +65,7 @@ void describe('Schema migrations tests', () => {
       serializer: JSONSerializer,
     });
 
-    const pool = sqlite3Pool({
+    pool = sqlite3Pool({
       fileName: InMemorySQLiteDatabase,
       singleton: true,
       connection,
@@ -79,10 +84,33 @@ void describe('Schema migrations tests', () => {
     await connection.close();
   });
 
-  void it('migrates from 0.41.0 schema', async () => {
-    await connection.execute.batchCommand(schema_0_41_0);
+  void it('migrates from fresh schema', async () => {
+    // Given
 
-    await eventStore.schema.migrate();
+    // When
+    const { applied, skipped } = await eventStore.schema.migrate();
+
+    // Then
+    assertDeepEqual(applied, [...migrations_0_42_0, schemaMigration]);
+    assertThatArray(skipped).isEmpty();
+
+    assertTrue(await tableExists(connection.execute, 'dmb_migrations'));
+
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(connection.execute, result);
+    await assertProjectionsTableExists(connection.execute);
+  });
+
+  void it('migrates from 0.41.0 schema', async () => {
+    // Given
+    await runSQLMigrations(pool, migrations_0_41_0);
+
+    // When
+    const { applied, skipped } = await eventStore.schema.migrate();
+
+    // Then
+    assertDeepEqual(applied, [...migrations_0_42_0, schemaMigration]);
+    assertThatArray(skipped).isEmpty();
 
     const result = await assertCanAppendAndRead(eventStore);
     await assertCanStoreAndReadCheckpoints(connection.execute, result);
@@ -90,9 +118,15 @@ void describe('Schema migrations tests', () => {
   });
 
   void it('migrates from 0.42.0 schema', async () => {
-    await connection.execute.batchCommand(schema_0_42_0);
+    // Given
+    await runSQLMigrations(pool, [...migrations_0_41_0, ...migrations_0_42_0]);
 
-    await eventStore.schema.migrate();
+    // When
+    const { applied, skipped } = await eventStore.schema.migrate();
+
+    // Then
+    assertDeepEqual(applied, [schemaMigration]);
+    assertDeepEqual(skipped, [...migrations_0_42_0]);
 
     const result = await assertCanAppendAndRead(eventStore);
     await assertCanStoreAndReadCheckpoints(connection.execute, result);
@@ -100,38 +134,86 @@ void describe('Schema migrations tests', () => {
   });
 
   void it('migrates from latest schema', async () => {
-    await connection.execute.batchCommand(schemaSQL);
-
+    // Given
     await eventStore.schema.migrate();
+
+    // When
+    const { applied, skipped } = await eventStore.schema.migrate();
+
+    // Then
+    assertThatArray(applied).isEmpty();
+    assertDeepEqual(skipped, [...migrations_0_42_0, schemaMigration]);
+  });
+
+  void it('migrates from the schema created before migrations were introduced', async () => {
+    // Given
+    await connection.execute.batchCommand(schemaSQL);
+    const existingStreamId = 'cart-before-migrations';
+    await eventStore.appendToStream(existingStreamId, [
+      {
+        type: 'ProductItemAdded',
+        data: {
+          shoppingCartId: existingStreamId,
+          productItem: { productId: 'product-456', quantity: 2 },
+        },
+      } satisfies ProductItemAdded,
+    ]);
+
+    // When
+    const { applied, skipped } = await eventStore.schema.migrate();
+
+    // Then
+    assertDeepEqual(applied, [...migrations_0_42_0, schemaMigration]);
+    assertThatArray(skipped).isEmpty();
+
+    const existingStream =
+      await eventStore.readStream<ShoppingCartEvent>(existingStreamId);
+
+    assertTrue(existingStream.streamExists);
+    assertDeepEqual(existingStream.currentStreamVersion, 1n);
+    assertDeepEqual(existingStream.events.length, 1);
 
     const result = await assertCanAppendAndRead(eventStore);
     await assertCanStoreAndReadCheckpoints(connection.execute, result);
     await assertProjectionsTableExists(connection.execute);
   });
 
-  void it('migrates pre-existing subscription checkpoint', async () => {
-    await connection.execute.batchCommand(schema_0_41_0);
-
-    await connection.execute.command(SQL`
-      INSERT INTO emt_subscriptions (subscription_id, version, partition, last_processed_position)
-      VALUES ('legacy-processor-1', 1, ${defaultTag}, 42)
-    `);
-
-    await eventStore.schema.migrate();
-
-    const result = await single(
-      connection.execute.query<{
-        processor_id: string;
-        last_processed_checkpoint: string;
-      }>(SQL`
-      SELECT processor_id, last_processed_checkpoint
-      FROM emt_processors
-      WHERE processor_id = 'legacy-processor-1' AND partition = ${defaultTag}
-    `),
+  void it('skips the current schema migration when its SQL changed but the user already applied it', async () => {
+    await runSQLMigrations(pool, [schemaMigration]);
+    const sameMigrationChangedSQL = sqlMigration(
+      schemaMigration.name,
+      [SQL`SELECT 1`],
+      { ignoreHashMismatch: true },
     );
 
-    assertDeepEqual(result?.processor_id, 'legacy-processor-1');
-    assertDeepEqual(result?.last_processed_checkpoint, '0000000000000000042');
+    const { applied, skipped } = await runSQLMigrations(pool, [
+      sameMigrationChangedSQL,
+    ]);
+
+    assertThatArray(applied).isEmpty();
+    assertDeepEqual(skipped, [sameMigrationChangedSQL]);
+  });
+
+  void it('applies the migration after the user dry-runs it first', async () => {
+    // Given
+    const dryRun = await eventStore.schema.migrate({ dryRun: true });
+
+    assertDeepEqual(dryRun.applied, [...migrations_0_42_0, schemaMigration]);
+    assertFalse(await tableExists(connection.execute, 'dmb_migrations'));
+    assertFalse(await tableExists(connection.execute, 'emt_streams'));
+
+    // When
+    const { applied, skipped } = await eventStore.schema.migrate();
+
+    // Then
+    assertDeepEqual(applied, [...migrations_0_42_0, schemaMigration]);
+    assertThatArray(skipped).isEmpty();
+
+    assertTrue(await tableExists(connection.execute, 'dmb_migrations'));
+
+    const result = await assertCanAppendAndRead(eventStore);
+    await assertCanStoreAndReadCheckpoints(connection.execute, result);
+    await assertProjectionsTableExists(connection.execute);
   });
 
   const assertCanAppendAndRead = async (eventStore: SQLiteEventStore) => {

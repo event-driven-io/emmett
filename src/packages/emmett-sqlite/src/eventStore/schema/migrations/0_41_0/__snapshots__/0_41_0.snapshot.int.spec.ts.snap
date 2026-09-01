@@ -1,7 +1,14 @@
-import { SQL, sqlMigration, type SQLMigration } from '@event-driven-io/dumbo';
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-export const schema_0_41_0: SQL[] = [
-  SQL`CREATE TABLE IF NOT EXISTS emt_streams(
+exports[`0.41.0 schema is unchanged 1`] = `
+[
+  {
+    "name": "emt:sqlite:eventstore:0.41.0:initial_snapshot",
+    "sqls": [
+      {
+        "__brand": "tokenized-sql",
+        "sqlChunks": [
+          "CREATE TABLE IF NOT EXISTS emt_streams(
     stream_id         TEXT                      NOT NULL,
     stream_position   BIGINT                    NOT NULL DEFAULT 0,
     partition         TEXT                      NOT NULL DEFAULT 'global',
@@ -10,8 +17,14 @@ export const schema_0_41_0: SQL[] = [
     is_archived       BOOLEAN                   NOT NULL DEFAULT FALSE,
     PRIMARY KEY (stream_id, partition, is_archived),
     UNIQUE (stream_id, partition, is_archived)
-)`,
-  SQL`CREATE TABLE IF NOT EXISTS emt_messages(
+)",
+        ],
+        "sqlTokens": [],
+      },
+      {
+        "__brand": "tokenized-sql",
+        "sqlChunks": [
+          "CREATE TABLE IF NOT EXISTS emt_messages(
     stream_id              TEXT                      NOT NULL,
     stream_position        BIGINT                    NOT NULL,
     partition              TEXT                      NOT NULL DEFAULT 'global',
@@ -25,17 +38,24 @@ export const schema_0_41_0: SQL[] = [
     global_position        INTEGER                   PRIMARY KEY,
     created                DATETIME                  DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (stream_id, stream_position, partition, is_archived)
-)`,
-  SQL`CREATE TABLE IF NOT EXISTS emt_subscriptions(
+)",
+        ],
+        "sqlTokens": [],
+      },
+      {
+        "__brand": "tokenized-sql",
+        "sqlChunks": [
+          "CREATE TABLE IF NOT EXISTS emt_subscriptions(
     subscription_id                 TEXT                   NOT NULL,
     version                         INTEGER                NOT NULL DEFAULT 1,
     partition                       TEXT                   NOT NULL DEFAULT 'global',
     last_processed_position         BIGINT                NOT NULL,
     PRIMARY KEY (subscription_id, partition, version)
-)`,
-];
-
-export const snapshot_0_41_0: SQLMigration = sqlMigration(
-  'emt:sqlite:eventstore:0.41.0:initial_snapshot',
-  schema_0_41_0,
-);
+)",
+        ],
+        "sqlTokens": [],
+      },
+    ],
+  },
+]
+`;

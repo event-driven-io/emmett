@@ -2,7 +2,9 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { JSONSerializer, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   d1Connection,
-  type AnySQLiteConnection,
+  d1Pool,
+  type D1Connection,
+  type D1ConnectionPool,
 } from '@event-driven-io/dumbo/cloudflare';
 import {
   assertEqual,
@@ -44,7 +46,8 @@ export type DiscountApplied = Event<
 export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
 void describe('appendEvent', () => {
-  let connection: AnySQLiteConnection;
+  let connection: D1Connection;
+  let pool: D1ConnectionPool;
   let execute: SQLExecutor;
   let mf: Miniflare;
   let database: D1Database;
@@ -65,7 +68,8 @@ void describe('appendEvent', () => {
       },
     });
     execute = connection.execute;
-    await createEventStoreSchema(connection);
+    pool = d1Pool({ database, connection });
+    await createEventStoreSchema(pool);
   });
 
   afterAll(async () => {

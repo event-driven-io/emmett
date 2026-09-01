@@ -131,4 +131,136 @@
 
 ## Later phases
 
-- [ ] SQLite follow-up PR
+- [x] SQLite follow-up PR planned in `plan.md`
+
+---
+
+# SQLite Schema Support TODO
+
+## Working rules
+
+The PostgreSQL working rules above apply unchanged. SQLite adds:
+
+- Two drivers, `sqlite3` and D1, must reach the same configured store. Resolver and rendering tests stay driver-free; append, read and migration placement get a D1 mirror.
+- A SQLite logical schema is a quoted prefixed physical name, `"events.emt_streams"`, not a native schema. Never emit `CREATE SCHEMA` on SQLite.
+- Dumbo owns name validation, including the `.` restriction. Emmett adds no second check.
+- Locks, projection management and rebuild are out of scope. Do not add them, and do not depend on them.
+- Do not join `SQL` tokens into strings. Use `sqliteFormatter` through `getFormatter`.
+
+## Phase 1: Dumbo migrations on the default path
+
+- [x] Start phase and confirm scope
+- [x] Add failing tests for a fresh database creating `dmb_migrations` and the four tables
+- [x] Add failing tests for upgrading the 0.41.0 and 0.42.0 fixtures with recorded history
+- [x] Add failing tests for an existing imperative database applying and recording without data loss
+- [x] Add failing tests for `schema.migrate()` returning applied and skipped lists
+- [x] Add failing tests for a dry run leaving the database unchanged
+- [x] Convert the imperative 0.42.0 migration into a Dumbo migration, replacing its `sqlite_master` guard with `CREATE TABLE IF NOT EXISTS emt_subscriptions`
+- [x] Give `createEventStoreSchema` an options parameter and move it onto `runSQLMigrations`
+- [x] Mirror the PostgreSQL migration layout: `migrations/current`, per-version `index.ts`, snapshot fixtures and per-version specs
+- [x] Wrap `schema_0_41_0` as `snapshot_0_41_0` and `migrations_0_41_0`, and set old-version fixtures up through `runSQLMigrations`
+- [x] Pass a pool instead of a connection to `createEventStoreSchema` at every call site
+- [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
+- [x] Review for consistency, naming, dead code and redundant abstractions
+- [ ] Stop for approval before Phase 2
+
+Deferred to Phase 2, because they need `eventStoreSchemaSQL(options)`:
+
+- [ ] Add `schemaMigrationFor` with `ignoreHashMismatch` and `eventStoreSchemaMigrationsFor`
+
+Open questions for Oskar:
+
+- [ ] Confirm `CREATE TABLE IF NOT EXISTS emt_subscriptions` as the replacement for the conditional guard, or drop the past migration from the fresh chain instead
+- [ ] Confirm keeping the SQLite-only test `migrates from the schema created before migrations were introduced`
+
+## Phase 2: resolver, generated schema and migration placement
+
+- [ ] Start phase after approval
+- [ ] Add failing resolver tests for the fallback rules, copied from the PostgreSQL spec
+- [ ] Add failing rendering tests for prefixed tables through `sqliteFormatter`
+- [ ] Add failing tests proving no create-schema statement is emitted
+- [ ] Add failing tests for `schema.sql()` equalling the factory output and `schema.print()` matching it
+- [ ] Add failing tests for migration table placement, default and overridden
+- [ ] Add failing tests proving configured history holds no pre-schema-support entries
+- [ ] Add the duplicated `eventStoreDatabaseSchema` resolver and its types
+- [ ] Add the `tableReference` helper and convert `tables.ts` to `...For(databaseSchemaName)` factories
+- [ ] Add `eventStoreSchemaSQL` and switch `schema.sql()` to the formatter
+- [ ] Widen the public `schema` option
+- [ ] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
+- [ ] Review for consistency, naming, dead code and redundant abstractions
+- [ ] Stop for approval before Phase 3
+
+## Phase 3: append and read isolation
+
+- [ ] Start phase after approval
+- [ ] Add failing tests for append and read against a configured prefix
+- [ ] Add failing tests for two prefixes staying isolated with identical stream names
+- [ ] Add failing tests for `autoMigration: 'None'` against an existing configured store
+- [ ] Mirror append and read coverage on D1
+- [ ] Qualify append, stream existence, stream read, batch read and last position
+- [ ] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
+- [ ] Review for consistency, naming, dead code and redundant abstractions
+- [ ] Stop for approval before Phase 4
+
+## Phase 4: checkpoints, processors, consumers and hooks
+
+- [ ] Start phase after approval
+- [ ] Add failing tests for processor checkpoints landing in the configured prefix
+- [ ] Add failing tests for store-created and standalone consumers targeting it
+- [ ] Add failing tests for `withSession`, a supplied pool, the ambient connection path and the D1 session mode
+- [ ] Add failing tests for both schema hooks receiving the resolved names
+- [ ] Add the consumer `schema` option and build the prepared metadata once
+- [ ] Forward the metadata to the message source, the checkpointer and the processing scopes
+- [ ] Change the hook signatures to carry the resolved context
+- [ ] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
+- [ ] Review for consistency, naming, dead code and redundant abstractions
+- [ ] Stop for approval before Phase 5
+
+## Phase 5: Pongo and raw projections
+
+- [ ] Start phase after approval
+- [ ] Add failing tests for a Pongo projection inheriting the event prefix
+- [ ] Add failing tests for a separate projection prefix and for a collection-level override winning
+- [ ] Add failing tests proving init, handle and truncate agree on the collection schema
+- [ ] Add failing tests proving Pongo records migrations in the shared migration table
+- [ ] Add failing tests for raw SQL projections receiving the resolved names
+- [ ] Add failing tests for `SQLiteProjectionSpec` and `expectPongoDocuments` honoring the configuration
+- [ ] Add `pongoSchemaOptions` and spread it into every `pongoClient` call
+- [ ] Replace the `// TODO: ADD migration options` with the real `collection.schema.migrate` call
+- [ ] Fix the copied `postgresql` projection `kind` strings in the SQLite package
+- [ ] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
+- [ ] Review for consistency, naming, dead code and redundant abstractions
+- [ ] Stop for approval before Phase 6
+
+## Phase 6: truncate
+
+- [ ] Start phase after approval
+- [ ] Add failing tests for `schema.dangerous.truncate` emptying only the configured prefix
+- [ ] Add failing tests for projection storage truncation targeting the projection prefix
+- [ ] Implement `truncateTables` and the `schema.dangerous` surface
+- [ ] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
+- [ ] Review for consistency, naming, dead code and redundant abstractions
+- [ ] Stop for approval before Phase 7
+
+## Phase 7: identifier safety, regression coverage and docs
+
+- [ ] Start phase after approval
+- [ ] Add tests for prefixes with capitals, spaces and a double quote
+- [ ] Add a test proving a prefix containing `.` surfaces Dumbo's error unchanged
+- [ ] Add coverage for index names going through `sqliteIndexName`
+- [ ] Confirm default behavior and existing fixtures are unchanged
+- [ ] Confirm generated SQL holds no accidental unprefixed reference
+- [ ] Document the options, the fallback rules and the shared migration table
+- [ ] Document how a SQLite prefix differs from a PostgreSQL schema
+- [ ] Document that locks, projection management and rebuild are not implemented on SQLite
+- [ ] Record the Dumbo follow-ups found during the work in `plan.md`
+- [ ] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
+- [ ] Review for consistency, naming, dead code and redundant abstractions
+- [ ] Stop for approval
+
+## Follow-up issues to open
+
+- [ ] SQLite processor and projection locks, including a design that works on D1
+- [ ] SQLite projection management in `emt_projections`
+- [ ] `rebuildSQLiteProjections`, after locks and projection management land
+- [ ] The empty `cli.ts` and a SQLite migration command line
