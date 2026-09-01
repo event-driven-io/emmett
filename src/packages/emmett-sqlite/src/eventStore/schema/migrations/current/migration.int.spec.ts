@@ -5,6 +5,7 @@ import {
   sqlMigration,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
+import { sqliteTableName } from '@event-driven-io/dumbo/sqlite';
 import {
   InMemorySQLiteDatabase,
   sqlite3Connection,
@@ -29,10 +30,10 @@ import {
   type SQLiteReadEventMetadata,
 } from '../../../SQLiteEventStore';
 import { readProcessorCheckpoint } from '../../readProcessorCheckpoint';
-import { schemaSQL } from '../../tables';
+import { schemaSQL } from '../../eventStoreSchemaSQL';
 import { migrations_0_41_0 } from '../0_41_0';
 import { migrations_0_42_0 } from '../0_42_0';
-import { schemaMigration } from '../index';
+import { schemaMigration, schemaMigrationFor } from '../index';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -99,6 +100,50 @@ void describe('Schema migrations tests', () => {
     const result = await assertCanAppendAndRead(eventStore);
     await assertCanStoreAndReadCheckpoints(connection.execute, result);
     await assertProjectionsTableExists(connection.execute);
+  });
+
+  void it('migrates fresh schema into the mixed database schemas configured by the user', async () => {
+    // Given
+    const schemaOptions = {
+      databaseSchemaName: 'events',
+      projectionsDatabaseSchemaName: 'read_models',
+      migrationTable: {
+        schemaName: 'infrastructure',
+        tableName: 'emmett_migrations',
+      },
+    };
+    eventStore = getSQLiteEventStore({
+      driver: sqlite3EventStoreDriver,
+      fileName: InMemorySQLiteDatabase,
+      pool,
+      schema: {
+        autoMigration: 'None',
+        ...schemaOptions,
+      },
+    });
+
+    // When
+    const { applied, skipped } = await eventStore.schema.migrate();
+
+    // Then
+    assertDeepEqual(applied, [schemaMigrationFor(schemaOptions)]);
+    assertThatArray(skipped).isEmpty();
+
+    assertTrue(await configuredTableExists('events', 'emt_streams'));
+    assertTrue(await configuredTableExists('events', 'emt_messages'));
+    assertTrue(await configuredTableExists('events', 'emt_processors'));
+    assertTrue(await configuredTableExists('events', 'emt_projections'));
+    assertTrue(
+      await configuredTableExists('infrastructure', 'emmett_migrations'),
+    );
+
+    assertFalse(await tableExists(connection.execute, 'emt_streams'));
+    assertFalse(await tableExists(connection.execute, 'emmett_migrations'));
+    assertFalse(await configuredTableExists('read_models', 'emt_streams'));
+    assertFalse(await configuredTableExists('events', 'emmett_migrations'));
+    assertFalse(
+      await configuredTableExists('infrastructure', 'dmb_migrations'),
+    );
   });
 
   void it('migrates from 0.41.0 schema', async () => {
@@ -273,6 +318,15 @@ void describe('Schema migrations tests', () => {
       },
     };
   };
+
+  const configuredTableExists = (
+    databaseSchemaName: string,
+    tableName: string,
+  ): Promise<boolean> =>
+    tableExists(
+      connection.execute,
+      sqliteTableName({ databaseSchemaName, tableName }),
+    );
 
   const assertProjectionsTableExists = async (execute: SQLExecutor) => {
     assertTrue(await tableExists(execute, 'emt_projections'));

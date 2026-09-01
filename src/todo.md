@@ -168,27 +168,38 @@ Deferred to Phase 2, because they need `eventStoreSchemaSQL(options)`:
 
 - [ ] Add `schemaMigrationFor` with `ignoreHashMismatch` and `eventStoreSchemaMigrationsFor`
 
-Open questions for Oskar:
+Decisions:
 
-- [ ] Confirm `CREATE TABLE IF NOT EXISTS emt_subscriptions` as the replacement for the conditional guard, or drop the past migration from the fresh chain instead
-- [ ] Confirm keeping the SQLite-only test `migrates from the schema created before migrations were introduced`
+- [x] Oskar confirmed `CREATE TABLE IF NOT EXISTS emt_subscriptions` as the replacement for the conditional guard. The past migration stays in the fresh chain.
+- [x] The SQLite-only test `migrates from the schema created before migrations were introduced` stays. PostgreSQL has no counterpart because it always had a migration table, while released SQLite databases carry the four tables and no `dmb_migrations`.
 
 ## Phase 2: resolver, generated schema and migration placement
 
-- [ ] Start phase after approval
-- [ ] Add failing resolver tests for the fallback rules, copied from the PostgreSQL spec
-- [ ] Add failing rendering tests for prefixed tables through `sqliteFormatter`
-- [ ] Add failing tests proving no create-schema statement is emitted
-- [ ] Add failing tests for `schema.sql()` equalling the factory output and `schema.print()` matching it
-- [ ] Add failing tests for migration table placement, default and overridden
-- [ ] Add failing tests proving configured history holds no pre-schema-support entries
-- [ ] Add the duplicated `eventStoreDatabaseSchema` resolver and its types
-- [ ] Add the `tableReference` helper and convert `tables.ts` to `...For(databaseSchemaName)` factories
-- [ ] Add `eventStoreSchemaSQL` and switch `schema.sql()` to the formatter
-- [ ] Widen the public `schema` option
-- [ ] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
-- [ ] Review for consistency, naming, dead code and redundant abstractions
+- [x] Start phase after approval
+- [x] Add failing resolver tests for the fallback rules, copied from the PostgreSQL spec
+- [x] Add failing rendering tests for prefixed tables through `sqliteFormatter`
+- [x] Add failing tests proving no create-schema statement is emitted
+- [x] Add failing tests for `schema.sql()` equalling the factory output and `schema.print()` matching it
+- [x] Add failing tests for migration table placement, default and overridden
+- [x] Add failing tests proving configured history holds no pre-schema-support entries
+- [x] Add the duplicated `eventStoreDatabaseSchema` resolver and its types
+- [x] Add the `tableReference` helper and convert `tables.ts` to `...For(databaseSchemaName)` factories
+- [x] Add `eventStoreSchemaSQL` and switch `schema.sql()` to the formatter
+- [x] Add `schemaMigrationFor` with `ignoreHashMismatch` and `eventStoreSchemaMigrationsFor`, deferred from Phase 1
+- [x] Widen the public `schema` option
+- [x] Add configured-schema dry-run coverage, matching the PostgreSQL test
+- [x] Add mixed-schema migration coverage through `eventStore.schema.migrate()`, matching the PostgreSQL test
+- [x] Set `currentSQLiteEventStoreSchemaVersion` to `'0.42.0'` and snapshot the current schema in the newest version folder
+- [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
+- [x] Review for consistency, naming, dead code and redundant abstractions
 - [ ] Stop for approval before Phase 3
+
+Notes:
+
+- `schemaSQL` moved from `tables.ts` to `eventStoreSchemaSQL.ts`, as PostgreSQL has it. The package still exports it.
+- `currentSQLiteEventStoreSchemaVersion` is `'0.42.0'`. SQLite has no 0.43.0 migration, so 0.42.0 is the latest version, and `0_42_0.snapshot.int.spec.ts` now also snapshots `schemaMigration` as `'0.42.0 schema is the latest one'`, matching what PostgreSQL does in its newest version folder.
+- The mixed-schema migration test stops at object placement. PostgreSQL's also appends and reads; SQLite gains that in Phase 3, when the runtime SQL is qualified.
+- PostgreSQL's `public` cases have no SQLite counterpart. SQLite has no default database schema name: Pongo and Dumbo both fall back to the `DefaultDatabaseSchemaName` sentinel, which renders as no prefix at all. The spec pins that instead, with a test proving omitted names render unprefixed.
 
 ## Phase 3: append and read isolation
 

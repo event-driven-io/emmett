@@ -1,5 +1,7 @@
 import {
   dumbo,
+  fromDatabaseDriverType,
+  getFormatter,
   type Dumbo,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
@@ -51,11 +53,13 @@ import {
 import {
   appendToStream,
   createEventStoreSchema,
+  eventStoreDatabaseSchema,
+  eventStoreSchemaSQL,
   readStream,
-  schemaSQL,
   streamExists,
   unknownTag,
   type CreateEventStoreSchemaOptions,
+  type EventStoreDatabaseSchemaOptions,
   type SQLiteStreamExistsOptions,
 } from './schema';
 
@@ -113,7 +117,7 @@ export type SQLiteEventStoreOptions<
   observability?: EmmettObservabilityConfig;
   schema?: {
     autoMigration?: 'None' | 'CreateOrUpdate';
-  };
+  } & EventStoreDatabaseSchemaOptions;
   hooks?: {
     /**
      * This hook will be called **BEFORE** event store schema is created
@@ -176,6 +180,15 @@ export const getSQLiteEventStore = <
     migrationOptions?: CreateEventStoreSchemaOptions,
   ): Promise<RunSQLMigrationsResult> => {
     if (!migrateSchema) {
+      const migrationSchemaOptions = {
+        ...options.schema,
+        ...migrationOptions,
+      };
+      const schemaMigrationOptions = {
+        ...migrationSchemaOptions,
+        ...eventStoreDatabaseSchema(migrationSchemaOptions),
+      };
+
       const migration = createEventStoreSchema(
         pool,
         {
@@ -201,7 +214,7 @@ export const getSQLiteEventStore = <
           },
           onAfterSchemaCreated: options.hooks?.onAfterSchemaCreated,
         },
-        migrationOptions,
+        schemaMigrationOptions,
       );
 
       if (migrationOptions?.dryRun) {
@@ -215,6 +228,12 @@ export const getSQLiteEventStore = <
 
     return { applied: [], skipped: result.applied.concat(result.skipped) };
   };
+
+  const eventStoreSchemaDescription = (): string =>
+    getFormatter(fromDatabaseDriverType(pool.driverType).databaseType).describe(
+      eventStoreSchemaSQL(options.schema),
+      { serializer },
+    );
 
   const ensureSchemaExists = (): Promise<unknown> => {
     if (!autoGenerateSchema) return Promise.resolve();
@@ -438,8 +457,8 @@ export const getSQLiteEventStore = <
 
     close: () => pool.close(),
     schema: {
-      sql: () => schemaSQL.join(''),
-      print: () => console.log(schemaSQL.join('')),
+      sql: eventStoreSchemaDescription,
+      print: () => console.log(eventStoreSchemaDescription()),
       migrate,
     },
   };

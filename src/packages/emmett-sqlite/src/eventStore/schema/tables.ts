@@ -5,12 +5,14 @@ import {
   processorsTable,
   projectionsTable,
   streamsTable,
+  tableReference,
   unknownTag,
 } from './typing';
 
-const { identifier, plain } = SQL;
+const { plain } = SQL;
 
-export const streamsTableSQL = SQL`CREATE TABLE IF NOT EXISTS ${identifier(streamsTable.name)}(
+export const streamsTableSQLFor = (databaseSchemaName?: string) =>
+  SQL`CREATE TABLE IF NOT EXISTS ${tableReference(databaseSchemaName, streamsTable.name)}(
       stream_id         TEXT                      NOT NULL,
       stream_position   BIGINT                    NOT NULL DEFAULT 0,
       partition         TEXT                      NOT NULL DEFAULT '${plain(globalTag)}',
@@ -21,7 +23,10 @@ export const streamsTableSQL = SQL`CREATE TABLE IF NOT EXISTS ${identifier(strea
       UNIQUE (stream_id, partition, is_archived)
   );`;
 
-export const messagesTableSQL = SQL`CREATE TABLE IF NOT EXISTS ${identifier(messagesTable.name)}(
+export const streamsTableSQL = streamsTableSQLFor();
+
+export const messagesTableSQLFor = (databaseSchemaName?: string) =>
+  SQL`CREATE TABLE IF NOT EXISTS ${tableReference(databaseSchemaName, messagesTable.name)}(
       stream_id              TEXT                      NOT NULL,
       stream_position        BIGINT                    NOT NULL,
       partition              TEXT                      NOT NULL DEFAULT '${plain(globalTag)}',
@@ -38,8 +43,10 @@ export const messagesTableSQL = SQL`CREATE TABLE IF NOT EXISTS ${identifier(mess
   ); 
 `;
 
-export const processorsTableSQL = SQL`
-  CREATE TABLE IF NOT EXISTS ${SQL.identifier(processorsTable.name)}(
+export const messagesTableSQL = messagesTableSQLFor();
+
+export const processorsTableSQLFor = (databaseSchemaName?: string) => SQL`
+  CREATE TABLE IF NOT EXISTS ${tableReference(databaseSchemaName, processorsTable.name)}(
       processor_id                 TEXT                  NOT NULL,
       version                      INTEGER               NOT NULL DEFAULT 1,
       partition                    TEXT                  NOT NULL DEFAULT '${plain(globalTag)}',
@@ -50,8 +57,10 @@ export const processorsTableSQL = SQL`
   );
 `;
 
-export const projectionsTableSQL = SQL`
-  CREATE TABLE IF NOT EXISTS ${SQL.identifier(projectionsTable.name)}(
+export const processorsTableSQL = processorsTableSQLFor();
+
+export const projectionsTableSQLFor = (databaseSchemaName?: string) => SQL`
+  CREATE TABLE IF NOT EXISTS ${tableReference(databaseSchemaName, projectionsTable.name)}(
       name                         TEXT                  NOT NULL,
       version                      INTEGER               NOT NULL DEFAULT 1,
       partition                    TEXT                  NOT NULL DEFAULT '${plain(globalTag)}',
@@ -63,9 +72,4 @@ export const projectionsTableSQL = SQL`
   );
 `;
 
-export const schemaSQL: SQL[] = [
-  streamsTableSQL,
-  messagesTableSQL,
-  processorsTableSQL,
-  projectionsTableSQL,
-];
+export const projectionsTableSQL = projectionsTableSQLFor();
