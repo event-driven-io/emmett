@@ -392,3 +392,255 @@ Plan that PR as the same kind of test-first behavioral slices after PostgreSQL e
 - Clarify Dumbo dry-run semantics for migration infrastructure. Current behavior can leave PostgreSQL schemas, tables and migration rows behind; either document that explicitly or make dry run leave no database objects behind.
 - The exported but apparently unused `addModuleSQL`, `addTenantSQL`, `addModuleForAllTenantsSQL` and `addTenantForAllModulesSQL`. They reference a legacy tenant/`pg_partman` model and are not part of current `schemaSQL`; open a separate issue before changing or removing this public surface.
 - Automatically moving existing data between schemas.
+
+---
+
+# SQLite database schema support
+
+## Scope
+
+This section plans the SQLite follow-up PR for [Emmett issue #95](https://github.com/event-driven-io/Emmett/issues/95). It keeps the public option names, fallback rules, context shape and shared migration-table semantics established by the PostgreSQL work above.
+
+The intended SQLite API is the PostgreSQL one:
+
+```ts
+getSQLiteEventStore({
+  driver: sqlite3EventStoreDriver,
+  fileName: './emmett.db',
+  schema: {
+    autoMigration: 'CreateOrUpdate',
+    databaseSchemaName: 'events',
+    projectionsDatabaseSchemaName: 'read_models',
+    migrationTable: {
+      schemaName: 'infrastructure',
+      tableName: 'emmett_migrations',
+    },
+  },
+});
+```
+
+The same options apply to `sqliteEventStoreConsumer`, `SQLiteProjectionSpec.for` and `rebuildSQLiteProjections`.
+
+## What SQLite is starting from
+
+The SQLite package is further behind than the PostgreSQL package was, so this PR carries three kinds of work, not one:
+
+1. **No migration infrastructure.** `createEventStoreSchema` runs `batchCommand(schemaSQL)` inside one transaction, preceded by a hand-written `migration_0_42_0_FromSubscriptionsToProcessors` that probes `sqlite_master`. There is no migration table, no hash, no dry run and no `RunSQLMigrationsResult`. The declared `CreateEventStoreSchemaOptions` fields (`dryRun`, `ignoreMigrationHashMismatch`, `migrationTimeoutMs`) are read by nobody.
+2. **No schema qualification.** Every table reference is `SQL.identifier(streamsTable.name)`. `schemaSQL` is a list of eager constants, not `...For(databaseSchemaName)` factories. `schema.sql()` is `schemaSQL.join('')`, which does not go through a dialect formatter.
+3. **Missing features that PostgreSQL qualifies.** No `schema.dangerous.truncate`, no writes or reads of `emt_projections`, and no rebuild entry point. Only truncate is in scope here; projection management and rebuild stay out.
+
+Two drivers sit behind one store: `sqlite3EventStoreDriver` (file and `:memory:`) and `d1EventStoreDriver` (Cloudflare D1, tested through Miniflare). Both must reach the same configured objects.
+
+## What Dumbo gives SQLite
+
+Verified against `@event-driven-io/dumbo` 0.13.0-beta.50:
+
+- `SQLTableReference.from({ databaseSchemaName, tableName })` renders one quoted prefixed physical name, `"events.emt_streams"`. It is not `ATTACH DATABASE` and not a native schema.
+- `SQLIndexReference` also prefixes the index name, `"events.idx_a"`. PostgreSQL drops the schema from the index name, so index lookups must go through `sqliteIndexName`.
+- `SQLCreateSchema` renders an empty string on SQLite, and `runSQLMigrations` filters empty migrations out with `rendersNothing`. A generated create-schema step is therefore harmless but pointless; do not emit one.
+- `runSQLMigrations` is dialect-free and works on SQLite. `migrationTable: { schemaName, tableName }` produces the physical table `"infrastructure.emmett_migrations"`.
+- `DefaultSQLiteMigratorOptions = {}`, so SQLite migrations take `NoDatabaseLock`. The wrapping transaction is the only protection.
+- `dryRun` runs inside a transaction and rolls back, unless a caller supplies its own `execute`.
+- Validation is render-time and thin: `assertNativeName` rejects any `.` in a table, index or schema name. Dumbo's rule stays authoritative; Emmett adds no second validation.
+- `sqliteFormatter` from `@event-driven-io/dumbo/sqlite` is the rendering entry point. `describe` is what `schema.sql()` must use.
+- `tableExists` from `@event-driven-io/dumbo/sqlite3` takes a plain name, so callers compose `sqliteTableName({ databaseSchemaName, tableName })` themselves.
+
+## Accepted decisions
+
+1. The SQLite event store moves onto Dumbo migrations in this PR. Without a migration table, `migrationTable` has no meaning and there is no parity to claim.
+2. Order of work: migration rewrite first with no behavior change, then schema names across the existing surface, then the missing features written schema-aware from the first line.
+3. Databases created by the current imperative path upgrade by applying and recording. The default chain keeps the 0.42.0 subscriptions-to-processors step as a real migration, then the current schema migration runs `CREATE TABLE IF NOT EXISTS` and is recorded. Existing data is untouched. The current migration carries `ignoreHashMismatch: true`, as PostgreSQL does.
+
+   A `SQLMigration` is a fixed `SQL[]`, and SQLite has no conditional statement equivalent to PostgreSQL's `DO $$ ... IF EXISTS`, so the 0.42.0 step cannot keep the imperative `sqlite_master` probe. It instead starts with `CREATE TABLE IF NOT EXISTS emt_subscriptions`. A database that never had the legacy table gets an empty one, the `INSERT ... SELECT` copies no rows, and the `DROP TABLE` always has a table to remove. The net effect on a fresh database is nothing.
+
+4. The resolver is duplicated in `emmett-sqlite`, not moved to the core package. The option names, the types and the fallback rules stay identical to PostgreSQL, and each dialect stays free to diverge later.
+5. `schema.dangerous.truncate` is the only missing feature added here, and it is written schema-aware. Projection registration in `emt_projections` and a rebuild entry point stay out of scope.
+6. **Processor and projection locks are out of scope.** SQLite has no advisory lock and Dumbo gives SQLite `NoDatabaseLock`. A lease design belongs in its own issue.
+7. Driver coverage: resolver and rendering tests are driver-free. Behavioral tests run on sqlite3, with a D1 mirror for append, read and migration placement.
+8. Only an omitted schema name selects default behavior. A supplied name is always explicit. Emmett never normalizes or invents names.
+9. Changing `databaseSchemaName` selects a different store. Emmett does not move data between prefixes.
+
+## Resolution contract
+
+Copy the PostgreSQL shape into `src/packages/emmett-sqlite/src/eventStore/schema/eventStoreDatabaseSchema.ts`:
+
+```ts
+export type EventStoreDatabaseSchemaOptions = {
+  databaseSchemaName?: string | undefined;
+  projectionsDatabaseSchemaName?: string | undefined;
+  migrationTable?: MigrationTableOptions | undefined;
+};
+
+export type EventStoreDatabaseSchema = {
+  databaseSchemaName: string | undefined;
+  projectionsDatabaseSchemaName: string | undefined;
+  migrationTable: MigrationTableOptions | undefined;
+};
+```
+
+Fallback rules are the PostgreSQL ones: projections fall back to the event schema, the migration-table schema falls back to the event schema, an omitted name never materializes as a literal, and an explicitly supplied name stays explicit.
+
+| Input                          | Event objects | Projection default         | Migration table           |
+| ------------------------------ | ------------- | -------------------------- | ------------------------- |
+| all omitted                    | unprefixed    | unprefixed                 | `dmb_migrations`          |
+| `databaseSchemaName: 'events'` | `events.*`    | `events.*`                 | `"events.dmb_migrations"` |
+| projection name only           | unprefixed    | explicit projection prefix | `dmb_migrations`          |
+| migration name only            | unprefixed    | unprefixed                 | explicit migration prefix |
+
+Add `tableReference(databaseSchemaName, tableName)` to `schema/typing.ts`, identical to the PostgreSQL helper, wrapping `DefaultDatabaseSchemaName`. Replace every `SQL.identifier(<table>.name)` call site with it.
+
+## Migration model
+
+Build the SQLite migration index the way PostgreSQL builds its own:
+
+- `schemaMigrationFor(options)` returns one `sqlMigration('emt:sqlite:eventstore:initial', eventStoreSchemaSQL(options), { ignoreHashMismatch: true })`.
+- `pastEventStoreSchemaMigrations` holds the converted 0.42.0 subscriptions-to-processors step, keeping its bare `emt_subscriptions` references. No configured prefix ever creates `emt_subscriptions`, so those references need no prefix scoping. This is the one point where SQLite is simpler than PostgreSQL, whose catalog checks had to be scoped with `current_schema()`.
+- `eventStoreSchemaMigrationsFor(options)` returns the full chain for the default path and only the current migration for a configured prefix.
+- Define the boundary in the migration index so a future migration cannot be classified as default-only by accident.
+
+`createEventStoreSchema` gains an options parameter and calls `runSQLMigrations(pool, eventStoreSchemaMigrationsFor(options), { ...options, migrationTable: databaseSchema.migrationTable })`. `schema.migrate()` accepts `CreateEventStoreSchemaOptions` and returns `RunSQLMigrationsResult`, and it must not cache a dry run as a completed migration.
+
+Do not emit `SQLCreateSchema` on SQLite. There is no schema object to create; the prefix exists only inside the physical table name.
+
+The 0.41.0 and 0.42.0 files stay test fixtures. Convert only what the default chain needs, and keep the existing snapshot fixtures working.
+
+## Schema-bound SQL model
+
+Convert `tables.ts` to `...For(databaseSchemaName)` factories and keep the current zero-argument constants as default-path compatibility exports, exactly as PostgreSQL did. Add `schema/eventStoreSchemaSQL.ts` with `eventStoreSchemaSQL(options?)` returning the ordered statement list, plus `export const schemaSQL = eventStoreSchemaSQL()`.
+
+`schema.sql()` becomes `getFormatter(...).describe(eventStoreSchemaSQL(options.schema), { serializer })`, replacing `schemaSQL.join('')`. This changes the string existing users see. It is a deliberate correctness fix: joined tokens do not render `SQLTableReference`.
+
+SQLite has no functions, no sequences, no partitions and no `search_path`. Everything PostgreSQL needed for routine qualification, dynamic `%I.%I` fragments and `nextval` regclass literals has no SQLite counterpart. The whole qualification job is table and index references inside TypeScript-implemented operations.
+
+## Runtime call sites to qualify
+
+Append (`appendToStream.ts`, four statements), `readStream.ts`, `readMessagesBatch.ts`, `readLastMessageGlobalPosition.ts`, `streamExists.ts`, `readProcessorCheckpoint.ts` and `storeProcessorCheckpoint.ts` (four statements, the imperative replacement for the PostgreSQL stored procedure).
+
+## Context and hook contract
+
+`SQLiteProcessorHandlerContext` already carries `migrationOptions`. Widen `CreateEventStoreSchemaOptions` with the schema fields, then populate `migrationOptions` the way PostgreSQL does, and pass the same prepared value to:
+
+- `onBeforeSchemaCreated` and `onAfterSchemaCreated`. Both hook signatures change: today `onAfterSchemaCreated` takes no argument at all, and `onBeforeSchemaCreated` takes only `{ connection }`.
+- inline projection initialization, which SQLite currently runs before schema creation rather than after. Keep that timing, and pass the resolved context regardless. The context describes intended ownership; it does not promise object existence.
+- asynchronous projection initialization, raw SQL projection handlers, projection specs and assertion helpers.
+- `sqliteMessageSource`, which needs a `databaseSchemaName` parameter it does not have.
+- `sqliteCheckpointer`, which must read the schema from the context instead of ignoring it.
+- `withSession`, which already spreads `options.schema`, so it needs coverage rather than change.
+- The `sqliteAmbientConnectionPool` workflow message-store path and the D1 `session_based` transaction mode.
+
+`sqliteEventStoreConsumer` gains a `schema` option and builds the prepared metadata once, as `postgreSQLEventStoreConsumer` does. Reusable processors and projections consume prepared metadata only; they never depend on the event-store option model.
+
+Raw SQL projections stay user-owned. Emmett exposes the resolved names and does not parse or rewrite user SQL.
+
+## Pongo contract
+
+SQLite Pongo projections resolve their driver through the global Pongo registry and pass no schema information at all today. Add one `pongoSchemaOptions(context)` helper and spread it into every `pongoClient(...)` call in handle, init, truncate and the spec helper:
+
+```ts
+{
+  defaultSchemaName: context.migrationOptions?.projectionsDatabaseSchemaName,
+  migrationTable: context.migrationOptions?.migrationTable,
+}
+```
+
+Replace the `// TODO: ADD migration options` in `init` with the real `collection.schema.migrate(context.migrationOptions)` call. An explicit collection-level `databaseSchemaName` still wins, and Pongo resolves it.
+
+Fix the copy-pasted `kind` strings while touching these files: `'emt:projections:postgresql:pongo:*'` inside the SQLite package should name SQLite.
+
+## Test-first delivery
+
+Same loop as the PostgreSQL work: one failing behavioral test, then the smallest implementation that makes it pass, then focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`, then refactor. No phase ends with configuration that production paths do not consume.
+
+### Phase 1: Dumbo migrations on the default path
+
+No schema names yet, no behavior change for users.
+
+Tests first: a fresh in-memory database creates `dmb_migrations` and the four Emmett tables; a database prepared with the 0.41.0 and then 0.42.0 fixtures upgrades and records history; a database prepared with the current imperative `schemaSQL` and no migration table applies and records the current migration without touching data; `schema.migrate()` returns applied and skipped lists; a dry run leaves the file unchanged; a second migrate run applies nothing.
+
+Implement the converted 0.42.0 migration, the migration index, the `createEventStoreSchema` options parameter and the `runSQLMigrations` call. Keep `schema.sql()` unchanged in this phase.
+
+The migration layout mirrors PostgreSQL exactly: `migrations/<version>/<version>.migration.ts`, `<version>.snapshot.ts`, per-version specs, a per-version `index.ts` exporting `migrations_<version>`, and `migrations/current/migration.int.spec.ts` for the whole chain.
+
+`schemaMigrationFor` and `eventStoreSchemaMigrationsFor` are deferred to Phase 2. They take an options argument that only `eventStoreSchemaSQL(options)` can serve, so adding them here would leave configuration no production path reads. Phase 1 ships the fixed `schemaMigration` and `eventStoreSchemaMigrations` instead.
+
+`createEventStoreSchema` takes a `Dumbo` pool rather than a connection, because `runSQLMigrations` needs a pool. It moves from `tables.ts` to `schema/index.ts`, matching where PostgreSQL keeps it and breaking the import cycle that `migrations/index.ts` importing `schemaSQL` would otherwise create. It supplies `execute: tx.execute` so hooks and migrations share one transaction; that bypasses Dumbo's own dry-run rollback, so the outer transaction returns `{ success: false, result }` when `dryRun` is set.
+
+Exit: existing SQLite suites pass unchanged, and migration history exists.
+
+### Phase 2: resolver, generated schema and migration placement
+
+Tests first: resolver fallback rules, including that an omitted name is never materialized; `eventStoreSchemaSQL({ databaseSchemaName: 'events' })` renders `"events.emt_streams"` and friends through `sqliteFormatter`; `schema.sql()` equals the factory output and `schema.print()` prints exactly that; no create-schema statement is emitted; a configured store creates only prefixed tables; the migration table defaults to `"events.dmb_migrations"`; an `infrastructure` override places only the migration table; configured history contains no pre-schema-support migration names.
+
+Implement the resolver, `tableReference`, the `...For` factories, `eventStoreSchemaSQL`, the formatter-based `schema.sql()`, and the widened public `schema` option.
+
+Exit: a configured store can be printed and created, and the default output is unchanged apart from the deliberate `schema.sql()` formatter fix.
+
+### Phase 3: append and read isolation
+
+Tests first: append and read against a configured prefix; two stores with identical stream names in different prefixes stay isolated; `autoMigration: 'None'` against an already-created configured store still targets the right tables. Mirror append and read on D1.
+
+Implement schema-aware append, stream existence, stream read, batch read and last-position SQL.
+
+Exit: the basic workflow is isolated by configuration on both drivers.
+
+### Phase 4: checkpoints, processors, consumers and hooks
+
+Tests first: processor checkpoints land in the configured prefix; consumers created by the store and standalone consumers both target it; `withSession`, a supplied Dumbo pool, the ambient connection path and the D1 session mode all reach the same store; both hooks receive the resolved names.
+
+Implement the consumer `schema` option, the prepared metadata, message source and checkpointer forwarding, and the hook signature change.
+
+Exit: every SQLite entry point can address the same configured store.
+
+### Phase 5: Pongo and raw projections
+
+Tests first: a Pongo projection inherits the event prefix; `projectionsDatabaseSchemaName` places documents separately; a collection-level override wins; init, handle and truncate agree; Pongo records migrations in the store's migration table rather than a second one; a raw SQL projection receives the resolved names in context; `SQLiteProjectionSpec` and `expectPongoDocuments` honor the configuration.
+
+Implement `pongoSchemaOptions`, the `collection.schema.migrate` call, the spec forwarding, and the projection handler context field.
+
+Exit: projection placement is independent from migration-history placement.
+
+### Phase 6: truncate
+
+Tests first: `schema.dangerous.truncate` empties the configured store and leaves another prefix untouched; it resets the global position expectations that SQLite's `INTEGER PRIMARY KEY` implies; projection storage truncation targets the projection prefix.
+
+Implement `truncateTables.ts` and the `schema.dangerous` surface. SQLite has no sequence to restart, so this is simpler than the PostgreSQL version.
+
+### Phase 7: identifier safety, regression matrix and documentation
+
+Tests first: prefixes with capitals, spaces and a double quote render and work, because a SQLite prefix becomes part of one quoted identifier; a prefix containing `.` fails with Dumbo's error and Emmett adds no second check; index names go through `sqliteIndexName`; default behavior and existing fixtures are unchanged; generated SQL contains no accidental unprefixed reference.
+
+Then document the three options and the fallback rules, the shared migration table, the prefix model and how it differs from a PostgreSQL schema, raw projection responsibilities, that changing the name selects a different store, that Dumbo validates names, and that locks, projection management and rebuild are not implemented on SQLite.
+
+## SQLite verification matrix
+
+| Scenario                     | Required result                                                    |
+| ---------------------------- | ------------------------------------------------------------------ |
+| Default configuration        | Existing tables, fixtures and behavior unchanged                   |
+| Existing imperative database | Migration history is recorded, data is untouched                   |
+| Fresh configured prefix      | Only prefixed tables and the resolved migration table are created  |
+| Configured migration history | Starts at the schema-support boundary, with no pre-support entries |
+| Separate projection prefix   | Documents move, event tables and migration table do not            |
+| Collection override          | Explicit collection schema wins in every operation                 |
+| Two event prefixes           | Stores stay isolated with identical stream and projection names    |
+| sqlite3 and D1               | Append, read and migration placement agree across drivers          |
+| Auto-migration disabled      | Runtime still targets the configured tables                        |
+| Dry run                      | SQL is correctly prefixed and nothing persists                     |
+| Prefix needing quoting       | Table and index references stay safe                               |
+| Prefix containing `.`        | Dumbo's error surfaces unchanged                                   |
+
+## Out of scope for the SQLite PR
+
+- Processor and projection locks. SQLite has no advisory lock and Dumbo gives it `NoDatabaseLock`. Open a separate issue for a lease design that also works on D1.
+- Projection management. `emt_projections` stays created and unused: no `registerProjection`, `activateProjection`, `deactivateProjection` or projection info read.
+- `rebuildSQLiteProjections`. It depends on projection management and, in PostgreSQL, on a projection lock. Both are out of scope, so rebuild follows them in a later PR.
+- `ATTACH DATABASE` as an alternative isolation model.
+- Dropping, listing or renaming a logical prefix.
+- Moving existing data between prefixes.
+- The empty `cli.ts` and a SQLite migration command line.
+
+## Upstream follow-ups found for Dumbo
+
+- SQLite has no migration lock. Concurrent migrators on one file rely on `SQLITE_BUSY` behavior.
+- `tableExists` for SQLite takes a plain name. A `SQLTableReference` overload would remove Emmett's manual `sqliteTableName` composition in tests.
+- SQLite index references are prefixed while PostgreSQL index references are not. The asymmetry is correct per dialect but deserves documentation.
+- SQLite schema validation is render-time only and checks a single character. Definition-time validation, and a check for collision with a real table literally named `"events.emt_streams"`, would catch mistakes earlier.

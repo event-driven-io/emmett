@@ -1,4 +1,4 @@
-import { singleOrNull, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import { SQL, sqlMigration, type SQLMigration } from '@event-driven-io/dumbo';
 import { globalTag, processorsTable, projectionsTable } from '../../typing';
 
 const { identifier, plain } = SQL;
@@ -23,6 +23,16 @@ export const migration_0_42_0_SQLs: SQL[] = [
     definition                   JSONB                 NOT NULL DEFAULT '{}',
     PRIMARY KEY (name, partition, version)
 )`,
+  // SQLite has no conditional statement, so the legacy table is created empty
+  // when it is missing. The copy below then finds no rows and the drop always
+  // has a table to remove.
+  SQL`CREATE TABLE IF NOT EXISTS emt_subscriptions(
+    subscription_id                 TEXT                   NOT NULL,
+    version                         INTEGER                NOT NULL DEFAULT 1,
+    partition                       TEXT                   NOT NULL DEFAULT '${plain(globalTag)}',
+    last_processed_position         BIGINT                 NOT NULL,
+    PRIMARY KEY (subscription_id, partition, version)
+)`,
   SQL`INSERT INTO ${identifier(processorsTable.name)}
     (processor_id, version, partition, status, last_processed_checkpoint, processor_instance_id)
   SELECT
@@ -36,18 +46,8 @@ export const migration_0_42_0_SQLs: SQL[] = [
   SQL`DROP TABLE emt_subscriptions`,
 ];
 
-export const migration_0_42_0_FromSubscriptionsToProcessors = async (
-  execute: SQLExecutor,
-): Promise<void> => {
-  const tableExists = await singleOrNull(
-    execute.query<{ name: string }>(
-      SQL`SELECT name FROM sqlite_master WHERE type='table' AND name='emt_subscriptions'`,
-    ),
+export const migration_0_42_0_FromSubscriptionsToProcessors: SQLMigration =
+  sqlMigration(
+    'emt:sqlite:eventstore:0.42.0:from-subscriptions-to-processors',
+    migration_0_42_0_SQLs,
   );
-
-  if (!tableExists) {
-    return;
-  }
-
-  await execute.batchCommand(migration_0_42_0_SQLs);
-};

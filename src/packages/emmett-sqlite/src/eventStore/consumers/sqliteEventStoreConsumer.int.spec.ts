@@ -1,7 +1,9 @@
 import {
   InMemorySQLiteDatabase,
   sqlite3Connection,
+  sqlite3Pool,
   type SQLite3Connection,
+  type Sqlite3Pool,
 } from '@event-driven-io/dumbo/sqlite3';
 import type { EmmettError } from '@event-driven-io/emmett';
 import {
@@ -35,13 +37,19 @@ void describe('SQLite event store consumer', () => {
   };
 
   let connection: SQLite3Connection;
+  let pool: Sqlite3Pool;
 
   beforeEach(async () => {
     connection = sqlite3Connection({
       fileName: InMemorySQLiteDatabase,
       serializer: JSONSerializer,
     });
-    await createEventStoreSchema(connection);
+    pool = sqlite3Pool({
+      fileName: InMemorySQLiteDatabase,
+      singleton: true,
+      connection,
+    });
+    await createEventStoreSchema(pool);
   });
 
   afterEach(() => connection.close());
