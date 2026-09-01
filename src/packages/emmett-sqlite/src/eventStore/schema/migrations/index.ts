@@ -5,13 +5,15 @@ import {
 } from '../eventStoreDatabaseSchema';
 import { eventStoreSchemaSQL, schemaSQL } from '../eventStoreSchemaSQL';
 import { migrations_0_42_0 } from './0_42_0';
+import { migrations_0_43_0 } from './0_43_0';
 
 export * from './0_41_0';
 export * from './0_42_0';
+export * from './0_43_0';
 
 export { eventStoreSchemaSQL, schemaSQL };
 
-export const currentSQLiteEventStoreSchemaVersion = '0.42.0';
+export const currentSQLiteEventStoreSchemaVersion = '0.43.0';
 
 export const schemaMigrationFor = (
   options?: EventStoreDatabaseSchemaOptions,
@@ -24,6 +26,7 @@ export const schemaMigration = schemaMigrationFor();
 
 export const pastEventStoreSchemaMigrations: SQLMigration[] = [
   ...migrations_0_42_0,
+  ...migrations_0_43_0,
 ];
 
 export const eventStoreSchemaMigrations: SQLMigration[] = [

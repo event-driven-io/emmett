@@ -8,8 +8,7 @@ import {
   type RecordedMessageMetadata,
   type RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import { defaultTag, messagesTable } from './typing';
-const { identifier } = SQL;
+import { defaultTag, messagesTable, tableReference } from './typing';
 
 type ReadMessagesBatchSqlResult = {
   stream_position: string;
@@ -37,6 +36,7 @@ export type ReadMessagesBatchOptions = (
   | { from: bigint; to: bigint }
 ) & {
   partition?: string;
+  databaseSchemaName?: string;
   serializer: JSONSerializer;
 };
 
@@ -83,7 +83,7 @@ export const readMessagesBatch = async <
     await mapRows(
       execute.query<ReadMessagesBatchSqlResult>(
         SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
-           FROM ${identifier(messagesTable.name)}
+           FROM ${tableReference(options?.databaseSchemaName, messagesTable.name)}
            WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE ${fromCondition} ${toCondition}
            ORDER BY global_position
            ${limitCondition}`,

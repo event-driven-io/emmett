@@ -150,6 +150,8 @@ export const getSQLiteEventStore = <
 
   const serializer = JSONSerializer.from(options);
 
+  const databaseSchema = eventStoreDatabaseSchema(options.schema);
+
   const pool =
     options.pool ??
     dumbo({
@@ -260,6 +262,7 @@ export const getSQLiteEventStore = <
           streamName,
           {
             ...readOptions,
+            databaseSchemaName: databaseSchema.databaseSchemaName,
             serializer: options.serialization?.serializer ?? serializer,
           },
         );
@@ -359,6 +362,7 @@ export const getSQLiteEventStore = <
             (connection) =>
               appendToStream(connection, streamName, streamType, events, {
                 ...(appendOptions as AppendToStreamOptions),
+                databaseSchemaName: databaseSchema.databaseSchemaName,
                 messageIdGenerator: () =>
                   observability.contextGenerator.generateMessageId(),
                 context: scope.context,
@@ -408,7 +412,10 @@ export const getSQLiteEventStore = <
       options?: SQLiteStreamExistsOptions,
     ): Promise<StreamExistsResult> {
       await ensureSchemaExists();
-      return streamExists(pool.execute, streamName, options);
+      return streamExists(pool.execute, streamName, {
+        ...options,
+        databaseSchemaName: databaseSchema.databaseSchemaName,
+      });
     },
 
     consumer: <ConsumerMessageType extends Message = AnyMessage>(

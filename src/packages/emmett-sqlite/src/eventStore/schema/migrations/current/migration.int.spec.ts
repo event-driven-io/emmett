@@ -33,6 +33,8 @@ import { readProcessorCheckpoint } from '../../readProcessorCheckpoint';
 import { schemaSQL } from '../../eventStoreSchemaSQL';
 import { migrations_0_41_0 } from '../0_41_0';
 import { migrations_0_42_0 } from '../0_42_0';
+import { appendToStream } from '../0_42_0/legacyApi';
+import { migrations_0_43_0 } from '../0_43_0';
 import { schemaMigration, schemaMigrationFor } from '../index';
 
 export type ProductItemAdded = Event<
@@ -92,7 +94,11 @@ void describe('Schema migrations tests', () => {
     const { applied, skipped } = await eventStore.schema.migrate();
 
     // Then
-    assertDeepEqual(applied, [...migrations_0_42_0, schemaMigration]);
+    assertDeepEqual(applied, [
+      ...migrations_0_42_0,
+      ...migrations_0_43_0,
+      schemaMigration,
+    ]);
     assertThatArray(skipped).isEmpty();
 
     assertTrue(await tableExists(connection.execute, 'dmb_migrations'));
@@ -144,6 +150,8 @@ void describe('Schema migrations tests', () => {
     assertFalse(
       await configuredTableExists('infrastructure', 'dmb_migrations'),
     );
+
+    await assertCanAppendAndRead(eventStore);
   });
 
   void it('migrates from 0.41.0 schema', async () => {
@@ -154,7 +162,11 @@ void describe('Schema migrations tests', () => {
     const { applied, skipped } = await eventStore.schema.migrate();
 
     // Then
-    assertDeepEqual(applied, [...migrations_0_42_0, schemaMigration]);
+    assertDeepEqual(applied, [
+      ...migrations_0_42_0,
+      ...migrations_0_43_0,
+      schemaMigration,
+    ]);
     assertThatArray(skipped).isEmpty();
 
     const result = await assertCanAppendAndRead(eventStore);
@@ -170,7 +182,7 @@ void describe('Schema migrations tests', () => {
     const { applied, skipped } = await eventStore.schema.migrate();
 
     // Then
-    assertDeepEqual(applied, [schemaMigration]);
+    assertDeepEqual(applied, [...migrations_0_43_0, schemaMigration]);
     assertDeepEqual(skipped, [...migrations_0_42_0]);
 
     const result = await assertCanAppendAndRead(eventStore);
@@ -187,7 +199,11 @@ void describe('Schema migrations tests', () => {
 
     // Then
     assertThatArray(applied).isEmpty();
-    assertDeepEqual(skipped, [...migrations_0_42_0, schemaMigration]);
+    assertDeepEqual(skipped, [
+      ...migrations_0_42_0,
+      ...migrations_0_43_0,
+      schemaMigration,
+    ]);
   });
 
   void it('migrates from the schema created before migrations were introduced', async () => {
@@ -208,7 +224,11 @@ void describe('Schema migrations tests', () => {
     const { applied, skipped } = await eventStore.schema.migrate();
 
     // Then
-    assertDeepEqual(applied, [...migrations_0_42_0, schemaMigration]);
+    assertDeepEqual(applied, [
+      ...migrations_0_42_0,
+      ...migrations_0_43_0,
+      schemaMigration,
+    ]);
     assertThatArray(skipped).isEmpty();
 
     const existingStream =
@@ -221,6 +241,48 @@ void describe('Schema migrations tests', () => {
     const result = await assertCanAppendAndRead(eventStore);
     await assertCanStoreAndReadCheckpoints(connection.execute, result);
     await assertProjectionsTableExists(connection.execute);
+  });
+
+  void it('appends to a stream created by 0.42.0', async () => {
+    // Given
+    await runSQLMigrations(pool, [...migrations_0_41_0, ...migrations_0_42_0]);
+    const legacyStreamId = 'cart-legacy-partition';
+    await appendToStream(connection.execute, {
+      streamId: legacyStreamId,
+      streamType: 'cart',
+      events: [
+        {
+          type: 'ProductItemAdded',
+          data: {
+            shoppingCartId: legacyStreamId,
+            productItem: { productId: 'product-456', quantity: 2 },
+          },
+        } satisfies ProductItemAdded,
+      ],
+    });
+
+    // When
+    await eventStore.schema.migrate();
+
+    // Then
+    await eventStore.appendToStream(
+      legacyStreamId,
+      [
+        {
+          type: 'ShoppingCartConfirmed',
+          data: { shoppingCartId: legacyStreamId },
+        } satisfies ShoppingCartConfirmed,
+      ],
+      { expectedStreamVersion: 1n },
+    );
+
+    const stream =
+      await eventStore.readStream<ShoppingCartEvent>(legacyStreamId);
+
+    assertTrue(stream.streamExists);
+    assertDeepEqual(stream.currentStreamVersion, 2n);
+    assertDeepEqual(stream.events.length, 2);
+    assertTrue(await eventStore.streamExists(legacyStreamId));
   });
 
   void it('skips the current schema migration when its SQL changed but the user already applied it', async () => {
@@ -243,7 +305,11 @@ void describe('Schema migrations tests', () => {
     // Given
     const dryRun = await eventStore.schema.migrate({ dryRun: true });
 
-    assertDeepEqual(dryRun.applied, [...migrations_0_42_0, schemaMigration]);
+    assertDeepEqual(dryRun.applied, [
+      ...migrations_0_42_0,
+      ...migrations_0_43_0,
+      schemaMigration,
+    ]);
     assertFalse(await tableExists(connection.execute, 'dmb_migrations'));
     assertFalse(await tableExists(connection.execute, 'emt_streams'));
 
@@ -251,7 +317,11 @@ void describe('Schema migrations tests', () => {
     const { applied, skipped } = await eventStore.schema.migrate();
 
     // Then
-    assertDeepEqual(applied, [...migrations_0_42_0, schemaMigration]);
+    assertDeepEqual(applied, [
+      ...migrations_0_42_0,
+      ...migrations_0_43_0,
+      schemaMigration,
+    ]);
     assertThatArray(skipped).isEmpty();
 
     assertTrue(await tableExists(connection.execute, 'dmb_migrations'));

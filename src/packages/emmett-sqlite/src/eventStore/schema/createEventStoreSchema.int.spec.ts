@@ -1,4 +1,4 @@
-import { SQL, SQLTableReference } from '@event-driven-io/dumbo';
+import { count, SQL, SQLTableReference } from '@event-driven-io/dumbo';
 import { sqliteTableName } from '@event-driven-io/dumbo/sqlite';
 import {
   InMemorySQLiteDatabase,
@@ -8,10 +8,12 @@ import {
 } from '@event-driven-io/dumbo/sqlite3';
 import {
   assertDeepEqual,
+  assertEqual,
   assertFalse,
   assertTrue,
 } from '@event-driven-io/emmett';
 import assert from 'assert';
+import { v4 as uuid } from 'uuid';
 import {
   afterAll,
   afterEach,
@@ -21,6 +23,7 @@ import {
   it,
 } from 'vitest';
 import { sqlite3EventStoreDriver } from '../../sqlite3';
+import type { ProductItemAdded } from '../../testing/shoppingCart.domain';
 import { getSQLiteEventStore } from '../SQLiteEventStore';
 import { createEventStoreSchema } from '../schema';
 import { schemaMigrationFor } from './migrations';
@@ -156,6 +159,121 @@ void describe('createEventStoreSchema with configured database schemas', () => {
       [schemaMigrationFor(schemaOptions).name],
     );
   });
+
+  void it('stores and reads events from the schema configured by the user', async () => {
+    const streamName = `shopping_cart-${uuid()}`;
+    const eventStore = getSQLiteEventStore({
+      driver: sqlite3EventStoreDriver,
+      fileName: InMemorySQLiteDatabase,
+      pool,
+      schema: { autoMigration: 'CreateOrUpdate', databaseSchemaName: 'events' },
+    });
+
+    const appendResult = await eventStore.appendToStream<ProductItemAdded>(
+      streamName,
+      [
+        {
+          type: 'ProductItemAdded',
+          data: { productItem: { productId: 'sku-1', quantity: 1, price: 10 } },
+        },
+      ],
+    );
+
+    const readResult =
+      await eventStore.readStream<ProductItemAdded>(streamName);
+
+    assertEqual(appendResult.nextExpectedStreamVersion, 1n);
+    assertTrue(readResult.streamExists);
+    assertEqual(readResult.events.length, 1);
+    assertEqual(readResult.events[0]?.data.productItem.productId, 'sku-1');
+    assertTrue(await eventStore.streamExists(streamName));
+    assertEqual(await messagesCountIn('events'), 1);
+    assertFalse(await tableExists(pool.execute, 'emt_messages'));
+  });
+
+  void it('keeps streams with the same name isolated between schemas configured by the user', async () => {
+    const streamName = `shopping_cart-${uuid()}`;
+    const firstEventStore = getSQLiteEventStore({
+      driver: sqlite3EventStoreDriver,
+      fileName: InMemorySQLiteDatabase,
+      pool,
+      schema: { autoMigration: 'CreateOrUpdate', databaseSchemaName: 'first' },
+    });
+    const secondEventStore = getSQLiteEventStore({
+      driver: sqlite3EventStoreDriver,
+      fileName: InMemorySQLiteDatabase,
+      pool,
+      schema: { autoMigration: 'CreateOrUpdate', databaseSchemaName: 'second' },
+    });
+
+    await firstEventStore.appendToStream<ProductItemAdded>(streamName, [
+      {
+        type: 'ProductItemAdded',
+        data: {
+          productItem: { productId: 'sku-first', quantity: 1, price: 10 },
+        },
+      },
+    ]);
+    await secondEventStore.appendToStream<ProductItemAdded>(streamName, [
+      {
+        type: 'ProductItemAdded',
+        data: {
+          productItem: { productId: 'sku-second', quantity: 1, price: 20 },
+        },
+      },
+    ]);
+
+    const firstRead =
+      await firstEventStore.readStream<ProductItemAdded>(streamName);
+    const secondRead =
+      await secondEventStore.readStream<ProductItemAdded>(streamName);
+
+    assertEqual(firstRead.events.length, 1);
+    assertEqual(secondRead.events.length, 1);
+    assertEqual(firstRead.events[0]?.data.productItem.productId, 'sku-first');
+    assertEqual(secondRead.events[0]?.data.productItem.productId, 'sku-second');
+    assertEqual(await messagesCountIn('first'), 1);
+    assertEqual(await messagesCountIn('second'), 1);
+    assertFalse(await tableExists(pool.execute, 'emt_messages'));
+  });
+
+  void it('stores and reads events from the configured schema when the user turns auto migration off', async () => {
+    const schemaOptions = { databaseSchemaName: 'events' };
+    const streamName = `shopping_cart-${uuid()}`;
+    await createEventStoreSchema(pool, undefined, schemaOptions);
+
+    const eventStore = getSQLiteEventStore({
+      driver: sqlite3EventStoreDriver,
+      fileName: InMemorySQLiteDatabase,
+      pool,
+      schema: { autoMigration: 'None', ...schemaOptions },
+    });
+
+    await eventStore.appendToStream<ProductItemAdded>(streamName, [
+      {
+        type: 'ProductItemAdded',
+        data: { productItem: { productId: 'sku-1', quantity: 1, price: 10 } },
+      },
+    ]);
+
+    const readResult =
+      await eventStore.readStream<ProductItemAdded>(streamName);
+
+    assertTrue(readResult.streamExists);
+    assertEqual(readResult.events.length, 1);
+    assertEqual(await messagesCountIn('events'), 1);
+    assertFalse(await tableExists(pool.execute, 'emt_messages'));
+  });
+
+  const messagesCountIn = (databaseSchemaName: string): Promise<number> =>
+    count(
+      pool.execute.query<{ count: number }>(
+        SQL`SELECT COUNT(*) AS count FROM ${SQLTableReference.from({
+          databaseSchemaName,
+          tableName: 'emt_messages',
+        })}`,
+      ),
+    );
 
   const configuredTableExists = (
     databaseSchemaName: string,

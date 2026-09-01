@@ -27,9 +27,14 @@ import type {
   SQLiteEventStore,
   SQLiteReadEventMetadata,
 } from '../SQLiteEventStore';
-import { defaultTag, messagesTable, streamsTable } from './typing';
+import {
+  defaultTag,
+  messagesTable,
+  streamsTable,
+  tableReference,
+} from './typing';
 
-const { identifier, merge } = SQL;
+const { merge } = SQL;
 
 export type AppendEventResult =
   | {
@@ -46,6 +51,7 @@ export const appendToStream = async <MessageType extends Message>(
   messages: MessageType[],
   options?: AppendToStreamOptions & {
     partition?: string;
+    databaseSchemaName?: string;
     messageIdGenerator?: () => string;
     context?: ObservabilityContext;
     onBeforeCommit?: BeforeEventStoreCommitHandler<
@@ -99,6 +105,7 @@ export const appendToStream = async <MessageType extends Message>(
           ),
           {
             expectedStreamVersion,
+            databaseSchemaName: options?.databaseSchemaName,
           },
         );
 
@@ -149,6 +156,7 @@ const appendToStreamRaw = async (
   options?: {
     expectedStreamVersion: bigint | null;
     partition?: string;
+    databaseSchemaName?: string;
   },
 ): Promise<AppendEventResult> => {
   let expectedStreamVersion = options?.expectedStreamVersion ?? null;
@@ -159,6 +167,7 @@ const appendToStreamRaw = async (
     execute,
     streamId,
     expectedStreamVersion,
+    options?.databaseSchemaName,
   );
 
   expectedStreamVersion ??= currentStreamVersion ?? 0n;
@@ -172,23 +181,23 @@ const appendToStreamRaw = async (
 
   const streamSQL =
     expectedStreamVersion === 0n
-      ? SQL`INSERT INTO ${identifier(streamsTable.name)}
+      ? SQL`INSERT INTO ${tableReference(options?.databaseSchemaName, streamsTable.name)}
             (stream_id, stream_position, partition, stream_type, stream_metadata, is_archived)
             VALUES  (
                 ${streamId},
                 ${messages.length},
-                ${options?.partition ?? streamsTable.columns.partition},
+                ${options?.partition ?? defaultTag},
                 ${streamType},
                 '[]',
                 false
             )
             RETURNING stream_position;
           `
-      : SQL`UPDATE ${identifier(streamsTable.name)}
+      : SQL`UPDATE ${tableReference(options?.databaseSchemaName, streamsTable.name)}
             SET stream_position = stream_position + ${messages.length}
             WHERE stream_id = ${streamId}
             AND stream_position = ${expectedStreamVersion}
-            AND partition = ${options?.partition ?? streamsTable.columns.partition}
+            AND partition = ${options?.partition ?? defaultTag}
             AND is_archived = false
             RETURNING stream_position;
           `;
@@ -198,6 +207,7 @@ const appendToStreamRaw = async (
     expectedStreamVersion,
     streamId,
     options?.partition?.toString() ?? defaultTag,
+    options?.databaseSchemaName,
   );
 
   const results = await execute.batchCommand<{
@@ -225,12 +235,13 @@ async function getLastStreamPosition(
   execute: SQLExecutor,
   streamId: string,
   expectedStreamVersion: bigint | null,
+  databaseSchemaName?: string,
 ): Promise<bigint> {
   const result = await singleOrNull(
     execute.query<{
       stream_position: string;
     }>(
-      SQL`SELECT CAST(stream_position AS VARCHAR) AS stream_position FROM ${identifier(streamsTable.name)} WHERE stream_id = ${streamId}`,
+      SQL`SELECT CAST(stream_position AS VARCHAR) AS stream_position FROM ${tableReference(databaseSchemaName, streamsTable.name)} WHERE stream_id = ${streamId}`,
     ),
   );
 
@@ -247,6 +258,7 @@ const buildMessageInsertQuery = (
   expectedStreamVersion: bigint,
   streamId: string,
   partition: string | null | undefined,
+  databaseSchemaName?: string,
 ): SQL => {
   const values = messages.map((message: RecordedMessage) => {
     if (
@@ -263,7 +275,7 @@ const buildMessageInsertQuery = (
   });
 
   return SQL`
-      INSERT INTO ${identifier(messagesTable.name)} (
+      INSERT INTO ${tableReference(databaseSchemaName, messagesTable.name)} (
           stream_id, 
           stream_position, 
           partition, 
