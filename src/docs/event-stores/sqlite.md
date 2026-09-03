@@ -248,21 +248,46 @@ SQLite event store creates three tables:
 ## Configuration Options
 
 ```typescript
-const eventStore = getSQLiteEventStore(pathOrDb, {
-  // Inline projections
-  projections: [projection1, projection2],
+const eventStore = getSQLiteEventStore({
+  driver: sqlite3EventStoreDriver,
+  fileName: './events.db',
 
-  // Schema management
+  // Inline projections
+  projections: projections.inline([projection1, projection2]),
+
+  // Schema migration
   schema: {
     autoMigration: 'CreateOrUpdate', // or 'None'
+    databaseSchemaName: 'events',
+    projectionsDatabaseSchemaName: 'read_models',
+    migrationTable: {
+      schemaName: 'infrastructure',
+      tableName: 'emmett_migrations',
+    },
   },
 
   // Before-commit hook
-  beforeCommit: async (events, context) => {
-    /* ... */
+  hooks: {
+    onBeforeCommit: async (events, context) => {
+      /* ... */
+    },
   },
 });
 ```
+
+### Database Schemas
+
+By default, SQLite objects are created without a schema prefix. Set `schema.databaseSchemaName` to put the event-store tables and processor checkpoints in a specific database schema.
+
+`schema.projectionsDatabaseSchemaName` controls the default schema for SQLite projection data such as Pongo collections. If it is omitted, it falls back to `schema.databaseSchemaName`. A projection can still override its own collection schema.
+
+`schema.migrationTable.schemaName` and `schema.migrationTable.tableName` control the shared Dumbo migration table used by the event store and SQLite projections. If `schemaName` is omitted, it falls back to `schema.databaseSchemaName`.
+
+If you omit all of these names, objects are created without a prefix. Existing databases are not affected.
+
+SQLite has no native schemas, so a schema name works differently than in PostgreSQL. A configured schema name becomes a prefix on the physical table name. With `databaseSchemaName: 'events'`, the streams table is physically named `events.emt_streams` and is quoted as `"events.emt_streams"` inside the one SQLite database file. Emmett runs no `CREATE SCHEMA` statement on SQLite.
+
+The isolation comes from naming, not from a database object. You do not create anything before you use a schema name. A schema name cannot contain a `.`, because the `.` is what separates the prefix from the table name. A name that contains a `.` is rejected by Dumbo when it renders the SQL, not by Emmett when you configure the store, so the error appears on the first render and not at construction time. Changing or removing `databaseSchemaName` later leaves the old prefixed tables behind, and Emmett does not move existing data between prefixes.
 
 ## Testing Best Practices
 
@@ -336,6 +361,12 @@ SQLite is excellent for development but has production limitations:
 | **Scaling**     | No horizontal scaling        |
 | **Networking**  | File-based, no remote access |
 | **Size**        | Practical limit ~1TB         |
+
+These features are not implemented for SQLite:
+
+- Processor and projection locks
+- Projection management in `emt_projections`
+- Projection rebuild
 
 **For production, consider:**
 

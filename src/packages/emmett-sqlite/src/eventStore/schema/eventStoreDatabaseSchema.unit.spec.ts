@@ -124,14 +124,14 @@ void describe('SQLite event store database schemas', () => {
     assertEqual(databaseSchema.migrationTable, undefined);
   });
 
-  void it('prints unprefixed objects when the user omits the event schema', () => {
-    const printedSQL = describeSQLite(eventStoreSchemaSQL());
+  void it('renders unprefixed objects when the user omits the event schema', () => {
+    const renderedSQL = describeSQLite(eventStoreSchemaSQL());
 
-    assertTrue(printedSQL.includes('CREATE TABLE IF NOT EXISTS emt_streams'));
-    assertFalse(/"[^"]*\.emt_/.test(printedSQL));
+    assertTrue(renderedSQL.includes('CREATE TABLE IF NOT EXISTS emt_streams'));
+    assertFalse(/"[^"]*\.emt_/.test(renderedSQL));
   });
 
-  void it('prints the same default schema SQL used by migrations', () => {
+  void it('renders the same default schema SQL used by migrations', () => {
     assertEqual(
       describeSQLite(eventStoreSchemaMigrations.at(-1)?.sqls ?? []),
       describeSQLite(schemaSQL),
@@ -142,36 +142,55 @@ void describe('SQLite event store database schemas', () => {
     assertTrue(eventStoreSchemaMigrations.at(-1)?.ignoreHashMismatch === true);
   });
 
-  void it('prints schema-prefixed SQL when the user configures the event schema', () => {
-    const printedSQL = describeSQLite(
+  void it('renders schema-prefixed SQL when the user configures the event schema', () => {
+    const renderedSQL = describeSQLite(
       eventStoreSchemaSQL({ databaseSchemaName: 'events' }),
     );
 
     assertTrue(
-      printedSQL.includes('CREATE TABLE IF NOT EXISTS "events.emt_streams"'),
+      renderedSQL.includes('CREATE TABLE IF NOT EXISTS "events.emt_streams"'),
     );
     assertTrue(
-      printedSQL.includes('CREATE TABLE IF NOT EXISTS "events.emt_messages"'),
+      renderedSQL.includes('CREATE TABLE IF NOT EXISTS "events.emt_messages"'),
     );
     assertTrue(
-      printedSQL.includes('CREATE TABLE IF NOT EXISTS "events.emt_processors"'),
+      renderedSQL.includes(
+        'CREATE TABLE IF NOT EXISTS "events.emt_processors"',
+      ),
     );
     assertTrue(
-      printedSQL.includes(
+      renderedSQL.includes(
         'CREATE TABLE IF NOT EXISTS "events.emt_projections"',
       ),
     );
   });
 
-  void it('does not create a database schema when the user configures the event schema', () => {
-    const printedSQL = describeSQLite(
+  void it('leaves no unprefixed object in the SQL when the user configures the event schema', () => {
+    const renderedSQL = describeSQLite(
       eventStoreSchemaSQL({ databaseSchemaName: 'events' }),
     );
 
-    assertFalse(printedSQL.includes('CREATE SCHEMA'));
+    const objectReferences = [...renderedSQL.matchAll(/emt_[a-z_]*/g)];
+
+    assertTrue(objectReferences.length > 0);
+
+    for (const objectReference of objectReferences) {
+      assertTrue(
+        renderedSQL.slice(0, objectReference.index).endsWith('"events.'),
+        `${objectReference[0]} is not prefixed with the configured schema`,
+      );
+    }
   });
 
-  void it('prints the same configured schema SQL from the event store and migrations', () => {
+  void it('does not create a database schema when the user configures the event schema', () => {
+    const renderedSQL = describeSQLite(
+      eventStoreSchemaSQL({ databaseSchemaName: 'events' }),
+    );
+
+    assertFalse(renderedSQL.includes('CREATE SCHEMA'));
+  });
+
+  void it('renders the same configured schema SQL from the event store and migrations', () => {
     const eventStore = getSQLiteEventStore({
       driver: sqlite3EventStoreDriver,
       fileName: InMemorySQLiteDatabase,

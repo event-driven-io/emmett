@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, it } from 'vitest';
 import { sqlite3EventStoreDriver } from '../../sqlite3';
 import { deleteSQLiteDatabaseFiles } from '../../testing/sqliteTestDatabase';
 import { getSQLiteEventStore } from '../SQLiteEventStore';
-import { createEventStoreSchema } from '.';
+import { createEventStoreSchema } from './index';
 import { appendToStream } from './appendToStream';
 import { truncateTables } from './truncateTables';
 import {
@@ -169,6 +169,46 @@ void describe('truncateTables', () => {
     const secondGlobalPosition = await latestGlobalPosition();
     assertIsNotNull(secondGlobalPosition);
     assertEqual(1n, secondGlobalPosition);
+  });
+
+  void it('restarts the global position at 1 only in the truncated database schema', async () => {
+    // Given
+    await createEventStoreSchema(pool, undefined, {
+      databaseSchemaName: 'events',
+    });
+    await createEventStoreSchema(pool, undefined, {
+      databaseSchemaName: 'other_events',
+    });
+
+    await appendTestEvent(uuid(), 'events');
+    await appendTestEvent(uuid(), 'events');
+    await appendTestEvent(uuid(), 'other_events');
+    await appendTestEvent(uuid(), 'other_events');
+
+    const eventsGlobalPosition = await latestGlobalPosition('events');
+    assertIsNotNull(eventsGlobalPosition);
+    assertTrue(eventsGlobalPosition > 1n);
+
+    const otherEventsGlobalPosition =
+      await latestGlobalPosition('other_events');
+    assertIsNotNull(otherEventsGlobalPosition);
+    assertTrue(otherEventsGlobalPosition > 1n);
+
+    // When
+    await truncateTables(pool.execute, { databaseSchemaName: 'events' });
+
+    // Then
+    await appendTestEvent(uuid(), 'events');
+
+    const eventsGlobalPositionAfterTruncate =
+      await latestGlobalPosition('events');
+    assertIsNotNull(eventsGlobalPositionAfterTruncate);
+    assertEqual(1n, eventsGlobalPositionAfterTruncate);
+
+    assertEqual(
+      otherEventsGlobalPosition,
+      await latestGlobalPosition('other_events'),
+    );
   });
 
   const events: ShoppingCartEvent[] = [

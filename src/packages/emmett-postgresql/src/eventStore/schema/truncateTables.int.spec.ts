@@ -85,10 +85,12 @@ void describe('truncateTables', () => {
     );
   };
 
-  const getLatestGlobalPosition = async (): Promise<bigint | null> => {
+  const getLatestGlobalPosition = async (
+    databaseSchemaName?: string,
+  ): Promise<bigint | null> => {
     const result = await singleOrNull(
       pool.execute.query<{ global_position: bigint }>(
-        SQL`SELECT global_position FROM ${SQL.identifier(messagesTable.name)} ORDER BY global_position DESC LIMIT 1`,
+        SQL`SELECT global_position FROM ${tableReference(databaseSchemaName, messagesTable.name)} ORDER BY global_position DESC LIMIT 1`,
       ),
     );
     return result?.global_position ?? null;
@@ -199,6 +201,54 @@ void describe('truncateTables', () => {
     const secondGlobalPosition = await getLatestGlobalPosition();
     assertIsNotNull(secondGlobalPosition);
     assertOk(secondGlobalPosition > firstGlobalPosition);
+  });
+
+  void it('should reset only the sequence in the database schema configured by the user', async () => {
+    // Given
+    const resetSchemaName = schemaName('reset_sequences');
+    const otherSchemaName = schemaName('other_reset_sequences');
+
+    await createEventStoreSchema(connectionString, pool, undefined, {
+      databaseSchemaName: resetSchemaName,
+    });
+    await createEventStoreSchema(connectionString, pool, undefined, {
+      databaseSchemaName: otherSchemaName,
+    });
+
+    const events = [createTestEvent()];
+    await appendTestEvents(uuid(), events, resetSchemaName);
+    await appendTestEvents(uuid(), events, resetSchemaName);
+    await appendTestEvents(uuid(), events, otherSchemaName);
+    await appendTestEvents(uuid(), events, otherSchemaName);
+
+    const resetSchemaPositionBefore =
+      await getLatestGlobalPosition(resetSchemaName);
+    assertIsNotNull(resetSchemaPositionBefore);
+    assertOk(resetSchemaPositionBefore > 1n);
+
+    const otherSchemaPositionBefore =
+      await getLatestGlobalPosition(otherSchemaName);
+    assertIsNotNull(otherSchemaPositionBefore);
+    assertOk(otherSchemaPositionBefore > 1n);
+
+    // When
+    await truncateTables(pool.execute, {
+      resetSequences: true,
+      databaseSchemaName: resetSchemaName,
+    });
+
+    // Then
+    await appendTestEvents(uuid(), events, resetSchemaName);
+
+    const resetSchemaPositionAfter =
+      await getLatestGlobalPosition(resetSchemaName);
+    assertIsNotNull(resetSchemaPositionAfter);
+    assertEqual(1n, resetSchemaPositionAfter);
+
+    const otherSchemaPositionAfter =
+      await getLatestGlobalPosition(otherSchemaName);
+    assertIsNotNull(otherSchemaPositionAfter);
+    assertEqual(otherSchemaPositionBefore, otherSchemaPositionAfter);
   });
 
   void it('should handle CASCADE correctly by truncating dependent tables', async () => {
