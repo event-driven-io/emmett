@@ -28,6 +28,7 @@ import {
   type JSONSerializationOptions,
   type Message,
   mergeObservability,
+  noopScope,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -61,6 +62,7 @@ import {
   type EventStoreDatabaseSchemaOptions,
   type SQLiteStreamExistsOptions,
 } from './schema';
+import { truncateTables } from './schema/truncateTables';
 
 export type EventHandler<E extends Event = Event> = (
   eventEnvelope: ReadEvent<E>,
@@ -94,6 +96,9 @@ export interface SQLiteEventStore
     migrate(
       options?: CreateEventStoreSchemaOptions,
     ): Promise<RunSQLMigrationsResult>;
+    dangerous: {
+      truncate(options?: { truncateProjections?: boolean }): Promise<void>;
+    };
   };
 }
 
@@ -469,6 +474,34 @@ export const getSQLiteEventStore = <
       sql: eventStoreSchemaDescription,
       print: () => console.log(eventStoreSchemaDescription()),
       migrate,
+      dangerous: {
+        truncate: (truncateOptions?: {
+          truncateProjections?: boolean;
+        }): Promise<void> =>
+          pool.withTransaction(async (transaction) => {
+            await ensureSchemaExists();
+            await truncateTables(transaction.execute, {
+              databaseSchemaName: databaseSchema.databaseSchemaName,
+            });
+
+            if (truncateOptions?.truncateProjections) {
+              const projectionContext = {
+                execute: transaction.execute,
+                connection: transaction.connection as AnySQLiteConnection,
+                driverType: options.driver.driverType,
+              };
+
+              for (const projection of options?.projections ?? []) {
+                if (projection.projection.truncate)
+                  await projection.projection.truncate({
+                    ...projectionContext,
+                    migrationOptions: databaseSchema,
+                    observabilityScope: noopScope,
+                  });
+              }
+            }
+          }),
+      },
     },
   };
 };

@@ -12,6 +12,7 @@ import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
+import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import { createEventStoreSchema } from '.';
 import { appendToStream } from './appendToStream';
 import { truncateTables } from './truncateTables';
@@ -20,6 +21,7 @@ import {
   processorsTable,
   projectionsTable,
   streamsTable,
+  tableReference,
 } from './typing';
 
 export type PricedProductItem = {
@@ -38,11 +40,12 @@ export type ShoppingCartEvent = ProductItemAdded;
 
 void describe('truncateTables', () => {
   let database: PostgreSQLTestDatabase;
+  let connectionString: string;
   let pool: PgPool;
 
   beforeAll(async () => {
     database = await sharedPostgreSQLDatabase();
-    const connectionString = database.connectionString;
+    connectionString = database.connectionString;
     pool = dumbo({
       connectionString,
       driver: pgDumboDriver,
@@ -71,6 +74,17 @@ void describe('truncateTables', () => {
     );
   };
 
+  const getSchemaTableCount = (
+    databaseSchemaName: string | undefined,
+    tableName: string,
+  ): Promise<number> => {
+    return count(
+      pool.execute.query<{ count: number }>(
+        SQL`SELECT COUNT(*)::integer as count FROM ${tableReference(databaseSchemaName, tableName)}`,
+      ),
+    );
+  };
+
   const getLatestGlobalPosition = async (): Promise<bigint | null> => {
     const result = await singleOrNull(
       pool.execute.query<{ global_position: bigint }>(
@@ -89,9 +103,12 @@ void describe('truncateTables', () => {
   const appendTestEvents = async (
     streamId: string,
     events: ShoppingCartEvent[],
+    databaseSchemaName?: string,
   ) => {
     const result = await pool.withConnection(async (connection) =>
-      appendToStream(connection, streamId, 'shopping_cart', events),
+      appendToStream(connection, streamId, 'shopping_cart', events, {
+        databaseSchemaName,
+      }),
     );
     assertOk(result.success);
     return result;
@@ -205,4 +222,134 @@ void describe('truncateTables', () => {
       assertEqual(0, count);
     });
   });
+
+  void it('should truncate only the tables in the database schema configured by the user', async () => {
+    // Given
+    const truncatedSchemaName = schemaName('events');
+    const otherSchemaName = schemaName('other_events');
+
+    await createEventStoreSchema(connectionString, pool, undefined, {
+      databaseSchemaName: truncatedSchemaName,
+    });
+    await createEventStoreSchema(connectionString, pool, undefined, {
+      databaseSchemaName: otherSchemaName,
+    });
+
+    const events = [createTestEvent()];
+    await appendTestEvents(uuid(), events, truncatedSchemaName);
+    await appendTestEvents(uuid(), events, otherSchemaName);
+
+    assertEqual(
+      1,
+      await getSchemaTableCount(truncatedSchemaName, messagesTable.name),
+    );
+    assertEqual(
+      1,
+      await getSchemaTableCount(otherSchemaName, messagesTable.name),
+    );
+
+    // When
+    await truncateTables(pool.execute, {
+      databaseSchemaName: truncatedSchemaName,
+    });
+
+    // Then
+    assertEqual(
+      0,
+      await getSchemaTableCount(truncatedSchemaName, streamsTable.name),
+    );
+    assertEqual(
+      0,
+      await getSchemaTableCount(truncatedSchemaName, messagesTable.name),
+    );
+    assertEqual(
+      0,
+      await getSchemaTableCount(truncatedSchemaName, processorsTable.name),
+    );
+    assertEqual(
+      0,
+      await getSchemaTableCount(truncatedSchemaName, projectionsTable.name),
+    );
+
+    assertEqual(
+      1,
+      await getSchemaTableCount(otherSchemaName, streamsTable.name),
+    );
+    assertEqual(
+      1,
+      await getSchemaTableCount(otherSchemaName, messagesTable.name),
+    );
+  });
+
+  void it('should truncate only the event store configured database schema through schema.dangerous.truncate', async () => {
+    // Given
+    const truncatedSchemaName = schemaName('events');
+    const otherSchemaName = schemaName('other_events');
+
+    const first = getPostgreSQLEventStore(connectionString, {
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+        databaseSchemaName: truncatedSchemaName,
+      },
+    });
+    const second = getPostgreSQLEventStore(connectionString, {
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+        databaseSchemaName: otherSchemaName,
+      },
+    });
+
+    try {
+      await first.appendToStream(`shopping_cart-${uuid()}`, [
+        createTestEvent(),
+      ]);
+      await second.appendToStream(`shopping_cart-${uuid()}`, [
+        createTestEvent(),
+      ]);
+
+      assertEqual(
+        1,
+        await getSchemaTableCount(truncatedSchemaName, streamsTable.name),
+      );
+      assertEqual(
+        1,
+        await getSchemaTableCount(truncatedSchemaName, messagesTable.name),
+      );
+      assertEqual(
+        1,
+        await getSchemaTableCount(otherSchemaName, streamsTable.name),
+      );
+      assertEqual(
+        1,
+        await getSchemaTableCount(otherSchemaName, messagesTable.name),
+      );
+
+      // When
+      await first.schema.dangerous.truncate();
+
+      // Then
+      assertEqual(
+        0,
+        await getSchemaTableCount(truncatedSchemaName, streamsTable.name),
+      );
+      assertEqual(
+        0,
+        await getSchemaTableCount(truncatedSchemaName, messagesTable.name),
+      );
+      assertEqual(
+        1,
+        await getSchemaTableCount(otherSchemaName, streamsTable.name),
+      );
+      assertEqual(
+        1,
+        await getSchemaTableCount(otherSchemaName, messagesTable.name),
+      );
+    } finally {
+      await first.close();
+      await second.close();
+    }
+  });
 });
+
+const schemaName = (prefix: string): string =>
+  `${prefix}_${uuid().replaceAll('-', '_')}`;
