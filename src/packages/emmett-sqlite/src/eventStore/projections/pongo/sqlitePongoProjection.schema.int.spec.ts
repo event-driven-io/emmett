@@ -12,7 +12,6 @@ import {
   assertIsNull,
   assertRejects,
   assertTrue,
-  noopScope,
   type Event,
 } from '@event-driven-io/emmett';
 import path from 'path';
@@ -282,7 +281,6 @@ void describe('SQLite Pongo projection schema configuration', () => {
     withDeadline,
     async () => {
       const streamName = `shopping_cart-${uuid()}`;
-      const projection = shoppingCartProjection(collectionName);
       const eventStore = getSQLiteEventStore({
         driver: sqlite3EventStoreDriver,
         fileName,
@@ -291,40 +289,38 @@ void describe('SQLite Pongo projection schema configuration', () => {
           databaseSchemaName,
           projectionsDatabaseSchemaName,
         },
-        projections: [{ type: 'inline', projection }],
+        projections: [
+          {
+            type: 'inline',
+            projection: shoppingCartProjection(collectionName),
+          },
+        ],
       });
 
       try {
         await eventStore.appendToStream(streamName, [
           { type: 'ProductItemAdded', data: { quantity: 6 } },
         ]);
+
+        assertDeepEqual(
+          await summaryIn(projectionsDatabaseSchemaName, streamName),
+          {
+            _id: streamName,
+            _version: 1n,
+            productItemsCount: 6,
+          },
+        );
+
+        await eventStore.schema.dangerous.truncate({
+          truncateProjections: true,
+        });
+
+        assertIsNull(
+          await summaryIn(projectionsDatabaseSchemaName, streamName),
+        );
       } finally {
         await eventStore.close();
       }
-
-      assertDeepEqual(
-        await summaryIn(projectionsDatabaseSchemaName, streamName),
-        {
-          _id: streamName,
-          _version: 1n,
-          productItemsCount: 6,
-        },
-      );
-
-      await pool.withConnection((connection) =>
-        projection.truncate!({
-          connection,
-          execute: connection.execute,
-          driverType: sqlite3EventStoreDriver.driverType,
-          migrationOptions: {
-            databaseSchemaName,
-            projectionsDatabaseSchemaName,
-          },
-          observabilityScope: noopScope,
-        }),
-      );
-
-      assertIsNull(await summaryIn(projectionsDatabaseSchemaName, streamName));
     },
   );
 

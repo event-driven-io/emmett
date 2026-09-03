@@ -306,14 +306,26 @@ Notes:
 
 ## Phase 6: truncate
 
-- [ ] Start phase after approval
-- [ ] Add failing tests for `schema.dangerous.truncate` emptying only the configured prefix
-- [ ] Add failing tests for projection storage truncation targeting the projection prefix
-- [ ] Move the Phase 5 Pongo truncate test onto `schema.dangerous.truncate`. It calls `projection.truncate` directly today, because Phase 5 had no public truncate entry point. `postgreSQLEventStore.ts:388` shows the shape: the truncate path passes `migrationOptions: databaseSchema` to every projection's `truncate`.
-- [ ] Implement `truncateTables` and the `schema.dangerous` surface
-- [ ] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
-- [ ] Review for consistency, naming, dead code and redundant abstractions
+- [x] Start phase after approval
+- [x] Add failing tests for `schema.dangerous.truncate` emptying only the configured prefix
+- [x] Add failing tests for projection storage truncation targeting the projection prefix
+- [x] Move the Phase 5 Pongo truncate test onto `schema.dangerous.truncate`. It calls `projection.truncate` directly today, because Phase 5 had no public truncate entry point. `postgreSQLEventStore.ts:388` shows the shape: the truncate path passes `migrationOptions: databaseSchema` to every projection's `truncate`.
+- [x] Implement `truncateTables` and the `schema.dangerous` surface
+- [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
+- [x] Review for consistency, naming, dead code and redundant abstractions
 - [ ] Stop for approval before Phase 7
+
+Notes:
+
+- SQLite has no `TRUNCATE` statement, so `truncateTables` runs one `DELETE FROM` per table instead of PostgreSQL's single multi-table statement with `CASCADE`.
+- The SQLite signature drops `resetSequences`. `global_position INTEGER PRIMARY KEY` in `tables.ts` is a plain rowid alias with no `AUTOINCREMENT`, so there is no `sqlite_sequence` row to survive a delete and the next insert gets 1 on its own. Accepting an option that has nothing to restart would be a lie in the type, so it is absent. `truncateTables.int.spec.ts` pins the restart down as behavior rather than as an option.
+- `truncateTables` is not re-exported from `schema/index.ts`. `SQLiteEventStore.ts` imports it directly from `./schema/truncateTables`, which is what `postgreSQLEventStore.ts` does.
+- `schema.dangerous.truncate` builds a new context object for each projection, spreading the shared fields and adding `migrationOptions` and `observabilityScope` inside the loop. This matches `postgreSQLEventStore.ts`. A single shared object would carry a projection's changes to the next projection. No projection changes the context today, so the two forms behave the same, but the per-projection object is the safer one.
+- It takes `driverType` from `options.driver.driverType`, matching the append path, not `pool.driverType`, which is what `createEventStoreSchema` uses.
+- Four tests cover this. Three drive `truncateTables` directly: default schema, prefix isolation between `events` and `other_events`, and the global position restarting at 1. The fourth drives `schema.dangerous.truncate` through two stores over one file and proves the store forwards its own `databaseSchemaName`. Removing that argument fails only the fourth, with `SQLITE_ERROR: no such table: emt_streams`, because the unprefixed tables do not exist in that database.
+- The Pongo truncate test now goes through `eventStore.schema.dangerous.truncate({ truncateProjections: true })`, matching `postgreSQLPongoProjection.schema.int.spec.ts`, and no longer reaches into `projection.truncate`.
+- The store-level test was written after the implementation, because the implementation had to exist before the public API could be called. The coverage check above is what stands in for the red step.
+- `npm run test:unit` prints a `MaxListenersExceededWarning` for SIGTERM and SIGINT. It appears on packages this branch does not touch, so it is a vitest runner artifact, not Phase 6.
 
 ## Phase 7: identifier safety, regression coverage and docs
 

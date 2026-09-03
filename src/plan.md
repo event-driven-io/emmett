@@ -646,6 +646,12 @@ Tests first: `schema.dangerous.truncate` empties the configured store and leaves
 
 Implement `truncateTables.ts` and the `schema.dangerous` surface. SQLite has no sequence to restart, so this is simpler than the PostgreSQL version.
 
+Done. `truncateTables` runs one `DELETE FROM` per table, because SQLite has no `TRUNCATE`. Its options are `{ databaseSchemaName?: string }` only. PostgreSQL needs `resetSequences` to restart `emt_global_message_position`; SQLite has nothing to restart, because `global_position INTEGER PRIMARY KEY` is a plain rowid alias with no `AUTOINCREMENT`, so once every row is deleted the next insert gets 1 again. The option is therefore absent rather than accepted and ignored, and a test pins the restart down as behavior.
+
+`schema.dangerous.truncate({ truncateProjections?: boolean })` mirrors `postgreSQLEventStore.ts`: one transaction, `ensureSchemaExists()` first, then `truncateTables` with the store's own `databaseSchemaName`, then each projection's `truncate` with `migrationOptions: databaseSchema`. The projection context is built per projection inside the loop, as in PostgreSQL, so one projection cannot pass a changed context to the next. It takes `driverType` from `options.driver.driverType`, matching the append path. `truncateTables` is imported directly from `./schema/truncateTables` and not re-exported from the schema index, as in PostgreSQL.
+
+The Phase 5 Pongo truncate test now drives the public path instead of `projection.truncate`.
+
 ### Phase 7: identifier safety, regression matrix and documentation
 
 Tests first: prefixes with capitals, spaces and a double quote render and work, because a SQLite prefix becomes part of one quoted identifier; a prefix containing `.` fails with Dumbo's error and Emmett adds no second check; index names go through `sqliteIndexName`; default behavior and existing fixtures are unchanged; generated SQL contains no accidental unprefixed reference.
