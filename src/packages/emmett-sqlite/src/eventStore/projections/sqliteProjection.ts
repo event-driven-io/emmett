@@ -76,6 +76,7 @@ export const handleProjections = async <EventType extends Event = Event>(
       connection,
       execute,
       driverType,
+      migrationOptions: options.migrationOptions,
       observabilityScope: options.observabilityScope,
     });
   }

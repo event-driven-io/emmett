@@ -624,6 +624,22 @@ Implement `pongoSchemaOptions`, the `collection.schema.migrate` call, the spec f
 
 Exit: projection placement is independent from migration-history placement.
 
+Three defects surfaced while writing these tests, none of them schema-specific:
+
+1. `handleProjections` dropped `migrationOptions` before calling `projection.handle`, so no projection reached through an append saw the resolved names.
+2. `SQLiteProcessorHandlerContext` had no `driverType`, so a Pongo projection registered on a consumer resolved its driver from `undefined`, got `null` back, and crashed in `pongoClient` during projector init. Inline projections and `SQLiteProjectionSpec` were unaffected, because both build their context from `options.driver.driverType`; only `sqliteProcessingScope` was missing it. No SQLite test called `consumer.projector` at all, which is why the existing Pongo suites stayed green. Both processing scopes now set `driverType` from the connection.
+3. `SQLiteProjectionSpec` never created an event store, so its `schema` option only reached projections and never the store. It now builds a store and migrates, as `PostgreSQLProjectionSpec` does.
+
+`collection.schema.migrate(context.migrationOptions)` matters more than it looks. Pongo's `migrate` spreads the argument into `runSQLMigrations` and falls back to the client-level value for `migrationTable` only, so `dryRun`, `ignoreMigrationHashMismatch`, `migrationTimeoutMs` and `session` arrive through this argument or not at all. Inline projection init runs inside `createEventStoreSchema`, whose context carries the full `CreateEventStoreSchemaOptions`, so that is the path that needs them. `dryRun` is not observable on SQLite, because `createEventStoreSchema` runs hooks and migration in one transaction and rolls it back, which erases the collection table either way. `ignoreMigrationHashMismatch` is covered in both dialects. A Pongo collection migration is recorded as `table:pongo_collection:<schema>:<collection>:create` and, unlike Emmett's own current migration, carries no `ignoreHashMismatch` flag, so changing its `sql_hash` in the migration table makes `schema.migrate()` throw and `schema.migrate({ ignoreMigrationHashMismatch: true })` succeed. Dropping the argument fails that test in both packages.
+
+`PostgreSQLProcessorHandlerContext` and `PostgreSQLProjectionHandlerContext` gained `driverType`, so both dialects hand a projection the driver it runs on. Nothing in the PostgreSQL package reads it yet. Its Pongo call site still imports `pgDriver` directly, because Pongo cannot build a PostgreSQL database from an ambient client alone: `connectionString` is driver-specific and absent from `PongoClientOptions<AnyPongoDriver>`, and `pool` loses the database name and lets Pongo leave the projection transaction.
+
+PostgreSQL gained the two tests this phase showed it was missing: a Pongo projection inheriting the event schema end to end, and `expectPongoDocuments` against a configured projection schema. Its implementation already supported both.
+
+Projector coverage now matches PostgreSQL file for file, for Pongo and for in-memory projections. That parity is what surfaced defect 2, and reverting the fix fails every Pongo projector test.
+
+Pongo assertions in both dialects read documents through Pongo rather than counting rows with raw SQL. A count only proves a row exists in a table with the expected name; comparing the whole document proves the projection wrote the right content, and `_version` catches a projection that ran twice.
+
 ### Phase 6: truncate
 
 Tests first: `schema.dangerous.truncate` empties the configured store and leaves another prefix untouched; it resets the global position expectations that SQLite's `INTEGER PRIMARY KEY` implies; projection storage truncation targets the projection prefix.
@@ -662,6 +678,10 @@ Then document the three options and the fallback rules, the shared migration tab
 - Dropping, listing or renaming a logical prefix.
 - Moving existing data between prefixes.
 - The empty `cli.ts` and a SQLite migration command line.
+
+## Upstream follow-ups found for Pongo
+
+- `PongoCollection.countDocuments()` is typed `Promise<number>` but resolves to a string on PostgreSQL, so an `assertEqual(0, ...)` fails with `Expected: 0, Actual: "0"`.
 
 ## Upstream follow-ups found for Dumbo
 

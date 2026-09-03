@@ -10,24 +10,34 @@ import {
 import {
   pongoClient,
   type PongoCollection,
+  type PongoDBCollectionOptions,
   type PongoDocument,
   type PongoFilter,
   type WithId,
 } from '@event-driven-io/pongo';
 import type { SQLiteProjectionAssert } from '..';
+import type { EventStoreDatabaseSchemaOptions } from '../../schema';
 
 export type PongoAssertOptions = {
   inCollection: string;
   inDatabase?: string;
+  collectionOptions?: PongoDBCollectionOptions<PongoDocument>;
 };
 
 const withCollection = async (
   handle: (collection: PongoCollection<PongoDocument>) => Promise<void>,
   options: {
     connection: AnySQLiteConnection;
+    migrationOptions?: EventStoreDatabaseSchemaOptions | undefined;
   } & PongoAssertOptions,
 ) => {
-  const { connection, inDatabase, inCollection } = options;
+  const {
+    connection,
+    inDatabase,
+    inCollection,
+    collectionOptions,
+    migrationOptions,
+  } = options;
 
   const driver = (await pongoDriverRegistry.tryResolve(
     connection.driverType as DatabaseDriverType,
@@ -35,9 +45,13 @@ const withCollection = async (
   const pongo = pongoClient({
     connectionOptions: { connection },
     driver,
+    defaultSchemaName: migrationOptions?.projectionsDatabaseSchemaName,
+    migrationTable: migrationOptions?.migrationTable,
   });
   try {
-    const collection = pongo.db(inDatabase).collection(inCollection);
+    const collection = pongo
+      .db(inDatabase)
+      .collection(inCollection, collectionOptions);
 
     return handle(collection);
   } finally {
@@ -189,6 +203,7 @@ export const documentDoesNotExist =
 export const expectPongoDocuments = {
   fromCollection: <Doc extends PongoDocument | WithId<PongoDocument>>(
     collectionName: string,
+    collectionOptions?: PongoDBCollectionOptions<PongoDocument>,
   ) => {
     return {
       withId: (id: string) => {
@@ -197,16 +212,19 @@ export const expectPongoDocuments = {
             documentExists(document, {
               withId: id,
               inCollection: collectionName,
+              collectionOptions,
             }),
           toExist: () =>
             documentMatchingExists({
               withId: id,
               inCollection: collectionName,
+              collectionOptions,
             }),
           notToExist: () =>
             documentDoesNotExist({
               withId: id,
               inCollection: collectionName,
+              collectionOptions,
             }),
         };
       },
@@ -218,21 +236,25 @@ export const expectPongoDocuments = {
             documentsAreTheSame<Doc>(documents, {
               matchingFilter: filter,
               inCollection: collectionName,
+              collectionOptions,
             }),
           toHaveCount: (expectedCount: number) =>
             documentsMatchingHaveCount(expectedCount, {
               matchingFilter: filter,
               inCollection: collectionName,
+              collectionOptions,
             }),
           toExist: () =>
             documentMatchingExists({
               matchingFilter: filter,
               inCollection: collectionName,
+              collectionOptions,
             }),
           notToExist: () =>
             documentDoesNotExist({
               matchingFilter: filter,
               inCollection: collectionName,
+              collectionOptions,
             }),
         };
       },

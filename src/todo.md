@@ -162,7 +162,7 @@ The PostgreSQL working rules above apply unchanged. SQLite adds:
 - [x] Pass a pool instead of a connection to `createEventStoreSchema` at every call site
 - [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
 - [x] Review for consistency, naming, dead code and redundant abstractions
-- [ ] Stop for approval before Phase 2
+- [x] Stop for approval before Phase 2
 
 Deferred to Phase 2, because they need `eventStoreSchemaSQL(options)`:
 
@@ -192,7 +192,7 @@ Decisions:
 - [x] Set `currentSQLiteEventStoreSchemaVersion` and snapshot the current schema in the newest version folder
 - [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
 - [x] Review for consistency, naming, dead code and redundant abstractions
-- [ ] Stop for approval before Phase 3
+- [x] Stop for approval before Phase 3
 
 Notes:
 
@@ -211,7 +211,7 @@ Notes:
 - [x] Qualify append, stream existence, stream read, batch read and last position
 - [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
 - [x] Review for consistency, naming, dead code and redundant abstractions
-- [ ] Stop for approval before Phase 4
+- [x] Stop for approval before Phase 4
 
 Notes:
 
@@ -242,7 +242,7 @@ Both drivers now have the same configured-schema e2e coverage. Phase 3 first mir
 - [x] Change the hook signatures to carry the resolved context
 - [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
 - [x] Review for consistency, naming, dead code and redundant abstractions
-- [ ] Stop for approval before Phase 5
+- [x] Stop for approval before Phase 5
 
 Notes:
 
@@ -266,25 +266,50 @@ One difference stays on purpose: the consumer's `scope` hands a partial context,
 
 ## Phase 5: Pongo and raw projections
 
-- [ ] Start phase after approval
-- [ ] Add failing tests for a Pongo projection inheriting the event prefix
-- [ ] Add failing tests for a separate projection prefix and for a collection-level override winning
-- [ ] Add failing tests proving init, handle and truncate agree on the collection schema
-- [ ] Add failing tests proving Pongo records migrations in the shared migration table
-- [ ] Add failing tests for raw SQL projections receiving the resolved names
-- [ ] Add failing tests for `SQLiteProjectionSpec` and `expectPongoDocuments` honoring the configuration
-- [ ] Add `pongoSchemaOptions` and spread it into every `pongoClient` call
-- [ ] Replace the `// TODO: ADD migration options` with the real `collection.schema.migrate` call
-- [ ] Fix the copied `postgresql` projection `kind` strings in the SQLite package
-- [ ] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
-- [ ] Review for consistency, naming, dead code and redundant abstractions
+- [x] Start phase after approval
+- [x] Add failing tests for a Pongo projection inheriting the event prefix
+- [x] Add failing tests for a separate projection prefix and for a collection-level override winning
+- [x] Add failing tests proving init, handle and truncate agree on the collection schema
+- [x] Add failing tests proving Pongo records migrations in the shared migration table
+- [x] Add failing tests for raw SQL projections receiving the resolved names
+- [x] Add failing tests for `SQLiteProjectionSpec` and `expectPongoDocuments` honoring the configuration
+- [x] Add `pongoSchemaOptions` and spread it into every `pongoClient` call
+- [x] Replace the `// TODO: ADD migration options` with the real `collection.schema.migrate` call
+- [x] Add tests proving `ignoreMigrationHashMismatch` reaches the Pongo collection migration, in both dialects
+- [x] Fix the copied `postgresql` projection `kind` strings in the SQLite package
+- [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
+- [x] Review for consistency, naming, dead code and redundant abstractions
 - [ ] Stop for approval before Phase 6
+
+Notes:
+
+- `handleProjections` dropped `migrationOptions` before calling `projection.handle`, so no projection reached by an append ever saw the resolved names. It now forwards it, as PostgreSQL does, and the event store passes `migrationOptions: databaseSchema` at the inline projection call site, matching `postgreSQLEventStore.ts`.
+- `pongoSchemaOptions(context)` returns `{ defaultSchemaName, migrationTable }` and is spread into all four `pongoClient` calls: handle, truncate and init in `pongoProjection`, and truncate in `pongoMultiStreamProjection`.
+- `SQLiteProjectionSpec` gained the `schema` option. It resolves `migrationOptions` once and passes it to projection init, to `handleProjections` and to the assert callback, as `PostgreSQLProjectionSpec` does. `SQLiteProjectionAssert` therefore carries `migrationOptions`, which `expectPongoDocuments` and the other Pongo assert helpers forward to their own `pongoClient`.
+- The three `kind` strings said `postgresql` inside the SQLite package. They now say `sqlite`.
+- `collection.schema.migrate(context.migrationOptions)` replaced the `// TODO: ADD migration options`. Pongo's `migrate` spreads the argument into `runSQLMigrations` and falls back to the client-level value for `migrationTable` only, so `dryRun`, `ignoreMigrationHashMismatch`, `migrationTimeoutMs` and `session` reach the collection migration through this argument and nowhere else. Inline projection init runs inside `createEventStoreSchema`, whose context carries the full `CreateEventStoreSchemaOptions`, so this is the path that needs them.
+- `migrationTable` alone is redundant, because `pongoSchemaOptions` puts it on the client. `dryRun` is unobservable on SQLite for a different reason: `createEventStoreSchema` runs the hooks and the migration in one transaction and rolls it back on a dry run, so the collection table disappears whether or not Pongo also treated its own migration as a dry run.
+- `ignoreMigrationHashMismatch` is covered now, in both dialects. Pongo records a collection migration as `table:pongo_collection:<schema>:<collection>:create` and gives it no `ignoreHashMismatch` flag, unlike Emmett's own current migration, which carries the flag and therefore never consults the option. So the collection migration is the only step in the chain where the option decides anything. The test migrates, changes that row's `sql_hash`, then asserts `schema.migrate()` rejects with `Migration hash mismatch` and `schema.migrate({ ignoreMigrationHashMismatch: true })` succeeds and still projects. Removing the argument from `collection.schema.migrate` fails it in both packages, which is what proves the test is not vacuous.
+- The test was written after the implementation, not before. That was a TDD miss on my side, not a decision.
+- Truncate has no public SQLite entry point until Phase 6 adds `schema.dangerous.truncate`, so its test drives `projection.truncate` directly. Phase 6 should replace that with the public path.
+- The collection-level `databaseSchemaName` override needed no implementation change. Pongo resolves it itself, so that test passed from the first run and stays as a regression guard.
+- Pongo projections registered on a consumer were broken on SQLite before this phase, independently of schema support. `SQLiteProcessorHandlerContext` carried no `driverType`, so `pongoDriverRegistry.tryResolve(undefined)` returned `null` and `pongoClient` threw during projector init. Inline projections and `SQLiteProjectionSpec` build their context from `options.driver.driverType`, so they always worked; only `sqliteProcessingScope` was missing the field. Nothing in the package called `consumer.projector`, so no existing test covered it. The context now declares `driverType` and both scopes fill it from the connection.
+- `SQLiteProjectionSpec` never built an event store, so its `schema` option reached projections but never the store and `autoMigration` was dead. It now creates the store and migrates, matching `PostgreSQLProjectionSpec`.
+- `PongoAssertOptions` gained `collectionOptions`, so `expectPongoDocuments` can assert against a collection-level schema override. PostgreSQL already had it.
+- `PostgreSQLProcessorHandlerContext` and `PostgreSQLProjectionHandlerContext` gained `driverType`, matching SQLite, so both dialects hand a projection the driver it runs on. Nothing in the PostgreSQL package consumes it yet. Its Pongo call site keeps importing `pgDriver`, because Pongo has no driver-agnostic way to build a PostgreSQL database from an ambient client: `connectionString` is driver-specific and missing from `PongoClientOptions<AnyPongoDriver>`, and passing `pool` instead loses the database name and lets Pongo check out a connection outside the projection transaction.
+- PostgreSQL gained the two tests this phase showed it was missing: end-to-end projection-schema inheritance, and `expectPongoDocuments` against a configured projection schema. Both passed on the existing implementation.
+- Projector coverage reached parity with PostgreSQL. `sqliteEventStoreConsumer.projections.int.spec.ts` and `sqliteEventStoreConsumer.inMemory.projections.int.spec.ts` mirror the PostgreSQL files: events appended before start, after start, an explicit start position, CURRENT not stored, CURRENT stored on restart, CURRENT stored for a new consumer, plus catch-up for a store-created consumer. Reverting the `driverType` fix fails all seven Pongo ones, which is what proves they exercise the defect.
+- The async Pongo schema test sits in `sqliteEventStoreConsumer.schema.int.spec.ts`, matching where PostgreSQL keeps it, not in the Pongo projection spec.
+- Pongo projection assertions read documents through Pongo instead of counting rows with raw SQL. A count proves a row exists in a table with the right name; a full `assertDeepEqual` on the document proves the projection wrote the right content, and `_version` catches a projection that ran twice. Truncation asserts the document is gone rather than counting. Both dialects were converted, including the PostgreSQL tests that predate this phase.
+- `PongoCollection.countDocuments()` is typed `Promise<number>` but resolves to a string on PostgreSQL. Not used in the end, worth reporting upstream.
+- `sqliteProcessor.transactions.int.spec.ts` failed once during a full integration run and passed on four consecutive full runs afterwards, and always in isolation. It looks like lock contention under load rather than a regression, but it is a flake worth watching.
 
 ## Phase 6: truncate
 
 - [ ] Start phase after approval
 - [ ] Add failing tests for `schema.dangerous.truncate` emptying only the configured prefix
 - [ ] Add failing tests for projection storage truncation targeting the projection prefix
+- [ ] Move the Phase 5 Pongo truncate test onto `schema.dangerous.truncate`. It calls `projection.truncate` directly today, because Phase 5 had no public truncate entry point. `postgreSQLEventStore.ts:388` shows the shape: the truncate path passes `migrationOptions: databaseSchema` to every projection's `truncate`.
 - [ ] Implement `truncateTables` and the `schema.dangerous` surface
 - [ ] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
 - [ ] Review for consistency, naming, dead code and redundant abstractions

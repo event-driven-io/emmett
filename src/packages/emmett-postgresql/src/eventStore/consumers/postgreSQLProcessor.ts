@@ -1,4 +1,9 @@
-import { dumbo, type Dumbo, type SQLExecutor } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  type DatabaseDriverType,
+  type Dumbo,
+  type SQLExecutor,
+} from '@event-driven-io/dumbo';
 import type {
   PgClient,
   PgClientConnection,
@@ -68,6 +73,7 @@ export type PostgreSQLProcessorHandlerContext = MessageHandlerContext<
   {
     partition: string;
     execute: SQLExecutor;
+    driverType: DatabaseDriverType;
     connection: {
       connectionString: string;
       client: PgClient;
@@ -298,6 +304,7 @@ const postgreSQLProcessingScope = (options: {
         ...partialContext,
         partition: options.partition,
         execute: transaction.execute,
+        driverType: pool.driverType,
         connection: {
           connectionString,
           pool,

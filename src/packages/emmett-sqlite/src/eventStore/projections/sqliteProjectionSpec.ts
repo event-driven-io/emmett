@@ -1,4 +1,4 @@
-import type { SQL } from '@event-driven-io/dumbo';
+import type { MigrationStyle, SQL } from '@event-driven-io/dumbo';
 import { dumbo, type Dumbo, type QueryResultRow } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
@@ -20,7 +20,14 @@ import type {
   AnyEventStoreDriver,
   InferOptionsFromEventStoreDriver,
 } from '../eventStoreDriver';
-import type { SQLiteReadEventMetadata } from '../SQLiteEventStore';
+import {
+  eventStoreDatabaseSchema,
+  type EventStoreDatabaseSchemaOptions,
+} from '../schema';
+import {
+  getSQLiteEventStore,
+  type SQLiteReadEventMetadata,
+} from '../SQLiteEventStore';
 import {
   handleProjections,
   type SQLiteProjectionDefinition,
@@ -53,6 +60,7 @@ export type SQLiteProjectionSpec<EventType extends Event> = (
 
 export type SQLiteProjectionAssert = (options: {
   connection: AnySQLiteConnection;
+  migrationOptions?: EventStoreDatabaseSchemaOptions | undefined;
 }) => Promise<void | boolean>;
 
 export type SQLiteProjectionSpecOptions<
@@ -63,6 +71,9 @@ export type SQLiteProjectionSpecOptions<
 
   driver: Driver;
   pool?: Dumbo;
+  schema?:
+    | ({ autoMigration?: MigrationStyle } & EventStoreDatabaseSchemaOptions)
+    | undefined;
 } & InferOptionsFromEventStoreDriver<Driver> &
   JSONSerializationOptions;
 
@@ -86,7 +97,36 @@ export const SQLiteProjectionSpec = {
           ...options.driver.mapToDumboOptions(options),
         });
       const projection = options.projection;
+      const migrationOptions = {
+        ...options.schema,
+        ...eventStoreDatabaseSchema(options.schema),
+      };
       let wasInitialized = false;
+
+      const initialize = async (
+        connection: AnySQLiteConnection,
+      ): Promise<void> => {
+        if (wasInitialized) return;
+
+        wasInitialized = true;
+
+        const eventStore = getSQLiteEventStore({ ...options, pool });
+        await eventStore.schema.migrate();
+
+        if (projection.init)
+          await projection.init({
+            registrationType: 'async',
+            status: 'active',
+            context: {
+              execute: connection.execute,
+              connection,
+              driverType,
+              migrationOptions,
+              observabilityScope: noopScope,
+            },
+            version: projection.version ?? 1,
+          });
+      };
 
       return (givenEvents: SQLiteProjectionSpecEvent<EventType>[]) => {
         return {
@@ -126,20 +166,7 @@ export const SQLiteProjectionSpec = {
                 });
               }
 
-              if (!wasInitialized && projection.init) {
-                await projection.init({
-                  registrationType: 'async',
-                  status: 'active',
-                  context: {
-                    execute: connection.execute,
-                    connection,
-                    driverType,
-                    observabilityScope: noopScope,
-                  },
-                  version: projection.version ?? 1,
-                });
-                wasInitialized = true;
-              }
+              await initialize(connection);
 
               await connection.withTransaction(() =>
                 handleProjections({
@@ -148,6 +175,7 @@ export const SQLiteProjectionSpec = {
                   execute: connection.execute,
                   connection,
                   driverType,
+                  migrationOptions,
                   observabilityScope: noopScope,
                 }),
               );
@@ -163,6 +191,7 @@ export const SQLiteProjectionSpec = {
 
                   const succeeded = await assert({
                     connection,
+                    migrationOptions,
                   });
 
                   if (succeeded !== undefined && succeeded === false)

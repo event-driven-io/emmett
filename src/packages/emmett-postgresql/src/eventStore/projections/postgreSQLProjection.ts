@@ -1,5 +1,6 @@
 import type {
   AnyConnection,
+  DatabaseDriverType,
   DatabaseTransaction,
   Dumbo,
   SQL,
@@ -28,6 +29,7 @@ import { registerProjection } from './management';
 export type PostgreSQLProjectionHandlerContext = ProjectionHandlerContext<
   {
     execute: SQLExecutor;
+    driverType: DatabaseDriverType;
     connection: {
       connectionString: string;
       client: PgClient;
@@ -46,6 +48,7 @@ export const transactionToPostgreSQLProjectionHandlerContext = async (
   transaction: PgTransaction | DatabaseTransaction<AnyConnection>,
 ): Promise<PostgreSQLProjectionHandlerContext> => ({
   execute: transaction.execute,
+  driverType: pool.driverType,
   connection: {
     connectionString: connectionString,
     client: (await transaction.connection.open()) as PgClient,
@@ -117,6 +120,7 @@ export const handleProjections = async <EventType extends Event = Event>(
     }
 
     await projection.handle(filteredEvents, {
+      driverType: options.driverType,
       connection: {
         connectionString,
         pool,

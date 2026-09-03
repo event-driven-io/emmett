@@ -1,4 +1,4 @@
-import type { SQLExecutor } from '@event-driven-io/dumbo';
+import type { DatabaseDriverType, SQLExecutor } from '@event-driven-io/dumbo';
 import type {
   AnySQLiteConnection,
   SQLiteTransaction,
@@ -50,6 +50,7 @@ export type SQLiteProcessorHandlerContext = MessageHandlerContext<
   {
     execute: SQLExecutor;
     connection: AnySQLiteConnection;
+    driverType: DatabaseDriverType;
   } &
     // TODO: Reconsider if it should be for all processors
     EventStoreSchemaMigrationOptions
@@ -155,6 +156,7 @@ const sqliteProcessingScope = (
         return handler({
           ...partialContext,
           connection: connection,
+          driverType: connection.driverType as DatabaseDriverType,
           execute: transaction.execute,
           migrationOptions,
           observabilityScope: partialContext?.observabilityScope ?? noopScope,
@@ -194,6 +196,7 @@ const sqliteWorkflowProcessingScope = (
             ...connection,
             messageStore: createMessageStore(transaction.connection),
           },
+          driverType: connection.driverType as DatabaseDriverType,
           execute: transaction.execute,
           migrationOptions,
           observabilityScope: partialContext?.observabilityScope ?? noopScope,

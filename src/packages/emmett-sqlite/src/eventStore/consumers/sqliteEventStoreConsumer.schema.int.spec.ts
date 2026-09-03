@@ -1,4 +1,5 @@
 import { count, SQL, SQLTableReference } from '@event-driven-io/dumbo';
+import { sqliteTableName } from '@event-driven-io/dumbo/sqlite';
 import {
   sqlite3Pool,
   tableExists,
@@ -29,6 +30,8 @@ import { deleteSQLiteDatabaseFiles } from '../../testing/sqliteTestDatabase';
 import { getSQLiteEventStore } from '../SQLiteEventStore';
 import { readProcessorCheckpoint } from '../schema';
 import { messagesTable, processorsTable } from '../schema/typing';
+import { pongoClient } from '@event-driven-io/pongo';
+import { pongoSingleStreamProjection } from '../projections';
 import { sqliteEventStoreConsumer } from './sqliteEventStoreConsumer';
 
 const withDeadline = { timeout: 30000 };
@@ -264,6 +267,88 @@ void describe('SQLite event store consumer schema configuration', () => {
     },
   );
 
+  void it(
+    'reads events from the event-store schema and stores async Pongo projections in the projection schema',
+    withDeadline,
+    async () => {
+      const projectionsDatabaseSchemaName = 'read_models';
+      const collectionName = 'shopping_cart_summary';
+      const streamName = `shopping_cart-${uuid()}`;
+      const eventStore = getSQLiteEventStore({
+        driver: sqlite3EventStoreDriver,
+        fileName,
+        schema: {
+          autoMigration: 'None',
+          databaseSchemaName,
+          projectionsDatabaseSchemaName,
+        },
+      });
+
+      try {
+        await eventStore.schema.migrate();
+        await eventStore.appendToStream(streamName, [
+          { type: 'GuestCheckedIn', data: { guestId: uuid() } },
+        ]);
+
+        const consumer = eventStore.consumer<GuestStayEvent>({
+          stopWhen: { noMessagesLeft: true },
+        });
+        consumer.projector({
+          processorId: `processor:${uuid()}`,
+          projection: guestStaySummaryProjection(collectionName),
+        });
+
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await eventStore.close();
+      }
+
+      assertDeepEqual(
+        await summaryIn(
+          projectionsDatabaseSchemaName,
+          collectionName,
+          streamName,
+        ),
+        { _id: streamName, _version: 1n, checkedInCount: 1 },
+      );
+      assertFalse(await tableExists(pool.execute, collectionName));
+      assertFalse(
+        await tableExists(
+          pool.execute,
+          sqliteTableName({ databaseSchemaName, tableName: collectionName }),
+        ),
+      );
+    },
+  );
+
+  const summaryIn = (
+    databaseSchemaName: string,
+    collectionName: string,
+    streamName: string,
+  ) =>
+    pool.withConnection(async (connection) => {
+      const driver = (await pongoDriverRegistry.tryResolve(
+        connection.driverType,
+      ))!;
+      const pongo = pongoClient({
+        driver,
+        connectionOptions: { connection },
+        defaultSchemaName: databaseSchemaName,
+      });
+      try {
+        return await pongo
+          .db()
+          .collection<GuestStaySummary>(collectionName)
+          .findOne({ _id: streamName });
+      } finally {
+        await pongo.close();
+      }
+    });
+
   const initiateGroupCheckout = (groupCheckoutId: string) => ({
     type: 'InitiateGroupCheckout' as const,
     data: {
@@ -318,3 +403,15 @@ type GuestCheckedIn = Event<'GuestCheckedIn', { guestId: string }>;
 type GuestCheckedOut = Event<'GuestCheckedOut', { guestId: string }>;
 
 type GuestStayEvent = GuestCheckedIn | GuestCheckedOut;
+
+type GuestStaySummary = { checkedInCount: number };
+
+const guestStaySummaryProjection = (collectionName: string) =>
+  pongoSingleStreamProjection<GuestStaySummary, GuestCheckedIn>({
+    collectionName,
+    canHandle: ['GuestCheckedIn'],
+    evolve: (document: GuestStaySummary) => ({
+      checkedInCount: document.checkedInCount + 1,
+    }),
+    initialState: () => ({ checkedInCount: 0 }),
+  });
