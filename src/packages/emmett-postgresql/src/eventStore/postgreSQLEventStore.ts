@@ -7,12 +7,12 @@ import {
   type MigrationStyle,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
-import type {
-  PgClientConnection,
-  PgConnection,
-  PgDriverType,
-  PgPool,
-  PgPoolClientConnection,
+import {
+  pgDumboDriver,
+  type PgClientConnection,
+  type PgDriverType,
+  type PgPool,
+  type PgPoolClientConnection,
 } from '@event-driven-io/dumbo/pg';
 import {
   assertExpectedVersionMatchesCurrent,
@@ -221,6 +221,7 @@ export const getPostgreSQLEventStore = (
       ? poolOptions.dumbo
       : dumbo({
           ...poolOptions,
+          driver: pgDumboDriver,
           serialization: options.serialization,
           transactionOptions: {
             allowNestedTransactions: true,
@@ -253,7 +254,7 @@ export const getPostgreSQLEventStore = (
       // TODO: Fix this cast when introducing more drivers
       const migration = createEventStoreSchema(
         connectionString,
-        pool as PgPool,
+        pool,
         {
           onBeforeSchemaCreated: async (context) => {
             if (options.hooks?.onBeforeSchemaCreated) {
@@ -476,7 +477,7 @@ export const getPostgreSQLEventStore = (
           const appendResult = await pool.withConnection(async (connection) =>
             appendToStream(
               // TODO: Fix this when introducing more drivers
-              connection as PgConnection,
+              connection,
               streamName,
               streamType,
               downcastRecordedMessages(
@@ -547,7 +548,7 @@ export const getPostgreSQLEventStore = (
         const storeOptions: PostgresEventStoreOptions = {
           ...options,
           connectionOptions: {
-            connection: connection as PgConnection,
+            connection: connection,
           },
           schema: {
             ...(options.schema ?? {}),

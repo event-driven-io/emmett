@@ -15,6 +15,7 @@ import {
 } from '@event-driven-io/emmett';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
+import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import {
   afterAll,
@@ -117,6 +118,41 @@ void describe('EventStoreDBEventStore', () => {
     ]);
 
     assertEqual(1, schemaHookCreationHookCalls);
+  });
+
+  void it('should use a provided native PostgreSQL pool', async () => {
+    const sharedPool = new pg.Pool({ connectionString });
+    let store: PostgresEventStore | undefined;
+
+    try {
+      store = getPostgreSQLEventStore(connectionString, {
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+        },
+        connectionOptions: {
+          // Ensure this test cannot pass through a driver registered by imports.
+          connectionString: 'provided-by-native-pool',
+          pooled: true,
+          pool: sharedPool,
+        },
+      });
+
+      const result = await store.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [
+          {
+            type: 'ProductItemAdded',
+            data: { productItem },
+            metadata: { clientId },
+          },
+        ],
+      );
+
+      assertEqual(1n, result.nextExpectedStreamVersion);
+    } finally {
+      await store?.close();
+      await sharedPool.end();
+    }
   });
 
   void it('should create schema only once with session', async () => {
