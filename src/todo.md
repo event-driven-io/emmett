@@ -279,7 +279,7 @@ One difference stays on purpose: the consumer's `scope` hands a partial context,
 - [x] Fix the copied `postgresql` projection `kind` strings in the SQLite package
 - [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
 - [x] Review for consistency, naming, dead code and redundant abstractions
-- [ ] Stop for approval before Phase 6
+- [x] Stop for approval before Phase 6
 
 Notes:
 
@@ -313,7 +313,8 @@ Notes:
 - [x] Implement `truncateTables` and the `schema.dangerous` surface
 - [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
 - [x] Review for consistency, naming, dead code and redundant abstractions
-- [ ] Stop for approval before Phase 7
+- [x] Backfill the two missing schema-name truncate tests on PostgreSQL
+- [x] Stop for approval before Phase 7
 
 Notes:
 
@@ -326,22 +327,43 @@ Notes:
 - The Pongo truncate test now goes through `eventStore.schema.dangerous.truncate({ truncateProjections: true })`, matching `postgreSQLPongoProjection.schema.int.spec.ts`, and no longer reaches into `projection.truncate`.
 - The store-level test was written after the implementation, because the implementation had to exist before the public API could be called. The coverage check above is what stands in for the red step.
 - `npm run test:unit` prints a `MaxListenersExceededWarning` for SIGTERM and SIGINT. It appears on packages this branch does not touch, so it is a vitest runner artifact, not Phase 6.
+- The alignment pass found that PostgreSQL had no test passing `databaseSchemaName` to `truncateTables` or driving `schema.dangerous.truncate` against a configured schema, although both supported it. Both tests were backfilled into `truncateTables.int.spec.ts`. PostgreSQL specs share one database, so the schema names are uniquified per test with a `schemaName(prefix)` helper, as `postgreSQLPongoProjection.schema.int.spec.ts` does, and the counts go through a schema-aware helper that leaves the existing unqualified `getTableCount` alone. Removing `databaseSchemaName` from the store's truncate call fails only the store-level test; making `truncateTables` build its `TRUNCATE` without the schema fails both.
 
 ## Phase 7: identifier safety, regression coverage and docs
 
-- [ ] Start phase after approval
-- [ ] Add tests for prefixes with capitals, spaces and a double quote
-- [ ] Add a test proving a prefix containing `.` surfaces Dumbo's error unchanged
-- [ ] Add coverage for index names going through `sqliteIndexName`
-- [ ] Confirm default behavior and existing fixtures are unchanged
-- [ ] Confirm generated SQL holds no accidental unprefixed reference
-- [ ] Document the options, the fallback rules and the shared migration table
-- [ ] Document how a SQLite prefix differs from a PostgreSQL schema
-- [ ] Document that locks, projection management and rebuild are not implemented on SQLite
-- [ ] Record the Dumbo follow-ups found during the work in `plan.md`
-- [ ] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
-- [ ] Review for consistency, naming, dead code and redundant abstractions
+- [x] Start phase after approval
+- [x] Confirm generated SQL holds no accidental unprefixed reference
+- [x] Confirm default behavior and existing fixtures are unchanged
+- [x] Document the options, the fallback rules and the shared migration table
+- [x] Document how a SQLite prefix differs from a PostgreSQL schema
+- [x] Document that locks, projection management and rebuild are not implemented on SQLite
+- [x] Record the Dumbo follow-ups found during the work in `plan.md`
+- [x] Run focused tests, `npm run build:ts`, `npm run fix`, `npm run test:unit`
+- [x] Review for consistency, naming, dead code and redundant abstractions
 - [ ] Stop for approval
+
+Scope cut agreed before starting the phase: Emmett tests the sticky points and the
+integration, not Pongo and Dumbo internals. Three planned items were dropped.
+
+- Prefixes with capitals, spaces and a double quote. This tests `sqliteFormatter`
+  quoting. Emmett never builds those names itself, it passes `SQLTableReference`
+  tokens through.
+- A prefix containing `.` surfacing Dumbo's error unchanged. A pure assert on
+  Dumbo's `assertNativeName`.
+- Index names going through `sqliteIndexName`. The helper lives in Dumbo, has no
+  call site in `emmett-sqlite`, and the package creates no named index. The four
+  tables use inline `PRIMARY KEY` and `UNIQUE` constraints, so SQLite only builds
+  implicit `sqlite_autoindex_*` names derived from the already prefixed table name.
+
+Notes:
+
+- The guard test collects every `emt_*` reference in the rendered SQL and asserts each one carries the configured prefix, instead of naming objects by hand. It scales as tables are added. The first version accepted an unquoted `events.emt_streams`, which on SQLite means an attached database rather than a prefixed table; the assertion now requires the opening quote.
+- The review found that the documentation claimed `databaseSchemaName` holds projection registrations. That is PostgreSQL wording. SQLite creates `emt_projections` and never reads or writes it, so the claim contradicted the Limitations list a few lines below it. Both files now say the event-store tables and processor checkpoints.
+- The documentation now attributes the `.` rejection to Dumbo at SQL render time, not to Emmett at configuration time, and states that changing or removing `databaseSchemaName` later leaves the old prefixed tables behind.
+- The review flagged the `databaseSchemaName` parameter of `latestGlobalPosition` in `truncateTables.int.spec.ts` as dead, and it was removed. That was wrong. The parameter was an uncovered case, not dead code: no test checked the global position restart inside a configured schema. The parameter is restored and `restarts the global position at 1 only in the truncated database schema` now covers it. A missing test must not be resolved by deleting the affordance that asks for it.
+- The SQLite work exposed two PostgreSQL gaps, both backfilled. First, all three `resetSequences` tests ran against the default schema, and the spec helper read through `SQL.identifier`, so it could not observe a configured schema at all. Dropping the schema from the `ALTER SEQUENCE` target left those three tests green and failed only the new one. This matters more on PostgreSQL than on SQLite, because PostgreSQL has a real named sequence per schema, so a wrong name resets another store's sequence rather than erroring. Second, PostgreSQL had no unqualified-reference guard. Pointing the messages index at an unqualified table passed the hand-written test and failed only the new guard.
+- The PostgreSQL guard needs three exclusions that SQLite does not. Of 85 `emt_` occurrences in the rendered SQL, 41 are legitimately bare: `format()` arguments paired with a separate schema literal, `pg_proc` name lookups, dollar-quote body tags, and `ON CONFLICT` target aliases, where a qualified name is not valid syntax. The guard therefore skips quoted names, and cannot catch a regression inside the dynamic SQL built with `format('%I.%I', ...)` or a `pg_proc` lookup that lost its `nspname` clause. Everything rendered as a real identifier is covered.
+- Test names using "prints" were renamed to "renders" in both unit specs, along with the `printedSQL` variable. `describePostgreSQL` and `describeSQLite` render SQL tokens to a string and reach no console. The word came from the real `schema.print()` API. Only `prints the schema SQL it describes` on the SQLite side calls it and keeps the name.
 
 ## Follow-up issues to open
 

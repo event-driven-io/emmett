@@ -143,7 +143,7 @@ void describe('PostgreSQL event store database schemas', () => {
     assertEqual(omitted.databaseSchemaName, undefined);
   });
 
-  void it('prints the same default schema SQL used by migrations', () => {
+  void it('renders the same default schema SQL used by migrations', () => {
     assertEqual(
       describePostgreSQL(eventStoreSchemaMigrations.at(-1)?.sqls ?? []),
       describePostgreSQL(schemaSQL),
@@ -154,29 +154,59 @@ void describe('PostgreSQL event store database schemas', () => {
     assertTrue(eventStoreSchemaMigrations.at(-1)?.ignoreHashMismatch === true);
   });
 
-  void it('prints schema-qualified SQL when the user configures the event schema', () => {
-    const printedSQL = describePostgreSQL(
+  void it('renders schema-qualified SQL when the user configures the event schema', () => {
+    const renderedSQL = describePostgreSQL(
       eventStoreSchemaSQL({ databaseSchemaName: 'events' }),
     );
 
-    assertTrue(printedSQL.includes('CREATE SCHEMA IF NOT EXISTS events'));
+    assertTrue(renderedSQL.includes('CREATE SCHEMA IF NOT EXISTS events'));
     assertTrue(
-      printedSQL.includes('CREATE TABLE IF NOT EXISTS events.emt_streams'),
+      renderedSQL.includes('CREATE TABLE IF NOT EXISTS events.emt_streams'),
     );
     assertTrue(
-      printedSQL.includes(
+      renderedSQL.includes(
         'CREATE SEQUENCE IF NOT EXISTS events.emt_global_message_position',
       ),
     );
     assertTrue(
-      printedSQL.includes(
+      renderedSQL.includes(
         'CREATE OR REPLACE FUNCTION events.emt_append_to_stream',
       ),
     );
-    assertTrue(printedSQL.includes('SELECT events.emt_add_partition'));
+    assertTrue(renderedSQL.includes('SELECT events.emt_add_partition'));
   });
 
-  void it('prints the same configured schema SQL from the event store and migrations', () => {
+  void it('renders no unqualified object when the user configures the event schema', () => {
+    const renderedSQL = describePostgreSQL(
+      eventStoreSchemaSQL({ databaseSchemaName: 'events' }),
+    );
+
+    const textBefore = (match: RegExpExecArray) =>
+      renderedSQL.slice(0, match.index);
+    const textAfter = (match: RegExpExecArray) =>
+      renderedSQL.slice(match.index + match[0].length);
+
+    // a quoted 'emt_name' is an argument to format() or a pg_proc lookup,
+    // $emt_name$ delimits a function body, and emt_name.column is the
+    // ON CONFLICT target alias, so none of the three carries a schema
+    const objectReferences = [...renderedSQL.matchAll(/emt_[a-z_]*/g)].filter(
+      (match) =>
+        !textBefore(match).endsWith("'") &&
+        !textBefore(match).endsWith('$') &&
+        !textAfter(match).startsWith('.'),
+    );
+
+    assertTrue(objectReferences.length > 0);
+
+    for (const objectReference of objectReferences) {
+      assertTrue(
+        textBefore(objectReference).endsWith('events.'),
+        `${objectReference[0]} is not qualified with the configured schema`,
+      );
+    }
+  });
+
+  void it('renders the same configured schema SQL from the event store and migrations', () => {
     const eventStore = getPostgreSQLEventStore('postgresql://localhost/test', {
       schema: { autoMigration: 'None', databaseSchemaName: 'events' },
     });

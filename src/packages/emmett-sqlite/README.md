@@ -320,6 +320,37 @@ const eventStore = getSQLiteEventStore({
 });
 ```
 
+### Configuring SQLite Schemas
+
+```typescript
+import { getSQLiteEventStore } from '@event-driven-io/emmett-sqlite';
+import { sqlite3EventStoreDriver } from '@event-driven-io/emmett-sqlite/sqlite3';
+
+const eventStore = getSQLiteEventStore({
+  driver: sqlite3EventStoreDriver,
+  fileName: './events.db',
+  schema: {
+    autoMigration: 'CreateOrUpdate',
+    databaseSchemaName: 'events',
+    projectionsDatabaseSchemaName: 'read_models',
+    migrationTable: {
+      schemaName: 'infrastructure',
+      tableName: 'emmett_migrations',
+    },
+  },
+});
+```
+
+`databaseSchemaName` stores the event-store tables and processor checkpoints in that database schema. `projectionsDatabaseSchemaName` sets the default schema for SQLite projection data, including Pongo collections. If it is omitted, it falls back to `databaseSchemaName`.
+
+`migrationTable` is shared by the event store and SQLite projections. Its `schemaName` falls back to `databaseSchemaName`, and its `tableName` is forwarded to Dumbo/Pongo when supplied.
+
+If you omit all of these names, objects are created without a prefix. Existing databases are not affected.
+
+SQLite has no native schemas, so a schema name works differently than in PostgreSQL. A configured schema name becomes a prefix on the physical table name. With `databaseSchemaName: 'events'`, the streams table is physically named `events.emt_streams` and is quoted as `"events.emt_streams"` inside the one SQLite database file. Emmett runs no `CREATE SCHEMA` statement on SQLite.
+
+The isolation comes from naming, not from a database object. You do not create anything before you use a schema name. A schema name cannot contain a `.`, because the `.` is what separates the prefix from the table name. A name that contains a `.` is rejected by Dumbo when it renders the SQL, not by Emmett when you configure the store, so the error appears on the first render and not at construction time. Changing or removing `databaseSchemaName` later leaves the old prefixed tables behind, and Emmett does not move existing data between prefixes.
+
 ### Using Shared In-Memory Database
 
 For testing scenarios where multiple connections need to share the same in-memory database:
@@ -364,12 +395,15 @@ function getSQLiteEventStore(
 
 **Options:**
 
-| Property               | Type                                                   | Description                                        |
-| ---------------------- | ------------------------------------------------------ | -------------------------------------------------- |
-| `fileName`             | `string \| ':memory:' \| 'file::memory:?cache=shared'` | Database file path or in-memory identifier         |
-| `schema.autoMigration` | `'None' \| 'CreateOrUpdate'`                           | Schema creation mode (default: `'CreateOrUpdate'`) |
-| `projections`          | `ProjectionRegistration[]`                             | Inline projections to register                     |
-| `hooks.onBeforeCommit` | `BeforeEventStoreCommitHandler`                        | Hook called before event commit                    |
+| Property                               | Type                                                   | Description                                                                    |
+| -------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `fileName`                             | `string \| ':memory:' \| 'file::memory:?cache=shared'` | Database file path or in-memory identifier                                     |
+| `schema.autoMigration`                 | `'None' \| 'CreateOrUpdate'`                           | Schema creation mode (default: `'CreateOrUpdate'`)                             |
+| `schema.databaseSchemaName`            | `string`                                               | Schema name prefixed to the event-store tables                                 |
+| `schema.projectionsDatabaseSchemaName` | `string`                                               | Default schema for projection data (falls back to `databaseSchemaName`)        |
+| `schema.migrationTable`                | `{ schemaName?: string; tableName?: string }`          | Shared Dumbo migration table (`schemaName` falls back to `databaseSchemaName`) |
+| `projections`                          | `ProjectionRegistration[]`                             | Inline projections to register                                                 |
+| `hooks.onBeforeCommit`                 | `BeforeEventStoreCommitHandler`                        | Hook called before event commit                                                |
 
 ### SQLiteEventStore
 
@@ -484,6 +518,14 @@ function sqliteConnection(options: { fileName: string }): SQLiteConnection;
 | ------------------------ | --------------------- |
 | `@event-driven-io/dumbo` | SQL utilities         |
 | `uuid`                   | Message ID generation |
+
+## Limitations
+
+These features are not implemented for SQLite:
+
+- Processor and projection locks
+- Projection management in `emt_projections`
+- Projection rebuild
 
 ## Related Packages
 
