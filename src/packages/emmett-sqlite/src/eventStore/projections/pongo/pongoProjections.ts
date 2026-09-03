@@ -24,6 +24,11 @@ export type PongoProjectionHandlerContext = SQLiteProjectionHandlerContext & {
   pongo: PongoClient;
 };
 
+const pongoSchemaOptions = (context: SQLiteProjectionHandlerContext) => ({
+  defaultSchemaName: context.migrationOptions?.projectionsDatabaseSchemaName,
+  migrationTable: context.migrationOptions?.migrationTable,
+});
+
 export type PongoWithNotNullDocumentEvolve<
   Document extends PongoDocument,
   EventType extends Event,
@@ -98,7 +103,7 @@ export const pongoProjection = <
   sqliteProjection<EventType, EventPayloadType>({
     name,
     version,
-    kind: kind ?? 'emt:projections:postgresql:pongo:generic',
+    kind: kind ?? 'emt:projections:sqlite:pongo:generic',
     canHandle,
     eventsOptions,
     handle: async (events, context) => {
@@ -108,6 +113,7 @@ export const pongoProjection = <
       ))!;
       const pongo = pongoClient({
         driver,
+        ...pongoSchemaOptions(context),
         schema: { autoMigration: 'None' },
         connectionOptions: { connection },
       });
@@ -128,6 +134,7 @@ export const pongoProjection = <
           ))!;
           const pongo = pongoClient({
             driver,
+            ...pongoSchemaOptions(context),
             connectionOptions: { connection },
           });
           try {
@@ -148,6 +155,7 @@ export const pongoProjection = <
           ))!;
           const pongo = pongoClient({
             driver,
+            ...pongoSchemaOptions(options.context),
             connectionOptions: { connection },
           });
           try {
@@ -228,7 +236,7 @@ export const pongoMultiStreamProjection = <
   return pongoProjection({
     name: collectionNameWithVersion,
     version: options.version,
-    kind: options.kind ?? 'emt:projections:postgresql:pongo:multi_stream',
+    kind: options.kind ?? 'emt:projections:sqlite:pongo:multi_stream',
     eventsOptions: options.eventsOptions,
     handle: async (events, { pongo }) => {
       const collection = pongo
@@ -279,6 +287,7 @@ export const pongoMultiStreamProjection = <
       ))!;
       const pongo = pongoClient({
         driver,
+        ...pongoSchemaOptions(context),
         connectionOptions: { connection },
       });
 
@@ -301,7 +310,7 @@ export const pongoMultiStreamProjection = <
           collectionNameWithVersion,
           options.collectionOptions,
         )
-        .schema.migrate(); // TODO: ADD migration optionscontext.migrationOptions);
+        .schema.migrate(context.migrationOptions);
     },
   });
 };
@@ -374,7 +383,7 @@ export const pongoSingleStreamProjection = <
     EventMetaDataType,
     EventPayloadType
   >({
-    kind: 'emt:projections:postgresql:pongo:single_stream',
+    kind: 'emt:projections:sqlite:pongo:single_stream',
     ...options,
     ...(getDocumentId
       ? { getDocumentId: getDocumentId }

@@ -378,6 +378,7 @@ export const getSQLiteEventStore = <
                           execute: context.connection.execute,
                           connection: context.connection,
                           driverType: options.driver.driverType,
+                          migrationOptions: databaseSchema,
                           observabilityScope,
                         }),
                     );

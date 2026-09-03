@@ -3,7 +3,11 @@ import {
   InMemorySQLiteDatabase,
   type AnySQLiteConnection,
 } from '@event-driven-io/dumbo/sqlite3';
-import { assertDeepEqual, JSONSerializer } from '@event-driven-io/emmett';
+import {
+  assertDeepEqual,
+  assertEqual,
+  JSONSerializer,
+} from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { beforeEach, describe, it } from 'vitest';
 import { sqlite3EventStoreDriver } from '../../sqlite3';
@@ -137,6 +141,72 @@ void describe('SQLite Projections', () => {
             },
           }),
       );
+  });
+
+  void it('passes the configured schema names to raw SQL projection handlers', async () => {
+    const databaseSchemaName = 'events';
+    const projectionsDatabaseSchemaName = 'read_models';
+    const migrationSchemaName = 'infrastructure';
+    let initProjectionsDatabaseSchemaName: string | undefined;
+    let evolveProjectionsDatabaseSchemaName: string | undefined;
+    let initMigrationTableSchemaName: string | undefined;
+    let evolveMigrationTableSchemaName: string | undefined;
+
+    const givenConfigured = SQLiteProjectionSpec.for({
+      driver: sqlite3EventStoreDriver,
+      fileName: InMemorySQLiteDatabase,
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+        databaseSchemaName,
+        projectionsDatabaseSchemaName,
+        migrationTable: {
+          schemaName: migrationSchemaName,
+          tableName: 'emmett_migrations',
+        },
+      },
+      projection: sqliteRawSQLProjection<ProductItemAdded>({
+        name: 'raw_product_sales',
+        canHandle: ['ProductItemAdded'],
+        init: ({ context }) => {
+          initProjectionsDatabaseSchemaName =
+            context.migrationOptions?.projectionsDatabaseSchemaName;
+          initMigrationTableSchemaName =
+            context.migrationOptions?.migrationTable?.schemaName;
+          return SQL`SELECT 1;`;
+        },
+        evolve: (_event, context) => {
+          evolveProjectionsDatabaseSchemaName =
+            context.migrationOptions?.projectionsDatabaseSchemaName;
+          evolveMigrationTableSchemaName =
+            context.migrationOptions?.migrationTable?.schemaName;
+          return SQL`SELECT 1;`;
+        },
+      }),
+    });
+
+    await givenConfigured([])
+      .when([
+        {
+          type: 'ProductItemAdded',
+          data: {
+            productItem: { price: 100, productId: 'shoes', quantity: 2 },
+          },
+          metadata: { streamName: shoppingCartId },
+        },
+      ])
+      .then(() => {
+        assertEqual(
+          initProjectionsDatabaseSchemaName,
+          projectionsDatabaseSchemaName,
+        );
+        assertEqual(
+          evolveProjectionsDatabaseSchemaName,
+          projectionsDatabaseSchemaName,
+        );
+        assertEqual(initMigrationTableSchemaName, migrationSchemaName);
+        assertEqual(evolveMigrationTableSchemaName, migrationSchemaName);
+        return Promise.resolve();
+      });
   });
 });
 const rowExistsWithValues = async <T extends QueryResultRow>({

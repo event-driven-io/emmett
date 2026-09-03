@@ -1,14 +1,10 @@
-import {
-  count,
-  dumbo,
-  mapRows,
-  SQL,
-  SQLTableReference,
-} from '@event-driven-io/dumbo';
+import { dumbo, mapRows, SQL, SQLTableReference } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
-  assertEqual,
+  assertDeepEqual,
+  assertIsNull,
   assertFalse,
+  assertRejects,
   assertTrue,
   type Event,
 } from '@event-driven-io/emmett';
@@ -21,7 +17,10 @@ import {
 import { getPostgreSQLEventStore } from '../../postgreSQLEventStore';
 import { tableExists } from '../../../testing/schemaObjects';
 import { PostgreSQLProjectionSpec } from '../postgresProjectionSpec';
+import { pongoClient, type PongoCollection } from '@event-driven-io/pongo';
+import { pgDriver } from '@event-driven-io/pongo/pg';
 import { pongoSingleStreamProjection } from './pongoProjections';
+import { expectPongoDocuments } from './pongoProjectionSpec';
 
 const withDeadline = { timeout: 30000 };
 
@@ -85,13 +84,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           { type: 'ProductItemAdded', data: { quantity: 3 } },
         ]);
 
-        assertEqual(
-          1,
-          await count(
-            pool.execute.query<{ count: number }>(
-              SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName: collectionName })}`,
-            ),
-          ),
+        assertDeepEqual(
+          await summaryIn(projectionSchemaName, collectionName, streamName),
+          { _id: streamName, _version: 1n, productItemsCount: 3 },
         );
         assertFalse(
           await tableExists(pool.execute, collectionName, eventSchemaName),
@@ -138,13 +133,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           { type: 'ProductItemAdded', data: { quantity: 4 } },
         ]);
 
-        assertEqual(
-          1,
-          await count(
-            pool.execute.query<{ count: number }>(
-              SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: collectionSchemaName, tableName: collectionName })}`,
-            ),
-          ),
+        assertDeepEqual(
+          await summaryIn(collectionSchemaName, collectionName, streamName),
+          { _id: streamName, _version: 1n, productItemsCount: 4 },
         );
         assertFalse(
           await tableExists(pool.execute, collectionName, projectionSchemaName),
@@ -192,13 +183,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           { type: 'ProductItemAdded', data: { quantity: 7 } },
         ]);
 
-        assertEqual(
-          1,
-          await count(
-            pool.execute.query<{ count: number }>(
-              SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName: collectionName })}`,
-            ),
-          ),
+        assertDeepEqual(
+          await summaryIn(projectionSchemaName, collectionName, streamName),
+          { _id: streamName, _version: 1n, productItemsCount: 7 },
         );
         assertFalse(
           await tableExists(pool.execute, collectionName, eventSchemaName),
@@ -250,13 +237,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
             { type: 'ProductItemAdded', data: { quantity: 8 } },
           ]);
 
-          assertEqual(
-            1,
-            await count(
-              pool.execute.query<{ count: number }>(
-                SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName: collectionName })}`,
-              ),
-            ),
+          assertDeepEqual(
+            await summaryIn(projectionSchemaName, collectionName, streamName),
+            { _id: streamName, _version: 1n, productItemsCount: 8 },
           );
           assertFalse(
             await tableExists(pool.execute, collectionName, eventSchemaName),
@@ -305,13 +288,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           },
         ])
         .then(async () => {
-          assertEqual(
-            1,
-            await count(
-              pool.execute.query<{ count: number }>(
-                SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName: collectionName })}`,
-              ),
-            ),
+          assertDeepEqual(
+            await summaryIn(projectionSchemaName, collectionName, streamName),
+            { _id: streamName, _version: 1n, productItemsCount: 5 },
           );
           assertTrue(
             (await migrationRows(migrationSchemaName, migrationTableName)).some(
@@ -319,6 +298,77 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
             ),
           );
         });
+    },
+  );
+
+  void it(
+    'stores Pongo projection documents in the event schema when no projection schema is configured',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const streamName = `shopping_cart:${uuid()}`;
+
+      const store = getPostgreSQLEventStore(connectionString, {
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+        },
+        projections: [
+          {
+            type: 'inline',
+            projection: shoppingCartProjection(collectionName),
+          },
+        ],
+      });
+
+      try {
+        await store.appendToStream(streamName, [
+          { type: 'ProductItemAdded', data: { quantity: 2 } },
+        ]);
+
+        assertDeepEqual(
+          await summaryIn(eventSchemaName, collectionName, streamName),
+          { _id: streamName, _version: 1n, productItemsCount: 2 },
+        );
+        assertFalse(await tableExists(pool.execute, collectionName));
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'reads Pongo projection documents from the configured projection schema in assertions',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const projectionSchemaName = schemaName('read_models');
+      const collectionName = schemaName('shopping_cart_summary');
+      const streamName = `shopping_cart:${uuid()}`;
+
+      await PostgreSQLProjectionSpec.for<ProductItemAdded>({
+        connectionString,
+        projection: shoppingCartProjection(collectionName),
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+          projectionsDatabaseSchemaName: projectionSchemaName,
+        },
+      })([])
+        .when([
+          {
+            type: 'ProductItemAdded',
+            data: { quantity: 9 },
+            metadata: { streamName },
+          },
+        ])
+        .then(
+          expectPongoDocuments
+            .fromCollection<ShoppingCartSummary>(collectionName)
+            .withId(streamName)
+            .toBeEqual({ productItemsCount: 9 }),
+        );
     },
   );
 
@@ -348,30 +398,136 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
         await store.appendToStream(streamName, [
           { type: 'ProductItemAdded', data: { quantity: 6 } },
         ]);
-        assertEqual(
-          1,
-          await count(
-            pool.execute.query<{ count: number }>(
-              SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName: collectionName })}`,
-            ),
-          ),
+        assertDeepEqual(
+          await summaryIn(projectionSchemaName, collectionName, streamName),
+          { _id: streamName, _version: 1n, productItemsCount: 6 },
         );
 
         await store.schema.dangerous.truncate({ truncateProjections: true });
 
-        assertEqual(
-          0,
-          await count(
-            pool.execute.query<{ count: number }>(
-              SQL`SELECT COUNT(*)::integer AS count FROM ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName: collectionName })}`,
-            ),
-          ),
+        assertIsNull(
+          await summaryIn(projectionSchemaName, collectionName, streamName),
         );
       } finally {
         await store.close();
       }
     },
   );
+
+  void it(
+    'ignores a Pongo collection migration hash mismatch when the user asks for it',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const projectionSchemaName = schemaName('read_models');
+      const migrationSchemaName = schemaName('infrastructure');
+      const migrationTableName = 'emmett_migrations';
+      const collectionName = schemaName('shopping_cart_summary');
+      const streamName = `shopping_cart:${uuid()}`;
+
+      const eventStore = () =>
+        getPostgreSQLEventStore(connectionString, {
+          schema: {
+            autoMigration: 'CreateOrUpdate',
+            databaseSchemaName: eventSchemaName,
+            projectionsDatabaseSchemaName: projectionSchemaName,
+            migrationTable: {
+              schemaName: migrationSchemaName,
+              tableName: migrationTableName,
+            },
+          },
+          projections: [
+            {
+              type: 'inline',
+              projection: shoppingCartProjection(collectionName),
+            },
+          ],
+        });
+
+      const migrated = eventStore();
+      try {
+        await migrated.schema.migrate();
+      } finally {
+        await migrated.close();
+      }
+
+      await changeCollectionMigrationHash(
+        migrationSchemaName,
+        migrationTableName,
+        collectionName,
+      );
+
+      const rejecting = eventStore();
+      try {
+        await assertRejects(rejecting.schema.migrate(), (error: Error) =>
+          error.message.includes('Migration hash mismatch'),
+        );
+      } finally {
+        await rejecting.close();
+      }
+
+      const ignoring = eventStore();
+      try {
+        await ignoring.schema.migrate({ ignoreMigrationHashMismatch: true });
+
+        await ignoring.appendToStream(streamName, [
+          { type: 'ProductItemAdded', data: { quantity: 8 } },
+        ]);
+      } finally {
+        await ignoring.close();
+      }
+
+      assertDeepEqual(
+        await summaryIn(projectionSchemaName, collectionName, streamName),
+        { _id: streamName, _version: 1n, productItemsCount: 8 },
+      );
+    },
+  );
+
+  const changeCollectionMigrationHash = (
+    databaseSchemaName: string,
+    tableName: string,
+    collectionName: string,
+  ) =>
+    pool.execute.command(
+      SQL`UPDATE ${SQLTableReference.from({
+        databaseSchemaName,
+        tableName,
+      })} SET sql_hash = ${'changed'} WHERE name LIKE ${`%${collectionName}%`}`,
+    );
+
+  const withSummaries = async <Result>(
+    databaseSchemaName: string,
+    collectionName: string,
+    handle: (
+      collection: PongoCollection<ShoppingCartSummary>,
+    ) => Promise<Result>,
+  ): Promise<Result> => {
+    const pongo = pongoClient({
+      connectionString,
+      driver: pgDriver,
+      defaultSchemaName: databaseSchemaName,
+      connectionOptions: {
+        transactionOptions: { allowNestedTransactions: true },
+      },
+    });
+    try {
+      return await handle(
+        pongo.db().collection<ShoppingCartSummary>(collectionName),
+      );
+    } finally {
+      await pongo.close();
+    }
+  };
+
+  const summaryIn = (
+    databaseSchemaName: string,
+    collectionName: string,
+    streamName: string,
+  ) =>
+    withSummaries(databaseSchemaName, collectionName, (summaries) =>
+      summaries.findOne({ _id: streamName }),
+    );
 
   const migrationRows = async (
     databaseSchemaName: string,
