@@ -36,8 +36,8 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
       projections: projections.inline([]),
     });
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },

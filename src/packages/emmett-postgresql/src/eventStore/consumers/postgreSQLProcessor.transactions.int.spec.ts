@@ -1,4 +1,4 @@
-import { dumbo, type Dumbo, SQL } from '@event-driven-io/dumbo';
+import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
 import { assertEqual, type Event } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
@@ -11,6 +11,7 @@ import {
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
+import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 
 const withDeadline = { timeout: 30000 };
 
@@ -25,7 +26,10 @@ void describe('PostgreSQL processor transaction handling', () => {
     connectionString = database.connectionString;
     eventStore = getPostgreSQLEventStore(connectionString);
     await eventStore.schema.migrate();
-    observerPool = dumbo({ connectionString });
+    observerPool = dumbo({
+      driver: pgDumboDriver,
+      connectionString,
+    });
   }, 120000);
 
   beforeEach(async () => {

@@ -1,11 +1,15 @@
 import {
   dumbo,
-  type MigrationStyle,
   type Dumbo,
+  type MigrationStyle,
   type QueryResultRow,
   type SQL,
 } from '@event-driven-io/dumbo';
-import type { PgPool, PgPoolOptions } from '@event-driven-io/dumbo/pg';
+import {
+  pgDumboDriver,
+  type PgPool,
+  type PgPoolOptions,
+} from '@event-driven-io/dumbo/pg';
 import {
   assertFails,
   AssertionError,
@@ -80,6 +84,7 @@ export const PostgreSQLProjectionSpec = {
     {
       const { projection, ...restOptions } = options;
       const dumboOptions = {
+        driver: pgDumboDriver,
         ...restOptions,
         serialization: projection.serialization,
         transactionOptions: {

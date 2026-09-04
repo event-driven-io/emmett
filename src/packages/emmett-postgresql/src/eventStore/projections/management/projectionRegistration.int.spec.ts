@@ -12,11 +12,11 @@ import {
   type ProjectionRegistration,
 } from '@event-driven-io/emmett';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import type { PostgreSQLProjectionHandlerContext } from '..';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../../testing/postgreSQLTestDatabase';
-import type { PostgreSQLProjectionHandlerContext } from '..';
 import type { PostgresReadEventMetadata } from '../../postgreSQLEventStore';
 import { createEventStoreSchema } from '../../schema';
 import {
@@ -34,8 +34,8 @@ void describe('projectionRegistration', () => {
     database = await sharedPostgreSQLDatabase();
     const connectionString = database.connectionString;
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },

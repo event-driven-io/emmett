@@ -13,11 +13,11 @@ import {
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import { createEventStoreSchema, PostgreSQLEventStoreCheckpoint } from '.';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
-import { createEventStoreSchema, PostgreSQLEventStoreCheckpoint } from '.';
 import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
 import { appendToStream } from './appendToStream';
 import { readStream } from './readStream';
@@ -54,8 +54,8 @@ void describe('readStream', () => {
     database = await sharedPostgreSQLDatabase();
     const connectionString = database.connectionString;
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },

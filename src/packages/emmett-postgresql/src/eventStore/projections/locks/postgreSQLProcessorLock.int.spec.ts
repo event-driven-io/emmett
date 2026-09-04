@@ -31,8 +31,8 @@ void describe('tryAcquireProcessorLock', () => {
     database = await sharedPostgreSQLDatabase();
     connectionString = database.connectionString;
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },

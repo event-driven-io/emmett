@@ -10,12 +10,6 @@ import {
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import { migrations_0_38_7 } from '.';
 import {
-  appendToStream,
-  readEvents,
-  readSubscriptionCheckpoint,
-  storeSubscriptionCheckpoint,
-} from './legacyApi';
-import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../../../testing/postgreSQLTestDatabase';
@@ -24,6 +18,12 @@ import {
   type PostgresEventStore,
 } from '../../../postgreSQLEventStore';
 import { migrations_0_36_0 } from '../0_36_0';
+import {
+  appendToStream,
+  readEvents,
+  readSubscriptionCheckpoint,
+  storeSubscriptionCheckpoint,
+} from './legacyApi';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -56,8 +56,8 @@ void describe('Schema migrations tests', () => {
     connectionString = database.connectionString;
 
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },

@@ -1,4 +1,5 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
+import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 import type { EmmettError } from '@event-driven-io/emmett';
 import {
   assertEqual,
@@ -57,6 +58,7 @@ void describe('PostgreSQL event store started consumer', () => {
     await eventStore.schema.migrate();
     pool = dumbo({
       connectionString,
+      driver: pgDumboDriver,
       transactionOptions: {
         allowNestedTransactions: true,
       },
@@ -1051,6 +1053,7 @@ void describe('PostgreSQL event store started consumer', () => {
         // Given
         const pool = dumbo({
           connectionString,
+          driver: pgDumboDriver,
           transactionOptions: {
             allowNestedTransactions: true,
           },

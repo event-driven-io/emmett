@@ -6,6 +6,7 @@ import {
   type Event,
 } from '@event-driven-io/emmett';
 import { afterEach, beforeEach, describe, it } from 'vitest';
+import { migrations_0_36_0 } from '.';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
@@ -14,7 +15,6 @@ import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from '../../../postgreSQLEventStore';
-import { migrations_0_36_0 } from '.';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -47,8 +47,8 @@ void describe('Schema migrations tests', () => {
     connectionString = database.connectionString;
 
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },

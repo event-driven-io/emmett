@@ -1,22 +1,20 @@
 import {
   dumbo,
   type DatabaseDriverType,
-  type Dumbo,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
-import type {
-  PgClient,
-  PgClientConnection,
-  PgDriverType,
-  PgPool,
-  PgPoolClientConnection,
-  PgTransaction,
+import {
+  pgDumboDriver,
+  type PgClient,
+  type PgClientConnection,
+  type PgDriverType,
+  type PgPool,
+  type PgPoolClientConnection,
+  type PgTransaction,
 } from '@event-driven-io/dumbo/pg';
 import type {
   AnyCommand,
   AnyEvent,
-  ProcessorLock,
-  ProcessorLockOptions,
   AnyMessage,
   AnyRecordedMessageMetadata,
   BatchRecordedMessageHandlerWithContext,
@@ -29,6 +27,8 @@ import type {
   MessageProcessingScope,
   MessageProcessor,
   ProcessorHooks,
+  ProcessorLock,
+  ProcessorLockOptions,
   ProjectorOptions,
   ReactorOptions,
   ReadEventMetadataWithGlobalPosition,
@@ -78,7 +78,7 @@ export type PostgreSQLProcessorHandlerContext = MessageHandlerContext<
       connectionString: string;
       client: PgClient;
       transaction: PgTransaction;
-      pool: Dumbo;
+      pool: PgPool;
       messageStore: PostgresEventStore;
     };
   } &
@@ -259,7 +259,7 @@ export type PostgreSQLWorkflowProcessorOptions<
   PostgreSQLProcessorOptionsBase;
 
 const postgreSQLProcessingScope = (options: {
-  pool: Dumbo | null;
+  pool: PgPool | null;
   connectionString: string | null;
   processorId: string;
   partition: string;
@@ -298,7 +298,6 @@ const postgreSQLProcessingScope = (options: {
       );
 
     return pool.withTransaction(async (transaction) => {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const client = (await transaction.connection.open()) as PgClient;
       return handler({
         ...partialContext,
@@ -309,7 +308,7 @@ const postgreSQLProcessingScope = (options: {
           connectionString,
           pool,
           client,
-          transaction: transaction as PgTransaction,
+          transaction: transaction,
           messageStore: getPostgreSQLEventStore(connectionString, {
             connectionOptions: {
               connection: transaction.connection as PgPoolClientConnection,
@@ -343,6 +342,7 @@ const getProcessorPool = (options: PostgreSQLConnectionOptions) => {
       ? (poolOptions.dumbo as PgPool)
       : processorConnectionString
         ? dumbo({
+            driver: pgDumboDriver,
             connectionString: processorConnectionString,
             ...poolOptions,
             serialization: options.serialization,

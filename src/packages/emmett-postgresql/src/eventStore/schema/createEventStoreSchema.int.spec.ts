@@ -42,8 +42,8 @@ void describe('createEventStoreSchema', () => {
     database = await sharedPostgreSQLDatabase();
     const connectionString = database.connectionString;
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },
@@ -211,8 +211,8 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     database = await sharedPostgreSQLDatabase();
     connectionString = database.connectionString;
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },
