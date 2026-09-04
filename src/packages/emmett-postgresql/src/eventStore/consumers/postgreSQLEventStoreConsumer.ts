@@ -13,11 +13,11 @@ import {
   type RecordedMessageMetadataWithGlobalPosition,
   type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
-import { postgreSQLMessageSource } from './messageSource';
 import {
   eventStoreDatabaseSchema,
   type EventStoreDatabaseSchemaOptions,
 } from '../schema';
+import { postgreSQLMessageSource } from './messageSource';
 import {
   postgreSQLProjector,
   postgreSQLReactor,
@@ -28,6 +28,7 @@ import {
   type PostgreSQLReactorOptions,
   type PostgreSQLWorkflowProcessorOptions,
 } from './postgreSQLProcessor';
+import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 
 export type PostgreSQLEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -119,6 +120,7 @@ export const postgreSQLEventStoreConsumer = <
   const pool = options.pool
     ? options.pool
     : dumbo({
+        driver: pgDumboDriver,
         connectionString: options.connectionString,
         serialization: options.serialization,
         transactionOptions: {

@@ -8,12 +8,12 @@ import {
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import { createEventStoreSchema } from '.';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
 import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
-import { createEventStoreSchema } from '.';
 import { appendToStream } from './appendToStream';
 import { truncateTables } from './truncateTables';
 import {
@@ -47,8 +47,8 @@ void describe('truncateTables', () => {
     database = await sharedPostgreSQLDatabase();
     connectionString = database.connectionString;
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },

@@ -6,11 +6,11 @@ import {
   defaultTag,
 } from '@event-driven-io/emmett';
 import { afterAll, beforeAll, describe, it } from 'vitest';
+import { createEventStoreSchema, PostgreSQLEventStoreCheckpoint } from '.';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
-import { createEventStoreSchema, PostgreSQLEventStoreCheckpoint } from '.';
 import { readProcessorCheckpoint } from './readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from './storeProcessorCheckpoint';
 
@@ -36,8 +36,8 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
     database = await sharedPostgreSQLDatabase();
     connectionString = database.connectionString;
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },

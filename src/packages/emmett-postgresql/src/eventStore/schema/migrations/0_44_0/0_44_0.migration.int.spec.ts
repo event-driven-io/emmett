@@ -59,8 +59,8 @@ void describe('Schema migrations tests', () => {
     connectionString = database.connectionString;
 
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },

@@ -9,11 +9,11 @@ import {
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import { createEventStoreSchema } from '.';
 import {
   isolatedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
-import { createEventStoreSchema } from '.';
 import { appentToStreamRaw } from './appendToStream';
 import {
   PostgreSQLEventStoreCheckpoint,
@@ -30,8 +30,8 @@ void describe('reading messages in batches', () => {
     database = await isolatedPostgreSQLDatabase();
     const connectionString = database.connectionString;
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },

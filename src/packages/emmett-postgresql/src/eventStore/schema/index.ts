@@ -3,7 +3,11 @@ import {
   runSQLMigrations,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
-import type { PgPool, PgTransaction } from '@event-driven-io/dumbo/pg';
+import {
+  pgDumboDriver,
+  type PgPool,
+  type PgTransaction,
+} from '@event-driven-io/dumbo/pg';
 import type { JSONSerializationOptions } from '@event-driven-io/emmett';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 import { transactionToPostgreSQLProjectionHandlerContext } from '../projections';
@@ -54,6 +58,7 @@ export const createEventStoreSchema = (
       tx,
     );
     const nestedPool = dumbo({
+      driver: pgDumboDriver,
       connectionString,
       connection: tx.connection,
       serialization: options?.serialization,

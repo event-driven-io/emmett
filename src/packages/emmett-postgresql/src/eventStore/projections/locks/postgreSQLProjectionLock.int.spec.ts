@@ -29,8 +29,8 @@ void describe('tryAcquireProjectionLock', () => {
     database = await sharedPostgreSQLDatabase();
     connectionString = database.connectionString;
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },

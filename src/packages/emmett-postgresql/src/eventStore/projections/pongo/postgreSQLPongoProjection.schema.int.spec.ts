@@ -2,23 +2,23 @@ import { dumbo, mapRows, SQL, SQLTableReference } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
-  assertIsNull,
   assertFalse,
+  assertIsNull,
   assertRejects,
   assertTrue,
   type Event,
 } from '@event-driven-io/emmett';
+import { pongoClient, type PongoCollection } from '@event-driven-io/pongo';
+import { pgDriver } from '@event-driven-io/pongo/pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../../testing/postgreSQLTestDatabase';
-import { getPostgreSQLEventStore } from '../../postgreSQLEventStore';
 import { tableExists } from '../../../testing/schemaObjects';
+import { getPostgreSQLEventStore } from '../../postgreSQLEventStore';
 import { PostgreSQLProjectionSpec } from '../postgresProjectionSpec';
-import { pongoClient, type PongoCollection } from '@event-driven-io/pongo';
-import { pgDriver } from '@event-driven-io/pongo/pg';
 import { pongoSingleStreamProjection } from './pongoProjections';
 import { expectPongoDocuments } from './pongoProjectionSpec';
 
@@ -33,8 +33,8 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
     database = await sharedPostgreSQLDatabase();
     connectionString = database.connectionString;
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },

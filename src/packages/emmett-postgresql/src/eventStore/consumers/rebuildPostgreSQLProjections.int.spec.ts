@@ -29,6 +29,7 @@ import {
   isolatedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
+import { tableExists } from '../../testing/schemaObjects';
 import type {
   ProductItemAdded,
   ShoppingCartConfirmed,
@@ -41,7 +42,6 @@ import {
   pongoSingleStreamProjection,
   postgreSQLRawSQLProjection,
 } from '../projections';
-import { tableExists } from '../../testing/schemaObjects';
 import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
 
 const withDeadline = { timeout: 30000 };
@@ -87,8 +87,8 @@ void describe('Rebuilding PostgreSQL Projections', () => {
       `${otherShoppingCartsSummaryCollectionName}_v2`,
     );
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: {
         allowNestedTransactions: true,
       },

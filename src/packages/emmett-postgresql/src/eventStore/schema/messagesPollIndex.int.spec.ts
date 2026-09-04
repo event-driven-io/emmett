@@ -1,11 +1,11 @@
 import { dumbo, SQL } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createEventStoreSchema } from '.';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
-import { createEventStoreSchema } from '.';
 import {
   readMessagesBatchSQL,
   type PostgreSQLEventStoreCheckpoint,
@@ -34,8 +34,8 @@ void describe('emt_messages consumer poll index', () => {
     database = await sharedPostgreSQLDatabase();
     const connectionString = database.connectionString;
     pool = dumbo({
-      connectionString,
       driver: pgDumboDriver,
+      connectionString,
       transactionOptions: { allowNestedTransactions: true },
       pooled: false,
     });
