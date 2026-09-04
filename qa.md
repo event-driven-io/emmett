@@ -120,7 +120,6 @@ Accepted breaks:
   handler contexts (from Q3); runtime break for plain-JS handlers
 - top-level `pool: pg.Pool` moves to `connectionOptions.pool`; compile-time break
 
-Still open: which release this lands in.
 
 ## Q6 — What second driver does the seam have to carry?
 
@@ -197,3 +196,127 @@ plain-object-literal case only, which is the case that broke in all five places.
 Assumed unless corrected: the rule lives in the shared `eslint.config.mjs` and
 applies to both `emmett-postgresql` and `emmett-sqlite`, since the spread
 exemption lets SQLite pass as written.
+
+## Q9 — How is the bug caught by a test?
+
+No existing test catches it. Every spec imports `@event-driven-io/dumbo/pg`
+somewhere in its module graph, which registers the pg driver globally, so the
+registry fallback always succeeds and the missing `driver` never surfaces. That is
+why the app hit it and CI did not.
+
+Options offered:
+
+- **A** — Registry-isolation test driving a full flow, so any internal `dumbo()`
+  call still relying on registry lookup throws as it did in production.
+- **B** — Unit test with a stubbed `dumbo`, asserting every call receives `driver`.
+- **C** — Rely on the Q8 eslint rule plus existing integration tests.
+
+**A9: A.**
+
+Referenced precedent: commit `390b7669` fixed `postgreSQLEventStore.ts` and added
+`should use a provided native PostgreSQL pool` to
+`postgreSQLEventStore.e2e.spec.ts`. It defeats registry fallback by passing an
+unparseable connection string, `'provided-by-native-pool'`, with the comment
+"Ensure this test cannot pass through a driver registered by imports." That commit
+fixed the calls it touched, but no test covered the remaining five, which is the
+gap this work closes.
+
+## Q10 — Isolation technique within A
+
+The poison connection string defeats connection-string sniffing only; clearing the
+registry defeats every fallback path, including ones added later.
+
+Options offered:
+
+- **A** — Poison string only; extend the existing e2e pattern.
+- **B** — Registry clearing only; strictly stronger, but mutates a `globalThis`
+  singleton under a parallel runner.
+- **C** — Both.
+
+**A10: C.**
+
+The poison string carries everyday coverage across the flow specs (migrate,
+consumer start, processor, projection rebuild, `withSession`). One isolated spec
+clears the registry as the backstop, so the guarantee reads "no internal `dumbo()`
+call may depend on driver resolution" rather than the weaker "may depend on string
+sniffing".
+
+## Q11 — Sequencing
+
+The work splits along a fault line: a pure bug fix (thread `driver` into the
+remaining `dumbo()` calls, fix the build error, add coverage and the lint rule)
+and a breaking redesign (the `EventStoreDriver` interface, `pgEventStoreDriver`,
+the `/pg` subpath, the second overload, `connectionOptions` delegation, the
+`dumbo` to `pool` rename, and removing `connectionString` from handler contexts).
+
+Options offered:
+
+- **A** — One PR for everything.
+- **B** — Two phases, two releases: fix first as a patch, redesign on top.
+- **C** — Finer phases splitting the redesign further.
+
+**A11: B**, and phase one is already done.
+
+Commit `4c199048`, "Added explicit dumbo pg driver to all pool creation", on branch
+`fix_dumbo_driver_in_postgresql`, is open as PR #390. It follows PR #388, which
+fixed only some calls. `driver: pgDumboDriver` is now threaded through
+`schema/index.ts`, `postgreSQLEventStoreConsumer.ts`, `postgreSQLProcessor.ts`,
+`postgresProjectionSpec.ts` and every affected spec, and the build error in
+`postgreSQLEventStoreConsumer.handling.int.spec.ts` is fixed.
+
+Carried into phase two, because PR #390 does not include them:
+
+- the `no-restricted-syntax` rule and its spec (Q8)
+- the poison-string flow coverage (Q9, Q10)
+- the registry-cleared backstop spec (Q10)
+
+So phase one shipped the fix without the tests that prove it. Those tests are the
+green baseline the redesign needs, so they come first in phase two, before any
+redesign code.
+
+Note: `qa.md` was committed into PR #390. Drop it from that PR if the design notes
+are not meant to ship with the fix.
+
+## Q12 — Documentation scope
+
+Q3 and Q5 produce user-visible breaks, and the removal of
+`context.connection.connectionString` fails at runtime rather than at compile time
+for plain-JS users.
+
+Options offered:
+
+- **A** — Full treatment: lead the PostgreSQL pages with the driver form, add a
+  migration section, back every new snippet with a test.
+- **B** — Migration note only; existing pages keep showing the legacy form.
+- **C** — Defer docs to a follow-up issue.
+
+**A12: C.**
+
+Ship the code; track docs separately. Because the `connectionString` removal is a
+runtime break, the follow-up issue must exist before the redesign is released, not
+after.
+
+## Q13 — Where may `@event-driven-io/dumbo/pg` be imported?
+
+Raised by Oskar after the spec was drafted, in response to the section 4.3 note
+that the root entrypoint still statically imports `dumbo/pg`.
+
+**A13: accept that, and constrain it to one place.**
+
+Splitting the entrypoint properly waits until a second driver exists. Until then
+the requirement is that the `/pg` import sits at the surface, in exactly one
+module, so swapping or adding a driver is a single-file change.
+
+Current state: `pgDumboDriver` is imported as a value in five non-spec files
+(`postgreSQLEventStore.ts`, `postgreSQLEventStoreConsumer.ts`,
+`postgreSQLProcessor.ts`, `schema/index.ts`, `postgresProjectionSpec.ts`), and
+`endPgPool` in `testing/postgreSQLTestDatabase.ts`. Four further files import
+types only.
+
+Target: exactly one non-test value import, in `src/pg.ts`. Everything else
+receives the driver through `options.driver`.
+
+Type-only imports (`PgPool`, `PgTransaction`, `PgClient`, `PgConnection`) are a
+weaker tier: erased at compile time, so they carry no runtime coupling. They stay
+as they are in this pass, per "don't go crazy with refactoring", and are recorded
+as a follow-up.
