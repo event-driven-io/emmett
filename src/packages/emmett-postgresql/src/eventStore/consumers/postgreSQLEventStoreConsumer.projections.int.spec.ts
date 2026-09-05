@@ -30,6 +30,7 @@ import {
 import { pongoSingleStreamProjection } from '../projections';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 import type { PostgreSQLProjectorOptions } from './postgreSQLProcessor';
+import { pgEventStoreDriver } from '../../pg';
 
 const withDeadline = { timeout: 30000 };
 
@@ -45,7 +46,10 @@ void describe('PostgreSQL event store started consumer', () => {
   beforeAll(async () => {
     database = await sharedPostgreSQLDatabase();
     connectionString = database.connectionString;
-    eventStore = getPostgreSQLEventStore(connectionString);
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+    });
     pongo = pongoClient({
       connectionString,
       driver: pgDriver,
@@ -466,7 +470,10 @@ void describe('PostgreSQL event store started consumer', () => {
       withDeadline,
       async () => {
         // Given
-        const store = getPostgreSQLEventStore(connectionString);
+        const store = getPostgreSQLEventStore({
+          driver: pgEventStoreDriver,
+          connectionString: connectionString,
+        });
         const shoppingCartId = `shoppingCart:${uuid()}`;
         const streamName = `shopping_cart-${shoppingCartId}`;
 

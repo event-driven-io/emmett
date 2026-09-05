@@ -27,6 +27,7 @@ import { migrations_0_42_0 } from '../0_42_0';
 import { migrations_0_43_0 } from '../0_43_0';
 import { appendToStream, readEvents } from '../0_43_0/legacyApi';
 import { migrations_0_44_0 } from './';
+import { pgEventStoreDriver } from '../../../../pg';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -67,8 +68,10 @@ void describe('Schema migrations tests', () => {
     });
 
     // TODO: Change setup to schemas, when they're supported in Emmett instead of using separate containers
-    eventStore = getPostgreSQLEventStore(connectionString, {
-      connectionOptions: { dumbo: pool },
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+      pool: pool,
       schema: { autoMigration: 'None' },
     });
   });

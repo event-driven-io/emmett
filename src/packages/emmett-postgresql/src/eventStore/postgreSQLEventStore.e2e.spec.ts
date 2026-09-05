@@ -35,6 +35,7 @@ import {
 } from './postgreSQLEventStore';
 import { postgreSQLProjection } from './projections';
 import { pongoSingleStreamProjection } from './projections/pongo/pongoProjections';
+import { pgEventStoreDriver } from '../pg';
 
 void describe('EventStoreDBEventStore', () => {
   const M = MessagingAttributes;
@@ -68,7 +69,9 @@ void describe('EventStoreDBEventStore', () => {
   });
 
   beforeEach(() => {
-    eventStore = getPostgreSQLEventStore(connectionString, {
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       projections: projections.inline([
         shoppingCartShortInfoProjection,
         customProjection,
@@ -125,13 +128,14 @@ void describe('EventStoreDBEventStore', () => {
     let store: PostgresEventStore | undefined;
 
     try {
-      store = getPostgreSQLEventStore(connectionString, {
+      store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        // Ensure this test cannot pass through a driver registered by imports.
+        connectionString: 'provided-by-native-pool',
         schema: {
           autoMigration: 'CreateOrUpdate',
         },
         connectionOptions: {
-          // Ensure this test cannot pass through a driver registered by imports.
-          connectionString: 'provided-by-native-pool',
           pooled: true,
           pool: sharedPool,
         },
@@ -271,7 +275,11 @@ void describe('EventStoreDBEventStore', () => {
     const observedShoppingCartId = `shopping_cart-${uuid()}`;
 
     await given((observability) =>
-      getPostgreSQLEventStore(connectionString, { observability }),
+      getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        observability,
+      }),
     )
       .when((eventStore) =>
         eventStore.appendToStream<ShoppingCartEvent>(observedShoppingCartId, [
@@ -302,7 +310,9 @@ void describe('EventStoreDBEventStore', () => {
 
     await given(
       async (observability) => {
-        const eventStore = getPostgreSQLEventStore(connectionString, {
+        const eventStore = getPostgreSQLEventStore({
+          driver: pgEventStoreDriver,
+          connectionString: connectionString,
           observability,
         });
         await eventStore.appendToStream<ShoppingCartEvent>(
@@ -351,7 +361,9 @@ void describe('EventStoreDBEventStore', () => {
     const observedShoppingCartId = `shopping_cart-${uuid()}`;
 
     await given(async (observability) => {
-      const eventStore = getPostgreSQLEventStore(connectionString, {
+      const eventStore = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         observability,
       });
       await eventStore.appendToStream<ShoppingCartEvent>(
@@ -394,7 +406,9 @@ void describe('EventStoreDBEventStore', () => {
     const observedShoppingCartId = `shopping_cart-${uuid()}`;
 
     await given(async (observability) => {
-      const eventStore = getPostgreSQLEventStore(connectionString, {
+      const eventStore = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         observability,
       });
       await eventStore.appendToStream<ShoppingCartEvent>(
@@ -434,7 +448,9 @@ void describe('EventStoreDBEventStore', () => {
     const observedShoppingCartId = `shopping_cart-${uuid()}`;
 
     await given((observability) =>
-      getPostgreSQLEventStore(connectionString, {
+      getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         observability,
         projections: projections.inline([
           postgreSQLProjection<ShoppingCartEvent>({
@@ -485,7 +501,9 @@ void describe('EventStoreDBEventStore', () => {
     const observedShoppingCartId = `shopping_cart-${uuid()}`;
 
     await given(async (observability) => {
-      const eventStore = getPostgreSQLEventStore(connectionString, {
+      const eventStore = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         observability,
       });
       await eventStore.appendToStream<ShoppingCartEvent>(

@@ -46,6 +46,7 @@ import {
   storeProcessorCheckpoint as storeProcessorCheckpointV042,
 } from '../0_42_0/legacyApi';
 import { migrations_0_43_0 } from './';
+import { pgEventStoreDriver } from '../../../../pg';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -86,8 +87,10 @@ void describe('Schema migrations tests', () => {
     });
 
     // TODO: Change setup to schemas, when they're supported in Emmett instead of using separate containers
-    eventStore = getPostgreSQLEventStore(connectionString, {
-      connectionOptions: { dumbo: pool },
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+      pool: pool,
       schema: { autoMigration: 'None' },
     });
   });
@@ -186,7 +189,9 @@ void describe('Schema migrations tests', () => {
   void it('leaves the event store tables of another database schema alone when migrating the default schema', async () => {
     // Given
     const otherSchemaName = 'events';
-    const otherSchemaStore = getPostgreSQLEventStore(connectionString, {
+    const otherSchemaStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       schema: {
         autoMigration: 'None',
         databaseSchemaName: otherSchemaName,

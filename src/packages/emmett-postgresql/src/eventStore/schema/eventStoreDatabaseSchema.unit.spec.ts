@@ -14,6 +14,7 @@ import {
 import { eventStoreSchemaMigrations, eventStoreSchemaSQL } from '.';
 import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import { schemaSQL } from './eventStoreSchemaSQL';
+import { pgEventStoreDriver } from '../../pg';
 
 void describe('PostgreSQL event store database schemas', () => {
   const describePostgreSQL = (sql: SQL | SQL[]): string =>
@@ -207,7 +208,9 @@ void describe('PostgreSQL event store database schemas', () => {
   });
 
   void it('renders the same configured schema SQL from the event store and migrations', () => {
-    const eventStore = getPostgreSQLEventStore('postgresql://localhost/test', {
+    const eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: 'postgresql://localhost/test',
       schema: { autoMigration: 'None', databaseSchemaName: 'events' },
     });
 

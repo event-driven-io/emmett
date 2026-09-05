@@ -21,6 +21,7 @@ import {
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
+import { pgEventStoreDriver } from '../../pg';
 
 const withDeadline = { timeout: 30000 };
 
@@ -36,7 +37,10 @@ void describe('PostgreSQL event store started consumer', () => {
   beforeAll(async () => {
     postgresDatabase = await sharedPostgreSQLDatabase();
     connectionString = postgresDatabase.connectionString;
-    eventStore = getPostgreSQLEventStore(connectionString);
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+    });
     summaries = database.collection(shoppingCartsSummaryCollectionName);
     await eventStore.schema.migrate();
   });

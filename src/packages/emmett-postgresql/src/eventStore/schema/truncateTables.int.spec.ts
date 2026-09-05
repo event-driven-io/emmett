@@ -23,6 +23,7 @@ import {
   streamsTable,
   tableReference,
 } from './typing';
+import { pgEventStoreDriver } from '../../pg';
 
 export type PricedProductItem = {
   productId: string;
@@ -54,7 +55,7 @@ void describe('truncateTables', () => {
       },
     });
 
-    await createEventStoreSchema(connectionString, pool);
+    await createEventStoreSchema({ connectionString }, pool);
   });
 
   afterAll(async () => {
@@ -208,10 +209,10 @@ void describe('truncateTables', () => {
     const resetSchemaName = schemaName('reset_sequences');
     const otherSchemaName = schemaName('other_reset_sequences');
 
-    await createEventStoreSchema(connectionString, pool, undefined, {
+    await createEventStoreSchema({ connectionString }, pool, undefined, {
       databaseSchemaName: resetSchemaName,
     });
-    await createEventStoreSchema(connectionString, pool, undefined, {
+    await createEventStoreSchema({ connectionString }, pool, undefined, {
       databaseSchemaName: otherSchemaName,
     });
 
@@ -278,10 +279,10 @@ void describe('truncateTables', () => {
     const truncatedSchemaName = schemaName('events');
     const otherSchemaName = schemaName('other_events');
 
-    await createEventStoreSchema(connectionString, pool, undefined, {
+    await createEventStoreSchema({ connectionString }, pool, undefined, {
       databaseSchemaName: truncatedSchemaName,
     });
-    await createEventStoreSchema(connectionString, pool, undefined, {
+    await createEventStoreSchema({ connectionString }, pool, undefined, {
       databaseSchemaName: otherSchemaName,
     });
 
@@ -336,13 +337,17 @@ void describe('truncateTables', () => {
     const truncatedSchemaName = schemaName('events');
     const otherSchemaName = schemaName('other_events');
 
-    const first = getPostgreSQLEventStore(connectionString, {
+    const first = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       schema: {
         autoMigration: 'CreateOrUpdate',
         databaseSchemaName: truncatedSchemaName,
       },
     });
-    const second = getPostgreSQLEventStore(connectionString, {
+    const second = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       schema: {
         autoMigration: 'CreateOrUpdate',
         databaseSchemaName: otherSchemaName,

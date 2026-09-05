@@ -40,7 +40,7 @@ void describe('projectionRegistration', () => {
         allowNestedTransactions: true,
       },
     });
-    await createEventStoreSchema(connectionString, pool);
+    await createEventStoreSchema({ connectionString }, pool);
   });
 
   afterAll(async () => {

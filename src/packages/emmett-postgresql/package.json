@@ -51,12 +51,25 @@
         "types": "./dist/cli.d.cts",
         "default": "./dist/cli.cjs"
       }
+    },
+    "./pg": {
+      "import": {
+        "types": "./dist/pg.d.ts",
+        "default": "./dist/pg.js"
+      },
+      "require": {
+        "types": "./dist/pg.d.cts",
+        "default": "./dist/pg.cjs"
+      }
     }
   },
   "typesVersions": {
     "*": {
       "cli": [
         "./dist/cli.d.ts"
+      ],
+      "pg": [
+        "./dist/pg.d.ts"
       ]
     }
   },

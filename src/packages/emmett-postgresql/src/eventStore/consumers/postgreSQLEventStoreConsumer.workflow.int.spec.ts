@@ -25,6 +25,7 @@ import {
   type PostgresEventStore,
 } from '../postgreSQLEventStore';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
+import { pgEventStoreDriver } from '../../pg';
 
 const withDeadline = { timeout: 30000 };
 
@@ -60,7 +61,10 @@ void describe('PostgreSQL event store workflow processor', () => {
   beforeAll(async () => {
     database = await sharedPostgreSQLDatabase();
     connectionString = database.connectionString;
-    eventStore = getPostgreSQLEventStore(connectionString);
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+    });
     await eventStore.schema.migrate();
   });
 

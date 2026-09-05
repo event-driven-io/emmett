@@ -4,11 +4,8 @@ import type { Event, ReadEvent } from '@event-driven-io/emmett';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { randomUUID } from 'node:crypto';
-import {
-  getPostgreSQLEventStore,
-  type PostgresEventStore,
-  type PostgresEventStoreConnectionOptions,
-} from '..';
+import { getPostgreSQLEventStore, type PostgresEventStore } from '..';
+import { pgEventStoreDriver, type PgEventStoreDriverOptions } from '../pg';
 import { rebuildPostgreSQLProjections } from '../eventStore/consumers/rebuildPostgreSQLProjections';
 import { pongoSingleStreamProjection } from '../eventStore/projections';
 import type { ProductItemAdded } from '../testing/shoppingCart.domain';
@@ -27,7 +24,7 @@ const connectionString =
 
 console.log(`Using PostgreSQL connection string: ${connectionString}`);
 
-const connectionOptions: PostgresEventStoreConnectionOptions | undefined =
+const connectionOptions: PgEventStoreDriverOptions['connectionOptions'] =
   process.env.BENCHMARK_CONNECTION_POOLED !== 'false'
     ? undefined
     : { pooled: false };
@@ -35,15 +32,14 @@ const connectionOptions: PostgresEventStoreConnectionOptions | undefined =
 const generateSchemaUpfront =
   process.env.BENCHMARK_GENERATE_SCHEMA_UPFRONT !== 'false';
 
-const eventStore: PostgresEventStore = getPostgreSQLEventStore(
+const eventStore: PostgresEventStore = getPostgreSQLEventStore({
+  driver: pgEventStoreDriver,
   connectionString,
-  {
-    connectionOptions,
-    schema: {
-      autoMigration: generateSchemaUpfront ? 'None' : 'CreateOrUpdate',
-    },
+  connectionOptions,
+  schema: {
+    autoMigration: generateSchemaUpfront ? 'None' : 'CreateOrUpdate',
   },
-);
+});
 
 if (generateSchemaUpfront) await eventStore.schema.migrate();
 
@@ -185,6 +181,7 @@ for (const eventCount of EVENT_COUNTS) {
       eventCount,
       () =>
         rebuildPostgreSQLProjections({
+          driver: pgEventStoreDriver,
           connectionString,
           projection: createProjection('bench_summary'),
           pulling: { batchSize },
@@ -198,6 +195,7 @@ for (const eventCount of EVENT_COUNTS) {
       eventCount,
       () =>
         rebuildPostgreSQLProjections({
+          driver: pgEventStoreDriver,
           connectionString,
           projections: [
             createProjection('bench_summary_p1'),

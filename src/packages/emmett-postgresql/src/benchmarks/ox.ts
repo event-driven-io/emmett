@@ -2,12 +2,15 @@ import 'dotenv/config';
 
 import { randomUUID } from 'crypto';
 import { getPostgreSQLEventStore } from '..';
+import { pgEventStoreDriver } from '../pg';
 
 const connectionString =
   process.env.BENCHMARK_POSTGRESQL_CONNECTION_STRING ??
   'postgresql://postgres@localhost:5432/postgres';
 
-const eventStore = getPostgreSQLEventStore(connectionString, {
+const eventStore = getPostgreSQLEventStore({
+  driver: pgEventStoreDriver,
+  connectionString,
   connectionOptions: {
     pooled: false,
   },

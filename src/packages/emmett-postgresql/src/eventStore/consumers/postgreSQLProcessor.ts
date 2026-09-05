@@ -3,14 +3,11 @@ import {
   type DatabaseDriverType,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
-import {
-  pgDumboDriver,
-  type PgClient,
-  type PgClientConnection,
-  type PgDriverType,
-  type PgPool,
-  type PgPoolClientConnection,
-  type PgTransaction,
+import type {
+  PgClientConnection,
+  PgDriverType,
+  PgPool,
+  PgPoolClientConnection,
 } from '@event-driven-io/dumbo/pg';
 import type {
   AnyCommand,
@@ -68,45 +65,59 @@ import {
   storeProcessorCheckpoint,
   type EventStoreSchemaMigrationOptions,
 } from '../schema';
+import { pgEventStoreDriver, type PgEventStoreDriver } from '../../pg';
+import type {
+  AnyEventStoreDriver,
+  InferDbClientFromEventStoreDriver,
+  InferDumboOptionsFromEventStoreDriver,
+  InferPoolFromEventStoreDriver,
+  InferTransactionFromEventStoreDriver,
+} from '../eventStoreDriver';
 
-export type PostgreSQLProcessorHandlerContext = MessageHandlerContext<
+export type PostgreSQLProcessorHandlerContext<
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+> = MessageHandlerContext<
   {
     partition: string;
     execute: SQLExecutor;
     driverType: DatabaseDriverType;
     connection: {
-      connectionString: string;
-      client: PgClient;
-      transaction: PgTransaction;
-      pool: PgPool;
+      client: InferDbClientFromEventStoreDriver<Driver>;
+      transaction: InferTransactionFromEventStoreDriver<Driver>;
+      pool: InferPoolFromEventStoreDriver<Driver>;
       messageStore: PostgresEventStore;
+      options: InferDumboOptionsFromEventStoreDriver<Driver>;
     };
   } &
     // TODO: Reconsider if it should be for all processors
     EventStoreSchemaMigrationOptions
 >;
 
-export type PostgreSQLProcessor<MessageType extends Message = AnyMessage> =
-  MessageProcessor<
-    MessageType,
-    ReadEventMetadataWithGlobalPosition,
-    PostgreSQLProcessorHandlerContext
-  >;
+export type PostgreSQLProcessor<
+  MessageType extends Message = AnyMessage,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+> = MessageProcessor<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  PostgreSQLProcessorHandlerContext<Driver>
+>;
 
 export type PostgreSQLProcessorEachMessageHandler<
   MessageType extends Message = Message,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 > = SingleRecordedMessageHandlerWithContext<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
-  PostgreSQLProcessorHandlerContext
+  PostgreSQLProcessorHandlerContext<Driver>
 >;
 
 export type PostgreSQLProcessorEachBatchHandler<
   MessageType extends Message = Message,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 > = BatchRecordedMessageHandlerWithContext<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
-  PostgreSQLProcessorHandlerContext
+  PostgreSQLProcessorHandlerContext<Driver>
 >;
 
 export type PostgreSQLProcessorStartFrom =
@@ -170,15 +181,17 @@ export type PostgreSQLProcessorConnectionOptions = {
 
 export type PostgreSQLCheckpointer<
   MessageType extends AnyMessage = AnyMessage,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 > = Checkpointer<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
-  PostgreSQLProcessorHandlerContext
+  PostgreSQLProcessorHandlerContext<Driver>
 >;
 
 export const postgreSQLCheckpointer = <
   MessageType extends Message = Message,
->(): PostgreSQLCheckpointer<MessageType> => ({
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+>(): PostgreSQLCheckpointer<MessageType, Driver> => ({
   read: async (options, context) => {
     const result = await readProcessorCheckpoint(context.execute, {
       ...options,
@@ -205,14 +218,19 @@ export const postgreSQLCheckpointer = <
   },
 });
 
-type PostgreSQLConnectionOptions = {
+type PostgreSQLConnectionOptions<
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+> = {
   connectionOptions?: PostgreSQLProcessorConnectionOptions;
+  driver?: Driver;
 } & JSONSerializationOptions;
 
-type PostgreSQLProcessorOptionsBase = PostgreSQLConnectionOptions & {
+type PostgreSQLProcessorOptionsBase<
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+> = PostgreSQLConnectionOptions<Driver> & {
   lock?: {
     /** Defaults to the PostgreSQL processor lock backed by the message store */
-    lock?: ProcessorLock<PostgreSQLProcessorHandlerContext>;
+    lock?: ProcessorLock<PostgreSQLProcessorHandlerContext<Driver>>;
     acquisitionPolicy?: LockAcquisitionPolicy;
     timeoutSeconds?: number;
   };
@@ -221,24 +239,26 @@ type PostgreSQLProcessorOptionsBase = PostgreSQLConnectionOptions & {
 export type PostgreSQLReactorOptions<
   MessageType extends Message = Message,
   MessagePayloadType extends AnyMessage = MessageType,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 > = ReactorOptions<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
-  PostgreSQLProcessorHandlerContext,
+  PostgreSQLProcessorHandlerContext<Driver>,
   MessagePayloadType
 > &
-  PostgreSQLProcessorOptionsBase;
+  PostgreSQLProcessorOptionsBase<Driver>;
 
 export type PostgreSQLProjectorOptions<
   EventType extends AnyEvent = AnyEvent,
   EventPayloadType extends Event = EventType,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 > = ProjectorOptions<
   EventType,
   ReadEventMetadataWithGlobalPosition,
-  PostgreSQLProcessorHandlerContext,
+  PostgreSQLProcessorHandlerContext<Driver>,
   EventPayloadType
 > &
-  PostgreSQLProcessorOptionsBase &
+  PostgreSQLProcessorOptionsBase<Driver> &
   EventStoreSchemaMigrationOptions;
 
 export type PostgreSQLWorkflowProcessorOptions<
@@ -248,6 +268,7 @@ export type PostgreSQLWorkflowProcessorOptions<
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 > = WorkflowProcessorOptions<
   Input,
   State,
@@ -256,49 +277,58 @@ export type PostgreSQLWorkflowProcessorOptions<
   HandlerContext,
   StoredMessage
 > &
-  PostgreSQLProcessorOptionsBase;
+  PostgreSQLProcessorOptionsBase<Driver>;
 
-const postgreSQLProcessingScope = (options: {
+const postgreSQLProcessingScope = <
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+>(options: {
   pool: PgPool | null;
   connectionString: string | null;
+  driver?: Driver;
   processorId: string;
   partition: string;
   migrationOptions?: EventStoreSchemaMigrationOptions['migrationOptions'];
-}): MessageProcessingScope<PostgreSQLProcessorHandlerContext> => {
+}): MessageProcessingScope<PostgreSQLProcessorHandlerContext<Driver>> => {
   const processorConnectionString = options.connectionString;
 
   const processorPool = options.pool;
 
   const processingScope: MessageProcessingScope<
-    PostgreSQLProcessorHandlerContext
+    PostgreSQLProcessorHandlerContext<Driver>
   > = async <Result = SingleMessageHandlerResult>(
     handler: (
-      context: PostgreSQLProcessorHandlerContext,
+      context: PostgreSQLProcessorHandlerContext<Driver>,
     ) => Result | Promise<Result>,
-    partialContext: Partial<PostgreSQLProcessorHandlerContext>,
+    partialContext: Partial<PostgreSQLProcessorHandlerContext<Driver>>,
   ) => {
     const connection = partialContext?.connection;
-    const connectionString =
-      processorConnectionString ?? connection?.connectionString;
+    /**
+     * `getProcessorPool` is still pg specific, so the connection string it
+     * carries is read back out of the driver's own pool options.
+     */
+    const connectionString: string | null | undefined =
+      processorConnectionString ??
+      (connection?.options as { connectionString?: string } | undefined)
+        ?.connectionString;
 
-    if (!connectionString)
-      throw new EmmettError(
-        `PostgreSQL processor '${options.processorId}' is missing connection string. Ensure that you passed it through options`,
-      );
-
-    const pool =
-      (!processorConnectionString ||
+    const pool: PgPool | null =
+      ((!processorConnectionString ||
       connectionString == processorConnectionString
         ? connection?.pool
-        : processorPool) ?? processorPool;
+        : processorPool) as PgPool | null) ?? processorPool;
 
     if (!pool)
       throw new EmmettError(
-        `PostgreSQL processor '${options.processorId}' is missing connection string. Ensure that you passed it through options`,
+        `PostgreSQL processor '${options.processorId}' is missing a connection pool. Ensure that you passed connection options through options`,
       );
 
     return pool.withTransaction(async (transaction) => {
-      const client = (await transaction.connection.open()) as PgClient;
+      const client = await transaction.connection.open();
+      /**
+       * The context type follows the driver, while `getProcessorPool` still
+       * builds a pg pool. The two only meet through this cast until the pool
+       * plumbing is driver-generic too.
+       */
       return handler({
         ...partialContext,
         partition: options.partition,
@@ -309,7 +339,8 @@ const postgreSQLProcessingScope = (options: {
           pool,
           client,
           transaction: transaction,
-          messageStore: getPostgreSQLEventStore(connectionString, {
+          messageStore: getPostgreSQLEventStore({
+            driver: options.driver ?? pgEventStoreDriver,
             connectionOptions: {
               connection: transaction.connection as PgPoolClientConnection,
             },
@@ -321,14 +352,18 @@ const postgreSQLProcessingScope = (options: {
         },
         migrationOptions: options.migrationOptions,
         observabilityScope: partialContext?.observabilityScope ?? noopScope,
-      });
+      } as unknown as PostgreSQLProcessorHandlerContext<Driver>);
     });
   };
 
   return processingScope;
 };
 
-const getProcessorPool = (options: PostgreSQLConnectionOptions) => {
+const getProcessorPool = <
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+>(
+  options: PostgreSQLConnectionOptions<Driver>,
+) => {
   const poolOptions = {
     ...(options.connectionOptions ? options.connectionOptions : {}),
   };
@@ -341,15 +376,16 @@ const getProcessorPool = (options: PostgreSQLConnectionOptions) => {
     'dumbo' in poolOptions
       ? (poolOptions.dumbo as PgPool)
       : processorConnectionString
-        ? dumbo({
-            driver: pgDumboDriver,
-            connectionString: processorConnectionString,
+        ? (dumbo({
             ...poolOptions,
             serialization: options.serialization,
             transactionOptions: {
               allowNestedTransactions: true,
             },
-          })
+            ...(options.driver ?? pgEventStoreDriver).mapToDumboOptions({
+              connectionString: processorConnectionString,
+            }),
+          }) as PgPool)
         : null;
 
   return {
@@ -362,10 +398,12 @@ const getProcessorPool = (options: PostgreSQLConnectionOptions) => {
   };
 };
 
-const toProcessorLockOptions = (
+const toProcessorLockOptions = <
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+>(
   processorLock: PostgreSQLProcessorLock,
-  lock: PostgreSQLProcessorOptionsBase['lock'],
-): ProcessorLockOptions<PostgreSQLProcessorHandlerContext> => ({
+  lock: PostgreSQLProcessorOptionsBase<Driver>['lock'],
+): ProcessorLockOptions<PostgreSQLProcessorHandlerContext<Driver>> => ({
   lock: lock?.lock ?? processorLock,
   acquisitionPolicy:
     lock?.acquisitionPolicy ?? DefaultPostgreSQLProcessorLockPolicy,
@@ -374,9 +412,10 @@ const toProcessorLockOptions = (
 export const postgreSQLProjector = <
   EventType extends Event = Event,
   EventPayloadType extends Event = EventType,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 >(
-  options: PostgreSQLProjectorOptions<EventType, EventPayloadType>,
-): PostgreSQLProcessor<EventType> => {
+  options: PostgreSQLProjectorOptions<EventType, EventPayloadType, Driver>,
+): PostgreSQLProcessor<EventType, Driver> => {
   const {
     processorId = getProjectorId({
       projectionName: options.projection.name ?? 'unknown',
@@ -406,7 +445,7 @@ export const postgreSQLProjector = <
     lockTimeoutSeconds: lock?.timeoutSeconds,
   });
 
-  const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext> = {
+  const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext<Driver>> = {
     ...(options.hooks ?? {}),
     onInit:
       options.projection.init !== undefined || options.hooks?.onInit
@@ -439,7 +478,7 @@ export const postgreSQLProjector = <
   const processor = projector<
     EventType,
     ReadEventMetadataWithGlobalPosition,
-    PostgreSQLProcessorHandlerContext,
+    PostgreSQLProcessorHandlerContext<Driver>,
     EventPayloadType
   >({
     ...options,
@@ -449,9 +488,10 @@ export const postgreSQLProjector = <
     partition,
     hooks,
     lock: toProcessorLockOptions(processorLock, lock),
-    processingScope: postgreSQLProcessingScope({
+    processingScope: postgreSQLProcessingScope<Driver>({
       pool,
       connectionString,
+      driver: options.driver,
       processorId,
       partition,
       migrationOptions: options.migrationOptions,
@@ -459,7 +499,7 @@ export const postgreSQLProjector = <
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<EventType>()
-        : postgreSQLCheckpointer<EventType>(),
+        : postgreSQLCheckpointer<EventType, Driver>(),
   });
 
   return processor;
@@ -470,8 +510,9 @@ export const postgreSQLWorkflowProcessor = <
   State,
   Output extends AnyEvent | AnyCommand,
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
-  HandlerContext extends PostgreSQLProcessorHandlerContext &
-    WorkflowProcessorContext = PostgreSQLProcessorHandlerContext &
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+  HandlerContext extends PostgreSQLProcessorHandlerContext<Driver> &
+    WorkflowProcessorContext = PostgreSQLProcessorHandlerContext<Driver> &
     WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
 >(
@@ -481,9 +522,10 @@ export const postgreSQLWorkflowProcessor = <
     Output,
     MetaDataType,
     HandlerContext,
-    StoredMessage
+    StoredMessage,
+    Driver
   >,
-): PostgreSQLProcessor<Input | Output> => {
+): PostgreSQLProcessor<Input | Output, Driver> => {
   const {
     processorId = options.processorId ??
       getWorkflowId({
@@ -510,7 +552,9 @@ export const postgreSQLWorkflowProcessor = <
   const hooks: ProcessorHooks<HandlerContext> = {
     ...(options.hooks ?? {}),
     onClose: close
-      ? async (context: PostgreSQLProcessorHandlerContext) => {
+      ? async (
+          context: PostgreSQLProcessorHandlerContext<AnyEventStoreDriver>,
+        ) => {
           if (options.hooks?.onClose)
             await options.hooks?.onClose(context as HandlerContext);
           if (close) await close();
@@ -526,9 +570,10 @@ export const postgreSQLWorkflowProcessor = <
     partition,
     hooks,
     lock: toProcessorLockOptions(processorLock, lock),
-    processingScope: postgreSQLProcessingScope({
+    processingScope: postgreSQLProcessingScope<Driver>({
       pool,
       connectionString,
+      driver: options.driver,
       processorId,
       partition,
       migrationOptions: options.migrationOptions,
@@ -536,20 +581,21 @@ export const postgreSQLWorkflowProcessor = <
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<Input | Output, MetaDataType, HandlerContext>()
-        : (postgreSQLCheckpointer<Input | Output>() as Checkpointer<
+        : (postgreSQLCheckpointer<Input | Output>() as unknown as Checkpointer<
             Input | Output,
             MetaDataType,
             HandlerContext
           >),
-  }) as PostgreSQLProcessor<Input | Output>;
+  }) as PostgreSQLProcessor<Input | Output, Driver>;
 };
 
 export const postgreSQLReactor = <
   MessageType extends AnyMessage = AnyMessage,
   MessagePayloadType extends AnyMessage = MessageType,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 >(
-  options: PostgreSQLReactorOptions<MessageType, MessagePayloadType>,
-): PostgreSQLProcessor<MessageType> => {
+  options: PostgreSQLReactorOptions<MessageType, MessagePayloadType, Driver>,
+): PostgreSQLProcessor<MessageType, Driver> => {
   const {
     processorId = options.processorId,
     processorInstanceId = getProcessorInstanceId(processorId),
@@ -570,7 +616,7 @@ export const postgreSQLReactor = <
     lockTimeoutSeconds: lock?.timeoutSeconds,
   });
 
-  const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext> = {
+  const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext<Driver>> = {
     ...(options.hooks ?? {}),
     onClose: close
       ? async (context) => {
@@ -588,9 +634,10 @@ export const postgreSQLReactor = <
     partition,
     hooks,
     lock: toProcessorLockOptions(processorLock, lock),
-    processingScope: postgreSQLProcessingScope({
+    processingScope: postgreSQLProcessingScope<Driver>({
       pool,
       connectionString,
+      driver: options.driver,
       processorId,
       partition,
       migrationOptions: options.migrationOptions,
@@ -598,6 +645,6 @@ export const postgreSQLReactor = <
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<MessageType>()
-        : postgreSQLCheckpointer<MessageType>(),
+        : postgreSQLCheckpointer<MessageType, Driver>(),
   });
 };

@@ -22,6 +22,7 @@ import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import { createEventStoreSchema } from '../schema';
 import type { EventStoreDatabaseSchemaOptions } from './eventStoreDatabaseSchema';
 import { schemaMigrationFor } from './migrations';
+import { pgEventStoreDriver } from '../../pg';
 
 type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -48,7 +49,7 @@ void describe('createEventStoreSchema', () => {
         allowNestedTransactions: true,
       },
     });
-    await createEventStoreSchema(connectionString, pool);
+    await createEventStoreSchema({ connectionString }, pool);
   });
 
   afterAll(async () => {
@@ -229,7 +230,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
   });
 
   void it('creates the event store objects in the schema configured by the user', async () => {
-    await createEventStoreSchema(connectionString, pool, undefined, {
+    await createEventStoreSchema({ connectionString }, pool, undefined, {
       databaseSchemaName: 'events',
     });
 
@@ -262,7 +263,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
   });
 
   void it('uses the migration table schema and name configured by the user', async () => {
-    await createEventStoreSchema(connectionString, pool, undefined, {
+    await createEventStoreSchema({ connectionString }, pool, undefined, {
       databaseSchemaName: 'store',
       migrationTable: {
         schemaName: 'infrastructure',
@@ -289,7 +290,9 @@ void describe('createEventStoreSchema with configured database schemas', () => {
         tableName: schemaName('emmett_migrations'),
       },
     } satisfies EventStoreDatabaseSchemaOptions;
-    const store = getPostgreSQLEventStore(connectionString, {
+    const store = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       schema: {
         autoMigration: 'None',
         ...schemaOptions,
@@ -346,7 +349,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     let afterProjectionsDatabaseSchemaName: string | undefined;
 
     await createEventStoreSchema(
-      connectionString,
+      { connectionString },
       pool,
       {
         onBeforeSchemaCreated: (context) => {
@@ -379,7 +382,9 @@ void describe('createEventStoreSchema with configured database schemas', () => {
   void it('stores and reads events from the schema configured by the user', async () => {
     const configuredSchemaName = 'configured_runtime';
     const streamName = `shopping_cart-${Date.now()}`;
-    const eventStore = getPostgreSQLEventStore(connectionString, {
+    const eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       schema: {
         autoMigration: 'CreateOrUpdate',
         databaseSchemaName: configuredSchemaName,
@@ -416,7 +421,9 @@ void describe('createEventStoreSchema with configured database schemas', () => {
       const migrationSchemaName = nameWith('infrastructure');
       const migrationTableName = nameWith('emmett_migrations');
       const streamName = `shopping_cart-${Date.now()}`;
-      const store = getPostgreSQLEventStore(connectionString, {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         schema: {
           autoMigration: 'CreateOrUpdate',
           databaseSchemaName: eventSchemaName,
@@ -469,13 +476,17 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     const firstSchemaName = 'configured_runtime_first';
     const secondSchemaName = 'configured_runtime_second';
     const streamName = `shopping_cart-${Date.now()}`;
-    const firstEventStore = getPostgreSQLEventStore(connectionString, {
+    const firstEventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       schema: {
         autoMigration: 'CreateOrUpdate',
         databaseSchemaName: firstSchemaName,
       },
     });
-    const secondEventStore = getPostgreSQLEventStore(connectionString, {
+    const secondEventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       schema: {
         autoMigration: 'CreateOrUpdate',
         databaseSchemaName: secondSchemaName,
@@ -581,7 +592,9 @@ void describe('createEventStoreSchema sharing a database with a configured schem
     const configuredSchemaName = schemaName('events');
     const streamName = `shopping_cart-${Date.now()}`;
 
-    const configuredStore = getPostgreSQLEventStore(connectionString, {
+    const configuredStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       schema: {
         autoMigration: 'CreateOrUpdate',
         databaseSchemaName: configuredSchemaName,
@@ -605,7 +618,9 @@ void describe('createEventStoreSchema sharing a database with a configured schem
       await configuredStore.close();
     }
 
-    const defaultStore = getPostgreSQLEventStore(connectionString, {
+    const defaultStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       schema: { autoMigration: 'CreateOrUpdate' },
     });
 

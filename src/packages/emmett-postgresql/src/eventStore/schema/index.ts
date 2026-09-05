@@ -1,16 +1,12 @@
 import {
-  dumbo,
   runSQLMigrations,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
-import {
-  pgDumboDriver,
-  type PgPool,
-  type PgTransaction,
-} from '@event-driven-io/dumbo/pg';
+import type { PgPool, PgTransaction } from '@event-driven-io/dumbo/pg';
 import type { JSONSerializationOptions } from '@event-driven-io/emmett';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
 import { transactionToPostgreSQLProjectionHandlerContext } from '../projections';
+import type { PgPoolOptions } from '@event-driven-io/dumbo/pg';
 import {
   eventStoreDatabaseSchema,
   type EventStoreDatabaseSchemaOptions,
@@ -46,56 +42,44 @@ export type EventStoreSchemaMigrationOptions = {
 };
 
 export const createEventStoreSchema = (
-  connectionString: string,
+  dumboOptions: PgPoolOptions,
   pool: PgPool,
   hooks?: PostgresEventStoreOptions['hooks'],
   options?: CreateEventStoreSchemaOptions,
 ): Promise<RunSQLMigrationsResult> => {
   return pool.withTransaction(async (tx: PgTransaction) => {
     const context = await transactionToPostgreSQLProjectionHandlerContext(
-      connectionString,
+      dumboOptions,
       pool,
       tx,
     );
-    const nestedPool = dumbo({
-      driver: pgDumboDriver,
-      connectionString,
-      connection: tx.connection,
-      serialization: options?.serialization,
-      transactionOptions: {
-        allowNestedTransactions: true,
+
+    const databaseSchema = eventStoreDatabaseSchema(options);
+    const schemaContext = {
+      ...context,
+      migrationOptions: {
+        ...options,
+        ...databaseSchema,
       },
-    });
+    };
 
-    try {
-      const databaseSchema = eventStoreDatabaseSchema(options);
-      const schemaContext = {
-        ...context,
-        migrationOptions: {
-          ...options,
-          ...databaseSchema,
-        },
-      };
-
-      if (hooks?.onBeforeSchemaCreated) {
-        await hooks.onBeforeSchemaCreated(schemaContext);
-      }
-
-      const result = await runSQLMigrations(
-        nestedPool,
-        eventStoreSchemaMigrationsFor(options),
-        {
-          ...options,
-          migrationTable: databaseSchema.migrationTable,
-        },
-      );
-
-      if (hooks?.onAfterSchemaCreated) {
-        await hooks.onAfterSchemaCreated(schemaContext);
-      }
-      return result;
-    } finally {
-      await nestedPool.close();
+    if (hooks?.onBeforeSchemaCreated) {
+      await hooks.onBeforeSchemaCreated(schemaContext);
     }
+
+    const result = await runSQLMigrations(
+      pool,
+      eventStoreSchemaMigrationsFor(options),
+      {
+        ...options,
+        migrationTable: databaseSchema.migrationTable,
+        execute: tx.execute,
+      },
+    );
+
+    if (hooks?.onAfterSchemaCreated) {
+      await hooks.onAfterSchemaCreated(schemaContext);
+    }
+    return result;
   });
 };

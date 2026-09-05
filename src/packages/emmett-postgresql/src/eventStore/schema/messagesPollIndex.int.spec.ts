@@ -40,7 +40,7 @@ void describe('emt_messages consumer poll index', () => {
       pooled: false,
     });
 
-    await createEventStoreSchema(connectionString, pool);
+    await createEventStoreSchema({ connectionString }, pool);
     await seedMessages(defaultTag, 0);
     await pool.execute.command(SQL`ANALYZE emt_messages`);
   });

@@ -5,11 +5,8 @@ import {
   type QueryResultRow,
   type SQL,
 } from '@event-driven-io/dumbo';
-import {
-  pgDumboDriver,
-  type PgPool,
-  type PgPoolOptions,
-} from '@event-driven-io/dumbo/pg';
+import type { PgPool, PgPoolOptions } from '@event-driven-io/dumbo/pg';
+import { pgEventStoreDriver } from '../../pg';
 import {
   assertFails,
   AssertionError,
@@ -84,7 +81,7 @@ export const PostgreSQLProjectionSpec = {
     {
       const { projection, ...restOptions } = options;
       const dumboOptions = {
-        driver: pgDumboDriver,
+        driver: pgEventStoreDriver.dumboDriver,
         ...restOptions,
         serialization: projection.serialization,
         transactionOptions: {
@@ -119,7 +116,7 @@ export const PostgreSQLProjectionSpec = {
               status: 'active',
               context: {
                 ...(await transactionToPostgreSQLProjectionHandlerContext(
-                  connectionString!,
+                  dumboOptions,
                   pool,
                   transaction,
                 )),
@@ -180,7 +177,7 @@ export const PostgreSQLProjectionSpec = {
                   events: allEvents,
                   projections: [projection],
                   ...(await transactionToPostgreSQLProjectionHandlerContext(
-                    connectionString!,
+                    dumboOptions,
                     pool,
                     transaction,
                   )),

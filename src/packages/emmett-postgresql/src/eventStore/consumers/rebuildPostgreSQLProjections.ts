@@ -5,6 +5,8 @@ import {
   type ProjectorOptions,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
+import type { PgEventStoreDriver } from '../../pg';
+import type { AnyEventStoreDriver } from '../eventStoreDriver';
 import type { PostgreSQLProjectionDefinition } from '../projections';
 import type { LockAcquisitionPolicy } from '../projections/locks';
 import {
@@ -23,9 +25,10 @@ const defaultRebuildLockPolicy: LockAcquisitionPolicy = {
 
 export const rebuildPostgreSQLProjections = <
   EventType extends AnyEvent = AnyEvent,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 >(
   options: Omit<
-    PostgreSQLEventStoreConsumerOptions<EventType>,
+    PostgreSQLEventStoreConsumerOptions<EventType, Driver>,
     'stopWhen' | 'processors'
   > & {
     lock?: {
@@ -38,22 +41,27 @@ export const rebuildPostgreSQLProjections = <
             | ProjectorOptions<
                 EventType,
                 ReadEventMetadataWithGlobalPosition,
-                PostgreSQLProcessorHandlerContext
+                PostgreSQLProcessorHandlerContext<Driver>
               >
-            | PostgreSQLProjectionDefinition<EventType>
+            | PostgreSQLProjectionDefinition<EventType, EventType, Driver>
           )[];
         }
       | ProjectorOptions<
           EventType,
           ReadEventMetadataWithGlobalPosition,
-          PostgreSQLProcessorHandlerContext
+          PostgreSQLProcessorHandlerContext<Driver>
         >
     ),
-): PostgreSQLEventStoreConsumer<EventType> => {
-  const consumer = postgreSQLEventStoreConsumer({
+): PostgreSQLEventStoreConsumer<EventType, Driver> => {
+  /**
+   * `Omit` erases the driver-derived option keys, so the spread no longer
+   * visibly satisfies `Partial<InferOptionsFromEventStoreDriver<Driver>>`
+   * while `Driver` is still an unresolved type parameter.
+   */
+  const consumer = postgreSQLEventStoreConsumer<EventType, Driver>({
     ...options,
     stopWhen: { noMessagesLeft: true },
-  });
+  } as PostgreSQLEventStoreConsumerOptions<EventType, Driver>);
 
   const lock = { acquisitionPolicy: defaultRebuildLockPolicy, ...options.lock };
 
@@ -61,7 +69,7 @@ export const rebuildPostgreSQLProjections = <
     ProjectorOptions<
       EventType,
       ReadEventMetadataWithGlobalPosition,
-      PostgreSQLProcessorHandlerContext
+      PostgreSQLProcessorHandlerContext<Driver>
     >,
     'processorId'
   > & { processorId?: string })[] =

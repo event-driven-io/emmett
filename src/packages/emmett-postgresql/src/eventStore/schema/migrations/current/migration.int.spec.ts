@@ -40,6 +40,7 @@ import { migrations_0_36_0 } from '../0_36_0';
 import { migrations_0_38_7 } from '../0_38_7';
 import { migrations_0_42_0 } from '../0_42_0';
 import { migrations_0_43_0 } from '../0_43_0';
+import { pgEventStoreDriver } from '../../../../pg';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -80,8 +81,10 @@ void describe('Schema migrations tests', () => {
     });
 
     // TODO: Change setup to schemas, when they're supported in Emmett instead of using separate containers
-    eventStore = getPostgreSQLEventStore(connectionString, {
-      connectionOptions: { dumbo: pool },
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+      pool: pool,
       schema: { autoMigration: 'None' },
     });
   });
@@ -125,8 +128,10 @@ void describe('Schema migrations tests', () => {
         tableName: 'emmett_migrations',
       },
     };
-    eventStore = getPostgreSQLEventStore(connectionString, {
-      connectionOptions: { dumbo: pool },
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+      pool: pool,
       schema: {
         autoMigration: 'None',
         ...schemaOptions,

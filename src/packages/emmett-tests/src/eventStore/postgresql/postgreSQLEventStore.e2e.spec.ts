@@ -28,6 +28,7 @@ import type {
   ProductItemAdded,
   ShoppingCartEvent,
 } from '../shoppingCart.domain';
+import { pgEventStoreDriver } from '@event-driven-io/emmett-postgresql/pg';
 
 describe('EventStoreDBEventStore', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -38,7 +39,9 @@ describe('EventStoreDBEventStore', () => {
   const eventStoreFactory: EventStoreFactory = async () => {
     postgres = await getPostgreSQLStartedContainer();
     connectionString = postgres.getConnectionUri();
-    eventStore = getPostgreSQLEventStore(connectionString, {
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       projections: [
         { type: 'inline', projection: shoppingCartShortInfoProjection },
         { type: 'inline', projection: customProjection },

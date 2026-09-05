@@ -31,6 +31,7 @@ import {
   type PostgreSQLProjectorOptions,
   type PostgreSQLReactorOptions,
 } from './postgreSQLProcessor';
+import { pgEventStoreDriver } from '../../pg';
 
 const withDeadline = { timeout: 30000 };
 
@@ -54,7 +55,10 @@ void describe('PostgreSQL event store started consumer', () => {
   beforeAll(async () => {
     database = await isolatedPostgreSQLDatabase();
     connectionString = database.connectionString;
-    eventStore = getPostgreSQLEventStore(connectionString);
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+    });
     await eventStore.schema.migrate();
     pool = dumbo({
       connectionString,
@@ -1065,7 +1069,7 @@ void describe('PostgreSQL event store started consumer', () => {
 
         const startOptions = {
           execute: pool.execute,
-          connection: { connectionString, pool },
+          connection: { options: { connectionString }, pool },
         } as Parameters<typeof processor.start>[0];
 
         await processor.start(startOptions);
