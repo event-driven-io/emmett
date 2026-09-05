@@ -14,6 +14,15 @@ import {
   type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import {
+  pgEventStoreDriver,
+  type PgEventStoreDriver,
+  type PgEventStoreDriverOptions,
+} from '../../pg';
+import type {
+  AnyEventStoreDriver,
+  InferOptionsFromEventStoreDriver,
+} from '../eventStoreDriver';
+import {
   eventStoreDatabaseSchema,
   type EventStoreDatabaseSchemaOptions,
 } from '../schema';
@@ -28,7 +37,6 @@ import {
   type PostgreSQLReactorOptions,
   type PostgreSQLWorkflowProcessorOptions,
 } from './postgreSQLProcessor';
-import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 
 export type PostgreSQLEventStoreConsumerConfig<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -47,42 +55,51 @@ export type PostgreSQLEventStoreConsumerConfig<
 
 export type PostgreSQLEventStoreConsumerOptions<
   ConsumerMessageType extends Message = Message,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 > = PostgreSQLEventStoreConsumerConfig<ConsumerMessageType> & {
-  connectionString: string;
   pool?: Dumbo;
   source?: MessageSource<
     NoInfer<ConsumerMessageType>,
     RecordedMessageMetadataWithGlobalPosition
   >;
-};
+} & {
+  /**
+   * @deprecated pass `driver` instead; this form is removed in the next major.
+   */
+  connectionString?: string;
+  driver?: Driver;
+} & Partial<InferOptionsFromEventStoreDriver<Driver>>;
 
 export type PostgreSQLReactorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 > = <MessageType extends ConsumerMessageType = ConsumerMessageType>(
-  options: PostgreSQLReactorOptions<MessageType>,
-) => PostgreSQLProcessor<MessageType>;
+  options: PostgreSQLReactorOptions<MessageType, MessageType, Driver>,
+) => PostgreSQLProcessor<MessageType, Driver>;
 
 export type PostgreSQLProjectorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 > = <
   EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
     AnyEvent,
 >(
-  options: PostgreSQLProjectorOptions<EventType>,
-) => PostgreSQLProcessor<EventType>;
+  options: PostgreSQLProjectorOptions<EventType, EventType, Driver>,
+) => PostgreSQLProcessor<EventType, Driver>;
 
 export type PostgreSQLWorkflowProcessorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 > = <
   Input extends ConsumerMessageType,
   State,
   Output extends ConsumerMessageType,
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
-  HandlerContext extends PostgreSQLProcessorHandlerContext &
-    WorkflowProcessorContext = PostgreSQLProcessorHandlerContext &
+  HandlerContext extends PostgreSQLProcessorHandlerContext<Driver> &
+    WorkflowProcessorContext = PostgreSQLProcessorHandlerContext<Driver> &
     WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
 >(
@@ -92,41 +109,45 @@ export type PostgreSQLWorkflowProcessorFactory<
     Output,
     MetaDataType,
     HandlerContext,
-    StoredMessage
+    StoredMessage,
+    Driver
   >,
-) => PostgreSQLProcessor<Input | Output>;
+) => PostgreSQLProcessor<Input | Output, Driver>;
 
 export type PostgreSQLEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 > = MessageConsumer<
   ConsumerMessageType,
-  PostgreSQLReactorFactory<ConsumerMessageType>,
-  PostgreSQLProjectorFactory<ConsumerMessageType>,
-  PostgreSQLWorkflowProcessorFactory<ConsumerMessageType>
+  PostgreSQLReactorFactory<ConsumerMessageType, Driver>,
+  PostgreSQLProjectorFactory<ConsumerMessageType, Driver>,
+  PostgreSQLWorkflowProcessorFactory<ConsumerMessageType, Driver>
 >;
 
 export const postgreSQLEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 >(
-  options: PostgreSQLEventStoreConsumerOptions<ConsumerMessageType>,
-): PostgreSQLEventStoreConsumer<ConsumerMessageType> => {
+  options: PostgreSQLEventStoreConsumerOptions<ConsumerMessageType, Driver>,
+): PostgreSQLEventStoreConsumer<ConsumerMessageType, Driver> => {
   const databaseSchema = eventStoreDatabaseSchema(options.schema);
   const processorMetadataSchema = {
     ...options.schema,
     ...databaseSchema,
   };
   const isOwnPool = !options.pool;
-  const pool = options.pool
-    ? options.pool
-    : dumbo({
-        driver: pgDumboDriver,
-        connectionString: options.connectionString,
-        serialization: options.serialization,
-        transactionOptions: {
-          allowNestedTransactions: true,
-        },
-      });
+  const pool =
+    options.pool ??
+    dumbo({
+      serialization: options.serialization,
+      transactionOptions: {
+        allowNestedTransactions: true,
+      },
+      ...(options.driver ?? pgEventStoreDriver).mapToDumboOptions(
+        options as PgEventStoreDriverOptions,
+      ),
+    });
 
   const source: MessageSource<
     ConsumerMessageType,
@@ -150,15 +171,15 @@ export const postgreSQLEventStoreConsumer = <
       transaction: undefined as never,
       messageStore: undefined as never,
     },
-  } as unknown as PostgreSQLProcessorHandlerContext;
+  } as unknown as PostgreSQLProcessorHandlerContext<Driver>;
 
   const messageConsumer = consumer<
     ConsumerMessageType,
     RecordedMessageMetadataWithGlobalPosition,
-    PostgreSQLProcessorHandlerContext,
-    PostgreSQLReactorFactory<ConsumerMessageType>,
-    PostgreSQLProjectorFactory<ConsumerMessageType>,
-    PostgreSQLWorkflowProcessorFactory<ConsumerMessageType>
+    PostgreSQLProcessorHandlerContext<Driver>,
+    PostgreSQLReactorFactory<ConsumerMessageType, Driver>,
+    PostgreSQLProjectorFactory<ConsumerMessageType, Driver>,
+    PostgreSQLWorkflowProcessorFactory<ConsumerMessageType, Driver>
   >({
     ...options,
     source,

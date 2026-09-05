@@ -90,4 +90,45 @@ export default [
       'no-restricted-imports': 'off',
     },
   },
+  {
+    files: ['packages/emmett-postgresql/**', 'packages/emmett-sqlite/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.name='dumbo'] > ObjectExpression" +
+            ":not(:has(> Property[key.name='driver']))" +
+            ':not(:has(> SpreadElement))',
+          message:
+            'dumbo() must receive an explicit `driver`. Relying on the global driver ' +
+            'registry fails when the driver module is not eagerly imported.',
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/emmett-postgresql/**'],
+    ignores: [
+      'packages/emmett-postgresql/**/*.spec.ts',
+      'packages/emmett-postgresql/src/pg.ts',
+      'packages/emmett-postgresql/src/testing/**',
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@event-driven-io/dumbo/pg',
+              message:
+                'Take the pg driver from `src/pg.ts` instead. Importing the driver ' +
+                'module elsewhere ties the package to a single PostgreSQL driver.',
+              allowTypeImports: true,
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];

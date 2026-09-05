@@ -42,7 +42,7 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
         allowNestedTransactions: true,
       },
     });
-    await createEventStoreSchema(connectionString, pool);
+    await createEventStoreSchema({ connectionString }, pool);
 
     await pool.execute.command(SQL`SELECT emt_add_partition('partition-2')`);
   });

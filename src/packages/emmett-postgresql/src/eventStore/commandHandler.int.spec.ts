@@ -24,6 +24,7 @@ import {
   type PricedProductItem,
   type ProductItemAdded,
 } from '../testing/shoppingCart.domain';
+import { pgEventStoreDriver } from '../pg';
 
 void describe('Postgres Projections', () => {
   let database: PostgreSQLTestDatabase;
@@ -34,7 +35,9 @@ void describe('Postgres Projections', () => {
   beforeAll(async () => {
     database = await sharedPostgreSQLDatabase();
     connectionString = database.connectionString;
-    eventStore = getPostgreSQLEventStore(connectionString, {
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       projections: [
         { type: 'inline', projection: shoppingCartShortInfoProjection },
       ],

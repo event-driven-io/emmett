@@ -16,6 +16,7 @@ import {
   postgreSQLEventStoreConsumer,
   type PostgreSQLEventStoreConsumer,
 } from './postgreSQLEventStoreConsumer';
+import { pgEventStoreDriver } from '../../pg';
 
 type Tested = Event<'Tested', { index: number }>;
 
@@ -133,7 +134,10 @@ void describe('PostgreSQL event store consumer', () => {
 
   void describe('created by the event store', () => {
     void it('is the strongly typed PostgreSQL consumer', async () => {
-      const eventStore = getPostgreSQLEventStore(connectionString);
+      const eventStore = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+      });
       const storeConsumer: PostgreSQLEventStoreConsumer = eventStore.consumer();
 
       try {

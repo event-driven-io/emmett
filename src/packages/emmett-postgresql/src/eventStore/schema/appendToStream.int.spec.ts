@@ -62,7 +62,7 @@ void describe('appendEvent', () => {
       },
     });
 
-    await createEventStoreSchema(connectionString, pool);
+    await createEventStoreSchema({ connectionString }, pool);
   });
 
   afterAll(async () => {

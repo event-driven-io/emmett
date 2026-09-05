@@ -19,6 +19,7 @@ import {
 } from '../postgreSQLEventStore';
 import { postgreSQLRawSQLProjection } from '../projections';
 import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
+import { pgEventStoreDriver } from '../../pg';
 
 const withDeadline = { timeout: 10000 };
 
@@ -32,7 +33,9 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
     database = await isolatedPostgreSQLDatabase();
     connectionString = database.connectionString;
 
-    eventStore = getPostgreSQLEventStore(connectionString, {
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       projections: projections.inline([]),
     });
     pool = dumbo({
@@ -233,7 +236,9 @@ void describe('PostgreSQL projection rebuild with advisory locking', () => {
           },
         );
 
-        const inlineEventStore = getPostgreSQLEventStore(connectionString, {
+        const inlineEventStore = getPostgreSQLEventStore({
+          driver: pgEventStoreDriver,
+          connectionString: connectionString,
           projections: projections.inline([projection]),
         });
 

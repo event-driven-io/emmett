@@ -21,6 +21,7 @@ import { getPostgreSQLEventStore } from '../../postgreSQLEventStore';
 import { PostgreSQLProjectionSpec } from '../postgresProjectionSpec';
 import { pongoSingleStreamProjection } from './pongoProjections';
 import { expectPongoDocuments } from './pongoProjectionSpec';
+import { pgEventStoreDriver } from '../../../pg';
 
 const withDeadline = { timeout: 30000 };
 
@@ -61,7 +62,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
       const collectionName = schemaName('shopping_cart_summary');
       const streamName = `shopping_cart:${uuid()}`;
 
-      const store = getPostgreSQLEventStore(connectionString, {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         schema: {
           autoMigration: 'CreateOrUpdate',
           databaseSchemaName: eventSchemaName,
@@ -112,7 +115,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
       const collectionSchemaName = schemaName('custom_read_models');
       const collectionName = schemaName('shopping_cart_summary');
       const streamName = `shopping_cart:${uuid()}`;
-      const store = getPostgreSQLEventStore(connectionString, {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         schema: {
           autoMigration: 'CreateOrUpdate',
           databaseSchemaName: eventSchemaName,
@@ -160,7 +165,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
       const collectionName = tableNameRequiringQuotes('Shopping-Cart-Summary');
       const streamName = `shopping_cart:${uuid()}`;
 
-      const store = getPostgreSQLEventStore(connectionString, {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         schema: {
           autoMigration: 'CreateOrUpdate',
           databaseSchemaName: eventSchemaName,
@@ -214,7 +221,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
         const collectionName = schemaName('shopping_cart_summary');
         const streamName = `shopping_cart:${uuid()}`;
 
-        const store = getPostgreSQLEventStore(connectionString, {
+        const store = getPostgreSQLEventStore({
+          driver: pgEventStoreDriver,
+          connectionString: connectionString,
           schema: {
             autoMigration: 'CreateOrUpdate',
             databaseSchemaName: eventSchemaName,
@@ -309,7 +318,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
       const collectionName = schemaName('shopping_cart_summary');
       const streamName = `shopping_cart:${uuid()}`;
 
-      const store = getPostgreSQLEventStore(connectionString, {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         schema: {
           autoMigration: 'CreateOrUpdate',
           databaseSchemaName: eventSchemaName,
@@ -380,7 +391,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
       const projectionSchemaName = schemaName('read_models');
       const collectionName = schemaName('shopping_cart_summary');
       const streamName = `shopping_cart:${uuid()}`;
-      const store = getPostgreSQLEventStore(connectionString, {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         schema: {
           autoMigration: 'CreateOrUpdate',
           databaseSchemaName: eventSchemaName,
@@ -426,7 +439,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
       const streamName = `shopping_cart:${uuid()}`;
 
       const eventStore = () =>
-        getPostgreSQLEventStore(connectionString, {
+        getPostgreSQLEventStore({
+          driver: pgEventStoreDriver,
+          connectionString: connectionString,
           schema: {
             autoMigration: 'CreateOrUpdate',
             databaseSchemaName: eventSchemaName,

@@ -15,6 +15,7 @@ import {
 } from '../postgreSQLEventStore';
 import { PostgreSQLEventStoreCheckpoint } from '../schema';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
+import { pgEventStoreDriver } from '../../pg';
 
 type GuestStayEvent = Event<
   'GuestCheckedIn' | 'GuestCheckedOut',
@@ -31,7 +32,10 @@ void describe('waiting for a PostgreSQL consumer to catch up in a test', () => {
   beforeAll(async () => {
     database = await sharedPostgreSQLDatabase();
     connectionString = database.connectionString;
-    eventStore = getPostgreSQLEventStore(connectionString);
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+    });
     await eventStore.schema.migrate();
   });
 

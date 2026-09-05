@@ -26,7 +26,7 @@ beforeAll(async () => {
     driver: pgDumboDriver,
     transactionOptions: { allowNestedTransactions: true },
   });
-  await createEventStoreSchema(connectionString, pool);
+  await createEventStoreSchema({ connectionString }, pool);
 }, 120000);
 
 afterAll(async () => {

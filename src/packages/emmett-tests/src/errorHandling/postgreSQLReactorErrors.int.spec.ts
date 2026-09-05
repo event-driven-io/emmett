@@ -11,6 +11,7 @@ import {
   type ConsumerFactory,
   type ReactorConsumer,
 } from './reactorErrors.features';
+import { pgEventStoreDriver } from '@event-driven-io/emmett-postgresql/pg';
 
 let postgres: StartedPostgreSqlContainer;
 let connectionString: string;
@@ -25,7 +26,10 @@ afterAll(async () => {
 });
 
 const postgreSQLConsumerFactory: ConsumerFactory = () => {
-  const eventStore = getPostgreSQLEventStore(connectionString);
+  const eventStore = getPostgreSQLEventStore({
+    driver: pgEventStoreDriver,
+    connectionString: connectionString,
+  });
 
   const consumer = postgreSQLEventStoreConsumer({
     connectionString,

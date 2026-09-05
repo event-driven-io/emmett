@@ -1,3 +1,4 @@
+import { dumbo } from '@event-driven-io/dumbo';
 import {
   reduceAsync,
   type CanHandle,
@@ -20,6 +21,7 @@ import {
   type PostgreSQLProjectionHandlerContext,
 } from '..';
 import type { PostgresReadEventMetadata } from '../../postgreSQLEventStore';
+import { pgEventStoreDriver } from '../../../pg';
 
 export type PongoProjectionHandlerContext =
   PostgreSQLProjectionHandlerContext & {
@@ -113,19 +115,16 @@ export const pongoProjection = <
     eventsOptions,
     handle: async (events, context) => {
       const {
-        connection: { connectionString, client },
+        connection: { transaction },
       } = context;
       const pongo = pongoClient({
-        connectionString,
+        pool: dumbo({
+          driver: pgEventStoreDriver.dumboDriver,
+          connection: transaction.connection,
+        }),
         driver: pgDriver,
         ...pongoSchemaOptions(context),
         schema: { autoMigration: 'None' },
-        connectionOptions: {
-          client,
-          transactionOptions: {
-            allowNestedTransactions: true,
-          },
-        },
       });
       try {
         await handle(events, {
@@ -139,18 +138,15 @@ export const pongoProjection = <
     truncate: truncate
       ? async (context) => {
           const {
-            connection: { connectionString, client },
+            connection: { transaction },
           } = context;
           const pongo = pongoClient({
-            connectionString,
+            pool: dumbo({
+              driver: pgEventStoreDriver.dumboDriver,
+              connection: transaction.connection,
+            }),
             driver: pgDriver,
             ...pongoSchemaOptions(context),
-            connectionOptions: {
-              client,
-              transactionOptions: {
-                allowNestedTransactions: true,
-              },
-            },
           });
           try {
             await truncate({
@@ -165,18 +161,15 @@ export const pongoProjection = <
     init: init
       ? async (options) => {
           const {
-            connection: { connectionString, client },
+            connection: { transaction },
           } = options.context;
           const pongo = pongoClient({
-            connectionString,
+            pool: dumbo({
+              driver: pgEventStoreDriver.dumboDriver,
+              connection: transaction.connection,
+            }),
             driver: pgDriver,
             ...pongoSchemaOptions(options.context),
-            connectionOptions: {
-              client,
-              transactionOptions: {
-                allowNestedTransactions: true,
-              },
-            },
           });
           try {
             await init({
@@ -308,18 +301,15 @@ export const pongoMultiStreamProjection = <
     canHandle,
     truncate: async (context) => {
       const {
-        connection: { connectionString, client },
+        connection: { transaction },
       } = context;
       const pongo = pongoClient({
-        connectionString,
+        pool: dumbo({
+          driver: pgEventStoreDriver.dumboDriver,
+          connection: transaction.connection,
+        }),
         driver: pgDriver,
         ...pongoSchemaOptions(context),
-        connectionOptions: {
-          client,
-          transactionOptions: {
-            allowNestedTransactions: true,
-          },
-        },
       });
 
       try {

@@ -4,16 +4,18 @@ import {
   fromDatabaseDriverType,
   getFormatter,
   JSONSerializer,
+  type Dumbo,
   type MigrationStyle,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
-import {
-  pgDumboDriver,
-  type PgClientConnection,
-  type PgDriverType,
-  type PgPool,
-  type PgPoolClientConnection,
+import type {
+  PgClientConnection,
+  PgDriverType,
+  PgPool,
+  PgPoolClientConnection,
+  PgPoolOptions,
 } from '@event-driven-io/dumbo/pg';
+import { pgEventStoreDriver } from '../pg';
 import {
   assertExpectedVersionMatchesCurrent,
   downcastRecordedMessages,
@@ -69,6 +71,10 @@ import {
   type PostgresStreamExistsOptions,
 } from './schema';
 import { truncateTables } from './schema/truncateTables';
+import type {
+  AnyEventStoreDriver,
+  InferOptionsFromEventStoreDriver,
+} from './eventStoreDriver';
 
 export interface PostgresEventStore
   extends
@@ -176,7 +182,7 @@ type PostgresEventStoreNotPooledOptions =
 export type PostgresEventStoreConnectionOptions =
   PostgresEventStorePooledOptions | PostgresEventStoreNotPooledOptions;
 
-export type PostgresEventStoreOptions = {
+type PostgresEventStoreCommonOptions = {
   projections?: ProjectionRegistration<
     'inline',
     PostgresReadEventMetadata,
@@ -184,7 +190,6 @@ export type PostgresEventStoreOptions = {
   >[];
   observability?: EmmettObservabilityConfig;
   schema?: { autoMigration?: MigrationStyle } & EventStoreDatabaseSchemaOptions;
-  connectionOptions?: PostgresEventStoreConnectionOptions;
   hooks?: {
     /**
      * This hook will be called **BEFORE** event store schema is created
@@ -201,6 +206,27 @@ export type PostgresEventStoreOptions = {
   };
 } & JSONSerializationOptions;
 
+/**
+ * Options for the `getPostgreSQLEventStore(connectionString, options)` form.
+ *
+ * @deprecated pass an options object carrying `driver` instead; this form is
+ * removed in the next major.
+ */
+export type PostgresEventStoreOptions = PostgresEventStoreCommonOptions & {
+  connectionOptions?: PostgresEventStoreConnectionOptions;
+};
+
+/**
+ * Options for the `getPostgreSQLEventStore(options)` form. Connection details
+ * arrive flattened, through the driver's own option shape.
+ */
+export type PostgresEventStoreDriverOptions<
+  Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
+> = PostgresEventStoreCommonOptions & {
+  driver: Driver;
+  pool?: Dumbo;
+} & InferOptionsFromEventStoreDriver<Driver>;
+
 export const defaultPostgreSQLOptions: PostgresEventStoreOptions = {
   projections: [],
   schema: { autoMigration: 'CreateOrUpdate' },
@@ -208,25 +234,61 @@ export const defaultPostgreSQLOptions: PostgresEventStoreOptions = {
 
 export const PostgreSQLEventStoreDefaultStreamVersion = 0n;
 
-export const getPostgreSQLEventStore = (
+/**
+ * @deprecated pass an options object carrying `driver` instead; this form is
+ * removed in the next major.
+ */
+export function getPostgreSQLEventStore(
   connectionString: string,
-  options: PostgresEventStoreOptions = defaultPostgreSQLOptions,
-): PostgresEventStore => {
+  options?: PostgresEventStoreOptions,
+): PostgresEventStore;
+export function getPostgreSQLEventStore<
+  Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
+>(options: PostgresEventStoreDriverOptions<Driver>): PostgresEventStore;
+export function getPostgreSQLEventStore(
+  connectionStringOrOptions: string | PostgresEventStoreDriverOptions,
+  maybeOptions: PostgresEventStoreOptions = defaultPostgreSQLOptions,
+): PostgresEventStore {
+  const driverOptions =
+    typeof connectionStringOrOptions === 'string'
+      ? undefined
+      : connectionStringOrOptions;
+
+  const options: PostgresEventStoreOptions = driverOptions
+    ? (driverOptions as PostgresEventStoreCommonOptions)
+    : maybeOptions;
+
   const poolOptions = {
-    connectionString,
-    ...(options.connectionOptions ? options.connectionOptions : {}),
+    connectionString:
+      typeof connectionStringOrOptions === 'string'
+        ? connectionStringOrOptions
+        : '',
+    ...(driverOptions ? {} : (maybeOptions.connectionOptions ?? {})),
   };
-  const pool =
-    'dumbo' in poolOptions
-      ? poolOptions.dumbo
-      : dumbo({
-          ...poolOptions,
-          driver: pgDumboDriver,
-          serialization: options.serialization,
-          transactionOptions: {
-            allowNestedTransactions: true,
-          },
-        });
+  /**
+   * Built even when a pool is supplied, so the handler context always carries
+   * the options the driver would have connected with.
+   */
+  // TODO: Fix this cast when introducing more drivers
+  const dumboOptions = (
+    driverOptions
+      ? driverOptions.driver.mapToDumboOptions(driverOptions)
+      : pgEventStoreDriver.mapToDumboOptions({
+          connectionString: poolOptions.connectionString,
+          connectionOptions: poolOptions,
+        })
+  ) as PgPoolOptions;
+
+  // TODO: Fix this cast when introducing more drivers
+  const pool = (
+    driverOptions
+      ? (driverOptions.pool ??
+        dumbo({ serialization: options.serialization, ...dumboOptions }))
+      : 'dumbo' in poolOptions
+        ? poolOptions.dumbo
+        : dumbo({ serialization: options.serialization, ...dumboOptions })
+  ) as PgPool;
+
   let migrateSchema: Promise<RunSQLMigrationsResult> | undefined = undefined;
 
   const autoGenerateSchema =
@@ -253,7 +315,7 @@ export const getPostgreSQLEventStore = (
 
       // TODO: Fix this cast when introducing more drivers
       const migration = createEventStoreSchema(
-        connectionString,
+        dumboOptions,
         pool,
         {
           onBeforeSchemaCreated: async (context) => {
@@ -342,7 +404,7 @@ export const getPostgreSQLEventStore = (
                 // Currently it's not available as append doesn't return array of global position but just the last one
                 events: events as ReadEvent<Event, PostgresReadEventMetadata>[],
                 ...(await transactionToPostgreSQLProjectionHandlerContext(
-                  connectionString,
+                  dumboOptions,
                   pool,
                   transaction,
                 )),
@@ -378,7 +440,7 @@ export const getPostgreSQLEventStore = (
             if (truncateOptions?.truncateProjections) {
               const projectionContext =
                 await transactionToPostgreSQLProjectionHandlerContext(
-                  connectionString,
+                  dumboOptions,
                   pool,
                   transaction,
                 );
@@ -536,7 +598,11 @@ export const getPostgreSQLEventStore = (
           consumerOptions?.observability,
         ),
         pool,
-        connectionString,
+        /**
+         * The consumer's own `connectionString` option is deprecated and pg
+         * specific, so it is read back out of the pg connection context.
+         */
+        connectionString: dumboOptions.connectionString,
       }),
 
     close: () => pool.close(),
@@ -556,10 +622,20 @@ export const getPostgreSQLEventStore = (
           },
         };
 
-        const eventStore = getPostgreSQLEventStore(
-          connectionString,
-          storeOptions,
-        );
+        const eventStore = driverOptions
+          ? getPostgreSQLEventStore({
+              ...driverOptions,
+              pool: dumbo({
+                serialization: options.serialization,
+                ...driverOptions.driver.mapToDumboOptions(driverOptions),
+                connection,
+              }),
+              schema: {
+                ...(options.schema ?? {}),
+                autoMigration: 'None',
+              },
+            })
+          : getPostgreSQLEventStore(poolOptions.connectionString, storeOptions);
 
         return ensureSchemaExists().then(() =>
           callback({
@@ -570,4 +646,4 @@ export const getPostgreSQLEventStore = (
       });
     },
   };
-};
+}

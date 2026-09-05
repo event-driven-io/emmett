@@ -12,6 +12,7 @@ import {
 } from '../postgreSQLEventStore';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
+import { pgEventStoreDriver } from '../../pg';
 
 const withDeadline = { timeout: 30000 };
 
@@ -24,7 +25,10 @@ void describe('PostgreSQL processor transaction handling', () => {
   beforeAll(async () => {
     database = await sharedPostgreSQLDatabase();
     connectionString = database.connectionString;
-    eventStore = getPostgreSQLEventStore(connectionString);
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+    });
     await eventStore.schema.migrate();
     observerPool = dumbo({
       driver: pgDumboDriver,

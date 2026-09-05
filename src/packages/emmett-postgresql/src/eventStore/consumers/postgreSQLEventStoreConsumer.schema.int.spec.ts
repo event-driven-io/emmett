@@ -28,6 +28,7 @@ import {
   tableReference,
 } from '../schema/typing';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
+import { pgEventStoreDriver } from '../../pg';
 
 const withDeadline = { timeout: 30000 };
 
@@ -65,7 +66,9 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const eventSchemaName = schemaName('events');
       let migrationTableSchemaName: string | undefined;
       let projectionsDatabaseSchemaName: string | undefined;
-      const store = getPostgreSQLEventStore(connectionString, {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         schema: {
           autoMigration: 'CreateOrUpdate',
           databaseSchemaName: eventSchemaName,
@@ -111,7 +114,9 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const projectionSchemaName = schemaName('read_models');
       const processorId = `processor:${uuid()}`;
       const projectionName = schemaName('projection');
-      const store = getPostgreSQLEventStore(connectionString, {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         schema: {
           autoMigration: 'None',
           databaseSchemaName: eventSchemaName,
@@ -185,7 +190,9 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const eventSchemaName = schemaName('events');
       const processorId = `processor:${uuid()}`;
       const projectionName = schemaName('projection');
-      const store = getPostgreSQLEventStore(connectionString, {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         schema: {
           autoMigration: 'None',
           databaseSchemaName: eventSchemaName,
@@ -237,7 +244,9 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const guestId = uuid();
       const sourceStreamName = `guestStay-${guestId}`;
       const reactionStreamName = `reaction-${guestId}`;
-      const store = getPostgreSQLEventStore(connectionString, {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         schema: {
           autoMigration: 'None',
           databaseSchemaName: eventSchemaName,
@@ -294,7 +303,9 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const guestId = uuid();
       const sourceStreamName = `guestStay-${guestId}`;
       const reactionStreamName = `reaction-${guestId}`;
-      const store = getPostgreSQLEventStore(connectionString, {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         schema: {
           autoMigration: 'None',
           databaseSchemaName: eventSchemaName,
@@ -355,7 +366,9 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const eventSchemaName = schemaName('events');
       const guestId = uuid();
       const streamName = `guestStay-${guestId}`;
-      const store = getPostgreSQLEventStore(connectionString, {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         schema: {
           autoMigration: 'CreateOrUpdate',
           databaseSchemaName: eventSchemaName,
@@ -384,8 +397,10 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const eventSchemaName = schemaName('events');
       const guestId = uuid();
       const streamName = `guestStay-${guestId}`;
-      const store = getPostgreSQLEventStore(connectionString, {
-        connectionOptions: { dumbo: pool },
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        pool: pool,
         schema: {
           autoMigration: 'CreateOrUpdate',
           databaseSchemaName: eventSchemaName,
@@ -409,7 +424,9 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const projectionSchemaName = schemaName('read_models');
       const collectionName = schemaName('shopping_cart_summary');
       const streamName = `shopping_cart-${uuid()}`;
-      const store = getPostgreSQLEventStore(connectionString, {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
         schema: {
           autoMigration: 'None',
           databaseSchemaName: eventSchemaName,

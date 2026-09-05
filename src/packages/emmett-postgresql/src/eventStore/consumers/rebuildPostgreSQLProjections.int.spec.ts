@@ -43,6 +43,7 @@ import {
   postgreSQLRawSQLProjection,
 } from '../projections';
 import { rebuildPostgreSQLProjections } from './rebuildPostgreSQLProjections';
+import { pgEventStoreDriver } from '../../pg';
 
 const withDeadline = { timeout: 30000 };
 
@@ -64,7 +65,9 @@ void describe('Rebuilding PostgreSQL Projections', () => {
     database = await isolatedPostgreSQLDatabase();
     connectionString = database.connectionString;
 
-    eventStore = getPostgreSQLEventStore(connectionString, {
+    eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
       projections: projections.inline([
         shoppingCartsSummaryProjection,
         otherShoppingCartsSummaryProjection,
@@ -120,7 +123,9 @@ void describe('Rebuilding PostgreSQL Projections', () => {
         const collectionName = schemaName('shopping_cart_summary');
         const shoppingCartId = `shoppingCart:${uuid()}`;
         const streamName = `shopping_cart-${shoppingCartId}`;
-        const schemaStore = getPostgreSQLEventStore(connectionString, {
+        const schemaStore = getPostgreSQLEventStore({
+          driver: pgEventStoreDriver,
+          connectionString: connectionString,
           schema: {
             autoMigration: 'None',
             databaseSchemaName: eventSchemaName,

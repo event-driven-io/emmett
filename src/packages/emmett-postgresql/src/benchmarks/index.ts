@@ -5,10 +5,8 @@ import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { bench, group, run, summary } from 'mitata';
 import { randomUUID } from 'node:crypto';
-import {
-  getPostgreSQLEventStore,
-  type PostgresEventStoreConnectionOptions,
-} from '..';
+import { getPostgreSQLEventStore } from '..';
+import { pgEventStoreDriver, type PgEventStoreDriverOptions } from '../pg';
 
 let postgres: StartedPostgreSqlContainer = undefined!;
 
@@ -21,7 +19,7 @@ const connectionString =
 
 console.log(`Using PostgreSQL connection string: ${connectionString}`);
 
-const connectionOptions: PostgresEventStoreConnectionOptions | undefined =
+const connectionOptions: PgEventStoreDriverOptions['connectionOptions'] =
   process.env.BENCHMARK_CONNECTION_POOLED !== 'false'
     ? undefined
     : { pooled: false };
@@ -29,7 +27,9 @@ const connectionOptions: PostgresEventStoreConnectionOptions | undefined =
 const generateSchemaUpfront =
   process.env.BENCHMARK_GENERATE_SCHEMA_UPFRONT !== 'false';
 
-const eventStore = getPostgreSQLEventStore(connectionString, {
+const eventStore = getPostgreSQLEventStore({
+  driver: pgEventStoreDriver,
+  connectionString,
   connectionOptions,
   schema: {
     autoMigration: generateSchemaUpfront ? 'None' : 'CreateOrUpdate',
