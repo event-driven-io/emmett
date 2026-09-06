@@ -55,7 +55,7 @@ Whichever message happens to arrive last is the one that completes the run, so c
 
 A message that never arrives raises no error anywhere. There is no request left to fail, so a run waiting for it simply stops, and nobody is told.
 
-Give any workflow that waits a message that ends the wait. Emmett does not schedule it for you: send it from your scheduler once a run has been open longer than you allow, and record what was still outstanding when it fired:
+Give any workflow that waits a message that ends the wait. **Emmett has no scheduling of its own yet, so nothing in the library will send that message.** It has to come from outside: a cron job, your platform's scheduler, a delayed queue, or whatever your deployment already runs. Send it once a run has been open longer than you allow, and record what was still outstanding when it fired:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-timeout
 
@@ -106,6 +106,63 @@ Then the endings. A run can finish three ways, and each carries what somebody do
 <<< @./../packages/emmett/src/testing/workflowSpecification.unit.spec.ts#workflow-test-failed
 
 Cover each way a run should hold still too: a message for a run that never started, a duplicate, and one that arrives after the run has finished.
+
+## A Second Shape: One Step at a Time {#traffic-fine}
+
+Group checkout fans out. One message produces work for every stay, and the run waits for all of them to report. Many processes are the other shape: one step at a time, where each reply decides the single next step and nothing runs in parallel.
+
+Yves Reynhout's [The Workflow Pattern](https://blog.bittacklr.be/the-workflow-pattern.html), the article this design comes from, works through one of those, and it is the example here. A published police report that records a speeding violation has to end in a traffic fine being issued. The fine cannot be issued until a system number has been generated, and then a manual identification code, each by a different part of the system.
+
+Three events come in and three commands go out:
+
+<<< @./../packages/emmett/src/workflows/trafficFine.testHelpers.ts#traffic-fine-messages
+
+The states are the steps, and each one carries what the steps after it will need:
+
+<<< @./../packages/emmett/src/workflows/trafficFine.testHelpers.ts#traffic-fine-state
+
+Group checkout's state held a tally, because it waited on many things at once. This one holds a position in a line and the values collected so far.
+
+`decide` reads as the state machine. Each input has one branch:
+
+<<< @./../packages/emmett/src/workflows/trafficFine.testHelpers.ts#traffic-fine-decide
+
+The first message decides whether there is a run at all. A parking violation produces nothing, so the run finishes where it started:
+
+<<< @./../packages/emmett/src/workflows/trafficFine.testHelpers.ts#traffic-fine-report-published
+
+Each later message triggers exactly one next step, and takes from the state what the arriving message does not carry:
+
+<<< @./../packages/emmett/src/workflows/trafficFine.testHelpers.ts#traffic-fine-continue
+
+That is what the state is for in this shape. `IssueTrafficFine` needs the police report id, the system number and the identification code, and no single message carries all three. The system number arrived a step earlier, so `evolve` copies it onto the next state as the run moves along:
+
+<<< @./../packages/emmett/src/workflows/trafficFine.testHelpers.ts#traffic-fine-evolve
+
+The pieces go together the same way:
+
+<<< @./../packages/emmett/src/workflows/trafficFine.testHelpers.ts#traffic-fine-definition
+
+Registering it has one difference worth noticing. Every message here carries the police report id, so the router never has to return `null`, and each input is an event while each output is a command:
+
+<<< @./../packages/emmett/src/workflows/trafficFine.testHelpers.ts#traffic-fine-options
+
+The test for the last step shows the chain from outside. Given a report and a generated system number, one message produces a command holding all three values:
+
+<<< @./../packages/emmett/src/workflows/trafficFine.unit.spec.ts#traffic-fine-test-issue
+
+A completed run reads as a straight alternation, which is the shape Yves writes out as a workflow's event log:
+
+| #   | Message                                                                 | Action        |
+| --- | ----------------------------------------------------------------------- | ------------- |
+| 1   | `IssueTrafficFineWorkflow:PoliceReportPublished`                        | `InitiatedBy` |
+| 2   | `GenerateTrafficFineSystemNumber`                                       | `Sent`        |
+| 3   | `IssueTrafficFineWorkflow:TrafficFineSystemNumberGenerated`             | `Received`    |
+| 4   | `GenerateTrafficFineManualIdentificationCode`                           | `Sent`        |
+| 5   | `IssueTrafficFineWorkflow:TrafficFineManualIdentificationCodeGenerated` | `Received`    |
+| 6   | `IssueTrafficFine`                                                      | `Sent`        |
+
+One difference from the article: it has `Began` and `Completed` entries bracketing the run, and a `Complete` decision the workflow returns to end itself. Emmett has neither. A run starts when its first message is recorded as `InitiatedBy`, and it is over when the state says so, which here is `Finished`. Nothing marks the end in the stream, so a run that reached its last step and one that stalled on the step before are told apart by the messages present rather than by a terminal entry.
 
 ## Decide in the Request or in the Background {#sync-vs-async}
 
@@ -191,17 +248,17 @@ Inputs and outputs interleave, so the stream is the run's inbox and its outbox a
 
 `InitiatedBy` marks the message that started the run, `Received` each later arrival, and `Sent` or `Published` each decision taken. A group of three stays where one refuses reads like this:
 
-| #   | Message                                       | Action        | Reads as                                       |
-| --- | --------------------------------------------- | ------------- | ---------------------------------------------- |
-| 1   | `GroupCheckoutWorkflow:InitiateGroupCheckout` | `InitiatedBy` | Clerk started a group of three stays           |
-| 2   | `GroupCheckoutInitiated`                      | `Published`   | The run announced itself                       |
-| 3   | `CheckOut`                                    | `Sent`        | Stay 1 asked to settle                         |
-| 4   | `CheckOut`                                    | `Sent`        | Stay 2 asked to settle                         |
-| 5   | `CheckOut`                                    | `Sent`        | Stay 3 asked to settle                         |
-| 6   | `GroupCheckoutWorkflow:GuestCheckedOut`       | `Received`    | Stay 1 settled, two still outstanding          |
-| 7   | `GroupCheckoutWorkflow:GuestCheckoutFailed`   | `Received`    | Stay 2 refused, balance not settled            |
-| 8   | `GroupCheckoutWorkflow:GuestCheckedOut`       | `Received`    | Stay 3 settled, all have now reported          |
-| 9   | `GroupCheckoutFailed`                         | `Published`   | Group finished: two settled, one refused       |
+| #   | Message                                       | Action        | Reads as                                 |
+| --- | --------------------------------------------- | ------------- | ---------------------------------------- |
+| 1   | `GroupCheckoutWorkflow:InitiateGroupCheckout` | `InitiatedBy` | Clerk started a group of three stays     |
+| 2   | `GroupCheckoutInitiated`                      | `Published`   | The run announced itself                 |
+| 3   | `CheckOut`                                    | `Sent`        | Stay 1 asked to settle                   |
+| 4   | `CheckOut`                                    | `Sent`        | Stay 2 asked to settle                   |
+| 5   | `CheckOut`                                    | `Sent`        | Stay 3 asked to settle                   |
+| 6   | `GroupCheckoutWorkflow:GuestCheckedOut`       | `Received`    | Stay 1 settled, two still outstanding    |
+| 7   | `GroupCheckoutWorkflow:GuestCheckoutFailed`   | `Received`    | Stay 2 refused, balance not settled      |
+| 8   | `GroupCheckoutWorkflow:GuestCheckedOut`       | `Received`    | Stay 3 settled, all have now reported    |
+| 9   | `GroupCheckoutFailed`                         | `Published`   | Group finished: two settled, one refused |
 
 Rows 6 and 7 decided nothing and are recorded anyway, so the run shows the messages that arrived and changed nothing next to the ones that did. When support asks why one guest is still checked in, row 7 answers it: the stay refused, the balance was not settled, and it happened before the group finished.
 
