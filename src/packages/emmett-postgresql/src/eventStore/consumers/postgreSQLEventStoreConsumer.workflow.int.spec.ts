@@ -81,6 +81,61 @@ void describe('PostgreSQL event store workflow processor', () => {
   });
 
   void it(
+    'runs the workflow from a consumer registration',
+    withDeadline,
+    async () => {
+      const groupCheckoutId = uuid();
+      const guestStayAccountIds = [uuid(), uuid()];
+
+      // stopAfter ends the consumer once the run reaches its outcome, so the
+      // test terminates; it is not part of registering a workflow.
+      const groupCheckoutWorkflowOptions = {
+        ...workflowProcessorOptions,
+        stopAfter: (message: { type: string }) =>
+          message.type === 'GroupCheckoutInitiated',
+      };
+
+      // #region workflow-consumer-registration
+      const consumer = postgreSQLEventStoreConsumer({ connectionString });
+
+      consumer.workflowProcessor(groupCheckoutWorkflowOptions);
+
+      const running = consumer.start();
+      // #endregion workflow-consumer-registration
+
+      try {
+        await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
+          {
+            type: 'InitiateGroupCheckout',
+            data: {
+              groupCheckoutId,
+              clerkId: 'clerk-1',
+              guestStayAccountIds,
+              now: new Date(),
+            },
+          },
+        ]);
+
+        await running;
+
+        const { events } = await eventStore.readStream(
+          workflowStreamName({
+            workflowName: 'GroupCheckoutWorkflow',
+            workflowId: groupCheckoutId,
+          }),
+        );
+
+        assertThatArray(events.map((e) => e.type)).containsElements([
+          'GroupCheckoutInitiated',
+          'CheckOut',
+        ]);
+      } finally {
+        await consumer.close();
+      }
+    },
+  );
+
+  void it(
     'processes InitiateGroupCheckout and produces GroupCheckoutInitiated and CheckOut messages',
     withDeadline,
     async () => {
