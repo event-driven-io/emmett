@@ -59,6 +59,10 @@ Give any workflow that waits a message that ends the wait. Emmett does not sched
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-timeout
 
+A timeout arrives at whatever point the run had reached, so its result has to report all three groups: the stays that completed, the ones that failed, and the ones that never came back at all. That last group only exists on this path:
+
+<<< @./../packages/emmett/src/testing/workflowSpecification.unit.spec.ts#workflow-test-timeout
+
 ## Build State from Messages {#evolve}
 
 A workflow's stream holds both sides of the run, the messages it received and the decisions it took, and `evolve` folds them into the state:
@@ -93,11 +97,15 @@ Because decisions perform nothing, testing them needs no event store, no process
 
 <<< @./../packages/emmett/src/testing/workflowSpecification.unit.spec.ts#workflow-test-initiate
 
-Then the part a happy-path test never reaches. **Most messages should decide nothing**:
+Then the part a happy-path test never reaches. **Most messages should decide nothing.** A workflow spends most of its life waiting, so the branch that returns an empty result runs far more often than the branch that ends the run. When it is wrong it does not throw: the run either finishes early on a partial count, or stays open forever because the message that should have completed it was ignored. Both look like the workflow is working until someone goes looking:
 
 <<< @./../packages/emmett/src/testing/workflowSpecification.unit.spec.ts#workflow-test-nothing-happened
 
-Cover each way a run should hold still: a message for a run that never started, a duplicate, and one that arrives after the run has finished.
+Then the endings. A run can finish three ways, and each carries what somebody downstream needs to act on. A completed group lists the stays that settled. A failed one lists the stays that settled and the ones that refused, because the clerk still has guests to deal with and needs to know which. Here every stay refused:
+
+<<< @./../packages/emmett/src/testing/workflowSpecification.unit.spec.ts#workflow-test-failed
+
+Cover each way a run should hold still too: a message for a run that never started, a duplicate, and one that arrives after the run has finished.
 
 ## Decide in the Request or in the Background {#sync-vs-async}
 
@@ -155,7 +163,7 @@ This is the job we deferred. The workflow recorded what should happen; the outpu
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-output-handler
 
-The handler is the only place in a workflow where external calls belong. It can do whatever an ordinary asynchronous function can: call an HTTP API, write to another database, put a message on a queue. Whatever it returns is appended to the run's stream as the next input, which is how the answer finds its way back into the decision:
+The handler is where the workflow reaches anything outside itself, which is broader than calling over the network. It is an ordinary asynchronous function: it can call a service in the same process, handle a command against another stream, write to another database, put a message on a queue, or call an HTTP API. It is also how you reach something that nothing reacts to on its own, since a decision only gets acted on if something handles the message it produced. Whatever the handler returns is appended to the run's stream as the next input, which is how the answer finds its way back into the decision:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-side-effect{3,11,19}
 
@@ -195,7 +203,11 @@ Inputs and outputs interleave, so the stream is the run's inbox and its outbox a
 | 8   | `GroupCheckoutWorkflow:GuestCheckedOut`       | `Received`    | Stay 3 settled, all have now reported          |
 | 9   | `GroupCheckoutFailed`                         | `Published`   | Group finished: two settled, one refused       |
 
-Rows 6 and 7 decided nothing, and they are recorded anyway, which is what makes the gaps readable. Somebody on a help desk asked why a guest was still checked in can answer it from row 7 without reading any code. Somebody analysing the process can ask how many groups reach `GroupCheckoutTimedOut`, how long runs take between row 1 and their last row, and which failure reason comes up most. All of it is a query over streams, with no correlation across service logs and no tracing spans to line up.
+Rows 6 and 7 decided nothing and are recorded anyway, so the run shows the messages that arrived and changed nothing next to the ones that did. When support asks why one guest is still checked in, row 7 answers it: the stay refused, the balance was not settled, and it happened before the group finished.
+
+The same records are what you need when the workflow decided wrongly. A status field tells you where a run ended up, not what it was told or what it decided from, so fixing a bad decision means reconstructing its inputs from whatever survived. Here they did survive: the message that arrived is in the stream next to the decision it produced, so you can work out what should have been decided from what was actually there at the time. Nothing is overwritten, so a run the bad build touched stays distinguishable from a run that merely moved on during the same window, and a correction is another message appended after the mistake rather than an edit on top of it. See [Fixing bugs in Event Sourcing is hard, for real?](https://www.architecture-weekly.com/p/fixing-bugs-in-event-sourcing-is) for how that plays out on a real incident.
+
+Across runs, the same records support counting how many groups reach `GroupCheckoutTimedOut`, measuring the time between the first and last row, and grouping failures by reason.
 
 Recorded inputs carry the workflow name as a prefix; outputs don't, because they exist nowhere else. An input is a copy of a message that also lives in its source stream, and the prefix keeps a consumer of that message type from picking up every run's copy as well.
 
