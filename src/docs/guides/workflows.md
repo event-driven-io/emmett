@@ -5,149 +5,195 @@ outline: deep
 
 # Workflows {#workflows}
 
-A workflow makes the decisions that move a business process along when that process cannot be done in one go: settling a dozen guest stays as a single group checkout, onboarding with verification steps, a review with several approvers. It receives a command or an event, decides what should happen next from the state it rebuilt, and records that message together with its decisions in a stream of its own. Nothing outside it has to remember how far the process got. This guide shows you how to define a workflow, write the decisions that hold its business logic, test them, run it, register it with a consumer, and dispatch what it produces. For the full API surface, see the [Workflows reference](/api-reference/workflows).
+**A workflow coordinates a business process that takes more than one step.** Take a group checkout in a hotel: a clerk picks a set of guest stays and settles them in one go. Each stay is checked out on its own, replies come back one at a time, and the group is done once they have all reported. Nobody can hold a request open while that happens, so something has to keep track of how far it got.
 
-Reach for a workflow when the process has to track how far it has got, and when one place should be able to answer where a given run stopped and why. A single command against a single stream is a [command handler](/guides/command-handling), a view of what happened is a [projection](/guides/projections), and a step that only follows the one before it is a reactor.
+That something is the workflow. It receives a message, decides what should happen next, and writes both the message and its decisions into a stream of its own. The state is rebuilt from that stream, so the workflow always knows where the process stands. And because everything about a run lives in one place, you can read that stream afterwards and see what the process actually did.
+
+Workflows orchestrate: one place makes the decisions for the whole process. That is what separates them from sagas, where each participant reacts to the previous one's event and nobody holds the full picture. Reach for a workflow when the process has an outcome of its own that something has to determine, like a group checkout that must know nine stays settled and one refused.
+
+You don't need one for everything. A single command against a single stream is a [command handler](/guides/command-handling). A view over what happened is a [projection](/guides/projections). A step that only ever follows the one before it is a reactor.
+
+We'll build the group checkout workflow through this guide, then run it, register it with a consumer, and dispatch what it decides. For the full API surface, see the [Workflows reference](/api-reference/workflows).
 
 ## Define the State {#state}
 
-A workflow is a state machine, so name the states that change what it decides next and leave the rest out. Group checkout waits on a set of stays, so it keeps a status per stay, and gives "not started" and "finished" states of their own rather than leaving them implicit in a status column:
+A workflow's state holds what its decisions need and nothing else. For a workflow that waits on several things, that is usually where the run has got to and what it is still waiting for:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-state
 
-## Write the Decision {#decision}
+Keep it that small. It is rebuilt on every message, and anything the decisions never read is weight for no return. Read more in [Slim your entities with Event Sourcing](https://event-driven.io/en/slim_your_entities_with_event_sourcing/).
 
-A decision takes the message and the current state and returns the messages to produce: one, several, or none. It holds your business logic, and it decides what should happen next without performing any of it, which is what makes testing it a function call:
+## Business Logic and Decisions {#decision}
+
+`decide` takes the message that arrived and the current state, and returns what should happen next:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-decide
 
-A workflow has a beginning, a middle and an end, and each is worth writing on its own.
+Notice what it does not do. It decides that a checkout should happen, but it does not perform one. No room is released, no API is called, nothing is sent. Carrying decisions out is a separate job that we'll come to later. That is what keeps this an ordinary function, and why a test needs nothing but a message and a state.
 
-### Begin it {#begin}
+Each branch handles one phase of a run: the message that starts it, the messages that move it along, and the one that ends it.
 
-The first message starts the run. Return the record that it began and the work to be done in one result, so the stream can never hold one without the other. An already-started group returns nothing, which makes a resubmitted command harmless, and an empty selection returns `GroupCheckoutRejected` so the clerk learns why nothing happened:
+### Beginning it {#begin}
+
+The first message creates the run. Return the record that it began and the work it triggers in one result, so the stream cannot end up holding one without the other:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-initiate
 
-### Continue it as replies arrive {#continue}
+Two things guard it. A workflow can receive its first message more than once, so a run that already exists returns nothing. And a request that cannot start a run has to say so, otherwise the caller cannot tell a rejection from a message that went missing.
 
-Each reply settles one stay and returns nothing while others are still outstanding. The last one to arrive completes the group, naming the stays that settled and those that refused. A reply for a stay that has already reported returns nothing, so a second copy of it cannot complete the group twice:
+### Continuing it {#continue}
+
+In the middle, most messages finish nothing. They record progress and the workflow keeps waiting:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-complete{16,27-29}
 
-### End it on a timeout {#end}
+Whichever message happens to arrive last is the one that completes the run, so completing it belongs in the same branch as waiting. Guard against a participant reporting twice as well, or a duplicate can finish the run on the wrong count.
 
-Nothing notices a reply that never arrives, so a workflow that waits needs a message to end the wait. Emmett does not schedule that message for you. Send `TimeoutGroupCheckout` from your scheduler once a run has been open longer than you allow, and record which stays were still outstanding when it fired:
+### Ending it on a timeout {#end}
+
+A message that never arrives raises no error anywhere. There is no request left to fail, so a run waiting for it simply stops, and nobody is told.
+
+Give any workflow that waits a message that ends the wait. Emmett does not schedule it for you: send it from your scheduler once a run has been open longer than you allow, and record what was still outstanding when it fired:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-timeout
 
-## Rebuild the State from the Stream {#evolve}
+## Building State from Messages {#evolve}
 
-`evolve` moves the state on from one recorded message. Both the messages received and the decisions taken shape it, which is why they share a stream: `GroupCheckoutInitiated` sets up the tally of stays, and each reply marks one off. Return the state unchanged for anything that does not move the machine:
+A workflow's stream holds both sides of the run, the messages it received and the decisions it took, and `evolve` folds them into the state:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-evolve{14-16,28-33}
 
-Replaying the stream is also how a run resumes after a restart. The state is derived, so there is nothing else to restore.
+Return the state unchanged for a message that does not apply, rather than throwing. The stream is replayed in full every time the run is read.
 
-## Assemble the Workflow {#assemble}
+That replay is also what recovery is. A process that dies part way through restarts, reads the stream, and carries on from what it finds. There is no separate checkpoint to reconcile.
 
-Put the three functions together with a name. The name identifies every stream this workflow writes and prefixes every input it records:
+## Putting the Workflow Together {#assemble}
+
+The three functions and a name:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-definition
 
-## Test the Decisions {#test}
+The name identifies every stream this workflow writes, and it prefixes every input it records. Both show up shortly.
 
-A decision needs only a message and a state, so testing it takes no event store, processor, or clock. Give the specification the messages that put the run in the state you want, then the message under test:
+## Unit Testing {#test}
+
+Because decisions perform nothing, testing them needs no event store, no processor and no clock.
+
+::: tip For workflows, the testing pattern looks like this:
+
+- **GIVEN** the messages recorded for the run so far,
+- **WHEN** a new message arrives,
+- **THEN** we get the decisions the workflow takes.
+
+:::
 
 <<< @./../packages/emmett/src/testing/workflowSpecification.unit.spec.ts#workflow-specification
 
 <<< @./../packages/emmett/src/testing/workflowSpecification.unit.spec.ts#workflow-test-initiate
 
-**Most messages should decide nothing**, and that is what a happy-path test misses. One stay of two has settled here, so the group stays open:
+Then the part a happy-path test never reaches. **Most messages should decide nothing**, and that is where the bugs live:
 
 <<< @./../packages/emmett/src/testing/workflowSpecification.unit.spec.ts#workflow-test-nothing-happened
 
-Cover each way the workflow should hold still: a reply for a group that never started, a second copy of a reply, a reply arriving after the group finished.
+Cover each way a run should hold still: a message for a run that never started, a duplicate, and one that arrives after the run has finished.
 
-## Run It {#run}
+## Running It {#run}
 
-`WorkflowHandler` puts one message through the workflow against an event store, with no consumer involved. Use it where the message comes from a caller rather than a subscription, such as the clerk's request that starts the run:
+`WorkflowHandler` puts a single message through the workflow against an event store, with no consumer involved. Use it when the message comes from a caller rather than a subscription, as the clerk's request does:
 
 <<< @./../packages/emmett/src/workflows/handleWorkflow.unit.spec.ts#workflow-handler-usage
 
-It resolves the workflow id, reads `emt:workflow:GroupCheckoutWorkflow:<id>`, replays it, runs the decision, and appends the input together with the decisions in a single write. The stream then holds the message that arrived and everything decided because of it:
+It works out which run the message belongs to, reads that run's stream, replays it, runs the decision, and appends the input and the decisions together in one write:
 
 <<< @./../packages/emmett/src/workflows/handleWorkflow.unit.spec.ts#workflow-stream-contents
 
-Recorded inputs carry the workflow's name as a prefix; outputs do not, because they exist nowhere else. Inputs are copies of messages that already live in their own streams, and the prefix is what keeps a consumer of `GuestCheckedOut` from also seeing every group's copy of it.
+Inputs and outputs interleave from here on, so the stream serves as the run's inbox and its outbox at once. Every message also records what it was, which is what lets the stream be read as a story: the message that started the run is marked `InitiatedBy`, later arrivals `Received`, and decisions `Sent` or `Published`:
 
-## Register the Processor {#register}
+<<< @./../packages/emmett/src/workflows/handleWorkflow.unit.spec.ts#workflow-message-actions
 
-The replies arrive in the background, so the rest of the run belongs to a processor. It needs to know which message types concern the workflow and which run each one belongs to. Inputs are mostly events and outputs mostly commands. Both are listed by name, because TypeScript types do not survive to runtime, and both are checked against your unions, so a type that is neither will not compile.
+The workflow name comes back here as a prefix on the recorded inputs. Outputs don't carry it, because they exist nowhere else. An input is a copy of a message that also lives in its source stream, and the prefix keeps a consumer of that message type from picking up every run's copy as well.
 
-`getWorkflowId` answers the correlation question. Performing a `CheckOut` is what eventually causes a `GuestCheckedOut`, and that event has to find its way back to the run that asked for it. The group id it carries is what identifies that run:
+## Registering the Processor {#register}
+
+Messages that arrive from a caller can be handled in the request. The ones that arrive later cannot, so a processor delivers them as they come in. It needs to know which message types concern the workflow, and which run each one belongs to.
+
+Inputs are mostly events and outputs mostly commands. Both are listed by name, because TypeScript types do not survive to runtime. They are checked against your unions, so a type belonging to neither will not compile.
+
+`getWorkflowId` is the router. The id it returns is the run's identity:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-options{7}
 
-Return `null` for a message that belongs to no run and the workflow leaves it alone. A guest checking out on their own carries no group id, so no stream is created and nothing is appended:
+Return `null` for a message that belongs to no run. Nothing is read and no stream is created:
 
 <<< @./../packages/emmett/src/workflows/handleWorkflow.unit.spec.ts#workflow-unrouted-input
 
-Register the options on your store's consumer. PostgreSQL, SQLite, MongoDB, and EventStoreDB each supply the processor wired to their locking and checkpointing:
+Then register the options on your store's consumer. PostgreSQL, SQLite, MongoDB and EventStoreDB each supply the processor wired to their own locking and checkpointing:
 
 <<< @./../packages/emmett-postgresql/src/eventStore/consumers/postgreSQLEventStoreConsumer.workflow.int.spec.ts#workflow-consumer-registration
 
-## Carry Out the Decisions {#output-handler}
+## Carrying Out the Decisions {#output-handler}
 
-A workflow records what should happen; making it happen is a separate job. Because the decisions sit in the workflow's own stream, that stream doubles as an outbox: the consumer reads it and hands each recorded decision to a handler that performs it. Name the types the handler claims:
+This is the job we deferred. The workflow recorded what should happen; now something has to do it. The consumer reads the run's stream as an outbox and hands each recorded decision to a handler. The decision never said where its message should go, so the message type picks the handler:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-output-handler
 
-Here the handler settles one stay against the property management system and returns what happened, either `GuestCheckedOut` or `GuestCheckoutFailed`. Whatever it returns is appended to the workflow's stream as the next input, so the group id travels out with the request and back with the reply:
+The handler is where external work belongs, and whatever it returns is appended to the run's stream as the next input. That is how a workflow talks to the outside world and hears back:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-side-effect{3,11,19}
 
-Give the processor the handler along with the same options:
+Give the processor the handler alongside the same options:
 
 <<< @./../packages/emmett/src/workflows/workflow.testHelpers.ts#workflow-processor
 
-## Keep an Outcome Out of the Stream {#reject-workflow-output}
+## Keeping the Id on Every Message {#correlation}
 
-Recording a decision is what causes it to be dispatched, which is usually what you want. Sometimes it is not: an empty selection produces `GroupCheckoutRejected`, which the clerk needs in the response but which no handler should act on. `rejectOn` returns it to the caller and keeps it out of the stream:
+A decision goes out as one message and its result comes back as another, handled by different code at different times. The workflow id is the only thing linking them, and it has to survive three legs: the decision puts it on the outgoing message, the code handling that message copies it onto whatever it produces, and `getWorkflowId` reads it back off.
+
+Lose it anywhere along the way and the reply lands in some other stream and stops there. The run stays open and nothing complains, because from the workflow's side a reply that was never correlated looks exactly like one that never happened.
+
+## Keeping an Outcome Out of the Stream {#reject-workflow-output}
+
+Recording a decision is what causes it to be dispatched, which is usually what you want. Sometimes it is not: an outcome the caller needs in its response, but that no handler should act on. `rejectOn` returns it to the caller and keeps it out of the stream:
 
 <<< @./../packages/emmett/src/workflows/handleWorkflow.middleware.unit.spec.ts#workflow-output-rejection
 
-The input is still recorded, so resending the same command is recognised as a repeat rather than starting a second run. Use this only when nothing downstream needs the outcome; otherwise let the workflow record it like any other decision.
+The input is still recorded, so resending the same message is recognised as a repeat rather than starting a second run. Use this only when nothing downstream needs the outcome; otherwise let the workflow record it like any other decision.
 
 `skipOn` drops an outcome and continues, `stopOn` drops it and stops, and `stopAfter` records it before stopping. The [Workflows reference](/api-reference/workflows#decision-middleware) has their exact contracts.
 
-## Handle Redelivery {#redelivery}
+## Handling Redelivery {#redelivery}
 
-**The same message will arrive twice.** A consumer can handle one and restart before writing its checkpoint, and a version conflict re-runs another. The message's own id closes the gap: every recorded input keeps the id of the message it came from, and rebuilding the state collects them. A message whose id is already among them is dropped before the decision runs, so nothing is appended and the input is not recorded a second time:
+**The same message will arrive twice.** A consumer can handle one and restart before writing its checkpoint, and a version conflict re-runs another. The message's own id closes that gap. Every recorded input keeps the id of the message it came from, and rebuilding the state collects them. A message whose id is already there is dropped before the decision runs, so nothing is appended and the input is not recorded again:
 
 <<< @./../packages/emmett/src/workflows/handleWorkflow.unit.spec.ts#workflow-idempotent-redelivery
 
-This works on the id the message carries. Messages delivered by a consumer have one. If you call `WorkflowHandler` yourself with a message that has no `metadata.messageId`, each call gets a fresh id and the workflow handles it again.
+This depends on the message carrying an id. Messages delivered by a consumer have one. If you call `WorkflowHandler` yourself with a message that has no `metadata.messageId`, each call gets a fresh id and the workflow handles it again.
 
-That covers one message arriving twice. Two different messages reporting the same stay carry different ids and both reach the decision, which is why the guard in [Continue it as replies arrive](#continue) is there as well.
+That covers the same message arriving twice. Two different messages reporting the same fact carry different ids and both reach the decision, which is why the guard in [Continuing it](#continue) is there as well.
+
+## Watching for Runs That Never Finish {#monitoring}
+
+A run that began and never reached an outcome will not tell you about itself. Nothing throws, nothing retries, the stream simply stops. Watch for streams holding an `InitiatedBy` and none of the messages that end a run.
+
+Take the window from the process rather than the framework. A group of stays should settle in minutes, while a review with three approvers may sit for days. A [timeout](#end) ends a stuck run; monitoring is what tells you runs are getting stuck in the first place.
 
 ## Best Practices {#best-practices}
 
 ### Decide From the Message and State Alone {#keep-pure}
 
-A decision that reads a clock or calls a service answers differently on each attempt, and attempts are common: a version conflict retries it, and a redelivered message runs it again. Each `CheckOut` above carries the timestamp from the clerk's command instead of reading the clock, which is also what lets the tests assert exact times. Work that has to reach outside belongs in an output handler.
+A decision that reads a clock or calls a service answers differently on each attempt, and attempts are common: a version conflict retries it, and a redelivered message runs it again. Each `CheckOut` above carries the timestamp from the clerk's command rather than reading the clock, which is also what lets the tests assert exact times. Work that has to reach outside belongs in an output handler.
 
 ### Let the Decision Return Nothing {#return-nothing}
 
-A message that concerns the run but changes nothing should still reach the decision and come back empty, rather than be filtered out on the way in. The input is recorded either way:
+A message that concerns the run but changes nothing should still reach the decision and come back empty, rather than being filtered out on the way in. The input is recorded either way:
 
 <<< @./../packages/emmett/src/workflows/handleWorkflow.unit.spec.ts#workflow-no-output
 
-A `GuestCheckedOut` for a group that was never initiated leaves `GroupCheckoutWorkflow:GuestCheckedOut` in the stream and nothing after it. When a run stalls, that record is what separates a reply that arrived and changed nothing from one that never arrived.
+When a run stalls, that record is what separates a message that arrived and changed nothing from one that never arrived at all.
 
 ### Report Failures as Events {#failures-as-events}
 
-An unpaid balance is not a fault, it is the answer the group needs in order to finish. Throwing turns it into one, and because an output handler runs in the background with no caller to unwind to, the throw stops the processor and the stays queued behind it go unattempted. Return `GuestCheckoutFailed` and let the decision settle it. See [Error Handling](/guides/error-handling#no-throw-async).
+An unpaid balance is not a fault, it is the answer the run needs in order to finish. Throwing turns it into one, and because an output handler runs in the background with no caller to unwind to, the throw stops the processor and everything queued behind it goes unattempted. Return the failure as a message and let the decision settle it. See [Error Handling](/guides/error-handling#no-throw-async).
 
 ## Troubleshooting {#troubleshooting}
 
@@ -157,11 +203,11 @@ If no stream appears for a run, the message never reached the decision, and ther
 
 ### Decisions Are Recorded but Nothing Runs {#outputs-not-dispatched}
 
-If a `CheckOut` sits in the stream and no checkout happens, no output handler claimed it. The workflow records decisions and a handler performs them, but only for the types in its `canHandle`. Add the type there, as [Carry Out the Decisions](#output-handler) shows.
+If a decision sits in the stream and nothing happens, no output handler claimed it. The workflow records decisions and a handler performs them, but only for the types in its `canHandle`. Add the type there, as [Carrying Out the Decisions](#output-handler) shows.
 
 ### A Run Stalls Halfway {#stalls}
 
-A run that stays open is waiting for a reply that never came. The usual cause is an output handler that threw instead of reporting a failure: the throw stopped the processor, so the stays behind it were never attempted. The other cause is a system that never answers, which no error handling can fix, so give the run a [timeout](#end). Either way, watch for runs that began and never finished within the time you expect, because nothing else will report them.
+A run that stays open is waiting for a reply that never came, so read its stream. If the outgoing message is there and no reply follows it, either an output handler threw instead of reporting a failure, which stops the processor and leaves everything behind it unattempted, or the reply was produced without the workflow id and never found its way back, as [Keeping the Id on Every Message](#correlation) describes. If the reply is there and the run still did not finish, the guard in the decision is wrong.
 
 ## Further Readings {#readings}
 
