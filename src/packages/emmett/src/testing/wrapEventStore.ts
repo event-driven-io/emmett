@@ -1,12 +1,15 @@
-import type {
-  AggregateStreamOptions,
-  AggregateStreamResult,
-  AppendToStreamOptions,
-  AppendToStreamResult,
-  EventStore,
-  EventStoreReadEventMetadata,
-  ReadStreamOptions,
-  ReadStreamResult,
+import {
+  canCreateEventStoreSession,
+  type AggregateStreamOptions,
+  type AggregateStreamResult,
+  type AppendToStreamOptions,
+  type AppendToStreamResult,
+  type EventStore,
+  type EventStoreReadEventMetadata,
+  type EventStoreSession,
+  type EventStoreSessionFactory,
+  type ReadStreamOptions,
+  type ReadStreamResult,
 } from '../eventStore';
 import type { Event, EventMetaDataOf } from '../typing';
 
@@ -25,9 +28,13 @@ export type EventStoreWrapper<Store extends EventStore> = Store & {
 
 export const WrapEventStore = <Store extends EventStore>(
   eventStore: Store,
-): EventStoreWrapper<Store> => {
-  const appendedEvents = new Map<string, TestEventStream>();
+): EventStoreWrapper<Store> =>
+  wrapEventStore(eventStore, new Map<string, TestEventStream>());
 
+const wrapEventStore = <Store extends EventStore>(
+  eventStore: Store,
+  appendedEvents: Map<string, TestEventStream>,
+): EventStoreWrapper<Store> => {
   const wrapped = {
     ...eventStore,
     aggregateStream<State, EventType extends Event>(
@@ -86,5 +93,26 @@ export const WrapEventStore = <Store extends EventStore>(
     },
   };
 
+  if (canCreateEventStoreSession(eventStore))
+    Object.assign(
+      wrapped,
+      sessionsRecordingAppendedEvents(eventStore, appendedEvents),
+    );
+
   return wrapped;
 };
+
+const sessionsRecordingAppendedEvents = <Store extends EventStore>(
+  sessionFactory: EventStoreSessionFactory<Store>,
+  appendedEvents: Map<string, TestEventStream>,
+): EventStoreSessionFactory<Store> => ({
+  withSession: <T = unknown>(
+    callback: (session: EventStoreSession<Store>) => Promise<T>,
+  ): Promise<T> =>
+    sessionFactory.withSession((session) =>
+      callback({
+        ...session,
+        eventStore: wrapEventStore(session.eventStore, appendedEvents),
+      }),
+    ),
+});
