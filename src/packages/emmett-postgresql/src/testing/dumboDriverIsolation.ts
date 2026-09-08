@@ -14,27 +14,24 @@ type MutableRegistry = {
 };
 
 /**
- * Runs `handle` with the global dumbo driver registry resolving nothing.
+ * Makes the global dumbo driver registry resolve nothing, and returns the
+ * function that puts it back.
  *
  * The registry exposes no `clear`, and `dumbo()` reads it through the imported
  * module binding rather than through `globalThis`, so replacing the global slot
  * goes unnoticed. Overriding the lookup on the shared object is the only
  * observable way to empty it. That makes this global for the duration of the
- * call, so it belongs in a spec file of its own.
+ * override, so it belongs in a spec file of its own.
  */
-export const withoutRegisteredDumboDrivers = async <Result>(
-  handle: () => Promise<Result>,
-): Promise<Result> => {
+export const clearRegisteredDumboDrivers = (): (() => void) => {
   const registry = dumboDatabaseDriverRegistry as MutableRegistry;
   const { tryGet, tryResolve } = registry;
 
   registry.tryGet = () => null;
   registry.tryResolve = () => Promise.resolve(null);
 
-  try {
-    return await handle();
-  } finally {
+  return () => {
     registry.tryGet = tryGet;
     registry.tryResolve = tryResolve;
-  }
+  };
 };

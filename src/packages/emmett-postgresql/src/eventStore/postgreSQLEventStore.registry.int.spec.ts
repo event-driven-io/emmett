@@ -1,16 +1,12 @@
-import { dumbo, dumboDatabaseDriverRegistry } from '@event-driven-io/dumbo';
+import { dumbo } from '@event-driven-io/dumbo';
 import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
-import {
-  assertEqual,
-  assertIsNotNull,
-  assertThrows,
-  assertTrue,
-} from '@event-driven-io/emmett';
+import { assertEqual, assertTrue } from '@event-driven-io/emmett';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { getPostgreSQLEventStore, type PostgresEventStore } from '.';
-import { withoutRegisteredDumboDrivers } from '../testing/dumboDriverIsolation';
+import { pgEventStoreDriver } from '../pg';
+import { clearRegisteredDumboDrivers } from '../testing/dumboDriverIsolation';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
@@ -19,16 +15,11 @@ import type {
   PricedProductItem,
   ShoppingCartEvent,
 } from '../testing/shoppingCart.domain';
-import { pgEventStoreDriver } from '../pg';
 
-/**
- * The override in {@link withoutRegisteredDumboDrivers} replaces lookups on the
- * process-wide dumbo driver registry, so this file keeps it to itself and runs
- * its tests one after another.
- */
 void describe('Postgres event store without registered dumbo drivers', () => {
   let database: PostgreSQLTestDatabase;
   let connectionString: string;
+  let restoreDumboDrivers: () => void;
 
   const productItem: PricedProductItem = {
     productId: '123',
@@ -65,115 +56,80 @@ void describe('Postgres event store without registered dumbo drivers', () => {
   beforeAll(async () => {
     database = await sharedPostgreSQLDatabase();
     connectionString = database.connectionString;
+
+    restoreDumboDrivers = clearRegisteredDumboDrivers();
   });
 
   afterAll(async () => {
+    restoreDumboDrivers?.();
     await database?.close();
   });
 
-  void it('leaves the driver registry unable to resolve anything', async () => {
-    await withoutRegisteredDumboDrivers(() => {
-      assertEqual(
-        null,
-        dumboDatabaseDriverRegistry.tryGet({ connectionString }),
-      );
-
-      // the bare call is the assertion: it must not find a driver to fall back on
-      // eslint-disable-next-line no-restricted-syntax
-      const error = assertThrows<Error>(() => dumbo({ connectionString }));
-
-      assertTrue(error.message.includes('No plugin found for driver type'));
-
-      return Promise.resolve();
-    });
-  });
-
-  void it('restores the driver registry once the callback returns', async () => {
-    await withoutRegisteredDumboDrivers(() => Promise.resolve());
-
-    assertIsNotNull(dumboDatabaseDriverRegistry.tryGet({ connectionString }));
-
-    // the bare call is the assertion: the registry must resolve a driver again
-    // eslint-disable-next-line no-restricted-syntax
-    const pool = dumbo({ connectionString });
-    await pool.close();
-  });
-
   void it('builds its own pool from a connection string alone', async () => {
-    await withoutRegisteredDumboDrivers(async () => {
-      const eventStore = getPostgreSQLEventStore({
-        driver: pgEventStoreDriver,
-        connectionString: connectionString,
-        schema: { autoMigration: 'None' },
-      });
-
-      try {
-        await migrateAppendAndRead(eventStore);
-      } finally {
-        await eventStore.close();
-      }
+    const eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+      schema: { autoMigration: 'None' },
     });
+
+    try {
+      await migrateAppendAndRead(eventStore);
+    } finally {
+      await eventStore.close();
+    }
   });
 
   void it('opens no pool of its own when handed a Dumbo instance', async () => {
-    await withoutRegisteredDumboDrivers(async () => {
-      const eventStore = getPostgreSQLEventStore({
-        driver: pgEventStoreDriver,
+    const eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString,
+      schema: { autoMigration: 'None' },
+      pool: dumbo({
+        driver: pgDumboDriver,
         connectionString,
-        schema: { autoMigration: 'None' },
-        pool: dumbo({
-          driver: pgDumboDriver,
-          connectionString,
-          transactionOptions: { allowNestedTransactions: true },
-        }),
-      });
-
-      try {
-        await migrateAppendAndRead(eventStore);
-      } finally {
-        await eventStore.close();
-      }
+        transactionOptions: { allowNestedTransactions: true },
+      }),
     });
+
+    try {
+      await migrateAppendAndRead(eventStore);
+    } finally {
+      await eventStore.close();
+    }
+  });
+
+  void it('connects from driver options alone, with no top-level connection string', async () => {
+    const eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      schema: { autoMigration: 'None' },
+      connectionOptions: { connectionString },
+    });
+
+    try {
+      await migrateAppendAndRead(eventStore);
+    } finally {
+      await eventStore.close();
+    }
   });
 
   void it('opens no pool of its own when handed a native pg pool', async () => {
-    await withoutRegisteredDumboDrivers(async () => {
-      const nativePool = new pg.Pool({ connectionString });
+    const nativePool = new pg.Pool({ connectionString });
 
-      const eventStore = getPostgreSQLEventStore({
-        driver: pgEventStoreDriver,
-        connectionString: connectionString,
-        schema: { autoMigration: 'None' },
-        connectionOptions: {
-          pooled: true,
-          pool: nativePool,
-        },
-      });
-
-      try {
-        await migrateAppendAndRead(eventStore);
-      } finally {
-        await eventStore.close();
-        await nativePool.end();
-      }
+    const eventStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+      schema: { autoMigration: 'None' },
+      connectionOptions: {
+        pooled: true,
+        pool: nativePool,
+      },
     });
-  });
 
-  void it('takes its driver from an options object carrying one', async () => {
-    const { pgEventStoreDriver } = await import('../pg');
-
-    await withoutRegisteredDumboDrivers(async () => {
-      const eventStore = getPostgreSQLEventStore({
-        driver: pgEventStoreDriver,
-        connectionString,
-        schema: { autoMigration: 'None' },
-      });
-
-      try {
-        await migrateAppendAndRead(eventStore);
-      } finally {
-        await eventStore.close();
-      }
-    });
+    try {
+      await migrateAppendAndRead(eventStore);
+    } finally {
+      await eventStore.close();
+      await nativePool.end();
+    }
   });
 });

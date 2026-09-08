@@ -12,7 +12,8 @@ import type { LockAcquisitionPolicy } from '../projections/locks';
 import {
   postgreSQLEventStoreConsumer,
   type PostgreSQLEventStoreConsumer,
-  type PostgreSQLEventStoreConsumerOptions,
+  type PostgreSQLEventStoreConsumerConfig,
+  type PostgreSQLEventStoreConsumerConnectionOptions,
 } from './postgreSQLEventStoreConsumer';
 import type { PostgreSQLProcessorHandlerContext } from './postgreSQLProcessor';
 
@@ -28,14 +29,15 @@ export const rebuildPostgreSQLProjections = <
   Driver extends AnyEventStoreDriver = PgEventStoreDriver,
 >(
   options: Omit<
-    PostgreSQLEventStoreConsumerOptions<EventType, Driver>,
+    PostgreSQLEventStoreConsumerConfig<EventType>,
     'stopWhen' | 'processors'
-  > & {
-    lock?: {
-      acquisitionPolicy?: LockAcquisitionPolicy;
-      timeoutSeconds?: number;
-    };
-  } & (
+  > &
+    PostgreSQLEventStoreConsumerConnectionOptions<EventType, Driver> & {
+      lock?: {
+        acquisitionPolicy?: LockAcquisitionPolicy;
+        timeoutSeconds?: number;
+      };
+    } & (
       | {
           projections: (
             | ProjectorOptions<
@@ -53,15 +55,10 @@ export const rebuildPostgreSQLProjections = <
         >
     ),
 ): PostgreSQLEventStoreConsumer<EventType, Driver> => {
-  /**
-   * `Omit` erases the driver-derived option keys, so the spread no longer
-   * visibly satisfies `Partial<InferOptionsFromEventStoreDriver<Driver>>`
-   * while `Driver` is still an unresolved type parameter.
-   */
   const consumer = postgreSQLEventStoreConsumer<EventType, Driver>({
     ...options,
     stopWhen: { noMessagesLeft: true },
-  } as PostgreSQLEventStoreConsumerOptions<EventType, Driver>);
+  });
 
   const lock = { acquisitionPolicy: defaultRebuildLockPolicy, ...options.lock };
 
