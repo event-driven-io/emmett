@@ -22,7 +22,6 @@ import {
   type PongoCollection,
   type PongoDb,
 } from '@event-driven-io/pongo';
-import { pgDriver } from '@event-driven-io/pongo/pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
@@ -75,7 +74,7 @@ void describe('Rebuilding PostgreSQL Projections', () => {
     });
     pongo = pongoClient({
       connectionString,
-      driver: pgDriver,
+      driver: pgEventStoreDriver.pongoDriver,
       connectionOptions: {
         transactionOptions: {
           allowNestedTransactions: true,

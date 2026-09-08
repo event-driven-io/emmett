@@ -39,7 +39,9 @@ void describe('createEventStoreSchema', () => {
       },
     });
 
-    await createEventStoreSchema(pool);
+    await createEventStoreSchema({
+      pool,
+    });
   });
 
   afterAll(async () => {
@@ -74,8 +76,11 @@ void describe('createEventStoreSchema with configured database schemas', () => {
   });
 
   void it('creates the event store objects in the schema configured by the user', async () => {
-    await createEventStoreSchema(pool, undefined, {
-      databaseSchemaName: 'events',
+    await createEventStoreSchema({
+      pool,
+      schema: {
+        databaseSchemaName: 'events',
+      },
     });
 
     assertTrue(await configuredTableExists('events', 'emt_streams'));
@@ -90,11 +95,14 @@ void describe('createEventStoreSchema with configured database schemas', () => {
   });
 
   void it('uses the migration table schema and name configured by the user', async () => {
-    await createEventStoreSchema(pool, undefined, {
-      databaseSchemaName: 'store',
-      migrationTable: {
-        schemaName: 'infrastructure',
-        tableName: 'emmett_migrations',
+    await createEventStoreSchema({
+      pool,
+      schema: {
+        databaseSchemaName: 'store',
+        migrationTable: {
+          schemaName: 'infrastructure',
+          tableName: 'emmett_migrations',
+        },
       },
     });
 
@@ -110,7 +118,10 @@ void describe('createEventStoreSchema with configured database schemas', () => {
   void it('records no migrations from before schema support in the schema configured by the user', async () => {
     const schemaOptions = { databaseSchemaName: 'events' };
 
-    await createEventStoreSchema(pool, undefined, schemaOptions);
+    await createEventStoreSchema({
+      pool,
+      schema: schemaOptions,
+    });
 
     assertDeepEqual(
       await migrationNames({
@@ -166,9 +177,9 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     let afterMigrationTableSchemaName: string | undefined;
     let afterProjectionsDatabaseSchemaName: string | undefined;
 
-    await createEventStoreSchema(
+    await createEventStoreSchema({
       pool,
-      {
+      hooks: {
         onBeforeSchemaCreated: (context) => {
           beforeMigrationTableSchemaName =
             context.migrationOptions?.migrationTable?.schemaName;
@@ -182,11 +193,11 @@ void describe('createEventStoreSchema with configured database schemas', () => {
             context.migrationOptions?.projectionsDatabaseSchemaName;
         },
       },
-      {
+      schema: {
         databaseSchemaName: 'events',
         migrationTable: { tableName: 'emmett_migrations' },
       },
-    );
+    });
 
     assertEqual(beforeMigrationTableSchemaName, 'events');
     assertEqual(beforeProjectionsDatabaseSchemaName, 'events');
@@ -274,7 +285,10 @@ void describe('createEventStoreSchema with configured database schemas', () => {
   void it('stores and reads events from the configured schema when the user turns auto migration off', async () => {
     const schemaOptions = { databaseSchemaName: 'events' };
     const streamName = `shopping_cart-${uuid()}`;
-    await createEventStoreSchema(pool, undefined, schemaOptions);
+    await createEventStoreSchema({
+      pool,
+      schema: schemaOptions,
+    });
 
     const eventStore = getSQLiteEventStore({
       driver: sqlite3EventStoreDriver,

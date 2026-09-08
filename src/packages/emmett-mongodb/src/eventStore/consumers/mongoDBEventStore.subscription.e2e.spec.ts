@@ -190,7 +190,7 @@ void describe('MongoDBEventStore subscription', () => {
     assertIsNotNull(stream);
     assertEqual(3n, stream.metadata.streamPosition);
 
-    const position = await processor.start({ client });
+    const position = await processor.start({ session: { client } });
 
     assertOk(position);
     assertNotEqual(typeof position, 'string');

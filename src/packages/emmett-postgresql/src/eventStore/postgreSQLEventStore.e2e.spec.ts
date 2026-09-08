@@ -14,7 +14,6 @@ import {
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
-import { pgDriver } from '@event-driven-io/pongo/pg';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import {
@@ -59,7 +58,7 @@ void describe('EventStoreDBEventStore', () => {
     connectionString = database.connectionString;
     pongo = pongoClient({
       connectionString,
-      driver: pgDriver,
+      driver: pgEventStoreDriver.pongoDriver,
       connectionOptions: {
         transactionOptions: {
           allowNestedTransactions: true,
@@ -269,6 +268,38 @@ void describe('EventStoreDBEventStore', () => {
     );
 
     assertEqual(3, handledEventsInCustomProjection.length);
+  });
+
+  void it('should allow events to be processed in the onBeforeCommit hook', async () => {
+    const savedEvents: ReadEvent[] = [];
+    const hookedStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString,
+      schema: { autoMigration: 'None' },
+      hooks: {
+        onBeforeCommit: (messages): void => {
+          savedEvents.push(...messages);
+        },
+      },
+    });
+
+    try {
+      await hookedStore.appendToStream<ShoppingCartEvent>(
+        `shopping_cart-${uuid()}`,
+        [
+          {
+            type: 'ProductItemAdded',
+            data: { productItem },
+            metadata: { clientId },
+          },
+        ],
+      );
+
+      assertEqual(savedEvents.length, 1);
+      assertEqual(savedEvents[0]!.type, 'ProductItemAdded');
+    } finally {
+      await hookedStore.close();
+    }
   });
 
   void it('should record observability while appending', async () => {

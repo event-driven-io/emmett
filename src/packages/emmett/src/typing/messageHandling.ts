@@ -1,6 +1,9 @@
 import type { DefaultRecord } from '.';
 import type { EmmettError } from '../errors';
-import type { WithObservabilityScope } from '../observability';
+import type {
+  ObservabilityScope,
+  WithObservabilityScope,
+} from '../observability';
 import type {
   AnyMessage,
   AnyRecordedMessage,
@@ -9,9 +12,37 @@ import type {
   RecordedMessage,
 } from './message';
 
+/**
+ * What a context carries on its own. The session and the observability scope
+ * are added by `MessageHandlerContext`, so a root may not declare either.
+ */
+export type HandlerContextRoot = DefaultRecord & {
+  session?: never;
+  observabilityScope?: never;
+};
+
+/**
+ * What your handler gets for the message it is handling. Whatever it was
+ * handed to talk to the outside lives under `context.session`: a SQL store
+ * puts the connection, the transaction you are inside, the pool and the driver
+ * options there, a document store puts its client there. A processor that
+ * names no session gets one it knows nothing about.
+ */
 export type MessageHandlerContext<
-  HandlerContext extends DefaultRecord = DefaultRecord,
-> = WithObservabilityScope<HandlerContext>;
+  HandlerContext extends HandlerContextRoot = Record<never, never>,
+  Session extends DefaultRecord = DefaultRecord,
+> = WithObservabilityScope<HandlerContext & { session: Session }>;
+
+export type AnyMessageHandlerContext = {
+  session: DefaultRecord;
+  observabilityScope: ObservabilityScope;
+};
+
+export type PartialHandlerContext<Ctx extends AnyMessageHandlerContext> =
+  Partial<Omit<Ctx, 'session' | 'observabilityScope'>> & {
+    session?: Partial<Ctx['session']>;
+    observabilityScope?: ObservabilityScope;
+  };
 
 export type SingleRawMessageHandlerWithoutContext<
   MessageType extends Message = AnyMessage,

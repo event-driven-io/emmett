@@ -1,4 +1,4 @@
-import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
+import { dumbo } from '@event-driven-io/dumbo';
 import {
   consumer,
   type AnyCommand,
@@ -11,6 +11,7 @@ import {
   type MessageConsumerOptions,
   type MessageSource,
   type RecordedMessageMetadataWithGlobalPosition,
+  type PartialHandlerContext,
   type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import {
@@ -19,8 +20,10 @@ import {
   type PgEventStoreDriverOptions,
 } from '../../pg';
 import type {
-  AnyEventStoreDriver,
-  InferOptionsFromEventStoreDriver,
+  AnyPostgreSQLEventStoreDriver,
+  InferDumboOptionsFromEventStoreDriver,
+  InferPoolFromEventStoreDriver,
+  PoolOrConnectionOptions,
 } from '../eventStoreDriver';
 import {
   eventStoreDatabaseSchema,
@@ -55,9 +58,8 @@ export type PostgreSQLEventStoreConsumerConfig<
 
 export type PostgreSQLEventStoreConsumerConnectionOptions<
   ConsumerMessageType extends Message = Message,
-  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
 > = {
-  pool?: Dumbo;
   source?: MessageSource<
     NoInfer<ConsumerMessageType>,
     RecordedMessageMetadataWithGlobalPosition
@@ -68,18 +70,18 @@ export type PostgreSQLEventStoreConsumerConnectionOptions<
    */
   connectionString?: string;
   driver?: Driver;
-} & Partial<InferOptionsFromEventStoreDriver<Driver>>;
+} & PoolOrConnectionOptions<Driver>;
 
 export type PostgreSQLEventStoreConsumerOptions<
   ConsumerMessageType extends Message = Message,
-  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
 > = PostgreSQLEventStoreConsumerConfig<ConsumerMessageType> &
   PostgreSQLEventStoreConsumerConnectionOptions<ConsumerMessageType, Driver>;
 
 export type PostgreSQLReactorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
-  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
 > = <MessageType extends ConsumerMessageType = ConsumerMessageType>(
   options: PostgreSQLReactorOptions<MessageType, MessageType, Driver>,
 ) => PostgreSQLProcessor<MessageType, Driver>;
@@ -87,7 +89,7 @@ export type PostgreSQLReactorFactory<
 export type PostgreSQLProjectorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
-  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
 > = <
   EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
     AnyEvent,
@@ -98,7 +100,7 @@ export type PostgreSQLProjectorFactory<
 export type PostgreSQLWorkflowProcessorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
-  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
 > = <
   Input extends ConsumerMessageType,
   State,
@@ -109,21 +111,24 @@ export type PostgreSQLWorkflowProcessorFactory<
     WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
 >(
-  options: PostgreSQLWorkflowProcessorOptions<
-    Input,
-    State,
-    Output,
-    MetaDataType,
-    HandlerContext,
-    StoredMessage,
-    Driver
+  options: Omit<
+    PostgreSQLWorkflowProcessorOptions<
+      Input,
+      State,
+      Output,
+      MetaDataType,
+      HandlerContext,
+      StoredMessage,
+      Driver
+    >,
+    'messageStore'
   >,
 ) => PostgreSQLProcessor<Input | Output, Driver>;
 
 export type PostgreSQLEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
-  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
 > = MessageConsumer<
   ConsumerMessageType,
   PostgreSQLReactorFactory<ConsumerMessageType, Driver>,
@@ -133,7 +138,7 @@ export type PostgreSQLEventStoreConsumer<
 
 export const postgreSQLEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
-  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
 >(
   options: PostgreSQLEventStoreConsumerOptions<ConsumerMessageType, Driver>,
 ): PostgreSQLEventStoreConsumer<ConsumerMessageType, Driver> => {
@@ -143,17 +148,16 @@ export const postgreSQLEventStoreConsumer = <
     ...databaseSchema,
   };
   const isOwnPool = !options.pool;
-  const pool =
-    options.pool ??
-    dumbo({
-      serialization: options.serialization,
-      transactionOptions: {
-        allowNestedTransactions: true,
-      },
-      ...(options.driver ?? pgEventStoreDriver).mapToDumboOptions(
-        options as PgEventStoreDriverOptions,
-      ),
-    });
+  const connectionOptions = {
+    serialization: options.serialization,
+    ...(options.driver ?? pgEventStoreDriver).mapToDumboOptions(
+      options as PgEventStoreDriverOptions,
+    ),
+  } as InferDumboOptionsFromEventStoreDriver<Driver>;
+
+  // TODO: Fix this cast when introducing more drivers
+  const pool = (options.pool ??
+    dumbo(connectionOptions)) as InferPoolFromEventStoreDriver<Driver>;
 
   const source: MessageSource<
     ConsumerMessageType,
@@ -167,17 +171,13 @@ export const postgreSQLEventStoreConsumer = <
         databaseSchemaName: databaseSchema.databaseSchemaName,
       });
 
-  const processorContext = {
+  const processorContext: PartialHandlerContext<
+    PostgreSQLProcessorHandlerContext<Driver>
+  > = {
     execute: pool.execute,
     migrationOptions: processorMetadataSchema,
-    connection: {
-      connectionString: options.connectionString,
-      pool,
-      client: undefined as never,
-      transaction: undefined as never,
-      messageStore: undefined as never,
-    },
-  } as unknown as PostgreSQLProcessorHandlerContext<Driver>;
+    session: { pool, connectionOptions },
+  };
 
   const messageConsumer = consumer<
     ConsumerMessageType,
@@ -192,18 +192,21 @@ export const postgreSQLEventStoreConsumer = <
     reactorFactory: (processorOptions) =>
       postgreSQLReactor({
         ...processorOptions,
+        driver: options.driver,
         migrationOptions:
           processorOptions.migrationOptions ?? processorMetadataSchema,
       }),
     projectorFactory: (processorOptions) =>
       postgreSQLProjector({
         ...processorOptions,
+        driver: options.driver,
         migrationOptions:
           processorOptions.migrationOptions ?? processorMetadataSchema,
       }),
     workflowProcessorFactory: (processorOptions) =>
       postgreSQLWorkflowProcessor({
         ...processorOptions,
+        driver: options.driver,
         migrationOptions:
           processorOptions.migrationOptions ?? processorMetadataSchema,
       }),

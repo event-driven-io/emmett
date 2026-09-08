@@ -2,6 +2,7 @@ import {
   dumbo,
   fromDatabaseDriverType,
   getFormatter,
+  type AnyDatabaseTransaction,
   type Dumbo,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
@@ -43,11 +44,13 @@ import {
   type SQLiteEventStoreConsumerConfig,
 } from './consumers';
 import type {
-  AnyEventStoreDriver,
-  InferOptionsFromEventStoreDriver,
+  AnySQLiteEventStoreDriver,
+  InferDumboOptionsFromEventStoreDriver,
+  PoolOrConnectionOptions,
 } from './eventStoreDriver';
 import {
   handleProjections,
+  transactionToSQLiteProjectionHandlerContext,
   type SQLiteProjectionHandlerContext,
 } from './projections';
 import {
@@ -110,13 +113,14 @@ export type SQLiteReadEvent<EventType extends Event = Event> = ReadEvent<
 >;
 
 export type SQLiteEventStoreOptions<
-  EventStoreDriver extends AnyEventStoreDriver = AnyEventStoreDriver,
+  EventStoreDriver extends AnySQLiteEventStoreDriver =
+    AnySQLiteEventStoreDriver,
 > = {
   driver: EventStoreDriver;
   projections?: ProjectionRegistration<
     'inline',
     SQLiteReadEventMetadata,
-    SQLiteProjectionHandlerContext
+    SQLiteProjectionHandlerContext<EventStoreDriver>
   >[];
   observability?: EmmettObservabilityConfig;
   schema?: {
@@ -127,7 +131,7 @@ export type SQLiteEventStoreOptions<
      * This hook will be called **BEFORE** event store schema is created
      */
     onBeforeSchemaCreated?: (
-      context: SQLiteProjectionHandlerContext,
+      context: SQLiteProjectionHandlerContext<EventStoreDriver>,
     ) => Promise<void> | void;
     /**
      * This hook will be called **BEFORE** events were stored in the event store.
@@ -135,20 +139,23 @@ export type SQLiteEventStoreOptions<
      */
     onBeforeCommit?: BeforeEventStoreCommitHandler<
       SQLiteEventStore,
-      { connection: AnySQLiteConnection }
+      {
+        connection: AnySQLiteConnection;
+        transaction: AnyDatabaseTransaction;
+      }
     >;
     /**
      * This hook will be called **AFTER** event store schema was created
      */
     onAfterSchemaCreated?: (
-      context: SQLiteProjectionHandlerContext,
+      context: SQLiteProjectionHandlerContext<EventStoreDriver>,
     ) => Promise<void> | void;
   };
-} & { pool?: Dumbo } & InferOptionsFromEventStoreDriver<EventStoreDriver> &
+} & PoolOrConnectionOptions<EventStoreDriver> &
   JSONSerializationOptions;
 
 export const getSQLiteEventStore = <
-  Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 >(
   options: SQLiteEventStoreOptions<Driver>,
 ): SQLiteEventStore => {
@@ -158,16 +165,18 @@ export const getSQLiteEventStore = <
 
   const databaseSchema = eventStoreDatabaseSchema(options.schema);
 
-  const pool =
-    options.pool ??
-    dumbo({
-      serialization: options.serialization,
-      transactionOptions: {
-        allowNestedTransactions: true,
-        mode: 'session_based',
-      },
-      ...options.driver.mapToDumboOptions(options),
-    });
+  const dumboOptions = {
+    serialization: options.serialization,
+    ...options.driver.mapToDumboOptions(options),
+  } as InferDumboOptionsFromEventStoreDriver<Driver>;
+
+  const pool: Dumbo = options.pool ?? dumbo(dumboOptions);
+
+  const session = {
+    pool,
+    driver: options.driver,
+    connectionOptions: dumboOptions,
+  };
   let migrateSchema: Promise<RunSQLMigrationsResult> | undefined = undefined;
 
   const inlineProjections = (options.projections ?? [])
@@ -197,10 +206,13 @@ export const getSQLiteEventStore = <
         ...eventStoreDatabaseSchema(migrationSchemaOptions),
       };
 
-      const migration = createEventStoreSchema(
-        pool,
-        {
-          onBeforeSchemaCreated: async (context) => {
+      const migration = createEventStoreSchema({
+        ...session,
+        hooks: {
+          onBeforeSchemaCreated: async (untypedContext) => {
+            // TODO: Fix this cast when the pool plumbing is driver-generic
+            const context =
+              untypedContext as SQLiteProjectionHandlerContext<Driver>;
             for (const projection of inlineProjections) {
               if (projection.init) {
                 await projection.init({
@@ -215,14 +227,18 @@ export const getSQLiteEventStore = <
               await options.hooks.onBeforeSchemaCreated(context);
             }
           },
-          onAfterSchemaCreated: async (context) => {
+          onAfterSchemaCreated: async (untypedContext) => {
+            // TODO: Fix this cast when the pool plumbing is driver-generic
+            const context =
+              untypedContext as SQLiteProjectionHandlerContext<Driver>;
+
             if (options.hooks?.onAfterSchemaCreated) {
               await options.hooks.onAfterSchemaCreated(context);
             }
           },
         },
-        schemaMigrationOptions,
-      );
+        schema: schemaMigrationOptions,
+      });
 
       if (migrationOptions?.dryRun) {
         return migration;
@@ -380,9 +396,10 @@ export const getSQLiteEventStore = <
                         handleProjections({
                           projections: inlineProjections,
                           events: messages,
-                          execute: context.connection.execute,
-                          connection: context.connection,
-                          driverType: options.driver.driverType,
+                          ...transactionToSQLiteProjectionHandlerContext(
+                            session,
+                            context.transaction,
+                          ),
                           migrationOptions: databaseSchema,
                           observabilityScope,
                         }),
@@ -445,14 +462,9 @@ export const getSQLiteEventStore = <
         const sessionStore = getSQLiteEventStore({
           ...options,
           pool: dumbo({
-            ...options.driver.mapToDumboOptions(options),
+            ...dumboOptions,
             connection,
-            serialization: options.serialization,
           }),
-          transactionOptions: {
-            allowNestedTransactions: true,
-            mode: 'session_based',
-          },
           schema: {
             ...options.schema,
             autoMigration: 'None',
@@ -485,11 +497,11 @@ export const getSQLiteEventStore = <
             });
 
             if (truncateOptions?.truncateProjections) {
-              const projectionContext = {
-                execute: transaction.execute,
-                connection: transaction.connection as AnySQLiteConnection,
-                driverType: options.driver.driverType,
-              };
+              const projectionContext =
+                transactionToSQLiteProjectionHandlerContext(
+                  session,
+                  transaction,
+                );
 
               for (const projection of options?.projections ?? []) {
                 if (projection.projection.truncate)

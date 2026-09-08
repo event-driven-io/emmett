@@ -74,9 +74,9 @@ void describe('SQLite event store workflow processor', () => {
 
   beforeEach(() => {
     eventStore = getSQLiteEventStore(config);
-    return createEventStoreSchema(
-      sqlite3Pool({ fileName, serializer: JSONSerializer }),
-    );
+    return createEventStoreSchema({
+      pool: sqlite3Pool({ fileName, serializer: JSONSerializer }),
+    });
   });
 
   afterEach(async () => {

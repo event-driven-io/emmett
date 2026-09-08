@@ -38,7 +38,7 @@ void describe('reading messages in batches', () => {
       pooled: false,
     });
 
-    await createEventStoreSchema({ connectionString }, pool);
+    await createEventStoreSchema({ pool });
   });
 
   beforeEach(async () => {

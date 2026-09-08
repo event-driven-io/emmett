@@ -56,7 +56,10 @@ export const appendToStream = async <MessageType extends Message>(
     context?: ObservabilityContext;
     onBeforeCommit?: BeforeEventStoreCommitHandler<
       SQLiteEventStore,
-      { connection: AnySQLiteConnection }
+      {
+        connection: AnySQLiteConnection;
+        transaction: AnyDatabaseTransaction;
+      }
     >;
   },
 ): Promise<AppendEventResult> => {
@@ -110,7 +113,10 @@ export const appendToStream = async <MessageType extends Message>(
         );
 
         if (options?.onBeforeCommit)
-          await options.onBeforeCommit(messagesToAppend, { connection });
+          await options.onBeforeCommit(messagesToAppend, {
+            connection,
+            transaction,
+          });
 
         // TODO: Refactor this to map or not success from appendToStreamRaw
         return { success: true, result };

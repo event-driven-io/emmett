@@ -7,7 +7,6 @@ import {
   type Event,
 } from '@event-driven-io/emmett';
 import { pongoClient } from '@event-driven-io/pongo';
-import { pgDriver } from '@event-driven-io/pongo/pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { pgEventStoreDriver } from '../../../pg';
@@ -125,7 +124,10 @@ void describe('Pongo projection sharing the event store transaction', () => {
     });
 
   const summaryIn = async (collectionName: string, streamName: string) => {
-    const pongo = pongoClient({ connectionString, driver: pgDriver });
+    const pongo = pongoClient({
+      connectionString,
+      driver: pgEventStoreDriver.pongoDriver,
+    });
 
     try {
       return await pongo

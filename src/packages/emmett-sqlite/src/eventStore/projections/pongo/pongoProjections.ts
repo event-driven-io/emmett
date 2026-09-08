@@ -19,6 +19,7 @@ import {
   type SQLiteProjectionHandlerContext,
 } from '..';
 import type { SQLiteReadEventMetadata } from '../../SQLiteEventStore';
+import { pongoDriverOf } from '../../eventStoreDriver';
 
 export type PongoProjectionHandlerContext = SQLiteProjectionHandlerContext & {
   pongo: PongoClient;
@@ -107,15 +108,12 @@ export const pongoProjection = <
     canHandle,
     eventsOptions,
     handle: async (events, context) => {
-      const { connection } = context;
-      const driver = (await pongoDriverRegistry.tryResolve(
-        context.driverType,
-      ))!;
+      const { connection } = context.session;
       const pongo = pongoClient({
-        driver,
+        driver: pongoDriverOf(context.driver),
         ...pongoSchemaOptions(context),
-        schema: { autoMigration: 'None' },
         connectionOptions: { connection },
+        schema: { autoMigration: 'None' },
       });
       try {
         await handle(events, {
@@ -128,12 +126,9 @@ export const pongoProjection = <
     },
     truncate: truncate
       ? async (context) => {
-          const { connection } = context;
-          const driver = (await pongoDriverRegistry.tryResolve(
-            context.driverType,
-          ))!;
+          const { connection } = context.session;
           const pongo = pongoClient({
-            driver,
+            driver: pongoDriverOf(context.driver),
             ...pongoSchemaOptions(context),
             connectionOptions: { connection },
           });
@@ -149,12 +144,9 @@ export const pongoProjection = <
       : undefined,
     init: init
       ? async (options) => {
-          const { connection } = options.context;
-          const driver = (await pongoDriverRegistry.tryResolve(
-            options.context.driverType,
-          ))!;
+          const { connection } = options.context.session;
           const pongo = pongoClient({
-            driver,
+            driver: pongoDriverOf(options.context.driver),
             ...pongoSchemaOptions(options.context),
             connectionOptions: { connection },
           });
@@ -281,12 +273,9 @@ export const pongoMultiStreamProjection = <
     },
     canHandle,
     truncate: async (context) => {
-      const { connection } = context;
-      const driver = (await pongoDriverRegistry.tryResolve(
-        context.driverType,
-      ))!;
+      const { connection } = context.session;
       const pongo = pongoClient({
-        driver,
+        driver: pongoDriverOf(context.driver),
         ...pongoSchemaOptions(context),
         connectionOptions: { connection },
       });

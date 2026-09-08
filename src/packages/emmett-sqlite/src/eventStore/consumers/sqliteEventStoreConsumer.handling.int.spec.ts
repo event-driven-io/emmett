@@ -16,6 +16,7 @@ import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import {
   sqlite3EventStoreDriver,
+  type SQLite3EventStoreDriver,
   type SQLite3EventStoreOptions,
 } from '../../sqlite3';
 import { deleteSQLiteDatabaseFiles } from '../../testing/sqliteTestDatabase';
@@ -68,9 +69,9 @@ void describe('SQLite event store started consumer', () => {
     });
 
     eventStore = getSQLiteEventStore({ ...config, pool });
-    return createEventStoreSchema(
-      sqlite3Pool({ fileName, serializer: JSONSerializer }),
-    );
+    return createEventStoreSchema({
+      pool: sqlite3Pool({ fileName, serializer: JSONSerializer }),
+    });
   });
 
   afterEach(async () => {
@@ -1002,7 +1003,11 @@ void describe('SQLite event store started consumer', () => {
 
         let result: GuestStayEvent[] = [];
 
-        const processorOptions: SQLiteReactorOptions<GuestStayEvent> = {
+        const processorOptions: SQLiteReactorOptions<
+          GuestStayEvent,
+          GuestStayEvent,
+          SQLite3EventStoreDriver
+        > = {
           processorId: uuid(),
           startFrom: 'CURRENT',
           stopAfter: (event) => event.metadata.globalPosition === startPosition,

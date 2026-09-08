@@ -59,6 +59,7 @@ export const handleInMemoryProjections = async <
       projection.handle(filteredEvents, {
         eventStore,
         database,
+        session: {},
         observabilityScope,
       }),
     );

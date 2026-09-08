@@ -1,12 +1,19 @@
 import {
   runSQLMigrations,
+  type Dumbo,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
-import type { PgPool, PgTransaction } from '@event-driven-io/dumbo/pg';
 import type { JSONSerializationOptions } from '@event-driven-io/emmett';
 import type { PostgresEventStoreOptions } from '../postgreSQLEventStore';
-import { transactionToPostgreSQLProjectionHandlerContext } from '../projections';
-import type { PgPoolOptions } from '@event-driven-io/dumbo/pg';
+import {
+  transactionToPostgreSQLProjectionHandlerContext,
+  type PostgreSQLProjectionHandlerContext,
+} from '../projections';
+import type { PgEventStoreDriver } from '../../pg';
+import type {
+  AnyPostgreSQLEventStoreDriver,
+  InferDumboOptionsFromEventStoreDriver,
+} from '../eventStoreDriver';
 import {
   eventStoreDatabaseSchema,
   type EventStoreDatabaseSchemaOptions,
@@ -41,22 +48,24 @@ export type EventStoreSchemaMigrationOptions = {
   migrationOptions?: CreateEventStoreSchemaOptions;
 };
 
-export const createEventStoreSchema = (
-  dumboOptions: PgPoolOptions,
-  pool: PgPool,
-  hooks?: PostgresEventStoreOptions['hooks'],
-  options?: CreateEventStoreSchemaOptions,
-): Promise<RunSQLMigrationsResult> => {
-  return pool.withTransaction(async (tx: PgTransaction) => {
-    const context = await transactionToPostgreSQLProjectionHandlerContext(
-      dumboOptions,
-      pool,
-      tx,
-    );
-
+export const createEventStoreSchema = <
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+>({
+  hooks,
+  schema: options,
+  ...session
+}: {
+  pool: Dumbo;
+  driver?: Driver;
+  connectionOptions?: InferDumboOptionsFromEventStoreDriver<Driver>;
+  hooks?: PostgresEventStoreOptions<Driver>['hooks'];
+  schema?: CreateEventStoreSchemaOptions;
+}): Promise<RunSQLMigrationsResult> =>
+  session.pool.withTransaction<RunSQLMigrationsResult>(async (tx) => {
+    const { pool } = session;
     const databaseSchema = eventStoreDatabaseSchema(options);
-    const schemaContext = {
-      ...context,
+    const schemaContext: PostgreSQLProjectionHandlerContext<Driver> = {
+      ...transactionToPostgreSQLProjectionHandlerContext(session, tx),
       migrationOptions: {
         ...options,
         ...databaseSchema,
@@ -80,6 +89,6 @@ export const createEventStoreSchema = (
     if (hooks?.onAfterSchemaCreated) {
       await hooks.onAfterSchemaCreated(schemaContext);
     }
+
     return result;
   });
-};

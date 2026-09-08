@@ -8,7 +8,6 @@ import {
   assertTrue,
   bigIntProcessorCheckpoint,
   isErrorConstructor,
-  noopScope,
   type CombinedReadEventMetadata,
   type Event,
   type JSONSerializationOptions,
@@ -17,7 +16,9 @@ import {
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import type {
-  AnyEventStoreDriver,
+  AnySQLiteEventStoreDriver,
+  InferDumboOptionsFromEventStoreDriver,
+  InferDumboConnectionFromEventStoreDriver,
   InferOptionsFromEventStoreDriver,
 } from '../eventStoreDriver';
 import {
@@ -30,6 +31,7 @@ import {
 } from '../SQLiteEventStore';
 import {
   handleProjections,
+  transactionToSQLiteProjectionHandlerContext,
   type SQLiteProjectionDefinition,
 } from './sqliteProjection';
 
@@ -60,12 +62,13 @@ export type SQLiteProjectionSpec<EventType extends Event> = (
 
 export type SQLiteProjectionAssert = (options: {
   connection: AnySQLiteConnection;
+  driver: AnySQLiteEventStoreDriver;
   migrationOptions?: EventStoreDatabaseSchemaOptions | undefined;
 }) => Promise<void | boolean>;
 
 export type SQLiteProjectionSpecOptions<
   EventType extends Event,
-  Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 > = {
   projection: SQLiteProjectionDefinition<EventType>;
 
@@ -80,22 +83,28 @@ export type SQLiteProjectionSpecOptions<
 export const SQLiteProjectionSpec = {
   for: <
     EventType extends Event,
-    Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
+    Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
   >(
     options: SQLiteProjectionSpecOptions<EventType, Driver>,
   ): SQLiteProjectionSpec<EventType> => {
     {
-      const driverType = options.driver.driverType;
-      const pool =
-        options.pool ??
-        dumbo({
-          serialization: options.serialization,
-          transactionOptions: {
-            allowNestedTransactions: true,
-            mode: 'session_based',
-          },
-          ...options.driver.mapToDumboOptions(options),
-        });
+      const driver = options.driver;
+      const dumboOptions = {
+        serialization: options.serialization,
+        transactionOptions: {
+          allowNestedTransactions: true,
+          mode: 'session_based',
+        },
+        ...options.driver.mapToDumboOptions(options),
+      } as InferDumboOptionsFromEventStoreDriver<Driver>;
+
+      const pool = options.pool ?? dumbo(dumboOptions);
+
+      const session = {
+        pool: pool,
+        driver,
+        connectionOptions: dumboOptions,
+      };
       const projection = options.projection;
       const migrationOptions = {
         ...options.schema,
@@ -114,17 +123,19 @@ export const SQLiteProjectionSpec = {
         await eventStore.schema.migrate();
 
         if (projection.init)
-          await projection.init({
-            registrationType: 'async',
-            status: 'active',
-            context: {
-              execute: connection.execute,
-              connection,
-              driverType,
-              migrationOptions,
-              observabilityScope: noopScope,
-            },
-            version: projection.version ?? 1,
+          await connection.withTransaction(async (transaction) => {
+            await projection.init!({
+              registrationType: 'async',
+              status: 'active',
+              context: {
+                ...transactionToSQLiteProjectionHandlerContext(
+                  session,
+                  transaction,
+                ),
+                migrationOptions,
+              },
+              version: projection.version ?? 1,
+            });
           });
       };
 
@@ -137,7 +148,10 @@ export const SQLiteProjectionSpec = {
             const allEvents: ReadEvent<EventType, SQLiteReadEventMetadata>[] =
               [];
 
-            const run = async (connection: AnySQLiteConnection) => {
+            const run = async (untypedConnection: AnySQLiteConnection) => {
+              // TODO: Fix this cast when the pool plumbing is driver-generic
+              const connection =
+                untypedConnection as InferDumboConnectionFromEventStoreDriver<Driver>;
               let globalPosition = 0n;
               const numberOfTimes = options?.numberOfTimes ?? 1;
 
@@ -168,15 +182,15 @@ export const SQLiteProjectionSpec = {
 
               await initialize(connection);
 
-              await connection.withTransaction(() =>
+              await connection.withTransaction((transaction) =>
                 handleProjections({
                   events: allEvents,
                   projections: [projection],
-                  execute: connection.execute,
-                  connection,
-                  driverType,
+                  ...transactionToSQLiteProjectionHandlerContext(
+                    session,
+                    transaction,
+                  ),
                   migrationOptions,
-                  observabilityScope: noopScope,
                 }),
               );
             };
@@ -191,6 +205,7 @@ export const SQLiteProjectionSpec = {
 
                   const succeeded = await assert({
                     connection,
+                    driver,
                     migrationOptions,
                   });
 

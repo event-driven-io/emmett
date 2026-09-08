@@ -29,7 +29,9 @@ import {
   type DefaultRecord,
   type Event,
   type Message,
+  type AnyMessageHandlerContext,
   type MessageHandlerContext,
+  type PartialHandlerContext,
   type RecordedMessage,
   type SingleMessageHandlerResult,
   type SingleRecordedMessageHandlerWithContext,
@@ -146,17 +148,19 @@ const raceWithTimeout = (
 export type MessageProcessor<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends MessageHandlerContext | undefined = undefined,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
 > = {
   id: string;
   instanceId: string;
   type: string;
   canHandle?: string[];
-  init: (options?: Partial<HandlerContext>) => Promise<void>;
+  init: (options?: PartialHandlerContext<HandlerContext>) => Promise<void>;
   start: (
-    options?: Partial<HandlerContext>,
+    options?: PartialHandlerContext<HandlerContext>,
   ) => Promise<CurrentMessageProcessorPosition | undefined>;
-  close: (closeOptions?: Partial<HandlerContext>) => Promise<void>;
+  close: (
+    closeOptions?: PartialHandlerContext<HandlerContext>,
+  ) => Promise<void>;
   isActive: boolean;
   /**
    * Resolves once the processor has stored a checkpoint at or past the given
@@ -171,7 +175,7 @@ export type MessageProcessor<
   handle: BatchRecordedMessageHandlerWithContext<
     MessageType,
     MessageMetadataType,
-    Partial<HandlerContext>
+    PartialHandlerContext<HandlerContext>
   >;
 };
 
@@ -286,14 +290,14 @@ export const MessageProcessor = {
 };
 
 export type MessageProcessingScope<
-  HandlerContext extends MessageHandlerContext | undefined = undefined,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
 > = <Result = SingleMessageHandlerResult>(
   handler: (context: HandlerContext) => Result | Promise<Result>,
-  partialContext: WithObservabilityScope<Partial<HandlerContext>>,
+  partialContext: WithObservabilityScope<PartialHandlerContext<HandlerContext>>,
 ) => Result | Promise<Result>;
 
 export type ProcessorHooks<
-  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
 > = {
   onInit?: OnReactorInitHook<HandlerContext>;
   onStart?: OnReactorStartHook<HandlerContext>;
@@ -303,7 +307,7 @@ export type ProcessorHooks<
 export type BaseMessageProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
 > = {
   type?: string;
   processorId: string;
@@ -327,7 +331,7 @@ export type BaseMessageProcessorOptions<
 export type HandlerOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
 > =
   | {
       eachMessage: SingleRecordedMessageHandlerWithContext<
@@ -347,21 +351,21 @@ export type HandlerOptions<
     };
 
 export type OnReactorInitHook<
-  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
 > = (context: HandlerContext) => Promise<void>;
 
 export type OnReactorStartHook<
-  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
 > = (context: HandlerContext) => Promise<void>;
 
 export type OnReactorCloseHook<
-  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
 > = (context: HandlerContext) => Promise<void>;
 
 export type ReactorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
   MessagePayloadType extends AnyMessage = MessageType,
 > = BaseMessageProcessorOptions<
   MessageType,
@@ -379,7 +383,7 @@ export type ReactorOptions<
 export type ProjectorOptions<
   EventType extends AnyEvent = AnyEvent,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
   EventPayloadType extends Event = EventType,
 > = Omit<
   BaseMessageProcessorOptions<EventType, MessageMetadataType, HandlerContext>,
@@ -395,13 +399,13 @@ export type ProjectorOptions<
 };
 
 export const defaultProcessingMessageProcessingScope = <
-  HandlerContext = never,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
   Result = SingleMessageHandlerResult,
 >(
   handler: (
     context: WithObservabilityScope<HandlerContext>,
   ) => Result | Promise<Result>,
-  partialContext: WithObservabilityScope<Partial<HandlerContext>>,
+  partialContext: WithObservabilityScope<PartialHandlerContext<HandlerContext>>,
 ) =>
   handler({
     ...partialContext,
@@ -422,6 +426,17 @@ const isAppendingMessageStore = (
   typeof (store as AppendingMessageStore | undefined)?.appendToStream ===
   'function';
 
+const appendsThroughItsSession = (
+  context: unknown,
+): context is MessageHandlerContext<
+  Record<never, never>,
+  { messageStore: AppendingMessageStore }
+> =>
+  isAppendingMessageStore(
+    (context as { session?: { messageStore?: unknown } } | undefined)?.session
+      ?.messageStore,
+  );
+
 /**
  * Binds the message store handed to the handler to the scope of the message
  * being handled, so what a handler appends continues the triggering message's
@@ -432,14 +447,11 @@ const withScopedMessageStore = <HandlerContext>(
   context: HandlerContext,
   scope: ObservabilityScope,
 ): HandlerContext => {
-  const connection = (
-    context as { connection?: { messageStore?: unknown } } | undefined
-  )?.connection;
+  if (!appendsThroughItsSession(context)) return context;
 
-  if (!connection || !isAppendingMessageStore(connection.messageStore))
-    return context;
+  const { session } = context;
 
-  const messageStore = new Proxy(connection.messageStore, {
+  const messageStore = new Proxy(session.messageStore, {
     get: (target, property, receiver): unknown => {
       if (property !== 'appendToStream')
         return Reflect.get(target, property, receiver);
@@ -461,7 +473,7 @@ const withScopedMessageStore = <HandlerContext>(
 
   return {
     ...context,
-    connection: { ...connection, messageStore },
+    session: { ...session, messageStore },
   };
 };
 
@@ -509,7 +521,7 @@ const acquireProcessorLock = async <HandlerContext extends DefaultRecord>(
 export const reactor = <
   MessageType extends Message = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
   MessagePayloadType extends Message = MessageType,
 >(
   options: ReactorOptions<
@@ -658,7 +670,7 @@ export const reactor = <
   };
 
   const init = async (
-    initOptions: WithObservabilityScope<Partial<HandlerContext>>,
+    initOptions: WithObservabilityScope<PartialHandlerContext<HandlerContext>>,
   ): Promise<void> => {
     if (isInitiated) return;
 
@@ -674,7 +686,7 @@ export const reactor = <
   };
 
   const close = async (
-    closeOptions: WithObservabilityScope<Partial<HandlerContext>>,
+    closeOptions: WithObservabilityScope<PartialHandlerContext<HandlerContext>>,
   ): Promise<void> => {
     // TODO: Align when active is set to false
     // if (!isActive) return;
@@ -708,7 +720,9 @@ export const reactor = <
     canHandle,
     init: async (partialOptions) => {
       partialOptions ??= {};
-      const options: WithObservabilityScope<Partial<HandlerContext>> = {
+      const options: WithObservabilityScope<
+        PartialHandlerContext<HandlerContext>
+      > = {
         ...partialOptions,
         // TODO: Consider adding explicit init scope
         observabilityScope:
@@ -720,11 +734,13 @@ export const reactor = <
       await init(options);
     },
     start: async (
-      partialOptions?: Partial<HandlerContext>,
+      partialOptions?: PartialHandlerContext<HandlerContext>,
     ): Promise<CurrentMessageProcessorPosition | undefined> => {
       partialOptions ??= {};
 
-      const startOptions: WithObservabilityScope<Partial<HandlerContext>> = {
+      const startOptions: WithObservabilityScope<
+        PartialHandlerContext<HandlerContext>
+      > = {
         ...partialOptions,
         // TODO: Consider adding explicit start scope
         observabilityScope:
@@ -847,7 +863,9 @@ export const reactor = <
     },
     close: async (partialOptions) => {
       partialOptions ??= {};
-      const options: WithObservabilityScope<Partial<HandlerContext>> = {
+      const options: WithObservabilityScope<
+        PartialHandlerContext<HandlerContext>
+      > = {
         ...partialOptions,
         // TODO: Consider adding explicit close scope
         observabilityScope:
@@ -863,7 +881,7 @@ export const reactor = <
     whenProcessed,
     handle: async (
       messages: RecordedMessage<MessageType, MessageMetadataType>[],
-      partialContext: Partial<HandlerContext>,
+      partialContext: PartialHandlerContext<HandlerContext>,
     ): Promise<BatchMessageHandlerResult> => {
       if (!isActive) return Promise.resolve();
 
@@ -997,7 +1015,7 @@ export const projector = <
   EventType extends Event = Event,
   EventMetaDataType extends AnyRecordedMessageMetadata =
     AnyRecordedMessageMetadata,
-  HandlerContext extends MessageHandlerContext = MessageHandlerContext,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
   EventPayloadType extends Event = EventType,
 >(
   options: ProjectorOptions<

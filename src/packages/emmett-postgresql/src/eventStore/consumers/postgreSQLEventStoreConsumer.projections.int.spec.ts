@@ -11,7 +11,6 @@ import {
   type PongoClient,
   type PongoCollection,
 } from '@event-driven-io/pongo';
-import { pgDriver } from '@event-driven-io/pongo/pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
@@ -52,7 +51,7 @@ void describe('PostgreSQL event store started consumer', () => {
     });
     pongo = pongoClient({
       connectionString,
-      driver: pgDriver,
+      driver: pgEventStoreDriver.pongoDriver,
       connectionOptions: {
         transactionOptions: {
           allowNestedTransactions: true,

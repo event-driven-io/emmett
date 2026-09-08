@@ -1,24 +1,24 @@
 import type { PgPoolOptions } from '@event-driven-io/dumbo/pg';
 import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
+import { pgDriver as pgPongoDriver } from '@event-driven-io/pongo/pg';
 import type { PostgresEventStoreDriverOptions } from './eventStore';
 import type { EventStoreDriver } from './eventStore/eventStoreDriver';
 
-export const pgEventStoreDriver: EventStoreDriver<
-  typeof pgDumboDriver,
-  PgEventStoreDriverOptions
-> = {
+export const pgEventStoreDriver = {
   driverType: pgDumboDriver.driverType,
   dumboDriver: pgDumboDriver,
-  mapToDumboOptions: (driverOptions) =>
+  pongoDriver: pgPongoDriver,
+  mapToDumboOptions: (options) =>
     ({
       driver: pgDumboDriver,
-      connectionString: driverOptions.connectionString,
-      ...driverOptions.connectionOptions,
+      connectionString: options.connectionString,
+      ...options.connectionOptions,
       transactionOptions: {
         allowNestedTransactions: true,
+        ...options.connectionOptions?.transactionOptions,
       },
     }) as unknown as PgPoolOptions,
-};
+} satisfies EventStoreDriver<typeof pgDumboDriver, PgEventStoreDriverOptions>;
 
 export type PgEventStoreDriver = typeof pgEventStoreDriver;
 

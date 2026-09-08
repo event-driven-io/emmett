@@ -214,11 +214,14 @@ describe('processors observability wiring', () => {
       reactor<
         AnyMessage,
         AnyRecordedMessageMetadata,
-        MessageHandlerContext<{ connection: { messageStore: EventStore } }>
+        MessageHandlerContext<
+          Record<never, never>,
+          { messageStore: EventStore }
+        >
       >({
         processorId: 'test',
         eachMessage: async (_message, context) => {
-          await context.connection.messageStore.appendToStream(streamName, [
+          await context.session.messageStore.appendToStream(streamName, [
             { type: 'OrderConfirmed', kind: 'Event', data: {} },
           ]);
         },
@@ -226,7 +229,7 @@ describe('processors observability wiring', () => {
       }),
     )
       .when(async (reactor) => {
-        await reactor.start({ connection: { messageStore: eventStore } });
+        await reactor.start({ session: { messageStore: eventStore } });
         await reactor.handle(
           [
             makeMessage('OrderPlaced', {
@@ -234,9 +237,9 @@ describe('processors observability wiring', () => {
               correlationId: 'flow-1',
             }),
           ],
-          { connection: { messageStore: eventStore } },
+          { session: { messageStore: eventStore } },
         );
-        await reactor.close({ connection: { messageStore: eventStore } });
+        await reactor.close({ session: { messageStore: eventStore } });
 
         const { events } = await eventStore.readStream(streamName);
         metadata = events[0]?.metadata;

@@ -92,6 +92,7 @@ export const handleInlineProjections = async <
       document: readModels[projection.name] ?? null,
       streamId,
       collection,
+      session: {},
       updates: update,
       observabilityScope: options.observabilityScope,
     });

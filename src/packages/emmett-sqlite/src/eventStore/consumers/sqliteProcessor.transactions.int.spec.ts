@@ -2,7 +2,7 @@ import { JSONSerializer } from '@event-driven-io/dumbo';
 import { sqlite3Pool } from '@event-driven-io/dumbo/sqlite3';
 import {
   assertEqual,
-  assertFalse,
+  assertTrue,
   workflowStreamName,
 } from '@event-driven-io/emmett';
 import path from 'path';
@@ -43,9 +43,9 @@ void describe('SQLite processor transaction handling', () => {
 
   beforeEach(() => {
     eventStore = getSQLiteEventStore(config);
-    return createEventStoreSchema(
-      sqlite3Pool({ fileName, serializer: JSONSerializer }),
-    );
+    return createEventStoreSchema({
+      pool: sqlite3Pool({ fileName, serializer: JSONSerializer }),
+    });
   });
 
   afterEach(async () => {
@@ -54,7 +54,7 @@ void describe('SQLite processor transaction handling', () => {
   });
 
   void it(
-    'does not leak the workflow message store onto connections of other processors',
+    'gives every processor a message store bound to its own transaction',
     withDeadline,
     async () => {
       // Given
@@ -93,16 +93,19 @@ void describe('SQLite processor transaction handling', () => {
           message.data.groupCheckoutId === groupCheckoutId,
       });
 
-      const reactorConnectionsWithMessageStore: boolean[] = [];
+      const reactionStream = `reaction-${groupCheckoutId}`;
+      const reactorMessageStores: boolean[] = [];
 
       consumer.reactor({
         processorId: `reactor-${groupCheckoutId}`,
         canHandle: ['GroupCheckoutInitiated'],
         stopAfter: (message) => message.type === 'GroupCheckoutInitiated',
-        eachMessage: (_message, context) => {
-          reactorConnectionsWithMessageStore.push(
-            'messageStore' in context.connection,
-          );
+        eachMessage: async (_message, context) => {
+          reactorMessageStores.push('messageStore' in context.session);
+
+          await context.session.messageStore.appendToStream(reactionStream, [
+            { type: 'GuestCheckedOut', data: { guestId: groupCheckoutId } },
+          ]);
         },
       });
 
@@ -128,8 +131,12 @@ void describe('SQLite processor transaction handling', () => {
       }
 
       // Then
-      assertEqual(1, reactorConnectionsWithMessageStore.length);
-      assertFalse(reactorConnectionsWithMessageStore[0]!);
+      assertEqual(1, reactorMessageStores.length);
+      assertTrue(reactorMessageStores[0]!);
+
+      const reaction = await eventStore.readStream(reactionStream);
+      assertEqual(1, reaction.events.length);
+      assertEqual('GuestCheckedOut', reaction.events[0]!.type);
 
       const { events } = await eventStore.readStream(
         workflowStreamName({

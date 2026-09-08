@@ -176,7 +176,11 @@ const inMemoryProcessingScope = (options: {
         `InMemory processor '${options.processorId}' is missing database. Ensure that you passed it through options`,
       );
 
-    return handler({ ...partialContext, database });
+    return handler({
+      ...partialContext,
+      database,
+      session: partialContext?.session ?? {},
+    });
   };
 
   return processingScope;

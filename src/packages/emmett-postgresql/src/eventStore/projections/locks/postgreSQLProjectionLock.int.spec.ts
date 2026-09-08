@@ -35,7 +35,7 @@ void describe('tryAcquireProjectionLock', () => {
         allowNestedTransactions: true,
       },
     });
-    await createEventStoreSchema({ connectionString }, pool);
+    await createEventStoreSchema({ pool });
   });
 
   afterAll(async () => {

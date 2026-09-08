@@ -108,6 +108,38 @@ export default [
     },
   },
   {
+    files: ['packages/emmett-sqlite/**'],
+    ignores: [
+      'packages/emmett-sqlite/**/*.spec.ts',
+      'packages/emmett-sqlite/src/sqlite3.ts',
+      'packages/emmett-sqlite/src/cloudflare.ts',
+      'packages/emmett-sqlite/src/testing/**',
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@event-driven-io/dumbo/sqlite3',
+              message:
+                'Take the sqlite3 driver from `src/sqlite3.ts` instead. Importing ' +
+                'the driver module elsewhere ties the package to a single SQLite driver.',
+              allowTypeImports: true,
+            },
+            {
+              name: '@event-driven-io/dumbo/cloudflare',
+              message:
+                'Take the D1 driver from `src/cloudflare.ts` instead. Importing ' +
+                'the driver module elsewhere ties the package to a single SQLite driver.',
+              allowTypeImports: true,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['packages/emmett-postgresql/**'],
     ignores: [
       'packages/emmett-postgresql/**/*.spec.ts',

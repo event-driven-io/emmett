@@ -181,7 +181,7 @@ export const mongoDBEventStoreConsumer = <
     workflowProcessorFactory,
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
-    scope: (handler) => handler({ client }),
+    scope: (handler) => handler({ session: { client } }),
     hooks: {
       onClose: async () => {
         if (isOwnClient) await client.close();

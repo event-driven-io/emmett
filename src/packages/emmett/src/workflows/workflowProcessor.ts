@@ -13,8 +13,8 @@ import type {
   AnyReadEventMetadata,
   AnyRecordedMessageMetadata,
   CanHandle,
-  Event,
   MessageHandlerContext,
+  Event,
   MessageTypeOf,
   RecordedMessage,
 } from '../typing';
@@ -55,11 +55,15 @@ export type WorkflowOptions<
   };
 };
 
-export type WorkflowProcessorContext = MessageHandlerContext<{
-  connection: {
-    messageStore: EventStore;
-  };
-}>;
+/** Append what your workflow produces through `context.session.messageStore`. */
+export type MessageStoreSession = {
+  messageStore: EventStore;
+};
+
+export type WorkflowProcessorContext = MessageHandlerContext<
+  Record<never, never>,
+  MessageStoreSession
+>;
 
 export type WorkflowOutputHandlerResult<Input extends AnyEvent | AnyCommand> =
   | Promise<Input | Input[] | EmmettError | [] | void>
@@ -238,7 +242,7 @@ export const workflowProcessor = <
 
       if (isInput || inputs.includes(messageType)) {
         const result = await handle(
-          context.connection.messageStore,
+          context.session.messageStore,
           message as RecordedMessage<Input, MetaDataType>,
           {
             observability: withOperationScope(context.observabilityScope),
@@ -309,7 +313,7 @@ export const workflowProcessor = <
           },
         }));
 
-        await context.connection.messageStore.appendToStream(
+        await context.session.messageStore.appendToStream(
           streamName,
           inputTaggedMessages as unknown as Event[],
           appendOptionsFromHandledOutput(

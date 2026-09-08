@@ -3,9 +3,14 @@ import {
   type Dumbo,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
-import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
-import { noopScope } from '@event-driven-io/emmett';
-import type { SQLiteProjectionHandlerContext } from '../projections';
+import type {
+  AnySQLiteEventStoreDriver,
+  InferDumboOptionsFromEventStoreDriver,
+} from '../eventStoreDriver';
+import {
+  transactionToSQLiteProjectionHandlerContext,
+  type SQLiteProjectionHandlerContext,
+} from '../projections';
 import type { SQLiteEventStoreOptions } from '../SQLiteEventStore';
 import {
   eventStoreDatabaseSchema,
@@ -36,22 +41,28 @@ export type EventStoreSchemaMigrationOptions = {
   migrationOptions?: CreateEventStoreSchemaOptions;
 };
 
-export const createEventStoreSchema = (
-  pool: Dumbo,
-  hooks?: SQLiteEventStoreOptions['hooks'],
-  options?: CreateEventStoreSchemaOptions,
-): Promise<RunSQLMigrationsResult> =>
-  pool.withTransaction<RunSQLMigrationsResult>(async (tx) => {
+export const createEventStoreSchema = <
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+>({
+  hooks,
+  schema: options,
+  ...session
+}: {
+  pool: Dumbo;
+  driver?: Driver;
+  connectionOptions?: InferDumboOptionsFromEventStoreDriver<Driver>;
+  hooks?: SQLiteEventStoreOptions['hooks'];
+  schema?: CreateEventStoreSchemaOptions;
+}): Promise<RunSQLMigrationsResult> =>
+  session.pool.withTransaction<RunSQLMigrationsResult>(async (tx) => {
+    const { pool } = session;
     const databaseSchema = eventStoreDatabaseSchema(options);
-    const schemaContext: SQLiteProjectionHandlerContext = {
-      execute: tx.execute,
-      connection: tx.connection as AnySQLiteConnection,
-      driverType: pool.driverType,
+    const schemaContext: SQLiteProjectionHandlerContext<Driver> = {
+      ...transactionToSQLiteProjectionHandlerContext(session, tx),
       migrationOptions: {
         ...options,
         ...databaseSchema,
       },
-      observabilityScope: noopScope,
     };
 
     if (hooks?.onBeforeSchemaCreated) {

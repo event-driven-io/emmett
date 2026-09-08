@@ -196,7 +196,7 @@ void describe('Postgres consumer without registered dumbo drivers', () => {
           event.metadata.globalPosition ===
           appendResult.lastEventGlobalPosition,
         eachMessage: async (_event, context) => {
-          await context.connection.messageStore.appendToStream(reactionStream, [
+          await context.session.messageStore.appendToStream(reactionStream, [
             {
               type: 'ShoppingCartConfirmed',
               data: { confirmedAt: new Date() },

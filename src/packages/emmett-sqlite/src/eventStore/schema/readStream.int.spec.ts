@@ -58,7 +58,9 @@ void describe('appendEvent', () => {
       singleton: true,
       connection,
     });
-    await createEventStoreSchema(pool);
+    await createEventStoreSchema({
+      pool,
+    });
   });
 
   afterAll(async () => {

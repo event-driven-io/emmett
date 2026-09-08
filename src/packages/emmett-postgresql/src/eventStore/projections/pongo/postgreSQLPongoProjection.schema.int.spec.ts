@@ -9,7 +9,6 @@ import {
   type Event,
 } from '@event-driven-io/emmett';
 import { pongoClient, type PongoCollection } from '@event-driven-io/pongo';
-import { pgDriver } from '@event-driven-io/pongo/pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
@@ -520,7 +519,7 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
   ): Promise<Result> => {
     const pongo = pongoClient({
       connectionString,
-      driver: pgDriver,
+      driver: pgEventStoreDriver.pongoDriver,
       defaultSchemaName: databaseSchemaName,
       connectionOptions: {
         transactionOptions: { allowNestedTransactions: true },

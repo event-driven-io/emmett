@@ -1,6 +1,7 @@
 import type { PgPoolOptions } from '@event-driven-io/dumbo/pg';
 import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 import { assertEqual } from '@event-driven-io/emmett';
+import { pgDriver as pgPongoDriver } from '@event-driven-io/pongo/pg';
 import { describe, it } from 'vitest';
 import { pgEventStoreDriver, type PgEventStoreDriverOptions } from './pg';
 
@@ -38,6 +39,10 @@ void describe('pgEventStoreDriver', () => {
     assertEqual('emmett_other', options.database);
   });
 
+  void it('carries the Pongo driver its projections need', () => {
+    assertEqual<unknown>(pgPongoDriver, pgEventStoreDriver.pongoDriver);
+  });
+
   void it('carries the driver for every supported option shape', () => {
     const shapes: PgEventStoreDriverOptions[] = [
       { connectionString },
@@ -65,5 +70,16 @@ void describe('pgEventStoreDriver', () => {
       pgEventStoreDriver.mapToDumboOptions({ connectionString })
         .transactionOptions?.allowNestedTransactions,
     );
+  });
+
+  void it('keeps the transaction options the caller set explicitly', () => {
+    const { transactionOptions } = pgEventStoreDriver.mapToDumboOptions({
+      connectionString,
+      connectionOptions: {
+        transactionOptions: { allowNestedTransactions: false },
+      },
+    });
+
+    assertEqual(false, transactionOptions?.allowNestedTransactions);
   });
 });

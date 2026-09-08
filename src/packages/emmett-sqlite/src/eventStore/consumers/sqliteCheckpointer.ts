@@ -4,19 +4,23 @@ import {
   type ReadEventMetadataWithGlobalPosition,
   getCheckpoint,
 } from '@event-driven-io/emmett';
+import type { AnySQLiteEventStoreDriver } from '../eventStoreDriver';
 import { readProcessorCheckpoint, storeProcessorCheckpoint } from '../schema';
 import type { SQLiteProcessorHandlerContext } from './sqliteProcessor';
 
-export type SQLiteCheckpointer<MessageType extends AnyMessage = AnyMessage> =
-  Checkpointer<
-    MessageType,
-    ReadEventMetadataWithGlobalPosition,
-    SQLiteProcessorHandlerContext
-  >;
+export type SQLiteCheckpointer<
+  MessageType extends AnyMessage = AnyMessage,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+> = Checkpointer<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  SQLiteProcessorHandlerContext<Driver>
+>;
 
 export const sqliteCheckpointer = <
   MessageType extends Message = Message,
->(): SQLiteCheckpointer<MessageType> => ({
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+>(): SQLiteCheckpointer<MessageType, Driver> => ({
   read: async (options, context) => {
     const result = await readProcessorCheckpoint(context.execute, {
       ...options,

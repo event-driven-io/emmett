@@ -25,6 +25,7 @@ import { SQLiteProjectionSpec } from '../sqliteProjectionSpec';
 import { pongoClient, type PongoCollection } from '@event-driven-io/pongo';
 import { pongoSingleStreamProjection } from './pongoProjections';
 import { expectPongoDocuments } from './pongoProjectionSpec';
+import { pongoDriverOf } from '../../eventStoreDriver';
 
 const withDeadline = { timeout: 30000 };
 
@@ -405,9 +406,7 @@ void describe('SQLite Pongo projection schema configuration', () => {
     ) => Promise<Result>,
   ): Promise<Result> =>
     pool.withConnection(async (connection) => {
-      const driver = (await pongoDriverRegistry.tryResolve(
-        connection.driverType,
-      ))!;
+      const driver = pongoDriverOf(sqlite3EventStoreDriver);
       const pongo = pongoClient({
         driver,
         connectionOptions: { connection },

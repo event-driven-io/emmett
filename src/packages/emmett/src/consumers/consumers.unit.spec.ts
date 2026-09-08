@@ -22,6 +22,7 @@ import type {
   Command,
   Event,
   Message,
+  AnyMessageHandlerContext,
   MessageHandlerContext,
   RecordedMessage,
 } from '../typing';
@@ -176,7 +177,7 @@ const testProcessorFactory: TestProcessorFactory = ({ processor }) => processor;
 const testConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends MessageHandlerContext | undefined = undefined,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
 >(
   options: Omit<
     MessageConsumerSetup<

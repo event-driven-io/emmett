@@ -19,7 +19,8 @@ import type {
   AnyEvent,
   AnyReadEventMetadata,
   Message,
-  MessageHandlerContext,
+  AnyMessageHandlerContext,
+  PartialHandlerContext,
   RecordedMessage,
 } from '../typing';
 import { asyncAwaiter, type AsyncAwaiter } from '../utils';
@@ -111,9 +112,9 @@ export type MessageConsumer<
  * wrapped in `pool.withConnection`.
  */
 export type MessageConsumerScope<
-  HandlerContext extends MessageHandlerContext | undefined = undefined,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
 > = <Result>(
-  handler: (context: Partial<HandlerContext>) => Promise<Result>,
+  handler: (context: PartialHandlerContext<HandlerContext>) => Promise<Result>,
 ) => Promise<Result>;
 
 export const DefaultConsumerBatchSize = 100;
@@ -131,7 +132,7 @@ export type MessageConsumerSetup<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends MessageHandlerContext | undefined = undefined,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
   ReactorFactory extends AnyMessageProcessorFactory<ConsumerMessageType> =
     never,
   ProjectorFactory extends AnyMessageProcessorFactory<ConsumerMessageType> =
@@ -187,7 +188,7 @@ export const consumer = <
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
-  HandlerContext extends MessageHandlerContext | undefined = undefined,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
   ReactorFactory extends AnyMessageProcessorFactory<ConsumerMessageType> =
     never,
   ProjectorFactory extends AnyMessageProcessorFactory<ConsumerMessageType> =
