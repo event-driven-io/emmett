@@ -7,6 +7,7 @@ import type {
   Message,
   MessageHandlerContext,
   MessageProcessingScope,
+  PartialHandlerContext,
   MessageProcessor,
   ReactorOptions,
   ReadEventMetadataWithGlobalPosition,
@@ -30,12 +31,13 @@ import {
 } from '../eventstoreDBEventStore';
 import { eventStoreDBCheckpointer } from './eventStoreDBCheckpointer';
 
-export type EventStoreDBProcessorHandlerContext = MessageHandlerContext<{
-  client: EventStoreDBClient;
-  connection?: {
-    messageStore: EventStoreDBEventStore;
-  };
-}>;
+export type EventStoreDBProcessorHandlerContext = MessageHandlerContext<
+  Record<never, never>,
+  {
+    client: EventStoreDBClient;
+    messageStore?: EventStoreDBEventStore;
+  }
+>;
 
 export type EventStoreDBWorkflowProcessorHandlerContext =
   EventStoreDBProcessorHandlerContext & WorkflowProcessorContext;
@@ -87,13 +89,13 @@ const eventStoreDBProcessingScope = (options: {
     handler: (
       context: EventStoreDBProcessorHandlerContext,
     ) => Result | Promise<Result>,
-    partialContext: Partial<EventStoreDBProcessorHandlerContext>,
+    partialContext: PartialHandlerContext<EventStoreDBProcessorHandlerContext>,
   ) => {
     return handler({
-      client: options.client,
       ...partialContext,
-      connection: {
-        ...partialContext.connection,
+      session: {
+        ...partialContext.session,
+        client: options.client,
         messageStore: getEventStoreDBEventStore(options.client),
       },
       observabilityScope: partialContext?.observabilityScope ?? noopScope,

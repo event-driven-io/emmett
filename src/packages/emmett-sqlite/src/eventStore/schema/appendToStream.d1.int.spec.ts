@@ -69,7 +69,7 @@ void describe('appendEvent', () => {
     });
     execute = connection.execute;
     pool = d1Pool({ database, connection });
-    await createEventStoreSchema(pool);
+    await createEventStoreSchema({ pool });
   });
 
   afterAll(async () => {

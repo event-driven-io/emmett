@@ -23,6 +23,7 @@ import {
   eventStoreDBReactor,
   eventStoreDBWorkflowProcessor,
   type EventStoreDBProcessor,
+  type EventStoreDBProcessorHandlerContext,
   type EventStoreDBWorkflowProcessorHandlerContext,
   type EventStoreDBReactorOptions,
   type EventStoreDBWorkflowProcessorOptions,
@@ -166,7 +167,7 @@ export const eventStoreDBEventStoreConsumer = <
   const messageConsumer = consumer<
     ConsumerMessageType,
     EventStoreDBReadEventMetadata,
-    undefined,
+    EventStoreDBProcessorHandlerContext,
     EventStoreDBReactorFactory<ConsumerMessageType>,
     EventStoreDBProjectorFactory<ConsumerMessageType>,
     EventStoreDBWorkflowProcessorFactory<ConsumerMessageType>

@@ -167,6 +167,7 @@ type AppendToStreamResult =
 export type AppendToStreamBeforeCommitHook = (
   messages: RecordedMessage[],
   context: {
+    connection: PgConnection;
     transaction: PgTransaction;
   },
 ) => Promise<void>;
@@ -262,7 +263,10 @@ export const appendToStream = (
       });
 
       if (options?.beforeCommitHook)
-        await options.beforeCommitHook(messagesToAppend, { transaction });
+        await options.beforeCommitHook(messagesToAppend, {
+          connection,
+          transaction,
+        });
 
       return {
         success: true,

@@ -1,22 +1,29 @@
 import type {
   Connection,
   ConnectionPool,
+  Dumbo,
   DatabaseTransaction,
   DumboDatabaseDriver,
 } from '@event-driven-io/dumbo';
 import type {
   PgClientConnection,
-  PgClientOrPoolClient,
   PgPool,
   PgPoolClientConnection,
   PgPoolOptions,
   PgTransactionOptions,
 } from '@event-driven-io/dumbo/pg';
-import { assertTrue } from '@event-driven-io/emmett';
+import { assertThrows, assertTrue, EmmettError } from '@event-driven-io/emmett';
+import { pgDriver as pgPongoDriver } from '@event-driven-io/pongo/pg';
 import { describe, it } from 'vitest';
-import type { PgEventStoreDriver } from '../pg';
+import { pgEventStoreDriver, type PgEventStoreDriver } from '../pg';
 import type { PostgreSQLProcessorHandlerContext } from './consumers/postgreSQLProcessor';
-import type { EventStoreDriver } from './eventStoreDriver';
+import {
+  eventStoreDriverOf,
+  pongoDriverOf,
+  type AnyPostgreSQLEventStoreDriver,
+  type EventStoreDriver,
+  type PoolOrConnectionOptions,
+} from './eventStoreDriver';
 import type { PostgreSQLProjectionHandlerContext } from './projections/postgreSQLProjection';
 
 type Equals<Left, Right> =
@@ -46,27 +53,27 @@ type FakeEventStoreDriver = EventStoreDriver<
   { connectionOptions?: { url: string } | undefined }
 >;
 
-type ProcessorConnection<Driver extends EventStoreDriver> =
-  PostgreSQLProcessorHandlerContext<Driver>['connection'];
+type ProcessorSession<Driver extends AnyPostgreSQLEventStoreDriver> =
+  PostgreSQLProcessorHandlerContext<Driver>['session'];
 
-type ProjectionConnection<Driver extends EventStoreDriver> =
-  PostgreSQLProjectionHandlerContext<Driver>['connection'];
+type ProjectionSession<Driver extends AnyPostgreSQLEventStoreDriver> =
+  PostgreSQLProjectionHandlerContext<Driver>['session'];
 
-void describe('Handler context connection typing', () => {
+void describe('Handler context session typing', () => {
   void describe('when no driver is given', () => {
     void it('falls back to the pg driver', () => {
       assertTypesEqual<
         Equals<
-          ProcessorConnection<PgEventStoreDriver>['client'],
-          PgClientOrPoolClient
+          ProcessorSession<PgEventStoreDriver>['connection'],
+          PgClientConnection | PgPoolClientConnection
         >
       >();
       assertTypesEqual<
-        Equals<ProcessorConnection<PgEventStoreDriver>['pool'], PgPool>
+        Equals<ProcessorSession<PgEventStoreDriver>['pool'], PgPool>
       >();
       assertTypesEqual<
         Equals<
-          ProcessorConnection<PgEventStoreDriver>['transaction'],
+          ProcessorSession<PgEventStoreDriver>['transaction'],
           | DatabaseTransaction<PgPoolClientConnection, PgTransactionOptions>
           | DatabaseTransaction<PgClientConnection, PgTransactionOptions>
         >
@@ -74,8 +81,8 @@ void describe('Handler context connection typing', () => {
 
       assertTypesEqual<
         Equals<
-          ProcessorConnection<PgEventStoreDriver>['options'],
-          PgPoolOptions
+          ProcessorSession<PgEventStoreDriver>['connectionOptions'],
+          PgPoolOptions | undefined
         >
       >();
 
@@ -84,12 +91,18 @@ void describe('Handler context connection typing', () => {
   });
 
   void describe('when another driver is given', () => {
-    void it('derives the client from that driver', () => {
+    void it('derives the connection from that driver', () => {
       assertTypesEqual<
-        Equals<ProcessorConnection<FakeEventStoreDriver>['client'], FakeClient>
+        Equals<
+          ProcessorSession<FakeEventStoreDriver>['connection'],
+          FakeConnection
+        >
       >();
       assertTypesEqual<
-        Equals<ProjectionConnection<FakeEventStoreDriver>['client'], FakeClient>
+        Equals<
+          ProjectionSession<FakeEventStoreDriver>['connection'],
+          FakeConnection
+        >
       >();
 
       assertTrue(true);
@@ -98,7 +111,7 @@ void describe('Handler context connection typing', () => {
     void it('derives the transaction from that driver', () => {
       assertTypesEqual<
         Equals<
-          ProcessorConnection<FakeEventStoreDriver>['transaction'],
+          ProcessorSession<FakeEventStoreDriver>['transaction'],
           DatabaseTransaction<FakeConnection>
         >
       >();
@@ -109,8 +122,8 @@ void describe('Handler context connection typing', () => {
     void it('derives the pool options from that driver', () => {
       assertTypesEqual<
         Equals<
-          ProcessorConnection<FakeEventStoreDriver>['options'],
-          { url: string }
+          ProcessorSession<FakeEventStoreDriver>['connectionOptions'],
+          { url: string } | undefined
         >
       >();
 
@@ -120,12 +133,92 @@ void describe('Handler context connection typing', () => {
     void it('derives the pool from that driver', () => {
       assertTypesEqual<
         Equals<
-          ProcessorConnection<FakeEventStoreDriver>['pool'],
+          ProcessorSession<FakeEventStoreDriver>['pool'],
           ConnectionPool<FakeConnection>
         >
       >();
 
       assertTrue(true);
     });
+  });
+
+  void describe('driver family', () => {
+    void it('accepts every driver this package ships', () => {
+      assertTypesEqual<
+        PgEventStoreDriver extends AnyPostgreSQLEventStoreDriver ? true : false
+      >();
+
+      assertTrue(true);
+    });
+
+    void it('rejects a driver that is not a PostgreSQL one', () => {
+      type NotPostgreSQL = {
+        driverType: 'SQLite:sqlite3';
+        dumboDriver: never;
+        mapToDumboOptions: () => never;
+      };
+
+      assertTypesEqual<
+        NotPostgreSQL extends AnyPostgreSQLEventStoreDriver ? false : true
+      >();
+
+      assertTrue(true);
+    });
+  });
+});
+
+void describe('pongoDriverOf', () => {
+  void it('returns the Pongo driver the event store driver names', () => {
+    assertTrue(pongoDriverOf(pgEventStoreDriver) === pgPongoDriver);
+  });
+
+  void it('fails when the event store driver names no Pongo driver', () => {
+    const { pongoDriver: _, ...withoutPongoDriver } = pgEventStoreDriver;
+
+    assertThrows(
+      () => pongoDriverOf(withoutPongoDriver),
+      (error) => error instanceof EmmettError,
+    );
+  });
+});
+
+void describe('eventStoreDriverOf', () => {
+  void it('returns the driver the context was given', () => {
+    assertTrue(eventStoreDriverOf(pgEventStoreDriver) === pgEventStoreDriver);
+  });
+
+  void it('fails when the context carries no driver', () => {
+    assertThrows(
+      () => eventStoreDriverOf(undefined),
+      (error) => error instanceof EmmettError,
+    );
+  });
+});
+
+void describe('PoolOrConnectionOptions', () => {
+  void it('needs the driver options when no pool is given', () => {
+    assertTypesEqual<
+      {
+        connectionString: string;
+      } extends PoolOrConnectionOptions<PgEventStoreDriver>
+        ? true
+        : false
+    >();
+    assertTypesEqual<
+      // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+      {} extends PoolOrConnectionOptions<PgEventStoreDriver> ? false : true
+    >();
+
+    assertTrue(true);
+  });
+
+  void it('makes the driver options optional when a pool is given', () => {
+    assertTypesEqual<
+      { pool: Dumbo } extends PoolOrConnectionOptions<PgEventStoreDriver>
+        ? true
+        : false
+    >();
+
+    assertTrue(true);
   });
 });

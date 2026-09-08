@@ -2,7 +2,8 @@ import type {
   AnyMessage,
   AnyReadEventMetadata,
   Message,
-  MessageHandlerContext,
+  AnyMessageHandlerContext,
+  PartialHandlerContext,
   RecordedMessage,
 } from '../typing';
 import type { MaybePromise } from '../utils';
@@ -80,14 +81,14 @@ export const ProcessorStartPositions = (): ProcessorStartPositions => {
 export type ResolveConsumerStartPositionsOptions<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends Message = any,
-  HandlerContext extends MessageHandlerContext | undefined = undefined,
+  HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
 > = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   processors: Array<MessageProcessor<ConsumerMessageType, any, HandlerContext>>;
   readLastMessageCheckpoint: (
-    context: Partial<HandlerContext>,
+    context: PartialHandlerContext<HandlerContext>,
   ) => MaybePromise<ProcessorCheckpoint | null>;
-  handlerContext: Partial<HandlerContext>;
+  handlerContext: PartialHandlerContext<HandlerContext>;
   /**
    * Wraps only the processors' own start calls. The checkpoint read stays
    * outside it,
@@ -95,7 +96,9 @@ export type ResolveConsumerStartPositionsOptions<
    * pooled connection) that reading the checkpoint would wait on forever.
    */
   scope?: <Result>(
-    handler: (context: Partial<HandlerContext>) => Promise<Result>,
+    handler: (
+      context: PartialHandlerContext<HandlerContext>,
+    ) => Promise<Result>,
   ) => Promise<Result>;
 };
 
@@ -103,7 +106,7 @@ export const ConsumerStartPositions = {
   resolve: async <
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ConsumerMessageType extends Message = any,
-    HandlerContext extends MessageHandlerContext | undefined = undefined,
+    HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
   >({
     processors,
     handlerContext: handlerOptions,
@@ -117,8 +120,11 @@ export const ConsumerStartPositions = {
 
     const inScope =
       scope ??
-      ((handler: (context: Partial<HandlerContext>) => Promise<void>) =>
-        handler(handlerOptions));
+      ((
+        handler: (
+          context: PartialHandlerContext<HandlerContext>,
+        ) => Promise<void>,
+      ) => handler(handlerOptions));
 
     await inScope((context) =>
       Promise.all(

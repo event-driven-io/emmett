@@ -5,7 +5,6 @@ import {
   CommandHandler,
 } from '@event-driven-io/emmett';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
-import { pgDriver } from '@event-driven-io/pongo/pg';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
@@ -48,7 +47,7 @@ void describe('Postgres Projections', () => {
     await eventStore.schema.migrate();
     pongo = pongoClient({
       connectionString,
-      driver: pgDriver,
+      driver: pgEventStoreDriver.pongoDriver,
       connectionOptions: {
         transactionOptions: {
           allowNestedTransactions: true,

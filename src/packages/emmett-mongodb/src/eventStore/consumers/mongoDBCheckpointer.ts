@@ -12,14 +12,17 @@ export const mongoDBCheckpointer = <
   MessageType extends Message = Message,
 >(): MongoDBCheckpointer<MessageType> => ({
   read: async (options, context) => {
-    const result = await readProcessorCheckpoint(context.client, options);
+    const result = await readProcessorCheckpoint(
+      context.session.client,
+      options,
+    );
 
     return { lastCheckpoint: result?.lastCheckpoint };
   },
   store: async (options, context) => {
     const newCheckpoint = getCheckpoint(options.message);
 
-    const result = await storeProcessorCheckpoint(context.client, {
+    const result = await storeProcessorCheckpoint(context.session.client, {
       lastStoredCheckpoint: options.lastCheckpoint,
       newCheckpoint,
       processorId: options.processorId,

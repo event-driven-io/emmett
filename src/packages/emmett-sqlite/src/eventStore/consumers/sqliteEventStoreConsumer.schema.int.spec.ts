@@ -33,6 +33,7 @@ import { messagesTable, processorsTable } from '../schema/typing';
 import { pongoClient } from '@event-driven-io/pongo';
 import { pongoSingleStreamProjection } from '../projections';
 import { sqliteEventStoreConsumer } from './sqliteEventStoreConsumer';
+import { pongoDriverOf } from '../eventStoreDriver';
 
 const withDeadline = { timeout: 30000 };
 
@@ -331,9 +332,7 @@ void describe('SQLite event store consumer schema configuration', () => {
     streamName: string,
   ) =>
     pool.withConnection(async (connection) => {
-      const driver = (await pongoDriverRegistry.tryResolve(
-        connection.driverType,
-      ))!;
+      const driver = pongoDriverOf(sqlite3EventStoreDriver);
       const pongo = pongoClient({
         driver,
         connectionOptions: { connection },

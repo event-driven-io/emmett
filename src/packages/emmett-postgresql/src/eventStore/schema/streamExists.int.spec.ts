@@ -52,7 +52,7 @@ void describe('streamExists', () => {
       },
     });
 
-    await createEventStoreSchema({ connectionString }, pool);
+    await createEventStoreSchema({ pool });
   });
 
   afterAll(async () => {

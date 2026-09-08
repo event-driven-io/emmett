@@ -49,7 +49,7 @@ void describe('createEventStoreSchema', () => {
         allowNestedTransactions: true,
       },
     });
-    await createEventStoreSchema({ connectionString }, pool);
+    await createEventStoreSchema({ pool });
   });
 
   afterAll(async () => {
@@ -230,8 +230,11 @@ void describe('createEventStoreSchema with configured database schemas', () => {
   });
 
   void it('creates the event store objects in the schema configured by the user', async () => {
-    await createEventStoreSchema({ connectionString }, pool, undefined, {
-      databaseSchemaName: 'events',
+    await createEventStoreSchema({
+      pool,
+      schema: {
+        databaseSchemaName: 'events',
+      },
     });
 
     assertTrue(await schemaExists(pool.execute, 'events'));
@@ -263,11 +266,14 @@ void describe('createEventStoreSchema with configured database schemas', () => {
   });
 
   void it('uses the migration table schema and name configured by the user', async () => {
-    await createEventStoreSchema({ connectionString }, pool, undefined, {
-      databaseSchemaName: 'store',
-      migrationTable: {
-        schemaName: 'infrastructure',
-        tableName: 'emmett_migrations',
+    await createEventStoreSchema({
+      pool,
+      schema: {
+        databaseSchemaName: 'store',
+        migrationTable: {
+          schemaName: 'infrastructure',
+          tableName: 'emmett_migrations',
+        },
       },
     });
 
@@ -348,10 +354,9 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     let afterMigrationTableSchemaName: string | undefined;
     let afterProjectionsDatabaseSchemaName: string | undefined;
 
-    await createEventStoreSchema(
-      { connectionString },
+    await createEventStoreSchema({
       pool,
-      {
+      hooks: {
         onBeforeSchemaCreated: (context) => {
           beforeMigrationTableSchemaName =
             context.migrationOptions?.migrationTable?.schemaName;
@@ -365,13 +370,13 @@ void describe('createEventStoreSchema with configured database schemas', () => {
             context.migrationOptions?.projectionsDatabaseSchemaName;
         },
       },
-      {
+      schema: {
         databaseSchemaName: eventSchemaName,
         migrationTable: {
           tableName: 'custom_migrations',
         },
       },
-    );
+    });
 
     assertEqual(beforeMigrationTableSchemaName, eventSchemaName);
     assertEqual(beforeProjectionsDatabaseSchemaName, eventSchemaName);

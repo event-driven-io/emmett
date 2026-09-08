@@ -218,7 +218,10 @@ void describe('EventStoreDB processor checkpointer', () => {
       },
     };
 
-    const initial = await firstCheckpointer.read({ processorId }, { client });
+    const initial = await firstCheckpointer.read(
+      { processorId },
+      { session: { client } },
+    );
     const stored = await firstCheckpointer.store(
       {
         processorId,
@@ -226,12 +229,12 @@ void describe('EventStoreDB processor checkpointer', () => {
         message,
         lastCheckpoint: initial.lastCheckpoint,
       },
-      { client },
+      { session: { client } },
     );
 
     assertDeepEqual(stored, { success: true, newCheckpoint: checkpoint });
     assertDeepEqual(
-      await secondCheckpointer.read({ processorId }, { client }),
+      await secondCheckpointer.read({ processorId }, { session: { client } }),
       { lastCheckpoint: checkpoint },
     );
   });

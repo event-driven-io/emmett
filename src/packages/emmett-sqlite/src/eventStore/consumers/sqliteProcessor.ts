@@ -1,8 +1,11 @@
-import type { DatabaseDriverType, SQLExecutor } from '@event-driven-io/dumbo';
-import type {
-  AnySQLiteConnection,
-  SQLiteTransaction,
-} from '@event-driven-io/dumbo/sqlite';
+import {
+  dumbo,
+  type AnyDatabaseTransaction,
+  type DatabaseDriverType,
+  type SQLExecutor,
+} from '@event-driven-io/dumbo';
+import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
+import { sqliteAmbientConnectionPool } from '@event-driven-io/dumbo/sqlite';
 import type {
   AnyCommand,
   AnyEvent,
@@ -11,9 +14,11 @@ import type {
   BatchRecordedMessageHandlerWithContext,
   Checkpointer,
   CurrentMessageProcessorPosition,
+  JSONSerializationOptions,
   Message,
   MessageHandlerContext,
   MessageProcessingScope,
+  PartialHandlerContext,
   MessageProcessor,
   ProcessorHooks,
   ProjectorOptions,
@@ -39,77 +44,117 @@ import {
   type Event,
   type ReadEvent,
 } from '@event-driven-io/emmett';
+import { eventStoreDriverOf } from '../eventStoreDriver';
+import type {
+  AnySQLiteEventStoreDriver,
+  InferDumboConnectionFromEventStoreDriver,
+  InferDumboOptionsFromEventStoreDriver,
+  InferOptionsFromEventStoreDriver,
+  InferPoolFromEventStoreDriver,
+  InferTransactionFromEventStoreDriver,
+} from '../eventStoreDriver';
 import type { EventStoreSchemaMigrationOptions } from '../schema';
+import {
+  getSQLiteEventStore,
+  type SQLiteEventStore,
+} from '../SQLiteEventStore';
 import { sqliteCheckpointer } from './sqliteCheckpointer';
 
 export type SQLiteProcessorEventsBatch<EventType extends Event = Event> = {
   messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[];
 };
 
-export type SQLiteProcessorHandlerContext = MessageHandlerContext<
+export type SQLiteProcessorHandlerContext<
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+> = MessageHandlerContext<
   {
+    partition: string;
     execute: SQLExecutor;
-    connection: AnySQLiteConnection;
     driverType: DatabaseDriverType;
+    driver?: Driver;
   } &
     // TODO: Reconsider if it should be for all processors
-    EventStoreSchemaMigrationOptions
+    EventStoreSchemaMigrationOptions,
+  {
+    connection: InferDumboConnectionFromEventStoreDriver<Driver>;
+    transaction: InferTransactionFromEventStoreDriver<Driver>;
+    pool: InferPoolFromEventStoreDriver<Driver>;
+    messageStore: SQLiteEventStore;
+    connectionOptions?: InferDumboOptionsFromEventStoreDriver<Driver>;
+  }
 >;
 
-export type SQLiteProcessor<MessageType extends Message = AnyMessage> =
-  MessageProcessor<
-    MessageType,
-    ReadEventMetadataWithGlobalPosition,
-    SQLiteProcessorHandlerContext
-  >;
+export type SQLiteProcessor<
+  MessageType extends Message = AnyMessage,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+> = MessageProcessor<
+  MessageType,
+  ReadEventMetadataWithGlobalPosition,
+  SQLiteProcessorHandlerContext<Driver>
+>;
 
 export type SQLiteProcessorEachMessageHandler<
   MessageType extends Message = Message,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 > = SingleRecordedMessageHandlerWithContext<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
-  SQLiteProcessorHandlerContext
+  SQLiteProcessorHandlerContext<Driver>
 >;
 
 export type SQLiteProcessorEachBatchHandler<
   MessageType extends Message = Message,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 > = BatchRecordedMessageHandlerWithContext<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
-  SQLiteProcessorHandlerContext
+  SQLiteProcessorHandlerContext<Driver>
 >;
 
 export type SQLiteProcessorStartFrom =
   CurrentMessageProcessorPosition | 'CURRENT';
 
-export type SQLiteProcessorConnectionOptions = {
+export type SQLiteProcessorConnectionOptions<
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+> = {
   connection?: AnySQLiteConnection;
-};
+  pool?: InferPoolFromEventStoreDriver<Driver>;
+} & Partial<InferOptionsFromEventStoreDriver<Driver>>;
 
-type SQLiteProcessorOptionsBase = SQLiteProcessorConnectionOptions &
-  EventStoreSchemaMigrationOptions;
+type SQLiteConnectionOptions<
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+> = {
+  connectionOptions?: SQLiteProcessorConnectionOptions<Driver>;
+  driver?: Driver;
+} & JSONSerializationOptions;
+
+type SQLiteProcessorOptionsBase<
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+> = SQLiteConnectionOptions<Driver> & EventStoreSchemaMigrationOptions;
 
 export type SQLiteReactorOptions<
   MessageType extends Message = Message,
   MessagePayloadType extends AnyMessage = MessageType,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 > = ReactorOptions<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
-  SQLiteProcessorHandlerContext,
+  SQLiteProcessorHandlerContext<Driver>,
   MessagePayloadType
 > &
-  SQLiteProcessorOptionsBase;
+  SQLiteProcessorOptionsBase<Driver>;
 
 export type SQLiteProjectorOptions<
   EventType extends AnyEvent = AnyEvent,
   EventPayloadType extends Event = EventType,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 > = ProjectorOptions<
   EventType,
   ReadEventMetadataWithGlobalPosition,
-  SQLiteProcessorHandlerContext,
+  SQLiteProcessorHandlerContext<Driver>,
   EventPayloadType
 > &
-  SQLiteProcessorOptionsBase;
+  SQLiteProcessorOptionsBase<Driver>;
 
 export type SQLiteWorkflowProcessorOptions<
   Input extends AnyEvent | AnyCommand,
@@ -118,6 +163,7 @@ export type SQLiteWorkflowProcessorOptions<
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 > = WorkflowProcessorOptions<
   Input,
   State,
@@ -126,86 +172,121 @@ export type SQLiteWorkflowProcessorOptions<
   HandlerContext,
   StoredMessage
 > &
-  SQLiteProcessorOptionsBase & {
-    messageStore: SQLiteWorkflowMessageStoreFactory;
-  };
+  SQLiteProcessorOptionsBase<Driver>;
 
-export type SQLiteWorkflowMessageStoreFactory = (
-  connection: AnySQLiteConnection,
-) => WorkflowProcessorContext['connection']['messageStore'];
+const sqliteProcessingScope = <
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+>(options: {
+  pool: InferPoolFromEventStoreDriver<Driver> | null;
+  connectionOptions: InferDumboOptionsFromEventStoreDriver<Driver> | null;
+  processorId: string;
+  partition: string;
+  migrationOptions?: EventStoreSchemaMigrationOptions['migrationOptions'];
+  driver?: Driver;
+}): MessageProcessingScope<SQLiteProcessorHandlerContext<Driver>> => {
+  const processorConnectionOptions = options.connectionOptions;
 
-const sqliteProcessingScope = (
-  migrationOptions?: EventStoreSchemaMigrationOptions['migrationOptions'],
-): MessageProcessingScope<SQLiteProcessorHandlerContext> => {
+  const processorPool = options.pool;
+
   const processingScope: MessageProcessingScope<
-    SQLiteProcessorHandlerContext
+    SQLiteProcessorHandlerContext<Driver>
   > = async <Result = SingleMessageHandlerResult>(
     handler: (
-      context: SQLiteProcessorHandlerContext,
+      context: SQLiteProcessorHandlerContext<Driver>,
     ) => Result | Promise<Result>,
-    partialContext: Partial<SQLiteProcessorHandlerContext>,
+    partialContext: PartialHandlerContext<
+      SQLiteProcessorHandlerContext<Driver>
+    >,
   ) => {
-    const connection = partialContext?.connection;
+    const session = partialContext?.session;
 
-    if (!connection)
-      // TODO: Map it to dumbo connection correctly
-      throw new EmmettError('Connection is required in context or options');
+    const { pool, connectionOptions } = processorPool
+      ? {
+          pool: processorPool,
+          connectionOptions: processorConnectionOptions ?? undefined,
+        }
+      : { pool: session?.pool, connectionOptions: session?.connectionOptions };
 
-    return connection.withTransaction(
-      async (transaction: SQLiteTransaction) => {
-        return handler({
-          ...partialContext,
-          connection: connection,
-          driverType: connection.driverType as DatabaseDriverType,
-          execute: transaction.execute,
-          migrationOptions,
-          observabilityScope: partialContext?.observabilityScope ?? noopScope,
-        });
-      },
+    if (!pool)
+      throw new EmmettError(
+        `SQLite processor '${options.processorId}' is missing a connection pool. Ensure that you passed connection options through options`,
+      );
+
+    const driver = eventStoreDriverOf<Driver>(
+      options.driver ?? partialContext?.driver,
     );
+
+    return pool.withTransaction(async (transaction: AnyDatabaseTransaction) => {
+      const sqliteTransaction =
+        transaction as InferTransactionFromEventStoreDriver<Driver>;
+      const connection =
+        transaction.connection as InferDumboConnectionFromEventStoreDriver<Driver>;
+
+      return handler({
+        ...partialContext,
+        partition: options.partition,
+        execute: sqliteTransaction.execute,
+        driver,
+        driverType: connection.driverType,
+        session: {
+          ...partialContext?.session,
+          pool,
+          connectionOptions,
+          connection,
+          transaction: sqliteTransaction,
+          messageStore: getSQLiteEventStore({
+            driver,
+            pool: sqliteAmbientConnectionPool({
+              driverType: connection.driverType,
+              connection,
+            }),
+            schema: {
+              autoMigration: 'None',
+              ...options.migrationOptions,
+            },
+          }),
+        },
+        migrationOptions: options.migrationOptions,
+        observabilityScope: partialContext?.observabilityScope ?? noopScope,
+      });
+    });
   };
 
   return processingScope;
 };
 
-const sqliteWorkflowProcessingScope = (
-  createMessageStore: SQLiteWorkflowMessageStoreFactory,
-  migrationOptions?: EventStoreSchemaMigrationOptions['migrationOptions'],
-): MessageProcessingScope<
-  SQLiteProcessorHandlerContext & WorkflowProcessorContext
-> => {
-  const processingScope: MessageProcessingScope<
-    SQLiteProcessorHandlerContext & WorkflowProcessorContext
-  > = async <Result = SingleMessageHandlerResult>(
-    handler: (
-      context: SQLiteProcessorHandlerContext & WorkflowProcessorContext,
-    ) => Result | Promise<Result>,
-    partialContext: Partial<SQLiteProcessorHandlerContext> &
-      Partial<WorkflowProcessorContext>,
-  ) => {
-    const connection = partialContext?.connection;
+const getProcessorPool = <
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+>(
+  options: SQLiteConnectionOptions<Driver>,
+) => {
+  const poolOptions = options.connectionOptions;
 
-    if (!connection)
-      throw new EmmettError('Connection is required in context or options');
+  if (!poolOptions) return { pool: null, connectionOptions: null };
 
-    return connection.withTransaction(
-      async (transaction: SQLiteTransaction) => {
-        return handler({
-          ...partialContext,
-          connection: {
-            ...connection,
-            messageStore: createMessageStore(transaction.connection),
-          },
-          driverType: connection.driverType as DatabaseDriverType,
-          execute: transaction.execute,
-          migrationOptions,
-          observabilityScope: partialContext?.observabilityScope ?? noopScope,
-        });
-      },
-    );
+  if (poolOptions.pool)
+    return { pool: poolOptions.pool, connectionOptions: null };
+
+  if (poolOptions.connection)
+    return {
+      pool: sqliteAmbientConnectionPool({
+        driverType: poolOptions.connection.driverType,
+        connection: poolOptions.connection,
+      }) as InferPoolFromEventStoreDriver<Driver>,
+      connectionOptions: null,
+    };
+
+  const driver = eventStoreDriverOf<Driver>(options.driver);
+
+  const connectionOptions = {
+    serialization: options.serialization,
+    ...driver.mapToDumboOptions(poolOptions),
+  } as InferDumboOptionsFromEventStoreDriver<Driver>;
+
+  return {
+    pool: dumbo(connectionOptions) as InferPoolFromEventStoreDriver<Driver>,
+    connectionOptions,
   };
-
-  return processingScope;
 };
 
 export const sqliteWorkflowProcessor = <
@@ -249,10 +330,13 @@ export const sqliteWorkflowProcessor = <
     version,
     partition,
     hooks,
-    processingScope: sqliteWorkflowProcessingScope(
-      options.messageStore,
-      options.migrationOptions,
-    ) as unknown as MessageProcessingScope<HandlerContext>,
+    processingScope: sqliteProcessingScope({
+      ...getProcessorPool(options),
+      processorId,
+      partition,
+      migrationOptions: options.migrationOptions,
+      driver: options.driver,
+    }) as unknown as MessageProcessingScope<HandlerContext>,
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<Input | Output, MetaDataType, HandlerContext>()
@@ -267,9 +351,10 @@ export const sqliteWorkflowProcessor = <
 export const sqliteReactor = <
   MessageType extends Message = Message,
   MessagePayloadType extends AnyMessage = MessageType,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 >(
-  options: SQLiteReactorOptions<MessageType, MessagePayloadType>,
-): SQLiteProcessor<MessageType> => {
+  options: SQLiteReactorOptions<MessageType, MessagePayloadType, Driver>,
+): SQLiteProcessor<MessageType, Driver> => {
   const {
     processorId = options.processorId,
     processorInstanceId = getProcessorInstanceId(processorId),
@@ -285,21 +370,28 @@ export const sqliteReactor = <
     version,
     partition,
     hooks,
-    processingScope: sqliteProcessingScope(options.migrationOptions),
+    processingScope: sqliteProcessingScope<Driver>({
+      ...getProcessorPool<Driver>(options),
+      processorId,
+      partition,
+      migrationOptions: options.migrationOptions,
+      driver: options.driver,
+    }),
 
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<MessageType>()
-        : sqliteCheckpointer<MessageType>(),
+        : sqliteCheckpointer<MessageType, Driver>(),
   });
 };
 
 export const sqliteProjector = <
   EventType extends Event = Event,
   EventPayloadType extends Event = EventType,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 >(
-  options: SQLiteProjectorOptions<EventType, EventPayloadType>,
-): SQLiteProcessor<EventType> => {
+  options: SQLiteProjectorOptions<EventType, EventPayloadType, Driver>,
+): SQLiteProcessor<EventType, Driver> => {
   const {
     processorId = getProjectorId({
       projectionName: options.projection.name ?? 'unknown',
@@ -309,11 +401,11 @@ export const sqliteProjector = <
     partition = defaultProcessorPartition,
   } = options;
 
-  const hooks: ProcessorHooks<SQLiteProcessorHandlerContext> = {
+  const hooks: ProcessorHooks<SQLiteProcessorHandlerContext<Driver>> = {
     ...(options.hooks ?? {}),
     onInit:
       options.projection.init !== undefined || options.hooks?.onInit
-        ? async (context: SQLiteProcessorHandlerContext) => {
+        ? async (context: SQLiteProcessorHandlerContext<Driver>) => {
             if (options.projection.init)
               await options.projection.init({
                 version: options.projection.version ?? version,
@@ -337,7 +429,7 @@ export const sqliteProjector = <
   const processor = projector<
     EventType,
     ReadEventMetadataWithGlobalPosition,
-    SQLiteProcessorHandlerContext,
+    SQLiteProcessorHandlerContext<Driver>,
     EventPayloadType
   >({
     ...options,
@@ -346,11 +438,17 @@ export const sqliteProjector = <
     version,
     partition,
     hooks,
-    processingScope: sqliteProcessingScope(options.migrationOptions),
+    processingScope: sqliteProcessingScope<Driver>({
+      ...getProcessorPool<Driver>(options),
+      processorId,
+      partition,
+      migrationOptions: options.migrationOptions,
+      driver: options.driver,
+    }),
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<EventType>()
-        : sqliteCheckpointer<EventType>(),
+        : sqliteCheckpointer<EventType, Driver>(),
   });
 
   return processor;

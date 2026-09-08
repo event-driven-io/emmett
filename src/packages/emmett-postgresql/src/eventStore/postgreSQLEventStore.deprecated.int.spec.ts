@@ -135,7 +135,7 @@ void describe('Postgres event store built through the deprecated positional form
       hooks: {
         onAfterSchemaCreated: (context) => {
           seenConnectionString =
-            context.connection.options.connectionString ?? null;
+            context.session.connectionOptions?.connectionString ?? null;
         },
       },
     });

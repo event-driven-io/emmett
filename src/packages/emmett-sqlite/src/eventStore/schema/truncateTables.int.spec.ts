@@ -65,7 +65,7 @@ void describe('truncateTables', () => {
 
   void it('truncates all tables in the default database schema', async () => {
     // Given
-    await createEventStoreSchema(pool);
+    await createEventStoreSchema({ pool });
     await appendTestEvent(uuid());
 
     assertEqual(1, await tableCount(undefined, streamsTable.name));
@@ -83,11 +83,17 @@ void describe('truncateTables', () => {
 
   void it('truncates only the tables in the database schema configured by the user', async () => {
     // Given
-    await createEventStoreSchema(pool, undefined, {
-      databaseSchemaName: 'events',
+    await createEventStoreSchema({
+      pool,
+      schema: {
+        databaseSchemaName: 'events',
+      },
     });
-    await createEventStoreSchema(pool, undefined, {
-      databaseSchemaName: 'other_events',
+    await createEventStoreSchema({
+      pool,
+      schema: {
+        databaseSchemaName: 'other_events',
+      },
     });
 
     await appendTestEvent(uuid(), 'events');
@@ -153,7 +159,7 @@ void describe('truncateTables', () => {
 
   void it('restarts the global position at 1 after truncating', async () => {
     // Given
-    await createEventStoreSchema(pool);
+    await createEventStoreSchema({ pool });
     await appendTestEvent(uuid());
 
     const firstGlobalPosition = await latestGlobalPosition();
@@ -173,11 +179,17 @@ void describe('truncateTables', () => {
 
   void it('restarts the global position at 1 only in the truncated database schema', async () => {
     // Given
-    await createEventStoreSchema(pool, undefined, {
-      databaseSchemaName: 'events',
+    await createEventStoreSchema({
+      pool,
+      schema: {
+        databaseSchemaName: 'events',
+      },
     });
-    await createEventStoreSchema(pool, undefined, {
-      databaseSchemaName: 'other_events',
+    await createEventStoreSchema({
+      pool,
+      schema: {
+        databaseSchemaName: 'other_events',
+      },
     });
 
     await appendTestEvent(uuid(), 'events');

@@ -21,8 +21,8 @@ import {
 } from '@event-driven-io/emmett';
 import type { PgEventStoreDriver } from '../../pg';
 import type {
-  AnyEventStoreDriver,
-  InferDbClientFromEventStoreDriver,
+  AnyPostgreSQLEventStoreDriver,
+  InferDumboConnectionFromEventStoreDriver,
   InferDumboOptionsFromEventStoreDriver,
   InferPoolFromEventStoreDriver,
   InferTransactionFromEventStoreDriver,
@@ -34,38 +34,42 @@ import { postgreSQLProjectionLock } from './locks';
 import { registerProjection } from './management';
 
 export type PostgreSQLProjectionHandlerContext<
-  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
 > = ProjectionHandlerContext<
   {
     execute: SQLExecutor;
     driverType: DatabaseDriverType;
-    connection: {
-      client: InferDbClientFromEventStoreDriver<Driver>;
-      transaction: InferTransactionFromEventStoreDriver<Driver>;
-      pool: InferPoolFromEventStoreDriver<Driver> & Dumbo;
-      options: InferDumboOptionsFromEventStoreDriver<Driver>;
-    };
+    driver?: Driver;
   } &
     // TODO: This should be only for Init options
     // Make init options type configurable for projections
-    EventStoreSchemaMigrationOptions
+    EventStoreSchemaMigrationOptions,
+  {
+    connection: InferDumboConnectionFromEventStoreDriver<Driver>;
+    transaction: InferTransactionFromEventStoreDriver<Driver>;
+    pool: InferPoolFromEventStoreDriver<Driver>;
+    connectionOptions?: InferDumboOptionsFromEventStoreDriver<Driver>;
+  }
 >;
 
-export const transactionToPostgreSQLProjectionHandlerContext = async <
-  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+export const transactionToPostgreSQLProjectionHandlerContext = <
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
 >(
-  dumboOptions: InferDumboOptionsFromEventStoreDriver<Driver>,
-  pool: Dumbo,
+  session: {
+    pool: Dumbo;
+    driver?: Driver;
+    connectionOptions?: InferDumboOptionsFromEventStoreDriver<Driver>;
+  },
   transaction: AnyDatabaseTransaction,
-): Promise<PostgreSQLProjectionHandlerContext<Driver>> =>
+): PostgreSQLProjectionHandlerContext<Driver> =>
   ({
     execute: transaction.execute,
-    driverType: pool.driverType,
-    connection: {
-      client: await (transaction.connection as AnyConnection).open(),
+    driverType: session.pool.driverType,
+    driver: session.driver,
+    session: {
+      ...session,
+      connection: transaction.connection as AnyConnection,
       transaction: transaction,
-      pool,
-      options: dumboOptions,
     },
     observabilityScope: noopScope,
   }) as PostgreSQLProjectionHandlerContext<Driver>;
@@ -74,7 +78,7 @@ export type PostgreSQLProjectionHandler<
   EventType extends Event = Event,
   EventMetaDataType extends PostgresReadEventMetadata =
     PostgresReadEventMetadata,
-  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
 > = ProjectionHandler<
   EventType,
   EventMetaDataType,
@@ -84,7 +88,7 @@ export type PostgreSQLProjectionHandler<
 export type PostgreSQLProjectionDefinition<
   EventType extends Event = Event,
   EventPayloadType extends Event = EventType,
-  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
 > = ProjectionDefinition<
   EventType,
   PostgresReadEventMetadata,
@@ -106,11 +110,10 @@ export const handleProjections = async <EventType extends Event = Event>(
   const {
     projections: allProjections,
     events,
-    connection: { pool, transaction, options: dumboOptions },
+    session,
     partition = defaultTag,
   } = options;
-
-  const client = await transaction.connection.open();
+  const { transaction } = session;
 
   for (const projection of allProjections) {
     const filteredEvents = events.filter(({ type }) =>
@@ -135,12 +138,8 @@ export const handleProjections = async <EventType extends Event = Event>(
 
     await projection.handle(filteredEvents, {
       driverType: options.driverType,
-      connection: {
-        pool,
-        client,
-        transaction,
-        options: dumboOptions,
-      },
+      driver: options.driver,
+      session,
       execute: transaction.execute,
       migrationOptions: options.migrationOptions,
       observabilityScope: options.observabilityScope,

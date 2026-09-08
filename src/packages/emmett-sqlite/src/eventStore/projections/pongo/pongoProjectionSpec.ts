@@ -1,4 +1,3 @@
-import type { DatabaseDriverType } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
   assertDeepEqual,
@@ -16,6 +15,10 @@ import {
   type WithId,
 } from '@event-driven-io/pongo';
 import type { SQLiteProjectionAssert } from '..';
+import {
+  pongoDriverOf,
+  type AnySQLiteEventStoreDriver,
+} from '../../eventStoreDriver';
 import type { EventStoreDatabaseSchemaOptions } from '../../schema';
 
 export type PongoAssertOptions = {
@@ -28,23 +31,22 @@ const withCollection = async (
   handle: (collection: PongoCollection<PongoDocument>) => Promise<void>,
   options: {
     connection: AnySQLiteConnection;
+    driver: AnySQLiteEventStoreDriver;
     migrationOptions?: EventStoreDatabaseSchemaOptions | undefined;
   } & PongoAssertOptions,
 ) => {
   const {
     connection,
+    driver,
     inDatabase,
     inCollection,
     collectionOptions,
     migrationOptions,
   } = options;
 
-  const driver = (await pongoDriverRegistry.tryResolve(
-    connection.driverType as DatabaseDriverType,
-  ))!;
   const pongo = pongoClient({
     connectionOptions: { connection },
-    driver,
+    driver: pongoDriverOf(driver),
     defaultSchemaName: migrationOptions?.projectionsDatabaseSchemaName,
     migrationTable: migrationOptions?.migrationTable,
   });

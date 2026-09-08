@@ -75,7 +75,7 @@ void describe('PostgreSQL processor transaction handling', () => {
           event.metadata.globalPosition ===
           appendResult.lastEventGlobalPosition,
         eachMessage: async (event, context) => {
-          await context.connection.messageStore.appendToStream(reactionStream, [
+          await context.session.messageStore.appendToStream(reactionStream, [
             { type: 'GuestCheckedOut', data: { guestId: event.data.guestId } },
           ]);
 

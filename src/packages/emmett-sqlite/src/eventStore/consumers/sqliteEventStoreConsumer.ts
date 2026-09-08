@@ -1,5 +1,4 @@
-import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
-import { sqliteAmbientConnectionPool } from '@event-driven-io/dumbo/sqlite';
+import { dumbo } from '@event-driven-io/dumbo';
 import {
   consumer,
   type AnyCommand,
@@ -15,14 +14,15 @@ import {
   type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import type {
-  AnyEventStoreDriver,
-  InferOptionsFromEventStoreDriver,
+  AnySQLiteEventStoreDriver,
+  InferDumboOptionsFromEventStoreDriver,
+  PoolOrConnectionOptions,
+  InferPoolFromEventStoreDriver,
 } from '../eventStoreDriver';
 import {
   eventStoreDatabaseSchema,
   type EventStoreDatabaseSchemaOptions,
 } from '../schema';
-import { getSQLiteEventStore } from '../SQLiteEventStore';
 import { sqliteMessageSource } from './messageSource';
 import {
   sqliteProjector,
@@ -48,48 +48,55 @@ export type SQLiteEventStoreConsumerConfig<
     pullingFrequencyInMs?: number;
   };
   schema?: EventStoreDatabaseSchemaOptions;
-};
+} & JSONSerializationOptions;
 
-export type SQLiteEventStoreConsumerOptions<
+export type SQLiteEventStoreConsumerConnectionOptions<
   ConsumerMessageType extends Message = Message,
-  Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
-> = SQLiteEventStoreConsumerConfig<ConsumerMessageType> & {
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+> = {
   driver: Driver;
-  pool?: Dumbo;
   source?: MessageSource<
     ConsumerMessageType,
     ReadEventMetadataWithGlobalPosition
   >;
-} & InferOptionsFromEventStoreDriver<Driver> &
-  JSONSerializationOptions;
+} & PoolOrConnectionOptions<Driver>;
+
+export type SQLiteEventStoreConsumerOptions<
+  ConsumerMessageType extends Message = Message,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+> = SQLiteEventStoreConsumerConfig<ConsumerMessageType> &
+  SQLiteEventStoreConsumerConnectionOptions<ConsumerMessageType, Driver>;
 
 export type SQLiteReactorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 > = <MessageType extends ConsumerMessageType = ConsumerMessageType>(
-  options: SQLiteReactorOptions<MessageType>,
-) => SQLiteProcessor<MessageType>;
+  options: SQLiteReactorOptions<MessageType, MessageType, Driver>,
+) => SQLiteProcessor<MessageType, Driver>;
 
 export type SQLiteProjectorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 > = <
   EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
     AnyEvent,
 >(
-  options: SQLiteProjectorOptions<EventType>,
-) => SQLiteProcessor<EventType>;
+  options: SQLiteProjectorOptions<EventType, EventType, Driver>,
+) => SQLiteProcessor<EventType, Driver>;
 
 export type SQLiteWorkflowProcessorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 > = <
   Input extends ConsumerMessageType,
   State,
   Output extends ConsumerMessageType,
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
-  HandlerContext extends SQLiteProcessorHandlerContext &
-    WorkflowProcessorContext = SQLiteProcessorHandlerContext &
+  HandlerContext extends SQLiteProcessorHandlerContext<Driver> &
+    WorkflowProcessorContext = SQLiteProcessorHandlerContext<Driver> &
     WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
 >(
@@ -104,40 +111,37 @@ export type SQLiteWorkflowProcessorFactory<
     >,
     'messageStore'
   >,
-) => SQLiteProcessor<Input | Output>;
+) => SQLiteProcessor<Input | Output, Driver>;
 
 export type SQLiteEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 > = MessageConsumer<
   ConsumerMessageType,
-  SQLiteReactorFactory<ConsumerMessageType>,
-  SQLiteProjectorFactory<ConsumerMessageType>,
-  SQLiteWorkflowProcessorFactory<ConsumerMessageType>
+  SQLiteReactorFactory<ConsumerMessageType, Driver>,
+  SQLiteProjectorFactory<ConsumerMessageType, Driver>,
+  SQLiteWorkflowProcessorFactory<ConsumerMessageType, Driver>
 >;
 
 export const sqliteEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
-  Driver extends AnyEventStoreDriver = AnyEventStoreDriver,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 >(
   options: SQLiteEventStoreConsumerOptions<ConsumerMessageType, Driver>,
-): SQLiteEventStoreConsumer<ConsumerMessageType> => {
+): SQLiteEventStoreConsumer<ConsumerMessageType, Driver> => {
   const databaseSchema = eventStoreDatabaseSchema(options.schema);
   const processorMetadataSchema = {
     ...options.schema,
     ...databaseSchema,
   };
   const isOwnPool = !options.pool;
-  const pool =
-    options.pool ??
-    dumbo({
-      serialization: options.serialization,
-      transactionOptions: {
-        allowNestedTransactions: true,
-        mode: 'session_based',
-      },
-      ...options.driver.mapToDumboOptions(options),
-    });
+  const dumboOptions = {
+    serialization: options.serialization,
+    ...options.driver.mapToDumboOptions(options),
+  } as InferDumboOptionsFromEventStoreDriver<Driver>;
+
+  const pool = options.pool ?? dumbo(dumboOptions);
 
   const source = options.source
     ? { ...options.source, close: () => Promise.resolve() }
@@ -154,38 +158,32 @@ export const sqliteEventStoreConsumer = <
   > = (processorOptions) =>
     sqliteWorkflowProcessor({
       ...processorOptions,
+      driver: options.driver,
       migrationOptions:
         processorOptions.migrationOptions ?? processorMetadataSchema,
-      messageStore: (connection) =>
-        getSQLiteEventStore({
-          ...options,
-          pool: sqliteAmbientConnectionPool({
-            driverType: options.driver.driverType,
-            connection,
-          }),
-          schema: { autoMigration: 'None', ...databaseSchema },
-        }),
     });
 
   const messageConsumer = consumer<
     ConsumerMessageType,
     ReadEventMetadataWithGlobalPosition,
-    SQLiteProcessorHandlerContext,
-    SQLiteReactorFactory<ConsumerMessageType>,
-    SQLiteProjectorFactory<ConsumerMessageType>,
-    SQLiteWorkflowProcessorFactory<ConsumerMessageType>
+    SQLiteProcessorHandlerContext<Driver>,
+    SQLiteReactorFactory<ConsumerMessageType, Driver>,
+    SQLiteProjectorFactory<ConsumerMessageType, Driver>,
+    SQLiteWorkflowProcessorFactory<ConsumerMessageType, Driver>
   >({
     ...options,
     source,
     reactorFactory: (processorOptions) =>
       sqliteReactor({
         ...processorOptions,
+        driver: options.driver,
         migrationOptions:
           processorOptions.migrationOptions ?? processorMetadataSchema,
       }),
     projectorFactory: (processorOptions) =>
       sqliteProjector({
         ...processorOptions,
+        driver: options.driver,
         migrationOptions:
           processorOptions.migrationOptions ?? processorMetadataSchema,
       }),
@@ -193,12 +191,14 @@ export const sqliteEventStoreConsumer = <
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     scope: (handler) =>
-      pool.withConnection((connection) =>
-        handler({
-          connection,
-          execute: connection.execute,
-        }),
-      ),
+      handler({
+        // TODO: Fix this cast when the pool plumbing is driver-generic
+        session: {
+          pool: pool as InferPoolFromEventStoreDriver<Driver>,
+          connectionOptions: dumboOptions,
+        },
+        execute: pool.execute,
+      }),
     until:
       options.until ??
       (options.stopWhen?.noMessagesLeft === true

@@ -52,7 +52,7 @@ type EventStoreDBProcessorCheckpointOptions = {
 };
 
 type EventStoreDBCheckpointerContext = DefaultRecord & {
-  client: EventStoreDBClient;
+  session: { client: EventStoreDBClient };
 };
 
 const getEventStoreDBCheckpointSubscriptionId = ({
@@ -205,7 +205,7 @@ export const eventStoreDBCheckpointer = <
   return {
     read: async (options, context) => {
       const checkpoint = await readEventStoreDBProcessorCheckpoint(
-        context.client,
+        context.session.client,
         options,
       );
 
@@ -222,7 +222,7 @@ export const eventStoreDBCheckpointer = <
 
       if (!previousCheckpoint) {
         previousCheckpoint = await readEventStoreDBProcessorCheckpoint(
-          context.client,
+          context.session.client,
           options,
         );
       }
@@ -231,7 +231,7 @@ export const eventStoreDBCheckpointer = <
         return { success: false, reason: 'MISMATCH' };
 
       const result = await storeEventStoreDBProcessorCheckpoint(
-        context.client,
+        context.session.client,
         {
           ...options,
           newCheckpoint: getCheckpoint(options.message),
@@ -250,7 +250,7 @@ export const eventStoreDBCheckpointer = <
     },
     reset: async (options, context) => {
       const checkpoint = await resetEventStoreDBProcessorCheckpoint(
-        context.client,
+        context.session.client,
         options,
       );
 

@@ -261,7 +261,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
           startFrom: 'CURRENT',
           canHandle: ['GuestCheckedIn'],
           eachMessage: async (event, context) => {
-            await context.connection.messageStore.appendToStream(
+            await context.session.messageStore.appendToStream(
               reactionStreamName,
               [
                 {
@@ -325,7 +325,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
           startFrom: 'CURRENT',
           canHandle: ['GuestCheckedIn'],
           eachMessage: async (event, context) => {
-            await context.connection.messageStore.appendToStream(
+            await context.session.messageStore.appendToStream(
               reactionStreamName,
               [
                 {

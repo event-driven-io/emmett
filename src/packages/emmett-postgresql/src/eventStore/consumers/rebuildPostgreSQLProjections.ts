@@ -6,7 +6,7 @@ import {
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import type { PgEventStoreDriver } from '../../pg';
-import type { AnyEventStoreDriver } from '../eventStoreDriver';
+import type { AnyPostgreSQLEventStoreDriver } from '../eventStoreDriver';
 import type { PostgreSQLProjectionDefinition } from '../projections';
 import type { LockAcquisitionPolicy } from '../projections/locks';
 import {
@@ -24,36 +24,41 @@ const defaultRebuildLockPolicy: LockAcquisitionPolicy = {
   maxTimeout: 5000,
 };
 
+export type RebuildPostgreSQLProjectionsOptions<
+  EventType extends AnyEvent = AnyEvent,
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+> = Omit<
+  PostgreSQLEventStoreConsumerConfig<EventType>,
+  'stopWhen' | 'processors'
+> &
+  PostgreSQLEventStoreConsumerConnectionOptions<EventType, Driver> & {
+    lock?: {
+      acquisitionPolicy?: LockAcquisitionPolicy;
+      timeoutSeconds?: number;
+    };
+  } & (
+    | {
+        projections: (
+          | ProjectorOptions<
+              EventType,
+              ReadEventMetadataWithGlobalPosition,
+              PostgreSQLProcessorHandlerContext<Driver>
+            >
+          | PostgreSQLProjectionDefinition<EventType, EventType, Driver>
+        )[];
+      }
+    | ProjectorOptions<
+        EventType,
+        ReadEventMetadataWithGlobalPosition,
+        PostgreSQLProcessorHandlerContext<Driver>
+      >
+  );
+
 export const rebuildPostgreSQLProjections = <
   EventType extends AnyEvent = AnyEvent,
-  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
 >(
-  options: Omit<
-    PostgreSQLEventStoreConsumerConfig<EventType>,
-    'stopWhen' | 'processors'
-  > &
-    PostgreSQLEventStoreConsumerConnectionOptions<EventType, Driver> & {
-      lock?: {
-        acquisitionPolicy?: LockAcquisitionPolicy;
-        timeoutSeconds?: number;
-      };
-    } & (
-      | {
-          projections: (
-            | ProjectorOptions<
-                EventType,
-                ReadEventMetadataWithGlobalPosition,
-                PostgreSQLProcessorHandlerContext<Driver>
-              >
-            | PostgreSQLProjectionDefinition<EventType, EventType, Driver>
-          )[];
-        }
-      | ProjectorOptions<
-          EventType,
-          ReadEventMetadataWithGlobalPosition,
-          PostgreSQLProcessorHandlerContext<Driver>
-        >
-    ),
+  options: RebuildPostgreSQLProjectionsOptions<EventType, Driver>,
 ): PostgreSQLEventStoreConsumer<EventType, Driver> => {
   const consumer = postgreSQLEventStoreConsumer<EventType, Driver>({
     ...options,

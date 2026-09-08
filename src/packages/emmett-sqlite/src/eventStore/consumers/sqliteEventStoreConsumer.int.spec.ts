@@ -49,7 +49,9 @@ void describe('SQLite event store consumer', () => {
       singleton: true,
       connection,
     });
-    await createEventStoreSchema(pool);
+    await createEventStoreSchema({
+      pool,
+    });
   });
 
   afterEach(() => connection.close());

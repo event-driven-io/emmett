@@ -53,9 +53,9 @@ void describe('waiting for a SQLite consumer to catch up in a test', () => {
       transactionOptions: { allowNestedTransactions: true },
     });
     eventStore = getSQLiteEventStore({ ...config, pool });
-    return createEventStoreSchema(
-      sqlite3Pool({ fileName, serializer: JSONSerializer }),
-    );
+    return createEventStoreSchema({
+      pool: sqlite3Pool({ fileName, serializer: JSONSerializer }),
+    });
   });
 
   afterEach(async () => {

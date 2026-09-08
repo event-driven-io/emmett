@@ -53,7 +53,7 @@ void describe('readLastMessageGlobalPosition', () => {
       },
     });
     pool = d1Pool({ database, connection });
-    await createEventStoreSchema(pool);
+    await createEventStoreSchema({ pool });
   });
 
   beforeEach(async () => {

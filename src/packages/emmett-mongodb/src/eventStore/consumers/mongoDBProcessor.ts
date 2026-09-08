@@ -14,6 +14,7 @@ import {
   type Event,
   type Message,
   type MessageProcessingScope,
+  type PartialHandlerContext,
   type ProjectorOptions,
   type ReactorOptions,
   type SingleMessageHandlerResult,
@@ -40,12 +41,13 @@ type MongoDBConnectionOptions = {
   connectionOptions: MongoDBEventStoreConnectionOptions;
 };
 
-export type MongoDBProcessorHandlerContext = MessageHandlerContext<{
-  client: MongoClient;
-  connection?: {
-    messageStore: MongoDBEventStore;
-  };
-}>;
+export type MongoDBProcessorHandlerContext = MessageHandlerContext<
+  Record<never, never>,
+  {
+    client: MongoClient;
+    messageStore?: MongoDBEventStore;
+  }
+>;
 
 export type MongoDBProcessor<MessageType extends Message = AnyMessage> =
   MessageProcessor<
@@ -107,11 +109,11 @@ const mongoDBProcessingScope = (options: {
     handler: (
       context: MongoDBProcessorHandlerContext,
     ) => Result | Promise<Result>,
-    partialContext: Partial<MongoDBProcessorHandlerContext>,
+    partialContext: PartialHandlerContext<MongoDBProcessorHandlerContext>,
   ) => {
     return handler({
-      client: options.client,
       ...partialContext,
+      session: { ...partialContext.session, client: options.client },
       observabilityScope: partialContext?.observabilityScope ?? noopScope,
     });
   };
@@ -128,13 +130,13 @@ const mongoDBWorkflowProcessingScope = (options: {
     handler: (
       context: MongoDBWorkflowProcessorHandlerContext,
     ) => Result | Promise<Result>,
-    partialContext: Partial<MongoDBWorkflowProcessorHandlerContext>,
+    partialContext: PartialHandlerContext<MongoDBWorkflowProcessorHandlerContext>,
   ) => {
     return handler({
-      client: options.client,
       ...partialContext,
-      connection: {
-        ...partialContext.connection,
+      session: {
+        ...partialContext.session,
+        client: options.client,
         messageStore: getMongoDBEventStore({ client: options.client }),
       },
       observabilityScope: partialContext?.observabilityScope ?? noopScope,

@@ -57,9 +57,9 @@ void describe('SQLite event store started consumer', () => {
       pool,
     });
     summaries = database.collection(shoppingCartsSummaryCollectionName);
-    await createEventStoreSchema(
-      sqlite3Pool({ fileName, serializer: JSONSerializer }),
-    );
+    await createEventStoreSchema({
+      pool: sqlite3Pool({ fileName, serializer: JSONSerializer }),
+    });
   });
 
   afterEach(async () => {

@@ -6,7 +6,7 @@ import {
   type SQL,
 } from '@event-driven-io/dumbo';
 import type { PgPool, PgPoolOptions } from '@event-driven-io/dumbo/pg';
-import { pgEventStoreDriver } from '../../pg';
+import { pgEventStoreDriver, type PgEventStoreDriver } from '../../pg';
 import {
   assertFails,
   AssertionError,
@@ -63,6 +63,7 @@ export type PostgreSQLProjectionSpec<EventType extends Event> = (
 
 export type PostgreSQLProjectionAssert = (options: {
   pool: Dumbo;
+  driver: PgEventStoreDriver;
   connectionString: string;
   migrationOptions?: EventStoreDatabaseSchemaOptions | undefined;
 }) => Promise<void | boolean>;
@@ -115,11 +116,14 @@ export const PostgreSQLProjectionSpec = {
               version: projection.version ?? 1,
               status: 'active',
               context: {
-                ...(await transactionToPostgreSQLProjectionHandlerContext(
-                  dumboOptions,
-                  pool,
+                ...transactionToPostgreSQLProjectionHandlerContext(
+                  {
+                    pool,
+                    driver: pgEventStoreDriver,
+                    connectionOptions: dumboOptions,
+                  },
                   transaction,
-                )),
+                ),
                 migrationOptions,
               },
             });
@@ -176,11 +180,14 @@ export const PostgreSQLProjectionSpec = {
                 await handleProjections<EventType>({
                   events: allEvents,
                   projections: [projection],
-                  ...(await transactionToPostgreSQLProjectionHandlerContext(
-                    dumboOptions,
-                    pool,
+                  ...transactionToPostgreSQLProjectionHandlerContext(
+                    {
+                      pool,
+                      driver: pgEventStoreDriver,
+                      connectionOptions: dumboOptions,
+                    },
                     transaction,
-                  )),
+                  ),
                   migrationOptions,
                 });
               });
@@ -197,6 +204,7 @@ export const PostgreSQLProjectionSpec = {
 
                   const succeeded = await assert({
                     pool,
+                    driver: pgEventStoreDriver,
                     connectionString: connectionString!,
                     migrationOptions,
                   });

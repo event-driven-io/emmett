@@ -16,9 +16,9 @@ import {
   type PongoFilter,
   type WithId,
 } from '@event-driven-io/pongo';
-import { pgDriver } from '@event-driven-io/pongo/pg';
 import type { PostgreSQLProjectionAssert } from '..';
-import { pgEventStoreDriver } from '../../../pg';
+import type { PgEventStoreDriver } from '../../../pg';
+import { eventStoreDriverOf, pongoDriverOf } from '../../eventStoreDriver';
 
 export type PongoAssertOptions<
   Doc extends PongoDocument = PongoDocument,
@@ -36,11 +36,13 @@ const withCollection = <
   handle: (collection: PongoCollection<Doc>) => Promise<void>,
   options: {
     pool: Dumbo;
+    driver: PgEventStoreDriver;
     migrationOptions?: EventStoreDatabaseSchemaOptions | undefined;
   } & PongoAssertOptions<Doc, DocumentPayload>,
 ) => {
   const {
     pool,
+    driver,
     inDatabase,
     inCollection,
     collectionOptions,
@@ -50,10 +52,10 @@ const withCollection = <
   return pool.withConnection(async (connection) => {
     const pongo = pongoClient({
       pool: dumbo({
-        driver: pgEventStoreDriver.dumboDriver,
+        driver: eventStoreDriverOf(driver).dumboDriver,
         connection: connection as PgConnection,
       }),
-      driver: pgDriver,
+      driver: pongoDriverOf(driver),
       defaultSchemaName: migrationOptions?.projectionsDatabaseSchemaName,
       migrationTable: migrationOptions?.migrationTable,
     });

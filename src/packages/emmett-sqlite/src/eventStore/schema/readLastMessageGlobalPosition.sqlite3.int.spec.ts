@@ -44,7 +44,9 @@ void describe('readLastMessageGlobalPosition', () => {
       singleton: true,
       connection,
     });
-    await createEventStoreSchema(pool);
+    await createEventStoreSchema({
+      pool,
+    });
   });
 
   beforeEach(async () => {

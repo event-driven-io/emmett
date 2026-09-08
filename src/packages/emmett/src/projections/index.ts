@@ -11,6 +11,7 @@ import type {
   CanHandle,
   DefaultRecord,
   Event,
+  HandlerContextRoot,
   MessageHandlerContext,
 } from '../typing';
 import { arrayUtils } from '../utils';
@@ -18,8 +19,9 @@ import { arrayUtils } from '../utils';
 export type ProjectionHandlingType = 'inline' | 'async';
 
 export type ProjectionHandlerContext<
-  HandlerContext extends DefaultRecord = DefaultRecord,
-> = MessageHandlerContext<HandlerContext>;
+  HandlerContext extends HandlerContextRoot = Record<never, never>,
+  Session extends DefaultRecord = DefaultRecord,
+> = MessageHandlerContext<HandlerContext, Session>;
 
 export type ProjectionHandler<
   EventType extends Event = AnyEvent,

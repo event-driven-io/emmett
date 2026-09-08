@@ -88,7 +88,7 @@
   },
   "dependencies": {
     "@event-driven-io/emmett": "0.43.0-beta.43",
-    "@event-driven-io/pongo": "0.17.0-beta.50"
+    "@event-driven-io/pongo": "0.17.0-beta.52"
   },
   "peerDependencies": {
     "@types/pg": "^8.20.0",

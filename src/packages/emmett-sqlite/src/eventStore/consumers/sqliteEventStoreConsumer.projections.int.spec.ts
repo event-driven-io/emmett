@@ -14,7 +14,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import { sqlite3EventStoreDriver } from '../../sqlite3';
+import {
+  sqlite3EventStoreDriver,
+  type SQLite3EventStoreDriver,
+} from '../../sqlite3';
 import type {
   ProductItemAdded,
   ShoppingCartConfirmed,
@@ -28,6 +31,7 @@ import {
 import { pongoSingleStreamProjection } from '../projections';
 import { sqliteEventStoreConsumer } from './sqliteEventStoreConsumer';
 import type { SQLiteProjectorOptions } from './sqliteProcessor';
+import { pongoDriverOf } from '../eventStoreDriver';
 
 const withDeadline = { timeout: 30000 };
 
@@ -51,9 +55,9 @@ void describe('SQLite event store started consumer', () => {
       fileName,
       pool,
     });
-    await createEventStoreSchema(
-      sqlite3Pool({ fileName, serializer: JSONSerializer }),
-    );
+    await createEventStoreSchema({
+      pool: sqlite3Pool({ fileName, serializer: JSONSerializer }),
+    });
   });
 
   afterEach(async () => {
@@ -292,14 +296,16 @@ void describe('SQLite event store started consumer', () => {
             { type: 'ProductItemAdded', data: { productItem } },
           ] as ShoppingCartSummaryEvent[]);
 
-        const processorOptions: SQLiteProjectorOptions<ShoppingCartSummaryEvent> =
-          {
-            processorId: uuid(),
-            projection: shoppingCartsSummaryProjection,
-            startFrom: 'CURRENT',
-            stopAfter: (event) =>
-              event.metadata.globalPosition === startPosition,
-          };
+        const processorOptions: SQLiteProjectorOptions<
+          ShoppingCartSummaryEvent,
+          ShoppingCartSummaryEvent,
+          SQLite3EventStoreDriver
+        > = {
+          processorId: uuid(),
+          projection: shoppingCartsSummaryProjection,
+          startFrom: 'CURRENT',
+          stopAfter: (event) => event.metadata.globalPosition === startPosition,
+        };
 
         const consumer = sqliteEventStoreConsumer({
           driver: sqlite3EventStoreDriver,
@@ -383,9 +389,7 @@ void describe('SQLite event store started consumer', () => {
 
   const summaryFor = (streamName: string) =>
     pool.withConnection(async (connection) => {
-      const driver = (await pongoDriverRegistry.tryResolve(
-        connection.driverType,
-      ))!;
+      const driver = pongoDriverOf(sqlite3EventStoreDriver);
       const pongo = pongoClient({ driver, connectionOptions: { connection } });
       try {
         return await pongo

@@ -1,4 +1,3 @@
-import { dumbo } from '@event-driven-io/dumbo';
 import {
   reduceAsync,
   type CanHandle,
@@ -14,14 +13,13 @@ import {
   type PongoDBCollectionOptions,
   type PongoDocument,
 } from '@event-driven-io/pongo';
-import { pgDriver } from '@event-driven-io/pongo/pg';
 import {
   postgreSQLProjection,
   type PostgreSQLProjectionDefinition,
   type PostgreSQLProjectionHandlerContext,
 } from '..';
 import type { PostgresReadEventMetadata } from '../../postgreSQLEventStore';
-import { pgEventStoreDriver } from '../../../pg';
+import { pongoDriverOf } from '../../eventStoreDriver';
 
 export type PongoProjectionHandlerContext =
   PostgreSQLProjectionHandlerContext & {
@@ -114,16 +112,11 @@ export const pongoProjection = <
     canHandle,
     eventsOptions,
     handle: async (events, context) => {
-      const {
-        connection: { transaction },
-      } = context;
+      const { connection } = context.session;
       const pongo = pongoClient({
-        pool: dumbo({
-          driver: pgEventStoreDriver.dumboDriver,
-          connection: transaction.connection,
-        }),
-        driver: pgDriver,
+        driver: pongoDriverOf(context.driver),
         ...pongoSchemaOptions(context),
+        connectionOptions: { connection },
         schema: { autoMigration: 'None' },
       });
       try {
@@ -137,16 +130,11 @@ export const pongoProjection = <
     },
     truncate: truncate
       ? async (context) => {
-          const {
-            connection: { transaction },
-          } = context;
+          const { connection } = context.session;
           const pongo = pongoClient({
-            pool: dumbo({
-              driver: pgEventStoreDriver.dumboDriver,
-              connection: transaction.connection,
-            }),
-            driver: pgDriver,
+            driver: pongoDriverOf(context.driver),
             ...pongoSchemaOptions(context),
+            connectionOptions: { connection },
           });
           try {
             await truncate({
@@ -160,16 +148,11 @@ export const pongoProjection = <
       : undefined,
     init: init
       ? async (options) => {
-          const {
-            connection: { transaction },
-          } = options.context;
+          const { connection } = options.context.session;
           const pongo = pongoClient({
-            pool: dumbo({
-              driver: pgEventStoreDriver.dumboDriver,
-              connection: transaction.connection,
-            }),
-            driver: pgDriver,
+            driver: pongoDriverOf(options.context.driver),
             ...pongoSchemaOptions(options.context),
+            connectionOptions: { connection },
           });
           try {
             await init({
@@ -300,16 +283,11 @@ export const pongoMultiStreamProjection = <
     },
     canHandle,
     truncate: async (context) => {
-      const {
-        connection: { transaction },
-      } = context;
+      const { connection } = context.session;
       const pongo = pongoClient({
-        pool: dumbo({
-          driver: pgEventStoreDriver.dumboDriver,
-          connection: transaction.connection,
-        }),
-        driver: pgDriver,
+        driver: pongoDriverOf(context.driver),
         ...pongoSchemaOptions(context),
+        connectionOptions: { connection },
       });
 
       try {

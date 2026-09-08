@@ -1067,12 +1067,10 @@ void describe('PostgreSQL event store started consumer', () => {
           eachMessage: () => Promise.resolve(),
         });
 
-        const startOptions = {
+        await processor.start({
           execute: pool.execute,
-          connection: { options: { connectionString }, pool },
-        } as Parameters<typeof processor.start>[0];
-
-        await processor.start(startOptions);
+          session: { connectionOptions: { connectionString }, pool },
+        });
 
         // When
         process.emit('SIGTERM');
