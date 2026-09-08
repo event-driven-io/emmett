@@ -53,10 +53,10 @@ export type PostgreSQLEventStoreConsumerConfig<
   schema?: EventStoreDatabaseSchemaOptions;
 } & JSONSerializationOptions;
 
-export type PostgreSQLEventStoreConsumerOptions<
+export type PostgreSQLEventStoreConsumerConnectionOptions<
   ConsumerMessageType extends Message = Message,
   Driver extends AnyEventStoreDriver = PgEventStoreDriver,
-> = PostgreSQLEventStoreConsumerConfig<ConsumerMessageType> & {
+> = {
   pool?: Dumbo;
   source?: MessageSource<
     NoInfer<ConsumerMessageType>,
@@ -69,6 +69,12 @@ export type PostgreSQLEventStoreConsumerOptions<
   connectionString?: string;
   driver?: Driver;
 } & Partial<InferOptionsFromEventStoreDriver<Driver>>;
+
+export type PostgreSQLEventStoreConsumerOptions<
+  ConsumerMessageType extends Message = Message,
+  Driver extends AnyEventStoreDriver = PgEventStoreDriver,
+> = PostgreSQLEventStoreConsumerConfig<ConsumerMessageType> &
+  PostgreSQLEventStoreConsumerConnectionOptions<ConsumerMessageType, Driver>;
 
 export type PostgreSQLReactorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
