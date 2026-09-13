@@ -15,12 +15,12 @@ This is the **most commonly confused distinction** in documentation. Both contai
 | Aspect             | How-to Guide                                                        | Tutorial                                                                                 |
 | ------------------ | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | **User knowledge** | Already knows what they want to achieve                             | Learner may not know enough to even ask the right questions                              |
-| **Approach**       | General—many things unknowable in advance or different in each case | Concrete and particular—specific, known tools and materials we've set before the learner |
+| **Approach**       | General: many things unknowable in advance or different in each case | Concrete and particular: specific, known tools and materials we've set before the learner |
 | **Path structure** | Forks and branches, different routes to same destination            | Single line, no choices or alternatives                                                  |
-| **Completeness**   | Doesn't need to be complete—starts/ends at reasonable points        | Must be complete end-to-end guide                                                        |
-| **Safety**         | Cannot promise safety—often only one chance to get it right         | Must be safe—no harm can come, always possible to go back and start again                |
-| **Responsibility** | User has responsibility for getting in and out of trouble           | Teacher has responsibility—if learner gets in trouble, teacher must fix it               |
-| **Focus**          | Work—accomplishing tasks                                            | Study—learning skills                                                                    |
+| **Completeness**   | Doesn't need to be complete: starts/ends at reasonable points       | Must be complete end-to-end guide                                                        |
+| **Safety**         | Cannot promise safety: often only one chance to get it right        | Must be safe: no harm can come, always possible to go back and start again               |
+| **Responsibility** | User has responsibility for getting in and out of trouble           | Teacher has responsibility: if learner gets in trouble, teacher must fix it              |
+| **Focus**          | Work: accomplishing tasks                                           | Study: learning skills                                                                   |
 
 **Good how-to guide examples:**
 

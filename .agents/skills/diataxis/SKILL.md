@@ -1,12 +1,11 @@
 ---
 name: diataxis
-description: Centralizes Diataxis documentation framework guidance so Claude can write, review, or improve documentation following the four distinct types (tutorials, how-to guides, reference, explanation).
-allowed-tools: Read, Grep, Glob, Bash, Edit, Write
+description: Centralizes Diataxis documentation framework guidance for writing, reviewing, or improving documentation following the four distinct types (tutorials, how-to guides, reference, explanation).
 ---
 
 # Diataxis Skill
 
-Unifies all Diataxis documentation guidance into one Skill. Claude activates this Skill whenever documentation should be written, reviewed, or improved, and then "lazy loads" the exact documentation type guidance by opening the reference docs linked below.
+Unifies all Diataxis documentation guidance into one Skill. Activate this Skill whenever documentation should be written, reviewed, or improved, then "lazy load" the exact documentation type guidance by opening the reference docs linked below.
 
 ## Critical Workflow
 
@@ -149,7 +148,7 @@ Diataxis organizes documentation into four distinct types, each serving specific
 
 **Core Principles**:
 
-1. Don't teach directly—provide experiences enabling learning
+1. Don't teach directly; provide experiences enabling learning
 2. Show destination upfront to orient learners
 3. Deliver early, frequent results for rapid feedback
 4. Maintain narrative expectations to keep learners confident
@@ -176,7 +175,7 @@ Diataxis organizes documentation into four distinct types, each serving specific
 **Key Characteristics**:
 
 - Goal-oriented for users who know what they want to achieve
-- Focus on "action and only action"—no digression, explanation, or teaching
+- Focus on "action and only action", with no digression, explanation, or teaching
 - Assume competent users who understand their objective
 - Practical usability takes precedence over comprehensiveness
 
@@ -206,11 +205,11 @@ Diataxis organizes documentation into four distinct types, each serving specific
 **What Makes It Effective**:
 
 1. **Consistency**: Standard patterns allow effective use; information in familiar formats and predictable locations
-2. **Pure description**: Describe and only describe—no recipes, instructions, or marketing claims
+2. **Pure description**: Describe and only describe, with no recipes, instructions, or marketing claims
 3. **Illustrative examples**: Succinct usage examples that clarify functionality
 4. **Appropriate warnings**: Necessary cautions about requirements, restrictions, and limitations
 
-**Structure**: Typically covers APIs, classes, functions, commands, options, features, flags, limitations, and error messages—organized according to the machinery's logical architecture.
+**Structure**: Typically covers APIs, classes, functions, commands, options, features, flags, limitations, and error messages, organized according to the machinery's logical architecture.
 
 **Distinction**: Reference provides propositional or theoretical knowledge users consult during their work, unlike the experiential focus of tutorials or action focus of how-to guides.
 

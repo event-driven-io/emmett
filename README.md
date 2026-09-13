@@ -1,4 +1,4 @@
-[![](https://dcbadge.vercel.app/api/server/fTpqUTMmVa?style=flat)](https://discord.gg/fTpqUTMmVa) [<img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" height="20px" />](https://www.linkedin.com/in/oskardudycz/) [![Github Sponsors](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&link=https://github.com/sponsors/event-driven-io)](https://github.com/sponsors/event-driven-io) [![blog](https://img.shields.io/badge/blog-event--driven.io-brightgreen)](https://event-driven.io/?utm_source=event_sourcing_nodejs) [![blog](https://img.shields.io/badge/%F0%9F%9A%80-Architecture%20Weekly-important)](https://www.architecture-weekly.com/?utm_source=event_sourcing_nodejs)
+[![Discord](https://img.shields.io/discord/1211601942984532018?color=blue&label=Chat%20on%20Discord)](https://discord.gg/fTpqUTMmVa) [<img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" height="20px" />](https://www.linkedin.com/in/oskardudycz/) [![Github Sponsors](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&link=https://github.com/sponsors/event-driven-io)](https://github.com/sponsors/event-driven-io) [![blog](https://img.shields.io/badge/blog-event--driven.io-brightgreen)](https://event-driven.io/?utm_source=event_sourcing_nodejs) [![blog](https://img.shields.io/badge/%F0%9F%9A%80-Architecture%20Weekly-important)](https://www.architecture-weekly.com/?utm_source=event_sourcing_nodejs)
 
 ![](./src/docs/public/logo.png)
 
@@ -104,13 +104,20 @@ By doing so, you're helping to make our work on it sustainable and continuing ou
 **🥉 [Bronze Sponsors](https://github.com/sponsors/event-driven-io)**
 
 - [productminds](https://github.com/pminds)
-- [Lightest Night](https://github.com/lightest-night)
 
 ## Contributing
 
 Emmett is a community project, so once you find something missing or not working, we encourage you to [send us a GH issue](https://github.com/event-driven-io/emmett/issues/new) or [Pull Request](https://github.com/event-driven-io/emmett/compare) extending the support or test coverage! Check also [Contributing guide](https://github.com/event-driven-io/emmett/blob/main/CONTRIBUTING.md)
 
 **If you think something is missing or want to get some features faster, I'm happy to take sponsoring to prioritise it. Feel free to [contact me](mailto:oskar@event-driven.io) - we'll find a way to help you!**
+
+### AI stance
+
+Emmett isn't vibe-coded. We use a mix of regular coding and agent-assisted work, but people make the design decisions. Every change is reviewed, understood, and validated by a person before it lands.
+
+We don't mind contributors using agents either, as long as their contributions follow the contributing guide. The rule is simple: **you vibe it, you own it**. If you submit a change, you must understand it, stand behind it, and be able to explain, test, and fix it. The contribution is yours, not the tool's, so we don't accept generative AI tools as authors or co-authors.
+
+Please don't submit AI slop. Generic, unreviewed, or needlessly verbose generated issues, pull request descriptions, or review comments may be ignored or closed when they create more work than value.
 
 ## Code of Conduct
 

@@ -1,3 +1,8 @@
+---
+name: docs-writer
+description: Generate and maintain `/src/docs/` synchronized with package READMEs, blog articles, and the codebase. Use after a feature, README, or API change, for a documentation audit, or when the VitePress build fails.
+---
+
 # Documentation Generation & Maintenance
 
 > Generate and maintain `/src/docs/` synchronized with package READMEs, blog articles, and codebase.
