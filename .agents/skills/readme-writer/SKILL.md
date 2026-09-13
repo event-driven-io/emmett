@@ -1,3 +1,8 @@
+---
+name: readme-writer
+description: Generate and maintain README.md files synchronized with repository content. Use when creating a package or root README, updating one after code changes, or validating an existing README for accuracy.
+---
+
 # README Generation & Maintenance
 
 > Generate and maintain README.md files synchronized with repository content.
