@@ -1,4 +1,5 @@
-import { getInMemoryEventStore } from '@event-driven-io/emmett';
+import { AssertionError, getInMemoryEventStore } from '@event-driven-io/emmett';
+import assert from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it } from 'vitest';
 import { getApplication, HeaderNames, toWeakETag } from '..';
@@ -17,6 +18,87 @@ import {
 } from './apiSpecification';
 
 void describe('ApiSpecification', () => {
+  void it('uses worker fetch without requiring an event store', () => {
+    const worker = {
+      fetch: async (request: Request) => {
+        assert.equal(request.method, 'POST');
+        assert.equal(request.headers.get('idempotency-key'), 'request-1');
+        assert.deepEqual(await request.json(), { productId: 'product-1' });
+        return Response.json(
+          { status: 'accepted' },
+          { status: 201, headers: { Location: '/product-items/product-1' } },
+        );
+      },
+    };
+    const given = ApiSpecification.for({
+      fetch: (request) => worker.fetch(request),
+    });
+
+    return given()
+      .when((request) =>
+        request
+          .post('/product-items')
+          .set({ 'idempotency-key': 'request-1' })
+          .send({ productId: 'product-1' }),
+      )
+      .then(
+        expectResponse(201, {
+          body: { status: 'accepted' },
+          headers: { location: '/product-items/product-1' },
+        }),
+      );
+  });
+
+  void it('uses worker fetch with an explicit event store', () => {
+    const eventStore = getInMemoryEventStore();
+    const worker = {
+      fetch: async (_request: Request) => {
+        const { events } = await eventStore.readStream('stream-1');
+        return Response.json({ eventsCount: events.length });
+      },
+    };
+    const given = ApiSpecification.for({
+      getEventStore: () => eventStore,
+      fetch: (request) => worker.fetch(request),
+    });
+
+    return given(
+      existingStream('stream-1', [{ type: 'StreamStarted', data: {} }]),
+    )
+      .when((request) => request.get('/'))
+      .then(expectResponse(200, { body: { eventsCount: 1 } }));
+  });
+
+  void it('uses an in-memory event store by default with an application', () => {
+    const given = ApiSpecification.for({
+      getApplication: (eventStore) => ({
+        fetch: async () => {
+          const { events } = await eventStore.readStream('stream-1');
+          return Response.json({ eventsCount: events.length });
+        },
+      }),
+    });
+
+    return given(
+      existingStream('stream-1', [{ type: 'StreamStarted', data: {} }]),
+    )
+      .when((request) => request.get('/'))
+      .then(expectResponse(200, { body: { eventsCount: 1 } }));
+  });
+
+  void it('reports a false worker response assertion as an AssertionError', async () => {
+    const given = ApiSpecification.for({
+      fetch: () => Response.json({ status: 'ok' }),
+    });
+
+    await assert.rejects(
+      given()
+        .when((request) => request.get('/health'))
+        .then(() => Promise.resolve(false)),
+      AssertionError,
+    );
+  });
+
   // #region api-specification-setup
   const apiSpecification = ApiSpecification.for({
     getEventStore: () => getInMemoryEventStore(),

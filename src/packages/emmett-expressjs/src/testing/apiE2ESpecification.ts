@@ -1,16 +1,25 @@
-import supertest, { type Response } from 'supertest';
+import supertest, { type Response as SuperTestResponse } from 'supertest';
 
 import {
   EmmettError,
+  assertFails,
   getInMemoryEventStore,
   type EventStore,
   type InMemoryEventStore,
 } from '@event-driven-io/emmett';
-import assert from 'assert';
 import type { Application } from 'express';
 import type { TestRequest } from './apiSpecification';
+import {
+  executeFetchRequest,
+  type Fetch,
+  type FetchResponseAssert,
+  type FetchTestRequestSetup,
+  type FetchTestResponse,
+} from './fetchTestClient';
 
-export type E2EResponseAssert = (response: Response) => boolean | void;
+export type E2EResponseAssert = (
+  response: SuperTestResponse,
+) => boolean | void | Promise<boolean> | Promise<void>;
 
 export type ApiE2ESpecificationAssert = [E2EResponseAssert];
 
@@ -20,11 +29,26 @@ export type ApiE2ESpecification = (...givenRequests: TestRequest[]) => {
   };
 };
 
+type FetchApiE2ESpecification = (...givenRequests: FetchTestRequestSetup[]) => {
+  when: (setupRequest: FetchTestRequestSetup) => {
+    then: (verify: [FetchResponseAssert]) => Promise<void>;
+  };
+};
+
+function apiE2ESpecificationFor<
+  Store extends EventStore = InMemoryEventStore,
+>(options: {
+  getEventStore?: () => Store;
+  fetch: Fetch;
+  getApplication?: never;
+}): FetchApiE2ESpecification;
+
 function apiE2ESpecificationFor<
   Store extends EventStore = InMemoryEventStore,
 >(options: {
   getEventStore?: () => Store;
   getApplication: (eventStore: Store) => Application;
+  fetch?: never;
 }): ApiE2ESpecification;
 /** @deprecated Use `ApiE2ESpecification.for({ getEventStore, getApplication })` instead */
 function apiE2ESpecificationFor<Store extends EventStore = InMemoryEventStore>(
@@ -36,14 +60,23 @@ function apiE2ESpecificationFor<Store extends EventStore = InMemoryEventStore>(
     | (() => Store)
     | {
         getEventStore?: () => Store;
+        fetch: Fetch;
+        getApplication?: never;
+      }
+    | {
+        getEventStore?: () => Store;
         getApplication: (eventStore: Store) => Application;
+        fetch?: never;
       },
   getApplication?: (eventStore: Store) => Application,
-): ApiE2ESpecification {
-  const resolveApplication = (): Application => {
+): ApiE2ESpecification | FetchApiE2ESpecification {
+  const resolveRequestExecutor = (): ((
+    setupRequest: TestRequest | FetchTestRequestSetup,
+  ) => Promise<SuperTestResponse | FetchTestResponse>) => {
     if (typeof optionsOrGetApplication === 'function' && getApplication) {
       const eventStore = optionsOrGetApplication();
-      return getApplication(eventStore);
+      const request = supertest(getApplication(eventStore));
+      return async (setupRequest) => (setupRequest as TestRequest)(request);
     }
 
     if (typeof optionsOrGetApplication !== 'object') {
@@ -54,31 +87,49 @@ function apiE2ESpecificationFor<Store extends EventStore = InMemoryEventStore>(
 
     const eventStore =
       optionsOrGetApplication.getEventStore?.() ?? getInMemoryEventStore();
-    return optionsOrGetApplication.getApplication(eventStore as Store);
+    if (optionsOrGetApplication.fetch !== undefined) {
+      return (setupRequest) =>
+        executeFetchRequest(
+          optionsOrGetApplication.fetch,
+          setupRequest as FetchTestRequestSetup,
+        );
+    }
+
+    const request = supertest(
+      optionsOrGetApplication.getApplication(eventStore as Store),
+    );
+    return async (setupRequest) => (setupRequest as TestRequest)(request);
   };
 
-  return (...givenRequests: TestRequest[]) => {
-    const application = resolveApplication();
+  return (...givenRequests: (TestRequest | FetchTestRequestSetup)[]) => {
+    const executeRequest = resolveRequestExecutor();
 
     return {
-      when: (setupRequest: TestRequest) => {
-        const handle = async () => {
+      when: (setupRequest: TestRequest | FetchTestRequestSetup) => {
+        const handle = async (): Promise<
+          SuperTestResponse | FetchTestResponse
+        > => {
           for (const requestFn of givenRequests) {
-            await requestFn(supertest(application));
+            await executeRequest(requestFn);
           }
 
-          return setupRequest(supertest(application));
+          return executeRequest(setupRequest);
         };
 
         return {
-          then: async (verify: ApiE2ESpecificationAssert): Promise<void> => {
+          then: async (
+            verify: ApiE2ESpecificationAssert | [FetchResponseAssert],
+          ): Promise<void> => {
             const response = await handle();
 
-            verify.forEach((assertion) => {
-              const succeeded = assertion(response);
+            for (const verifyResponse of verify) {
+              const assertion = verifyResponse as (
+                response: SuperTestResponse | FetchTestResponse,
+              ) => boolean | void | Promise<boolean> | Promise<void>;
+              const succeeded = await assertion(response);
 
-              if (succeeded === false) assert.fail();
-            });
+              if (succeeded === false) assertFails();
+            }
           },
         };
       },
