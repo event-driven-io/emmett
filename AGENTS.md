@@ -97,3 +97,7 @@ Report which verification commands were run, whether they passed, and why any re
 - Use subagents, when available, for independent work that can usefully run in parallel, such as research, repository exploration, focused implementation, verification, and review. Keep user interaction, cross-cutting decisions, and final synthesis in the main context. Give subagents sufficient context and require concrete, evidence-backed findings so important details are not lost.
 - Do not commit, create branches or tags, rebase, reset, or otherwise modify Git history unless explicitly requested.
 - Do not add manual line breaks inside Markdown paragraphs. Keep each paragraph on a single line and let the renderer or editor wrap it.
+
+## Coding guide
+
+- Use the module pattern with functions, closures, and object literals instead of classes.

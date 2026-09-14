@@ -1,4 +1,5 @@
-import { getInMemoryEventStore } from '@event-driven-io/emmett';
+import { AssertionError, getInMemoryEventStore } from '@event-driven-io/emmett';
+import assert from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, it } from 'vitest';
 import { getApplication, HeaderNames, toWeakETag } from '..';
@@ -8,6 +9,83 @@ import { ApiE2ESpecification } from './apiE2ESpecification';
 import { expectError, expectResponse } from './apiSpecification';
 
 void describe('ApiE2ESpecification', () => {
+  void it('uses worker fetch without requiring an event store', () => {
+    let productItemsCount = 0;
+    const worker = {
+      fetch: (request: Request) => {
+        if (request.method === 'POST') {
+          productItemsCount++;
+          return Promise.resolve(new Response(null, { status: 204 }));
+        }
+
+        return Promise.resolve(Response.json({ productItemsCount }));
+      },
+    };
+    const given = ApiE2ESpecification.for({
+      fetch: (request) => worker.fetch(request),
+    });
+
+    return given((request) => request.post('/product-items'))
+      .when((request) => request.get('/shopping-cart'))
+      .then([expectResponse(200, { body: { productItemsCount: 1 } })]);
+  });
+
+  void it('uses worker fetch with an explicit event store', () => {
+    const eventStore = getInMemoryEventStore();
+    const worker = {
+      fetch: async (request: Request) => {
+        if (request.method === 'POST') {
+          await eventStore.appendToStream('stream-1', [
+            { type: 'StreamStarted', data: {} },
+          ]);
+          return new Response(null, { status: 204 });
+        }
+
+        const { events } = await eventStore.readStream('stream-1');
+        return Response.json({ eventsCount: events.length });
+      },
+    };
+    const given = ApiE2ESpecification.for({
+      getEventStore: () => eventStore,
+      fetch: (request) => worker.fetch(request),
+    });
+
+    return given((request) => request.post('/events'))
+      .when((request) => request.get('/'))
+      .then([expectResponse(200, { body: { eventsCount: 1 } })]);
+  });
+
+  void it('uses an in-memory event store by default with an application', () => {
+    const given = ApiE2ESpecification.for({
+      getApplication: (eventStore) =>
+        getApplication({
+          apis: [shoppingCartApi(eventStore)],
+        }),
+    });
+    const clientId = randomUUID();
+
+    return given()
+      .when((request) =>
+        request
+          .post(`/clients/${clientId}/shopping-carts/`)
+          .send({ productId: 'product-1', quantity: 1 }),
+      )
+      .then([expectResponse(201)]);
+  });
+
+  void it('reports a false worker response assertion as an AssertionError', async () => {
+    const given = ApiE2ESpecification.for({
+      fetch: () => Response.json({ status: 'ok' }),
+    });
+
+    await assert.rejects(
+      given()
+        .when((request) => request.get('/health'))
+        .then([() => Promise.resolve(false)]),
+      AssertionError,
+    );
+  });
+
   // #region api-e2e-specification-setup
   const apiE2ESpecification = ApiE2ESpecification.for({
     getEventStore: () => getInMemoryEventStore(),

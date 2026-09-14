@@ -1,16 +1,21 @@
 import {
   EmmettError,
+  assertFails,
   getInMemoryEventStore,
   type EventStore,
   type InMemoryEventStore,
 } from '@event-driven-io/emmett';
-import assert from 'assert';
-import type { Hono } from 'hono';
 import {
   HonoTestAgent,
   type HonoResponse,
   type TestRequest,
 } from './apiSpecification';
+
+type FetchApplication = {
+  fetch(request: Request): Response | Promise<Response>;
+};
+
+type Fetch = (request: Request) => Response | Promise<Response>;
 
 export type E2EResponseAssert = (
   response: HonoResponse,
@@ -28,26 +33,41 @@ function apiE2ESpecificationFor<
   Store extends EventStore = InMemoryEventStore,
 >(options: {
   getEventStore?: () => Store;
-  getApplication: (eventStore: Store) => Hono;
+  fetch: Fetch;
+  getApplication?: never;
+}): ApiE2ESpecification;
+function apiE2ESpecificationFor<
+  Store extends EventStore = InMemoryEventStore,
+>(options: {
+  getEventStore?: () => Store;
+  getApplication: (eventStore: Store) => FetchApplication;
+  fetch?: never;
 }): ApiE2ESpecification;
 /** @deprecated Use `ApiE2ESpecification.for({ getEventStore, getApplication })` instead */
 function apiE2ESpecificationFor<Store extends EventStore = InMemoryEventStore>(
   getEventStore: () => Store,
-  getApplication: (eventStore: Store) => Hono,
+  getApplication: (eventStore: Store) => FetchApplication,
 ): ApiE2ESpecification;
 function apiE2ESpecificationFor<Store extends EventStore = InMemoryEventStore>(
   optionsOrGetApplication:
     | (() => Store)
     | {
         getEventStore?: () => Store;
-        getApplication: (eventStore: Store) => Hono;
+        fetch: Fetch;
+        getApplication?: never;
+      }
+    | {
+        getEventStore?: () => Store;
+        getApplication: (eventStore: Store) => FetchApplication;
+        fetch?: never;
       },
-  getApplication?: (eventStore: Store) => Hono,
+  getApplication?: (eventStore: Store) => FetchApplication,
 ): ApiE2ESpecification {
-  const resolveApplication = (): Hono => {
+  const resolveFetch = (): Fetch => {
     if (typeof optionsOrGetApplication === 'function' && getApplication) {
       const eventStore = optionsOrGetApplication();
-      return getApplication(eventStore);
+      const application = getApplication(eventStore);
+      return (request) => application.fetch(request);
     }
 
     if (typeof optionsOrGetApplication !== 'object') {
@@ -58,12 +78,19 @@ function apiE2ESpecificationFor<Store extends EventStore = InMemoryEventStore>(
 
     const eventStore =
       optionsOrGetApplication.getEventStore?.() ?? getInMemoryEventStore();
-    return optionsOrGetApplication.getApplication(eventStore as Store);
+    if (optionsOrGetApplication.fetch !== undefined) {
+      return optionsOrGetApplication.fetch;
+    }
+
+    const application = optionsOrGetApplication.getApplication(
+      eventStore as Store,
+    );
+    return (request) => application.fetch(request);
   };
 
   return (...givenRequests: TestRequest[]) => {
-    const application = resolveApplication();
-    const testAgent = new HonoTestAgent(application);
+    const fetch = resolveFetch();
+    const testAgent = new HonoTestAgent({ fetch });
 
     return {
       when: (setupRequest: TestRequest) => {
@@ -91,7 +118,7 @@ function apiE2ESpecificationFor<Store extends EventStore = InMemoryEventStore>(
             for (const assertion of verify) {
               const succeeded = await assertion(response);
 
-              if (succeeded === false) assert.fail();
+              if (succeeded === false) assertFails();
             }
           },
         };

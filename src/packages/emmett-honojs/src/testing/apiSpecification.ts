@@ -2,13 +2,20 @@ import {
   assertEqual,
   assertFails,
   assertMatches,
+  getInMemoryEventStore,
   type Event,
   type EventStore,
+  type InMemoryEventStore,
   type TestEventStream,
   WrapEventStore,
 } from '@event-driven-io/emmett';
-import type { Hono } from 'hono';
 import type { ProblemDocument } from 'http-problem-details';
+
+type FetchApplication = {
+  fetch(request: Request): Response | Promise<Response>;
+};
+
+type Fetch = (request: Request) => Response | Promise<Response>;
 
 ////////////////////////////////
 /////////// Setup
@@ -17,7 +24,7 @@ import type { ProblemDocument } from 'http-problem-details';
 // Wrapper to mimic supertest API but using Hono's fetch
 export class HonoTestRequest {
   constructor(
-    private app: Hono,
+    private app: FetchApplication,
     private method: string,
     private path: string,
     private options: { body?: unknown; headers?: Record<string, string> } = {},
@@ -61,7 +68,7 @@ export class HonoTestRequest {
 }
 
 export class HonoTestAgent {
-  constructor(private app: Hono) {}
+  constructor(private app: FetchApplication) {}
 
   get(path: string): HonoTestRequest {
     return new HonoTestRequest(this.app, 'GET', path);
@@ -211,48 +218,78 @@ export type ApiSpecification<EventType extends Event = Event> = (
 
 function apiSpecificationFor<
   EventType extends Event = Event,
-  Store extends EventStore = EventStore,
+  Store extends EventStore = InMemoryEventStore,
 >(options: {
-  getEventStore: () => Store;
-  getApplication: (eventStore: Store) => Hono;
+  getEventStore?: () => Store;
+  fetch: Fetch;
+  getApplication?: never;
+}): ApiSpecification<EventType>;
+function apiSpecificationFor<
+  EventType extends Event = Event,
+  Store extends EventStore = InMemoryEventStore,
+>(options: {
+  getEventStore?: () => Store;
+  getApplication: (eventStore: Store) => FetchApplication;
+  fetch?: never;
 }): ApiSpecification<EventType>;
 /** @deprecated Use `ApiSpecification.for({ getEventStore, getApplication })` instead */
 function apiSpecificationFor<
   EventType extends Event = Event,
-  Store extends EventStore = EventStore,
+  Store extends EventStore = InMemoryEventStore,
 >(
   getEventStore: () => Store,
-  getApplication: (eventStore: Store) => Hono,
+  getApplication: (eventStore: Store) => FetchApplication,
 ): ApiSpecification<EventType>;
 function apiSpecificationFor<
   EventType extends Event = Event,
-  Store extends EventStore = EventStore,
+  Store extends EventStore = InMemoryEventStore,
 >(
   optionsOrGetEventStore:
     | {
-        getEventStore: () => Store;
-        getApplication: (eventStore: Store) => Hono;
+        getEventStore?: () => Store;
+        fetch: Fetch;
+        getApplication?: never;
+      }
+    | {
+        getEventStore?: () => Store;
+        getApplication: (eventStore: Store) => FetchApplication;
+        fetch?: never;
       }
     | (() => Store),
-  getApplication?: (eventStore: Store) => Hono,
+  getApplication?: (eventStore: Store) => FetchApplication,
 ): ApiSpecification<EventType> {
-  const resolveStoreAndApplication = (): {
+  const resolveStoreAndFetch = (): {
     eventStore: ReturnType<typeof WrapEventStore>;
-    application: Hono;
+    fetch: Fetch;
   } => {
     if (typeof optionsOrGetEventStore === 'function') {
       const eventStore = WrapEventStore(optionsOrGetEventStore());
-      return { eventStore, application: getApplication!(eventStore) };
+      const application = getApplication!(eventStore);
+      return {
+        eventStore,
+        fetch: (request) => application.fetch(request),
+      };
     }
-    const eventStore = WrapEventStore(optionsOrGetEventStore.getEventStore());
+    const configuredEventStore =
+      optionsOrGetEventStore.getEventStore?.() ?? getInMemoryEventStore();
+    const eventStore = WrapEventStore(configuredEventStore as Store);
+    if (optionsOrGetEventStore.fetch !== undefined) {
+      return {
+        eventStore,
+        fetch: optionsOrGetEventStore.fetch,
+      };
+    }
+
+    const application = optionsOrGetEventStore.getApplication(eventStore);
     return {
       eventStore,
-      application: optionsOrGetEventStore.getApplication(eventStore),
+      fetch: (request) => application.fetch(request),
     };
   };
 
   return (...givenStreams: TestEventStream<EventType>[]) => {
-    const { eventStore, application } = resolveStoreAndApplication();
+    const { eventStore, fetch } = resolveStoreAndFetch();
+    const request = new HonoTestAgent({ fetch });
 
     return {
       when: (setupRequest: TestRequest) => {
@@ -261,7 +298,7 @@ function apiSpecificationFor<
             await eventStore.setup(streamName, events);
           }
 
-          const requestResult = setupRequest(new HonoTestAgent(application));
+          const requestResult = setupRequest(request);
 
           // If it's already a promise (HonoResponse), return it
           if (requestResult instanceof Promise) {
