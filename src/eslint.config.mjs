@@ -3,6 +3,12 @@ import typescriptEslint from '@typescript-eslint/eslint-plugin';
 import prettierRecommended from 'eslint-plugin-prettier/recommended';
 import globals from 'globals';
 
+const noNodeBuiltins = {
+  group: ['node:*'],
+  message:
+    'Code reachable from the Cloudflare entries cannot import Node built-ins. Specs can.',
+};
+
 export default [
   {
     ignores: [
@@ -88,6 +94,33 @@ export default [
     ],
     rules: {
       'no-restricted-imports': 'off',
+    },
+  },
+  {
+    files: ['packages/emmett-sqlite/src/**'],
+    ignores: [
+      'packages/emmett-sqlite/**/*.spec.ts',
+      'packages/emmett-sqlite/src/testing/**',
+      'packages/emmett-sqlite/src/sqlite3.ts',
+      'packages/emmett-sqlite/src/cli.ts',
+      'packages/emmett-sqlite/src/benchmarks/**',
+    ],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [noNodeBuiltins] }],
+    },
+  },
+  {
+    files: ['packages/emmett-postgresql/src/**'],
+    ignores: [
+      'packages/emmett-postgresql/**/*.spec.ts',
+      'packages/emmett-postgresql/src/testing/**',
+      'packages/emmett-postgresql/src/pg.ts',
+      'packages/emmett-postgresql/src/cli.ts',
+      'packages/emmett-postgresql/src/benchmarks/**',
+      'packages/emmett-postgresql/src/node/**',
+    ],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [noNodeBuiltins] }],
     },
   },
   {
