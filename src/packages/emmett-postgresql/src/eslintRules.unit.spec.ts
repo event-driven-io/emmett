@@ -4,7 +4,7 @@ import {
   assertOk,
   assertTrue,
 } from '@event-driven-io/emmett';
-import { Linter } from 'eslint';
+import { ESLint, Linter } from 'eslint';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, it } from 'vitest';
@@ -235,4 +235,52 @@ void describe('Emmett ESLint dumbo/pg import restrictions', () => {
       `Expected a restricted import violation. Got: ${JSON.stringify(messages)}`,
     );
   });
+});
+
+const nodeBuiltinViolationsIn = async (file: string) => {
+  const config = (await new ESLint({ cwd: repoRoot }).calculateConfigForFile(
+    path.join(repoRoot, file),
+  )) as Linter.Config;
+  const rule = config.rules?.['no-restricted-imports'];
+
+  return new Linter()
+    .verify(`import fs from 'node:fs';\n`, {
+      languageOptions: { ecmaVersion: 'latest', sourceType: 'module' },
+      rules: rule ? { 'no-restricted-imports': rule } : {},
+    })
+    .filter(({ ruleId }) => ruleId === 'no-restricted-imports');
+};
+
+void describe('Emmett ESLint PostgreSQL Node built-in restrictions', () => {
+  for (const file of [
+    'packages/emmett-postgresql/src/index.ts',
+    'packages/emmett-postgresql/src/eventStore/postgreSQLEventStore.ts',
+  ])
+    void it(`${file} cannot import Node built-ins`, async () => {
+      const violations = await nodeBuiltinViolationsIn(file);
+
+      assertEqual(
+        violations.length,
+        1,
+        `Expected a Node built-in violation. Got: ${JSON.stringify(violations)}`,
+      );
+    });
+
+  for (const file of [
+    'packages/emmett-postgresql/src/pg.ts',
+    'packages/emmett-postgresql/src/cli.ts',
+    'packages/emmett-postgresql/src/benchmarks/index.ts',
+    'packages/emmett-postgresql/src/node/streaming/restream.ts',
+    'packages/emmett-postgresql/src/testing/postgreSQLTestDatabase.ts',
+    'packages/emmett-postgresql/src/eventStore/postgreSQLEventStore.e2e.spec.ts',
+  ])
+    void it(`${file} can import Node built-ins`, async () => {
+      const violations = await nodeBuiltinViolationsIn(file);
+
+      assertEqual(
+        violations.length,
+        0,
+        `Expected no Node built-in violation. Got: ${JSON.stringify(violations)}`,
+      );
+    });
 });

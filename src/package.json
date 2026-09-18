@@ -45,6 +45,7 @@
     "test:unit": "vitest run \".unit.spec\"",
     "test:int": "vitest run \".int.spec\"",
     "test:e2e": "vitest run \".e2e.spec\"",
+    "test:bundle": "vitest run --project bundle",
     "test:watch": "vitest",
     "test:unit:watch": "vitest \".unit.spec\"",
     "test:int:watch": "vitest \".int.spec\"",

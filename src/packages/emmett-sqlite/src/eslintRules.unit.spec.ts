@@ -1,5 +1,5 @@
 import { assertEqual, assertOk, assertTrue } from '@event-driven-io/emmett';
-import { Linter } from 'eslint';
+import { ESLint, Linter } from 'eslint';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, it } from 'vitest';
@@ -121,4 +121,52 @@ void describe('Emmett ESLint dumbo SQLite import restrictions', () => {
       );
     }
   });
+});
+
+const nodeBuiltinViolationsIn = async (file: string) => {
+  const config = (await new ESLint({ cwd: repoRoot }).calculateConfigForFile(
+    path.join(repoRoot, file),
+  )) as Linter.Config;
+  const rule = config.rules?.['no-restricted-imports'];
+
+  return new Linter()
+    .verify(`import fs from 'node:fs';\n`, {
+      languageOptions: { ecmaVersion: 'latest', sourceType: 'module' },
+      rules: rule ? { 'no-restricted-imports': rule } : {},
+    })
+    .filter(({ ruleId }) => ruleId === 'no-restricted-imports');
+};
+
+void describe('Emmett ESLint SQLite Node built-in restrictions', () => {
+  for (const file of [
+    'packages/emmett-sqlite/src/cloudflare.ts',
+    'packages/emmett-sqlite/src/index.ts',
+    'packages/emmett-sqlite/src/eventStore/SQLiteEventStore.ts',
+  ])
+    void it(`${file} cannot import Node built-ins`, async () => {
+      const violations = await nodeBuiltinViolationsIn(file);
+
+      assertEqual(
+        violations.length,
+        1,
+        `Expected a Node built-in violation. Got: ${JSON.stringify(violations)}`,
+      );
+    });
+
+  for (const file of [
+    'packages/emmett-sqlite/src/sqlite3.ts',
+    'packages/emmett-sqlite/src/cli.ts',
+    'packages/emmett-sqlite/src/benchmarks/index.ts',
+    'packages/emmett-sqlite/src/testing/sqliteTestDatabase.ts',
+    'packages/emmett-sqlite/src/eventStore/SQLiteEventStore.sqlite3.e2e.spec.ts',
+  ])
+    void it(`${file} can import Node built-ins`, async () => {
+      const violations = await nodeBuiltinViolationsIn(file);
+
+      assertEqual(
+        violations.length,
+        0,
+        `Expected no Node built-in violation. Got: ${JSON.stringify(violations)}`,
+      );
+    });
 });

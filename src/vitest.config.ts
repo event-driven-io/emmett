@@ -14,6 +14,14 @@ export default defineConfig({
       'packages/emmett-fastify',
       'packages/emmett-tests',
       'packages/emmett-sqlite',
+      {
+        test: {
+          name: 'bundle',
+          environment: 'node',
+          include: ['e2e/bundleBoundaries.bundle.spec.ts'],
+          globalSetup: ['e2e/buildBundles.ts'],
+        },
+      },
     ],
   },
 });
