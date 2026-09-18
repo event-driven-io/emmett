@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { alwaysSample, neverSample } from '../configuration/options';
 import { LogEvent, noopLogger, type AnyLogEvent } from '../loggers/logger';
 import {
@@ -501,6 +501,19 @@ describe('ObservabilityScope', () => {
         },
         { context: { correlationId: 'corr-1' } },
       );
+    });
+
+    it('importing almanac generates no random values', async () => {
+      vi.resetModules();
+      const getRandomValues = vi.spyOn(globalThis.crypto, 'getRandomValues');
+
+      try {
+        await import('../index');
+
+        expect(getRandomValues).not.toHaveBeenCalled();
+      } finally {
+        getRandomValues.mockRestore();
+      }
     });
   });
 });

@@ -105,18 +105,23 @@ const makeScope = (
 ): ObservabilityScope => {
   const generator =
     observability.contextGenerator ?? defaultObservabilityContextGenerator;
-  const spanContext = span.spanContext();
-  const correlationId =
-    inherited.correlationId ?? generator.generateCorrelationId();
-  // The four ids resolve the same way: trace/span come from this scope's span
-  // (a child always mints its own), correlation/causation from the inherited
-  // context; anything absent is generated once and inherited by children.
-  const context: ObservabilityContext = {
-    traceId:
-      spanContext.traceId || inherited.traceId || generator.generateTraceId(),
-    spanId: spanContext.spanId || generator.generateSpanId(),
-    correlationId,
-    causationId: inherited.causationId ?? correlationId,
+  let context: ObservabilityContext | undefined;
+  const getContext = (): ObservabilityContext => {
+    if (context) return context;
+    const spanContext = span.spanContext();
+    const correlationId =
+      inherited.correlationId ?? generator.generateCorrelationId();
+    // The four ids resolve the same way: trace/span come from this scope's span
+    // (a child always mints its own), correlation/causation from the inherited
+    // context; anything absent is generated once and inherited by children.
+    context = {
+      traceId:
+        spanContext.traceId || inherited.traceId || generator.generateTraceId(),
+      spanId: spanContext.spanId || generator.generateSpanId(),
+      correlationId,
+      causationId: inherited.causationId ?? correlationId,
+    };
+    return context;
   };
 
   return {
@@ -143,7 +148,7 @@ const makeScope = (
         childOpts?.parent ??
         (hasSpanContext(currentContext) ? currentContext : undefined);
       const childContext: Partial<ObservabilityContext> = {
-        ...context,
+        ...getContext(),
         ...childOpts?.context,
       };
 
@@ -167,7 +172,9 @@ const makeScope = (
     },
     log: (event) => logForScope(span, observability.logger, event),
     addLink: (link) => span.addLink(link),
-    context,
+    get context() {
+      return getContext();
+    },
   };
 };
 
