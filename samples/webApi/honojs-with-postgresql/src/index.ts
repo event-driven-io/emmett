@@ -53,6 +53,12 @@ const application = getApplication({
       getUnitPrice,
       () => new Date(),
     ),
+    shoppingCarts.ui(
+      eventStore,
+      readStore.db(),
+      getUnitPrice,
+      () => new Date(),
+    ),
   ],
 });
 

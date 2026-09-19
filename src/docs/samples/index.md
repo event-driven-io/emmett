@@ -81,6 +81,8 @@ npm run test
 The Hono counterpart of the Express.js PostgreSQL sample. It demonstrates:
 
 - Hono route and application setup
+- Server-side rendering with Hono JSX
+- HTMX form handling and partial HTML updates
 - PostgreSQL event store setup
 - Inline projections with Pongo
 - Integration and E2E testing with the Hono testing utilities
@@ -95,6 +97,9 @@ docker compose up -d
 npm install
 npm run start
 ```
+
+Open `http://localhost:3000/ui` to try the server-rendered shopping cart UI.
+The JSON API remains available alongside it.
 
 See the sample's [`README.md`](https://github.com/event-driven-io/emmett/tree/main/samples/webApi/honojs-with-postgresql/README.md) for the bundled observability stack.
 

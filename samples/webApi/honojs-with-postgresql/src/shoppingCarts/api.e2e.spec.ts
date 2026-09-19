@@ -19,10 +19,13 @@ import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
+import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, beforeEach, describe, it } from 'node:test';
+import type { Hono } from 'hono';
 import shoppingCarts, { type ProductItem } from './';
 import { shoppingCartApi } from './api';
+import { shoppingCartUI } from './ui';
 
 const getUnitPrice = () => {
   return Promise.resolve(100);
@@ -35,6 +38,7 @@ void describe('ShoppingCart E2E', () => {
   let eventStore: PostgresEventStore;
   let readStore: PongoClient;
   let given: ApiE2ESpecification;
+  let application: Hono;
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
@@ -47,21 +51,22 @@ void describe('ShoppingCart E2E', () => {
 
     const inMemoryMessageBus = getInMemoryMessageBus();
 
-    given = ApiE2ESpecification.for(
-      () => eventStore,
-      (eventStore: EventStore) =>
-        getApplication({
-          apis: [
-            shoppingCartApi(
-              eventStore,
-              readStore.db(),
-              inMemoryMessageBus,
-              getUnitPrice,
-              () => now,
-            ),
-          ],
-        }),
-    );
+    const getTestApplication = (eventStore: EventStore) =>
+      getApplication({
+        apis: [
+          shoppingCartApi(
+            eventStore,
+            readStore.db(),
+            inMemoryMessageBus,
+            getUnitPrice,
+            () => now,
+          ),
+          shoppingCartUI(eventStore, readStore.db(), getUnitPrice, () => now),
+        ],
+      });
+
+    application = getTestApplication(eventStore);
+    given = ApiE2ESpecification.for(() => eventStore, getTestApplication);
   });
 
   beforeEach(() => {
@@ -83,6 +88,84 @@ void describe('ShoppingCart E2E', () => {
             .send(productItem),
         )
         .then([expectResponse(204)]);
+    });
+
+    void it('renders the shopping cart UI', async () => {
+      const response = await application.request(
+        `/ui/clients/${clientId}/shopping-carts/current`,
+      );
+
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get('content-type') ?? '', /^text\/html/);
+
+      const body = await response.text();
+      assert.match(body, /^<!DOCTYPE html>/);
+      assert.match(body, /Your shopping cart is empty\./);
+      assert.match(body, /hx-post=/);
+      assert.match(body, /name="productId"/);
+      assert.match(body, /name="quantity"/);
+    });
+
+    void it('redirects the UI entry point to the demo cart', async () => {
+      const response = await application.request('/ui');
+
+      assert.equal(response.status, 302);
+      assert.equal(
+        response.headers.get('location'),
+        '/ui/clients/demo/shopping-carts/current',
+      );
+    });
+
+    void it('adds and displays a product through HTMX', async () => {
+      const firstResponse = await postProductItem({
+        productId: 'product-1',
+        quantity: 2,
+        htmx: true,
+      });
+
+      assert.equal(firstResponse.status, 200);
+      assert.match(
+        firstResponse.headers.get('content-type') ?? '',
+        /^text\/html/,
+      );
+
+      const firstBody = await firstResponse.text();
+      assert.doesNotMatch(firstBody, /<!DOCTYPE html>/);
+      assert.match(firstBody, /<section id="shopping-cart"/);
+      assert.match(firstBody, /product-1/);
+      assert.match(firstBody, /<td>2<\/td>/);
+      assert.match(firstBody, /<strong>200<\/strong>/);
+
+      const { events } = await eventStore.readStream(shoppingCartId);
+      assert.deepEqual(
+        events.map(({ type }) => type),
+        ['ProductItemAddedToShoppingCart'],
+      );
+
+      const secondResponse = await postProductItem({
+        productId: 'product-1',
+        quantity: 3,
+        htmx: true,
+      });
+      const secondBody = await secondResponse.text();
+
+      assert.equal(secondResponse.status, 200);
+      assert.match(secondBody, /<td>5<\/td>/);
+      assert.match(secondBody, /<strong>500<\/strong>/);
+    });
+
+    void it('redirects a regular form submission to the cart page', async () => {
+      const response = await postProductItem({
+        productId: 'product-1',
+        quantity: 1,
+        htmx: false,
+      });
+
+      assert.equal(response.status, 303);
+      assert.equal(
+        response.headers.get('location'),
+        `/ui/clients/${clientId}/shopping-carts/current`,
+      );
     });
   });
 
@@ -152,4 +235,27 @@ void describe('ShoppingCart E2E', () => {
   };
 
   const productItem = getRandomProduct();
+
+  const postProductItem = (options: {
+    productId: string;
+    quantity: number;
+    htmx: boolean;
+  }) => {
+    const { productId, quantity, htmx } = options;
+
+    return application.request(
+      `/ui/clients/${clientId}/shopping-carts/current/product-items`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          ...(htmx ? { 'HX-Request': 'true' } : {}),
+        },
+        body: new URLSearchParams({
+          productId,
+          quantity: quantity.toString(),
+        }),
+      },
+    );
+  };
 });

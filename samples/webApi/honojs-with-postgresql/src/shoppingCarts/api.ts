@@ -1,7 +1,6 @@
 import {
   assertNotEmptyString,
   assertPositiveNumber,
-  CommandHandler,
   type EventsPublisher,
   type EventStore,
 } from '@event-driven-io/emmett';
@@ -16,23 +15,22 @@ import {
 import { type PongoDb } from '@event-driven-io/pongo';
 import type { Context, Hono } from 'hono';
 import {
-  addProductItem,
   cancel,
   confirm,
   removeProductItem,
-  type AddProductItemToShoppingCart,
   type CancelShoppingCart,
   type ConfirmShoppingCart,
   type RemoveProductItemFromShoppingCart,
 } from './businessLogic';
+import {
+  addProductItemToCurrentShoppingCart,
+  getShoppingCartId,
+  handleShoppingCartCommand,
+} from './application';
 import { getClientShoppingSummary } from './getClientShoppingSummary';
 import { getDetailsById } from './getDetails';
-import { evolve, initialState } from './shoppingCart';
 
-export const getShoppingCartId = (clientId: string) =>
-  `shopping_cart:${assertNotEmptyString(clientId)}:current`;
-
-const handle = CommandHandler({ evolve, initialState });
+export { getShoppingCartId } from './application';
 
 export const shoppingCartApi =
   (
@@ -47,28 +45,16 @@ export const shoppingCartApi =
     router.post(
       '/clients/:clientId/shopping-carts/current/product-items',
       async (context: AddProductItemContext) => {
-        const clientId = assertNotEmptyString(context.req.param('clientId'));
-        const shoppingCartId = getShoppingCartId(clientId);
         const body = await context.req.json();
-        const productId = assertNotEmptyString(body.productId);
 
-        const command: AddProductItemToShoppingCart = {
-          type: 'AddProductItemToShoppingCart',
-          data: {
-            shoppingCartId,
-            clientId,
-            productItem: {
-              productId,
-              quantity: assertPositiveNumber(body.quantity),
-              unitPrice: await getUnitPrice(productId),
-            },
-          },
-          metadata: { clientId, now: getCurrentTime() },
-        };
-
-        await handle(eventStore, shoppingCartId, (state) =>
-          addProductItem(command, state),
-        );
+        await addProductItemToCurrentShoppingCart({
+          eventStore,
+          getUnitPrice,
+          getCurrentTime,
+          clientId: context.req.param('clientId'),
+          productId: body.productId,
+          quantity: body.quantity,
+        });
 
         return NoContent({ context });
       },
@@ -97,7 +83,7 @@ export const shoppingCartApi =
           metadata: { clientId, now: getCurrentTime() },
         };
 
-        await handle(eventStore, shoppingCartId, (state) =>
+        await handleShoppingCartCommand(eventStore, shoppingCartId, (state) =>
           removeProductItem(command, state),
         );
 
@@ -122,8 +108,10 @@ export const shoppingCartApi =
 
         const {
           newEvents: [confirmed, ..._rest],
-        } = await handle(eventStore, shoppingCartId, (state) =>
-          confirm(command, state),
+        } = await handleShoppingCartCommand(
+          eventStore,
+          shoppingCartId,
+          (state) => confirm(command, state),
         );
 
         // This is just example, it'll run in-proc
@@ -149,7 +137,7 @@ export const shoppingCartApi =
           metadata: { clientId, now: getCurrentTime() },
         };
 
-        await handle(eventStore, shoppingCartId, (state) =>
+        await handleShoppingCartCommand(eventStore, shoppingCartId, (state) =>
           cancel(command, state),
         );
 
