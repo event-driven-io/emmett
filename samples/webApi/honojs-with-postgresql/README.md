@@ -30,10 +30,7 @@ npm run start
 
 ## Full-stack UI with HTMX
 
-Open [http://localhost:3000/ui](http://localhost:3000/ui) to use the
-server-rendered shopping cart. The UI uses Hono JSX for rendering and HTMX to
-add products and replace the cart fragment without a full-page reload. It also
-works as a regular HTML form when JavaScript is unavailable.
+Open [http://localhost:3000/ui](http://localhost:3000/ui) to use the server-rendered shopping cart. The UI uses Hono JSX for rendering and HTMX to add or remove products, confirm the cart, cancel the cart, and replace the cart fragment without a full-page reload. Every action also works as a regular HTML form when JavaScript is unavailable.
 
 The existing JSON API remains available under the `/clients/:clientId` routes.
 

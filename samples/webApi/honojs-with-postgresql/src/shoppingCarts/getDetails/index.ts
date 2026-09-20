@@ -74,7 +74,7 @@ const evolve = (
               quantity: p.quantity - quantity,
             };
           },
-        ),
+        ).filter(({ quantity }) => quantity !== 0),
         totalAmount:
           documentFromDb!.totalAmount -
           event.productItem.unitPrice * event.productItem.quantity,

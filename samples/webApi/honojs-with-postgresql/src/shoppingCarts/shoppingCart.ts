@@ -140,8 +140,10 @@ const withUpdatedQuantity = (
 ) => {
   const productItems = new Map(current);
   const currentQuantity = productItems.get(productId) ?? 0;
+  const updatedQuantity = currentQuantity + quantity;
 
-  productItems.set(productId, currentQuantity + quantity);
+  if (updatedQuantity === 0) productItems.delete(productId);
+  else productItems.set(productId, updatedQuantity);
 
   return productItems;
 };

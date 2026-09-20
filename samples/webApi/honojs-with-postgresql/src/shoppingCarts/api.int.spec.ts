@@ -159,6 +159,75 @@ void describe('ShoppingCart', () => {
           ]),
         ]);
     });
+
+    void it('should remove product item', () => {
+      return given(
+        existingStream(shoppingCartId, [
+          {
+            type: 'ProductItemAddedToShoppingCart',
+            data: {
+              shoppingCartId,
+              clientId,
+              productItem,
+              addedAt: oldTime,
+            },
+            metadata: { clientId },
+          },
+        ]),
+      )
+        .when((request) =>
+          request.delete(
+            `/clients/${clientId}/shopping-carts/current/product-items?productId=${productItem.productId}&quantity=${productItem.quantity}&unitPrice=${productItem.unitPrice}`,
+          ),
+        )
+        .then([
+          expectResponse(204),
+          expectNewEvents(shoppingCartId, [
+            {
+              type: 'ProductItemRemovedFromShoppingCart',
+              data: {
+                shoppingCartId,
+                productItem,
+                removedAt: now,
+              },
+              metadata: { clientId },
+            },
+          ]),
+        ]);
+    });
+
+    void it('should cancel', () => {
+      return given(
+        existingStream(shoppingCartId, [
+          {
+            type: 'ProductItemAddedToShoppingCart',
+            data: {
+              shoppingCartId,
+              clientId,
+              productItem,
+              addedAt: oldTime,
+            },
+            metadata: { clientId },
+          },
+        ]),
+      )
+        .when((request) =>
+          request.delete(`/clients/${clientId}/shopping-carts/current`),
+        )
+        .then([
+          expectResponse(204),
+          expectNewEvents(shoppingCartId, [
+            {
+              type: 'ShoppingCartCancelled',
+              data: {
+                shoppingCartId,
+                cancelledAt: now,
+              },
+              metadata: { clientId },
+            },
+          ]),
+        ]);
+    });
   });
 
   void describe('When confirmed', () => {

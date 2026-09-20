@@ -1,4 +1,5 @@
 import { DeciderSpecification } from '@event-driven-io/emmett';
+import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
 import { decide } from './businessLogic';
@@ -67,6 +68,32 @@ void describe('ShoppingCart', () => {
             metadata: { clientId },
           },
         ]);
+    });
+
+    void it('removes a product from aggregate state when its quantity reaches zero', () => {
+      const opened = evolve(initialState(), {
+        type: 'ProductItemAddedToShoppingCart',
+        data: {
+          shoppingCartId,
+          clientId,
+          productItem,
+          addedAt: oldTime,
+        },
+        metadata: { clientId },
+      });
+
+      const afterRemoval = evolve(opened, {
+        type: 'ProductItemRemovedFromShoppingCart',
+        data: {
+          shoppingCartId,
+          productItem,
+          removedAt: now,
+        },
+        metadata: { clientId },
+      });
+
+      assert.equal(afterRemoval.status, 'Opened');
+      assert.equal(afterRemoval.productItems.has(productItem.productId), false);
     });
   });
 
