@@ -56,6 +56,7 @@ const application = getApplication({
     shoppingCarts.ui(
       eventStore,
       readStore.db(),
+      inMemoryMessageBus,
       getUnitPrice,
       () => new Date(),
     ),

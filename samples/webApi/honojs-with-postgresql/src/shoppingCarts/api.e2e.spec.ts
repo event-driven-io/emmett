@@ -23,8 +23,12 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import type { Hono } from 'hono';
-import shoppingCarts, { type ProductItem } from './';
+import shoppingCarts, {
+  type ProductItem,
+  type ShoppingCartConfirmed,
+} from './';
 import { shoppingCartApi } from './api';
+import { getDetailsById } from './getDetails';
 import { shoppingCartUI } from './ui';
 
 const getUnitPrice = () => {
@@ -39,6 +43,7 @@ void describe('ShoppingCart E2E', () => {
   let readStore: PongoClient;
   let given: ApiE2ESpecification;
   let application: Hono;
+  let publishedEvents: ShoppingCartConfirmed[];
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
@@ -50,6 +55,9 @@ void describe('ShoppingCart E2E', () => {
     readStore = pongoClient({ connectionString, driver: pgDriver });
 
     const inMemoryMessageBus = getInMemoryMessageBus();
+    inMemoryMessageBus.subscribe((event: ShoppingCartConfirmed) => {
+      publishedEvents.push(event);
+    }, 'ShoppingCartConfirmed');
 
     const getTestApplication = (eventStore: EventStore) =>
       getApplication({
@@ -61,7 +69,13 @@ void describe('ShoppingCart E2E', () => {
             getUnitPrice,
             () => now,
           ),
-          shoppingCartUI(eventStore, readStore.db(), getUnitPrice, () => now),
+          shoppingCartUI(
+            eventStore,
+            readStore.db(),
+            inMemoryMessageBus,
+            getUnitPrice,
+            () => now,
+          ),
         ],
       });
 
@@ -72,6 +86,7 @@ void describe('ShoppingCart E2E', () => {
   beforeEach(() => {
     clientId = randomUUID();
     shoppingCartId = `shopping_cart:${clientId}:current`;
+    publishedEvents = [];
   });
 
   after(async () => {
@@ -104,6 +119,7 @@ void describe('ShoppingCart E2E', () => {
       assert.match(body, /hx-post=/);
       assert.match(body, /name="productId"/);
       assert.match(body, /name="quantity"/);
+      assert.doesNotMatch(body, /Confirm cart/);
     });
 
     void it('redirects the UI entry point to the demo cart', async () => {
@@ -222,6 +238,160 @@ void describe('ShoppingCart E2E', () => {
           }),
         ]);
     });
+
+    void it('removes the entire product row through HTMX', async () => {
+      await postProductItem({
+        productId: 'product-to-remove',
+        quantity: 2,
+        htmx: true,
+      });
+
+      const response = await removeProductItem({
+        productId: 'product-to-remove',
+        unitPrice,
+        method: 'DELETE',
+        htmx: true,
+      });
+
+      assert.equal(response.status, 200);
+      const body = await response.text();
+      assert.match(body, /Your shopping cart is empty\./);
+      assert.match(body, /<strong>0 items<\/strong>/);
+      assert.doesNotMatch(body, /product-to-remove/);
+      assert.doesNotMatch(body, /Confirm cart/);
+      assert.match(body, /Cancel cart/);
+
+      const details = await getDetailsById(readStore.db(), shoppingCartId);
+      assert.deepEqual(details?.productItems, []);
+      assert.equal(details?.productItemsCount, 0);
+      assert.equal(details?.totalAmount, 0);
+
+      const { events } = await eventStore.readStream(shoppingCartId);
+      const removed = events.at(-1);
+      assert.equal(removed?.type, 'ProductItemRemovedFromShoppingCart');
+      assert.deepEqual(removed?.data.productItem, {
+        productId: 'product-to-remove',
+        quantity: 2,
+        unitPrice,
+      });
+    });
+
+    void it('redirects after removing a product without HTMX', async () => {
+      await postProductItem({
+        productId: 'product-to-remove',
+        quantity: 1,
+        htmx: true,
+      });
+
+      const response = await removeProductItem({
+        productId: 'product-to-remove',
+        unitPrice,
+        method: 'POST',
+        htmx: false,
+      });
+
+      assert.equal(response.status, 303);
+      assert.equal(
+        response.headers.get('location'),
+        `/ui/clients/${clientId}/shopping-carts/current`,
+      );
+    });
+
+    void it('confirms the cart through HTMX and publishes the event', async () => {
+      await postProductItem({
+        productId: 'product-to-confirm',
+        quantity: 1,
+        htmx: true,
+      });
+
+      const response = await submitCartAction('confirm', true);
+
+      assert.equal(response.status, 200);
+      const body = await response.text();
+      assert.match(body, /This shopping cart is confirmed\./);
+      assert.doesNotMatch(body, /Add product|Remove|Confirm cart|Cancel cart/);
+
+      const { events } = await eventStore.readStream(shoppingCartId);
+      const confirmed = events.at(-1);
+      assert.equal(confirmed?.type, 'ShoppingCartConfirmed');
+      assert.equal(confirmed?.data.shoppingCartId, shoppingCartId);
+      assert.deepEqual(publishedEvents, [
+        {
+          type: 'ShoppingCartConfirmed',
+          data: { shoppingCartId, confirmedAt: now },
+          metadata: { clientId },
+        },
+      ]);
+    });
+
+    void it('redirects after confirming the cart without HTMX', async () => {
+      await postProductItem({
+        productId: 'product-to-confirm',
+        quantity: 1,
+        htmx: true,
+      });
+
+      const response = await submitCartAction('confirm', false);
+
+      assert.equal(response.status, 303);
+      assert.equal(
+        response.headers.get('location'),
+        `/ui/clients/${clientId}/shopping-carts/current`,
+      );
+    });
+
+    void it('cancels the cart through HTMX', async () => {
+      await postProductItem({
+        productId: 'product-to-cancel',
+        quantity: 1,
+        htmx: true,
+      });
+
+      const response = await submitCartAction('cancel', true, 'DELETE');
+
+      assert.equal(response.status, 200);
+      const body = await response.text();
+      assert.match(body, /This shopping cart is cancelled\./);
+      assert.doesNotMatch(body, /Add product|Remove|Confirm cart|Cancel cart/);
+
+      const { events } = await eventStore.readStream(shoppingCartId);
+      assert.equal(events.at(-1)?.type, 'ShoppingCartCancelled');
+    });
+
+    void it('redirects after cancelling the cart without HTMX', async () => {
+      await postProductItem({
+        productId: 'product-to-cancel',
+        quantity: 1,
+        htmx: true,
+      });
+
+      const response = await submitCartAction('cancel', false, 'POST');
+
+      assert.equal(response.status, 303);
+      assert.equal(
+        response.headers.get('location'),
+        `/ui/clients/${clientId}/shopping-carts/current`,
+      );
+    });
+
+    void it('returns Problem Details when the product row does not exist', async () => {
+      const response = await removeProductItem({
+        productId: 'missing-product',
+        unitPrice,
+        method: 'DELETE',
+        htmx: true,
+      });
+
+      assert.equal(response.status, 404);
+      assert.match(
+        response.headers.get('content-type') ?? '',
+        /^application\/problem\+json/,
+      );
+      assert.equal(
+        ((await response.json()) as { detail: string }).detail,
+        'Product item not found',
+      );
+    });
   });
 
   const now = new Date();
@@ -258,4 +428,34 @@ void describe('ShoppingCart E2E', () => {
       },
     );
   };
+
+  const removeProductItem = (options: {
+    productId: string;
+    unitPrice: number;
+    method: 'DELETE' | 'POST';
+    htmx: boolean;
+  }) => {
+    const { productId, unitPrice, method, htmx } = options;
+
+    return application.request(
+      `/ui/clients/${clientId}/shopping-carts/current/product-items/${encodeURIComponent(productId)}?unitPrice=${unitPrice}`,
+      {
+        method,
+        headers: htmx ? { 'HX-Request': 'true' } : undefined,
+      },
+    );
+  };
+
+  const submitCartAction = (
+    action: 'confirm' | 'cancel',
+    htmx: boolean,
+    method: 'DELETE' | 'POST' = 'POST',
+  ) =>
+    application.request(
+      `/ui/clients/${clientId}/shopping-carts/current/${action}`,
+      {
+        method,
+        headers: htmx ? { 'HX-Request': 'true' } : undefined,
+      },
+    );
 });
