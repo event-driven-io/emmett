@@ -1,0 +1,467 @@
+import type { D1Database } from '@cloudflare/workers-types';
+import { mapRows, SQL, SQLTableReference } from '@event-driven-io/dumbo';
+import {
+  d1Pool,
+  sqliteTableName,
+  tableExists,
+  type D1ConnectionPool,
+} from '@event-driven-io/dumbo/cloudflare';
+import {
+  assertDeepEqual,
+  assertFalse,
+  assertIsNull,
+  assertRejects,
+  assertTrue,
+  type Event,
+} from '@event-driven-io/emmett';
+import { Miniflare } from 'miniflare';
+import { v4 as uuid } from 'uuid';
+import { afterEach, beforeEach, describe, it } from 'vitest';
+import { d1EventStoreDriver } from '../../..';
+import { getSQLiteEventStore } from '../../../../../eventStore/SQLiteEventStore';
+import { SQLiteProjectionSpec } from '../../../../../eventStore/projections/sqliteProjectionSpec';
+import { pongoClient, type PongoCollection } from '@event-driven-io/pongo';
+import { pongoSingleStreamProjection } from '../../../../../eventStore/projections/pongo/pongoProjections';
+import { expectPongoDocuments } from '../../../../../eventStore/projections/pongo/pongoProjectionSpec';
+import { pongoDriverOf } from '../../../../../eventStore/eventStoreDriver';
+
+const withDeadline = { timeout: 30000 };
+
+void describe('SQLite Pongo projection schema configuration', () => {
+  const databaseSchemaName = 'events';
+  const projectionsDatabaseSchemaName = 'read_models';
+  const migrationSchemaName = 'infrastructure';
+  const migrationTableName = 'emmett_migrations';
+  const collectionName = 'shopping_cart_summary';
+
+  let mf: Miniflare;
+  let database: D1Database;
+  let pool: D1ConnectionPool;
+
+  beforeEach(async () => {
+    mf = new Miniflare({
+      modules: true,
+      script: 'export default { fetch() { return new Response("ok"); } }',
+      d1Databases: { DB: 'test-db-id' },
+    });
+    database = await mf.getD1Database('DB');
+    pool = d1Pool({
+      database,
+      transactionOptions: {
+        allowNestedTransactions: true,
+        mode: 'session_based',
+      },
+    });
+  });
+
+  afterEach(async () => {
+    await pool.close();
+    await mf.dispose();
+  });
+
+  void it(
+    'stores Pongo projection documents in the configured projection schema',
+    withDeadline,
+    async () => {
+      const streamName = `shopping_cart-${uuid()}`;
+      const eventStore = getSQLiteEventStore({
+        driver: d1EventStoreDriver,
+        database,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName,
+          projectionsDatabaseSchemaName,
+          migrationTable: {
+            schemaName: migrationSchemaName,
+            tableName: migrationTableName,
+          },
+        },
+        projections: [
+          {
+            type: 'inline',
+            projection: shoppingCartProjection(collectionName),
+          },
+        ],
+      });
+
+      try {
+        await eventStore.appendToStream(streamName, [
+          { type: 'ProductItemAdded', data: { quantity: 3 } },
+        ]);
+      } finally {
+        await eventStore.close();
+      }
+
+      assertDeepEqual(
+        await summaryIn(projectionsDatabaseSchemaName, streamName),
+        {
+          _id: streamName,
+          _version: 1n,
+          productItemsCount: 3,
+        },
+      );
+      assertFalse(await tableExists(pool.execute, collectionName));
+      assertFalse(
+        await tableExists(
+          pool.execute,
+          sqliteTableName({ databaseSchemaName, tableName: collectionName }),
+        ),
+      );
+      assertTrue(
+        (await migrationNames(migrationSchemaName, migrationTableName)).some(
+          (name) => name.includes(collectionName),
+        ),
+      );
+    },
+  );
+
+  void it(
+    'stores Pongo projection documents in the event schema when no projection schema is configured',
+    withDeadline,
+    async () => {
+      const streamName = `shopping_cart-${uuid()}`;
+      const eventStore = getSQLiteEventStore({
+        driver: d1EventStoreDriver,
+        database,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName,
+        },
+        projections: [
+          {
+            type: 'inline',
+            projection: shoppingCartProjection(collectionName),
+          },
+        ],
+      });
+
+      try {
+        await eventStore.appendToStream(streamName, [
+          { type: 'ProductItemAdded', data: { quantity: 2 } },
+        ]);
+      } finally {
+        await eventStore.close();
+      }
+
+      assertDeepEqual(await summaryIn(databaseSchemaName, streamName), {
+        _id: streamName,
+        _version: 1n,
+        productItemsCount: 2,
+      });
+      assertFalse(await tableExists(pool.execute, collectionName));
+    },
+  );
+
+  void it(
+    'uses the collection schema configured by the user instead of the projection default',
+    withDeadline,
+    async () => {
+      const collectionSchemaName = 'custom_read_models';
+      const streamName = `shopping_cart-${uuid()}`;
+      const eventStore = getSQLiteEventStore({
+        driver: d1EventStoreDriver,
+        database,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName,
+          projectionsDatabaseSchemaName,
+        },
+        projections: [
+          {
+            type: 'inline',
+            projection: shoppingCartProjection(collectionName, {
+              databaseSchemaName: collectionSchemaName,
+            }),
+          },
+        ],
+      });
+
+      try {
+        await eventStore.appendToStream(streamName, [
+          { type: 'ProductItemAdded', data: { quantity: 4 } },
+        ]);
+      } finally {
+        await eventStore.close();
+      }
+
+      assertDeepEqual(await summaryIn(collectionSchemaName, streamName), {
+        _id: streamName,
+        _version: 1n,
+        productItemsCount: 4,
+      });
+      assertFalse(
+        await tableExists(
+          pool.execute,
+          sqliteTableName({
+            databaseSchemaName: projectionsDatabaseSchemaName,
+            tableName: collectionName,
+          }),
+        ),
+      );
+      assertFalse(
+        await tableExists(
+          pool.execute,
+          sqliteTableName({ databaseSchemaName, tableName: collectionName }),
+        ),
+      );
+    },
+  );
+
+  void it(
+    'uses the configured schema names in SQLite projection specs',
+    withDeadline,
+    async () => {
+      const streamName = `shopping_cart-${uuid()}`;
+
+      await SQLiteProjectionSpec.for({
+        driver: d1EventStoreDriver,
+        database,
+        pool,
+        projection: shoppingCartProjection(collectionName),
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName,
+          projectionsDatabaseSchemaName,
+          migrationTable: {
+            schemaName: migrationSchemaName,
+            tableName: migrationTableName,
+          },
+        },
+      })([])
+        .when([
+          {
+            type: 'ProductItemAdded',
+            data: { quantity: 5 },
+            metadata: { streamName },
+          },
+        ])
+        .then(async () => {
+          assertDeepEqual(
+            await summaryIn(projectionsDatabaseSchemaName, streamName),
+            { _id: streamName, _version: 1n, productItemsCount: 5 },
+          );
+          assertTrue(
+            (
+              await migrationNames(migrationSchemaName, migrationTableName)
+            ).some((name) => name.includes(collectionName)),
+          );
+        });
+    },
+  );
+
+  void it(
+    'reads Pongo projection documents from the configured projection schema in assertions',
+    withDeadline,
+    async () => {
+      const streamName = `shopping_cart-${uuid()}`;
+
+      await SQLiteProjectionSpec.for({
+        driver: d1EventStoreDriver,
+        database,
+        pool,
+        projection: shoppingCartProjection(collectionName),
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName,
+          projectionsDatabaseSchemaName,
+        },
+      })([])
+        .when([
+          {
+            type: 'ProductItemAdded',
+            data: { quantity: 7 },
+            metadata: { streamName },
+          },
+        ])
+        .then(
+          expectPongoDocuments
+            .fromCollection<ShoppingCartSummary>(collectionName)
+            .withId(streamName)
+            .toBeEqual({ productItemsCount: 7 }),
+        );
+    },
+  );
+
+  void it(
+    'truncates Pongo projection documents in the configured projection schema',
+    withDeadline,
+    async () => {
+      const streamName = `shopping_cart-${uuid()}`;
+      const eventStore = getSQLiteEventStore({
+        driver: d1EventStoreDriver,
+        database,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName,
+          projectionsDatabaseSchemaName,
+        },
+        projections: [
+          {
+            type: 'inline',
+            projection: shoppingCartProjection(collectionName),
+          },
+        ],
+      });
+
+      try {
+        await eventStore.appendToStream(streamName, [
+          { type: 'ProductItemAdded', data: { quantity: 6 } },
+        ]);
+
+        assertDeepEqual(
+          await summaryIn(projectionsDatabaseSchemaName, streamName),
+          {
+            _id: streamName,
+            _version: 1n,
+            productItemsCount: 6,
+          },
+        );
+
+        await eventStore.schema.dangerous.truncate({
+          truncateProjections: true,
+        });
+
+        assertIsNull(
+          await summaryIn(projectionsDatabaseSchemaName, streamName),
+        );
+      } finally {
+        await eventStore.close();
+      }
+    },
+  );
+
+  void it(
+    'ignores a Pongo collection migration hash mismatch when the user asks for it',
+    withDeadline,
+    async () => {
+      const streamName = `shopping_cart-${uuid()}`;
+      const eventStore = () =>
+        getSQLiteEventStore({
+          driver: d1EventStoreDriver,
+          database,
+          schema: {
+            autoMigration: 'CreateOrUpdate',
+            databaseSchemaName,
+            projectionsDatabaseSchemaName,
+            migrationTable: {
+              schemaName: migrationSchemaName,
+              tableName: migrationTableName,
+            },
+          },
+          projections: [
+            {
+              type: 'inline',
+              projection: shoppingCartProjection(collectionName),
+            },
+          ],
+        });
+
+      const migrated = eventStore();
+      try {
+        await migrated.schema.migrate();
+      } finally {
+        await migrated.close();
+      }
+
+      await changeCollectionMigrationHash();
+
+      const rejecting = eventStore();
+      try {
+        await assertRejects(rejecting.schema.migrate(), (error: Error) =>
+          error.message.includes('Migration hash mismatch'),
+        );
+      } finally {
+        await rejecting.close();
+      }
+
+      const ignoring = eventStore();
+      try {
+        await ignoring.schema.migrate({ ignoreMigrationHashMismatch: true });
+
+        await ignoring.appendToStream(streamName, [
+          { type: 'ProductItemAdded', data: { quantity: 8 } },
+        ]);
+      } finally {
+        await ignoring.close();
+      }
+
+      assertDeepEqual(
+        await summaryIn(projectionsDatabaseSchemaName, streamName),
+        {
+          _id: streamName,
+          _version: 1n,
+          productItemsCount: 8,
+        },
+      );
+    },
+  );
+
+  const changeCollectionMigrationHash = () =>
+    pool.execute.command(
+      SQL`UPDATE ${SQLTableReference.from({
+        databaseSchemaName: migrationSchemaName,
+        tableName: migrationTableName,
+      })} SET sql_hash = ${'changed'} WHERE name LIKE ${`%${collectionName}%`}`,
+    );
+
+  const withSummaries = <Result>(
+    databaseSchemaName: string,
+    handle: (
+      collection: PongoCollection<ShoppingCartSummary>,
+    ) => Promise<Result>,
+  ): Promise<Result> =>
+    pool.withConnection(async (connection) => {
+      const driver = pongoDriverOf(d1EventStoreDriver);
+      const pongo = pongoClient({
+        driver,
+        connectionOptions: { connection },
+        defaultSchemaName: databaseSchemaName,
+      });
+      try {
+        return await handle(
+          pongo.db().collection<ShoppingCartSummary>(collectionName),
+        );
+      } finally {
+        await pongo.close();
+      }
+    });
+
+  const summaryIn = (databaseSchemaName: string, streamName: string) =>
+    withSummaries(databaseSchemaName, (summaries) =>
+      summaries.findOne({ _id: streamName }),
+    );
+
+  const migrationNames = (
+    databaseSchemaName: string,
+    tableName: string,
+  ): Promise<string[]> =>
+    mapRows(
+      pool.execute.query<{ name: string }>(
+        SQL`SELECT name FROM ${SQLTableReference.from({
+          databaseSchemaName,
+          tableName,
+        })}`,
+      ),
+      ({ name }) => name,
+    );
+});
+
+type ProductItemAdded = Event<'ProductItemAdded', { quantity: number }>;
+
+type ShoppingCartSummary = {
+  productItemsCount: number;
+};
+
+const shoppingCartProjection = (
+  collectionName: string,
+  collectionOptions?: { databaseSchemaName?: string | undefined },
+) =>
+  pongoSingleStreamProjection<ShoppingCartSummary, ProductItemAdded>({
+    collectionName,
+    collectionOptions,
+    canHandle: ['ProductItemAdded'],
+    evolve: (document: ShoppingCartSummary, event: ProductItemAdded) => ({
+      productItemsCount: document.productItemsCount + event.data.quantity,
+    }),
+    initialState: () => ({ productItemsCount: 0 }),
+  });

@@ -1,0 +1,131 @@
+import type { D1Database } from '@cloudflare/workers-types';
+import { JSONSerializer } from '@event-driven-io/dumbo';
+import {
+  d1Connection,
+  d1Pool,
+  type D1Connection,
+  type D1ConnectionPool,
+} from '@event-driven-io/dumbo/cloudflare';
+import {
+  assertEqual,
+  assertFalse,
+  assertIsNotNull,
+  assertMatches,
+  type Event,
+} from '@event-driven-io/emmett';
+import { Miniflare } from 'miniflare';
+import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
+import { createEventStoreSchema } from '../../../../eventStore/schema';
+import { appendToStream } from '../../../../eventStore/schema/appendToStream';
+import { readStream } from '../../../../eventStore/schema/readStream';
+
+export type PricedProductItem = {
+  productId: string;
+  quantity: number;
+  price: number;
+};
+
+export type ShoppingCart = {
+  productItems: PricedProductItem[];
+  totalAmount: number;
+};
+
+export type ProductItemAdded = Event<
+  'ProductItemAdded',
+  { productItem: PricedProductItem },
+  { meta: string }
+>;
+export type DiscountApplied = Event<
+  'DiscountApplied',
+  { percent: number },
+  { meta: string }
+>;
+
+export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
+
+void describe('appendEvent', () => {
+  let connection: D1Connection;
+  let pool: D1ConnectionPool;
+  let mf: Miniflare;
+  let database: D1Database;
+  const serializer = JSONSerializer;
+
+  beforeAll(async () => {
+    mf = new Miniflare({
+      modules: true,
+      script: 'export default { fetch() { return new Response("ok"); } }',
+      d1Databases: { DB: 'test-db-id' },
+    });
+    database = await mf.getD1Database('DB');
+    connection = d1Connection({
+      database,
+      serializer,
+      transactionOptions: {
+        allowNestedTransactions: true,
+        mode: 'session_based',
+      },
+    });
+    pool = d1Pool({ database, connection });
+    await createEventStoreSchema({
+      pool,
+    });
+  });
+
+  afterAll(async () => {
+    await connection.close();
+    await mf.dispose();
+  });
+
+  const events: ShoppingCartEvent[] = [
+    {
+      type: 'ProductItemAdded',
+      data: { productItem: { productId: '1', quantity: 2, price: 30 } },
+      metadata: { meta: 'data1' },
+    },
+    {
+      type: 'DiscountApplied',
+      data: { percent: 10 },
+      metadata: { meta: 'data2' },
+    },
+  ];
+
+  void it('reads events from non-empty stream', async () => {
+    // Given
+    const streamId = uuid();
+    await appendToStream(connection, streamId, 'shopping_cart', events);
+
+    // When
+    const result = await readStream(connection.execute, streamId, {
+      serializer,
+    });
+
+    // Then
+    assertIsNotNull(result);
+    assertEqual(2n, result.currentStreamVersion);
+
+    const expected = events.map((e, index) => ({
+      ...e,
+      metadata: {
+        ...('metadata' in e ? (e.metadata ?? {}) : {}),
+        streamName: streamId,
+        streamPosition: BigInt(index + 1),
+      },
+    }));
+
+    assertMatches(result.events, expected);
+  });
+
+  void it('returns false for non-existent stream', async () => {
+    // Given
+    const nonExistingStreamId = uuid();
+
+    // When
+    const result = await readStream(connection.execute, nonExistingStreamId, {
+      serializer,
+    });
+
+    // Then
+    assertFalse(result.streamExists);
+  });
+});

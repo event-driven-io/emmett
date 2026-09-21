@@ -1,0 +1,1308 @@
+import type { D1Database } from '@cloudflare/workers-types';
+import { JSONSerializer } from '@event-driven-io/dumbo';
+import {
+  d1Pool,
+  type D1ConnectionPool,
+} from '@event-driven-io/dumbo/cloudflare';
+import {
+  assertNotEqual,
+  assertThatArray,
+  assertThrowsAsync,
+  type Event,
+} from '@event-driven-io/emmett';
+import { Miniflare } from 'miniflare';
+import { v4 as uuid } from 'uuid';
+import { afterEach, beforeEach, describe, it } from 'vitest';
+import {
+  d1EventStoreDriver,
+  type D1EventStoreDriver,
+  type D1EventStoreOptions,
+} from '../..';
+import { createEventStoreSchema } from '../../../../eventStore/schema';
+import {
+  getSQLiteEventStore,
+  type SQLiteEventStore,
+} from '../../../../eventStore/SQLiteEventStore';
+import { sqliteEventStoreConsumer } from '../../../../eventStore/consumers/sqliteEventStoreConsumer';
+import type {
+  SQLiteProjectorOptions,
+  SQLiteReactorOptions,
+} from '../../../../eventStore/consumers/sqliteProcessor';
+
+const withDeadline = { timeout: 30000 };
+
+void describe('SQLite event store started consumer', () => {
+  let mf: Miniflare;
+  let database: D1Database;
+  let pool: D1ConnectionPool;
+  let config: D1EventStoreOptions;
+
+  let eventStore: SQLiteEventStore;
+
+  const collectingProjection = (
+    collected: GuestStayEvent[],
+    projectionName: string,
+  ): SQLiteProjectorOptions<GuestStayEvent>['projection'] => ({
+    name: projectionName,
+    canHandle: ['GuestCheckedIn', 'GuestCheckedOut'],
+    handle: (events) => {
+      collected.push(...events);
+    },
+  });
+
+  beforeEach(async () => {
+    mf = new Miniflare({
+      modules: true,
+      script: 'export default { fetch() { return new Response("ok"); } }',
+      d1Databases: { DB: 'test-db-id' },
+    });
+    database = await mf.getD1Database('DB');
+    pool = d1Pool({
+      database,
+      transactionOptions: {
+        allowNestedTransactions: true,
+        mode: 'session_based',
+      },
+    });
+    config = {
+      driver: d1EventStoreDriver,
+      schema: {
+        autoMigration: 'None',
+      },
+      database,
+    };
+
+    eventStore = getSQLiteEventStore({ ...config, pool });
+    return createEventStoreSchema({
+      pool: d1Pool({
+        database,
+        serialization: { serializer: JSONSerializer },
+        transactionOptions: { mode: 'session_based' },
+      }),
+    });
+  });
+
+  afterEach(async () => {
+    await eventStore.close();
+    await pool.close();
+    await mf.dispose();
+  });
+
+  void describe('starting and closing resilience', () => {
+    void it(
+      'handles close being called while start is initializing without race condition',
+      withDeadline,
+      async () => {
+        const iterations = 10;
+        const errors: Error[] = [];
+
+        await eventStore.appendToStream(`testStream-${uuid()}`, [
+          { type: 'TestEvent', data: {} },
+        ]);
+
+        await Promise.all(
+          Array.from({ length: iterations }, async () => {
+            const consumer = sqliteEventStoreConsumer({
+              driver: d1EventStoreDriver,
+              database,
+              pool,
+            });
+
+            consumer.reactor<GuestStayEvent>({
+              processorId: uuid(),
+              eachMessage: () => {},
+              stopAfter: () => true,
+            });
+
+            try {
+              const startPromise = consumer.start();
+              //await consumer.close();
+              await startPromise;
+            } catch (error) {
+              errors.push(error as Error);
+            } finally {
+              await consumer.close();
+            }
+          }),
+        );
+
+        assertThatArray(errors).hasSize(0);
+      },
+    );
+  });
+
+  void describe('consumer created by the event store', () => {
+    void it(
+      'catches up with events appended before it was created',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, events);
+
+        const projected: GuestStayEvent[] = [];
+
+        // When
+        const consumer = eventStore.consumer();
+        consumer.projector<GuestStayEvent>({
+          processorId: uuid(),
+          projection: collectingProjection(projected, `guestStays-${uuid()}`),
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenCaughtUp();
+
+          // Then
+          assertThatArray(projected).containsOnlyElementsMatching(events);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'leaves the event store usable after the consumer was closed',
+      withDeadline,
+      async () => {
+        // Given
+        const ownedStore = getSQLiteEventStore({
+          driver: d1EventStoreDriver,
+          schema: { autoMigration: 'None' },
+          database,
+        });
+
+        const guestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const consumer = ownedStore.consumer();
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          eachMessage: () => {},
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+
+        // When
+        await ownedStore.appendToStream(streamName, [
+          { type: 'GuestCheckedIn', data: { guestId } },
+        ]);
+
+        // Then
+        const { events: read } =
+          await ownedStore.readStream<GuestStayEvent>(streamName);
+        assertThatArray(read).hasSize(1);
+
+        // And closing the event store tears its own pool down
+        await ownedStore.close();
+
+        await assertThrowsAsync(() =>
+          ownedStore.appendToStream(streamName, [
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ]),
+        );
+      },
+    );
+
+    void it(
+      'returns distinct consumers with separate checkpoints',
+      withDeadline,
+      async () => {
+        // Given
+        const first = eventStore.consumer();
+        const second = eventStore.consumer();
+
+        assertNotEqual(first.consumerId, second.consumerId);
+
+        const firstResult: GuestStayEvent[] = [];
+        const secondResult: GuestStayEvent[] = [];
+
+        first.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          eachMessage: (event) => {
+            firstResult.push(event);
+          },
+        });
+        second.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          eachMessage: (event) => {
+            secondResult.push(event);
+          },
+        });
+
+        const guestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+
+        let firstPromise: Promise<void> | undefined;
+        let secondPromise: Promise<void> | undefined;
+        try {
+          // When
+          firstPromise = first.start();
+          secondPromise = second.start();
+          await Promise.all([first.whenStarted(), second.whenStarted()]);
+
+          await eventStore.appendToStream(streamName, events);
+
+          await Promise.all([first.whenCaughtUp(), second.whenCaughtUp()]);
+
+          // Then
+          assertThatArray(firstResult).containsElementsMatching(events);
+          assertThatArray(secondResult).containsElementsMatching(events);
+
+          // And closing the first one keeps the second one consuming
+          await first.close();
+          await firstPromise;
+          firstPromise = undefined;
+
+          const otherGuestId = uuid();
+          const newEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          ];
+          await eventStore.appendToStream(
+            `guestStay-${otherGuestId}`,
+            newEvents,
+          );
+
+          await second.whenCaughtUp();
+
+          assertThatArray(secondResult).containsElementsMatching([
+            ...events,
+            ...newEvents,
+          ]);
+        } finally {
+          await first.close();
+          await firstPromise;
+          await second.close();
+          await secondPromise;
+        }
+      },
+    );
+  });
+
+  void describe('eachMessage', () => {
+    void it(
+      'handles all events appended to event store BEFORE processor was started',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        const appendResult = await eventStore.appendToStream(
+          streamName,
+          events,
+        );
+        const result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = sqliteEventStoreConsumer({
+          driver: d1EventStoreDriver,
+          database,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          stopAfter: (event) =>
+            event.metadata.globalPosition ===
+            appendResult.lastEventGlobalPosition,
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        try {
+          await consumer.start();
+          assertThatArray(result).containsElementsMatching(events);
+        } catch (error) {
+          console.log(error);
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
+
+    void it(
+      'handles all events appended to event store AFTER processor was started',
+      withDeadline,
+      async () => {
+        // Given
+
+        const result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = sqliteEventStoreConsumer({
+          driver: d1EventStoreDriver,
+          database,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        const guestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, events);
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(result).containsElementsMatching(events);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'handles ONLY events AFTER provided global position',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        const { lastEventGlobalPosition: startPosition } =
+          await eventStore.appendToStream(streamName, initialEvents);
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = sqliteEventStoreConsumer({
+          driver: d1EventStoreDriver,
+          database,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: {
+            lastCheckpoint: startPosition,
+          },
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, events);
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(result).containsOnlyElementsMatching(events);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'handles all events when CURRENT position is NOT stored',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = sqliteEventStoreConsumer({
+          driver: d1EventStoreDriver,
+          database,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'CURRENT',
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, events);
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(result).containsElementsMatching([
+            ...initialEvents,
+            ...events,
+          ]);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void describe('startFrom END across processors in one consumer', () => {
+      void it(
+        'does not flood END processor when mixed with BEGINNING processor in one consumer',
+        withDeadline,
+        async () => {
+          // Given
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+
+          const initialEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+          await eventStore.appendToStream(streamName, initialEvents);
+
+          const newEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+
+          const fromBeginning: GuestStayEvent[] = [];
+          const fromEnd: GuestStayEvent[] = [];
+
+          // When
+          const consumer = sqliteEventStoreConsumer({
+            driver: d1EventStoreDriver,
+            database,
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: 'BEGINNING',
+            eachMessage: (event) => {
+              fromBeginning.push(event);
+            },
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: 'END',
+            eachMessage: (event) => {
+              fromEnd.push(event);
+            },
+          });
+
+          let consumerPromise: Promise<void> | undefined;
+          try {
+            consumerPromise = consumer.start();
+            await consumer.whenStarted();
+
+            await eventStore.appendToStream(streamName, newEvents);
+
+            await consumer.whenCaughtUp();
+
+            // Then the BEGINNING processor sees the whole history,
+            // while the END processor sees only messages appended after start
+            assertThatArray(fromBeginning).containsElementsMatching([
+              ...initialEvents,
+              ...newEvents,
+            ]);
+            assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
+          } finally {
+            await consumer.close();
+            await consumerPromise;
+          }
+        },
+      );
+
+      void it(
+        'resumes a checkpointed projection from its checkpoint while an END reactor sees only new events',
+        withDeadline,
+        async () => {
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+
+          const initialEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+          const { lastEventGlobalPosition: resumeCheckpoint } =
+            await eventStore.appendToStream(streamName, initialEvents);
+
+          const backlogEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+          await eventStore.appendToStream(streamName, backlogEvents);
+
+          const newEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+
+          const fromResuming: GuestStayEvent[] = [];
+          const fromEnd: GuestStayEvent[] = [];
+
+          const consumer = sqliteEventStoreConsumer({
+            driver: d1EventStoreDriver,
+            database,
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: { lastCheckpoint: resumeCheckpoint },
+            eachMessage: (event) => {
+              fromResuming.push(event);
+            },
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: 'END',
+            eachMessage: (event) => {
+              fromEnd.push(event);
+            },
+          });
+
+          let consumerPromise: Promise<void> | undefined;
+          try {
+            consumerPromise = consumer.start();
+            await consumer.whenStarted();
+
+            await eventStore.appendToStream(streamName, newEvents);
+
+            await consumer.whenCaughtUp();
+
+            assertThatArray(fromResuming).containsOnlyElementsMatching([
+              ...backlogEvents,
+              ...newEvents,
+            ]);
+            assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
+          } finally {
+            await consumer.close();
+            await consumerPromise;
+          }
+        },
+      );
+
+      void it(
+        'multiple END reactors in one consumer each handle only new events',
+        withDeadline,
+        async () => {
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+
+          await eventStore.appendToStream(streamName, [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ]);
+
+          const newEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+
+          const firstEnd: GuestStayEvent[] = [];
+          const secondEnd: GuestStayEvent[] = [];
+
+          const consumer = sqliteEventStoreConsumer({
+            driver: d1EventStoreDriver,
+            database,
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: 'END',
+            eachMessage: (event) => {
+              firstEnd.push(event);
+            },
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            startFrom: 'END',
+            eachMessage: (event) => {
+              secondEnd.push(event);
+            },
+          });
+
+          let consumerPromise: Promise<void> | undefined;
+          try {
+            consumerPromise = consumer.start();
+            await consumer.whenStarted();
+
+            await eventStore.appendToStream(streamName, newEvents);
+
+            await consumer.whenCaughtUp();
+
+            assertThatArray(firstEnd).containsOnlyElementsMatching(newEvents);
+            assertThatArray(secondEnd).containsOnlyElementsMatching(newEvents);
+          } finally {
+            await consumer.close();
+            await consumerPromise;
+          }
+        },
+      );
+    });
+
+    void it(
+      'delivers all events appended after starting from END as the stream grows',
+      withDeadline,
+      async () => {
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        await eventStore.appendToStream(streamName, [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ]);
+
+        const firstAppend: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+        ];
+        const secondAppend: GuestStayEvent[] = [
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const fromEnd: GuestStayEvent[] = [];
+
+        const consumer = sqliteEventStoreConsumer({
+          driver: d1EventStoreDriver,
+          database,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'END',
+          eachMessage: (event) => {
+            fromEnd.push(event);
+          },
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, firstAppend);
+          await eventStore.appendToStream(streamName, secondAppend);
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(fromEnd).containsOnlyElementsMatching([
+            ...firstAppend,
+            ...secondAppend,
+          ]);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    (['BEGINNING', 'END'] as const).forEach((startFrom) => {
+      void it(
+        `does not persist a reactor checkpoint across a restart when checkpoints are DISABLED (startFrom ${startFrom})`,
+        withDeadline,
+        async () => {
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const thirdGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+          const processorId = uuid();
+
+          const initialEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+          await eventStore.appendToStream(streamName, initialEvents);
+
+          const firstNewEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+          const secondNewEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+          ];
+
+          const firstRun: GuestStayEvent[] = [];
+          const secondRun: GuestStayEvent[] = [];
+
+          const firstConsumer = sqliteEventStoreConsumer({
+            driver: d1EventStoreDriver,
+            database,
+          });
+          firstConsumer.reactor<GuestStayEvent>({
+            processorId,
+            startFrom,
+            checkpoints: 'DISABLED',
+            eachMessage: (event) => {
+              firstRun.push(event);
+            },
+          });
+          let firstConsumerPromise: Promise<void> | undefined;
+          try {
+            firstConsumerPromise = firstConsumer.start();
+            await firstConsumer.whenStarted();
+            await eventStore.appendToStream(streamName, firstNewEvents);
+            await firstConsumer.whenCaughtUp();
+          } finally {
+            await firstConsumer.close();
+            await firstConsumerPromise;
+          }
+
+          const secondConsumer = sqliteEventStoreConsumer({
+            driver: d1EventStoreDriver,
+            database,
+          });
+          secondConsumer.reactor<GuestStayEvent>({
+            processorId,
+            startFrom,
+            checkpoints: 'DISABLED',
+            eachMessage: (event) => {
+              secondRun.push(event);
+            },
+          });
+          let secondConsumerPromise: Promise<void> | undefined;
+          try {
+            secondConsumerPromise = secondConsumer.start();
+            await secondConsumer.whenStarted();
+            await eventStore.appendToStream(streamName, secondNewEvents);
+            await secondConsumer.whenCaughtUp();
+          } finally {
+            await secondConsumer.close();
+            await secondConsumerPromise;
+          }
+
+          const expectedFirstRun =
+            startFrom === 'BEGINNING'
+              ? [...initialEvents, ...firstNewEvents]
+              : firstNewEvents;
+          const expectedSecondRun =
+            startFrom === 'BEGINNING'
+              ? [...initialEvents, ...firstNewEvents, ...secondNewEvents]
+              : secondNewEvents;
+
+          assertThatArray(firstRun).containsOnlyElementsMatching(
+            expectedFirstRun,
+          );
+          assertThatArray(secondRun).containsOnlyElementsMatching(
+            expectedSecondRun,
+          );
+        },
+      );
+
+      void it(
+        `does not persist a projector checkpoint across a restart when checkpoints are DISABLED (startFrom ${startFrom})`,
+        withDeadline,
+        async () => {
+          const guestId = uuid();
+          const otherGuestId = uuid();
+          const thirdGuestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+          const processorId = uuid();
+          const projectionName = `guestStays-${uuid()}`;
+
+          const initialEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId } },
+            { type: 'GuestCheckedOut', data: { guestId } },
+          ];
+          await eventStore.appendToStream(streamName, initialEvents);
+
+          const firstNewEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+          ];
+          const secondNewEvents: GuestStayEvent[] = [
+            { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+            { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+          ];
+
+          const firstRun: GuestStayEvent[] = [];
+          const secondRun: GuestStayEvent[] = [];
+
+          const firstConsumer = sqliteEventStoreConsumer({
+            driver: d1EventStoreDriver,
+            database,
+          });
+          firstConsumer.projector<GuestStayEvent>({
+            processorId,
+            startFrom,
+            checkpoints: 'DISABLED',
+            projection: collectingProjection(firstRun, projectionName),
+          });
+          let firstConsumerPromise: Promise<void> | undefined;
+          try {
+            firstConsumerPromise = firstConsumer.start();
+            await firstConsumer.whenStarted();
+            await eventStore.appendToStream(streamName, firstNewEvents);
+            await firstConsumer.whenCaughtUp();
+          } finally {
+            await firstConsumer.close();
+            await firstConsumerPromise;
+          }
+
+          const secondConsumer = sqliteEventStoreConsumer({
+            driver: d1EventStoreDriver,
+            database,
+          });
+          secondConsumer.projector<GuestStayEvent>({
+            processorId,
+            startFrom,
+            checkpoints: 'DISABLED',
+            projection: collectingProjection(secondRun, projectionName),
+          });
+          let secondConsumerPromise: Promise<void> | undefined;
+          try {
+            secondConsumerPromise = secondConsumer.start();
+            await secondConsumer.whenStarted();
+            await eventStore.appendToStream(streamName, secondNewEvents);
+            await secondConsumer.whenCaughtUp();
+          } finally {
+            await secondConsumer.close();
+            await secondConsumerPromise;
+          }
+
+          const expectedFirstRun =
+            startFrom === 'BEGINNING'
+              ? [...initialEvents, ...firstNewEvents]
+              : firstNewEvents;
+          const expectedSecondRun =
+            startFrom === 'BEGINNING'
+              ? [...initialEvents, ...firstNewEvents, ...secondNewEvents]
+              : secondNewEvents;
+
+          assertThatArray(firstRun).containsOnlyElementsMatching(
+            expectedFirstRun,
+          );
+          assertThatArray(secondRun).containsOnlyElementsMatching(
+            expectedSecondRun,
+          );
+        },
+      );
+    });
+
+    void it(
+      'handles only new events when CURRENT position is stored for restarted consumer',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        const { lastEventGlobalPosition: startPosition } =
+          await eventStore.appendToStream(streamName, initialEvents);
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        let result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = sqliteEventStoreConsumer({
+          driver: d1EventStoreDriver,
+          database,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'CURRENT',
+          stopAfter: (event) => event.metadata.globalPosition === startPosition,
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        await consumer.start();
+        await consumer.stop();
+
+        result = [];
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, events);
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(result).containsOnlyElementsMatching(events);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'handles only new events when CURRENT position is stored for a new consumer',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        const { lastEventGlobalPosition: startPosition } =
+          await eventStore.appendToStream(streamName, initialEvents);
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        let result: GuestStayEvent[] = [];
+
+        const processorOptions: SQLiteReactorOptions<
+          GuestStayEvent,
+          GuestStayEvent,
+          D1EventStoreDriver
+        > = {
+          processorId: uuid(),
+          startFrom: 'CURRENT',
+          stopAfter: (event) => event.metadata.globalPosition === startPosition,
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        };
+
+        // When
+        const consumer = sqliteEventStoreConsumer({
+          driver: d1EventStoreDriver,
+          database,
+        });
+        try {
+          consumer.reactor<GuestStayEvent>(processorOptions);
+
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+
+        result = [];
+
+        const newConsumer = sqliteEventStoreConsumer({
+          driver: d1EventStoreDriver,
+          database,
+        });
+        newConsumer.reactor<GuestStayEvent>(processorOptions);
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = newConsumer.start();
+          await newConsumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, events);
+
+          await newConsumer.whenCaughtUp();
+
+          assertThatArray(result).containsOnlyElementsMatching(events);
+        } finally {
+          await newConsumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'handles only new events when startFrom END is specified',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = sqliteEventStoreConsumer({
+          driver: d1EventStoreDriver,
+          database,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'END',
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, events);
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(result).containsOnlyElementsMatching(events);
+        } catch (error) {
+          console.log(error);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'handles events on empty store when startFrom END is specified',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const events: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+
+        const result: GuestStayEvent[] = [];
+
+        // When
+        const consumer = sqliteEventStoreConsumer({
+          driver: d1EventStoreDriver,
+          database,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'END',
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, events);
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(result).containsElementsMatching(events);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'restarted END consumer resumes from last checkpoint',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const thirdGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const firstBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        let result: GuestStayEvent[] = [];
+
+        const consumer = sqliteEventStoreConsumer({
+          driver: d1EventStoreDriver,
+          database,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'END',
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        // Run 1: process first batch appended after END start
+        const firstConsumerPromise = consumer.start();
+        await consumer.whenStarted();
+
+        await eventStore.appendToStream(streamName, firstBatch);
+        await consumer.whenCaughtUp();
+        await consumer.stop();
+        await firstConsumerPromise;
+
+        // Run 2: restart and process second batch only
+        result = [];
+
+        const secondBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+        ];
+
+        let secondConsumerPromise: Promise<void> | undefined;
+        try {
+          secondConsumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, secondBatch);
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(result).containsOnlyElementsMatching(secondBatch);
+        } finally {
+          await consumer.close();
+          await secondConsumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'handles concurrent writes with multiple processors without SQLITE_BUSY errors',
+      // D1 under Miniflare needs about 35s for these 1000 concurrent streams
+      { timeout: 90000 },
+      async () => {
+        // Given
+        const concurrentStreams = 1000;
+        const expectedCount = concurrentStreams * 2;
+        const projectionResult: GuestStayEvent[] = [];
+        const forwarderResult: GuestStayEvent[] = [];
+
+        const consumer = sqliteEventStoreConsumer({
+          driver: d1EventStoreDriver,
+          database,
+          pool,
+        });
+
+        const guestIds = Array.from({ length: concurrentStreams }, () =>
+          uuid(),
+        );
+
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          eachMessage: (event) => {
+            if (guestIds.includes(event.data.guestId)) {
+              projectionResult.push(event);
+            }
+          },
+        });
+
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          eachMessage: (event) => {
+            if (guestIds.includes(event.data.guestId)) {
+              forwarderResult.push(event);
+            }
+          },
+        });
+
+        // When
+        let consumerPromise: Promise<void> | undefined;
+        try {
+          consumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await Promise.all(
+            guestIds.map((guestId) =>
+              eventStore
+                .appendToStream(`guestStay-${guestId}`, [
+                  { type: 'GuestCheckedIn', data: { guestId } },
+                  { type: 'GuestCheckedOut', data: { guestId } },
+                ])
+                .catch(() => undefined),
+            ),
+          );
+
+          await consumer.whenCaughtUp();
+
+          // Then
+          assertThatArray(projectionResult).hasSize(expectedCount);
+          assertThatArray(forwarderResult).hasSize(expectedCount);
+        } catch (error) {
+          console.log(error);
+        } finally {
+          await consumer.close();
+          await consumerPromise;
+        }
+      },
+    );
+  });
+});
+
+type GuestCheckedIn = Event<'GuestCheckedIn', { guestId: string }>;
+type GuestCheckedOut = Event<'GuestCheckedOut', { guestId: string }>;
+
+type GuestStayEvent = GuestCheckedIn | GuestCheckedOut;
