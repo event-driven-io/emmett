@@ -1,17 +1,17 @@
+import type { D1Database } from '@cloudflare/workers-types';
 import {
   assertDeepEqual,
   assertEqual,
-  assertFalse,
-  assertIsNull,
   assertRejects,
+  assertTrue,
   type Event,
 } from '@event-driven-io/emmett';
 import { pongoClient } from '@event-driven-io/pongo';
-import { pongoDriver as sqlite3PongoDriver } from '@event-driven-io/pongo/sqlite3';
+import { pongoDriver as d1PongoDriver } from '@event-driven-io/pongo/cloudflare';
+import { Miniflare } from 'miniflare';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
-import { sqlite3EventStoreDriver } from '../../../../../sqlite3';
-import { deleteSQLiteDatabaseFiles } from '../../../testing/sqliteTestDatabase';
+import { d1EventStoreDriver } from '../../..';
 import {
   getSQLiteEventStore,
   type SQLiteEventStore,
@@ -29,18 +29,24 @@ type ProductItemAdded = Event<'ProductItemAdded', { quantity: number }>;
 type ShoppingCartSummary = { productItemsCount: number };
 
 void describe('Pongo projection sharing the event store transaction', () => {
-  let fileName: string;
+  let mf: Miniflare;
+  let database: D1Database;
 
-  beforeAll(() => {
-    fileName = `./test-pongo-transaction-${uuid()}.db`;
+  beforeAll(async () => {
+    mf = new Miniflare({
+      modules: true,
+      script: 'export default { fetch() { return new Response("ok"); } }',
+      d1Databases: { DB: 'test-db-id' },
+    });
+    database = await mf.getD1Database('DB');
   });
 
-  afterAll(() => {
-    deleteSQLiteDatabaseFiles(fileName);
+  afterAll(async () => {
+    await mf.dispose();
   });
 
   void it(
-    'rolls the events and the projected document back when a later projection throws',
+    'throwing exception in a later projection and the events and the projected document are NOT rolled back',
     withDeadline,
     async () => {
       const collectionName = uniqueCollectionName();
@@ -57,19 +63,23 @@ void describe('Pongo projection sharing the event store transaction', () => {
 
       const store = storeWith(collectionName, [failingProjection()]);
       try {
-        const rolledBackStream = `shopping_cart:${uuid()}`;
+        const notRolledBackStream = `shopping_cart:${uuid()}`;
         await assertRejects(
-          store.appendToStream<ProductItemAdded>(rolledBackStream, [
+          store.appendToStream<ProductItemAdded>(notRolledBackStream, [
             { type: 'ProductItemAdded', data: { quantity: 3 } },
           ]),
         );
 
-        assertIsNull(await summaryIn(collectionName, rolledBackStream));
+        assertDeepEqual(await summaryIn(collectionName, notRolledBackStream), {
+          _id: notRolledBackStream,
+          _version: 1n,
+          productItemsCount: 3,
+        });
 
         const { streamExists, events } =
-          await store.readStream<ProductItemAdded>(rolledBackStream);
-        assertFalse(streamExists);
-        assertEqual(0, events.length);
+          await store.readStream<ProductItemAdded>(notRolledBackStream);
+        assertTrue(streamExists);
+        assertEqual(1, events.length);
       } finally {
         await store.close();
       }
@@ -122,7 +132,7 @@ void describe('Pongo projection sharing the event store transaction', () => {
     }
   });
 
-  void it('rejects a nested transaction and rolls back when the caller disallows nesting', async () => {
+  void it('rejects a nested transaction and does NOT roll back when the caller disallows nesting', async () => {
     const collectionName = uniqueCollectionName();
     const streamName = `shopping_cart:${uuid()}`;
     const store = storeWith(
@@ -139,8 +149,12 @@ void describe('Pongo projection sharing the event store transaction', () => {
         isNestedTransactionsDisabledError,
       );
 
-      assertIsNull(await summaryIn(collectionName, streamName));
-      assertFalse(await store.streamExists(streamName));
+      assertDeepEqual(await summaryIn(collectionName, streamName), {
+        _id: streamName,
+        _version: 1n,
+        productItemsCount: 3,
+      });
+      assertTrue(await store.streamExists(streamName));
     } finally {
       await store.close();
     }
@@ -152,8 +166,8 @@ void describe('Pongo projection sharing the event store transaction', () => {
     transactionOptions?: { allowNestedTransactions: boolean },
   ): SQLiteEventStore =>
     getSQLiteEventStore({
-      driver: sqlite3EventStoreDriver,
-      fileName,
+      driver: d1EventStoreDriver,
+      database,
       schema: { autoMigration: 'CreateOrUpdate' },
       ...(transactionOptions
         ? { connectionOptions: { transactionOptions } }
@@ -172,8 +186,8 @@ void describe('Pongo projection sharing the event store transaction', () => {
 
   const summaryIn = async (collectionName: string, streamName: string) => {
     const pongo = pongoClient({
-      connectionString: fileName,
-      driver: sqlite3PongoDriver,
+      driver: d1PongoDriver,
+      database,
     });
 
     try {
