@@ -101,10 +101,8 @@ export default [
     files: ['packages/emmett-sqlite/src/**'],
     ignores: [
       'packages/emmett-sqlite/**/*.spec.ts',
-      'packages/emmett-sqlite/src/testing/**',
-      'packages/emmett-sqlite/src/sqlite3.ts',
+      'packages/emmett-sqlite/src/storage/sqlite3/**',
       'packages/emmett-sqlite/src/cli.ts',
-      'packages/emmett-sqlite/src/benchmarks/**',
     ],
     rules: {
       'no-restricted-imports': ['error', { patterns: [noNodeBuiltins] }],
@@ -159,7 +157,6 @@ export default [
       'packages/emmett-sqlite/**/*.spec.ts',
       'packages/emmett-sqlite/src/storage/sqlite3/**',
       'packages/emmett-sqlite/src/storage/d1/**',
-      'packages/emmett-sqlite/src/testing/**',
     ],
     rules: {
       '@typescript-eslint/no-restricted-imports': [

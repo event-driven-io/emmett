@@ -462,7 +462,9 @@ export const getSQLiteEventStore = <
         const sessionStore = getSQLiteEventStore({
           ...options,
           pool: dumbo({
-            ...dumboOptions,
+            driver: options.driver.dumboDriver,
+            serialization: dumboOptions.serialization,
+            transactionOptions: dumboOptions.transactionOptions,
             connection,
           }),
           schema: {
