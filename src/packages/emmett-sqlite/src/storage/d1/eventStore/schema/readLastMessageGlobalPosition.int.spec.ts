@@ -19,8 +19,8 @@ import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
   createEventStoreSchema,
   readLastMessageGlobalPosition,
-} from '../../eventStore/schema';
-import { appendToStream } from '../../eventStore/schema/appendToStream';
+} from '../../../../eventStore/schema';
+import { appendToStream } from '../../../../eventStore/schema/appendToStream';
 
 export type PricedProductItem = {
   productId: string;

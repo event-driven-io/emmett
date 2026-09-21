@@ -1,11 +1,11 @@
-import type { D1Database } from '@cloudflare/workers-types';
 import { JSONSerializer, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
-  d1Connection,
-  d1Pool,
-  type D1Connection,
-  type D1ConnectionPool,
-} from '@event-driven-io/dumbo/cloudflare';
+  InMemorySQLiteDatabase,
+  sqlite3Connection,
+  sqlite3Pool,
+  type AnySQLiteConnection,
+  type Sqlite3Pool,
+} from '@event-driven-io/dumbo/sqlite3';
 import {
   assertEqual,
   assertFalse,
@@ -15,11 +15,10 @@ import {
   type Event,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
-import { Miniflare } from 'miniflare';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
-import { createEventStoreSchema } from '../../eventStore/schema';
-import { appendToStream } from '../../eventStore/schema/appendToStream';
+import { createEventStoreSchema } from '../../../../eventStore/schema';
+import { appendToStream } from '../../../../eventStore/schema/appendToStream';
 
 export type PricedProductItem = {
   productId: string;
@@ -46,35 +45,28 @@ export type DiscountApplied = Event<
 export type ShoppingCartEvent = ProductItemAdded | DiscountApplied;
 
 void describe('appendEvent', () => {
-  let connection: D1Connection;
-  let pool: D1ConnectionPool;
+  let connection: AnySQLiteConnection;
+  let pool: Sqlite3Pool;
   let execute: SQLExecutor;
-  let mf: Miniflare;
-  let database: D1Database;
 
   beforeAll(async () => {
-    mf = new Miniflare({
-      modules: true,
-      script: 'export default { fetch() { return new Response("ok"); } }',
-      d1Databases: { DB: 'test-db-id' },
-    });
-    database = await mf.getD1Database('DB');
-    connection = d1Connection({
-      database,
+    connection = sqlite3Connection({
+      fileName: InMemorySQLiteDatabase,
       serializer: JSONSerializer,
-      transactionOptions: {
-        allowNestedTransactions: true,
-        mode: 'session_based',
-      },
+    });
+    pool = sqlite3Pool({
+      fileName: InMemorySQLiteDatabase,
+      singleton: true,
+      connection,
     });
     execute = connection.execute;
-    pool = d1Pool({ database, connection });
-    await createEventStoreSchema({ pool });
+    await createEventStoreSchema({
+      pool,
+    });
   });
 
   afterAll(async () => {
     await connection.close();
-    await mf.dispose();
   });
 
   const events: ShoppingCartEvent[] = [
@@ -308,7 +300,7 @@ void describe('appendEvent', () => {
     assertEqual(2, grabbedEvents.length);
   });
 
-  void it('throwing exception inline and everything, including the events being stored are NOT rolled back', async () => {
+  void it('should be allowed to throw exception inline and everything, including the events being stored are rolled back', async () => {
     const streamId = uuid();
 
     await assertThrowsAsync(
@@ -326,7 +318,7 @@ void describe('appendEvent', () => {
       SQL`SELECT * FROM emt_messages WHERE stream_id = ${streamId}`,
     );
 
-    assertEqual(events.length, resultEvents.length);
+    assertEqual(0, resultEvents.length);
   });
 
   void it('should handle appending an empty events array gracefully', async () => {
