@@ -4,7 +4,13 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['**/*.spec.ts'],
-    exclude: ['**/*.browser.spec.ts', '**/node_modules/**', '**/dist/**'],
+    exclude: [
+      '**/*.browser.spec.ts',
+      '**/src/storage/durableObject/**/*.int.spec.ts',
+      '**/src/storage/durableObject/**/*.e2e.spec.ts',
+      '**/node_modules/**',
+      '**/dist/**',
+    ],
     hookTimeout: 30_000,
     testTimeout: 30_000,
   },
@@ -15,7 +21,13 @@ export const containersShared = defineConfig({
   test: {
     environment: 'node',
     include: ['**/*.spec.ts'],
-    exclude: ['**/*.browser.spec.ts', '**/node_modules/**', '**/dist/**'],
+    exclude: [
+      '**/*.browser.spec.ts',
+      '**/src/storage/durableObject/**/*.int.spec.ts',
+      '**/src/storage/durableObject/**/*.e2e.spec.ts',
+      '**/node_modules/**',
+      '**/dist/**',
+    ],
     hookTimeout: 60_000,
     testTimeout: 30_000,
   },

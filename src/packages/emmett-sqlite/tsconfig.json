@@ -1,6 +1,11 @@
 {
   "extends": "../../tsconfig.shared.json",
   "include": ["./src/**/*"],
+  "exclude": [
+    "./src/storage/durableObject/**/*.int.spec.ts",
+    "./src/storage/durableObject/**/*.e2e.spec.ts",
+    "./src/storage/durableObject/testing/durableObjectTestWorker.ts"
+  ],
   "compilerOptions": {
     "composite": true,
     "outDir": "./dist" /* Redirect output structure to the directory. */,

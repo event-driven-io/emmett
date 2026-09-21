@@ -44,6 +44,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check generated Cloudflare Worker types are current
+        run: npm run types:cloudflare:check
+
       - name: Build TS
         run: npm run build:ts
 

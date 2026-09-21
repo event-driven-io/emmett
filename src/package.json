@@ -20,9 +20,9 @@
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
     "build": "run-s build:ts build:almanac build:emmett build:esdb build:mongodb build:postgresql build:sqlite build:expressjs build:honojs build:fastify build:testcontainers build:tests",
-    "build:ts": "tsc -b",
+    "build:ts": "tsc -b tsconfig.json tsconfig.cloudflare.json",
     "build:ts:clean": "tsc --build --clean",
-    "build:ts:watch": "tsc -b --watch",
+    "build:ts:watch": "tsc -b tsconfig.json tsconfig.cloudflare.json --watch",
     "build:almanac": "npm run build -w packages/almanac",
     "build:emmett": "npm run build -w packages/emmett",
     "build:esdb": "npm run build -w packages/emmett-esdb",
@@ -44,6 +44,9 @@
     "test": "run-s test:unit test:int test:e2e",
     "test:unit": "vitest run \".unit.spec\"",
     "test:int": "vitest run \".int.spec\"",
+    "test:int:cloudflare": "vitest run --config vitest.cloudflare.config.ts",
+    "types:cloudflare": "wrangler types packages/emmett-sqlite/worker-configuration.d.ts --config packages/emmett-sqlite/wrangler.durable-object.jsonc --include-runtime=false",
+    "types:cloudflare:check": "wrangler types packages/emmett-sqlite/worker-configuration.d.ts --config packages/emmett-sqlite/wrangler.durable-object.jsonc --include-runtime=false --check",
     "test:e2e": "vitest run \".e2e.spec\"",
     "test:bundle": "vitest run --project bundle",
     "test:watch": "vitest",
@@ -89,7 +92,8 @@
     "dist"
   ],
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260831.1",
+    "@cloudflare/vitest-plugin": "1.1.3",
+    "@cloudflare/workers-types": "5.20260831.1",
     "@eslint/js": "^10.0.1",
     "@faker-js/faker": "^10.4.0",
     "@opentelemetry/api": "^1.9.1",
@@ -118,7 +122,8 @@
     "typescript": "^6.0.3",
     "uuid": "^14.0.0",
     "vitepress": "^1.6.4",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.5",
+    "wrangler": "4.128.0"
   },
   "peerDependencies": {
     "@event-driven-io/pongo": "0.17.0-beta.54",

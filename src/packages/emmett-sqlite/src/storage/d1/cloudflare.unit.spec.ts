@@ -3,7 +3,7 @@ import { d1DumboDriver } from '@event-driven-io/dumbo/cloudflare';
 import { assertEqual } from '@event-driven-io/emmett';
 import { pongoDriver as d1PongoDriver } from '@event-driven-io/pongo/cloudflare';
 import { describe, it } from 'vitest';
-import { d1EventStoreDriver } from './cloudflare';
+import { d1EventStoreDriver } from '.';
 
 const database = {} as D1Database;
 

@@ -24,19 +24,19 @@ import {
   sqliteTableName,
   tableExists,
 } from '@event-driven-io/dumbo/cloudflare';
-import { d1EventStoreDriver, type D1EventStoreDriver } from '../cloudflare';
+import { d1EventStoreDriver, type D1EventStoreDriver } from '.';
 import type {
   DiscountApplied,
   PricedProductItem,
   ProductItemAdded,
   ShoppingCartEvent,
-} from '../testing/shoppingCart.domain';
-import { readProcessorCheckpoint } from './schema';
+} from '../../testing/shoppingCart.domain';
+import { readProcessorCheckpoint } from '../../eventStore/schema';
 import {
   getSQLiteEventStore,
   type SQLiteEventStore,
   type SQLiteEventStoreOptions,
-} from './SQLiteEventStore';
+} from '../../eventStore/SQLiteEventStore';
 
 void describe('SQLiteEventStore', () => {
   let mf: Miniflare;

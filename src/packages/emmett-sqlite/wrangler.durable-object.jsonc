@@ -1,0 +1,19 @@
+{
+  "name": "emmett-sqlite-durable-object-tests",
+  "main": "src/storage/durableObject/testing/durableObjectTestWorker.ts",
+  "compatibility_date": "2026-08-31",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "TEST_OBJECT",
+        "class_name": "EmmettDurableObjectSQLiteTestObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["EmmettDurableObjectSQLiteTestObject"]
+    }
+  ]
+}

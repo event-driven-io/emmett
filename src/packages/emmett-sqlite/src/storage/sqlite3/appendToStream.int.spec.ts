@@ -17,8 +17,8 @@ import {
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
-import { createEventStoreSchema } from '.';
-import { appendToStream } from './appendToStream';
+import { createEventStoreSchema } from '../../eventStore/schema';
+import { appendToStream } from '../../eventStore/schema/appendToStream';
 
 export type PricedProductItem = {
   productId: string;

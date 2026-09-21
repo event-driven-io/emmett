@@ -96,8 +96,8 @@ void describe('Emmett ESLint dumbo SQLite import restrictions', () => {
 
     for (const exempt of [
       'packages/emmett-sqlite/**/*.spec.ts',
-      'packages/emmett-sqlite/src/sqlite3.ts',
-      'packages/emmett-sqlite/src/cloudflare.ts',
+      'packages/emmett-sqlite/src/storage/sqlite3/**',
+      'packages/emmett-sqlite/src/storage/d1/**',
       'packages/emmett-sqlite/src/testing/**',
     ])
       assertTrue(

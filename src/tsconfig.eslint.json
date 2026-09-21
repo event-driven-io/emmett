@@ -1,7 +1,14 @@
 {
   "extends": "./tsconfig.shared.json",
   "include": ["./packages/**/*.ts", "./docs/**/*.ts"],
-  "exclude": ["node_modules", "tmp"],
+  "exclude": [
+    "node_modules",
+    "tmp",
+    "./packages/emmett-sqlite/worker-configuration.d.ts",
+    "./packages/emmett-sqlite/src/storage/durableObject/**/*.int.spec.ts",
+    "./packages/emmett-sqlite/src/storage/durableObject/**/*.e2e.spec.ts",
+    "./packages/emmett-sqlite/src/storage/durableObject/testing/durableObjectTestWorker.ts"
+  ],
   "files": [],
   "compilerOptions": {
     "noEmit": true /* Do not emit outputs. */
