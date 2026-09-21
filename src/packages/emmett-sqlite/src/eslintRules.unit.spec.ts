@@ -91,19 +91,27 @@ void describe('Emmett ESLint dumbo SQLite import restrictions', () => {
     }
   });
 
-  void it('exempts the driver seams, the testing helpers and the specs', async () => {
+  void it('exempts the driver folders and the specs', async () => {
     const { ignores } = await restrictedImportsFor(sqliteImportFiles);
 
     for (const exempt of [
       'packages/emmett-sqlite/**/*.spec.ts',
       'packages/emmett-sqlite/src/storage/sqlite3/**',
       'packages/emmett-sqlite/src/storage/d1/**',
-      'packages/emmett-sqlite/src/testing/**',
     ])
       assertTrue(
         ignores.includes(exempt),
         `Expected '${exempt}' to be exempt. Got: ${JSON.stringify(ignores)}`,
       );
+  });
+
+  void it('does not exempt the driver-agnostic testing helpers', async () => {
+    const { ignores } = await restrictedImportsFor(sqliteImportFiles);
+
+    assertTrue(
+      !ignores.includes('packages/emmett-sqlite/src/testing/**'),
+      `Expected testing helpers to stay driver-agnostic. Got: ${JSON.stringify(ignores)}`,
+    );
   });
 
   void it('rejects a value import of either driver module', async () => {
@@ -141,7 +149,10 @@ void describe('Emmett ESLint SQLite Node built-in restrictions', () => {
   for (const file of [
     'packages/emmett-sqlite/src/cloudflare.ts',
     'packages/emmett-sqlite/src/index.ts',
+    'packages/emmett-sqlite/src/sqlite3.ts',
     'packages/emmett-sqlite/src/eventStore/SQLiteEventStore.ts',
+    'packages/emmett-sqlite/src/testing/dumboDriverIsolation.ts',
+    'packages/emmett-sqlite/src/storage/d1/index.ts',
   ])
     void it(`${file} cannot import Node built-ins`, async () => {
       const violations = await nodeBuiltinViolationsIn(file);
@@ -154,11 +165,11 @@ void describe('Emmett ESLint SQLite Node built-in restrictions', () => {
     });
 
   for (const file of [
-    'packages/emmett-sqlite/src/sqlite3.ts',
     'packages/emmett-sqlite/src/cli.ts',
-    'packages/emmett-sqlite/src/benchmarks/index.ts',
-    'packages/emmett-sqlite/src/testing/sqliteTestDatabase.ts',
-    'packages/emmett-sqlite/src/eventStore/SQLiteEventStore.sqlite3.e2e.spec.ts',
+    'packages/emmett-sqlite/src/storage/sqlite3/index.ts',
+    'packages/emmett-sqlite/src/storage/sqlite3/benchmarks/index.ts',
+    'packages/emmett-sqlite/src/storage/sqlite3/testing/sqliteTestDatabase.ts',
+    'packages/emmett-sqlite/src/storage/sqlite3/eventStore/SQLiteEventStore.e2e.spec.ts',
   ])
     void it(`${file} can import Node built-ins`, async () => {
       const violations = await nodeBuiltinViolationsIn(file);
