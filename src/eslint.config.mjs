@@ -157,6 +157,7 @@ export default [
       'packages/emmett-sqlite/**/*.spec.ts',
       'packages/emmett-sqlite/src/storage/sqlite3/**',
       'packages/emmett-sqlite/src/storage/d1/**',
+      'packages/emmett-sqlite/src/storage/durableObject/**',
     ],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
@@ -173,7 +174,7 @@ export default [
             {
               name: '@event-driven-io/dumbo/cloudflare',
               message:
-                'Take the D1 driver from `src/cloudflare.ts` instead. Importing ' +
+                'Take the D1 or Durable Object driver from `src/cloudflare.ts` instead. Importing ' +
                 'the driver module elsewhere ties the package to a single SQLite driver.',
               allowTypeImports: true,
             },

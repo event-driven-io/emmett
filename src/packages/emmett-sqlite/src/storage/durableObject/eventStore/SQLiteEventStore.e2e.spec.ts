@@ -1,0 +1,867 @@
+import type { DurableObjectStorage } from '@cloudflare/workers-types';
+import {
+  cloudflareDurableObjectSQLitePool,
+  sqliteTableName,
+  tableExists,
+} from '@event-driven-io/dumbo/cloudflare';
+import {
+  MessagingAttributes,
+  ObservabilitySpec,
+  testObservabilityContextGenerator,
+} from '@event-driven-io/almanac';
+import type { ExpectedVersionConflictError } from '@event-driven-io/emmett';
+import {
+  assertDeepEqual,
+  assertEqual,
+  assertFalse,
+  assertIsNotNull,
+  assertThrowsAsync,
+  assertTrue,
+  EmmettAttributes,
+  MessagingSystemName,
+  projections,
+  type Event,
+} from '@event-driven-io/emmett';
+import { runInDurableObject } from 'cloudflare:test';
+import { env } from 'cloudflare:workers';
+import { v4 as uuid } from 'uuid';
+import { aroundEach, describe, it } from 'vitest';
+import {
+  durableObjectEventStoreDriver,
+  type DurableObjectEventStoreDriver,
+} from '..';
+import type {
+  DiscountApplied,
+  PricedProductItem,
+  ProductItemAdded,
+  ShoppingCartEvent,
+} from '../../../testing/shoppingCart.domain';
+import { readProcessorCheckpoint } from '../../../eventStore/schema';
+import {
+  getSQLiteEventStore,
+  type SQLiteEventStore,
+  type SQLiteEventStoreOptions,
+} from '../../../eventStore/SQLiteEventStore';
+import { sqliteProjection } from '../../../eventStore/projections';
+
+const withDurableObjectStorage = async (
+  runTest: (storage: DurableObjectStorage) => Promise<void>,
+): Promise<void> => {
+  const stub = env.TEST_OBJECT.get(env.TEST_OBJECT.newUniqueId());
+
+  await runInDurableObject(stub, (_instance, state) => runTest(state.storage));
+};
+
+void describe('SQLiteEventStore', () => {
+  const M = MessagingAttributes;
+  const given = ObservabilitySpec.for();
+  let storage: DurableObjectStorage;
+  let eventStore: SQLiteEventStore;
+
+  aroundEach((runTest) =>
+    withDurableObjectStorage(async (durableObjectStorage) => {
+      storage = durableObjectStorage;
+      await runTest();
+    }),
+  );
+
+  void describe('With manual Schema Creation', () => {
+    aroundEach(async (runTest) => {
+      const config: SQLiteEventStoreOptions<DurableObjectEventStoreDriver> = {
+        driver: durableObjectEventStoreDriver,
+        schema: {
+          autoMigration: 'None',
+        },
+        storage,
+      };
+      eventStore = getSQLiteEventStore(config);
+
+      try {
+        await eventStore.schema.migrate();
+        await runTest();
+      } finally {
+        await eventStore.close();
+      }
+    });
+
+    void it('should append events', async () => {
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 10,
+        price: 3,
+      };
+      const discount = 10;
+      const shoppingCartId = `shopping_cart-${uuid()}`;
+
+      const result = await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+      );
+
+      const result2 = await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+        { expectedStreamVersion: result.nextExpectedStreamVersion },
+      );
+
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [
+          {
+            type: 'DiscountApplied',
+            data: { percent: discount, couponId: uuid() },
+          },
+        ],
+        { expectedStreamVersion: result2.nextExpectedStreamVersion },
+      );
+
+      const { events } = await eventStore.readStream(shoppingCartId);
+
+      assertIsNotNull(events);
+      assertEqual(3, events.length);
+    });
+
+    void it('should tell whether a stream exists', async () => {
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 10,
+        price: 3,
+      };
+      const shoppingCartId = `shopping_cart-${uuid()}`;
+
+      assertFalse(await eventStore.streamExists(shoppingCartId));
+
+      await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+        { type: 'ProductItemAdded', data: { productItem } },
+      ]);
+
+      assertTrue(await eventStore.streamExists(shoppingCartId));
+    });
+
+    void it('should aggregate stream', async () => {
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 10,
+        price: 3,
+      };
+      const discount = 10;
+      const shoppingCartId = `shopping_cart-${uuid()}`;
+
+      const result = await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+      );
+
+      const result2 = await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+        { expectedStreamVersion: result.nextExpectedStreamVersion },
+      );
+
+      await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [
+          {
+            type: 'DiscountApplied',
+            data: { percent: discount, couponId: uuid() },
+          },
+        ],
+        { expectedStreamVersion: result2.nextExpectedStreamVersion },
+      );
+
+      const aggregation = await eventStore.aggregateStream(shoppingCartId, {
+        evolve,
+        initialState: () => null,
+      });
+
+      assertDeepEqual(
+        { totalAmount: 54, productItemsCount: 20 },
+        aggregation.state,
+      );
+    });
+
+    void it('should throw an error if concurrency check has failed when appending stream', async () => {
+      const productItem: PricedProductItem = {
+        productId: '123',
+        quantity: 10,
+        price: 3,
+      };
+
+      const shoppingCartId = `shopping_cart-${uuid()}`;
+
+      await assertThrowsAsync<ExpectedVersionConflictError>(async () => {
+        await eventStore.appendToStream<ShoppingCartEvent>(
+          shoppingCartId,
+          [
+            {
+              type: 'ProductItemAdded',
+              data: { productItem },
+            },
+          ],
+          {
+            expectedStreamVersion: 5n,
+          },
+        );
+      });
+    });
+  });
+
+  void it('should automatically create schema', async () => {
+    const eventStore = getSQLiteEventStore({
+      driver: durableObjectEventStoreDriver,
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+      },
+      storage,
+    });
+
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    const { events } = await eventStore.readStream(shoppingCartId);
+
+    assertIsNotNull(events);
+    assertEqual(1, events.length);
+  });
+
+  void it('should not overwrite event store if it exists', async () => {
+    const eventStore = getSQLiteEventStore({
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+      },
+      driver: durableObjectEventStoreDriver,
+      storage,
+    });
+
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    const { events } = await eventStore.readStream(shoppingCartId);
+
+    assertIsNotNull(events);
+    assertEqual(1, events.length);
+    const sameEventStore = getSQLiteEventStore({
+      driver: durableObjectEventStoreDriver,
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+      },
+      storage,
+    });
+
+    const stream = await sameEventStore.readStream(shoppingCartId);
+
+    assertIsNotNull(stream.events);
+    assertEqual(1, stream.events.length);
+  });
+
+  void it('should allow events to be processed in the onBeforeCommit hook', async () => {
+    const savedEvents = [];
+    const eventStore = getSQLiteEventStore({
+      driver: durableObjectEventStoreDriver,
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+      },
+      storage,
+      hooks: {
+        onBeforeCommit: (messages): void => {
+          savedEvents.push(...messages);
+        },
+      },
+    });
+
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    assertEqual(savedEvents.length, 1);
+  });
+
+  void it('should record observability while appending', async () => {
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given((observability) =>
+      getSQLiteEventStore({
+        driver: durableObjectEventStoreDriver,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+        },
+        storage,
+        observability,
+      }),
+    )
+      .when((eventStore) =>
+        eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ]),
+      )
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.appendToStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'appendToStream',
+          [EmmettAttributes.stream.name]: shoppingCartId,
+          [EmmettAttributes.eventStore.append.batchSize]: 1,
+          [EmmettAttributes.eventStore.append.status]: 'success',
+          [EmmettAttributes.stream.versionAfter]: 1,
+          [M.operation.type]: 'send',
+          [M.batch.messageCount]: 1,
+          [M.destination.name]: shoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
+      });
+  });
+
+  void it('roots the persisted causationId on the correlationId when unset', async () => {
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given(
+      async (observability) => {
+        const eventStore = getSQLiteEventStore({
+          driver: durableObjectEventStoreDriver,
+          schema: {
+            autoMigration: 'CreateOrUpdate',
+          },
+          storage,
+          observability,
+        });
+        await eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ]);
+        return eventStore;
+      },
+      {
+        contextGenerator: testObservabilityContextGenerator({
+          traceIds: 'append-trace',
+          spanIds: 'append-span',
+          messageIds: 'appended-message',
+          correlationIds: 'generated-correlation',
+        }),
+      },
+    )
+      .when((eventStore) => eventStore.readStream(shoppingCartId))
+      .then(({ result }) => {
+        const { messageId, correlationId, causationId, traceId, spanId } =
+          result.events[0]!.metadata;
+
+        assertDeepEqual(
+          { messageId, correlationId, causationId, traceId, spanId },
+          {
+            messageId: 'appended-message',
+            correlationId: 'generated-correlation',
+            // an unseeded causation roots itself on the correlation
+            causationId: 'generated-correlation',
+            traceId: 'append-trace',
+            spanId: 'append-span',
+          },
+        );
+      });
+  });
+
+  void it('persists the triggering messageId as causationId when seeded', async () => {
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given(async (observability) => {
+      const eventStore = getSQLiteEventStore({
+        driver: durableObjectEventStoreDriver,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+        },
+        storage,
+        observability,
+      });
+      await eventStore.appendToStream<ProductItemAdded>(
+        shoppingCartId,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+        {
+          observability: {
+            context: {
+              correlationId: 'seeded-correlation',
+              causationId: 'triggering-message',
+            },
+          },
+        },
+      );
+      return eventStore;
+    })
+      .when((eventStore) => eventStore.readStream(shoppingCartId))
+      .then(({ result }) => {
+        const { correlationId, causationId } = result.events[0]!.metadata;
+
+        assertDeepEqual(
+          { correlationId, causationId },
+          {
+            correlationId: 'seeded-correlation',
+            causationId: 'triggering-message',
+          },
+        );
+      });
+  });
+
+  void it('should record observability while reading', async () => {
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given(async (observability) => {
+      const eventStore = getSQLiteEventStore({
+        driver: durableObjectEventStoreDriver,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+        },
+        storage,
+        observability,
+      });
+      await eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
+        { type: 'ProductItemAdded', data: { productItem } },
+      ]);
+      return eventStore;
+    })
+      .when((eventStore) => eventStore.readStream(shoppingCartId))
+      .then(({ spans }) => {
+        spans.hasSingleSpanNamed('eventStore.readStream').hasAttributes({
+          [EmmettAttributes.eventStore.operation]: 'readStream',
+          [EmmettAttributes.stream.name]: shoppingCartId,
+          [EmmettAttributes.eventStore.read.status]: 'success',
+          [EmmettAttributes.eventStore.read.eventCount]: 1,
+          [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
+          [M.operation.type]: 'receive',
+          [M.destination.name]: shoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
+      });
+  });
+
+  void it('should record observability while handling inline projections', async () => {
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given((observability) =>
+      getSQLiteEventStore({
+        driver: durableObjectEventStoreDriver,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+        },
+        storage,
+        observability,
+        projections: projections.inline([
+          sqliteProjection<ProductItemAdded>({
+            name: 'sqlite_observability_projection',
+            canHandle: ['ProductItemAdded'],
+            handle: () => undefined,
+          }),
+        ]),
+      }),
+    )
+      .when((eventStore) =>
+        eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ]),
+      )
+      .then(({ spans }) => {
+        const appendSpan = spans
+          .hasSingleSpanNamed('eventStore.appendToStream')
+          .hasAttributes({
+            [EmmettAttributes.scope.main]: true,
+            [EmmettAttributes.eventStore.operation]: 'appendToStream',
+            [EmmettAttributes.stream.name]: shoppingCartId,
+            [EmmettAttributes.eventStore.append.batchSize]: 1,
+            [EmmettAttributes.eventStore.append.status]: 'success',
+            [EmmettAttributes.stream.versionAfter]: 1,
+            [M.operation.type]: 'send',
+            [M.batch.messageCount]: 1,
+            [M.destination.name]: shoppingCartId,
+            [M.system]: MessagingSystemName,
+          });
+
+        appendSpan.hasChildNamed('eventStore.inlineProjection').hasAttributes({
+          [EmmettAttributes.scope.main]: undefined,
+          [EmmettAttributes.eventStore.operation]: 'inlineProjection',
+          [EmmettAttributes.stream.name]: shoppingCartId,
+          [M.operation.type]: 'process',
+          [M.destination.name]: shoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
+      });
+  });
+
+  void it('should record observability while aggregating stream', async () => {
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    await given(async (observability) => {
+      const eventStore = getSQLiteEventStore({
+        driver: durableObjectEventStoreDriver,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+        },
+        storage,
+        observability,
+      });
+      await eventStore.appendToStream<ProductItemAdded>(shoppingCartId, [
+        { type: 'ProductItemAdded', data: { productItem } },
+      ]);
+      return eventStore;
+    })
+      .when((eventStore) =>
+        eventStore.aggregateStream<
+          { productItemsCount: number },
+          ProductItemAdded
+        >(shoppingCartId, {
+          initialState: () => ({ productItemsCount: 0 }),
+          evolve: (state: { productItemsCount: number }) => ({
+            productItemsCount: state.productItemsCount + 1,
+          }),
+        }),
+      )
+      .then(({ spans }) => {
+        const aggregateSpan = spans
+          .hasSingleSpanNamed('eventStore.aggregateStream')
+          .hasAttributes({
+            [EmmettAttributes.scope.main]: true,
+            [EmmettAttributes.eventStore.operation]: 'aggregateStream',
+            [EmmettAttributes.stream.name]: shoppingCartId,
+            [M.operation.type]: 'process',
+            [M.destination.name]: shoppingCartId,
+            [M.system]: MessagingSystemName,
+            [EmmettAttributes.eventStore.aggregate.status]: 'success',
+            [EmmettAttributes.stream.versionAfter]: 1,
+          });
+
+        aggregateSpan.hasChildNamed('eventStore.readStream').hasAttributes({
+          [EmmettAttributes.scope.main]: undefined,
+          [EmmettAttributes.eventStore.operation]: 'readStream',
+          [EmmettAttributes.stream.name]: shoppingCartId,
+          [EmmettAttributes.eventStore.read.status]: 'success',
+          [EmmettAttributes.eventStore.read.eventCount]: 1,
+          [EmmettAttributes.eventStore.read.eventTypes]: ['ProductItemAdded'],
+          [M.operation.type]: 'receive',
+          [M.destination.name]: shoppingCartId,
+          [M.system]: MessagingSystemName,
+        });
+      });
+  });
+});
+
+type ShoppingCartShortInfo = {
+  productItemsCount: number;
+  totalAmount: number;
+};
+
+const evolve = (
+  document: ShoppingCartShortInfo | null,
+  { type, data: event }: ProductItemAdded | DiscountApplied,
+): ShoppingCartShortInfo => {
+  document = document ?? { productItemsCount: 0, totalAmount: 0 };
+
+  switch (type) {
+    case 'ProductItemAdded':
+      return {
+        totalAmount:
+          document.totalAmount +
+          event.productItem.price * event.productItem.quantity,
+        productItemsCount:
+          document.productItemsCount + event.productItem.quantity,
+      };
+    case 'DiscountApplied':
+      return {
+        ...document,
+        totalAmount: (document.totalAmount * (100 - event.percent)) / 100,
+      };
+    default:
+      return document;
+  }
+};
+
+void describe('SQLiteEventStore with a database schema configured by the user', () => {
+  let storage: DurableObjectStorage;
+  let eventStore: SQLiteEventStore;
+
+  aroundEach((runTest) =>
+    withDurableObjectStorage(async (durableObjectStorage) => {
+      storage = durableObjectStorage;
+      eventStore = getSQLiteEventStore({
+        driver: durableObjectEventStoreDriver,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: 'events',
+        },
+        storage,
+      });
+
+      try {
+        await runTest();
+      } finally {
+        await eventStore.close();
+      }
+    }),
+  );
+
+  void it('should append and read events from the configured schema', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    const appendResult = await eventStore.appendToStream<ShoppingCartEvent>(
+      shoppingCartId,
+      [{ type: 'ProductItemAdded', data: { productItem } }],
+    );
+
+    const { events, streamExists } =
+      await eventStore.readStream<ShoppingCartEvent>(shoppingCartId);
+
+    assertEqual(appendResult.nextExpectedStreamVersion, 1n);
+    assertTrue(streamExists);
+    assertEqual(1, events.length);
+    assertTrue(await eventStore.streamExists(shoppingCartId));
+  });
+
+  void it('should keep processor checkpoints in the configured schema', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const processorId = `processor:${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    const consumer = eventStore.consumer<ShoppingCartEvent>({
+      stopWhen: { noMessagesLeft: true },
+    });
+    consumer.reactor({
+      processorId,
+      canHandle: ['ProductItemAdded'],
+      eachMessage: () => {},
+    });
+
+    try {
+      await consumer.start();
+    } finally {
+      await consumer.close();
+    }
+
+    const pool = cloudflareDurableObjectSQLitePool({ storage });
+
+    try {
+      const { lastProcessedCheckpoint } = await readProcessorCheckpoint(
+        pool.execute,
+        { processorId, databaseSchemaName: 'events' },
+      );
+
+      assertIsNotNull(lastProcessedCheckpoint);
+      assertFalse(await tableExists(pool.execute, 'emt_processors'));
+    } finally {
+      await pool.close();
+    }
+  });
+
+  void it('should keep the default schema tables uncreated', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    const pool = cloudflareDurableObjectSQLitePool({ storage });
+
+    try {
+      assertTrue(
+        await tableExists(
+          pool.execute,
+          sqliteTableName({
+            databaseSchemaName: 'events',
+            tableName: 'emt_messages',
+          }),
+        ),
+      );
+      assertFalse(await tableExists(pool.execute, 'emt_messages'));
+    } finally {
+      await pool.close();
+    }
+  });
+});
+
+void describe('SQLiteEventStore upcasting', () => {
+  type ShoppingCartOpenedFromDB = Event<
+    'ShoppingCartOpened',
+    { openedAt: string; loyaltyPoints: string }
+  >;
+
+  type ShoppingCartOpened = Event<
+    'ShoppingCartOpened',
+    { openedAt: Date; loyaltyPoints: bigint }
+  >;
+
+  type ShoppingCartEventFromDB =
+    ProductItemAdded | DiscountApplied | ShoppingCartOpenedFromDB;
+
+  type ShoppingCartEventWithDatesAndBigInt =
+    ProductItemAdded | DiscountApplied | ShoppingCartOpened;
+
+  type ShoppingCartState = {
+    productItems: PricedProductItem[];
+    totalAmount: number;
+    openedAt: Date | null;
+    loyaltyPoints: bigint;
+  };
+
+  const upcast = (event: Event): ShoppingCartEventWithDatesAndBigInt => {
+    switch (event.type) {
+      case 'ShoppingCartOpened': {
+        const e = event as ShoppingCartOpenedFromDB;
+        return {
+          ...e,
+          data: {
+            openedAt: new Date(e.data.openedAt),
+            loyaltyPoints: BigInt(e.data.loyaltyPoints),
+          },
+        };
+      }
+      default:
+        return event as ShoppingCartEventWithDatesAndBigInt;
+    }
+  };
+
+  const evolveState = (
+    state: ShoppingCartState,
+    { type, data }: ShoppingCartEventWithDatesAndBigInt,
+  ): ShoppingCartState => {
+    switch (type) {
+      case 'ShoppingCartOpened':
+        return {
+          ...state,
+          openedAt: data.openedAt,
+          loyaltyPoints: data.loyaltyPoints,
+        };
+      case 'ProductItemAdded':
+        return {
+          ...state,
+          productItems: [...state.productItems, data.productItem],
+          totalAmount:
+            state.totalAmount +
+            data.productItem.price * data.productItem.quantity,
+        };
+      case 'DiscountApplied':
+        return {
+          ...state,
+          totalAmount: (state.totalAmount * (100 - data.percent)) / 100,
+        };
+    }
+  };
+
+  const initialState = (): ShoppingCartState => ({
+    productItems: [],
+    totalAmount: 0,
+    openedAt: null,
+    loyaltyPoints: 0n,
+  });
+
+  let storage: DurableObjectStorage;
+
+  aroundEach((runTest) =>
+    withDurableObjectStorage(async (durableObjectStorage) => {
+      storage = durableObjectStorage;
+      await runTest();
+    }),
+  );
+
+  void it('should upcast ISO string to Date and string to BigInt when aggregating', async () => {
+    const eventStore = getSQLiteEventStore({
+      driver: durableObjectEventStoreDriver,
+      schema: { autoMigration: 'CreateOrUpdate' },
+      storage,
+    });
+
+    const openedAtString = '2024-01-15T10:30:00.000Z';
+    const loyaltyPointsString = '9007199254740993';
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEventFromDB>(shoppingCartId, [
+      {
+        type: 'ShoppingCartOpened',
+        data: { openedAt: openedAtString, loyaltyPoints: loyaltyPointsString },
+      },
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    const { state, currentStreamVersion } = await eventStore.aggregateStream<
+      ShoppingCartState,
+      ShoppingCartEventWithDatesAndBigInt
+    >(shoppingCartId, {
+      evolve: evolveState,
+      initialState,
+      read: { schema: { versioning: { upcast } } },
+    });
+
+    assertEqual(currentStreamVersion, 2n);
+    assertDeepEqual(state.openedAt, new Date(openedAtString));
+    assertEqual(state.loyaltyPoints, BigInt(loyaltyPointsString));
+    assertEqual(state.totalAmount, productItem.price * productItem.quantity);
+  });
+});
