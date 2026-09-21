@@ -55,7 +55,7 @@ const withCollection = async (
       .db(inDatabase)
       .collection(inCollection, collectionOptions);
 
-    return handle(collection);
+    return await handle(collection);
   } finally {
     await pongo.close();
   }

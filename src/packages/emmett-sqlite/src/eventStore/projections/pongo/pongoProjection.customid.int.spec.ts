@@ -2,7 +2,7 @@ import type { Event } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { beforeAll, beforeEach, describe, it } from 'vitest';
 import { sqlite3EventStoreDriver } from '../../../sqlite3';
-import type { PricedProductItem } from '../../../storage/d1/appendToStream.int.spec';
+import type { PricedProductItem } from '../../../storage/d1/eventStore/schema/appendToStream.int.spec';
 import { SQLiteProjectionSpec } from '../sqliteProjectionSpec';
 import { pongoSingleStreamProjection } from './pongoProjections';
 import { expectPongoDocuments } from './pongoProjectionSpec';
