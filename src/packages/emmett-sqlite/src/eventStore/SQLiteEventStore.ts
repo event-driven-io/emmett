@@ -3,6 +3,7 @@ import {
   fromDatabaseDriverType,
   getFormatter,
   type AnyDatabaseTransaction,
+  type DatabaseTransactionOptions,
   type Dumbo,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
@@ -458,13 +459,17 @@ export const getSQLiteEventStore = <
     async withSession<T = unknown>(
       callback: (session: EventStoreSession<SQLiteEventStore>) => Promise<T>,
     ): Promise<T> {
+      const { transactionOptions } = dumboOptions as {
+        transactionOptions?: DatabaseTransactionOptions;
+      };
+
       return await pool.withConnection(async (connection) => {
         const sessionStore = getSQLiteEventStore({
           ...options,
           pool: dumbo({
             driver: options.driver.dumboDriver,
-            serialization: dumboOptions.serialization,
-            transactionOptions: dumboOptions.transactionOptions,
+            serialization: options.serialization,
+            transactionOptions,
             connection,
           }),
           schema: {
