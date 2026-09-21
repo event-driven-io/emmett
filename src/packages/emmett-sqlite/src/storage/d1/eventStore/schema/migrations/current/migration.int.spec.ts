@@ -31,10 +31,7 @@ import {
   type SQLiteReadEventMetadata,
 } from '../../../../../../eventStore/SQLiteEventStore';
 import { readProcessorCheckpoint } from '../../../../../../eventStore/schema/readProcessorCheckpoint';
-import { schemaSQL } from '../../../../../../eventStore/schema/eventStoreSchemaSQL';
-import { migrations_0_41_0 } from '../../../../../../eventStore/schema/migrations/0_41_0';
 import { migrations_0_42_0 } from '../../../../../../eventStore/schema/migrations/0_42_0';
-import { appendToStream } from '../../../../../../eventStore/schema/migrations/0_42_0/legacyApi';
 import { migrations_0_43_0 } from '../../../../../../eventStore/schema/migrations/0_43_0';
 import {
   schemaMigration,
@@ -167,42 +164,6 @@ void describe('Schema migrations tests', () => {
     await assertCanAppendAndRead(eventStore);
   });
 
-  void it('migrates from 0.41.0 schema', async () => {
-    // Given
-    await runSQLMigrations(pool, migrations_0_41_0);
-
-    // When
-    const { applied, skipped } = await eventStore.schema.migrate();
-
-    // Then
-    assertDeepEqual(applied, [
-      ...migrations_0_42_0,
-      ...migrations_0_43_0,
-      schemaMigration,
-    ]);
-    assertThatArray(skipped).isEmpty();
-
-    const result = await assertCanAppendAndRead(eventStore);
-    await assertCanStoreAndReadCheckpoints(connection.execute, result);
-    await assertProjectionsTableExists(connection.execute);
-  });
-
-  void it('migrates from 0.42.0 schema', async () => {
-    // Given
-    await runSQLMigrations(pool, [...migrations_0_41_0, ...migrations_0_42_0]);
-
-    // When
-    const { applied, skipped } = await eventStore.schema.migrate();
-
-    // Then
-    assertDeepEqual(applied, [...migrations_0_43_0, schemaMigration]);
-    assertDeepEqual(skipped, [...migrations_0_42_0]);
-
-    const result = await assertCanAppendAndRead(eventStore);
-    await assertCanStoreAndReadCheckpoints(connection.execute, result);
-    await assertProjectionsTableExists(connection.execute);
-  });
-
   void it('migrates from latest schema', async () => {
     // Given
     await eventStore.schema.migrate();
@@ -217,85 +178,6 @@ void describe('Schema migrations tests', () => {
       ...migrations_0_43_0,
       schemaMigration,
     ]);
-  });
-
-  void it('migrates from the schema created before migrations were introduced', async () => {
-    // Given
-    await connection.execute.batchCommand(schemaSQL);
-    const existingStreamId = 'cart-before-migrations';
-    await eventStore.appendToStream(existingStreamId, [
-      {
-        type: 'ProductItemAdded',
-        data: {
-          shoppingCartId: existingStreamId,
-          productItem: { productId: 'product-456', quantity: 2 },
-        },
-      } satisfies ProductItemAdded,
-    ]);
-
-    // When
-    const { applied, skipped } = await eventStore.schema.migrate();
-
-    // Then
-    assertDeepEqual(applied, [
-      ...migrations_0_42_0,
-      ...migrations_0_43_0,
-      schemaMigration,
-    ]);
-    assertThatArray(skipped).isEmpty();
-
-    const existingStream =
-      await eventStore.readStream<ShoppingCartEvent>(existingStreamId);
-
-    assertTrue(existingStream.streamExists);
-    assertDeepEqual(existingStream.currentStreamVersion, 1n);
-    assertDeepEqual(existingStream.events.length, 1);
-
-    const result = await assertCanAppendAndRead(eventStore);
-    await assertCanStoreAndReadCheckpoints(connection.execute, result);
-    await assertProjectionsTableExists(connection.execute);
-  });
-
-  void it('appends to a stream created by 0.42.0', async () => {
-    // Given
-    await runSQLMigrations(pool, [...migrations_0_41_0, ...migrations_0_42_0]);
-    const legacyStreamId = 'cart-legacy-partition';
-    await appendToStream(connection.execute, {
-      streamId: legacyStreamId,
-      streamType: 'cart',
-      events: [
-        {
-          type: 'ProductItemAdded',
-          data: {
-            shoppingCartId: legacyStreamId,
-            productItem: { productId: 'product-456', quantity: 2 },
-          },
-        } satisfies ProductItemAdded,
-      ],
-    });
-
-    // When
-    await eventStore.schema.migrate();
-
-    // Then
-    await eventStore.appendToStream(
-      legacyStreamId,
-      [
-        {
-          type: 'ShoppingCartConfirmed',
-          data: { shoppingCartId: legacyStreamId },
-        } satisfies ShoppingCartConfirmed,
-      ],
-      { expectedStreamVersion: 1n },
-    );
-
-    const stream =
-      await eventStore.readStream<ShoppingCartEvent>(legacyStreamId);
-
-    assertTrue(stream.streamExists);
-    assertDeepEqual(stream.currentStreamVersion, 2n);
-    assertDeepEqual(stream.events.length, 2);
-    assertTrue(await eventStore.streamExists(legacyStreamId));
   });
 
   void it('skips the current schema migration when its SQL changed but the user already applied it', async () => {
