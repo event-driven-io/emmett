@@ -14,22 +14,22 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
+import { sqliteEventStoreConsumer } from '../../../../eventStore/consumers/sqliteEventStoreConsumer';
+import type {
+  SQLiteProjectorOptions,
+  SQLiteReactorOptions,
+} from '../../../../eventStore/consumers/sqliteProcessor';
+import { createEventStoreSchema } from '../../../../eventStore/schema';
+import {
+  getSQLiteEventStore,
+  type SQLiteEventStore,
+} from '../../../../eventStore/SQLiteEventStore';
 import {
   sqlite3EventStoreDriver,
   type SQLite3EventStoreDriver,
   type SQLite3EventStoreOptions,
 } from '../../../../sqlite3';
 import { deleteSQLiteDatabaseFiles } from '../../testing/sqliteTestDatabase';
-import { createEventStoreSchema } from '../../../../eventStore/schema';
-import {
-  getSQLiteEventStore,
-  type SQLiteEventStore,
-} from '../../../../eventStore/SQLiteEventStore';
-import { sqliteEventStoreConsumer } from '../../../../eventStore/consumers/sqliteEventStoreConsumer';
-import type {
-  SQLiteProjectorOptions,
-  SQLiteReactorOptions,
-} from '../../../../eventStore/consumers/sqliteProcessor';
 
 const withDeadline = { timeout: 30000 };
 
