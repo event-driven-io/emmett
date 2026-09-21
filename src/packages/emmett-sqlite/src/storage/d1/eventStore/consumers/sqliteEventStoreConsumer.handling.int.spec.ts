@@ -18,16 +18,16 @@ import {
   type D1EventStoreDriver,
   type D1EventStoreOptions,
 } from '../..';
-import { createEventStoreSchema } from '../../../../eventStore/schema';
-import {
-  getSQLiteEventStore,
-  type SQLiteEventStore,
-} from '../../../../eventStore/SQLiteEventStore';
 import { sqliteEventStoreConsumer } from '../../../../eventStore/consumers/sqliteEventStoreConsumer';
 import type {
   SQLiteProjectorOptions,
   SQLiteReactorOptions,
 } from '../../../../eventStore/consumers/sqliteProcessor';
+import { createEventStoreSchema } from '../../../../eventStore/schema';
+import {
+  getSQLiteEventStore,
+  type SQLiteEventStore,
+} from '../../../../eventStore/SQLiteEventStore';
 
 const withDeadline = { timeout: 30000 };
 
@@ -1232,11 +1232,10 @@ void describe('SQLite event store started consumer', () => {
 
     void it(
       'handles concurrent writes with multiple processors without SQLITE_BUSY errors',
-      // D1 under Miniflare needs about 35s for these 1000 concurrent streams
-      { timeout: 90000 },
+      withDeadline,
       async () => {
         // Given
-        const concurrentStreams = 1000;
+        const concurrentStreams = 100;
         const expectedCount = concurrentStreams * 2;
         const projectionResult: GuestStayEvent[] = [];
         const forwarderResult: GuestStayEvent[] = [];

@@ -19,16 +19,16 @@ import {
   type DurableObjectEventStoreDriver,
   type DurableObjectEventStoreOptions,
 } from '../..';
-import { createEventStoreSchema } from '../../../../eventStore/schema';
-import {
-  getSQLiteEventStore,
-  type SQLiteEventStore,
-} from '../../../../eventStore/SQLiteEventStore';
 import { sqliteEventStoreConsumer } from '../../../../eventStore/consumers/sqliteEventStoreConsumer';
 import type {
   SQLiteProjectorOptions,
   SQLiteReactorOptions,
 } from '../../../../eventStore/consumers/sqliteProcessor';
+import { createEventStoreSchema } from '../../../../eventStore/schema';
+import {
+  getSQLiteEventStore,
+  type SQLiteEventStore,
+} from '../../../../eventStore/SQLiteEventStore';
 
 const withDeadline = { timeout: 30000 };
 
