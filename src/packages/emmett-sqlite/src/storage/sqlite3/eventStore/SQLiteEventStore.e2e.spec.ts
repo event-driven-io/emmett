@@ -34,7 +34,7 @@ import type {
   ProductItemAdded,
   ShoppingCartEvent,
 } from '../../../testing/shoppingCart.domain';
-import { deleteSQLiteDatabaseFiles } from '../../../testing/sqliteTestDatabase';
+import { deleteSQLiteDatabaseFiles } from '../testing/sqliteTestDatabase';
 import {
   getSQLiteEventStore,
   type SQLiteEventStore,
