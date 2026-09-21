@@ -351,6 +351,89 @@ describe('Cart Summary Projection', () => {
 });
 ```
 
+## Cloudflare
+
+The `@event-driven-io/emmett-sqlite/cloudflare` entry point runs the same event store on Cloudflare's SQLite storage. The event store API stays the same; only the driver and its options change.
+
+Install the Cloudflare Workers types next to the package:
+
+```bash
+npm install @event-driven-io/emmett @event-driven-io/emmett-sqlite
+npm install -D @cloudflare/workers-types
+```
+
+### D1
+
+[D1](https://developers.cloudflare.com/d1/) is a SQLite database that your Workers reach through a binding. Declare the binding in your Wrangler configuration:
+
+```jsonc
+// wrangler.jsonc
+{
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "events",
+      "database_id": "<your-database-id>",
+    },
+  ],
+}
+```
+
+Pass the binding to the event store as `database`, together with `d1EventStoreDriver`:
+
+```typescript
+import type { D1Database } from '@cloudflare/workers-types';
+import type { Event } from '@event-driven-io/emmett';
+import { getSQLiteEventStore } from '@event-driven-io/emmett-sqlite';
+import { d1EventStoreDriver } from '@event-driven-io/emmett-sqlite/cloudflare';
+
+type ProductItemAdded = Event<
+  'ProductItemAdded',
+  { productId: string; quantity: number; price: number }
+>;
+
+type Env = { DB: D1Database };
+
+export default {
+  async fetch(_request: Request, env: Env): Promise<Response> {
+    const eventStore = getSQLiteEventStore({
+      driver: d1EventStoreDriver,
+      database: env.DB,
+    });
+
+    const { nextExpectedStreamVersion } =
+      await eventStore.appendToStream<ProductItemAdded>('shopping_cart-123', [
+        {
+          type: 'ProductItemAdded',
+          data: { productId: 'shoes-1', quantity: 2, price: 99.99 },
+        },
+      ]);
+
+    return Response.json({ version: nextExpectedStreamVersion.toString() });
+  },
+};
+```
+
+The event store creates its tables on the first append, as it does with the file-based driver.
+
+#### D1 does not roll back
+
+D1 does not accept `BEGIN`, `COMMIT` or `ROLLBACK`. The D1 driver runs each Emmett transaction as a [D1 session](https://developers.cloudflare.com/d1/best-practices/read-replication/#use-sessions-api) instead, so its statements run in order against the same database, but a failure does not undo the statements that already ran.
+
+For example, when an inline projection throws while you append an event, `appendToStream` rejects, yet the event stays in the stream and the documents written by earlier projections stay too. On the file-based driver the same failure leaves neither behind.
+
+#### D1 limits
+
+Cloudflare's [D1 limits](https://developers.cloudflare.com/d1/platform/limits/) apply to the whole event store:
+
+| Limit                            | Value                                 |
+| -------------------------------- | ------------------------------------- |
+| Database size                    | 10 GB on Workers Paid, 500 MB on Free |
+| String, `BLOB` or table row size | 2 MB                                  |
+| SQL statement length             | 100 KB                                |
+| Bound parameters per query       | 100                                   |
+| Queries per Worker invocation    | 1000 on Workers Paid, 50 on Free      |
+
 ## Limitations
 
 SQLite is excellent for development but has production limitations:
