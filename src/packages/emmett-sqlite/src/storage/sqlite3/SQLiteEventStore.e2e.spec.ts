@@ -27,29 +27,27 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import {
-  sqlite3EventStoreDriver,
-  type SQLite3EventStoreDriver,
-} from '../sqlite3';
+import { sqlite3EventStoreDriver, type SQLite3EventStoreDriver } from '.';
 import type {
   DiscountApplied,
   PricedProductItem,
   ProductItemAdded,
   ShoppingCartEvent,
-} from '../testing/shoppingCart.domain';
-import { deleteSQLiteDatabaseFiles } from '../testing/sqliteTestDatabase';
+} from '../../testing/shoppingCart.domain';
+import { deleteSQLiteDatabaseFiles } from '../../testing/sqliteTestDatabase';
 import {
   getSQLiteEventStore,
   type SQLiteEventStore,
   type SQLiteEventStoreOptions,
-} from './SQLiteEventStore';
-import { sqliteProjection } from './projections';
+} from '../../eventStore/SQLiteEventStore';
+import { sqliteProjection } from '../../eventStore/projections';
 
 void describe('SQLiteEventStore', () => {
   const M = MessagingAttributes;
   const given = ObservabilitySpec.for();
   const testDatabasePath = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
+    '..',
     '..',
     'testing',
   );
@@ -645,6 +643,7 @@ const evolve = (
 void describe('SQLiteEventStore with a database schema configured by the user', () => {
   const testDatabasePath = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
+    '..',
     '..',
     'testing',
   );

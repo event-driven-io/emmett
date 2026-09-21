@@ -14,6 +14,7 @@ export default defineConfig({
       'packages/emmett-fastify',
       'packages/emmett-tests',
       'packages/emmett-sqlite',
+      'vitest.cloudflare.config.ts',
       {
         test: {
           name: 'bundle',

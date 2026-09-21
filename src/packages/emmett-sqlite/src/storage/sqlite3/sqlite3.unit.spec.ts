@@ -6,7 +6,7 @@ import { describe, it } from 'vitest';
 import {
   sqlite3EventStoreDriver,
   type SQLite3EventStoreDriverOptions,
-} from './sqlite3';
+} from '.';
 
 const fileName = ':memory:';
 

@@ -13,6 +13,7 @@ export default [
   {
     ignores: [
       'vitest.config.ts',
+      'vitest.cloudflare.config.ts',
       '**/dist/',
       '**/lib/',
       '**/cache/',
@@ -124,6 +125,18 @@ export default [
     },
   },
   {
+    files: [
+      'packages/emmett-sqlite/src/storage/durableObject/**/*.int.spec.ts',
+      'packages/emmett-sqlite/src/storage/durableObject/**/*.e2e.spec.ts',
+      'packages/emmett-sqlite/src/storage/durableObject/testing/durableObjectTestWorker.ts',
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: './tsconfig.cloudflare.json',
+      },
+    },
+  },
+  {
     files: ['packages/emmett-postgresql/**', 'packages/emmett-sqlite/**'],
     rules: {
       'no-restricted-syntax': [
@@ -144,8 +157,8 @@ export default [
     files: ['packages/emmett-sqlite/**'],
     ignores: [
       'packages/emmett-sqlite/**/*.spec.ts',
-      'packages/emmett-sqlite/src/sqlite3.ts',
-      'packages/emmett-sqlite/src/cloudflare.ts',
+      'packages/emmett-sqlite/src/storage/sqlite3/**',
+      'packages/emmett-sqlite/src/storage/d1/**',
       'packages/emmett-sqlite/src/testing/**',
     ],
     rules: {
