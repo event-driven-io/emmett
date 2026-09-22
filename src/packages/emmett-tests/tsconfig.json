@@ -6,15 +6,13 @@
     "outDir": "./dist" /* Redirect output structure to the directory. */,
     "rootDir": "./src",
     "paths": {
-      "@event-driven-io/almanac": ["../packages/almanac"],
-      "@event-driven-io/emmett": ["../packages/emmett"],
-      "@event-driven-io/emmett-esdb": ["../packages/emmett-esdb"],
-      "@event-driven-io/emmett-postgresql": ["../packages/emmett-postgresql"],
-      "@event-driven-io/emmett-sqlite": ["../packages/emmett-sqlite"],
-      "@event-driven-io/emmett-mongodb": ["../packages/emmett-mongodb"],
-      "@event-driven-io/emmett-testcontainers": [
-        "../packages/emmett-testcontainers"
-      ]
+      "@event-driven-io/almanac": ["../almanac/src"],
+      "@event-driven-io/emmett": ["../emmett/src"],
+      "@event-driven-io/emmett-esdb": ["../emmett-esdb/src"],
+      "@event-driven-io/emmett-postgresql": ["../emmett-postgresql/src"],
+      "@event-driven-io/emmett-sqlite": ["../emmett-sqlite/src"],
+      "@event-driven-io/emmett-mongodb": ["../emmett-mongodb/src"],
+      "@event-driven-io/emmett-testcontainers": ["../emmett-testcontainers/src"]
     }
   },
   "references": [

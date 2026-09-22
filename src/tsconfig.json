@@ -14,6 +14,9 @@
     "paths": {
       "@event-driven-io/almanac": ["./packages/almanac/src"],
       "@event-driven-io/emmett": ["./packages/emmett/src"],
+      "@event-driven-io/emmett-testcontainers": [
+        "./packages/emmett-testcontainers/src"
+      ],
       "@event-driven-io/emmett-expressjs": ["./packages/emmett-expressjs/src"],
       "@event-driven-io/emmett-postgresql": [
         "./packages/emmett-postgresql/src"

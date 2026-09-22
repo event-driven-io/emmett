@@ -6,10 +6,8 @@
     "outDir": "./dist" /* Redirect output structure to the directory. */,
     "rootDir": "./src",
     "paths": {
-      "@event-driven-io/emmett": ["../packages/emmett"],
-      "@event-driven-io/emmett-testcontainers": [
-        "../packages/emmett-testcontainers"
-      ]
+      "@event-driven-io/emmett": ["../emmett/src"],
+      "@event-driven-io/emmett-testcontainers": ["../emmett-testcontainers/src"]
     }
   },
   "references": [
