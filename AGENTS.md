@@ -44,6 +44,8 @@ Codex and OpenCode read `.agents/skills/` directly. Claude Code does not, so `.c
 
 When adding a skill, write the body in `.agents/skills/` with `name` and `description` in the front matter, then add both pointer files.
 
+See `.agents/README.md` for how skills and the change-check hooks work.
+
 ## Development
 
 Run development commands from `src`.

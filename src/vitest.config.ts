@@ -23,6 +23,13 @@ export default defineConfig({
           globalSetup: ['e2e/buildBundles.ts'],
         },
       },
+      {
+        test: {
+          name: 'agents',
+          environment: 'node',
+          include: ['../.agents/**/*.spec.ts', '../.opencode/**/*.spec.ts'],
+        },
+      },
     ],
   },
 });
