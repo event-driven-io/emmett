@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "lib": ["ESNext"],
+    "types": [
+      "./worker-configuration.d.ts",
+      "@cloudflare/vitest-plugin",
+      "@cloudflare/vitest-plugin/types",
+      "node"
+    ]
+  },
+  "include": ["src/**/*.ts", "*.ts"]
+}
