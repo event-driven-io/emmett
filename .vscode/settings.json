@@ -19,30 +19,9 @@
   },
   "files.eol": "\n",
   "typescript.preferences.importModuleSpecifier": "relative",
-  "eslint.workingDirectories": [
-    "./src",
-    "./samples"
-  ],
+  "eslint.workingDirectories": ["./src", "./samples"],
   "debug.javascript.terminalOptions": {
     "nodeVersionHint": 20
   },
-  "nodejs-testing.include": [
-    "./**/**"
-  ],
-  "nodejs-testing.extensions": [
-    {
-      "extensions": [
-        "ts",
-        "mts"
-      ],
-      "filePatterns": [
-        "**/*.spec.ts",
-        "**/*.spec.mts"
-      ],
-      "parameters": [
-        "--import",
-        "tsx"
-      ]
-    }
-  ]
+  "terminal.integrated.environmentChangesRelaunch": true
 }
