@@ -1,4 +1,4 @@
-import { TaskProcessor } from '../../taskProcessing';
+import { taskProcessor as createTaskProcessor } from '../../taskProcessing';
 
 export type LockOptions = { lockId: number };
 
@@ -16,12 +16,12 @@ export type Lock = {
 };
 
 export const InProcessLock = (): Lock => {
-  const taskProcessor = new TaskProcessor({
+  const taskProcessor = createTaskProcessor({
     maxActiveTasks: Number.MAX_VALUE,
     maxQueueSize: Number.MAX_VALUE,
   });
 
-  // Map to store ack functions of currently held locks: lockId -> ack()
+  // Map to store release functions of currently held locks: lockId -> release()
   const locks = new Map<string, () => void>();
 
   return {
@@ -31,15 +31,15 @@ export const InProcessLock = (): Lock => {
       await new Promise<void>((resolve, reject) => {
         taskProcessor
           .enqueue(
-            ({ ack }) => {
+            ({ release }) => {
               // When this task starts, it means the previous lock (if any) was released
               // and now we have exclusive access.
-              locks.set(lockId, ack);
-              // We do NOT call ack() here. We hold onto the lock.
+              locks.set(lockId, release);
+              // We do NOT call release() here. We hold onto the lock.
               resolve();
               return Promise.resolve();
             },
-            { taskGroupId: lockId },
+            { taskGroupId: lockId, releaseMode: 'manual' },
           )
           .catch(reject);
       });
@@ -72,17 +72,16 @@ export const InProcessLock = (): Lock => {
       { lockId }: AcquireLockOptions,
     ): Promise<Result> {
       return taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           // When this task starts, it means the previous lock (if any) was released
           // and now we have exclusive access.
-          locks.set(lockId, ack);
+          locks.set(lockId, release);
 
-          // We do NOT call ack() here. We hold onto the lock.
           try {
             return await handle();
           } finally {
             locks.delete(lockId);
-            ack();
+            release();
           }
         },
         { taskGroupId: lockId },

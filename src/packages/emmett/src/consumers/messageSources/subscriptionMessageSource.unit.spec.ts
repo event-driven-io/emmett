@@ -88,6 +88,52 @@ void describe('boundedMessageQueue', () => {
       })(),
     );
   });
+
+  void it('does not block the writer once the reader stopped on abort', async () => {
+    const queue = boundedMessageQueue<number>({ capacity: 1 });
+    const controller = new AbortController();
+
+    const iterator = queue.iterate(controller.signal)[Symbol.asyncIterator]();
+    const reading = iterator.next();
+    controller.abort();
+    await reading;
+
+    const pushes = Promise.all([queue.push(1), queue.push(2)]).then(
+      () => 'settled',
+    );
+    const timeout = new Promise<string>((resolve) =>
+      setTimeout(() => resolve('blocked'), 50),
+    );
+
+    assertEqual('settled', await Promise.race([pushes, timeout]));
+  });
+
+  void it('ends a new read at once when an earlier read was aborted', async () => {
+    const queue = boundedMessageQueue<number>({ capacity: 4 });
+    const firstController = new AbortController();
+
+    const firstIterator = queue
+      .iterate(firstController.signal)
+      [Symbol.asyncIterator]();
+    const firstReading = firstIterator.next();
+    firstController.abort();
+    await firstReading;
+
+    const secondController = new AbortController();
+    const secondReading = (async () => {
+      const received = [];
+      for await (const item of queue.iterate(secondController.signal))
+        received.push(item);
+      return received;
+    })();
+    await queue.push(1);
+
+    const timeout = new Promise<string>((resolve) =>
+      setTimeout(() => resolve('blocked'), 50),
+    );
+
+    assertDeepEqual(await Promise.race([secondReading, timeout]), []);
+  });
 });
 
 void describe('subscriptionMessageSource', () => {

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 import { assertEqual, assertDeepEqual } from '../testing';
+import {
+  collectGarbage,
+  retainedIndexes,
+} from '../testing/garbageCollection.testHelpers';
 import { asyncAwaiter } from '../utils';
 import { FusionStreams } from './fusionStreams';
 
@@ -144,6 +148,108 @@ void describe('FusionStreams', () => {
         message,
         'Chunk size has to be an integer greater than 0, got: 0',
       );
+    });
+
+    void it('stops when aborted even if the source ignores the signal', async () => {
+      const controller = new AbortController();
+
+      const ignoringSignal = async function* (): AsyncIterable<number> {
+        yield 1;
+        await new Promise<never>(() => {});
+      };
+
+      const collected = collect(
+        FusionStreams.from(ignoringSignal(), {
+          signal: controller.signal,
+        }).chunk({ size: 10 }),
+      );
+
+      await settle();
+      controller.abort();
+
+      const outcome = await Promise.race([
+        collected.completed.then(() => 'stopped'),
+        new Promise((resolve) => setTimeout(() => resolve('hanging'), 100)),
+      ]);
+
+      assertEqual('stopped', outcome);
+    });
+
+    void it('releases delivered values while a stream with a signal is still open', async () => {
+      const controller = new AbortController();
+      const delivered: WeakRef<object>[] = [];
+
+      const liveSource = async function* (): AsyncIterable<object> {
+        for (let index = 0; index < 1_000; index++) {
+          const value = { index };
+          delivered.push(new WeakRef(value));
+          yield value;
+        }
+        await new Promise<never>(() => {});
+      };
+
+      const chunks = FusionStreams.from(liveSource(), {
+        signal: controller.signal,
+      })
+        .chunk({ size: 100 })
+        [Symbol.asyncIterator]();
+
+      for (let consumed = 0; consumed < 1_000;)
+        consumed += ((await chunks.next()).value as object[]).length;
+
+      await collectGarbage();
+
+      const retained = retainedIndexes(delivered).filter(
+        (index) => index !== delivered.length - 1,
+      ).length;
+      controller.abort();
+
+      assertEqual(0, retained, 'Delivered values still retained');
+    });
+
+    void it('releases delivered values while a stream with a deadline is still open', async () => {
+      const controller = new AbortController();
+      const delivered: WeakRef<object>[] = [];
+
+      const liveSource = async function* (): AsyncIterable<object> {
+        for (let index = 0; index < 1_000; index++) {
+          if (index > 0 && index % 150 === 0)
+            await new Promise((resolve) => setTimeout(resolve, 20));
+
+          const value = { index };
+          delivered.push(new WeakRef(value));
+          yield value;
+        }
+        await new Promise<never>(() => {});
+      };
+
+      const chunks = FusionStreams.from(liveSource(), {
+        signal: controller.signal,
+      })
+        .chunk({ size: 100, deadlineInMs: 5 })
+        [Symbol.asyncIterator]();
+
+      const chunkSizes: number[] = [];
+      for (let consumed = 0; consumed < 1_000;) {
+        const size = ((await chunks.next()).value as object[]).length;
+        chunkSizes.push(size);
+        consumed += size;
+      }
+
+      await collectGarbage();
+
+      const retained = retainedIndexes(delivered).filter(
+        (index) => index !== delivered.length - 1,
+      ).length;
+      controller.abort();
+
+      assertEqual(true, chunkSizes.includes(100), 'No chunk flushed by size');
+      assertEqual(
+        true,
+        chunkSizes.some((size) => size < 100),
+        'No chunk flushed by deadline',
+      );
+      assertEqual(0, retained, 'Delivered values still retained');
     });
 
     void describe('with a deadline', () => {

@@ -1,5 +1,5 @@
 import { v7 as uuid } from 'uuid';
-import { beforeEach, describe, it } from 'vitest';
+import { beforeEach, describe, it, onTestFinished } from 'vitest';
 import { EmmettError } from '../errors';
 import {
   assertDeepEqual,
@@ -8,10 +8,14 @@ import {
   assertOk,
   assertRejects,
 } from '../testing';
+import { heapUsedAfterCollecting } from '../testing/garbageCollection.testHelpers';
 import type { Event, ReadEventMetadata, RecordedMessage } from '../typing';
 import { isString } from '../validation';
-import type { ProcessorCheckpoint } from './checkpoints';
-import { bigIntProcessorCheckpoint, type Checkpointer } from './checkpoints';
+import {
+  bigIntProcessorCheckpoint,
+  ProcessorCheckpoint,
+  type Checkpointer,
+} from './checkpoints';
 import { MessageProcessor, projector, reactor } from './processors';
 
 type TestEvent = Event<'test', { counter: number }>;
@@ -54,6 +58,7 @@ void describe('Processors', () => {
 
       // When
       await processor.start();
+      onTestFinished(() => processor.close());
 
       // Then
       assertEqual(onStartCalled, true);
@@ -256,6 +261,61 @@ void describe('Processors', () => {
       assertEqual(closeCount, 1);
     });
 
+    void it('should release shutdown signal listeners when closed after being restarted from a stop', async () => {
+      // Given
+      const sigtermListeners = process.listeners('SIGTERM');
+      const sigintListeners = process.listeners('SIGINT');
+      onTestFinished(() => {
+        for (const listener of process.listeners('SIGTERM'))
+          if (!sigtermListeners.includes(listener))
+            process.off('SIGTERM', listener);
+        for (const listener of process.listeners('SIGINT'))
+          if (!sigintListeners.includes(listener))
+            process.off('SIGINT', listener);
+      });
+
+      const processor = reactor<TestEvent>({
+        processorId: uuid(),
+        eachMessage: () => ({ type: 'STOP' }),
+      });
+
+      const stoppingEvent: RecordedMessage<
+        TestEvent,
+        ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+      > = {
+        type: 'test',
+        kind: 'Event',
+        data: { counter: 1 },
+        metadata: {
+          streamName: 'test-stream',
+          messageId: uuid(),
+          checkpoint: bigIntProcessorCheckpoint(1n),
+          globalPosition: 1n,
+          streamPosition: 1n,
+        },
+      };
+
+      // When - stopped by its handler and restarted a few times, then closed
+      for (let i = 0; i < 3; i++) {
+        await processor.start();
+        await processor.handle([stoppingEvent], {});
+        assertEqual(processor.isActive, false);
+      }
+      await processor.close();
+
+      // Then
+      assertEqual(
+        sigtermListeners.length,
+        process.listenerCount('SIGTERM'),
+        'SIGTERM listeners leaked',
+      );
+      assertEqual(
+        sigintListeners.length,
+        process.listenerCount('SIGINT'),
+        'SIGINT listeners leaked',
+      );
+    });
+
     [
       { name: 'not defined' },
       { canHandle: undefined, name: 'undefined' },
@@ -311,6 +371,7 @@ void describe('Processors', () => {
         ];
 
         await processor.start();
+        onTestFinished(() => processor.close());
 
         // When
         await processor.handle(recordedEvents, {});
@@ -378,6 +439,7 @@ void describe('Processors', () => {
         ];
 
         await processor.start();
+        onTestFinished(() => processor.close());
 
         // When
         await processor.handle(recordedEvents, {});
@@ -460,6 +522,7 @@ void describe('Processors', () => {
       ];
 
       await processor.start({});
+      onTestFinished(() => processor.close());
 
       // When
       await processor.handle(recordedEvents, {});
@@ -486,6 +549,7 @@ void describe('Processors', () => {
 
       // When
       const startPosition = await processor.start({});
+      onTestFinished(() => processor.close());
 
       // Then
       assertDeepEqual(startPosition, { lastCheckpoint: checkpoint });
@@ -532,6 +596,7 @@ void describe('Processors', () => {
         },
       };
       await processor.start();
+      onTestFinished(() => processor.close());
 
       // When
       await processor.handle([recordedEvent], {});
@@ -571,6 +636,7 @@ void describe('Processors', () => {
       }));
 
       await processor.start({});
+      onTestFinished(() => processor.close());
 
       await processor.handle(recordedEvents, {});
 
@@ -621,6 +687,7 @@ void describe('Processors', () => {
         checkpoints: positionCheckpointer(),
       });
       await processor.start();
+      onTestFinished(() => processor.close());
 
       let resolved = false;
       const whenProcessed = processor
@@ -652,6 +719,7 @@ void describe('Processors', () => {
         checkpoints: positionCheckpointer(),
       });
       await processor.start();
+      onTestFinished(() => processor.close());
       await processor.handle([recordedEvent(5n)], {});
 
       // When / Then - resolves without any further handling
@@ -666,11 +734,53 @@ void describe('Processors', () => {
         checkpoints: positionCheckpointer(),
       });
       await processor.start();
+      onTestFinished(() => processor.close());
 
       // When / Then
       await assertRejects(
         processor.whenProcessed(bigIntProcessorCheckpoint(2n), { timeout: 20 }),
         (error: EmmettError) => error instanceof EmmettError,
+      );
+    });
+
+    void it('releases timed out waits while the processor keeps running', async () => {
+      // Given
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => Promise.resolve(),
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+      onTestFinished(() => processor.close());
+
+      const waitCount = 200;
+      const checkpointLength = 100_000;
+      const allCheckpointsSize = waitCount * checkpointLength;
+
+      const heapBefore = await heapUsedAfterCollecting();
+
+      // When
+      await Promise.all(
+        Array.from({ length: waitCount }, (_, index) =>
+          assertRejects(
+            processor.whenProcessed(
+              ProcessorCheckpoint(`${index}:`.padEnd(checkpointLength, '-')),
+              { timeout: 10 },
+            ),
+            (error: EmmettError) =>
+              error instanceof EmmettError &&
+              error.message.includes('did not process checkpoint'),
+          ),
+        ),
+      );
+
+      const heapGrowth = (await heapUsedAfterCollecting()) - heapBefore;
+
+      // Then
+      assertEqual(processor.isActive, true);
+      assertOk(
+        heapGrowth < allCheckpointsSize / 4,
+        `Heap grew by ${heapGrowth} bytes after ${waitCount} timed out waits`,
       );
     });
 
@@ -682,6 +792,7 @@ void describe('Processors', () => {
         checkpoints: positionCheckpointer(),
       });
       await processor.start();
+      onTestFinished(() => processor.close());
 
       let resolved = false;
       const whenProcessed = processor
@@ -698,6 +809,38 @@ void describe('Processors', () => {
       assertEqual(resolved, true);
     });
 
+    void it('resolves a wait for the checkpoint where the processor stopped', async () => {
+      // Given
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => ({ type: 'STOP' }),
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+      onTestFinished(() => processor.close());
+
+      const whenProcessed = processor
+        .whenProcessed(bigIntProcessorCheckpoint(1n))
+        .then(
+          () => 'resolved' as const,
+          (error: unknown) => error,
+        );
+
+      // When
+      await processor.handle([recordedEvent(1n), recordedEvent(2n)], {});
+
+      // Then
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const outcome = await Promise.race([
+        whenProcessed,
+        new Promise<'still pending'>((resolve) => {
+          timer = setTimeout(() => resolve('still pending'), 100);
+        }),
+      ]).finally(() => clearTimeout(timer));
+
+      assertEqual('resolved', outcome);
+    });
+
     void it('does not resolve past a stopped batch', async () => {
       // Given
       const processor = reactor({
@@ -706,6 +849,7 @@ void describe('Processors', () => {
         checkpoints: positionCheckpointer(),
       });
       await processor.start();
+      onTestFinished(() => processor.close());
 
       // When
       await processor.handle([recordedEvent(1n), recordedEvent(2n)], {});
@@ -716,6 +860,73 @@ void describe('Processors', () => {
           timeout: 20,
         }),
         (error: EmmettError) => error instanceof EmmettError,
+      );
+    });
+
+    void it('fails the wait instead of hanging when the processor is closed before catching up', async () => {
+      // Given
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => Promise.resolve(),
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+
+      const whenProcessed = processor
+        .whenProcessed(bigIntProcessorCheckpoint(2n))
+        .then(
+          () => 'resolved' as const,
+          (error: unknown) => error,
+        );
+
+      // When
+      await processor.close();
+
+      // Then
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const outcome = await Promise.race([
+        whenProcessed,
+        new Promise<'still pending'>((resolve) => {
+          timer = setTimeout(() => resolve('still pending'), 100);
+        }),
+      ]).finally(() => clearTimeout(timer));
+
+      assertOk(
+        outcome instanceof EmmettError,
+        `Expected the wait to fail with EmmettError after close, got: ${String(outcome)}`,
+      );
+    });
+
+    void it('fails the wait instead of hanging when requested after the processor was closed', async () => {
+      // Given
+      const processor = reactor({
+        processorId: uuid(),
+        eachMessage: () => Promise.resolve(),
+        checkpoints: positionCheckpointer(),
+      });
+      await processor.start();
+      await processor.close();
+
+      // When
+      const whenProcessed = processor
+        .whenProcessed(bigIntProcessorCheckpoint(2n))
+        .then(
+          () => 'resolved' as const,
+          (error: unknown) => error,
+        );
+
+      // Then
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const outcome = await Promise.race([
+        whenProcessed,
+        new Promise<'still pending'>((resolve) => {
+          timer = setTimeout(() => resolve('still pending'), 100);
+        }),
+      ]).finally(() => clearTimeout(timer));
+
+      assertOk(
+        outcome instanceof EmmettError,
+        `Expected the wait to fail with EmmettError after close, got: ${String(outcome)}`,
       );
     });
   });
@@ -785,6 +996,7 @@ void describe('Processors', () => {
     void it('skips a message with nothing to do and keeps processing', async () => {
       const processor = paymentReactor(uuid());
       await processor.start();
+      onTestFinished(() => processor.close());
 
       await processor.handle(orders([0, 100]), {});
 
@@ -796,6 +1008,7 @@ void describe('Processors', () => {
     void it('stops the reactor when the critical path fails', async () => {
       const processor = paymentReactor(uuid());
       await processor.start();
+      onTestFinished(() => processor.close());
 
       const result = await processor.handle(orders([999, 100]), {});
 
@@ -840,6 +1053,7 @@ void describe('Processors', () => {
 
       // When
       const startPosition = await processor.start({});
+      onTestFinished(() => processor.close());
 
       // Then
       assertEqual(startPosition, 'BEGINNING');
@@ -861,6 +1075,7 @@ void describe('Processors', () => {
 
       // When
       const startPosition = await processor.start({});
+      onTestFinished(() => processor.close());
 
       // Then
       assertDeepEqual(startPosition, { lastCheckpoint: provided });
@@ -878,6 +1093,7 @@ void describe('Processors', () => {
 
       // When
       const startPosition = await processor.start({});
+      onTestFinished(() => processor.close());
 
       // Then
       assertEqual(startPosition, 'BEGINNING');
@@ -895,6 +1111,7 @@ void describe('Processors', () => {
 
       // When
       const startPosition = await processor.start({});
+      onTestFinished(() => processor.close());
 
       // Then
       assertDeepEqual(startPosition, { lastCheckpoint: stored });
@@ -917,7 +1134,9 @@ void describe('Processors', () => {
 
       // When
       const currentPosition = await withCurrent.start({});
+      onTestFinished(() => withCurrent.close());
       const defaultPosition = await withDefault.start({});
+      onTestFinished(() => withDefault.close());
 
       // Then
       assertDeepEqual(currentPosition, defaultPosition);
@@ -938,6 +1157,7 @@ void describe('Processors', () => {
 
       // When
       const startPosition = await processor.start({});
+      onTestFinished(() => processor.close());
 
       // Then
       assertEqual(startPosition, 'END');
@@ -987,6 +1207,7 @@ void describe('Processors', () => {
 
       // When
       await processor.start();
+      onTestFinished(() => processor.close());
 
       // Then
       assertEqual(truncateCalled, true);
@@ -1043,6 +1264,7 @@ void describe('Processors', () => {
       ];
 
       await processor.start();
+      onTestFinished(() => processor.close());
 
       // When
       await processor.handle(recordedEvents, {});
@@ -1091,6 +1313,7 @@ void describe('Processors', () => {
 
       // When
       await processor.start();
+      onTestFinished(() => processor.close());
 
       // Then
       assertEqual(truncateCalled, false);
@@ -1115,6 +1338,7 @@ void describe('Processors', () => {
 
       // When
       await processor.start();
+      onTestFinished(() => processor.close());
 
       // Then
       assertEqual(truncateCalled, false);
@@ -1146,6 +1370,7 @@ void describe('Processors', () => {
 
       // When
       await processor.start();
+      onTestFinished(() => processor.close());
 
       // Then
       assertDeepEqual(callOrder, ['truncate', 'onStart']);

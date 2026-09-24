@@ -1,8 +1,4 @@
-import {
-  DumboError,
-  QueryCanceledError,
-  TransientDatabaseError,
-} from '../errors';
+import { EmmettError } from '../errors';
 import { Abort } from './abort';
 import type { AbortOptions } from './abort';
 import { Clock, type TimerHandle } from './clock';
@@ -53,7 +49,7 @@ export const taskProcessor = (processorOptions: TaskProcessorOptions) => {
   let activeTasks = 0;
   let stopped = false;
   const idleWaiters: Array<() => void> = [];
-  const activeTaskAbortCallbacks: Set<(reason?: unknown) => void> = new Set();
+  const activeItems: Set<TaskQueueItem> = new Set();
   const logger = processorOptions.logger ?? console;
   const queuedTasks = taskScheduler();
   let expirationTimer: TimerHandle | null = null;
@@ -67,14 +63,12 @@ export const taskProcessor = (processorOptions: TaskProcessorOptions) => {
     }
 
     if (stopped) {
-      return Promise.reject(new DumboError('TaskProcessor has been stopped'));
+      return Promise.reject(new EmmettError('TaskProcessor has been stopped'));
     }
 
     if (queuedTasks.size() >= processorOptions.maxQueueSize) {
       return Promise.reject(
-        new TransientDatabaseError(
-          'Too many pending connections. Please try again later.',
-        ),
+        new EmmettError('Too many pending tasks. Please try again later.'),
       );
     }
 
@@ -94,7 +88,7 @@ export const taskProcessor = (processorOptions: TaskProcessorOptions) => {
   const stop = async (options?: StopTaskProcessorOptions): Promise<void> => {
     if (stopped) return;
     stopped = true;
-    const stoppedError = new DumboError('TaskProcessor has been stopped');
+    const stoppedError = new EmmettError('TaskProcessor has been stopped');
     for (const item of queuedTasks.clear()) {
       item.abort(stoppedError);
       item.reject(stoppedError);
@@ -102,9 +96,7 @@ export const taskProcessor = (processorOptions: TaskProcessorOptions) => {
     cancelExpirationTimer();
 
     if (options?.force) {
-      for (const abort of activeTaskAbortCallbacks) {
-        abort(stoppedError);
-      }
+      abortActiveItems(stoppedError);
     }
 
     if (options?.force) return;
@@ -120,9 +112,7 @@ export const taskProcessor = (processorOptions: TaskProcessorOptions) => {
     );
 
     if (!didDrain) {
-      for (const abort of activeTaskAbortCallbacks) {
-        abort(stoppedError);
-      }
+      abortActiveItems(stoppedError);
     }
   };
 
@@ -248,13 +238,13 @@ export const taskProcessor = (processorOptions: TaskProcessorOptions) => {
   };
 
   const executeItem = async (item: TaskQueueItem): Promise<void> => {
-    const { task, markStarted, abort } = item;
+    const { task, markStarted } = item;
     markStarted();
-    activeTaskAbortCallbacks.add(abort);
+    activeItems.add(item);
     try {
       await task();
     } finally {
-      activeTaskAbortCallbacks.delete(abort);
+      activeItems.delete(item);
       activeTasks--;
 
       queuedTasks.complete(item);
@@ -271,6 +261,14 @@ export const taskProcessor = (processorOptions: TaskProcessorOptions) => {
     for (const resolve of waiters) {
       resolve();
     }
+  };
+
+  const abortActiveItems = (reason: unknown): void => {
+    for (const item of activeItems) {
+      item.abort(reason);
+      queuedTasks.complete(item);
+    }
+    activeItems.clear();
   };
 
   const removeQueuedItem = (item: TaskQueueItem): boolean => {
@@ -361,7 +359,5 @@ const waitForProcessingOrDeadline = async (
   }
 };
 
-const createTaskIdleTimeoutError = (): DumboError =>
-  new QueryCanceledError(
-    'Task was not started within the maximum waiting time',
-  );
+const createTaskIdleTimeoutError = (): EmmettError =>
+  new EmmettError('Task was not started within the maximum waiting time');

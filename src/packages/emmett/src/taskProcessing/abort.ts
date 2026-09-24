@@ -1,4 +1,4 @@
-import { DumboError } from '../errors';
+import { EmmettError } from '../errors';
 
 export type Abort = {
   signal: AbortSignal;
@@ -30,7 +30,7 @@ const reason = (abort: Abort | AbortSignal): Error => {
   const signal = getSignal(abort);
   return signal.reason instanceof Error
     ? signal.reason
-    : new DumboError(
+    : new EmmettError(
         typeof signal.reason === 'string' ? signal.reason : 'Operation aborted',
       );
 };
