@@ -627,6 +627,7 @@ export const reactor = <
 
   let isInitiated = false;
   let isActive = false;
+  let isClosed = false;
   let isLockAcquired = false;
 
   let lastCheckpoint: ProcessorCheckpoint | null = null;
@@ -636,6 +637,7 @@ export const reactor = <
   const checkpointWaiters = new Set<{
     target: ProcessorCheckpoint;
     resolve: () => void;
+    reject: (error: EmmettError) => void;
   }>();
 
   const hasProcessed = (target: ProcessorCheckpoint): boolean =>
@@ -651,14 +653,33 @@ export const reactor = <
     }
   };
 
+  const closedBeforeCheckpointError = (checkpoint: ProcessorCheckpoint) =>
+    new EmmettError(
+      `Processor ${processorId} with instance id ${instanceId} was closed before reaching checkpoint ${checkpoint} (last processed checkpoint: ${lastCheckpoint ?? 'none'})`,
+    );
+
+  const rejectCheckpointWaiters = () => {
+    for (const waiter of checkpointWaiters) {
+      checkpointWaiters.delete(waiter);
+      waiter.reject(closedBeforeCheckpointError(waiter.target));
+    }
+  };
+
   const whenProcessed = (
     checkpoint: ProcessorCheckpoint,
     options?: WaitOptions,
   ): Promise<void> => {
     if (hasProcessed(checkpoint)) return Promise.resolve();
 
+    if (isClosed)
+      return Promise.reject(closedBeforeCheckpointError(checkpoint));
+
     const awaiter = asyncAwaiter<void>();
-    const waiter = { target: checkpoint, resolve: awaiter.resolve };
+    const waiter = {
+      target: checkpoint,
+      resolve: awaiter.resolve,
+      reject: awaiter.reject,
+    };
     checkpointWaiters.add(waiter);
 
     return raceWithTimeout(
@@ -692,11 +713,14 @@ export const reactor = <
     // if (!isActive) return;
 
     isActive = false;
+    isClosed = true;
 
     if (closeSignal) {
       closeSignal();
       closeSignal = null;
     }
+
+    rejectCheckpointWaiters();
 
     if (isLockAcquired || hooks.onClose) {
       await processingScope(async (context) => {
@@ -768,7 +792,9 @@ export const reactor = <
       await init(startOptions);
 
       isActive = true;
+      isClosed = false;
 
+      if (closeSignal) closeSignal();
       closeSignal = onShutdown(() => close(startOptions));
 
       if (lastCheckpoint !== null) {
@@ -988,7 +1014,7 @@ export const reactor = <
               { ...partialContext, observabilityScope: scope },
             );
 
-            if (result?.type !== 'STOP') notifyCheckpointWaiters();
+            notifyCheckpointWaiters();
 
             return result;
           } catch (err) {

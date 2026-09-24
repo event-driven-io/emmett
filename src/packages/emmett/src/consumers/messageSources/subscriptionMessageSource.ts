@@ -53,6 +53,12 @@ export const boundedMessageQueue = <T>(
     reader?.();
   };
 
+  const complete = () => {
+    completed = true;
+    notifyReader();
+    waitingWriters.splice(0).forEach((resolve) => resolve());
+  };
+
   return {
     push: (item) => {
       if (completed || failure !== undefined) return Promise.resolve();
@@ -64,38 +70,41 @@ export const boundedMessageQueue = <T>(
 
       return new Promise<void>((resolve) => waitingWriters.push(resolve));
     },
-    complete: () => {
-      completed = true;
-      notifyReader();
-      waitingWriters.splice(0).forEach((resolve) => resolve());
-    },
+    complete,
     fail: (error) => {
       failure = error;
       notifyReader();
       waitingWriters.splice(0).forEach((resolve) => resolve());
     },
     iterate: async function* (signal: AbortSignal) {
-      while (!signal.aborted) {
-        while (items.length > 0) {
-          if (signal.aborted) return;
+      try {
+        while (!signal.aborted) {
+          while (items.length > 0) {
+            if (signal.aborted) return;
 
-          const item = items.shift()!;
-          waitingWriters.shift()?.();
-          yield item;
+            const item = items.shift()!;
+            waitingWriters.shift()?.();
+            yield item;
+          }
+
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- the subscription's failure is rethrown as-is so callers keep the driver's error type
+          if (failure !== undefined) throw failure;
+          if (completed || signal.aborted) return;
+
+          await new Promise<void>((resolve) => {
+            const onAbort = () => resolve();
+            waitingReader = () => {
+              signal.removeEventListener('abort', onAbort);
+              resolve();
+            };
+            signal.addEventListener('abort', onAbort, { once: true });
+          });
         }
-
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- the subscription's failure is rethrown as-is so callers keep the driver's error type
-        if (failure !== undefined) throw failure;
-        if (completed || signal.aborted) return;
-
-        await new Promise<void>((resolve) => {
-          const onAbort = () => resolve();
-          waitingReader = () => {
-            signal.removeEventListener('abort', onAbort);
-            resolve();
-          };
-          signal.addEventListener('abort', onAbort, { once: true });
-        });
+      } finally {
+        if (signal.aborted) {
+          items.length = 0;
+          complete();
+        }
       }
     },
   };

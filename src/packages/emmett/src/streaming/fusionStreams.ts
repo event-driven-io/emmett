@@ -75,13 +75,26 @@ const armDeadline = (ms: number, signal: AbortSignal | undefined): Deadline => {
   return { reached, cancel };
 };
 
-const whenAborted = (signal: AbortSignal | undefined) =>
-  new Promise<typeof Aborted>((resolve) => {
-    if (signal === undefined) return;
-    if (signal.aborted) resolve(Aborted);
-    else
-      signal.addEventListener('abort', () => resolve(Aborted), { once: true });
+/**
+ * Races one promise against the signal. The abort listener is dropped once the
+ * promise settles, so nothing outlives the race and holds on to its result.
+ */
+const orAborted = <T>(
+  promise: Promise<T>,
+  signal: AbortSignal | undefined,
+): Promise<T | typeof Aborted> => {
+  if (signal === undefined) return promise;
+  if (signal.aborted) return Promise.resolve(Aborted);
+
+  return new Promise((resolve, reject) => {
+    const onAbort = () => resolve(Aborted);
+
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener('abort', onAbort));
   });
+};
 
 const chunked = <T>(
   source: AsyncIterable<T>,
@@ -95,11 +108,6 @@ const chunked = <T>(
       );
 
     const iterator = source[Symbol.asyncIterator]();
-
-    // Racing the source against the signal is what keeps an idle chain
-    // responsive to a stop: a source parked on its next value resolves
-    // nothing, so without this the loop would sit there until it does.
-    const aborted = whenAborted(signal);
 
     let chunk: T[] = [];
     let deadline: Deadline | null = null;
@@ -119,8 +127,13 @@ const chunked = <T>(
       while (signal?.aborted !== true) {
         next ??= iterator.next();
 
+        // Racing the source against the signal is what keeps an idle chain
+        // responsive to a stop: a source parked on its next value resolves
+        // nothing, so without this the loop would sit there until it does.
+        const current = orAborted(next, signal);
+
         const result = await Promise.race(
-          deadline ? [next, aborted, deadline.reached] : [next, aborted],
+          deadline ? [current, deadline.reached] : [current],
         );
 
         if (result === Aborted) return;
@@ -144,7 +157,11 @@ const chunked = <T>(
       if (chunk.length > 0 && signal?.aborted !== true) yield flush();
     } finally {
       deadline?.cancel();
-      await iterator.return?.();
+
+      // An async generator queues `return()` behind its pending `next()`, so
+      // awaiting it would hang on a source that ignores the signal.
+      if (next === null) await iterator.return?.();
+      else void iterator.return?.().catch(() => {});
     }
   },
 });

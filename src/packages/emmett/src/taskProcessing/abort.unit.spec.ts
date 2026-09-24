@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { DumboError } from '../errors';
+import { EmmettError } from '../errors';
 import { Abort } from './abort';
 
 describe('Abort', () => {
@@ -13,13 +13,13 @@ describe('Abort', () => {
     assert.strictEqual(Abort.reason(abortController.signal), reason);
   });
 
-  it('provides a DumboError when an operation is aborted with a string reason', () => {
+  it('provides a EmmettError when an operation is aborted with a string reason', () => {
     const abortController = new AbortController();
 
     abortController.abort('aborted');
 
     const reason = Abort.reason(abortController.signal);
-    assert.ok(reason instanceof DumboError);
+    assert.ok(reason instanceof EmmettError);
     assert.strictEqual(reason.message, 'aborted');
   });
 
