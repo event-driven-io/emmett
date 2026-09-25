@@ -112,6 +112,17 @@ export const appendToStream = async <MessageType extends Message>(
           },
         );
 
+        if (result.success)
+          messagesToAppend.forEach((message, index) => {
+            message.metadata = {
+              ...message.metadata,
+              streamPosition:
+                result.nextStreamPosition -
+                BigInt(messagesToAppend.length) +
+                BigInt(index + 1),
+            };
+          });
+
         if (options?.onBeforeCommit)
           await options.onBeforeCommit(messagesToAppend, {
             connection,

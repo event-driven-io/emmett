@@ -302,6 +302,85 @@ void describe('SQLiteEventStore', () => {
     assertEqual(savedEvents.length, 1);
   });
 
+  void it('should pass the stream positions of the appended events to the onBeforeCommit hook', async () => {
+    const streamPositions: bigint[] = [];
+    const eventStore = getSQLiteEventStore({
+      driver: durableObjectEventStoreDriver,
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+      },
+      storage,
+      hooks: {
+        onBeforeCommit: (messages): void => {
+          streamPositions.push(
+            ...messages.map(({ metadata }) => metadata.streamPosition),
+          );
+        },
+      },
+    });
+
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'DiscountApplied', data: { percent: 10, couponId: uuid() } },
+    ]);
+
+    assertDeepEqual(streamPositions, [1n, 2n, 3n]);
+  });
+
+  void it('should pass the stream positions of the appended events to inline projections', async () => {
+    const streamPositions: bigint[] = [];
+    const eventStore = getSQLiteEventStore({
+      driver: durableObjectEventStoreDriver,
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+      },
+      storage,
+      projections: projections.inline([
+        sqliteProjection<ShoppingCartEvent>({
+          name: 'stream_positions_projection',
+          canHandle: ['ProductItemAdded', 'DiscountApplied'],
+          handle: (events) => {
+            streamPositions.push(
+              ...events.map(({ metadata }) => metadata.streamPosition),
+            );
+            return Promise.resolve();
+          },
+        }),
+      ]),
+    });
+
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'DiscountApplied', data: { percent: 10, couponId: uuid() } },
+    ]);
+
+    assertDeepEqual(streamPositions, [1n, 2n, 3n]);
+  });
+
   void it('should record observability while appending', async () => {
     const shoppingCartId = `shopping_cart-${uuid()}`;
     const productItem: PricedProductItem = {
