@@ -3,11 +3,17 @@ import {
   ObservabilitySpec,
   testObservabilityContextGenerator,
 } from '@event-driven-io/almanac';
+import { dumbo } from '@event-driven-io/dumbo';
+import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   assertEqual,
   assertIsNotNull,
+  assertMatches,
+  assertThatArray,
+  assertThrowsAsync,
   EmmettAttributes,
+  EmmettError,
   MessagingSystemName,
   projections,
   type Event,
@@ -24,6 +30,7 @@ import {
   describe,
   it,
 } from 'vitest';
+import { pgEventStoreDriver } from '../pg';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
@@ -34,7 +41,6 @@ import {
 } from './postgreSQLEventStore';
 import { postgreSQLProjection } from './projections';
 import { pongoSingleStreamProjection } from './projections/pongo/pongoProjections';
-import { pgEventStoreDriver } from '../pg';
 
 void describe('EventStoreDBEventStore', () => {
   const M = MessagingAttributes;
@@ -221,6 +227,100 @@ void describe('EventStoreDBEventStore', () => {
     );
 
     assertEqual(1, schemaHookCreationHookCalls);
+  });
+
+  void it('appends events to multiple streams with transaction from dumbo', async () => {
+    // Given
+    const pool = dumbo({
+      driver: pgDumboDriver,
+      connectionString,
+      transactionOptions: { allowNestedTransactions: true },
+    });
+
+    const courseId = uuid();
+    const studentId = uuid();
+
+    const enrolled = {
+      type: 'EnrolledToCourse',
+      data: {
+        courseId,
+        studentId,
+      },
+    };
+
+    // When
+    try {
+      await pool.withTransaction(async ({ connection }) => {
+        const transactionalEventStore = getPostgreSQLEventStore({
+          driver: pgEventStoreDriver,
+          connectionOptions: { connection },
+        });
+
+        await transactionalEventStore.appendToStream(courseId, [enrolled]);
+        await transactionalEventStore.appendToStream(studentId, [enrolled]);
+      });
+    } finally {
+      await pool.close();
+    }
+
+    // Then
+    const courseStream =
+      await eventStore.readStream<ShoppingCartEvent>(courseId);
+    const studentStream =
+      await eventStore.readStream<ShoppingCartEvent>(studentId);
+
+    assertMatches(courseStream.events, [enrolled]);
+    assertMatches(studentStream.events, [enrolled]);
+  });
+
+  void it('rejects all appends when one append to multiple streams on any error within transaction', async () => {
+    // Given
+    const pool = dumbo({
+      driver: pgDumboDriver,
+      connectionString,
+      transactionOptions: { allowNestedTransactions: true },
+    });
+
+    const courseId = uuid();
+    const studentId = uuid();
+
+    const enrolled = {
+      type: 'EnrolledToCourse',
+      data: {
+        courseId,
+        studentId,
+      },
+    };
+
+    // When
+    try {
+      await assertThrowsAsync(
+        () =>
+          pool.withTransaction(async ({ connection }) => {
+            const transactionalEventStore = getPostgreSQLEventStore({
+              driver: pgEventStoreDriver,
+              connectionOptions: { connection },
+            });
+
+            await transactionalEventStore.appendToStream(courseId, [enrolled]);
+            await transactionalEventStore.appendToStream(studentId, [enrolled]);
+
+            throw new EmmettError('You shall not pass!');
+          }),
+        (error) => error.message === 'You shall not pass!',
+      );
+    } finally {
+      await pool.close();
+    }
+
+    // Then
+    const courseStream =
+      await eventStore.readStream<ShoppingCartEvent>(courseId);
+    const studentStream =
+      await eventStore.readStream<ShoppingCartEvent>(studentId);
+
+    assertThatArray(courseStream.events).isEmpty();
+    assertThatArray(studentStream.events).isEmpty();
   });
 
   void it('should append events correctly using appendEvent function', async () => {

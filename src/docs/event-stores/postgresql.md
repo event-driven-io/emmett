@@ -187,28 +187,6 @@ Closing a consumer leaves the event store open. Keep using the store afterwards,
 
 You can also run a consumer without an event store, straight from a connection string, with `postgreSQLEventStoreConsumer({ connectionString })`. That consumer opens its own connection, so closing it closes the connection too.
 
-## Transactions
-
-Use sessions for multi-stream transactions:
-
-```typescript
-await eventStore.withSession(async ({ eventStore: session }) => {
-  await session.appendToStream('Cart-1', [event1]);
-  await session.appendToStream('Cart-2', [event2]);
-  // Both succeed or both fail
-});
-```
-
-## CLI Commands
-
-```bash
-# Run migrations
-npx emmett migrate run --connectionString "postgresql://..."
-
-# Generate migration SQL
-npx emmett migrate sql --print
-```
-
 ## Database Schema
 
 The event store creates three partitioned tables:
