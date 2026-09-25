@@ -1,15 +1,16 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "emmett-shopping-cart-d1",
-  "main": "src/index.ts",
-  "compatibility_date": "2026-09-11",
-  "workers_dev": true,
-  "d1_databases": [
-    {
-      "binding": "DB",
-    },
-  ],
-  "vars": {
-    "ENVIRONMENT": "production",
-  },
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "emmett-shopping-cart-d1",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-09-11",
+	"workers_dev": true,
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_id": "8be5ff68-4320-427d-9498-a5220b2f7932",
+		},
+	],
+	"vars": {
+		"ENVIRONMENT": "production",
+	},
 }
