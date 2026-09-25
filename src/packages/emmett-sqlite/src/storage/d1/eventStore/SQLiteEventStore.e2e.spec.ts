@@ -7,6 +7,7 @@ import {
   assertIsNotNull,
   assertThrowsAsync,
   assertTrue,
+  projections,
   type Event,
 } from '@event-driven-io/emmett';
 import { Miniflare } from 'miniflare';
@@ -31,6 +32,7 @@ import type {
   ProductItemAdded,
   ShoppingCartEvent,
 } from '../../../testing/shoppingCart.domain';
+import { sqliteProjection } from '../../../eventStore/projections';
 import { readProcessorCheckpoint } from '../../../eventStore/schema';
 import {
   getSQLiteEventStore,
@@ -273,6 +275,85 @@ void describe('SQLiteEventStore', () => {
     ]);
 
     assertEqual(savedEvents.length, 1);
+  });
+
+  void it('should pass the stream positions of the appended events to the onBeforeCommit hook', async () => {
+    const streamPositions: bigint[] = [];
+    const eventStore = getSQLiteEventStore({
+      driver: d1EventStoreDriver,
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+      },
+      database,
+      hooks: {
+        onBeforeCommit: (messages): void => {
+          streamPositions.push(
+            ...messages.map(({ metadata }) => metadata.streamPosition),
+          );
+        },
+      },
+    });
+
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'DiscountApplied', data: { percent: 10, couponId: uuid() } },
+    ]);
+
+    assertDeepEqual(streamPositions, [1n, 2n, 3n]);
+  });
+
+  void it('should pass the stream positions of the appended events to inline projections', async () => {
+    const streamPositions: bigint[] = [];
+    const eventStore = getSQLiteEventStore({
+      driver: d1EventStoreDriver,
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+      },
+      database,
+      projections: projections.inline([
+        sqliteProjection<ShoppingCartEvent>({
+          name: 'stream_positions_projection',
+          canHandle: ['ProductItemAdded', 'DiscountApplied'],
+          handle: (events) => {
+            streamPositions.push(
+              ...events.map(({ metadata }) => metadata.streamPosition),
+            );
+            return Promise.resolve();
+          },
+        }),
+      ]),
+    });
+
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'ProductItemAdded', data: { productItem } },
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+      { type: 'DiscountApplied', data: { percent: 10, couponId: uuid() } },
+    ]);
+
+    assertDeepEqual(streamPositions, [1n, 2n, 3n]);
   });
 });
 

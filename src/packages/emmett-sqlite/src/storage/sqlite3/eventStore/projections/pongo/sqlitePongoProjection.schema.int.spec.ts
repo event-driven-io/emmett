@@ -1,6 +1,10 @@
 import { mapRows, SQL, SQLTableReference } from '@event-driven-io/dumbo';
-import { sqliteTableName } from '@event-driven-io/dumbo/sqlite';
 import {
+  sqliteIndexName,
+  sqliteTableName,
+} from '@event-driven-io/dumbo/sqlite';
+import {
+  indexExists,
   sqlite3Pool,
   tableExists,
   type SQLite3Connection,
@@ -22,7 +26,12 @@ import { sqlite3EventStoreDriver } from '../../../../../sqlite3';
 import { deleteSQLiteDatabaseFiles } from '../../../testing/sqliteTestDatabase';
 import { getSQLiteEventStore } from '../../../../../eventStore/SQLiteEventStore';
 import { SQLiteProjectionSpec } from '../../../../../eventStore/projections/sqliteProjectionSpec';
-import { pongoClient, type PongoCollection } from '@event-driven-io/pongo';
+import {
+  pongoClient,
+  pongoSchema,
+  type PongoCollection,
+  type PongoDBCollectionOptions,
+} from '@event-driven-io/pongo';
 import { pongoSingleStreamProjection } from '../../../../../eventStore/projections/pongo/pongoProjections';
 import { expectPongoDocuments } from '../../../../../eventStore/projections/pongo/pongoProjectionSpec';
 import { pongoDriverOf } from '../../../../../eventStore/eventStoreDriver';
@@ -391,6 +400,57 @@ void describe('SQLite Pongo projection schema configuration', () => {
     },
   );
 
+  void it(
+    'creates the indexes from the Pongo collection definition when the event store schema is migrated',
+    withDeadline,
+    async () => {
+      const indexName = 'shopping_cart_summary_items_count_idx';
+      const eventStore = getSQLiteEventStore({
+        driver: sqlite3EventStoreDriver,
+        fileName,
+        schema: {
+          databaseSchemaName,
+          projectionsDatabaseSchemaName,
+        },
+        projections: [
+          {
+            type: 'inline',
+            projection: shoppingCartProjection(collectionName, {
+              definition: pongoSchema.collection<ShoppingCartSummary>(
+                collectionName,
+                {
+                  indexes: {
+                    productItemsCount: pongoSchema.index(
+                      indexName,
+                      'productItemsCount',
+                    ),
+                  },
+                },
+              ),
+            }),
+          },
+        ],
+      });
+
+      try {
+        await eventStore.schema.migrate();
+      } finally {
+        await eventStore.close();
+      }
+
+      assertTrue(
+        await indexExists(
+          pool.execute,
+          sqliteIndexName({
+            databaseSchemaName: projectionsDatabaseSchemaName,
+            tableName: collectionName,
+            indexName,
+          }),
+        ),
+      );
+    },
+  );
+
   const changeCollectionMigrationHash = () =>
     pool.execute.command(
       SQL`UPDATE ${SQLTableReference.from({
@@ -449,7 +509,7 @@ type ShoppingCartSummary = {
 
 const shoppingCartProjection = (
   collectionName: string,
-  collectionOptions?: { databaseSchemaName?: string | undefined },
+  collectionOptions?: PongoDBCollectionOptions<ShoppingCartSummary>,
 ) =>
   pongoSingleStreamProjection<ShoppingCartSummary, ProductItemAdded>({
     collectionName,
