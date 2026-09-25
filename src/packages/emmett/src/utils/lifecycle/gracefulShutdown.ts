@@ -1,5 +1,11 @@
 export type ShutdownHandler = () => void | Promise<void>;
 
+const processShutdownHandlers = new Set<ShutdownHandler>();
+
+const callProcessShutdownHandlers = () => {
+  for (const handler of [...processShutdownHandlers]) void handler();
+};
+
 /**
  * Registers handlers for OS signals to enable graceful shutdown.
  * Handles SIGTERM and SIGINT by default.
@@ -13,12 +19,18 @@ export const onShutdown = (handler: ShutdownHandler): (() => void) => {
 
   // Node.js/Bun
   if (typeof process !== 'undefined' && typeof process.on === 'function') {
-    for (const signal of signals) {
-      process.on(signal, handler);
-    }
-    return () => {
+    if (processShutdownHandlers.size === 0)
       for (const signal of signals) {
-        process.off(signal, handler);
+        process.on(signal, callProcessShutdownHandlers);
+      }
+    processShutdownHandlers.add(handler);
+
+    return () => {
+      if (!processShutdownHandlers.delete(handler)) return;
+      if (processShutdownHandlers.size > 0) return;
+
+      for (const signal of signals) {
+        process.off(signal, callProcessShutdownHandlers);
       }
     };
   }
