@@ -38,13 +38,12 @@ describe('otel', () => {
   });
 
   it('supports OTel tracing and metrics with console logging', () => {
+    const log = consoleLogger();
     const instance = sdk();
 
-    const configured = observability(
-      otel({ sdk: instance, logging: consoleLogger }),
-    );
+    const configured = observability(otel({ sdk: instance, logging: log }));
 
-    expect(configured.logger).toBe(consoleLogger);
+    expect(configured.logger).toBe(log);
     expect(configured.tracer).not.toBe(noopTracer());
     expect(configured.meter).not.toBe(noopMeter());
     expect(instance.start).toHaveBeenCalledOnce();
@@ -77,6 +76,7 @@ describe('otel', () => {
   });
 
   it('supports console logging without starting an unused OTel SDK', () => {
+    const log = consoleLogger();
     const instance = sdk();
 
     const configured = observability(
@@ -84,14 +84,14 @@ describe('otel', () => {
         sdk: instance,
         tracing: DISABLED,
         metrics: DISABLED,
-        logging: consoleLogger,
+        logging: log,
       }),
     );
 
     expect(configured).toEqual({
       tracer: noopTracer(),
       meter: noopMeter(),
-      logger: consoleLogger,
+      logger: log,
     });
     expect(instance.start).not.toHaveBeenCalled();
   });

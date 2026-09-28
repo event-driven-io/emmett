@@ -97,7 +97,7 @@ describe('shouldLog', () => {
 describe('logger', () => {
   const capture = (minLevel?: Parameters<typeof logger>[0]['minLevel']) => {
     const events: LogEventValue[] = [];
-    const log = logger({ event: (e) => events.push(e), minLevel });
+    const log = logger({ log: (e) => events.push(e), minLevel });
     return { events, log };
   };
 
@@ -160,11 +160,36 @@ describe('logger', () => {
     expect(events[0]!.data.attributes).toEqual({ orderId: 'o9' });
   });
 
-  it('drops levels below minLevel', () => {
-    const { events, log } = capture('warn');
-    log(LogEvent.info({ userId: 'u1' }, 'hi'));
+  it('forwards debug and trace events when no minLevel is set', () => {
+    const { events, log } = capture();
+    const debug = LogEvent.debug('cache miss');
+    const trace = LogEvent.trace('entering handler');
 
-    expect(events).toHaveLength(0);
+    log(debug);
+    log(trace);
+
+    expect(events).toEqual([debug, trace]);
+  });
+
+  it('drops events below an explicit minLevel', () => {
+    const { events, log } = capture('warn');
+    const warn = LogEvent.warn('degraded');
+
+    log(LogEvent.info({ userId: 'u1' }, 'hi'));
+    log(warn);
+
+    expect(events).toEqual([warn]);
+  });
+
+  it('never forwards silent events', () => {
+    const withoutMinLevel = capture();
+    const withTraceMinLevel = capture('trace');
+
+    withoutMinLevel.log(LogEvent.silent('shh'));
+    withTraceMinLevel.log(LogEvent.silent('shh'));
+
+    expect(withoutMinLevel.events).toEqual([]);
+    expect(withTraceMinLevel.events).toEqual([]);
   });
 
   it('does not expose pino-like methods', () => {

@@ -26,6 +26,10 @@ export const OtelLogFormatter = {
     metadata,
   }: LogEvent): Record<string, unknown> => {
     const attributes: LogAttributes = { ...(data.attributes ?? {}) };
+    if (metadata.correlationId !== undefined)
+      attributes['correlation_id'] = metadata.correlationId;
+    if (metadata.causationId !== undefined)
+      attributes['causation_id'] = metadata.causationId;
     if (data.error) {
       attributes['exception.type'] = data.error.name;
       attributes['exception.message'] = data.error.message;

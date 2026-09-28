@@ -1,55 +1,98 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MockInstance } from 'vitest';
 import { LogEvent } from '../../loggers/logger';
 import { consoleLogger } from './consoleLogger';
 
 describe('consoleLogger', () => {
-  it('info delegates to console.log', () => {
-    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    consoleLogger(LogEvent.info('hello'));
-    expect(spy).toHaveBeenCalledWith('hello');
-    spy.mockRestore();
+  let stdout!: MockInstance<typeof console.log>;
+  let stderr!: MockInstance<typeof console.error>;
+  let stackTrace!: MockInstance<typeof console.trace>;
+
+  beforeEach(() => {
+    stdout = vi.spyOn(console, 'log').mockImplementation(() => {});
+    stderr = vi.spyOn(console, 'error').mockImplementation(() => {});
+    stackTrace = vi.spyOn(console, 'trace').mockImplementation(() => {});
   });
 
-  it('error delegates to console.error', () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    consoleLogger(LogEvent.error('something failed'));
-    expect(spy).toHaveBeenCalledWith('something failed');
-    spy.mockRestore();
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  it('fatal delegates to console.error', () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    consoleLogger(LogEvent.fatal('fatal failure'));
-    expect(spy).toHaveBeenCalledWith('fatal failure');
-    spy.mockRestore();
+  const everyLevel = [
+    LogEvent.trace('trace message'),
+    LogEvent.debug('debug message'),
+    LogEvent.info('info message'),
+    LogEvent.warn('warn message'),
+    LogEvent.error('error message'),
+    LogEvent.fatal('fatal message'),
+  ];
+
+  it('writes every level to stdout by default', () => {
+    const log = consoleLogger({ minLevel: 'trace' });
+
+    for (const event of everyLevel) log(event);
+
+    expect(stdout.mock.calls).toEqual([
+      ['trace message'],
+      ['debug message'],
+      ['info message'],
+      ['warn message'],
+      ['error message'],
+      ['fatal message'],
+    ]);
+    expect(stderr).not.toHaveBeenCalled();
   });
 
-  it('warn delegates to console.warn', () => {
-    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    consoleLogger(LogEvent.warn('watch out'));
-    expect(spy).toHaveBeenCalledWith('watch out');
-    spy.mockRestore();
+  it('writes every level to stderr when destination is stderr', () => {
+    const log = consoleLogger({ destination: 'stderr', minLevel: 'trace' });
+
+    for (const event of everyLevel) log(event);
+
+    expect(stderr.mock.calls).toEqual([
+      ['trace message'],
+      ['debug message'],
+      ['info message'],
+      ['warn message'],
+      ['error message'],
+      ['fatal message'],
+    ]);
+    expect(stdout).not.toHaveBeenCalled();
   });
 
-  it('passes object + msg to the underlying console method', () => {
-    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    consoleLogger(LogEvent.info({ userId: 'u1' }, 'user logged in'));
-    expect(spy).toHaveBeenCalledWith('user logged in', { userId: 'u1' });
-    spy.mockRestore();
+  it('does not print a stack trace for trace-level events', () => {
+    const log = consoleLogger({ minLevel: 'trace' });
+
+    log(LogEvent.trace('entering handler'));
+
+    expect(stackTrace).not.toHaveBeenCalled();
+    expect(stdout.mock.calls).toEqual([['entering handler']]);
   });
 
-  it('passes Error + msg to console.error', () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('drops debug events unless minLevel allows them', () => {
+    consoleLogger()(LogEvent.debug('dropped'));
+    consoleLogger({ minLevel: 'debug' })(LogEvent.debug('kept'));
+
+    expect(stdout.mock.calls).toEqual([['kept']]);
+  });
+
+  it('passes object + msg to the console', () => {
+    consoleLogger()(LogEvent.info({ userId: 'u1' }, 'user logged in'));
+
+    expect(stdout.mock.calls).toEqual([['user logged in', { userId: 'u1' }]]);
+  });
+
+  it('passes Error + msg to the console', () => {
     const err = new Error('boom');
-    consoleLogger(LogEvent.error(err, 'operation failed'));
-    expect(spy).toHaveBeenCalledWith('operation failed', err);
-    spy.mockRestore();
+
+    consoleLogger()(LogEvent.error(err, 'operation failed'));
+
+    expect(stdout.mock.calls).toEqual([['operation failed', err]]);
   });
 
   it('silent does nothing', () => {
-    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    consoleLogger(LogEvent.silent('shh'));
-    expect(spy).not.toHaveBeenCalled();
-    spy.mockRestore();
+    consoleLogger({ minLevel: 'trace' })(LogEvent.silent('shh'));
+
+    expect(stdout).not.toHaveBeenCalled();
+    expect(stderr).not.toHaveBeenCalled();
   });
 });

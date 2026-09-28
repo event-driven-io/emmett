@@ -382,6 +382,130 @@ describe('ObservabilityScope', () => {
     expect(tracer.spans).toHaveLength(0);
   });
 
+  it('scope logs carry trace, span, correlation and causation ids', async () => {
+    const tracer = collectingTracer();
+    const logs: AnyLogEvent[] = [];
+    const o11y = defaultObservability({
+      tracer,
+      logger: (log) => logs.push(log),
+    });
+    const event = LogEvent.info('test');
+
+    await ObservabilityScope(o11y).startScope(
+      'root',
+      (scope) => {
+        scope.log(event);
+        return Promise.resolve();
+      },
+      { context: { correlationId: 'corr-1', causationId: 'cause-1' } },
+    );
+
+    expect(logs).toEqual([
+      {
+        name: 'test',
+        data: { body: 'test' },
+        metadata: {
+          level: 'info',
+          timestamp: event.metadata.timestamp,
+          traceId: tracer.spans[0]!.ownContext.traceId,
+          spanId: tracer.spans[0]!.ownContext.spanId,
+          correlationId: 'corr-1',
+          causationId: 'cause-1',
+        },
+      },
+    ]);
+  });
+
+  it('ids already set on the log event are kept', async () => {
+    const logs: AnyLogEvent[] = [];
+    const o11y = defaultObservability({
+      logger: (log) => logs.push(log),
+    });
+    const event = LogEvent.info('test', {
+      traceId: 'explicit-trace',
+      spanId: 'explicit-span',
+      correlationId: 'explicit-corr',
+      causationId: 'explicit-cause',
+    });
+
+    await ObservabilityScope(o11y).startScope(
+      'root',
+      (scope) => {
+        scope.log(event);
+        return Promise.resolve();
+      },
+      { context: { correlationId: 'corr-1', causationId: 'cause-1' } },
+    );
+
+    expect(logs).toEqual([event]);
+  });
+
+  it('a scope without a real span still adds correlation and causation ids', async () => {
+    const logs: AnyLogEvent[] = [];
+    const o11y = defaultObservability({
+      tracer: noopTracer(),
+      logger: (log) => logs.push(log),
+    });
+    const event = LogEvent.info('test');
+
+    await ObservabilityScope(o11y).startScope(
+      'root',
+      (scope) => {
+        scope.log(event);
+        return Promise.resolve();
+      },
+      { context: { correlationId: 'corr-1', causationId: 'cause-1' } },
+    );
+
+    expect(logs).toEqual([
+      {
+        name: 'test',
+        data: { body: 'test' },
+        metadata: {
+          level: 'info',
+          timestamp: event.metadata.timestamp,
+          correlationId: 'corr-1',
+          causationId: 'cause-1',
+        },
+      },
+    ]);
+  });
+
+  it("a child scope's log carries the child's span id and the inherited correlation id", async () => {
+    const tracer = collectingTracer();
+    const logs: AnyLogEvent[] = [];
+    const o11y = defaultObservability({
+      tracer,
+      logger: (log) => logs.push(log),
+    });
+    const event = LogEvent.info('test');
+
+    await ObservabilityScope(o11y).startScope(
+      'root',
+      (scope) =>
+        scope.scope('child', (child) => {
+          child.log(event);
+          return Promise.resolve();
+        }),
+      { context: { correlationId: 'corr-1', causationId: 'cause-1' } },
+    );
+
+    expect(logs).toEqual([
+      {
+        name: 'test',
+        data: { body: 'test' },
+        metadata: {
+          level: 'info',
+          timestamp: event.metadata.timestamp,
+          traceId: tracer.spans[1]!.ownContext.traceId,
+          spanId: tracer.spans[1]!.ownContext.spanId,
+          correlationId: 'corr-1',
+          causationId: 'cause-1',
+        },
+      },
+    ]);
+  });
+
   describe('observabilityContext', () => {
     it('generates all four ids when nothing is seeded, rooting causation on the correlation', async () => {
       const o11y = defaultObservability({

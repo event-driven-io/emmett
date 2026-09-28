@@ -1,7 +1,6 @@
 import { JSONSerializer } from '../../serialization/json';
 import type {
   ActiveSpan,
-  LogLevel,
   SpanLink,
   StartSpanOptions,
   ObservabilityContextGenerator,
@@ -10,6 +9,7 @@ import type {
 import { logger } from '../../loggers/logger';
 import {
   defaultObservabilityContextGenerator,
+  LogLevel,
   noopLogger,
 } from '../../tracers';
 import { logEventForSpan } from '../../tracers/spanLogEvent';
@@ -32,8 +32,8 @@ export const consoleTracer = (options?: ConsoleTracerOptions): Tracer => {
   const log = suppressLogs
     ? noopLogger
     : logger({
-        minLevel: options?.logLevel,
-        event: sink,
+        minLevel: options?.logLevel ?? LogLevel.info,
+        log: sink,
       });
 
   return {

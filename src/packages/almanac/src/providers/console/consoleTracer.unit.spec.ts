@@ -144,6 +144,18 @@ describe('consoleTracer', () => {
     });
   });
 
+  it('drops debug span logs when no logLevel is set', async () => {
+    const tracer = consoleTracer();
+    await tracer.startSpan('my-span', (span) => {
+      span.log(LogEvent.debug('cache miss'));
+      return Promise.resolve();
+    });
+
+    assert.strictEqual(consoleSpy.mock.calls.length, 1);
+    const [output] = consoleSpy.mock.calls[0] as [string];
+    assert.strictEqual((JSON.parse(output) as OtlpSpan).name, 'my-span');
+  });
+
   describe('suppressLogs: true', () => {
     it('suppresses logs, only logs span summary', async () => {
       const tracer = consoleTracer({ suppressLogs: true });

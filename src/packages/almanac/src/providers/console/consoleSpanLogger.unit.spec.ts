@@ -32,6 +32,16 @@ describe('consoleSpanLogger', () => {
     vi.restoreAllMocks();
   });
 
+  it('drops debug events when no logLevel is set', () => {
+    const logger = consoleSpanLogger();
+    logger(LogEvent.debug('cache miss'));
+    logger(LogEvent.info('hello'));
+
+    assert.strictEqual(consoleSpy.mock.calls.length, 1);
+    const [output] = consoleSpy.mock.calls[0] as [string];
+    assert.strictEqual((JSON.parse(output) as OtelLog).body, 'hello');
+  });
+
   describe('compact mode (default)', () => {
     it('writes an OTel-shaped log for a string message', () => {
       const logger = consoleSpanLogger({ logLevel: 'info' });

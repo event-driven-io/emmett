@@ -73,6 +73,8 @@ export type LogEventMetadata = {
   timestamp: number;
   traceId?: string;
   spanId?: string;
+  correlationId?: string;
+  causationId?: string;
 };
 
 export type LogEventMetadataInput = {
@@ -80,6 +82,8 @@ export type LogEventMetadataInput = {
   timestamp?: number;
   traceId?: string;
   spanId?: string;
+  correlationId?: string;
+  causationId?: string;
 };
 
 type LogEventMetadataOverrides = Omit<LogEventMetadataInput, 'level'>;
@@ -206,18 +210,18 @@ export const LogEvent = Object.assign(logEvent, {
 export type Logger = (event: LogEvent) => void;
 
 export const logger = (options: {
-  event: (event: LogEvent) => void;
+  log: (event: LogEvent) => void;
   minLevel?: LogLevel;
 }): Logger => {
-  const { event: sink, minLevel } = options;
+  const { log, minLevel } = options;
   return (event: LogEvent): void => {
     if (
       event.metadata.level === 'silent' ||
-      !shouldLog(event.metadata.level, minLevel)
+      (minLevel !== undefined && !shouldLog(event.metadata.level, minLevel))
     )
       return;
-    sink(event);
+    log(event);
   };
 };
 
-export const noopLogger: Logger = logger({ event: () => {} });
+export const noopLogger: Logger = logger({ log: () => {} });

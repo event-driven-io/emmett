@@ -4,11 +4,14 @@ State for [plan.md](plan.md). Tick a box when the prompt's "Done when" holds and
 
 ## Phase 1: Almanac API and attributes
 
-- [ ] 1. Rename `logger({ event })` to `logger({ log })`; no `minLevel` forwards every level; almanac sinks pass `info` explicitly
-- [ ] 2. `consoleLogger({ destination })`, stdout by default, no `console.trace`; update migrate.ts and eventStoreDBContainer.ts
-- [ ] 3. Scope logs carry trace, span, correlation and causation ids
-- [ ] 4. OTel tracer: error status, `error.type`, message as description, no exception log
-- [ ] 5. Add the missing `EmmettAttributes` and the span names
+- [x] 1. Rename `logger({ event })` to `logger({ log })`; no `minLevel` forwards every level; almanac sinks pass `info` explicitly
+- [x] 2. `consoleLogger({ destination })`, stdout by default, no `console.trace`; update migrate.ts and eventStoreDBContainer.ts
+- [x] 3. Scope logs carry trace, span, correlation and causation ids
+  - Sinks map the ids per the pino instrumentation convention (Q48): pino gets `trace_id`, `span_id`, `correlation_id`, `causation_id`; OTel records get `correlation_id`, `causation_id` attributes.
+- [x] 4. OTel tracer: error status, `error.type`, message as description, no exception log
+  - `pinoTracer` keeps its `pino.error` span record on failure; it already matches the pino instrumentation field convention (Q49).
+- [x] 5. Add the missing `EmmettAttributes` and the span names
+  - Span names are `EmmettSpans` constants (Q47); existing unprefixed collector span names untouched.
 
 ## Phase 2: Emmett core
 

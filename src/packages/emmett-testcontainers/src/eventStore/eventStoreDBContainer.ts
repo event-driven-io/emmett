@@ -93,6 +93,7 @@ export class StartedEventStoreDBContainer extends AbstractStartedContainer {
 let container: EventStoreDBContainer | null = null;
 let startedContainer: StartedEventStoreDBContainer | null = null;
 let startedCount = 0;
+const log = consoleLogger();
 const lock = InProcessLock();
 
 export const getSharedEventStoreDBTestContainer = () =>
@@ -108,9 +109,9 @@ export const getSharedEventStoreDBTestContainer = () =>
 
       container.withLogConsumer((stream) =>
         stream
-          .on('data', (line) => consoleLogger(LogEvent.info(String(line))))
-          .on('err', (line) => consoleLogger(LogEvent.error(String(line))))
-          .on('end', () => consoleLogger(LogEvent.info('Stream closed'))),
+          .on('data', (line) => log(LogEvent.info(String(line))))
+          .on('err', (line) => log(LogEvent.error(String(line))))
+          .on('end', () => log(LogEvent.info('Stream closed'))),
       );
 
       return startedContainer;
