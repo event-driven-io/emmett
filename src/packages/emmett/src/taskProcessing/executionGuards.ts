@@ -1,9 +1,9 @@
+import type { Observability } from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
 import { IllegalStateError } from '../errors';
 import { Abort, type AbortContext, type AbortOptions } from './abort';
 import {
   taskProcessor,
-  type TaskProcessorLogger,
   type StopTaskProcessorOptions,
   type TaskContext,
   type TaskOperationOptions,
@@ -19,14 +19,16 @@ export type ExclusiveAccessGuard = {
 };
 
 export const guardExclusiveAccess = (options?: {
-  logger?: TaskProcessorLogger;
+  observability?: Partial<Observability>;
   maxQueueSize?: number;
   maxTaskIdleTime?: number;
 }): ExclusiveAccessGuard => {
   const processor = taskProcessor({
     maxActiveTasks: 1,
     maxQueueSize: options?.maxQueueSize ?? 1000,
-    ...(options?.logger !== undefined ? { logger: options.logger } : {}),
+    ...(options?.observability !== undefined
+      ? { observability: options?.observability }
+      : {}),
     ...(options?.maxTaskIdleTime !== undefined
       ? { maxTaskIdleTime: options.maxTaskIdleTime }
       : {}),
@@ -53,7 +55,7 @@ export type ConcurrentAccessGuard = {
 };
 
 export const guardConcurrentAccess = (options?: {
-  logger?: TaskProcessorLogger;
+  observability?: Partial<Observability>;
   maxActiveTasks?: number;
   maxQueueSize?: number;
   maxTaskIdleTime?: number;
@@ -61,7 +63,9 @@ export const guardConcurrentAccess = (options?: {
   const processor = taskProcessor({
     maxActiveTasks: options?.maxActiveTasks ?? Number.MAX_SAFE_INTEGER,
     maxQueueSize: options?.maxQueueSize ?? Number.MAX_SAFE_INTEGER,
-    ...(options?.logger !== undefined ? { logger: options.logger } : {}),
+    ...(options?.observability !== undefined
+      ? { observability: options?.observability }
+      : {}),
     ...(options?.maxTaskIdleTime !== undefined
       ? { maxTaskIdleTime: options.maxTaskIdleTime }
       : {}),
@@ -95,7 +99,7 @@ export type BoundedAccessGuard<Resource> = {
 export const guardBoundedAccess = <Resource>(
   getResource: (context: AbortContext) => Resource | Promise<Resource>,
   options: {
-    logger?: TaskProcessorLogger;
+    observability?: Partial<Observability>;
     maxResources: number;
     maxQueueSize?: number;
     reuseResources?: boolean;
@@ -106,7 +110,9 @@ export const guardBoundedAccess = <Resource>(
   const processor = taskProcessor({
     maxActiveTasks: options.maxResources,
     maxQueueSize: options.maxQueueSize ?? 1000,
-    ...(options.logger !== undefined ? { logger: options.logger } : {}),
+    ...(options.observability !== undefined
+      ? { observability: options.observability }
+      : {}),
   });
 
   const resourcePool: Resource[] = [];
@@ -234,7 +240,7 @@ export type InitializedOnceGuard<T> = {
 export const guardInitializedOnce = <T>(
   initialize: (context: AbortContext) => Promise<T>,
   options?: {
-    logger?: TaskProcessorLogger;
+    observability?: Partial<Observability>;
     maxQueueSize?: number;
     maxRetries?: number;
   },
@@ -244,7 +250,9 @@ export const guardInitializedOnce = <T>(
   const processor = taskProcessor({
     maxActiveTasks: 1,
     maxQueueSize: options?.maxQueueSize ?? 1000,
-    ...(options?.logger !== undefined ? { logger: options.logger } : {}),
+    ...(options?.observability !== undefined
+      ? { observability: options?.observability }
+      : {}),
   });
 
   const ensureInitialized = async (

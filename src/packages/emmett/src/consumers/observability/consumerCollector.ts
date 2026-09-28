@@ -1,6 +1,5 @@
 import {
   defaultObservabilityContextGenerator,
-  LogEvent,
   MessagingAttributes,
   noopLogger,
   noopMeter,
@@ -11,6 +10,7 @@ import {
   type Logger,
   type Meter,
   type ObservabilityContextGenerator,
+  type SpanLink,
   type Tracer,
 } from '@event-driven-io/almanac';
 import {
@@ -110,6 +110,20 @@ export const consumerCollector = (
       });
     },
 
+    lifecycleScope: <T>(
+      name: string,
+      context: { consumerId: string; processorCount: number },
+      fn: (scope: ObservabilityScope) => Promise<T>,
+      options?: { links?: SpanLink[] },
+    ): Promise<T> =>
+      startScope(name, fn, {
+        attributes: {
+          [A.consumer.id]: context.consumerId,
+          [A.consumer.processorCount]: context.processorCount,
+        },
+        ...(options?.links ? { links: options.links } : {}),
+      }),
+
     recordPollMetrics: (
       durationMs: number,
       attrs?: Record<string, unknown>,
@@ -125,13 +139,10 @@ export const consumerCollector = (
       const start = Date.now();
       return scope.scope(
         `consumer.deliver.${processorId}`,
-        async (child) => {
+        async () => {
           try {
             const result = await fn();
             return result;
-          } catch (error) {
-            if (error instanceof Error) child.log(LogEvent.error(error));
-            throw error;
           } finally {
             deliveryDuration.record(Date.now() - start, {
               [A.consumer.delivery.processorId]: processorId,

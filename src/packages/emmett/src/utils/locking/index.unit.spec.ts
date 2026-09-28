@@ -1,3 +1,4 @@
+import { noopLogger } from '@event-driven-io/almanac';
 import { beforeEach, describe, it } from 'vitest';
 import { InProcessLock, type Lock } from '.';
 import { assertDeepEqual, assertEqual } from '../../testing';
@@ -144,5 +145,15 @@ void describe('InProcessLock', () => {
     };
 
     await Promise.all([task(), task()]);
+  });
+
+  void it('locks as usual when given an observability option', async () => {
+    const observedLock = InProcessLock({
+      observability: { logger: noopLogger },
+    });
+
+    assertEqual(await observedLock.tryAcquire({ lockId: '1' }), true);
+    assertEqual(await observedLock.tryAcquire({ lockId: '1' }), false);
+    assertEqual(await observedLock.release({ lockId: '1' }), true);
   });
 });

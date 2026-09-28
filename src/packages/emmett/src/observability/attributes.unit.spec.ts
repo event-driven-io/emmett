@@ -42,6 +42,15 @@ describe('EmmettAttributes for processor and consumer lifecycle logs', () => {
       streamPosition: 'emmett.stream.position',
     });
   });
+
+  it('names the first and last checkpoint of a processed batch', () => {
+    expect(EmmettAttributes.processor.batch).toEqual({
+      checkpoint: {
+        first: 'emmett.processor.batch.checkpoint.first',
+        last: 'emmett.processor.batch.checkpoint.last',
+      },
+    });
+  });
 });
 
 describe('EmmettSpans', () => {

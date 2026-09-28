@@ -22,16 +22,17 @@ State for [plan.md](plan.md). Tick a box when the prompt's "Done when" holds and
 - [x] 8. `emmett.processor.close` span, `release_lock` child, "Processor stopped" at info
 - [x] 9. Message handler failure logged once inside the message scope
   - The outer catch logs `emmett.processor.exception`, "Processor stopped: processing failed" (name to confirm with Oskar). A failure after handled messages now stores the last handled message's checkpoint (Q23).
-- [ ] 10. Custom `eachBatch` failure logged once
-  - Blocked: attribute names for the batch's first and last positions.
-- [ ] 11. Consumer start/stop spans and "Consumer stopped" error log
-  - Blocked: `start` runs the whole polling loop, and the consumer collector isn't wired in.
-- [ ] 12. Remaining `consumers.ts`, `processorStartPositions.ts:137` and `consumerCollector.ts:133` sites
+- [x] 10. Custom `eachBatch` failure logged once
+  - Attributes `emmett.processor.batch.checkpoint.first` and `.last` (Q51). Any failure that stops the processor now fails the `processor.handle` span; the `STOP` result is built outside it.
+- [x] 11. Consumer start/stop spans and "Consumer stopped" error log
+  - Q50: separate root spans and traces, stop links to start. Start covers init and start positions; stop wraps the teardown after the loop ends. Log is `emmett.consumer.exception`, "Consumer stopped" (name to confirm). No info log on clean stop.
+- [x] 12. Remaining `consumers.ts`, `processorStartPositions.ts:137` and `consumerCollector.ts:133` sites
+  - "Consumer already running" opens a short start span holding the debug log, like the processor's second start.
 - [x] 13. Command handling logs only at the outermost operation (Q22), no `exception.*` span attributes
   - Log is `emmett.command.handle.exception`, "Command handling failed" (name to confirm with Oskar).
 - [ ] 14. `emmett.eventstore.hooks.on_after_commit` span for in-memory and MongoDB; e2e scenarios 1 and 4
-- [ ] 15. Task processor takes `observability`; `TaskProcessorLogger` removed
-  - Blocked: the `:229` path can't be reached through the public API.
+- [x] 15. Task processor takes `observability`; `TaskProcessorLogger` removed
+  - `:229` and `:233` are reachable only by an internal bug, so they have no direct test (Q52). `:233` now rethrows only (the catch is gone).
 
 ## Phase 3: Drivers and web bindings
 

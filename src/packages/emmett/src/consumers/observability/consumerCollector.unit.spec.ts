@@ -20,11 +20,7 @@ import {
   setDefaultObservability,
   setupEmmettObservability,
 } from '../../observability';
-import {
-  assertDefined,
-  assertEqual,
-  assertTrue,
-} from '../../testing/assertions';
+import { assertDefined, assertEqual } from '../../testing/assertions';
 import { consumerCollector, consumerObservability } from './consumerCollector';
 
 const A = EmmettAttributes;
@@ -272,7 +268,7 @@ describe('consumerCollector', () => {
       );
   });
 
-  it('traceDelivery records exception on failure', async () => {
+  it('a failed delivery fails the consumer.deliver span and logs nothing', async () => {
     const tracer = collectingTracer();
     const meter = collectingMeter();
     const collector = consumerCollector({
@@ -300,11 +296,8 @@ describe('consumerCollector', () => {
       (s) => s.name === 'consumer.deliver.p1',
     );
     assertDefined(deliverySpan);
-    assertTrue(
-      deliverySpan.logs.some(
-        (r) => r.metadata.level === 'error' && r.data.error === err,
-      ),
-    );
+    assertEqual(deliverySpan.error, err);
+    assertEqual(deliverySpan.logs.length, 0);
   });
 
   it('recordPollMetrics records emmett.consumer.poll.duration histogram regardless of pollTracing', () => {

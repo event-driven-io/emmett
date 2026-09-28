@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+import { noopLogger } from '@event-driven-io/almanac';
 import { describe, it } from 'vitest';
 import {
   guardConcurrentAccess,
@@ -576,6 +577,43 @@ describe('Task Processing Guards', () => {
 
       await assert.rejects(initialization, /stop initialization/);
       assert.strictEqual(observedSignal?.aborted, true);
+    });
+  });
+
+  describe('observability option', () => {
+    it('every guard runs its operations when given an observability option', async () => {
+      const observability = { logger: noopLogger };
+
+      const exclusive = guardExclusiveAccess({ observability });
+      const concurrent = guardConcurrentAccess({ observability });
+      const bounded = guardBoundedAccess(() => 'resource', {
+        maxResources: 1,
+        observability,
+      });
+      const initialized = guardInitializedOnce(() => Promise.resolve(42), {
+        observability,
+      });
+
+      assert.strictEqual(
+        await exclusive.execute(() => Promise.resolve('exclusive')),
+        'exclusive',
+      );
+      assert.strictEqual(
+        await concurrent.execute(() => Promise.resolve('concurrent')),
+        'concurrent',
+      );
+      assert.strictEqual(
+        await bounded.execute((resource) => Promise.resolve(resource)),
+        'resource',
+      );
+      assert.strictEqual(await initialized.ensureInitialized(), 42);
+
+      await Promise.all([
+        exclusive.stop(),
+        concurrent.stop(),
+        bounded.stop(),
+        initialized.stop(),
+      ]);
     });
   });
 });

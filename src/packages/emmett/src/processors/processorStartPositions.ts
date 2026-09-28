@@ -129,17 +129,9 @@ export const ConsumerStartPositions = {
     await inScope((context) =>
       Promise.all(
         processors.map(async (o) => {
-          try {
-            const position = await o.start(context);
+          const position = await o.start(context);
 
-            positions.set(o.id, position);
-          } catch (error) {
-            console.log(
-              `Error during processor start position retrieval for processor: ${o.id}. Stopping it.`,
-              error,
-            );
-            throw error;
-          }
+          positions.set(o.id, position);
         }),
       ).then(() => undefined),
     );

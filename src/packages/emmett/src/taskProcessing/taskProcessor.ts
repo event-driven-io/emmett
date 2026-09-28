@@ -1,3 +1,9 @@
+import {
+  LogEvent,
+  mergeWithDefaultObservability,
+  noopLogger,
+  type Observability,
+} from '@event-driven-io/almanac';
 import { EmmettError } from '../errors';
 import { Abort } from './abort';
 import type { AbortOptions } from './abort';
@@ -17,11 +23,7 @@ export type TaskProcessorOptions = {
   maxActiveTasks: number;
   maxQueueSize: number;
   maxTaskIdleTime?: number;
-  logger?: TaskProcessorLogger;
-};
-
-export type TaskProcessorLogger = {
-  error: (...args: unknown[]) => void;
+  observability?: Partial<Observability>;
 };
 
 export type Task<T> = (context: TaskContext) => Promise<T>;
@@ -50,7 +52,9 @@ export const taskProcessor = (processorOptions: TaskProcessorOptions) => {
   let stopped = false;
   const idleWaiters: Array<() => void> = [];
   const activeItems: Set<TaskQueueItem> = new Set();
-  const logger = processorOptions.logger ?? console;
+  const logger =
+    mergeWithDefaultObservability(undefined, processorOptions.observability)
+      ?.logger ?? noopLogger;
   const queuedTasks = taskScheduler();
   let expirationTimer: TimerHandle | null = null;
 
@@ -225,13 +229,23 @@ export const taskProcessor = (processorOptions: TaskProcessorOptions) => {
         if (item === null) return;
 
         activeTasks++;
-        void executeItem(item).catch((err) => {
-          logger.error('TaskProcessor caught unhandled task rejection:', err);
+        void executeItem(item).catch((err: unknown) => {
+          logger(
+            LogEvent(
+              'TaskProcessor caught unhandled task rejection',
+              {
+                body: 'TaskProcessor caught unhandled task rejection',
+                error: err as Error,
+                attributes:
+                  item.options?.taskGroupId !== undefined
+                    ? { taskGroupId: item.options.taskGroupId }
+                    : {},
+              },
+              { level: 'error' },
+            ),
+          );
         });
       }
-    } catch (error) {
-      logger.error(error);
-      throw error;
     } finally {
       isProcessing = false;
     }
