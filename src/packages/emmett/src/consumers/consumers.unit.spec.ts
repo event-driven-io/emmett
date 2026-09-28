@@ -1,5 +1,7 @@
+import { assertThatSpans, ObservabilitySpec } from '@event-driven-io/almanac';
 import { describe, expectTypeOf, it, vi } from 'vitest';
 import { MessageSourceCaughtUp } from '../eventStore/events';
+import { EmmettError } from '../errors';
 import {
   ProcessorCheckpoint,
   type AnyMessageProcessor,
@@ -14,7 +16,12 @@ import {
   assertRejects,
   assertTrue,
 } from '../testing';
-import type { EmmettObservabilityConfig } from '../observability';
+import {
+  EmmettAttributes,
+  EmmettSpans,
+  type EmmettObservabilityConfig,
+} from '../observability';
+import { reactor } from '../processors';
 import type {
   AnyEvent,
   AnyMessage,
@@ -675,5 +682,137 @@ void describe('consumer', () => {
 
     assertEqual(sourceState.closed, 1);
     assertEqual(closeHookCalls, 1);
+  });
+});
+
+void describe('consumer observability', () => {
+  const given = ObservabilitySpec.for();
+  const A = EmmettAttributes;
+  const S = EmmettSpans;
+
+  void it('starting a consumer opens an emmett.consumer.start span with the consumer id', async () => {
+    await given((config) =>
+      testConsumer({
+        consumerId: 'orders-consumer',
+        source: testSource([messageAt('1'), caughtUpAt('1')]).source,
+        processors: [testProcessor('a').processor],
+        until: { noMessagesLeft: true },
+        observability: config,
+      }),
+    )
+      .when((consumer) => consumer.start())
+      .then(({ spans }) =>
+        spans
+          .hasSingleSpanNamed(S.consumer.start)
+          .hasNoParent()
+          .hasNoError()
+          .hasAttributes({
+            [A.consumer.id]: 'orders-consumer',
+            [A.consumer.processorCount]: 1,
+            [A.scope.main]: true,
+          })
+          .noLogs(),
+      );
+  });
+
+  void it('processor start spans are children of the consumer start span', async () => {
+    await given((config) =>
+      testConsumer({
+        source: testSource([messageAt('1'), caughtUpAt('1')]).source,
+        processors: [
+          reactor({
+            processorId: 'orders',
+            eachMessage: () => Promise.resolve(),
+            observability: config,
+          }),
+        ],
+        until: { noMessagesLeft: true },
+        observability: config,
+      }),
+    )
+      .when((consumer) => consumer.start())
+      .then(({ spans }) =>
+        spans
+          .hasSingleSpanNamed(S.processor.start)
+          .hasParentSpanNamed(S.consumer.start),
+      );
+  });
+
+  void it('stopping a consumer opens an emmett.consumer.stop span in its own trace, linked to the start span', async () => {
+    await given((config) =>
+      testConsumer({
+        consumerId: 'orders-consumer',
+        source: testSource([messageAt('1'), caughtUpAt('1')]).source,
+        processors: [
+          reactor({
+            processorId: 'orders',
+            eachMessage: () => Promise.resolve(),
+            observability: config,
+          }),
+        ],
+        until: { noMessagesLeft: true },
+        observability: config,
+      }),
+    )
+      .when(async (consumer, config) => {
+        await consumer.start();
+        return config.tracer.spans;
+      })
+      .then(({ result: collected, spans }) => {
+        const start = collected.find((s) => s.name === S.consumer.start)!;
+
+        spans
+          .hasSingleSpanNamed(S.consumer.stop)
+          .hasNoParent()
+          .hasNoError()
+          .hasCreationLinks([start.ownContext])
+          .hasAttributes({
+            [A.consumer.id]: 'orders-consumer',
+            [A.consumer.processorCount]: 1,
+            [A.scope.main]: true,
+          })
+          .noLogs();
+        assertThatSpans(collected)
+          .hasSingleSpanNamed(S.processor.close)
+          .hasParentSpanNamed(S.consumer.stop);
+      });
+  });
+
+  void it('a consumer that fails logs one Consumer stopped error with the consumer and processor ids', async () => {
+    const failure = new EmmettError('handling failed');
+    const { processor } = testProcessor('a');
+    processor.handle = () => Promise.reject(failure);
+
+    await given((config) =>
+      testConsumer({
+        consumerId: 'orders-consumer',
+        source: testSource([messageAt('1'), caughtUpAt('1')]).source,
+        processors: [processor],
+        until: { noMessagesLeft: true },
+        observability: config,
+      }),
+    )
+      .when(async (consumer, config) => {
+        const error = await consumer.start().catch((error: unknown) => error);
+        return {
+          error,
+          errorLogs: config.tracer.spans.flatMap((s) =>
+            s.logs.filter((l) => l.metadata.level === 'error'),
+          ),
+        };
+      })
+      .then(({ result: { error, errorLogs }, spans }) => {
+        assertDeepEqual(error, failure);
+        assertEqual(errorLogs.length, 1);
+        assertEqual(errorLogs[0]!.name, 'emmett.consumer.exception');
+        assertDeepEqual(errorLogs[0]!.data.error, failure);
+        spans
+          .hasSingleSpanNamed(S.consumer.stop)
+          .logged('error', 'Consumer stopped', {
+            [A.consumer.id]: 'orders-consumer',
+            [A.processor.id]: 'a',
+          })
+          .loggedCount(1);
+      });
   });
 });

@@ -224,4 +224,42 @@ describe('spanAssertions', () => {
       parentSpanNamed: 'eventStore.aggregateStream',
     });
   });
+
+  it('asserts a span failed with the given error', () => {
+    const failure = new Error('boom');
+
+    assertThatSpans([{ ...span('failed'), error: failure }])
+      .hasSingleSpanNamed('failed')
+      .hasError(failure);
+  });
+
+  it('throws when a span expected to fail has no error', () => {
+    expect(() =>
+      assertThatSpans([span('ok')])
+        .hasSingleSpanNamed('ok')
+        .hasError(),
+    ).toThrow('Expected span "ok" to have failed');
+  });
+
+  it('throws when a span failed with a different error', () => {
+    expect(() =>
+      assertThatSpans([{ ...span('failed'), error: new Error('other') }])
+        .hasSingleSpanNamed('failed')
+        .hasError(new Error('boom')),
+    ).toThrow('Expected span "failed" to have failed with');
+  });
+
+  it('asserts a span did not fail', () => {
+    assertThatSpans([span('ok')])
+      .hasSingleSpanNamed('ok')
+      .hasNoError();
+  });
+
+  it('throws when a span expected not to fail has an error', () => {
+    expect(() =>
+      assertThatSpans([{ ...span('failed'), error: new Error('boom') }])
+        .hasSingleSpanNamed('failed')
+        .hasNoError(),
+    ).toThrow('Expected span "failed" not to have failed');
+  });
 });

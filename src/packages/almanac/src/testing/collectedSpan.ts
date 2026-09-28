@@ -10,4 +10,5 @@ export type CollectedSpan = {
   links: SpanLink[];
   startOptions: StartSpanOptions;
   ownContext: { traceId: string; spanId: string };
+  error?: unknown;
 };

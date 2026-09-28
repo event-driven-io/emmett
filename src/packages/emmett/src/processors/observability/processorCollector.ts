@@ -3,6 +3,7 @@ import {
   MessagingAttributes,
   noopLogger,
   noopMeter,
+  noopScope,
   noopTracer,
   ObservabilityScope,
   type AttributeTarget,
@@ -74,6 +75,12 @@ export type ProcessorCollectorContext = {
   processorId: string;
   type: string;
   checkpoint: ProcessorCheckpoint | null;
+};
+
+export type ProcessorLifecycleContext = {
+  processorId: string;
+  instanceId: string;
+  type: string;
 };
 
 export const processorCollector = (
@@ -199,6 +206,23 @@ export const processorCollector = (
           },
         },
       );
+    },
+
+    lifecycleScope: <T>(
+      name: string,
+      context: ProcessorLifecycleContext,
+      fn: (scope: ObservabilityScope) => Promise<T>,
+      callerScope?: ObservabilityScope,
+    ): Promise<T> => {
+      const attributes = {
+        [A.processor.id]: context.processorId,
+        [A.processor.instanceId]: context.instanceId,
+        [A.processor.type]: context.type,
+      };
+
+      return callerScope && callerScope !== noopScope
+        ? callerScope.scope(name, fn, { attributes })
+        : startScope(name, fn, { attributes });
     },
 
     recordLag: (processorId: string, lag: number): void => {

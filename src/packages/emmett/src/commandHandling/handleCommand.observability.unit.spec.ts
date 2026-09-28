@@ -747,7 +747,7 @@ describe('handler observability', () => {
   });
 
   void describe('error handling', () => {
-    void it('records failure span attributes when handler throws', () => {
+    void it('a handler failure fails the command span and logs it at error', () => {
       return given((observability) =>
         CommandHandler<Cart, ItemAdded>({
           evolve: (state) => state,
@@ -761,17 +761,22 @@ describe('handler observability', () => {
           }),
         )
         .thenThrows(({ spans, error }) => {
-          spans.hasSingleSpanNamed('command.handle').hasAttributes({
-            [EmmettAttributes.command.status]: 'failure',
-            error: true,
-            'exception.message': 'business rule violated',
-            'exception.type': 'Error',
-          });
+          spans
+            .hasSingleSpanNamed('command.handle')
+            .hasError(error)
+            .hasAttributes({
+              [EmmettAttributes.command.status]: 'failure',
+              error: undefined,
+              'exception.message': undefined,
+              'exception.type': undefined,
+            })
+            .logged('error', 'Command handling failed')
+            .loggedCount(1);
           expect((error as Error).message).toBe('business rule violated');
         });
     });
 
-    void it('records failure span attributes when infrastructure throws a concurrency error', () => {
+    void it('a concurrency conflict fails the command span and logs it at debug', () => {
       const eventStore = getInMemoryEventStore();
       const streamId = uuid();
 
@@ -796,11 +801,16 @@ describe('handler observability', () => {
           );
         })
         .thenThrows(({ spans, error }) => {
-          spans.hasSingleSpanNamed('command.handle').hasAttributes({
-            [EmmettAttributes.command.status]: 'failure',
-            error: true,
-            'exception.type': 'ExpectedVersionConflictError',
-          });
+          spans
+            .hasSingleSpanNamed('command.handle')
+            .hasError(error)
+            .hasAttributes({
+              [EmmettAttributes.command.status]: 'failure',
+              error: undefined,
+              'exception.type': undefined,
+            })
+            .logged('debug', 'Command handling failed')
+            .loggedCount(1);
           expect(error).toBeInstanceOf(ExpectedVersionConflictError);
         });
     });

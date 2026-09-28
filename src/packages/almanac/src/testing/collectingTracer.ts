@@ -55,7 +55,12 @@ export const collectingTracer = (
         },
       };
 
-      return fn(span);
+      try {
+        return await fn(span);
+      } catch (error) {
+        collected.error = error;
+        throw error;
+      }
     },
   };
 };

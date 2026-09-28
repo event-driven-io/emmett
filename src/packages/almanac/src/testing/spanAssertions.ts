@@ -21,6 +21,8 @@ type SpanAssertions = {
   ): SpanAssertions;
   loggedCount(n: number): SpanAssertions;
   noLogs(): SpanAssertions;
+  hasError(error?: unknown): SpanAssertions;
+  hasNoError(): SpanAssertions;
 };
 
 type SingleSpanFilter = {
@@ -41,6 +43,11 @@ type SpanGroupAssertions = {
   haveAttribute(key: string, value: unknown): SpanGroupAssertions;
   haveAttributes(attrs: Record<string, unknown>): SpanGroupAssertions;
 };
+
+const describeError = (error: unknown): string =>
+  error instanceof Error
+    ? `${error.name}: ${error.message}`
+    : JSON.stringify(error);
 
 export const assertThatSpan = (
   span: CollectedSpan | undefined,
@@ -209,6 +216,28 @@ export const assertThatSpan = (
       if (span.logs.length > 0)
         throw new Error(
           `Expected span "${span.name}" to have no logs but found ${span.logs.length}. Logs: ${JSON.stringify(span.logs, null, 2)}`,
+        );
+      return self;
+    },
+    hasError(error) {
+      if (!span)
+        throw new Error('Expected span to have failed but span was not found');
+      if (span.error === undefined)
+        throw new Error(`Expected span "${span.name}" to have failed`);
+      if (error !== undefined && span.error !== error)
+        throw new Error(
+          `Expected span "${span.name}" to have failed with ${describeError(error)}, got ${describeError(span.error)}`,
+        );
+      return self;
+    },
+    hasNoError() {
+      if (!span)
+        throw new Error(
+          'Expected span not to have failed but span was not found',
+        );
+      if (span.error !== undefined)
+        throw new Error(
+          `Expected span "${span.name}" not to have failed, got ${describeError(span.error)}`,
         );
       return self;
     },
