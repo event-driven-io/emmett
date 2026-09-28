@@ -705,3 +705,13 @@ Today it writes one pino record per span as it ends: `info` on success, `error` 
 > Dude, make it aligned to pino Instrumentation, so how spans are translated into logs, so keeping the same behaviour
 
 **Answer:** Keep today's behaviour (B). `@opentelemetry/instrumentation-pino` 0.66 doesn't translate spans into logs; it stamps the active span's `trace_id`, `span_id`, `trace_flags` onto the user's records, and its log sending maps `msg` to the body and `err` to the exception. `pinoTracer` span records already use `msg` and `err`, and its log records carry the Q48 id fields, so no code change.
+
+## Q50. Where do the consumer start and stop spans go?
+
+Asked during prompt 11. The consumer's `start` runs the whole polling loop, so a span around it would stay open for as long as the consumer runs. The consumer collector isn't wired into `consumers.ts` yet. Proposal: `emmett.consumer.start` covers init and resolving start positions; `emmett.consumer.stop` wraps the teardown that runs whenever the loop ends (after `stop()` or a failure), with "Consumer stopped" logged at `error` inside it on failure.
+
+**Oskar (verbatim):**
+
+> Yes, we should have separate spans and traces with links for consumer start and stop
+
+**Answer:** Accepted. `emmett.consumer.start` and `emmett.consumer.stop` are separate root spans, each in its own trace, and the stop span links to the start span. Processor start spans are children of the consumer start span; processor close spans are children of the consumer stop span. On failure, "Consumer stopped" is logged at `error` inside the stop span.

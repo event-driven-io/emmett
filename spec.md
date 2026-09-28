@@ -1,6 +1,6 @@
 # Spec: finish the almanac logging integration in Emmett
 
-Sources: the call-site inventory in [log.md](log.md) and the decisions in [qa.md](qa.md) (Q1–Q49). Each rule below cites the question it comes from. Where a later answer changed an earlier one, only the final decision is listed.
+Sources: the call-site inventory in [log.md](log.md) and the decisions in [qa.md](qa.md) (Q1–Q50). Each rule below cites the question it comes from. Where a later answer changed an earlier one, only the final decision is listed.
 
 ## Goal
 
@@ -69,7 +69,7 @@ New spans use library-prefixed, dotted, lowercase snake_case names. Ids and posi
 | `emmett.processor.release_lock`           | Child of close.                                                                                                                                                                                                             |
 | `emmett.eventstore.hooks.on_after_commit` | Child of the append span. On failure only this span gets `Error` status; the append stays OK.                                                                                                                               |
 
-Consumer start and stop get the same treatment, so "Consumer stopped" runs inside a consumer span (Q36).
+Consumer start and stop get the same treatment, so "Consumer stopped" runs inside a consumer span (Q36). `emmett.consumer.start` covers init and resolving start positions; `emmett.consumer.stop` wraps the teardown that runs whenever the polling loop ends. They are separate root spans in separate traces, and the stop span links to the start span. Processor start spans are children of the consumer start span, processor close spans of the consumer stop span (Q50).
 
 The span names use the namespace the attributes already use: `emmett.eventstore`, not `emmett.event_store`.
 

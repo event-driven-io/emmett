@@ -1,5 +1,6 @@
 import {
   LogEvent,
+  MessagingAttributes,
   noopScope,
   type ObservabilityScope,
 } from '@event-driven-io/almanac';
@@ -11,12 +12,13 @@ import type {
   OperationObservabilityOptions,
   WithObservabilityScope,
 } from '../observability';
-import { EmmettAttributes, withOperationScope } from '../observability';
-import type { ProjectionDefinition } from '../projections';
 import {
-  JSONSerializer,
-  type JSONSerializationOptions,
-} from '../serialization';
+  EmmettAttributes,
+  EmmettSpans,
+  withOperationScope,
+} from '../observability';
+import type { ProjectionDefinition } from '../projections';
+import type { JSONSerializationOptions } from '../serialization';
 import {
   defaultTag,
   type AnyEvent,
@@ -486,7 +488,7 @@ export const getProcessorInstanceId = (processorId: string): string =>
 export const getProjectorId = (options: { projectionName: string }): string =>
   `emt:processor:projector:${options.projectionName}`;
 
-const { info, error: error } = LogEvent;
+const { debug, info } = LogEvent;
 
 const acquireProcessorLock = async <HandlerContext extends DefaultRecord>(
   options: {
@@ -552,8 +554,46 @@ export const reactor = <
       : checkpoints;
 
   const collector = processorCollector(processorObservability(options));
+  const processorIds = {
+    [EmmettAttributes.processor.id]: processorId,
+    [EmmettAttributes.processor.instanceId]: instanceId,
+    [EmmettAttributes.processor.type]: type,
+  };
 
   const isCustomBatch = 'eachBatch' in options && !!options.eachBatch;
+
+  const messageHandlingFailed = (
+    message: RecordedMessage<MessageType, MessageMetadataType>,
+    err: unknown,
+  ): LogEvent => {
+    const meta = message.metadata as Record<string, unknown>;
+    return LogEvent(
+      'emmett.processor.message.exception',
+      {
+        body: 'Processor stopped: message handling failed',
+        error: err as Error,
+        attributes: {
+          ...processorIds,
+          [EmmettAttributes.event.type]: message.type,
+          ...(meta.messageId !== undefined
+            ? { [MessagingAttributes.message.id]: meta.messageId }
+            : {}),
+          ...(meta.streamName !== undefined
+            ? { [EmmettAttributes.stream.name]: meta.streamName }
+            : {}),
+          ...(meta.streamPosition !== undefined
+            ? {
+                [EmmettAttributes.stream.position]: Number(meta.streamPosition),
+              }
+            : {}),
+          ...(lastCheckpoint !== null
+            ? { [EmmettAttributes.processor.checkpointBefore]: lastCheckpoint }
+            : {}),
+        },
+      },
+      { level: 'error' },
+    );
+  };
 
   const eachBatch: BatchRecordedMessageHandlerWithContext<
     MessageType,
@@ -568,26 +608,36 @@ export const reactor = <
         let result: BatchMessageHandlerResult = undefined;
         for (let i = 0; i < messages.length; i++) {
           const message = messages[i]!;
-          const messageProcessingResult = await collector.startMessageScope(
-            {
-              processorId,
-              type,
-              checkpoint: lastCheckpoint,
-              archetypeType: type,
-            },
-            message,
-            context.observabilityScope,
-            (messageScope) =>
-              Promise.resolve(
-                options.eachMessage(
-                  message,
-                  withScopedMessageStore(
-                    { ...context, observabilityScope: messageScope },
-                    messageScope,
-                  ),
-                ),
-              ),
-          );
+          const messageProcessingResult = await collector
+            .startMessageScope(
+              {
+                processorId,
+                type,
+                checkpoint: lastCheckpoint,
+                archetypeType: type,
+              },
+              message,
+              context.observabilityScope,
+              async (messageScope) => {
+                try {
+                  return await options.eachMessage(
+                    message,
+                    withScopedMessageStore(
+                      { ...context, observabilityScope: messageScope },
+                      messageScope,
+                    ),
+                  );
+                } catch (err) {
+                  messageScope.log(messageHandlingFailed(message, err));
+                  throw err;
+                }
+              },
+            )
+            .catch((err): SingleMessageHandlerResult => ({
+              type: 'STOP',
+              error: err as EmmettError,
+              reason: 'Error during message processing',
+            }));
 
           if (
             messageProcessingResult &&
@@ -708,33 +758,49 @@ export const reactor = <
 
   const close = async (
     closeOptions: WithObservabilityScope<PartialHandlerContext<HandlerContext>>,
-  ): Promise<void> => {
-    // TODO: Align when active is set to false
-    // if (!isActive) return;
+  ): Promise<void> =>
+    collector.lifecycleScope(
+      EmmettSpans.processor.close,
+      { processorId, instanceId, type },
+      async (closeScope) => {
+        // TODO: Align when active is set to false
+        // if (!isActive) return;
 
-    isActive = false;
-    isClosed = true;
+        isActive = false;
+        isClosed = true;
 
-    if (closeSignal) {
-      closeSignal();
-      closeSignal = null;
-    }
-
-    rejectCheckpointWaiters();
-
-    if (isLockAcquired || hooks.onClose) {
-      await processingScope(async (context) => {
-        // released before the close hooks, as those may tear down the
-        // connection the lock is held on
-        if (isLockAcquired && lockOptions.lock) {
-          await lockOptions.lock.release(context);
-          isLockAcquired = false;
+        if (closeSignal) {
+          closeSignal();
+          closeSignal = null;
         }
 
-        if (hooks.onClose) await hooks.onClose(context);
-      }, closeOptions);
-    }
-  };
+        rejectCheckpointWaiters();
+
+        if (isLockAcquired || hooks.onClose) {
+          await processingScope(
+            async (context) => {
+              // released before the close hooks, as those may tear down the
+              // connection the lock is held on
+              const { lock } = lockOptions;
+              if (isLockAcquired && lock) {
+                await context.observabilityScope.scope(
+                  EmmettSpans.processor.releaseLock,
+                  (lockScope) =>
+                    lock.release({ ...context, observabilityScope: lockScope }),
+                );
+                isLockAcquired = false;
+              }
+
+              if (hooks.onClose) await hooks.onClose(context);
+            },
+            { ...closeOptions, observabilityScope: closeScope },
+          );
+        }
+
+        closeScope.log(info(processorIds, 'Processor stopped'));
+      },
+      closeOptions.observabilityScope,
+    );
 
   return {
     // TODO: Consider whether not make it optional or add URN prefix
@@ -762,144 +828,149 @@ export const reactor = <
     ): Promise<CurrentMessageProcessorPosition | undefined> => {
       partialOptions ??= {};
 
-      const startOptions: WithObservabilityScope<
+      const callerOptions: WithObservabilityScope<
         PartialHandlerContext<HandlerContext>
       > = {
         ...partialOptions,
-        // TODO: Consider adding explicit start scope
-        observabilityScope:
-          ('observabilityScope' in partialOptions
-            ? (partialOptions.observabilityScope ?? noopScope)
-            : noopScope) ?? noopScope,
+        observabilityScope: partialOptions.observabilityScope ?? noopScope,
       };
-      const log = startOptions.observabilityScope.log;
 
-      if (isActive) {
-        log(
-          info(
-            `Processor ${processorId} with instance id ${instanceId} is already active. Start request ignored.`,
-          ),
-        );
-        return;
-      }
+      return collector.lifecycleScope(
+        EmmettSpans.processor.start,
+        { processorId, instanceId, type },
+        async (startScope) => {
+          const startOptions: WithObservabilityScope<
+            PartialHandlerContext<HandlerContext>
+          > = { ...partialOptions, observabilityScope: startScope };
+          const log = startScope.log;
 
-      log(
-        info(
-          `Starting processor ${processorId} with instance id ${instanceId}`,
-        ),
+          if (isActive) {
+            log(debug(processorIds, 'Processor already active'));
+            return;
+          }
+
+          log(debug(processorIds, 'Starting processor'));
+
+          await init(startOptions);
+
+          isActive = true;
+          isClosed = false;
+
+          if (closeSignal) closeSignal();
+          closeSignal = onShutdown(() => close(callerOptions));
+
+          const started = (
+            startFrom: 'BEGINNING' | 'END' | 'checkpoint' | 'explicit',
+            checkpoint: ProcessorCheckpoint | null,
+          ) => {
+            const attributes = {
+              ...processorIds,
+              [EmmettAttributes.processor.startFrom]: startFrom,
+              ...(checkpoint !== null
+                ? { [EmmettAttributes.processor.checkpoint]: checkpoint }
+                : {}),
+            };
+            startScope.setAttributes(attributes, { target: 'currentSpan' });
+            log(info(attributes, 'Processor started'));
+          };
+
+          if (lastCheckpoint !== null) {
+            started('checkpoint', lastCheckpoint);
+            return {
+              lastCheckpoint,
+            };
+          }
+
+          return await processingScope(async (context) => {
+            const log = context.observabilityScope.log;
+
+            const { lock } = lockOptions;
+            if (lock) {
+              log(debug(processorIds, 'Acquiring processor lock'));
+              isLockAcquired = await context.observabilityScope.scope(
+                EmmettSpans.processor.acquireLock,
+                (lockScope) =>
+                  acquireProcessorLock(
+                    {
+                      processorId,
+                      lock,
+                      acquisitionPolicy: lockOptions.acquisitionPolicy,
+                    },
+                    { ...context, observabilityScope: lockScope },
+                  ),
+              );
+            }
+
+            const { onStart } = hooks;
+            if (onStart) {
+              log(debug(processorIds, 'Running processor onStart hook'));
+              await context.observabilityScope.scope(
+                EmmettSpans.processor.onStart,
+                (hookScope) =>
+                  onStart({ ...context, observabilityScope: hookScope }),
+              );
+            }
+
+            if (checkpointer) {
+              lastStoredCheckpoint = await context.observabilityScope.scope(
+                EmmettSpans.processor.readCheckpoint,
+                async (readScope) => {
+                  const { lastCheckpoint } = await checkpointer.read(
+                    {
+                      processorId: processorId,
+                      partition,
+                    },
+                    {
+                      ...startOptions,
+                      ...context,
+                      observabilityScope: readScope,
+                    },
+                  );
+                  if (lastCheckpoint !== null)
+                    readScope.setAttributes(
+                      {
+                        [EmmettAttributes.processor.checkpoint]: lastCheckpoint,
+                      },
+                      { target: 'currentSpan' },
+                    );
+                  return lastCheckpoint;
+                },
+              );
+            }
+
+            if (startFrom !== undefined && typeof startFrom !== 'string') {
+              lastCheckpoint = startFrom.lastCheckpoint;
+              started('explicit', startFrom.lastCheckpoint);
+              return startFrom;
+            }
+
+            if (startFrom === 'BEGINNING' || startFrom === 'END') {
+              started(startFrom, null);
+              return startFrom;
+            }
+
+            lastCheckpoint = lastStoredCheckpoint;
+
+            if (lastCheckpoint === null) {
+              started('BEGINNING', null);
+              return 'BEGINNING';
+            }
+
+            started('checkpoint', lastCheckpoint);
+            return {
+              lastCheckpoint,
+            };
+          }, startOptions);
+        },
+        callerOptions.observabilityScope,
       );
-
-      await init(startOptions);
-
-      isActive = true;
-      isClosed = false;
-
-      if (closeSignal) closeSignal();
-      closeSignal = onShutdown(() => close(startOptions));
-
-      if (lastCheckpoint !== null) {
-        log(
-          info(
-            `Processor ${processorId} started with instance id ${instanceId}, checkpoint: ${JSONSerializer.serialize(lastCheckpoint)}`,
-          ),
-        );
-        return {
-          lastCheckpoint,
-        };
-      }
-
-      return await processingScope(async (context) => {
-        const log = context.observabilityScope.log;
-
-        if (lockOptions.lock) {
-          log(
-            info(
-              `Acquiring lock for processor ${processorId} with instance id ${instanceId}`,
-            ),
-          );
-          isLockAcquired = await acquireProcessorLock(
-            {
-              processorId,
-              lock: lockOptions.lock,
-              acquisitionPolicy: lockOptions.acquisitionPolicy,
-            },
-            context,
-          );
-        }
-
-        if (hooks.onStart) {
-          log(
-            info(
-              `Executing onStart hook for processor ${processorId} with instance id ${instanceId}`,
-            ),
-          );
-          await hooks.onStart(context);
-        }
-
-        if (checkpointer) {
-          const readResult = await checkpointer.read(
-            {
-              processorId: processorId,
-              partition,
-            },
-            { ...startOptions, ...context },
-          );
-          lastStoredCheckpoint = readResult.lastCheckpoint;
-        }
-
-        if (startFrom !== undefined && typeof startFrom !== 'string') {
-          lastCheckpoint = startFrom.lastCheckpoint;
-          log(
-            info(
-              `Processor ${processorId} with instance id ${instanceId} starting from: ${JSONSerializer.serialize(startFrom)}`,
-            ),
-          );
-          return startFrom;
-        }
-
-        if (startFrom === 'BEGINNING' || startFrom === 'END') {
-          log(
-            info(
-              `Processor ${processorId} with instance id ${instanceId} starting from: ${JSONSerializer.serialize(startFrom)}`,
-            ),
-          );
-          return startFrom;
-        }
-
-        lastCheckpoint = lastStoredCheckpoint;
-
-        if (lastCheckpoint === null) {
-          log(
-            info(
-              `Processor ${processorId} with instance id ${instanceId} starting from: BEGINNING`,
-            ),
-          );
-          return 'BEGINNING';
-        }
-
-        log(
-          info(
-            `Checkpoint read for processor ${processorId} with instance id ${instanceId}: ${JSONSerializer.serialize(lastCheckpoint)}`,
-          ),
-        );
-        return {
-          lastCheckpoint,
-        };
-      }, startOptions);
     },
     close: async (partialOptions) => {
       partialOptions ??= {};
-      const options: WithObservabilityScope<
-        PartialHandlerContext<HandlerContext>
-      > = {
+      await close({
         ...partialOptions,
-        // TODO: Consider adding explicit close scope
-        observabilityScope:
-          ('observabilityScope' in partialOptions
-            ? (partialOptions.observabilityScope ?? noopScope)
-            : noopScope) ?? noopScope,
-      };
-      await close(options);
+        observabilityScope: partialOptions.observabilityScope ?? noopScope,
+      });
     },
     get isActive() {
       return isActive;
@@ -1019,9 +1090,22 @@ export const reactor = <
             return result;
           } catch (err) {
             scope.log(
-              error(
-                { err: err },
-                `Error during message processing for processor ${processorId} with instance id ${instanceId}. Stopping the processor.`,
+              LogEvent(
+                'emmett.processor.exception',
+                {
+                  body: 'Processor stopped: processing failed',
+                  error: err as Error,
+                  attributes: {
+                    ...processorIds,
+                    ...(lastCheckpoint !== null
+                      ? {
+                          [EmmettAttributes.processor.checkpointBefore]:
+                            lastCheckpoint,
+                        }
+                      : {}),
+                  },
+                },
+                { level: 'error' },
               ),
             );
             isActive = false;

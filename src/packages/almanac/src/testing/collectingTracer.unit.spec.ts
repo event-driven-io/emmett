@@ -68,4 +68,23 @@ describe('collectingTracer', () => {
       { traceId: 'trace-2', spanId: 'span-2' },
     ]);
   });
+
+  it('records the error of a span whose function fails and rethrows it', async () => {
+    const tracer = collectingTracer();
+    const failure = new Error('boom');
+
+    await expect(
+      tracer.startSpan('failing-span', () => Promise.reject(failure)),
+    ).rejects.toBe(failure);
+
+    expect(tracer.spans[0]!.error).toBe(failure);
+  });
+
+  it('records no error for a span whose function succeeds', async () => {
+    const tracer = collectingTracer();
+
+    await tracer.startSpan('ok-span', () => Promise.resolve());
+
+    expect(tracer.spans[0]!.error).toBeUndefined();
+  });
 });

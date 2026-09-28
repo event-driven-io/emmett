@@ -3,10 +3,17 @@ import {
   collectingTracer,
   LogEvent,
   MessagingAttributes,
+  ObservabilityScope,
   ObservabilitySpec,
   testObservabilityContextGenerator,
 } from '@event-driven-io/almanac';
 import { afterEach, describe, expect, it } from 'vitest';
+import {
+  ConcurrencyError,
+  IllegalStateError,
+  NotFoundError,
+  ValidationError,
+} from '../../errors';
 import { setupEmmettObservability } from '../../observability';
 import {
   EmmettAttributes,
@@ -76,10 +83,10 @@ describe('commandHandlerCollector', () => {
         collector.startScope({ streamName: 'test' }, () => Promise.resolve()),
       )
       .then(({ spans }) =>
-        spans.hasSingleSpanNamed('command.handle').hasAttributes({
-          [A.command.status]: 'success',
-          error: false,
-        }),
+        spans
+          .hasSingleSpanNamed('command.handle')
+          .hasAttributes({ [A.command.status]: 'success', error: undefined })
+          .noLogs(),
       );
   });
 
@@ -132,21 +139,120 @@ describe('commandHandlerCollector', () => {
       .then(({ spans }) => spans.containSpanNamed('decide'));
   });
 
-  it('sets emmett.command.status to failure and error attributes on error', async () => {
+  it('a failed command span has no exception attributes and keeps emmett.command.status failure', async () => {
+    const failure = new Error('boom');
+
     await given((config) => commandHandlerCollector(config))
       .when((collector) =>
         collector.startScope({ streamName: 'test' }, () =>
-          Promise.reject(new Error('boom')),
+          Promise.reject(failure),
         ),
       )
       .thenThrows(({ spans }) =>
-        spans.hasSingleSpanNamed('command.handle').hasAttributes({
-          [A.command.status]: 'failure',
-          error: true,
-          'exception.message': 'boom',
-          'exception.type': 'Error',
-        }),
+        spans
+          .hasSingleSpanNamed('command.handle')
+          .hasError(failure)
+          .hasAttributes({
+            [A.command.status]: 'failure',
+            error: undefined,
+            'exception.message': undefined,
+            'exception.type': undefined,
+          }),
       );
+  });
+
+  it('a command failing with ConcurrencyError at the outermost level logs at debug', async () => {
+    const failure = new ConcurrencyError('1', '2');
+
+    await given((config) => commandHandlerCollector(config))
+      .when((collector) =>
+        collector.startScope(
+          { streamName: 'order-1', commandType: 'PlaceOrder' },
+          () => Promise.reject(failure),
+        ),
+      )
+      .thenThrows(({ spans }) =>
+        spans
+          .hasSingleSpanNamed('command.handle')
+          .logged('debug', 'Command handling failed', {
+            [A.command.type]: 'PlaceOrder',
+            [A.stream.name]: 'order-1',
+          })
+          .loggedCount(1),
+      );
+  });
+
+  it.each([
+    ['ValidationError', new ValidationError('invalid')],
+    ['IllegalStateError', new IllegalStateError('illegal')],
+    ['NotFoundError', new NotFoundError({ id: '1', type: 'Order' })],
+  ])(
+    'a command failing with %s at the outermost level logs at debug',
+    async (_, failure) => {
+      await given((config) => commandHandlerCollector(config))
+        .when((collector) =>
+          collector.startScope({ streamName: 'order-1' }, () =>
+            Promise.reject(failure),
+          ),
+        )
+        .thenThrows(({ spans }) =>
+          spans
+            .hasSingleSpanNamed('command.handle')
+            .logged('debug', 'Command handling failed', {
+              [A.stream.name]: 'order-1',
+            })
+            .loggedCount(1),
+        );
+    },
+  );
+
+  it('a command failing with an unexpected error at the outermost level logs at error', async () => {
+    const failure = new Error('boom');
+
+    await given((config) => commandHandlerCollector(config))
+      .when(async (collector, config) => {
+        await collector
+          .startScope(
+            { streamName: 'order-1', commandType: 'PlaceOrder' },
+            () => Promise.reject(failure),
+          )
+          .catch(() => {});
+        return config.tracer.spans.flatMap((s) => s.logs);
+      })
+      .then(({ result: logs, spans }) => {
+        spans
+          .hasSingleSpanNamed('command.handle')
+          .logged('error', 'Command handling failed', {
+            [A.command.type]: 'PlaceOrder',
+            [A.stream.name]: 'order-1',
+          })
+          .loggedCount(1);
+        expect(logs[0]!.name).toBe('emmett.command.handle.exception');
+        expect(logs[0]!.data.error).toBe(failure);
+      });
+  });
+
+  it('a command handled inside another Emmett operation logs nothing on failure', async () => {
+    const failure = new Error('boom');
+
+    await given((config) => commandHandlerCollector(config))
+      .when((collector, config) =>
+        ObservabilityScope(config).startScope('outer', (outer) =>
+          collector.startScope(
+            { streamName: 'order-1' },
+            () => Promise.reject(failure),
+            { scope: outer },
+          ),
+        ),
+      )
+      .thenThrows(({ spans }) => {
+        spans
+          .hasSingleSpanNamed('command.handle')
+          .hasParentSpanNamed('outer')
+          .hasError(failure)
+          .noLogs();
+        spans.hasSingleSpanNamed('outer').noLogs();
+      });
   });
 
   it('records emmett.command.handling.duration histogram', async () => {

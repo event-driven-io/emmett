@@ -605,6 +605,70 @@ void describe('Processors', () => {
       assertEqual(storedCheckpoint, bigIntProcessorCheckpoint(1n));
     });
 
+    void it('stores the checkpoint of the last handled message when a later message fails', async () => {
+      // Given
+      const processorId = uuid();
+      const failure = new EmmettError('boom');
+      let storedCheckpoint: ProcessorCheckpoint | null = null;
+
+      const checkpoints: Checkpointer<
+        TestEvent,
+        ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+      > = {
+        read: () => Promise.resolve({ lastCheckpoint: null }),
+        store: (options) => {
+          const newCheckpoint = bigIntProcessorCheckpoint(
+            options.message.metadata.globalPosition,
+          );
+          storedCheckpoint = newCheckpoint;
+          return Promise.resolve({ success: true, newCheckpoint });
+        },
+      };
+
+      const processor = reactor({
+        processorId,
+        eachMessage: (message) =>
+          message.data.counter === 2
+            ? Promise.reject(failure)
+            : Promise.resolve(),
+        checkpoints,
+      });
+
+      const recorded = (
+        counter: number,
+      ): RecordedMessage<
+        TestEvent,
+        ReadEventMetadata & { globalPosition: bigint; streamPosition: bigint }
+      > => ({
+        type: 'test',
+        data: { counter },
+        kind: 'Event',
+        metadata: {
+          streamName: 'test-stream',
+          messageId: uuid(),
+          checkpoint: bigIntProcessorCheckpoint(BigInt(counter)),
+          globalPosition: BigInt(counter),
+          streamPosition: BigInt(counter),
+        },
+      });
+      const handled = recorded(1);
+      await processor.start();
+      onTestFinished(() => processor.close());
+
+      // When
+      const result = await processor.handle([handled, recorded(2)], {});
+
+      // Then
+      assertEqual(storedCheckpoint, bigIntProcessorCheckpoint(1n));
+      assertDeepEqual(result, {
+        type: 'STOP',
+        reason: 'Error during message processing',
+        error: failure,
+        lastSuccessfulMessage: handled,
+      });
+      assertEqual(processor.isActive, false);
+    });
+
     void it('handles only messages after the resolved checkpoint', async () => {
       const processorId = uuid();
       const handledMessages: RecordedMessage[] = [];

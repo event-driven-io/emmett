@@ -13,6 +13,12 @@ import {
   type Tracer,
 } from '@event-driven-io/almanac';
 import {
+  ConcurrencyError,
+  IllegalStateError,
+  NotFoundError,
+  ValidationError,
+} from '../../errors';
+import {
   EmmettAttributes,
   EmmettMetrics,
   MessagingSystemName,
@@ -70,6 +76,12 @@ export type CommandHandlerCollectorContext = {
   commandType?: string | string[];
 };
 
+const isExpectedFailure = (error: unknown): boolean =>
+  error instanceof ConcurrencyError ||
+  error instanceof ValidationError ||
+  error instanceof IllegalStateError ||
+  error instanceof NotFoundError;
+
 export const commandHandlerCollector = (
   observability: ResolvedCommandObservability,
 ) => {
@@ -123,26 +135,28 @@ export const commandHandlerCollector = (
           try {
             const result = await fn(scope);
             status = 'success';
-            scope.setAttributes({
-              [A.command.status]: 'success',
-              error: false,
-            });
+            scope.setAttributes({ [A.command.status]: 'success' });
             return result;
           } catch (err) {
             status = 'failure';
-            scope.setAttributes({
-              [A.command.status]: 'failure',
-              error: true,
-              'exception.message':
-                err instanceof Error ? err.message : String(err),
-              'exception.type':
-                err instanceof Error ? err.constructor.name : 'unknown',
-            });
-            scope.log(
-              LogEvent.error(
-                err instanceof Error ? err : new Error(String(err)),
-              ),
-            );
+            scope.setAttributes({ [A.command.status]: 'failure' });
+            if (!options?.scope)
+              scope.log(
+                LogEvent(
+                  'emmett.command.handle.exception',
+                  {
+                    body: 'Command handling failed',
+                    error: err instanceof Error ? err : new Error(String(err)),
+                    attributes: {
+                      [A.stream.name]: context.streamName,
+                      ...(context.commandType
+                        ? { [A.command.type]: context.commandType }
+                        : {}),
+                    },
+                  },
+                  { level: isExpectedFailure(err) ? 'debug' : 'error' },
+                ),
+              );
             throw err;
           } finally {
             commandHandlingDuration.record(Date.now() - start, {
