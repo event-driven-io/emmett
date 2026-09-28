@@ -2,13 +2,16 @@ import {
   getInMemoryEventStore,
   type EventStore,
   type PortableApi,
-  type ReadEvent,
+  type ReadStreamOptions,
 } from '@event-driven-io/emmett';
+import type { StandardSchemaV1 } from '@standard-schema/spec';
+import Type from 'typebox';
 import { describe, expect, it } from 'vitest';
 import {
-  MediaTypes,
-  schemaRef,
-  validateAgainstSchema,
+  composeEventStoreOpenApi,
+  DefaultEventStoreApiSchemas,
+  typeBoxSchema,
+  validateWithSchema,
   type Principal,
   type SchemaName,
 } from '../contract';
@@ -18,7 +21,6 @@ import {
   type EventStoreHttpApiOptions,
   type OperationTelemetry,
 } from './eventStoreHttpApi';
-import { inMemoryStreamCatalog } from './streamCatalog';
 
 const admin: Principal = {
   id: 'admin-1',
@@ -27,15 +29,11 @@ const admin: Principal = {
 };
 
 const setup = (options?: Partial<EventStoreHttpApiOptions>) => {
-  const catalog = inMemoryStreamCatalog();
-  const eventStore =
-    options?.eventStore ??
-    getInMemoryEventStore({ hooks: { onAfterCommit: catalog.onAfterCommit } });
+  const eventStore = options?.eventStore ?? getInMemoryEventStore();
 
   const api = eventStoreHttpApi({
     eventStore,
     authentication: () => admin,
-    backend: { streamCatalog: catalog },
     ...options,
   });
 
@@ -99,48 +97,35 @@ const appendOrder = (
     },
   });
 
-const expectValid = async (response: Response, schema: SchemaName) => {
-  const body = await response.json();
-  expect(validateAgainstSchema(body, schemaRef(schema))).toEqual([]);
+const expectValueValid = async (value: unknown, schema: SchemaName) => {
+  const contractSchema: StandardSchemaV1 = DefaultEventStoreApiSchemas[schema];
+  const result = await validateWithSchema(contractSchema, value);
+  expect(result.issues).toBeUndefined();
 };
 
+const expectValid = async (response: Response, schema: SchemaName) =>
+  expectValueValid(await response.json(), schema);
+
 void describe('eventStoreHttpApi', () => {
-  void describe('representations match the contract schemas', () => {
-    void it('API root', async () => {
+  void describe('representations match the default schemas', () => {
+    void it('API root, append result, stream, messages, catalog and problems', async () => {
       const { invoke } = setup();
 
       await expectValid(await invoke('GET', '/v1'), 'ApiRoot');
-    });
-
-    void it('append result, stream, message page and catalog page', async () => {
-      const { invoke } = setup();
-
       await expectValid(await appendOrder(invoke), 'AppendResult');
       await expectValid(await invoke('GET', '/v1/streams/order%3A1'), 'Stream');
-      await expectValid(
-        await invoke('GET', '/v1/streams/order%3A1/messages'),
-        'MessagePage',
-      );
-      await expectValid(
-        await invoke('GET', '/v1/streams/order%3A1/messages', {
-          headers: { accept: MediaTypes.HAL },
-        }),
-        'MessagePageHal',
-      );
-      await expectValid(
-        await invoke('GET', '/v1/streams'),
-        'StreamCatalogPage',
-      );
-      await expectValid(
-        await invoke('GET', '/v1/streams', {
-          headers: { accept: MediaTypes.HAL },
-        }),
-        'StreamCatalogPageHal',
-      );
-    });
 
-    void it('problem details', async () => {
-      const { invoke } = setup();
+      const page = (await (
+        await invoke('GET', '/v1/streams/order%3A1/messages')
+      ).json()) as { messages: unknown[] };
+      for (const message of page.messages)
+        await expectValueValid(message, 'RecordedMessage');
+
+      const catalog = (await (await invoke('GET', '/v1/streams')).json()) as {
+        streams: unknown[];
+      };
+      for (const stream of catalog.streams)
+        await expectValueValid(stream, 'ListedStream');
 
       await expectValid(
         await invoke('GET', '/v1/streams/missing'),
@@ -149,8 +134,27 @@ void describe('eventStoreHttpApi', () => {
     });
   });
 
-  void describe('backend-specific values', () => {
-    void it('returns the last global position as a decimal string when the backend provides it', async () => {
+  void describe('event store calls', () => {
+    void it('passes from, to and limit to readStream as from, to and maxCount', async () => {
+      const calls: (ReadStreamOptions | undefined)[] = [];
+      const store = getInMemoryEventStore();
+      await store.appendToStream('s', [{ type: 'A', data: {} }]);
+      const { invoke } = setup({
+        eventStore: {
+          ...store,
+          readStream: (streamName, options) => {
+            calls.push(options as ReadStreamOptions | undefined);
+            return store.readStream(streamName, options);
+          },
+        },
+      });
+
+      await invoke('GET', '/v1/streams/s/messages?from=2&to=9&limit=4');
+
+      expect(calls).toEqual([{ from: 2n, to: 9n, maxCount: 4n }]);
+    });
+
+    void it('returns the append result as provided by the event store', async () => {
       const store = getInMemoryEventStore();
       const eventStore: EventStore = {
         ...store,
@@ -163,65 +167,12 @@ void describe('eventStoreHttpApi', () => {
 
       const response = await appendOrder(invoke);
 
-      expect(await response.json()).toMatchObject({
-        lastEventGlobalPosition: '9877',
+      expect(await response.json()).toEqual({
+        streamName: 'order:1',
+        nextExpectedStreamVersion: '1',
+        createdNewStream: true,
+        lastEventGlobalPosition: '0000000000000009877',
       });
-    });
-
-    void it('pages correctly on backends with zero-based positions and windowed versions', async () => {
-      const messages = Array.from({ length: 5 }, (_, index) => ({
-        kind: 'Event' as const,
-        type: 'ItemAdded',
-        data: { index },
-        metadata: {
-          messageId: `${index}`,
-          streamName: 's',
-          streamPosition: BigInt(index),
-        },
-      })) as ReadEvent[];
-      const eventStore: EventStore = {
-        ...getInMemoryEventStore(),
-        // Emulates a backend where `from` is an inclusive zero-based position
-        // and the reported version is the last returned message.
-        readStream: (_, options) => {
-          const events = messages.filter(
-            (m) =>
-              m.metadata.streamPosition >= (options?.from ?? 0n) &&
-              (options?.to === undefined ||
-                m.metadata.streamPosition <= options.to),
-          );
-          return Promise.resolve({
-            events: events as never,
-            currentStreamVersion: events.at(-1)?.metadata.streamPosition ?? 0n,
-            streamExists: events.length > 0,
-          });
-        },
-      };
-      const { invoke } = setup({
-        eventStore,
-        backend: {
-          readStreamVersion: () =>
-            Promise.resolve({ streamExists: true, currentStreamVersion: 4n }),
-        },
-      });
-
-      const seen: number[] = [];
-      let from: string | undefined;
-      do {
-        const body = (await (
-          await invoke(
-            'GET',
-            `/v1/streams/s/messages?limit=2${from !== undefined ? `&from=${from}` : ''}`,
-          )
-        ).json()) as {
-          messages: { data: { index: number } }[];
-          nextFrom?: string;
-        };
-        seen.push(...body.messages.map((m) => m.data.index));
-        from = body.nextFrom;
-      } while (from !== undefined);
-
-      expect(seen).toEqual([0, 1, 2, 3, 4]);
     });
 
     void it('serializes bigint values in message data as decimal strings', async () => {
@@ -235,6 +186,49 @@ void describe('eventStoreHttpApi', () => {
       ).json()) as { messages: { data: { amount: string } }[] };
 
       expect(body.messages[0]!.data.amount).toBe('12345678901234567890');
+    });
+  });
+
+  void describe('injected schemas', () => {
+    const OrdersOnly = typeBoxSchema(
+      Type.Object({
+        messages: Type.Array(
+          Type.Object({
+            type: Type.Literal('OrderPlaced'),
+            data: Type.Object({ orderId: Type.String() }),
+          }),
+          { minItems: 1 },
+        ),
+      }),
+    );
+
+    void it('validates appends with the provided schema', async () => {
+      const { invoke } = setup({ schemas: { AppendRequest: OrdersOnly } });
+
+      const rejected = await invoke('POST', '/v1/streams/s/messages', {
+        headers: { 'content-type': 'application/json' },
+        body: { messages: [{ type: 'CartOpened', data: {} }] },
+      });
+      const accepted = await appendOrder(invoke);
+
+      expect(rejected.status).toBe(400);
+      expect(accepted.status).toBe(201);
+    });
+
+    void it('describes the provided schema in the served OpenAPI document', async () => {
+      const { invoke } = setup({ schemas: { AppendRequest: OrdersOnly } });
+
+      const document = (await (
+        await invoke('GET', '/v1/openapi.json')
+      ).json()) as { components: { schemas: Record<string, unknown> } };
+
+      expect(document.components.schemas.AppendRequest).toEqual(
+        composeEventStoreOpenApi({ schemas: { AppendRequest: OrdersOnly } })
+          .components!.schemas!.AppendRequest,
+      );
+      expect(document.components.schemas.AppendRequest).not.toEqual(
+        composeEventStoreOpenApi().components!.schemas!.AppendRequest,
+      );
     });
   });
 
@@ -280,7 +274,7 @@ void describe('eventStoreHttpApi', () => {
       const { invoke } = setup({
         eventStore: {
           ...store,
-          readStream: () =>
+          streamExists: () =>
             Promise.reject(new Error('connection to db-secret:5432 failed')),
         },
         observability: { onError: (error) => reported.push(error) },

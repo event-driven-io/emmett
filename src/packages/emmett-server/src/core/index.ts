@@ -4,6 +4,4 @@ export * from './documentation';
 export * from './eventStoreHttpApi';
 export * from './hypermedia';
 export * from './messages';
-export * from './reading';
-export * from './streamCatalog';
 export * from './streamIdentity';

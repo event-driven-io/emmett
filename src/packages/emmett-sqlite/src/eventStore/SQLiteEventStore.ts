@@ -37,6 +37,8 @@ import {
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
+  type ListStreamsOptions,
+  type ListStreamsResult,
   type StreamExistsResult,
 } from '@event-driven-io/emmett';
 import {
@@ -60,6 +62,7 @@ import {
   eventStoreDatabaseSchema,
   eventStoreSchemaSQL,
   readStream,
+  listStreams,
   streamExists,
   unknownTag,
   type CreateEventStoreSchemaOptions,
@@ -93,6 +96,7 @@ export interface SQLiteEventStore
     streamName: string,
     options?: SQLiteStreamExistsOptions,
   ): Promise<StreamExistsResult>;
+  listStreams(options: ListStreamsOptions): Promise<ListStreamsResult>;
   close(): Promise<void>;
   schema: {
     sql(): string;
@@ -438,6 +442,15 @@ export const getSQLiteEventStore = <
       await ensureSchemaExists();
       return streamExists(pool.execute, streamName, {
         ...options,
+        databaseSchemaName: databaseSchema.databaseSchemaName,
+      });
+    },
+
+    async listStreams(
+      listOptions: ListStreamsOptions,
+    ): Promise<ListStreamsResult> {
+      await ensureSchemaExists();
+      return listStreams(pool.execute, listOptions, {
         databaseSchemaName: databaseSchema.databaseSchemaName,
       });
     },

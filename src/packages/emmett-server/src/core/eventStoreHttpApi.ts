@@ -17,6 +17,7 @@ import {
   type PortableHttpRequest,
   type PortableRoute,
   type ProblemDetails,
+  type ReadStreamOptions,
   type StreamPosition,
 } from '@event-driven-io/emmett';
 import {
@@ -24,6 +25,7 @@ import {
   composeEventStoreOpenApi,
   ContractVersion,
   DefaultApiRoot,
+  DefaultEventStoreApiSchemas,
   DefaultLimits,
   eventStoreProblem,
   EventStoreApiRoutes,
@@ -32,6 +34,7 @@ import {
   Permissions,
   ResourceMediaTypes,
   type EventStoreApiOperation,
+  type EventStoreApiSchemas,
   type EventStoreOpenApiOptions,
   type OpenApiDocument,
   type Permission,
@@ -54,20 +57,7 @@ import {
   withCuries,
   type ApiLinks,
 } from './hypermedia';
-import {
-  parseAppendRequest,
-  toDecimalString,
-  toJSONText,
-  toRecordedMessageRepresentation,
-} from './messages';
-import {
-  fullReadStreamVersionReader,
-  readMessagesPage,
-  streamMessages,
-  type StreamVersion,
-  type StreamVersionReader,
-} from './reading';
-import type { StreamCatalog } from './streamCatalog';
+import { parseAppendRequest, toJSONText } from './messages';
 import {
   typeIdStreamIdentityCodec,
   type StreamIdentity,
@@ -109,17 +99,11 @@ export type EventStoreHttpApiOptions<HostContext = unknown> = {
   authentication: PrincipalResolver<HostContext>;
   /** Authorization policy. Defaults to role-based permissions. */
   authorize?: Authorize;
-  /** Optional backend capabilities beyond the base `EventStore` contract. */
-  backend?: {
-    streamCatalog?: StreamCatalog;
-    /**
-     * Reads stream existence and version without reading messages.
-     * Defaults to a full stream read, which works everywhere but is costly for long streams.
-     */
-    readStreamVersion?: StreamVersionReader;
-    /** Whether recorded messages carry global positions. */
-    globalPosition?: boolean;
-  };
+  /**
+   * Schemas replacing the default TypeBox ones, e.g. to describe or validate message data.
+   * Any Standard Schema implementation that also implements Standard JSON Schema works.
+   */
+  schemas?: Partial<EventStoreApiSchemas>;
   /** Structured stream name codec. Defaults to Emmett's `type:id` convention. Pass `null` to disable. */
   streamIdentityCodec?: StreamIdentityCodec | null;
   limits?: Partial<EventStoreHttpApiLimits>;
@@ -179,6 +163,30 @@ const fail = (
   });
 };
 
+const readOptions = (
+  from: StreamPosition | undefined,
+  to: StreamPosition | undefined,
+  maxCount: number,
+): ReadStreamOptions => ({
+  ...(from !== undefined ? { from } : {}),
+  ...(to !== undefined ? { to } : {}),
+  ...(Number.isFinite(maxCount) ? { maxCount: BigInt(maxCount) } : {}),
+});
+
+/**
+ * The next page starts after the last returned message when the page is full.
+ */
+const nextPosition = (
+  messages: { metadata: { streamPosition: StreamPosition } }[],
+  maxCount: number,
+): StreamPosition | undefined => {
+  const last = messages[messages.length - 1];
+
+  return last !== undefined && messages.length >= maxCount
+    ? BigInt(last.metadata.streamPosition) + 1n
+    : undefined;
+};
+
 const decimal = /^(0|[1-9]\d*)$/;
 const positiveInteger = /^[1-9]\d*$/;
 
@@ -208,10 +216,9 @@ export const eventStoreHttpApi = <HostContext = unknown>(
 ): PortableApi<HostContext> => {
   const { eventStore } = options;
   const authorize = options.authorize ?? roleBasedAuthorization;
-  const catalog = options.backend?.streamCatalog;
-  const readStreamVersion =
-    options.backend?.readStreamVersion ??
-    fullReadStreamVersionReader(eventStore);
+  const canListStreams = eventStore.listStreams !== undefined;
+  const appendRequestSchema =
+    options.schemas?.AppendRequest ?? DefaultEventStoreApiSchemas.AppendRequest;
   const codec =
     options.streamIdentityCodec === null
       ? undefined
@@ -240,15 +247,11 @@ export const eventStoreHttpApi = <HostContext = unknown>(
     streamReads: true,
     appends: true,
     streamExistence: true,
-    streamCatalog: catalog !== undefined,
-    globalPosition: options.backend?.globalPosition ?? false,
+    streamCatalog: canListStreams,
     finiteStreaming: true,
     subscriptions: false,
     subscriptionSources: [] as string[],
     aggregates: [] as string[],
-    ...(catalog
-      ? { catalog: { ordering: catalog.ordering, search: catalog.search } }
-      : {}),
   };
 
   const serviceDescriptionHref = (links: ApiLinks) =>
@@ -307,13 +310,8 @@ export const eventStoreHttpApi = <HostContext = unknown>(
   const isHal = (mediaType: string) =>
     mediaType === MediaTypes.HAL || mediaType === MediaTypes.HALForms;
 
-  const requireStream = async (streamName: string): Promise<StreamVersion> => {
-    const version = await readStreamVersion(streamName);
-
-    return version.streamExists
-      ? version
-      : fail('STREAM_NOT_FOUND', `Stream '${streamName}' does not exist.`);
-  };
+  const streamNotFound = (streamName: string) =>
+    fail('STREAM_NOT_FOUND', `Stream '${streamName}' does not exist.`);
 
   const notModified = (
     request: PortableHttpRequest<HostContext>,
@@ -349,7 +347,9 @@ export const eventStoreHttpApi = <HostContext = unknown>(
 
     const limit = Number(value);
 
-    return max !== undefined ? Math.min(limit, max) : limit;
+    return max === undefined || limit <= max
+      ? limit
+      : fail('INVALID_REQUEST', `'limit' must not exceed ${max}.`);
   };
 
   const canAppend = (
@@ -363,6 +363,46 @@ export const eventStoreHttpApi = <HostContext = unknown>(
         ? { streamIdentity: identityOf(streamName)! }
         : {}),
     });
+
+  /**
+   * Streams the first page, then keeps reading forward page by page,
+   * so only one page is held in memory.
+   */
+  async function* readForward<
+    Message extends { metadata: { streamPosition: StreamPosition } },
+  >(
+    streamName: string,
+    firstPage: Message[],
+    range: {
+      to: StreamPosition | undefined;
+      limit: number | undefined;
+      pageSize: number;
+      signal: AbortSignal;
+    },
+  ): AsyncGenerator<Message> {
+    let page = firstPage;
+    let remaining = range.limit ?? Number.POSITIVE_INFINITY;
+    let requested = Math.min(range.pageSize, remaining);
+
+    while (true) {
+      for (const message of page) {
+        if (range.signal.aborted) return;
+        yield message;
+      }
+      remaining -= page.length;
+
+      const from = nextPosition(page, requested);
+      if (from === undefined || remaining <= 0 || range.signal.aborted) return;
+
+      requested = Math.min(range.pageSize, remaining);
+      page = (
+        await eventStore.readStream(
+          streamName,
+          readOptions(from, range.to, requested),
+        )
+      ).events as unknown as Message[];
+    }
+  }
 
   //////////////////////////////////////
   /// Handlers
@@ -384,8 +424,8 @@ export const eventStoreHttpApi = <HostContext = unknown>(
       if (!isHal(mediaType)) return respond(body, { mediaType });
 
       const serviceDesc = serviceDescriptionHref(links);
-      const canListStreams =
-        catalog !== undefined && (await isAllowed(Permissions.listStreams));
+      const showStreams =
+        canListStreams && (await isAllowed(Permissions.listStreams));
 
       return respond(
         {
@@ -396,7 +436,7 @@ export const eventStoreHttpApi = <HostContext = unknown>(
               ? { href: serviceDesc, type: MediaTypes.OpenApi }
               : undefined,
             ...documentLinks(links),
-            [Relations.streams]: canListStreams
+            [Relations.streams]: showStreams
               ? halLink(links.streams())
               : undefined,
           }),
@@ -418,6 +458,7 @@ export const eventStoreHttpApi = <HostContext = unknown>(
           apiRoot: apiRoot || DefaultApiRoot,
           namespace: '',
           routes,
+          ...(options.schemas ? { schemas: options.schemas } : {}),
           ...options.documentation?.openApi,
         });
         openApiDocuments.set(apiRoot, document);
@@ -444,7 +485,7 @@ export const eventStoreHttpApi = <HostContext = unknown>(
     listStreams: async ({ request, links }) => {
       const mediaType = negotiate(request, ResourceMediaTypes);
 
-      if (!catalog)
+      if (!eventStore.listStreams)
         return fail(
           'NOT_IMPLEMENTED',
           'The configured backend does not provide a stream catalog.',
@@ -462,7 +503,12 @@ export const eventStoreHttpApi = <HostContext = unknown>(
 
       let result;
       try {
-        result = await catalog.listStreams({ limit, cursor, q, streamType });
+        result = await eventStore.listStreams({
+          limit,
+          ...(cursor !== undefined ? { cursor } : {}),
+          ...(q !== undefined ? { q } : {}),
+          ...(streamType !== undefined ? { streamType } : {}),
+        });
       } catch (error) {
         if (EmmettError.isInstanceOf(error, EmmettError.Codes.ValidationError))
           return fail('INVALID_CURSOR', 'Cursor is invalid or expired.');
@@ -474,9 +520,7 @@ export const eventStoreHttpApi = <HostContext = unknown>(
 
         return {
           streamName: entry.streamName,
-          ...(entry.currentStreamVersion !== undefined
-            ? { currentStreamVersion: entry.currentStreamVersion }
-            : {}),
+          currentStreamVersion: entry.currentStreamVersion,
           ...(identity ? { identity } : {}),
         };
       });
@@ -534,21 +578,13 @@ export const eventStoreHttpApi = <HostContext = unknown>(
       const streamName = request.params.streamName!;
       const mediaType = negotiate(request, ResourceMediaTypes);
 
-      const version = await requireStream(streamName);
-      const etag = toStrongETag(version.currentStreamVersion);
-
-      const unchanged = notModified(request, etag);
-      if (unchanged) return unchanged;
+      if (!(await eventStore.streamExists(streamName)))
+        return streamNotFound(streamName);
 
       const identity = identityOf(streamName);
-      const body = {
-        streamName,
-        currentStreamVersion: version.currentStreamVersion,
-        ...(identity ? { identity } : {}),
-      };
+      const body = { streamName, ...(identity ? { identity } : {}) };
 
-      if (!isHal(mediaType))
-        return respond(body, { mediaType, headers: { etag } });
+      if (!isHal(mediaType)) return respond(body, { mediaType });
 
       const templates =
         mediaType === MediaTypes.HALForms &&
@@ -561,7 +597,7 @@ export const eventStoreHttpApi = <HostContext = unknown>(
           ...body,
           _links: withCuries({
             [Relations.self]: halLink(links.stream(streamName)),
-            [Relations.collection]: catalog
+            [Relations.collection]: canListStreams
               ? halLink(links.streams())
               : undefined,
             [Relations.up]: halLink(links.root),
@@ -575,20 +611,16 @@ export const eventStoreHttpApi = <HostContext = unknown>(
           }),
           ...templates,
         },
-        { mediaType, headers: { etag } },
+        { mediaType },
       );
     },
 
-    streamExists: async ({ request }) => {
-      const version = await readStreamVersion(request.params.streamName!);
-
-      return new Response(null, {
-        status: version.streamExists ? 200 : 404,
-        headers: version.streamExists
-          ? { etag: toStrongETag(version.currentStreamVersion) }
-          : {},
-      });
-    },
+    streamExists: async ({ request }) =>
+      new Response(null, {
+        status: (await eventStore.streamExists(request.params.streamName!))
+          ? 200
+          : 404,
+      }),
 
     readMessages: async (context) => {
       const { request, links } = context;
@@ -610,28 +642,32 @@ export const eventStoreHttpApi = <HostContext = unknown>(
       if (from !== undefined && to !== undefined && to < from)
         return fail('INVALID_RANGE', "'to' must not be lower than 'from'.");
 
-      const version = await requireStream(streamName);
-      const etag = toStrongETag(version.currentStreamVersion);
+      const maxCount = streaming
+        ? Math.min(limits.streamingPageSize, limit ?? Number.POSITIVE_INFINITY)
+        : limit!;
+
+      const result = await eventStore.readStream(
+        streamName,
+        readOptions(from, to, maxCount),
+      );
+
+      if (!result.streamExists) return streamNotFound(streamName);
+
+      const etag = toStrongETag(result.currentStreamVersion);
 
       const unchanged = notModified(request, etag);
       if (unchanged) return unchanged;
 
-      const range = { from: from ?? 0n, to };
-
       if (streaming)
         return new Response(
           jsonSequenceStream(
-            streamMessages(eventStore, streamName, version, {
-              ...range,
+            readForward(streamName, result.events, {
+              to,
               limit,
               pageSize: limits.streamingPageSize,
               signal: request.signal,
             }),
-            {
-              signal: request.signal,
-              serialize: (message) =>
-                toJSONText(toRecordedMessageRepresentation(message)),
-            },
+            { signal: request.signal, serialize: toJSONText },
           ),
           {
             headers: {
@@ -643,34 +679,20 @@ export const eventStoreHttpApi = <HostContext = unknown>(
           },
         );
 
-      const page = await readMessagesPage(eventStore, streamName, version, {
-        ...range,
-        limit: limit!,
-      });
-      const messages = page.messages.map(toRecordedMessageRepresentation);
       const body = {
         streamName,
-        currentStreamVersion: version.currentStreamVersion,
+        currentStreamVersion: result.currentStreamVersion,
       };
 
       if (!isHal(mediaType))
         return respond(
-          {
-            ...body,
-            messages,
-            ...(page.nextFrom !== undefined ? { nextFrom: page.nextFrom } : {}),
-          },
+          { ...body, messages: result.events },
           { mediaType, headers: { etag } },
         );
 
+      const nextFrom = nextPosition(result.events, maxCount);
       const view = (position: StreamPosition | undefined) =>
-        halLink(
-          links.messages(streamName, {
-            from: position,
-            to,
-            limit,
-          }),
-        );
+        halLink(links.messages(streamName, { from: position, to, limit }));
       const streamLink = halLink(links.stream(streamName));
       const templates =
         mediaType === MediaTypes.HALForms &&
@@ -682,7 +704,7 @@ export const eventStoreHttpApi = <HostContext = unknown>(
         {
           ...body,
           _embedded: {
-            messages: messages.map((message) => ({
+            messages: result.events.map((message) => ({
               ...message,
               _links: {
                 [Relations.up]: streamLink,
@@ -694,7 +716,7 @@ export const eventStoreHttpApi = <HostContext = unknown>(
             [Relations.self]: view(from),
             [Relations.first]: view(undefined),
             [Relations.next]:
-              page.nextFrom !== undefined ? view(page.nextFrom) : undefined,
+              nextFrom !== undefined ? view(nextFrom) : undefined,
             [Relations.up]: streamLink,
             [Relations.stream]: streamLink,
             ...documentLinks(links),
@@ -747,12 +769,19 @@ export const eventStoreHttpApi = <HostContext = unknown>(
                 : 'Body is not valid JSON.',
             );
 
-      const parsed = parseAppendRequest(body.value);
+      const parsed = await parseAppendRequest(appendRequestSchema, body.value);
       if (!parsed.ok)
         return fail(
           'INVALID_REQUEST',
-          parsed.errors
-            .map(({ path, message }) => `${path} ${message}`)
+          parsed.issues
+            .map(
+              ({ path, message }) =>
+                `/${(path ?? [])
+                  .map((segment) =>
+                    String(typeof segment === 'object' ? segment.key : segment),
+                  )
+                  .join('/')} ${message}`,
+            )
             .join('; '),
         );
 
@@ -773,19 +802,7 @@ export const eventStoreHttpApi = <HostContext = unknown>(
         { expectedStreamVersion: preconditions.expectedStreamVersion },
       );
 
-      const lastEventGlobalPosition =
-        'lastEventGlobalPosition' in result
-          ? toDecimalString(result.lastEventGlobalPosition)
-          : undefined;
-
-      const representation = {
-        streamName,
-        nextExpectedStreamVersion: result.nextExpectedStreamVersion,
-        createdNewStream: result.createdNewStream,
-        ...(lastEventGlobalPosition !== undefined
-          ? { lastEventGlobalPosition }
-          : {}),
-      };
+      const representation = { streamName, ...result };
       const headers = {
         etag: toStrongETag(result.nextExpectedStreamVersion),
         location: links.stream(streamName),

@@ -1,69 +1,56 @@
-import type { Event, ReadEvent } from '@event-driven-io/emmett';
+import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { describe, expect, it } from 'vitest';
-import {
-  parseAppendRequest,
-  toRecordedMessageRepresentation,
-} from './messages';
+import { DefaultEventStoreApiSchemas } from '../contract';
+import { parseAppendRequest, toJSONText } from './messages';
 
-void describe('toRecordedMessageRepresentation', () => {
-  void it('keeps the combined metadata shape with decimal positions', () => {
-    const message = {
-      type: 'OrderPlaced',
-      data: { placedAt: '2026-01-01T00:00:00.000Z' },
-      metadata: {
-        messageId: 'm1',
-        streamName: 'order:1',
-        streamPosition: 42n,
-        globalPosition: '0000000000000009876',
-        checkpoint: '0000000000000009876',
-        correlationId: 'c1',
-      },
-    } as unknown as ReadEvent<Event>;
-
-    expect(toRecordedMessageRepresentation(message)).toEqual({
-      kind: 'Event',
-      type: 'OrderPlaced',
-      data: { placedAt: '2026-01-01T00:00:00.000Z' },
-      metadata: {
-        messageId: 'm1',
-        streamName: 'order:1',
-        streamPosition: '42',
-        globalPosition: '9876',
-        checkpoint: '9876',
-        correlationId: 'c1',
-      },
-    });
-  });
-
-  void it('passes non-numeric checkpoints through unchanged', () => {
-    const message = {
-      type: 'E',
-      data: {},
-      kind: 'Event',
-      metadata: {
-        messageId: 'm1',
-        streamName: 's',
-        streamPosition: 1n,
-        checkpoint: '12-34',
-      },
-    } as unknown as ReadEvent<Event>;
-
-    expect(toRecordedMessageRepresentation(message).metadata.checkpoint).toBe(
-      '12-34',
-    );
-    expect(
-      toRecordedMessageRepresentation(message).metadata.globalPosition,
-    ).toBe(undefined);
+void describe('toJSONText', () => {
+  void it('encodes bigint values as decimal strings', () => {
+    expect(toJSONText({ streamPosition: 42n })).toBe('{"streamPosition":"42"}');
   });
 });
 
 void describe('parseAppendRequest', () => {
-  void it('defaults the kind to Event', () => {
+  void it('passes valid messages through unchanged', async () => {
+    const messages = [{ type: 'A', data: { a: 1 }, metadata: { b: 2 } }];
+
     expect(
-      parseAppendRequest({ messages: [{ type: 'A', data: { a: 1 } }] }),
-    ).toEqual({
-      ok: true,
-      messages: [{ kind: 'Event', type: 'A', data: { a: 1 } }],
-    });
+      await parseAppendRequest(DefaultEventStoreApiSchemas.AppendRequest, {
+        messages,
+      }),
+    ).toEqual({ ok: true, messages });
+  });
+
+  void it('reports issues with their paths', async () => {
+    const result = await parseAppendRequest(
+      DefaultEventStoreApiSchemas.AppendRequest,
+      { messages: [{ type: '', data: [] }] },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(
+      !result.ok &&
+        result.issues.map((issue) => (issue.path as string[]).join('/')),
+    ).toEqual(expect.arrayContaining(['messages/0/type', 'messages/0/data']));
+  });
+
+  void it('uses any Standard Schema implementation', async () => {
+    const onlyOrders: StandardSchemaV1 = {
+      '~standard': {
+        version: 1,
+        vendor: 'test',
+        validate: (value) =>
+          (value as { messages: { type: string }[] }).messages.every(
+            (message) => message.type === 'OrderPlaced',
+          )
+            ? { value }
+            : { issues: [{ message: 'only orders' }] },
+      },
+    };
+
+    expect(
+      await parseAppendRequest(onlyOrders, {
+        messages: [{ type: 'CartOpened', data: {} }],
+      }),
+    ).toEqual({ ok: false, issues: [{ message: 'only orders' }] });
   });
 });

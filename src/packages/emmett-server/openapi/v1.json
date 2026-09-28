@@ -6,14 +6,8 @@
     "description": "Language-neutral HTTP API exposing Emmett event stores: discover streams, inspect them, read messages, and append with optimistic concurrency."
   },
   "tags": [
-    {
-      "name": "api",
-      "description": "API discovery and documentation"
-    },
-    {
-      "name": "streams",
-      "description": "Streams and their messages"
-    }
+    { "name": "api", "description": "API discovery and documentation" },
+    { "name": "streams", "description": "Streams and their messages" }
   ],
   "paths": {
     "/v1": {
@@ -26,31 +20,21 @@
             "description": "API root.",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiRoot"
-                }
+                "schema": { "$ref": "#/components/schemas/ApiRoot" }
               },
               "application/hal+json": {
                 "schema": {
                   "allOf": [
-                    {
-                      "$ref": "#/components/schemas/ApiRoot"
-                    },
-                    {
-                      "$ref": "#/components/schemas/HalResource"
-                    }
+                    { "$ref": "#/components/schemas/ApiRoot" },
+                    { "$ref": "#/components/schemas/HalResource" }
                   ]
                 }
               },
               "application/prs.hal-forms+json": {
                 "schema": {
                   "allOf": [
-                    {
-                      "$ref": "#/components/schemas/ApiRoot"
-                    },
-                    {
-                      "$ref": "#/components/schemas/HalResource"
-                    }
+                    { "$ref": "#/components/schemas/ApiRoot" },
+                    { "$ref": "#/components/schemas/HalResource" }
                   ]
                 }
               }
@@ -60,9 +44,7 @@
             "description": "Missing or invalid credentials.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -70,9 +52,7 @@
             "description": "Authenticated principal is not permitted to perform the operation.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -80,21 +60,12 @@
             "description": "Requested representation is not available.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           }
         },
-        "security": [
-          {
-            "apiKey": []
-          },
-          {
-            "bearer": []
-          }
-        ]
+        "security": [{ "apiKey": [] }, { "bearer": [] }]
       }
     },
     "/v1/openapi.json": {
@@ -107,14 +78,10 @@
             "description": "OpenAPI 3.1 document.",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object"
-                }
+                "schema": { "type": "object", "properties": {} }
               },
               "application/vnd.oai.openapi+json;version=3.1": {
-                "schema": {
-                  "type": "object"
-                }
+                "schema": { "type": "object", "properties": {} }
               }
             }
           },
@@ -122,9 +89,7 @@
             "description": "Missing or invalid credentials.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -132,9 +97,7 @@
             "description": "Authenticated principal is not permitted to perform the operation.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -142,21 +105,12 @@
             "description": "Requested representation is not available.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           }
         },
-        "security": [
-          {
-            "apiKey": []
-          },
-          {
-            "bearer": []
-          }
-        ]
+        "security": [{ "apiKey": [] }, { "bearer": [] }]
       }
     },
     "/v1/docs": {
@@ -167,21 +121,13 @@
         "responses": {
           "200": {
             "description": "HTML documentation.",
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
+            "content": { "text/html": { "schema": { "type": "string" } } }
           },
           "401": {
             "description": "Missing or invalid credentials.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -189,9 +135,7 @@
             "description": "Authenticated principal is not permitted to perform the operation.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -199,21 +143,12 @@
             "description": "Requested representation is not available.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           }
         },
-        "security": [
-          {
-            "apiKey": []
-          },
-          {
-            "bearer": []
-          }
-        ]
+        "security": [{ "apiKey": [] }, { "bearer": [] }]
       }
     },
     "/v1/streams": {
@@ -227,38 +162,29 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum number of streams. Defaults to 100, capped by the configured maximum (1000 by default).",
-            "schema": {
-              "type": "integer",
-              "minimum": 1
-            }
+            "description": "Maximum number of streams. Defaults to 100. Values above the configured maximum (1000 by default) return 400.",
+            "schema": { "type": "integer", "minimum": 1 }
           },
           {
             "name": "cursor",
             "in": "query",
             "required": false,
             "description": "Opaque continuation token returned by the server.",
-            "schema": {
-              "type": "string"
-            }
+            "schema": { "type": "string" }
           },
           {
             "name": "q",
             "in": "query",
             "required": false,
             "description": "Backend-supported text search over stream names.",
-            "schema": {
-              "type": "string"
-            }
+            "schema": { "type": "string" }
           },
           {
             "name": "streamType",
             "in": "query",
             "required": false,
             "description": "Structured stream-type filter, applied when the stream identity codec recognizes the name.",
-            "schema": {
-              "type": "string"
-            }
+            "schema": { "type": "string" }
           }
         ],
         "responses": {
@@ -266,9 +192,7 @@
             "description": "Page of streams.",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StreamCatalogPage"
-                }
+                "schema": { "$ref": "#/components/schemas/StreamCatalogPage" }
               },
               "application/hal+json": {
                 "schema": {
@@ -286,9 +210,7 @@
             "description": "Invalid limit or cursor.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -296,9 +218,7 @@
             "description": "Missing or invalid credentials.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -306,9 +226,7 @@
             "description": "Authenticated principal is not permitted to perform the operation.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -316,9 +234,7 @@
             "description": "Requested representation is not available.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -326,21 +242,12 @@
             "description": "Backend does not provide a stream catalog.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           }
         },
-        "security": [
-          {
-            "apiKey": []
-          },
-          {
-            "bearer": []
-          }
-        ]
+        "security": [{ "apiKey": [] }, { "bearer": [] }]
       }
     },
     "/v1/streams/{streamName}": {
@@ -354,50 +261,29 @@
             "in": "path",
             "required": true,
             "description": "Opaque stream name, percent-encoded as a single URI path segment. The server does not impose a naming convention.",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
+            "schema": { "type": "string", "minLength": 1 }
           }
         ],
         "responses": {
           "200": {
             "description": "Stream metadata.",
-            "headers": {
-              "ETag": {
-                "description": "Strong ETag whose opaque value is the current stream version, e.g. \"42\".",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Stream"
-                }
+                "schema": { "$ref": "#/components/schemas/Stream" }
               },
               "application/hal+json": {
                 "schema": {
                   "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Stream"
-                    },
-                    {
-                      "$ref": "#/components/schemas/HalResource"
-                    }
+                    { "$ref": "#/components/schemas/Stream" },
+                    { "$ref": "#/components/schemas/HalResource" }
                   ]
                 }
               },
               "application/prs.hal-forms+json": {
                 "schema": {
                   "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Stream"
-                    },
-                    {
-                      "$ref": "#/components/schemas/HalResource"
-                    }
+                    { "$ref": "#/components/schemas/Stream" },
+                    { "$ref": "#/components/schemas/HalResource" }
                   ]
                 }
               }
@@ -407,9 +293,7 @@
             "description": "Missing or invalid credentials.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -417,9 +301,7 @@
             "description": "Authenticated principal is not permitted to perform the operation.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -427,9 +309,7 @@
             "description": "Stream does not exist.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -437,21 +317,12 @@
             "description": "Requested representation is not available.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           }
         },
-        "security": [
-          {
-            "apiKey": []
-          },
-          {
-            "bearer": []
-          }
-        ]
+        "security": [{ "apiKey": [] }, { "bearer": [] }]
       },
       "head": {
         "operationId": "streamExists",
@@ -463,42 +334,16 @@
             "in": "path",
             "required": true,
             "description": "Opaque stream name, percent-encoded as a single URI path segment. The server does not impose a naming convention.",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
+            "schema": { "type": "string", "minLength": 1 }
           }
         ],
         "responses": {
-          "200": {
-            "description": "Stream exists.",
-            "headers": {
-              "ETag": {
-                "description": "Strong ETag whose opaque value is the current stream version, e.g. \"42\".",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid credentials."
-          },
-          "403": {
-            "description": "Not permitted."
-          },
-          "404": {
-            "description": "Stream does not exist."
-          }
+          "200": { "description": "Stream exists." },
+          "401": { "description": "Missing or invalid credentials." },
+          "403": { "description": "Not permitted." },
+          "404": { "description": "Stream does not exist." }
         },
-        "security": [
-          {
-            "apiKey": []
-          },
-          {
-            "bearer": []
-          }
-        ]
+        "security": [{ "apiKey": [] }, { "bearer": [] }]
       }
     },
     "/v1/streams/{streamName}/messages": {
@@ -513,47 +358,35 @@
             "in": "path",
             "required": true,
             "description": "Opaque stream name, percent-encoded as a single URI path segment. The server does not impose a naming convention.",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
+            "schema": { "type": "string", "minLength": 1 }
           },
           {
             "name": "from",
             "in": "query",
             "required": false,
-            "description": "Inclusive stream position as a decimal string. Defaults to the beginning of the stream.",
-            "schema": {
-              "$ref": "#/components/schemas/DecimalString"
-            }
+            "description": "Stream position as a decimal string, passed to `readStream` as `from`. Defaults to the beginning of the stream.",
+            "schema": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
           },
           {
             "name": "to",
             "in": "query",
             "required": false,
-            "description": "Inclusive upper stream position as a decimal string.",
-            "schema": {
-              "$ref": "#/components/schemas/DecimalString"
-            }
+            "description": "Upper stream position as a decimal string, passed to `readStream` as `to`.",
+            "schema": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
           },
           {
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum number of messages. For JSON and HAL defaults to 100, capped by the configured maximum (1000 by default). For JSON sequences there is no limit unless provided.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1
-            }
+            "description": "Maximum number of messages, passed to `readStream` as `maxCount`. For JSON and HAL defaults to 100; values above the configured maximum (1000 by default) return 400. For JSON sequences there is no limit unless provided.",
+            "schema": { "type": "integer", "minimum": 1 }
           },
           {
             "name": "If-None-Match",
             "in": "header",
             "required": false,
             "description": "Returns 304 Not Modified when it matches the current stream ETag.",
-            "schema": {
-              "type": "string"
-            }
+            "schema": { "type": "string" }
           }
         ],
         "responses": {
@@ -562,31 +395,21 @@
             "headers": {
               "ETag": {
                 "description": "Strong ETag whose opaque value is the current stream version, e.g. \"42\".",
-                "schema": {
-                  "type": "string"
-                }
+                "schema": { "type": "string" }
               }
             },
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessagePage"
-                }
+                "schema": { "$ref": "#/components/schemas/MessagePage" }
               },
               "application/hal+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessagePageHal"
-                }
+                "schema": { "$ref": "#/components/schemas/MessagePageHal" }
               },
               "application/prs.hal-forms+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessagePageHal"
-                }
+                "schema": { "$ref": "#/components/schemas/MessagePageHal" }
               },
               "application/json-seq": {
-                "schema": {
-                  "$ref": "#/components/schemas/RecordedMessage"
-                }
+                "schema": { "$ref": "#/components/schemas/RecordedMessage" }
               }
             }
           },
@@ -595,9 +418,7 @@
             "headers": {
               "ETag": {
                 "description": "Strong ETag whose opaque value is the current stream version, e.g. \"42\".",
-                "schema": {
-                  "type": "string"
-                }
+                "schema": { "type": "string" }
               }
             }
           },
@@ -605,9 +426,7 @@
             "description": "Invalid range, position or limit.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -615,9 +434,7 @@
             "description": "Missing or invalid credentials.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -625,9 +442,7 @@
             "description": "Authenticated principal is not permitted to perform the operation.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -635,9 +450,7 @@
             "description": "Stream does not exist.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -645,21 +458,12 @@
             "description": "Requested representation is not available.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           }
         },
-        "security": [
-          {
-            "apiKey": []
-          },
-          {
-            "bearer": []
-          }
-        ]
+        "security": [{ "apiKey": [] }, { "bearer": [] }]
       },
       "post": {
         "operationId": "appendMessages",
@@ -672,38 +476,28 @@
             "in": "path",
             "required": true,
             "description": "Opaque stream name, percent-encoded as a single URI path segment. The server does not impose a naming convention.",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
+            "schema": { "type": "string", "minLength": 1 }
           },
           {
             "name": "If-Match",
             "in": "header",
             "required": false,
             "description": "Single strong stream version ETag, e.g. \"42\", or `*`.",
-            "schema": {
-              "type": "string"
-            }
+            "schema": { "type": "string" }
           },
           {
             "name": "If-None-Match",
             "in": "header",
             "required": false,
             "description": "Only `*`, expecting the stream not to exist.",
-            "schema": {
-              "type": "string",
-              "enum": ["*"]
-            }
+            "schema": { "type": "string", "const": "*" }
           }
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AppendRequest"
-              }
+              "schema": { "$ref": "#/components/schemas/AppendRequest" }
             }
           }
         },
@@ -713,44 +507,30 @@
             "headers": {
               "ETag": {
                 "description": "Strong ETag whose opaque value is the current stream version, e.g. \"42\".",
-                "schema": {
-                  "type": "string"
-                }
+                "schema": { "type": "string" }
               },
               "Location": {
                 "description": "URL of the stream resource.",
-                "schema": {
-                  "type": "string"
-                }
+                "schema": { "type": "string" }
               }
             },
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AppendResult"
-                }
+                "schema": { "$ref": "#/components/schemas/AppendResult" }
               },
               "application/hal+json": {
                 "schema": {
                   "allOf": [
-                    {
-                      "$ref": "#/components/schemas/AppendResult"
-                    },
-                    {
-                      "$ref": "#/components/schemas/HalResource"
-                    }
+                    { "$ref": "#/components/schemas/AppendResult" },
+                    { "$ref": "#/components/schemas/HalResource" }
                   ]
                 }
               },
               "application/prs.hal-forms+json": {
                 "schema": {
                   "allOf": [
-                    {
-                      "$ref": "#/components/schemas/AppendResult"
-                    },
-                    {
-                      "$ref": "#/components/schemas/HalResource"
-                    }
+                    { "$ref": "#/components/schemas/AppendResult" },
+                    { "$ref": "#/components/schemas/HalResource" }
                   ]
                 }
               }
@@ -761,44 +541,30 @@
             "headers": {
               "ETag": {
                 "description": "Strong ETag whose opaque value is the current stream version, e.g. \"42\".",
-                "schema": {
-                  "type": "string"
-                }
+                "schema": { "type": "string" }
               },
               "Location": {
                 "description": "URL of the stream resource.",
-                "schema": {
-                  "type": "string"
-                }
+                "schema": { "type": "string" }
               }
             },
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AppendResult"
-                }
+                "schema": { "$ref": "#/components/schemas/AppendResult" }
               },
               "application/hal+json": {
                 "schema": {
                   "allOf": [
-                    {
-                      "$ref": "#/components/schemas/AppendResult"
-                    },
-                    {
-                      "$ref": "#/components/schemas/HalResource"
-                    }
+                    { "$ref": "#/components/schemas/AppendResult" },
+                    { "$ref": "#/components/schemas/HalResource" }
                   ]
                 }
               },
               "application/prs.hal-forms+json": {
                 "schema": {
                   "allOf": [
-                    {
-                      "$ref": "#/components/schemas/AppendResult"
-                    },
-                    {
-                      "$ref": "#/components/schemas/HalResource"
-                    }
+                    { "$ref": "#/components/schemas/AppendResult" },
+                    { "$ref": "#/components/schemas/HalResource" }
                   ]
                 }
               }
@@ -808,9 +574,7 @@
             "description": "Invalid body or conditional headers.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -818,9 +582,7 @@
             "description": "Missing or invalid credentials.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -828,9 +590,7 @@
             "description": "Authenticated principal is not permitted to perform the operation.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -838,9 +598,7 @@
             "description": "Requested representation is not available.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -848,9 +606,7 @@
             "description": "Expected stream version did not match.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -858,9 +614,7 @@
             "description": "Body or batch too large.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           },
@@ -868,133 +622,17 @@
             "description": "Body is not JSON.",
             "content": {
               "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
+                "schema": { "$ref": "#/components/schemas/ProblemDetails" }
               }
             }
           }
         },
-        "security": [
-          {
-            "apiKey": []
-          },
-          {
-            "bearer": []
-          }
-        ]
+        "security": [{ "apiKey": [] }, { "bearer": [] }]
       }
     }
   },
   "components": {
     "schemas": {
-      "DecimalString": {
-        "type": "string",
-        "pattern": "^(0|[1-9][0-9]*)$",
-        "description": "Non-negative integer encoded as a decimal string."
-      },
-      "Link": {
-        "type": "object",
-        "required": ["href"],
-        "properties": {
-          "href": {
-            "type": "string"
-          },
-          "templated": {
-            "type": "boolean"
-          },
-          "type": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          }
-        }
-      },
-      "HalResource": {
-        "type": "object",
-        "required": ["_links"],
-        "properties": {
-          "_links": {
-            "type": "object",
-            "description": "HAL links keyed by link relation type.",
-            "additionalProperties": true
-          },
-          "_embedded": {
-            "type": "object",
-            "additionalProperties": true
-          },
-          "_templates": {
-            "type": "object",
-            "description": "HAL-FORMS templates, present only for authorized actions.",
-            "additionalProperties": true
-          }
-        }
-      },
-      "Capabilities": {
-        "type": "object",
-        "required": [
-          "streamReads",
-          "appends",
-          "streamExistence",
-          "streamCatalog",
-          "globalPosition",
-          "finiteStreaming",
-          "subscriptions",
-          "subscriptionSources",
-          "aggregates"
-        ],
-        "properties": {
-          "streamReads": {
-            "type": "boolean"
-          },
-          "appends": {
-            "type": "boolean"
-          },
-          "streamExistence": {
-            "type": "boolean"
-          },
-          "streamCatalog": {
-            "type": "boolean"
-          },
-          "globalPosition": {
-            "type": "boolean"
-          },
-          "finiteStreaming": {
-            "type": "boolean"
-          },
-          "subscriptions": {
-            "type": "boolean"
-          },
-          "subscriptionSources": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "aggregates": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "catalog": {
-            "type": "object",
-            "description": "Stream catalog ordering and search semantics.",
-            "properties": {
-              "ordering": {
-                "type": "string"
-              },
-              "search": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
       "ApiRoot": {
         "type": "object",
         "required": [
@@ -1004,31 +642,34 @@
           "capabilities"
         ],
         "properties": {
-          "apiVersion": {
-            "type": "string",
-            "examples": ["1"]
-          },
-          "contractVersion": {
-            "type": "string",
-            "examples": ["1.0.0"]
-          },
-          "serverVersion": {
-            "type": "string"
-          },
+          "apiVersion": { "type": "string" },
+          "contractVersion": { "type": "string" },
+          "serverVersion": { "type": "string" },
           "capabilities": {
-            "$ref": "#/components/schemas/Capabilities"
-          }
-        }
-      },
-      "StreamIdentity": {
-        "type": "object",
-        "required": ["streamType", "streamId"],
-        "properties": {
-          "streamType": {
-            "type": "string"
-          },
-          "streamId": {
-            "type": "string"
+            "type": "object",
+            "required": [
+              "streamReads",
+              "appends",
+              "streamExistence",
+              "streamCatalog",
+              "finiteStreaming",
+              "subscriptions",
+              "subscriptionSources",
+              "aggregates"
+            ],
+            "properties": {
+              "streamReads": { "type": "boolean" },
+              "appends": { "type": "boolean" },
+              "streamExistence": { "type": "boolean" },
+              "streamCatalog": { "type": "boolean" },
+              "finiteStreaming": { "type": "boolean" },
+              "subscriptions": { "type": "boolean" },
+              "subscriptionSources": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "aggregates": { "type": "array", "items": { "type": "string" } }
+            }
           }
         }
       },
@@ -1036,16 +677,143 @@
         "type": "object",
         "required": ["streamName"],
         "properties": {
-          "streamName": {
-            "type": "string"
-          },
-          "currentStreamVersion": {
-            "$ref": "#/components/schemas/DecimalString"
-          },
+          "streamName": { "type": "string" },
           "identity": {
-            "$ref": "#/components/schemas/StreamIdentity"
+            "type": "object",
+            "required": ["streamType", "streamId"],
+            "properties": {
+              "streamType": { "type": "string" },
+              "streamId": { "type": "string" }
+            }
           }
         }
+      },
+      "ListedStream": {
+        "type": "object",
+        "required": ["streamName", "currentStreamVersion"],
+        "properties": {
+          "streamName": { "type": "string" },
+          "currentStreamVersion": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "identity": {
+            "type": "object",
+            "required": ["streamType", "streamId"],
+            "properties": {
+              "streamType": { "type": "string" },
+              "streamId": { "type": "string" }
+            }
+          }
+        }
+      },
+      "AppendRequest": {
+        "type": "object",
+        "required": ["messages"],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["type", "data"],
+              "properties": {
+                "kind": {
+                  "anyOf": [
+                    { "type": "string", "const": "Event" },
+                    { "type": "string", "const": "Command" }
+                  ]
+                },
+                "type": { "type": "string", "minLength": 1 },
+                "data": {
+                  "type": "object",
+                  "patternProperties": { "^.*$": {} }
+                },
+                "metadata": {
+                  "type": "object",
+                  "patternProperties": { "^.*$": {} }
+                }
+              }
+            },
+            "minItems": 1
+          }
+        }
+      },
+      "AppendResult": {
+        "type": "object",
+        "required": [
+          "streamName",
+          "nextExpectedStreamVersion",
+          "createdNewStream"
+        ],
+        "properties": {
+          "streamName": { "type": "string" },
+          "nextExpectedStreamVersion": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "createdNewStream": { "type": "boolean" },
+          "lastEventGlobalPosition": {
+            "type": "string",
+            "description": "Present only when the backend provides it."
+          }
+        }
+      },
+      "RecordedMessage": {
+        "type": "object",
+        "required": ["kind", "type", "data", "metadata"],
+        "properties": {
+          "kind": {
+            "anyOf": [
+              { "type": "string", "const": "Event" },
+              { "type": "string", "const": "Command" }
+            ]
+          },
+          "type": { "type": "string" },
+          "data": { "type": "object", "patternProperties": { "^.*$": {} } },
+          "metadata": {
+            "type": "object",
+            "required": ["messageId", "streamName", "streamPosition"],
+            "properties": {
+              "messageId": { "type": "string" },
+              "streamName": { "type": "string" },
+              "streamPosition": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)$"
+              }
+            },
+            "additionalProperties": true,
+            "description": "Emmett's combined metadata: user metadata plus recording metadata produced by the event store, e.g. `globalPosition` and `checkpoint` when the backend returns them."
+          }
+        }
+      },
+      "HalResource": {
+        "type": "object",
+        "required": ["_links"],
+        "properties": {
+          "_links": { "type": "object", "patternProperties": { "^.*$": {} } },
+          "_embedded": {
+            "type": "object",
+            "patternProperties": { "^.*$": {} }
+          },
+          "_templates": {
+            "type": "object",
+            "patternProperties": { "^.*$": {} }
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "required": ["type", "title", "status"],
+        "properties": {
+          "type": { "type": "string" },
+          "title": { "type": "string" },
+          "status": { "type": "integer" },
+          "detail": { "type": "string" },
+          "instance": { "type": "string" },
+          "code": { "type": "string" },
+          "traceId": { "type": "string" }
+        },
+        "additionalProperties": true
       },
       "StreamCatalogPage": {
         "type": "object",
@@ -1053,9 +821,7 @@
         "properties": {
           "streams": {
             "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Stream"
-            }
+            "items": { "$ref": "#/components/schemas/ListedStream" }
           },
           "nextCursor": {
             "type": "string",
@@ -1075,147 +841,28 @@
                 "type": "array",
                 "items": {
                   "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Stream"
-                    },
-                    {
-                      "$ref": "#/components/schemas/HalResource"
-                    }
+                    { "$ref": "#/components/schemas/ListedStream" },
+                    { "$ref": "#/components/schemas/HalResource" }
                   ]
                 }
               }
             }
           },
-          "_links": {
-            "type": "object",
-            "description": "HAL links keyed by link relation type.",
-            "additionalProperties": true
-          }
-        }
-      },
-      "AppendMessage": {
-        "type": "object",
-        "required": ["type", "data"],
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": ["Event", "Command"],
-            "default": "Event"
-          },
-          "type": {
-            "type": "string",
-            "minLength": 1
-          },
-          "data": {
-            "type": "object",
-            "additionalProperties": true
-          },
-          "metadata": {
-            "type": "object",
-            "additionalProperties": true
-          }
-        }
-      },
-      "AppendRequest": {
-        "type": "object",
-        "required": ["messages"],
-        "properties": {
-          "messages": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-              "$ref": "#/components/schemas/AppendMessage"
-            }
-          }
-        }
-      },
-      "AppendResult": {
-        "type": "object",
-        "required": [
-          "streamName",
-          "nextExpectedStreamVersion",
-          "createdNewStream"
-        ],
-        "properties": {
-          "streamName": {
-            "type": "string"
-          },
-          "nextExpectedStreamVersion": {
-            "$ref": "#/components/schemas/DecimalString"
-          },
-          "createdNewStream": {
-            "type": "boolean"
-          },
-          "lastEventGlobalPosition": {
-            "type": "string",
-            "description": "Present only when the backend provides it."
-          }
-        }
-      },
-      "RecordedMessageMetadata": {
-        "type": "object",
-        "required": ["messageId", "streamName", "streamPosition"],
-        "additionalProperties": true,
-        "properties": {
-          "messageId": {
-            "type": "string"
-          },
-          "streamName": {
-            "type": "string"
-          },
-          "streamPosition": {
-            "$ref": "#/components/schemas/DecimalString"
-          },
-          "globalPosition": {
-            "type": "string",
-            "description": "Present only when supported and returned by the backend."
-          },
-          "checkpoint": {
-            "type": "string",
-            "description": "Present only when supported and returned by the backend."
-          }
-        }
-      },
-      "RecordedMessage": {
-        "type": "object",
-        "required": ["kind", "type", "data", "metadata"],
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": ["Event", "Command"]
-          },
-          "type": {
-            "type": "string"
-          },
-          "data": {
-            "type": "object",
-            "additionalProperties": true
-          },
-          "metadata": {
-            "$ref": "#/components/schemas/RecordedMessageMetadata"
-          }
+          "_links": { "type": "object", "patternProperties": { "^.*$": {} } }
         }
       },
       "MessagePage": {
         "type": "object",
         "required": ["streamName", "currentStreamVersion", "messages"],
         "properties": {
-          "streamName": {
-            "type": "string"
-          },
+          "streamName": { "type": "string" },
           "currentStreamVersion": {
-            "$ref": "#/components/schemas/DecimalString"
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "messages": {
             "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RecordedMessage"
-            }
-          },
-          "nextFrom": {
-            "type": "string",
-            "pattern": "^(0|[1-9][0-9]*)$",
-            "description": "Stream position to pass as `from` to read the next page. Omitted when there are no more messages in the range."
+            "items": { "$ref": "#/components/schemas/RecordedMessage" }
           }
         }
       },
@@ -1228,11 +875,10 @@
           "_links"
         ],
         "properties": {
-          "streamName": {
-            "type": "string"
-          },
+          "streamName": { "type": "string" },
           "currentStreamVersion": {
-            "$ref": "#/components/schemas/DecimalString"
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "_embedded": {
             "type": "object",
@@ -1242,53 +888,17 @@
                 "type": "array",
                 "items": {
                   "allOf": [
-                    {
-                      "$ref": "#/components/schemas/RecordedMessage"
-                    },
-                    {
-                      "$ref": "#/components/schemas/HalResource"
-                    }
+                    { "$ref": "#/components/schemas/RecordedMessage" },
+                    { "$ref": "#/components/schemas/HalResource" }
                   ]
                 }
               }
             }
           },
-          "_links": {
-            "type": "object",
-            "description": "HAL links keyed by link relation type.",
-            "additionalProperties": true
-          },
+          "_links": { "type": "object", "patternProperties": { "^.*$": {} } },
           "_templates": {
             "type": "object",
-            "additionalProperties": true
-          }
-        }
-      },
-      "ProblemDetails": {
-        "type": "object",
-        "required": ["type", "title", "status"],
-        "additionalProperties": true,
-        "properties": {
-          "type": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "status": {
-            "type": "integer"
-          },
-          "detail": {
-            "type": "string"
-          },
-          "instance": {
-            "type": "string"
-          },
-          "code": {
-            "type": "string"
-          },
-          "traceId": {
-            "type": "string"
+            "patternProperties": { "^.*$": {} }
           }
         }
       }

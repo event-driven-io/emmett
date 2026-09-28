@@ -2,6 +2,7 @@ import {
   getInMemoryDatabase,
   type InMemoryDatabase,
 } from '../database/inMemoryDatabase';
+import { ValidationError } from '../errors';
 import { withOperationScope } from '../observability';
 import { bigIntProcessorCheckpoint } from '../processors';
 import type { ProjectionRegistration } from '../projections';
@@ -20,6 +21,8 @@ import type {
   AppendToStreamResult,
   DefaultEventStoreOptions,
   EventStore,
+  ListStreamsOptions,
+  ListStreamsResult,
   ReadStreamOptions,
   ReadStreamResult,
   StreamExistsResult,
@@ -31,6 +34,11 @@ import {
   type EventStoreObservabilityConfig,
 } from './observability';
 import { handleInMemoryProjections } from './projections/inMemory';
+import {
+  decodeStreamNameCursor,
+  encodeStreamNameCursor,
+} from './listStreamsCursor';
+import { fromStreamName, type StreamName } from './streamName';
 import { downcastRecordedMessages, upcastRecordedMessages } from './versioning';
 
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
@@ -38,6 +46,7 @@ export const InMemoryEventStoreDefaultStreamVersion = 0n;
 export type InMemoryEventStore =
   EventStore<ReadEventMetadataWithGlobalPosition> & {
     database: InMemoryDatabase;
+    listStreams: NonNullable<EventStore['listStreams']>;
   };
 
 export type InMemoryReadEventMetadata = ReadEventMetadataWithGlobalPosition;
@@ -297,6 +306,50 @@ export const getInMemoryEventStore = (
       const events = streams.get(streamName);
 
       return Promise.resolve(events !== undefined && events.length > 0);
+    },
+
+    /**
+     * Lists streams ordered by name. `q` matches a case-sensitive substring of the name.
+     * `streamType` matches the type of `type:id` stream names.
+     */
+    listStreams: ({
+      limit,
+      cursor,
+      q,
+      streamType,
+    }: ListStreamsOptions): Promise<ListStreamsResult> => {
+      const after =
+        cursor !== undefined ? decodeStreamNameCursor(cursor) : undefined;
+
+      if (cursor !== undefined && after === undefined)
+        return Promise.reject(new ValidationError('Invalid cursor'));
+
+      const matching = [...streams.entries()]
+        .filter(([, events]) => events.length > 0)
+        .map(([streamName]) => streamName)
+        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+        .filter((streamName) => after === undefined || streamName > after)
+        .filter((streamName) => q === undefined || streamName.includes(q))
+        .filter(
+          (streamName) =>
+            streamType === undefined ||
+            (streamName.includes(':') &&
+              fromStreamName(streamName as StreamName).streamType ===
+                streamType),
+        );
+
+      const page = matching.slice(0, limit);
+      const last = page[page.length - 1];
+
+      return Promise.resolve({
+        streams: page.map((streamName) => ({
+          streamName,
+          currentStreamVersion: BigInt(streams.get(streamName)!.length),
+        })),
+        ...(matching.length > limit && last !== undefined
+          ? { nextCursor: encodeStreamNameCursor(last) }
+          : {}),
+      });
     },
   };
 

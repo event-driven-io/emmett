@@ -133,6 +133,9 @@ export const InMemoryProjectionSpec = {
               streamExists: async () => {
                 return Promise.resolve(false);
               },
+              listStreams: async () => {
+                return Promise.resolve({ streams: [] });
+              },
             } as InMemoryEventStore;
 
             await handleInMemoryProjections({

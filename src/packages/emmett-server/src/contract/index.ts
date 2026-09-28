@@ -5,4 +5,4 @@ export * from './relations';
 export * from './routes';
 export * from './schemas';
 export * from './security';
-export * from './validation';
+export * from './standardSchema';

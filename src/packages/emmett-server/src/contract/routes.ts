@@ -1,6 +1,17 @@
 import type { HttpMethod } from '@event-driven-io/emmett';
 import { MediaTypes } from './mediaTypes';
-import { schemaRef, type JSONSchema, type SchemaName } from './schemas';
+import Type, { type TSchema } from 'typebox';
+import {
+  Parameters,
+  schemaRef,
+  type CompositeSchemaName,
+  type SchemaName,
+} from './schemas';
+
+type JSONSchema = TSchema;
+
+const componentRef = (name: SchemaName | CompositeSchemaName) =>
+  Type.Ref(`#/components/schemas/${name}`);
 import { Permissions, type Permission } from './security';
 
 export const ApiVersion = '1';
@@ -29,7 +40,6 @@ export type RouteDescriptor = {
   summary: string;
   description?: string;
   tag: 'api' | 'streams';
-  /** `undefined` means the route follows the documentation access policy. */
   permission: Permission;
   parameters?: ParameterDescriptor[];
   requestBody?: { required: boolean; content: Record<string, JSONSchema> };
@@ -55,19 +65,22 @@ export const DefaultLimits = {
 
 const problem = (description: string): ResponseDescriptor => ({
   description,
-  content: { [MediaTypes.Problem]: schemaRef('ProblemDetails') },
+  content: { [MediaTypes.Problem]: componentRef('ProblemDetails') },
 });
 
 const resource = (
   description: string,
-  json: SchemaName,
-  hal: JSONSchema = { allOf: [schemaRef(json), schemaRef('HalResource')] },
+  json: SchemaName | CompositeSchemaName,
+  hal: JSONSchema = Type.Intersect([
+    componentRef(json),
+    schemaRef('HalResource'),
+  ]),
   headers?: ResponseDescriptor['headers'],
 ): ResponseDescriptor => ({
   description,
   ...(headers ? { headers } : {}),
   content: {
-    [MediaTypes.JSON]: schemaRef(json),
+    [MediaTypes.JSON]: componentRef(json),
     [MediaTypes.HAL]: hal,
     [MediaTypes.HALForms]: hal,
   },
@@ -77,7 +90,7 @@ const etagHeader = {
   ETag: {
     description:
       'Strong ETag whose opaque value is the current stream version, e.g. "42".',
-    schema: { type: 'string' },
+    schema: Type.String(),
   },
 } satisfies ResponseDescriptor['headers'];
 
@@ -87,7 +100,7 @@ const streamNameParameter: ParameterDescriptor = {
   required: true,
   description:
     'Opaque stream name, percent-encoded as a single URI path segment. The server does not impose a naming convention.',
-  schema: { type: 'string', minLength: 1 },
+  schema: Type.String({ minLength: 1 }),
 };
 
 const commonProblems = {
@@ -122,8 +135,8 @@ export const EventStoreApiRoutes: RouteDescriptor[] = [
       '200': {
         description: 'OpenAPI 3.1 document.',
         content: {
-          [MediaTypes.JSON]: { type: 'object' },
-          [MediaTypes.OpenApi]: { type: 'object' },
+          [MediaTypes.JSON]: Type.Object({}),
+          [MediaTypes.OpenApi]: Type.Object({}),
         },
       },
       ...commonProblems,
@@ -139,7 +152,7 @@ export const EventStoreApiRoutes: RouteDescriptor[] = [
     responses: {
       '200': {
         description: 'HTML documentation.',
-        content: { [MediaTypes.HTML]: { type: 'string' } },
+        content: { [MediaTypes.HTML]: Type.String() },
       },
       ...commonProblems,
     },
@@ -157,34 +170,34 @@ export const EventStoreApiRoutes: RouteDescriptor[] = [
       {
         name: 'limit',
         in: 'query',
-        description: `Maximum number of streams. Defaults to ${DefaultLimits.pageSize}, capped by the configured maximum (${DefaultLimits.maxPageSize} by default).`,
-        schema: { type: 'integer', minimum: 1 },
+        description: `Maximum number of streams. Defaults to ${DefaultLimits.pageSize}. Values above the configured maximum (${DefaultLimits.maxPageSize} by default) return 400.`,
+        schema: Type.Integer({ minimum: 1 }),
       },
       {
         name: 'cursor',
         in: 'query',
         description: 'Opaque continuation token returned by the server.',
-        schema: { type: 'string' },
+        schema: Type.String(),
       },
       {
         name: 'q',
         in: 'query',
         description: 'Backend-supported text search over stream names.',
-        schema: { type: 'string' },
+        schema: Type.String(),
       },
       {
         name: 'streamType',
         in: 'query',
         description:
           'Structured stream-type filter, applied when the stream identity codec recognizes the name.',
-        schema: { type: 'string' },
+        schema: Type.String(),
       },
     ],
     responses: {
       '200': resource(
         'Page of streams.',
         'StreamCatalogPage',
-        schemaRef('StreamCatalogPageHal'),
+        componentRef('StreamCatalogPageHal'),
       ),
       '400': problem('Invalid limit or cursor.'),
       ...commonProblems,
@@ -200,7 +213,7 @@ export const EventStoreApiRoutes: RouteDescriptor[] = [
     permission: Permissions.readStreams,
     parameters: [streamNameParameter],
     responses: {
-      '200': resource('Stream metadata.', 'Stream', undefined, etagHeader),
+      '200': resource('Stream metadata.', 'Stream'),
       ...commonProblems,
       '404': problem('Stream does not exist.'),
     },
@@ -214,7 +227,7 @@ export const EventStoreApiRoutes: RouteDescriptor[] = [
     permission: Permissions.readStreams,
     parameters: [streamNameParameter],
     responses: {
-      '200': { description: 'Stream exists.', headers: etagHeader },
+      '200': { description: 'Stream exists.' },
       '401': { description: 'Missing or invalid credentials.' },
       '403': { description: 'Not permitted.' },
       '404': { description: 'Stream does not exist.' },
@@ -235,27 +248,28 @@ export const EventStoreApiRoutes: RouteDescriptor[] = [
         name: 'from',
         in: 'query',
         description:
-          'Inclusive stream position as a decimal string. Defaults to the beginning of the stream.',
-        schema: schemaRef('DecimalString'),
+          'Stream position as a decimal string, passed to `readStream` as `from`. Defaults to the beginning of the stream.',
+        schema: Parameters.DecimalString(),
       },
       {
         name: 'to',
         in: 'query',
-        description: 'Inclusive upper stream position as a decimal string.',
-        schema: schemaRef('DecimalString'),
+        description:
+          'Upper stream position as a decimal string, passed to `readStream` as `to`.',
+        schema: Parameters.DecimalString(),
       },
       {
         name: 'limit',
         in: 'query',
-        description: `Maximum number of messages. For JSON and HAL defaults to ${DefaultLimits.pageSize}, capped by the configured maximum (${DefaultLimits.maxPageSize} by default). For JSON sequences there is no limit unless provided.`,
-        schema: { type: 'integer', minimum: 1 },
+        description: `Maximum number of messages, passed to \`readStream\` as \`maxCount\`. For JSON and HAL defaults to ${DefaultLimits.pageSize}; values above the configured maximum (${DefaultLimits.maxPageSize} by default) return 400. For JSON sequences there is no limit unless provided.`,
+        schema: Type.Integer({ minimum: 1 }),
       },
       {
         name: 'If-None-Match',
         in: 'header',
         description:
           'Returns 304 Not Modified when it matches the current stream ETag.',
-        schema: { type: 'string' },
+        schema: Type.String(),
       },
     ],
     responses: {
@@ -263,11 +277,12 @@ export const EventStoreApiRoutes: RouteDescriptor[] = [
         ...resource(
           'Messages in the requested range.',
           'MessagePage',
-          schemaRef('MessagePageHal'),
+          componentRef('MessagePageHal'),
           etagHeader,
         ),
         content: {
-          ...resource('', 'MessagePage', schemaRef('MessagePageHal')).content,
+          ...resource('', 'MessagePage', componentRef('MessagePageHal'))
+            .content,
           [MediaTypes.JSONSequence]: schemaRef('RecordedMessage'),
         },
       },
@@ -292,13 +307,13 @@ export const EventStoreApiRoutes: RouteDescriptor[] = [
         name: 'If-Match',
         in: 'header',
         description: 'Single strong stream version ETag, e.g. "42", or `*`.',
-        schema: { type: 'string' },
+        schema: Type.String(),
       },
       {
         name: 'If-None-Match',
         in: 'header',
         description: 'Only `*`, expecting the stream not to exist.',
-        schema: { type: 'string', enum: ['*'] },
+        schema: Type.Literal('*'),
       },
     ],
     requestBody: {
@@ -324,7 +339,7 @@ function appendResponse(description: string): ResponseDescriptor {
       ...etagHeader,
       Location: {
         description: 'URL of the stream resource.',
-        schema: { type: 'string' },
+        schema: Type.String(),
       },
     },
   };

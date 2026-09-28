@@ -81,15 +81,11 @@
     "dist",
     "openapi"
   ],
-  "dependencies": {},
-  "devDependencies": {},
-  "peerDependencies": {
-    "@event-driven-io/emmett": "0.43.0-beta.50",
-    "vitest": "^4.1.5"
+  "dependencies": {
+    "@standard-schema/spec": "^1.1.0",
+    "typebox": "^1.3.34"
   },
-  "peerDependenciesMeta": {
-    "vitest": {
-      "optional": true
-    }
+  "peerDependencies": {
+    "@event-driven-io/emmett": "0.43.0-beta.50"
   }
 }

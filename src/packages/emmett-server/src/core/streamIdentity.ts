@@ -1,27 +1,22 @@
+import { fromStreamName, type StreamName } from '@event-driven-io/emmett';
+
 export type StreamIdentity = { streamType: string; streamId: string };
 
 /**
- * Optional parser/formatter of structured stream names.
+ * Optional parser of structured stream names.
  * Failing to parse means "unstructured", never "invalid".
  */
 export type StreamIdentityCodec = {
   parse: (streamName: string) => StreamIdentity | undefined;
-  format: (identity: StreamIdentity) => string;
 };
 
 /**
- * Emmett's `type:id` convention, e.g. `order:order-123`.
- * The type is everything before the first colon.
+ * Emmett's `type:id` convention, parsed with `fromStreamName`.
  */
 export const typeIdStreamIdentityCodec: StreamIdentityCodec = {
   parse: (streamName) => {
-    const separator = streamName.indexOf(':');
-    if (separator <= 0 || separator === streamName.length - 1) return undefined;
+    const { streamType, streamId } = fromStreamName(streamName as StreamName);
 
-    return {
-      streamType: streamName.slice(0, separator),
-      streamId: streamName.slice(separator + 1),
-    };
+    return streamType && streamId ? { streamType, streamId } : undefined;
   },
-  format: ({ streamType, streamId }) => `${streamType}:${streamId}`,
 };

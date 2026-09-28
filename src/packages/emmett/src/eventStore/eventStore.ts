@@ -76,6 +76,16 @@ export interface EventStore<
   consumer?<ConsumerMessageType extends Message = AnyMessage>(
     options?: MessageConsumerOptions<ConsumerMessageType>,
   ): MessageConsumer<ConsumerMessageType>;
+
+  /**
+   * Lists streams, e.g. for operational tooling. Stores that cannot list streams
+   * efficiently do not provide it. Ordering is deterministic for a given store.
+   *
+   * ```ts
+   * const { streams, nextCursor } = await eventStore.listStreams!({ limit: 100 });
+   * ```
+   */
+  listStreams?(options: ListStreamsOptions): Promise<ListStreamsResult>;
 }
 
 export type EventStoreReadEventMetadata<Store extends EventStore> =
@@ -246,6 +256,31 @@ export type AppendStreamResultOfEventStore<Store extends EventStore> =
   Store['appendToStream'] extends (...args: any[]) => Promise<infer R>
     ? R
     : never;
+
+////////////////////////////////////////////////////////////////////
+/// ListStreams types
+////////////////////////////////////////////////////////////////////
+
+export type ListStreamsOptions = {
+  limit: number;
+  /** Opaque cursor returned with the previous page. */
+  cursor?: string;
+  /** Text to search for in stream names. */
+  q?: string;
+  /** Stream type, as recognised by the store. */
+  streamType?: string;
+};
+
+export type ListedStream = {
+  streamName: string;
+  currentStreamVersion: StreamPosition;
+};
+
+export type ListStreamsResult = {
+  streams: ListedStream[];
+  /** Present when there are more streams to list. */
+  nextCursor?: string;
+};
 
 ////////////////////////////////////////////////////////////////////
 /// StreamExists types

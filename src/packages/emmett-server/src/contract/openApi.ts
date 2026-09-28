@@ -1,4 +1,5 @@
 import { EmmettError } from '@event-driven-io/emmett';
+import type { TSchema } from 'typebox';
 import {
   ApiVersion,
   ContractVersion,
@@ -8,7 +9,12 @@ import {
   type ResponseDescriptor,
   type RouteDescriptor,
 } from './routes';
-import { Schemas, type JSONSchema } from './schemas';
+import {
+  CompositeSchemas,
+  DefaultEventStoreApiSchemas,
+  type EventStoreApiSchemas,
+} from './schemas';
+import { toJSONSchema } from './standardSchema';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type OpenApiDocument = {
@@ -76,6 +82,8 @@ export type EventStoreOpenApiOptions = {
   };
   /** Routes to describe. Defaults to all Event Store API routes. */
   routes?: RouteDescriptor[];
+  /** Schemas replacing the default ones. They must implement Standard JSON Schema. */
+  schemas?: Partial<EventStoreApiSchemas>;
 };
 
 /**
@@ -145,10 +153,16 @@ export const composeEventStoreOpenApi = (
     paths,
     components: {
       schemas: Object.fromEntries(
-        Object.entries(Schemas).map(([key, schema]) => [
-          name(key),
-          rewriteRefs(schema),
-        ]),
+        [
+          ...Object.entries({
+            ...DefaultEventStoreApiSchemas,
+            ...options?.schemas,
+          }).map(([key, schema]): [string, Record<string, unknown>] => [
+            key,
+            toJSONSchema(schema),
+          ]),
+          ...Object.entries(CompositeSchemas),
+        ].map(([key, schema]) => [name(key), rewriteRefs(schema)]),
       ),
       securitySchemes,
     },
@@ -206,7 +220,7 @@ const toResponse = (response: ResponseDescriptor) => ({
   ...(response.content ? { content: mapContent(response.content) } : {}),
 });
 
-const mapContent = (content: Record<string, JSONSchema>) =>
+const mapContent = (content: Record<string, TSchema>) =>
   Object.fromEntries(
     Object.entries(content).map(([mediaType, schema]) => [
       mediaType,
