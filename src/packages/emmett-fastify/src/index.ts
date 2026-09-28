@@ -83,3 +83,4 @@ export const startAPI = async (
     process.exit(1);
   }
 };
+export * from './portableApi';

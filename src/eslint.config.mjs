@@ -89,6 +89,7 @@ export default [
       'packages/emmett-expressjs/**',
       'packages/emmett-honojs/**',
       'packages/emmett-fastify/**',
+      'packages/emmett-server/scripts/**',
       'packages/emmett-sqlite/**',
       'packages/emmett-testcontainers/**',
       'packages/emmett-tests/**',

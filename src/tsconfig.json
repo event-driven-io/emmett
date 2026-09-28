@@ -26,6 +26,7 @@
       "@event-driven-io/emmett-esdb": ["./packages/emmett-esdb/src"],
       "@event-driven-io/emmett-honojs": ["./packages/emmett-honojs/src"],
       "@event-driven-io/emmett-fastify": ["./packages/emmett-fastify/src"],
+      "@event-driven-io/emmett-server": ["./packages/emmett-server/src"],
       "@event-driven-io/emmett-tests": ["./packages/emmett-tests/src"]
     }
   },
@@ -59,6 +60,9 @@
     },
     {
       "path": "./packages/emmett-fastify/"
+    },
+    {
+      "path": "./packages/emmett-server/"
     },
     {
       "path": "./packages/emmett-tests"

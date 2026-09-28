@@ -12,6 +12,7 @@ export default defineConfig({
       'packages/emmett-esdb',
       'packages/emmett-testcontainers',
       'packages/emmett-fastify',
+      'packages/emmett-server',
       'packages/emmett-tests',
       'packages/emmett-sqlite',
       'vitest.cloudflare.config.ts',

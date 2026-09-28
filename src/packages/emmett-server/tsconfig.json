@@ -1,0 +1,30 @@
+{
+  "extends": "../../tsconfig.shared.json",
+  "include": ["./src/**/*"],
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "./dist" /* Redirect output structure to the directory. */,
+    "rootDir": "./src",
+    "paths": {
+      "@event-driven-io/almanac": ["../almanac/src"],
+      "@event-driven-io/emmett": ["../emmett/src"],
+      "@event-driven-io/emmett-expressjs": ["../emmett-expressjs/src"],
+      "@event-driven-io/emmett-fastify": ["../emmett-fastify/src"],
+      "@event-driven-io/emmett-honojs": ["../emmett-honojs/src"]
+    }
+  },
+  "references": [
+    {
+      "path": "../emmett/"
+    },
+    {
+      "path": "../emmett-expressjs/"
+    },
+    {
+      "path": "../emmett-fastify/"
+    },
+    {
+      "path": "../emmett-honojs/"
+    }
+  ]
+}
