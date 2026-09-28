@@ -472,6 +472,61 @@ describe('pinoTracer', () => {
     ]);
   });
 
+  it('scope logs carry trace_id, span_id, correlation_id and causation_id fields', async () => {
+    const stream = pinoTest.sink();
+    const tracer = pinoTracer(pino(stream));
+    const scope = ObservabilityScope({ tracer, attributePrefix: 'emmett' });
+
+    await scope.startScope(
+      'command.handle',
+      (s) => {
+        s.log(
+          LogEvent.info('command.validated', {
+            traceId: 'trace-1',
+            spanId: 'span-1',
+          }),
+        );
+        return Promise.resolve();
+      },
+      { context: { correlationId: 'corr-1', causationId: 'cause-1' } },
+    );
+
+    await pinoTest.once(stream, (received: Record<string, unknown>) => {
+      expect(received).toMatchObject({
+        msg: 'command.validated',
+        trace_id: 'trace-1',
+        span_id: 'span-1',
+        correlation_id: 'corr-1',
+        causation_id: 'cause-1',
+      });
+    });
+  });
+
+  it('scope logs without a trace have no trace_id or span_id fields', async () => {
+    const stream = pinoTest.sink();
+    const tracer = pinoTracer(pino(stream));
+    const scope = ObservabilityScope({ tracer, attributePrefix: 'emmett' });
+
+    await scope.startScope(
+      'command.handle',
+      (s) => {
+        s.log(LogEvent.info('command.validated'));
+        return Promise.resolve();
+      },
+      { context: { correlationId: 'corr-1', causationId: 'cause-1' } },
+    );
+
+    await pinoTest.once(stream, (received: Record<string, unknown>) => {
+      expect(received).toMatchObject({
+        msg: 'command.validated',
+        correlation_id: 'corr-1',
+        causation_id: 'cause-1',
+      });
+      expect(received).not.toHaveProperty('trace_id');
+      expect(received).not.toHaveProperty('span_id');
+    });
+  });
+
   it('startSpan options are silently ignored', async () => {
     const stream = pinoTest.sink();
     const logger = pino(stream);

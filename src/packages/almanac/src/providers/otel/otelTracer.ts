@@ -9,7 +9,7 @@ import {
   SpanStatusCode,
   trace,
 } from '@opentelemetry/api';
-import { LogEvent, type Logger, noopLogger } from '../../loggers/logger';
+import { type Logger, noopLogger } from '../../loggers/logger';
 import type {
   ActiveSpan,
   SpanContext,
@@ -106,11 +106,16 @@ export const otelTracer = (
             return result;
           } catch (err) {
             const error = err instanceof Error ? err : new Error(String(err));
+            otelSpan.setAttribute(
+              'error.type',
+              err instanceof Error && err.constructor.name
+                ? err.constructor.name
+                : '_OTHER',
+            );
             otelSpan.setStatus({
               code: SpanStatusCode.ERROR,
               message: error.message,
             });
-            spanLog(LogEvent.error(error, 'exception'));
             throw err;
           } finally {
             otelSpan.end();

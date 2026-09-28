@@ -86,8 +86,20 @@ const hasSpanContext = (context: SpanContext): boolean =>
 const logForScope = (
   span: ActiveSpan,
   logger: Logger | undefined,
-  event: LogEvent,
+  messageContext: MessageContext,
+  scopeEvent: LogEvent,
 ): void => {
+  const event: LogEvent = {
+    ...scopeEvent,
+    metadata: {
+      ...scopeEvent.metadata,
+      correlationId:
+        scopeEvent.metadata.correlationId ?? messageContext.correlationId,
+      causationId:
+        scopeEvent.metadata.causationId ?? messageContext.causationId,
+    },
+  };
+
   if (logger === undefined) {
     span.log(event);
     return;
@@ -170,7 +182,8 @@ const makeScope = (
         },
       );
     },
-    log: (event) => logForScope(span, observability.logger, event),
+    log: (event) =>
+      logForScope(span, observability.logger, getContext(), event),
     addLink: (link) => span.addLink(link),
     get context() {
       return getContext();

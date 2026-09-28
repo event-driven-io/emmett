@@ -675,3 +675,33 @@ It prints with `console.log` to stdout when the config lists no plugins, then co
 > Remove it
 
 **Answer:** Removed, like the `IMPORTING` leftover at `plugins.ts:28`.
+
+## Q47. Should the spec §5 span names be constants next to `EmmettAttributes`, with the `emmett.` prefix?
+
+Asked during prompt 5. Existing collectors name spans with plain, unprefixed strings (`'processor.handle'`, `'consumer.poll'`), while spec §5 names the new spans `emmett.processor.start` and so on. `attributes.ts` already holds names as constants (`EmmettAttributes`, `EmmettMetrics`, `ScopeTypes`).
+
+**Oskar (verbatim):**
+
+> I think so, if that's aligned with convention.
+
+**Answer:** Yes. Constants follow the file's convention (`EmmettAttributes`, `EmmettMetrics`), so the §5 names go into an `EmmettSpans` constant with the `emmett.` prefix as the spec writes them. Existing unprefixed span names aren't renamed.
+
+## Q48. Which names should the sinks use for `correlationId` and `causationId`, and should `pinoTracer` keep writing `pino.error` for every failed span?
+
+Asked after prompts 3 and 4. `otelLogger` and `OtelLogFormatter` map only trace and span ids; `pinoTracer` maps none of the four. `pinoTracer` writes `pino.error` for every failed span, which is its only span record.
+
+**Oskar (verbatim):**
+
+> 2-3. Do as with pino convention is in their instrumentation
+
+**Answer:** Checked `@opentelemetry/instrumentation-pino` 0.66: log correlation adds top-level snake_case `trace_id`, `span_id`, `trace_flags` to pino records when a valid span is active; log sending strips those (they are native OTel log record fields) and passes every other field through as an attribute under its own name. So pino records get top-level `trace_id`, `span_id`, `correlation_id`, `causation_id`; OTel log records keep trace and span ids native and get `correlation_id` and `causation_id` attributes. The `pinoTracer` failure log is followed up in Q49.
+
+## Q49. What should `pinoTracer` write when a span fails?
+
+Today it writes one pino record per span as it ends: `info` on success, `error` with `err` on failure, so one handler error gives one `pino.error` per span it passes through. Options: (A) failed span record at `info` with `status: 'failure'`, `error.type` and the message, no `err`; (B) keep today's `pino.error` with `err`.
+
+**Oskar (verbatim):**
+
+> Dude, make it aligned to pino Instrumentation, so how spans are translated into logs, so keeping the same behaviour
+
+**Answer:** Keep today's behaviour (B). `@opentelemetry/instrumentation-pino` 0.66 doesn't translate spans into logs; it stamps the active span's `trace_id`, `span_id`, `trace_flags` onto the user's records, and its log sending maps `msg` to the body and `err` to the exception. `pinoTracer` span records already use `msg` and `err`, and its log records carry the Q48 id fields, so no code change.

@@ -26,6 +26,18 @@ export const pinoTracer = (pino: PinoLogger): Tracer => ({
             ...(event.data.attributes ?? {}),
             ...(event.name ? { eventName: event.name } : {}),
             ...(event.data.error ? { err: event.data.error } : {}),
+            ...(event.metadata.traceId !== undefined
+              ? { trace_id: event.metadata.traceId }
+              : {}),
+            ...(event.metadata.spanId !== undefined
+              ? { span_id: event.metadata.spanId }
+              : {}),
+            ...(event.metadata.correlationId !== undefined
+              ? { correlation_id: event.metadata.correlationId }
+              : {}),
+            ...(event.metadata.causationId !== undefined
+              ? { causation_id: event.metadata.causationId }
+              : {}),
             spanName: name,
           },
           event.data.body ?? event.data.error?.message,

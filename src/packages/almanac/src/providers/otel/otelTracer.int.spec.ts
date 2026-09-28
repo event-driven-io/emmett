@@ -120,7 +120,7 @@ describe('otelTracer integration', () => {
           'exception.message': error.message,
           'exception.type': 'error',
         });
-        s.log(LogEvent.error(error));
+        s.log(LogEvent.error(error, 'Command failed'));
         return Promise.reject(error);
       }),
     ).rejects.toThrow('stream version conflict');
@@ -138,12 +138,14 @@ describe('otelTracer integration', () => {
         error: true,
         'exception.message': 'stream version conflict',
         'exception.type': 'error',
+        'error.type': 'Error',
       })
       .hasStatus(SpanStatusCode.ERROR, 'stream version conflict');
 
+    expect(logExporter.getFinishedLogRecords()).toHaveLength(1);
     otelAssertions
       .logs(logExporter.getFinishedLogRecords())
-      .haveLogNamed('exception')
+      .haveLogWithBody('Command failed')
       .hasSeverity(SeverityNumber.ERROR)
       .hasAttribute('exception.message', 'stream version conflict')
       .hasSpanContext(spans[0]!.spanContext());
@@ -572,7 +574,7 @@ describe('otelTracer integration', () => {
     const logged: LogEvent[] = [];
     const captureLogger = logger({
       minLevel: 'trace',
-      event: (e) => void logged.push(e),
+      log: (e) => void logged.push(e),
     });
 
     const tracer = otelTracer('almanac-integration', {

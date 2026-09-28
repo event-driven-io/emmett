@@ -1,5 +1,4 @@
-import type { LogLevel } from '../../loggers/logger';
-import { logger, type Logger } from '../../loggers/logger';
+import { logger, LogLevel, type Logger } from '../../loggers/logger';
 import { createConsoleSpanLogSink } from './consoleSpanLogSink';
 
 export type ConsoleFormat = 'compact' | 'pretty' | 'simple';
@@ -17,6 +16,6 @@ export type ConsoleSpanLoggerOptions = {
 
 export const consoleSpanLogger = (options?: ConsoleSpanLoggerOptions): Logger =>
   logger({
-    minLevel: options?.logLevel,
-    event: createConsoleSpanLogSink(options?.format),
+    minLevel: options?.logLevel ?? LogLevel.info,
+    log: createConsoleSpanLogSink(options?.format),
   });

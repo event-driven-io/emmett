@@ -1,8 +1,8 @@
 import type { AnyValueMap, LogRecord } from '@opentelemetry/api-logs';
 import { logs, SeverityNumber } from '@opentelemetry/api-logs';
 import { severityTextFor } from '../../loggers/formatters/otelLogFormatter';
-import type { LogEvent, LogLevel, Logger } from '../../loggers/logger';
-import { logger } from '../../loggers/logger';
+import type { LogEvent, Logger } from '../../loggers/logger';
+import { logger, LogLevel } from '../../loggers/logger';
 
 const severityNumbers: Record<LogLevel, SeverityNumber> = {
   fatal: SeverityNumber.FATAL,
@@ -23,11 +23,12 @@ export const otelLogger = (options?: OtelLoggerOptions): Logger => {
   const otel = logs.getLogger(options?.name ?? 'almanac');
 
   const log = (e: LogEvent): void => {
-    const data = e.data;
-    const attributes =
-      data.error === undefined
-        ? ((data.attributes ?? {}) as AnyValueMap)
-        : ({ ...(data.attributes ?? {}) } as AnyValueMap);
+    const { data, metadata } = e;
+    const attributes = { ...(data.attributes ?? {}) } as AnyValueMap;
+    if (metadata.correlationId !== undefined)
+      attributes['correlation_id'] = metadata.correlationId;
+    if (metadata.causationId !== undefined)
+      attributes['causation_id'] = metadata.causationId;
     if (data.error !== undefined) {
       attributes['exception.type'] = data.error.name;
       attributes['exception.message'] = data.error.message;
@@ -46,5 +47,5 @@ export const otelLogger = (options?: OtelLoggerOptions): Logger => {
     otel.emit(log);
   };
 
-  return logger({ event: log, minLevel: options?.minLevel });
+  return logger({ log, minLevel: options?.minLevel ?? LogLevel.info });
 };

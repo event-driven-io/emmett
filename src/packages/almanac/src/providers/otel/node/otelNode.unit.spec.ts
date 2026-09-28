@@ -66,14 +66,15 @@ describe('Node OTel observability', () => {
   });
 
   it('uses console logging without creating an OTel log exporter', () => {
+    const log = consoleLogger();
     const configured = observability(
-      otel({ serviceName: 'orders', logging: consoleLogger }),
+      otel({ serviceName: 'orders', logging: log }),
     );
 
     expect(nodeSDK.configurations).toEqual([
       { serviceName: 'orders', logRecordProcessors: [] },
     ]);
-    expect(configured.logger).toBe(consoleLogger);
+    expect(configured.logger).toBe(log);
     expect(configured.tracer).not.toBe(noopTracer());
     expect(configured.meter).not.toBe(noopMeter());
   });

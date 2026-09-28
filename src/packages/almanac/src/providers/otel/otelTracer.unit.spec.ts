@@ -159,9 +159,37 @@ describe('otelTracer', () => {
     expect(logExporter.getFinishedLogRecords()[0]!.spanContext).toBeUndefined();
   });
 
+  it('OTel logger puts correlation and causation ids in attributes', () => {
+    const log = otelLogger();
+
+    log(
+      LogEvent.info({ orderId: 'o1' }, 'order placed', {
+        correlationId: 'corr-1',
+        causationId: 'cause-1',
+      }),
+    );
+
+    expect(logExporter.getFinishedLogRecords()[0]!.attributes).toEqual({
+      orderId: 'o1',
+      correlation_id: 'corr-1',
+      causation_id: 'cause-1',
+    });
+  });
+
+  it('drops debug logs from the OTel logger when no minLevel is set', () => {
+    const log = otelLogger();
+
+    log(LogEvent.debug('cache miss'));
+    log(LogEvent.info('standalone'));
+
+    expect(
+      logExporter.getFinishedLogRecords().map((record) => record.body),
+    ).toEqual(['standalone']);
+  });
+
   it('stamps injected loggers with the OTel span context', async () => {
     const logs: LogEvent[] = [];
-    const log = logger({ event: (event) => logs.push(event) });
+    const log = logger({ log: (event) => logs.push(event) });
     const tracer = otelTracer('almanac', { logger: log });
 
     await tracer.startSpan('test-span', (span) => {
@@ -175,30 +203,54 @@ describe('otelTracer', () => {
     expect(logs[0]!.metadata.spanId).toBe(span.spanContext().spanId);
   });
 
-  it('logs an exception event when the span throws', async () => {
+  it('a failed span writes no log record', async () => {
     const tracer = otelTracer('almanac', { logger: otelLogger() });
     await expect(
       tracer.startSpan('failing-span', () => Promise.reject(new Error('boom'))),
     ).rejects.toThrow('boom');
 
-    otelAssertions
-      .logs(logExporter.getFinishedLogRecords())
-      .haveLogNamed('exception')
-      .hasSeverity(SeverityNumber.ERROR)
-      .hasAttribute('exception.message', 'boom');
+    expect(logExporter.getFinishedLogRecords()).toEqual([]);
   });
 
-  it('sets ERROR status on exception', async () => {
+  it('a failed span has error status, error.type and the message as description', async () => {
+    class OrderNotFound extends Error {}
     const tracer = otelTracer();
     await expect(
       tracer.startSpan('failing-span', () =>
-        Promise.reject(new Error('something went wrong')),
+        Promise.reject(new OrderNotFound('something went wrong')),
       ),
     ).rejects.toThrow('something went wrong');
 
     const span = exporter.getFinishedSpans()[0]!;
-    expect(span.status.code).toBe(SpanStatusCode.ERROR);
-    expect(span.status.message).toBe('something went wrong');
+    expect(span.status).toEqual({
+      code: SpanStatusCode.ERROR,
+      message: 'something went wrong',
+    });
+    expect(span.attributes).toEqual({ 'error.type': 'OrderNotFound' });
+  });
+
+  it('a span failed with a non-Error value has error.type _OTHER', async () => {
+    const tracer = otelTracer();
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+      tracer.startSpan('failing-span', () => Promise.reject('boom')),
+    ).rejects.toBe('boom');
+
+    const span = exporter.getFinishedSpans()[0]!;
+    expect(span.status).toEqual({
+      code: SpanStatusCode.ERROR,
+      message: 'boom',
+    });
+    expect(span.attributes).toEqual({ 'error.type': '_OTHER' });
+  });
+
+  it('a successful span has no error.type', async () => {
+    const tracer = otelTracer();
+    await tracer.startSpan('ok-span', () => Promise.resolve());
+
+    const span = exporter.getFinishedSpans()[0]!;
+    expect(span.status).toEqual({ code: SpanStatusCode.OK });
+    expect(span.attributes).toEqual({});
   });
 
   it('passes links at span creation', async () => {

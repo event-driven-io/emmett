@@ -13,6 +13,7 @@ export const EmmettAttributes = {
     name: 'emmett.stream.name',
     versionBefore: 'emmett.stream.version.before',
     versionAfter: 'emmett.stream.version.after',
+    position: 'emmett.stream.position',
   },
   eventStore: {
     operation: 'emmett.eventstore.operation',
@@ -34,6 +35,7 @@ export const EmmettAttributes = {
   },
   processor: {
     id: 'emmett.processor.id',
+    instanceId: 'emmett.processor.instance_id',
     type: 'emmett.processor.type',
     status: 'emmett.processor.status',
     batchSize: 'emmett.processor.batch_size',
@@ -41,6 +43,11 @@ export const EmmettAttributes = {
     checkpointBefore: 'emmett.processor.checkpoint.before',
     checkpointAfter: 'emmett.processor.checkpoint.after',
     lagEvents: 'emmett.processor.lag_events',
+    startFrom: 'emmett.processor.start_from',
+    checkpoint: 'emmett.processor.checkpoint',
+    lock: {
+      key: 'emmett.processor.lock.key',
+    },
   },
   workflow: {
     id: 'emmett.workflow.id',
@@ -52,6 +59,7 @@ export const EmmettAttributes = {
     stateRebuildEventCount: 'emmett.workflow.state_rebuild.event_count',
   },
   consumer: {
+    id: 'emmett.consumer.id',
     batchSize: 'emmett.consumer.batch_size',
     processorCount: 'emmett.consumer.processor_count',
     delivery: {
@@ -85,6 +93,24 @@ export const EmmettMetrics = {
   consumer: {
     pollDuration: 'emmett.consumer.poll.duration',
     deliveryDuration: 'emmett.consumer.delivery.duration',
+  },
+} as const;
+
+export const EmmettSpans = {
+  processor: {
+    start: 'emmett.processor.start',
+    acquireLock: 'emmett.processor.acquire_lock',
+    onStart: 'emmett.processor.hooks.on_start',
+    readCheckpoint: 'emmett.processor.read_checkpoint',
+    close: 'emmett.processor.close',
+    releaseLock: 'emmett.processor.release_lock',
+  },
+  consumer: {
+    start: 'emmett.consumer.start',
+    stop: 'emmett.consumer.stop',
+  },
+  eventStore: {
+    onAfterCommit: 'emmett.eventstore.hooks.on_after_commit',
   },
 } as const;
 

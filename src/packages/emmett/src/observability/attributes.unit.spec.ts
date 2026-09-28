@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MessagingAttributes } from '@event-driven-io/almanac';
-import { EmmettAttributes, EmmettMetrics } from './attributes';
+import { EmmettAttributes, EmmettMetrics, EmmettSpans } from './attributes';
 
 const collectLeafValues = (obj: Record<string, unknown>): string[] => {
   const values: string[] = [];
@@ -21,6 +21,48 @@ describe('EmmettAttributes', () => {
     for (const value of values) {
       expect(value).toMatch(/^emmett\./);
     }
+  });
+});
+
+describe('EmmettAttributes for processor and consumer lifecycle logs', () => {
+  it('names consumer, processor instance, lock, start and stream position attributes', () => {
+    expect({
+      consumerId: EmmettAttributes.consumer.id,
+      instanceId: EmmettAttributes.processor.instanceId,
+      lockKey: EmmettAttributes.processor.lock.key,
+      startFrom: EmmettAttributes.processor.startFrom,
+      checkpoint: EmmettAttributes.processor.checkpoint,
+      streamPosition: EmmettAttributes.stream.position,
+    }).toEqual({
+      consumerId: 'emmett.consumer.id',
+      instanceId: 'emmett.processor.instance_id',
+      lockKey: 'emmett.processor.lock.key',
+      startFrom: 'emmett.processor.start_from',
+      checkpoint: 'emmett.processor.checkpoint',
+      streamPosition: 'emmett.stream.position',
+    });
+  });
+});
+
+describe('EmmettSpans', () => {
+  it('names processor, consumer and event store lifecycle spans', () => {
+    expect(EmmettSpans).toEqual({
+      processor: {
+        start: 'emmett.processor.start',
+        acquireLock: 'emmett.processor.acquire_lock',
+        onStart: 'emmett.processor.hooks.on_start',
+        readCheckpoint: 'emmett.processor.read_checkpoint',
+        close: 'emmett.processor.close',
+        releaseLock: 'emmett.processor.release_lock',
+      },
+      consumer: {
+        start: 'emmett.consumer.start',
+        stop: 'emmett.consumer.stop',
+      },
+      eventStore: {
+        onAfterCommit: 'emmett.eventstore.hooks.on_after_commit',
+      },
+    });
   });
 });
 
