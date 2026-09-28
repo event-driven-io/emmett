@@ -665,3 +665,13 @@ Breaking changes: `logger({ event })` → `logger({ log })`; `consoleLogger` bec
 > Yes, direct breaks, it wasn't officially released yet
 
 **Answer:** Direct breaks, no deprecation aliases, listed in the release notes. The logging API hasn't been officially released yet.
+
+## Q46. What should `plugins.ts:73` ("No extensions specified in config <path>.") become?
+
+It prints with `console.log` to stdout when the config lists no plugins, then continues with an empty list. The CLI table from Q25 didn't cover it. Options: `debug` on stderr (like `:87`, `:122`), `warn` on stderr (like `:52`), or remove it (like `:28`).
+
+**Oskar (verbatim):**
+
+> Remove it
+
+**Answer:** Removed, like the `IMPORTING` leftover at `plugins.ts:28`.
