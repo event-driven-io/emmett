@@ -935,6 +935,7 @@ describe('processor failure observability', () => {
         assertDeepEqual(errorLogs[0]!.data.error, failure);
         spans
           .hasSingleSpanNamed('processor.handle')
+          .hasError(failure)
           .logged(
             'error',
             'Processor stopped: processing failed',
@@ -959,5 +960,77 @@ describe('processor failure observability', () => {
         ).length;
       })
       .then(({ result }) => assertDeepEqual(result, 1));
+  });
+
+  it('a failing eachBatch handler logs one error with batch attributes and stops the processor', async () => {
+    const failure = new EmmettError('batch failed');
+
+    await given((config) =>
+      reactor({
+        processorId: 'orders',
+        processorInstanceId: 'orders-1',
+        startFrom: { lastCheckpoint: checkpointBefore },
+        eachBatch: () => Promise.reject(failure),
+        observability: config,
+      }),
+    )
+      .when(async (reactor) => {
+        await reactor.start({});
+        const result = await reactor.handle(
+          [
+            makeMessage('OrderPlaced', {
+              checkpoint: ProcessorCheckpoint('3'),
+            }),
+            makeMessage('OrderPaid', { checkpoint: ProcessorCheckpoint('4') }),
+          ],
+          {},
+        );
+        return { result, isActive: reactor.isActive };
+      })
+      .then(({ result, spans }) => {
+        assertDeepEqual(result, {
+          result: {
+            type: 'STOP',
+            reason: 'Error during message processing',
+            error: failure,
+          },
+          isActive: false,
+        });
+        spans
+          .hasSingleSpanNamed('processor.handle')
+          .hasError(failure)
+          .logged('error', 'Processor stopped: batch handling failed', {
+            ...processorIds,
+            [A.processor.batchSize]: 2,
+            [A.processor.batch.checkpoint.first]: '3',
+            [A.processor.batch.checkpoint.last]: '4',
+            [A.processor.checkpointBefore]: checkpointBefore,
+          })
+          .loggedCount(1);
+      });
+  });
+
+  it('exactly one error log is written per batch failure', async () => {
+    const failure = new EmmettError('batch failed');
+
+    await given((config) =>
+      reactor({
+        processorId: 'orders',
+        eachBatch: () => Promise.reject(failure),
+        observability: config,
+      }),
+    )
+      .when(async (reactor, config) => {
+        await reactor.start({});
+        await reactor.handle([failingMessage], {});
+        return config.tracer.spans.flatMap((s) =>
+          s.logs.filter((l) => l.metadata.level === 'error'),
+        );
+      })
+      .then(({ result: errorLogs }) => {
+        assertDeepEqual(errorLogs.length, 1);
+        assertDeepEqual(errorLogs[0]!.name, 'emmett.processor.batch.exception');
+        assertDeepEqual(errorLogs[0]!.data.error, failure);
+      });
   });
 });

@@ -715,3 +715,23 @@ Asked during prompt 11. The consumer's `start` runs the whole polling loop, so a
 > Yes, we should have separate spans and traces with links for consumer start and stop
 
 **Answer:** Accepted. `emmett.consumer.start` and `emmett.consumer.stop` are separate root spans, each in its own trace, and the stop span links to the start span. Processor start spans are children of the consumer start span; processor close spans are children of the consumer stop span. On failure, "Consumer stopped" is logged at `error` inside the stop span.
+
+## Q51. Which attributes hold the first and last positions of a failing custom `eachBatch`?
+
+Asked during prompt 10. Q24 asks for "first and last positions", and no attribute exists for them. A batch can span several streams, so its positions are checkpoints. Proposal: `emmett.processor.batch.checkpoint.first` and `emmett.processor.batch.checkpoint.last`, next to the existing `emmett.processor.checkpoint.before`.
+
+**Oskar (verbatim):**
+
+> ok
+
+**Answer:** Accepted. The `emmett.processor.batch.exception` log carries `emmett.processor.batch.checkpoint.first` and `emmett.processor.batch.checkpoint.last`.
+
+## Q52. How are the task processor's log sites tested when the public API can't reach them?
+
+Asked during prompt 15. `taskProcessor.ts:229` (unhandled task rejection) and `:233` (log and rethrow in `processQueue`) are reached only by an internal bug: tasks route their own errors to their callers, and abort listeners can't throw into the queue. A test that reaches them needs monkey-patching, which the working rules forbid. Proposal: make the change (drop `TaskProcessorLogger`, add `observability`, log `:229` at `error` with `taskGroupId`, `:233` rethrows only), test what is observable (the option flows through; nothing reaches `console` with nothing configured), and leave the two paths without a direct test, noted in todo.md.
+
+**Oskar (verbatim):**
+
+> Ok
+
+**Answer:** Accepted. The two unreachable paths have no direct test; the rest of prompt 15 is tested through the public API.

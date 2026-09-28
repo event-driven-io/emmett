@@ -1,3 +1,4 @@
+import type { Observability } from '@event-driven-io/almanac';
 import { taskProcessor as createTaskProcessor } from '../../taskProcessing';
 
 export type LockOptions = { lockId: number };
@@ -15,10 +16,15 @@ export type Lock = {
   ) => Promise<Result>;
 };
 
-export const InProcessLock = (): Lock => {
+export const InProcessLock = (options?: {
+  observability?: Partial<Observability>;
+}): Lock => {
   const taskProcessor = createTaskProcessor({
     maxActiveTasks: Number.MAX_VALUE,
     maxQueueSize: Number.MAX_VALUE,
+    ...(options?.observability !== undefined
+      ? { observability: options.observability }
+      : {}),
   });
 
   // Map to store release functions of currently held locks: lockId -> release()

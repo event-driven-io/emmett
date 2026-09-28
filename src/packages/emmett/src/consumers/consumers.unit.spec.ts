@@ -1,4 +1,9 @@
-import { assertThatSpans, ObservabilitySpec } from '@event-driven-io/almanac';
+import {
+  assertThatSpans,
+  collectingMeter,
+  collectingTracer,
+  ObservabilitySpec,
+} from '@event-driven-io/almanac';
 import { describe, expectTypeOf, it, vi } from 'vitest';
 import { MessageSourceCaughtUp } from '../eventStore/events';
 import { EmmettError } from '../errors';
@@ -292,13 +297,9 @@ void describe('consumer', () => {
   void it('merges consumer observability into all processor factory options', () => {
     const { source } = testSource([]);
     const { processor } = testProcessor('a');
-    const consumerTracer = {} as NonNullable<
-      EmmettObservabilityConfig['tracer']
-    >;
-    const processorTracer = {} as NonNullable<
-      EmmettObservabilityConfig['tracer']
-    >;
-    const meter = {} as NonNullable<EmmettObservabilityConfig['meter']>;
+    const consumerTracer = collectingTracer();
+    const processorTracer = collectingTracer();
+    const meter = collectingMeter();
     const receivedOptions: {
       processor: AnyMessageProcessor;
       observability?: EmmettObservabilityConfig;
@@ -571,7 +572,11 @@ void describe('consumer', () => {
     await messageConsumer.start();
 
     assertTrue(scopeCalls >= 4);
-    assertTrue(state.contexts.every((context) => context === scopeContext));
+    assertTrue(
+      state.contexts.every(
+        (context) => (context as { marker?: string }).marker === 'scoped',
+      ),
+    );
   });
 
   void it('never reads the last checkpoint from inside the scope', async () => {
@@ -813,6 +818,118 @@ void describe('consumer observability', () => {
             [A.processor.id]: 'a',
           })
           .loggedCount(1);
+      });
+  });
+
+  void it('a failing processor init logs nothing but Consumer stopped', async () => {
+    const failure = new EmmettError('init failed');
+    const { processor } = testProcessor('a');
+    processor.init = () => Promise.reject(failure);
+    const stdout = vi.spyOn(console, 'log');
+    let stdoutCalls: number | undefined;
+
+    try {
+      await given((config) =>
+        testConsumer({
+          consumerId: 'orders-consumer',
+          source: testSource([]).source,
+          processors: [processor],
+          observability: config,
+        }),
+      )
+        .when(async (consumer, config) => {
+          const error = await consumer.start().catch((error: unknown) => error);
+          return {
+            error,
+            logs: config.tracer.spans.flatMap((s) => s.logs),
+          };
+        })
+        .then(({ result: { error, logs }, spans }) => {
+          assertDeepEqual(error, failure);
+          assertEqual(logs.length, 1);
+          spans.hasSingleSpanNamed(S.consumer.start).hasError(failure).noLogs();
+          spans
+            .hasSingleSpanNamed(S.consumer.stop)
+            .logged('error', 'Consumer stopped', {
+              [A.consumer.id]: 'orders-consumer',
+              [A.processor.id]: 'a',
+            });
+        });
+      stdoutCalls = stdout.mock.calls.length;
+    } finally {
+      stdout.mockRestore();
+    }
+
+    assertEqual(stdoutCalls, 0);
+  });
+
+  void it('a failing cleanup after init failure logs a warning with the processor id', async () => {
+    const initFailure = new EmmettError('init failed');
+    const closeFailure = new EmmettError('close failed');
+    const { processor } = testProcessor('a');
+    processor.init = () => Promise.reject(initFailure);
+    processor.close = () => Promise.reject(closeFailure);
+
+    await given((config) =>
+      testConsumer({
+        source: testSource([]).source,
+        processors: [processor],
+        observability: config,
+      }),
+    )
+      .when((consumer) => consumer.start().catch(() => {}))
+      .then(({ spans }) =>
+        spans
+          .hasSingleSpanNamed(S.consumer.start)
+          .logged('warn', 'Processor cleanup after failed init failed', {
+            [A.processor.id]: 'a',
+          })
+          .loggedCount(1),
+      );
+  });
+
+  void it('starting an already running consumer logs at debug', async () => {
+    await given((config) =>
+      testConsumer({
+        consumerId: 'orders-consumer',
+        source: testSource([]).source,
+        processors: [testProcessor('a').processor],
+        observability: config,
+      }),
+    )
+      .when(async (consumer, config) => {
+        const first = consumer.start();
+        await consumer.whenStarted();
+        const second = consumer.start();
+        await consumer.stop();
+        await first;
+        return {
+          sameStart: first === second,
+          startSpans: config.tracer.spans.filter(
+            (s) => s.name === S.consumer.start,
+          ),
+        };
+      })
+      .then(({ result: { sameStart, startSpans } }) => {
+        assertTrue(sameStart);
+        assertEqual(startSpans.length, 2);
+        assertThatSpans(startSpans)
+          .haveSpansNamed(S.consumer.start)
+          .hasCount(2);
+        assertDeepEqual(
+          startSpans[1]!.logs.map((l) => [
+            l.metadata.level,
+            l.data.body,
+            l.data.attributes,
+          ]),
+          [
+            [
+              'debug',
+              'Consumer already running',
+              { [A.consumer.id]: 'orders-consumer' },
+            ],
+          ],
+        );
       });
   });
 });

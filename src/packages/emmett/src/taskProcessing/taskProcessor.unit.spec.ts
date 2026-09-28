@@ -1,5 +1,6 @@
 import assert from 'assert';
-import { beforeEach, describe, it } from 'vitest';
+import { logger, type LogEvent } from '@event-driven-io/almanac';
+import { beforeEach, describe, it, vi } from 'vitest';
 import { EmmettError } from '../errors';
 import {
   collectGarbage,
@@ -1076,3 +1077,46 @@ const blockEventLoopFor = (timeoutMs: number): void => {
     // Keep the event loop busy so pending timers cannot run first.
   }
 };
+
+describe('TaskProcessor observability', () => {
+  it('a failing task rejects its caller and is not logged through the configured observability', async () => {
+    const events: LogEvent[] = [];
+    const processor = taskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 1,
+      observability: { logger: logger({ log: (e) => events.push(e) }) },
+    });
+    const failure = new EmmettError('task failed');
+
+    await assert.rejects(
+      processor.enqueue(() => Promise.reject(failure), { taskGroupId: 'g1' }),
+      failure,
+    );
+    await processor.waitForEndOfProcessing();
+
+    assert.deepStrictEqual(events, []);
+  });
+
+  it('nothing reaches the console when no observability is configured', async () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+    let calls: number | undefined;
+
+    try {
+      const processor = taskProcessor({ maxActiveTasks: 1, maxQueueSize: 1 });
+
+      await assert.rejects(
+        processor.enqueue(() => Promise.reject(new EmmettError('task failed'))),
+      );
+      await processor.waitForEndOfProcessing();
+      calls = consoleError.mock.calls.length + consoleLog.mock.calls.length;
+    } finally {
+      consoleError.mockRestore();
+      consoleLog.mockRestore();
+    }
+
+    assert.strictEqual(calls, 0);
+  });
+});

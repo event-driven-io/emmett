@@ -1,3 +1,8 @@
+import {
+  LogEvent,
+  type ObservabilityScope,
+  type SpanLink,
+} from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
 import { EmmettError } from '../errors';
 import { MessageSourceControlMessage } from '../eventStore/events';
@@ -11,6 +16,8 @@ import {
   withMessageProcessorFactory,
 } from '../processors';
 import {
+  EmmettAttributes,
+  EmmettSpans,
   mergeObservability,
   type EmmettObservabilityConfig,
 } from '../observability';
@@ -28,7 +35,11 @@ import type {
   MessageSource,
   MessageSourceMessage,
 } from './messageSources/messageSource';
-import type { ConsumerObservabilityConfig } from './observability';
+import {
+  consumerCollector,
+  consumerObservability,
+  type ConsumerObservabilityConfig,
+} from './observability';
 
 /**
  * Condition that makes a running consumer stop on its own. Either key stops it
@@ -217,6 +228,20 @@ export const consumer = <
   const scope: MessageConsumerScope<HandlerContext> =
     options.scope ?? ((handler) => handler({}));
 
+  const consumerId = options.consumerId ?? uuid();
+  const collector = consumerCollector(consumerObservability(options));
+  const lifecycleContext = () => ({
+    consumerId,
+    processorCount: processors.length,
+  });
+
+  const withObservabilityScope =
+    (
+      observabilityScope: ObservabilityScope,
+    ): MessageConsumerScope<HandlerContext> =>
+    (handler) =>
+      scope((context) => handler({ ...context, observabilityScope }));
+
   let isRunning = false;
   let isInitialized = false;
   let abortController: AbortController | null = null;
@@ -254,42 +279,49 @@ export const consumer = <
   // run its onClose hook twice.
   const closedDuringInit = new Set<string>();
 
-  const stopProcessors = () =>
-    scope(async (context) => {
+  const stopProcessors = (observabilityScope: ObservabilityScope) =>
+    withObservabilityScope(observabilityScope)(async (context) => {
       const toClose = processors.filter((p) => !closedDuringInit.has(p.id));
       closedDuringInit.clear();
 
       await Promise.all(toClose.map((p) => p.close(context)));
     });
 
-  const init = (): Promise<void> =>
-    scope(async (context) => {
-      if (isInitialized) return;
+  let failedProcessorId: string | undefined;
 
-      for (const processor of processors) {
-        try {
-          await processor.init(context);
-        } catch (error) {
-          console.log(
-            `Error during processor initialization for processor: ${processor.id}. Stopping it.`,
-            error,
-          );
-          closedDuringInit.add(processor.id);
-          await processor.close(context).catch((closeError) => {
-            console.log(
-              `Error during processor cleanup after failed initialization for processor: ${processor.id}`,
-              closeError,
-            );
-          });
-          console.log(
-            `Processor ${processor.id} stopped successfully after failed initialization.`,
-          );
-          throw error;
+  const init = (observabilityScope?: ObservabilityScope): Promise<void> =>
+    (observabilityScope ? withObservabilityScope(observabilityScope) : scope)(
+      async (context) => {
+        if (isInitialized) return;
+
+        for (const processor of processors) {
+          try {
+            await processor.init(context);
+          } catch (error) {
+            failedProcessorId = processor.id;
+            closedDuringInit.add(processor.id);
+            await processor.close(context).catch((closeError: unknown) => {
+              context.observabilityScope?.log(
+                LogEvent(
+                  'Processor cleanup after failed init failed',
+                  {
+                    body: 'Processor cleanup after failed init failed',
+                    error: closeError as Error,
+                    attributes: {
+                      [EmmettAttributes.processor.id]: processor.id,
+                    },
+                  },
+                  { level: 'warn' },
+                ),
+              );
+            });
+            throw error;
+          }
         }
-      }
 
-      isInitialized = true;
-    });
+        isInitialized = true;
+      },
+    );
 
   const stop = async () => {
     if (!isRunning) return;
@@ -297,17 +329,14 @@ export const consumer = <
 
     abortController?.abort();
 
-    try {
-      await start;
-    } catch (error) {
-      console.log('Error during consumer stop:', error);
-    }
+    // a failed run was already logged as "Consumer stopped"
+    await start.catch(() => {});
 
     abortController = null;
   };
 
   return {
-    consumerId: options.consumerId ?? uuid(),
+    consumerId,
     get isRunning() {
       return isRunning;
     },
@@ -326,7 +355,7 @@ export const consumer = <
         processors.map((p) => p.whenProcessed(lastCheckpoint, waitOptions)),
       );
     },
-    init,
+    init: () => init(),
     reactor: withMessageProcessorFactory(
       register,
       options.reactorFactory,
@@ -344,8 +373,18 @@ export const consumer = <
     ),
     start: () => {
       if (isRunning) {
-        console.log(
-          'Consumer is already running. Returning the existing start promise.',
+        void collector.lifecycleScope(
+          EmmettSpans.consumer.start,
+          lifecycleContext(),
+          (startScope) => {
+            startScope.log(
+              LogEvent.debug(
+                { [EmmettAttributes.consumer.id]: consumerId },
+                'Consumer already running',
+              ),
+            );
+            return Promise.resolve();
+          },
         );
         return start;
       }
@@ -364,16 +403,32 @@ export const consumer = <
       const controller = new AbortController();
       abortController = controller;
 
-      start = (async () => {
-        try {
-          if (!isInitialized) await init();
+      failedProcessorId = undefined;
 
-          const startPositions = await ConsumerStartPositions.resolve({
-            processors,
-            handlerContext: {},
-            scope,
-            readLastMessageCheckpoint: () => source.readLastMessageCheckpoint(),
-          });
+      start = (async () => {
+        let startLink: SpanLink | undefined;
+        let failure: unknown;
+        try {
+          const startPositions = await collector.lifecycleScope(
+            EmmettSpans.consumer.start,
+            lifecycleContext(),
+            async (startScope) => {
+              startLink = {
+                traceId: startScope.context.traceId,
+                spanId: startScope.context.spanId,
+              };
+
+              if (!isInitialized) await init(startScope);
+
+              return ConsumerStartPositions.resolve({
+                processors,
+                handlerContext: {},
+                scope: withObservabilityScope(startScope),
+                readLastMessageCheckpoint: () =>
+                  source.readLastMessageCheckpoint(),
+              });
+            },
+          );
 
           const handleBatch = (
             messages: RecordedMessage<
@@ -386,25 +441,21 @@ export const consumer = <
               if (active.length === 0) return 'STOP' as const;
 
               const results = await Promise.allSettled(
-                active.map(async (p) => {
-                  try {
-                    return await p.handle(
-                      startPositions.afterStartPosition(p.id, messages),
-                      context,
-                    );
-                  } catch (error) {
-                    console.log(
-                      `Error during message batch processing for processor: ${p.id}`,
-                      error,
-                    );
-                    throw error;
-                  }
-                }),
+                active.map(async (p) =>
+                  p.handle(
+                    startPositions.afterStartPosition(p.id, messages),
+                    context,
+                  ),
+                ),
               );
 
-              const failure = results.find((r) => r.status === 'rejected');
+              const failedIndex = results.findIndex(
+                (r) => r.status === 'rejected',
+              );
+              const failure = results[failedIndex];
 
-              if (failure) {
+              if (failure?.status === 'rejected') {
+                failedProcessorId = active[failedIndex]!.id;
                 throw EmmettError.mapFrom(
                   failure.reason as Error | { message?: string },
                 );
@@ -452,11 +503,40 @@ export const consumer = <
             }
           }
         } catch (error) {
+          failure = error;
           startedAwaiter.reject(error);
           throw error;
         } finally {
           isRunning = false;
-          await stopProcessors();
+          await collector.lifecycleScope(
+            EmmettSpans.consumer.stop,
+            lifecycleContext(),
+            async (stopScope) => {
+              await stopProcessors(stopScope);
+
+              if (failure !== undefined)
+                stopScope.log(
+                  LogEvent(
+                    'emmett.consumer.exception',
+                    {
+                      body: 'Consumer stopped',
+                      error: failure as Error,
+                      attributes: {
+                        [EmmettAttributes.consumer.id]: consumerId,
+                        ...(failedProcessorId !== undefined
+                          ? {
+                              [EmmettAttributes.processor.id]:
+                                failedProcessorId,
+                            }
+                          : {}),
+                      },
+                    },
+                    { level: 'error' },
+                  ),
+                );
+            },
+            startLink ? { links: [startLink] } : undefined,
+          );
         }
       })();
 

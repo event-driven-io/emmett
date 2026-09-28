@@ -42,6 +42,12 @@ export const EmmettAttributes = {
     eventTypes: 'emmett.processor.event_types',
     checkpointBefore: 'emmett.processor.checkpoint.before',
     checkpointAfter: 'emmett.processor.checkpoint.after',
+    batch: {
+      checkpoint: {
+        first: 'emmett.processor.batch.checkpoint.first',
+        last: 'emmett.processor.batch.checkpoint.last',
+      },
+    },
     lagEvents: 'emmett.processor.lag_events',
     startFrom: 'emmett.processor.start_from',
     checkpoint: 'emmett.processor.checkpoint',
