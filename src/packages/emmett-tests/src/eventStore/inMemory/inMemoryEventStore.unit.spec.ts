@@ -1,6 +1,11 @@
 import { getInMemoryEventStore } from '@event-driven-io/emmett';
 import { describe } from 'vitest';
-import { testAggregateStream, testStreamExists } from '../features';
+import {
+  testAggregateStream,
+  testListStreams,
+  testReadStreamRanges,
+  testStreamExists,
+} from '../features';
 
 // const { stopOn } = streamTransformations;
 
@@ -10,6 +15,10 @@ describe('InMemoryEventStore', () => {
   testAggregateStream(() => Promise.resolve(getInMemoryEventStore()));
 
   testStreamExists(() => Promise.resolve(getInMemoryEventStore()));
+
+  testReadStreamRanges(() => Promise.resolve(getInMemoryEventStore()));
+
+  testListStreams(() => Promise.resolve(getInMemoryEventStore()));
 
   // void it('Successful subscription and processing of events', async () => {
   //   const eventStore = getInMemoryEventStore();

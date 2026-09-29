@@ -69,6 +69,8 @@ export {
 
 export const MongoDBEventStoreDefaultStreamVersion = 0n;
 
+const MaxMongoDBSliceCount = 2_147_483_647;
+
 export type StreamCollectionName<T extends StreamType = StreamType> =
   `emt:${T}`;
 
@@ -281,20 +283,29 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
           streamName: { $eq: streamName },
         };
 
-        const eventsSliceArr: number[] = [];
+        // Stream positions start at 1, so a position is its array index plus one
+        const from =
+          options?.from !== undefined && options.from > 0n ? options.from : 1n;
+        const countToEnd =
+          options?.to !== undefined ? options.to - from + 1n : undefined;
+        const count =
+          countToEnd !== undefined && options?.maxCount !== undefined
+            ? countToEnd < options.maxCount
+              ? countToEnd
+              : options.maxCount
+            : (countToEnd ?? options?.maxCount);
+        const isEmptyRange = count !== undefined && count <= 0n;
 
-        if (options && 'from' in options) {
-          eventsSliceArr.push(Number(options.from));
-        } else {
-          eventsSliceArr.push(0);
-        }
-
-        if (options && 'to' in options) {
-          eventsSliceArr.push(Number(options.to));
-        }
-
-        const eventsSlice =
-          eventsSliceArr.length > 1 ? { $slice: eventsSliceArr } : 1;
+        const eventsSlice = isEmptyRange
+          ? { $slice: 0 }
+          : count !== undefined || from > 1n
+            ? {
+                $slice: [
+                  Number(from - 1n),
+                  count !== undefined ? Number(count) : MaxMongoDBSliceCount,
+                ],
+              }
+            : 1;
 
         const stream = await collection.findOne<
           WithId<Pick<EventStream<EventPayloadType>, 'metadata' | 'messages'>>

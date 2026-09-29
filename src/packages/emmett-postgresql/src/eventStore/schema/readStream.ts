@@ -13,7 +13,12 @@ import {
 } from '@event-driven-io/emmett';
 import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
 import { PostgreSQLEventStoreCheckpoint } from './readMessagesBatch';
-import { defaultTag, messagesTable, tableReference } from './typing';
+import {
+  defaultTag,
+  messagesTable,
+  streamsTable,
+  tableReference,
+} from './typing';
 
 type ReadStreamSqlResult<EventType extends Event> = {
   stream_position: string;
@@ -44,12 +49,11 @@ export const readStream = async <
     ? `AND stream_position >= ${options.from}`
     : '';
 
-  const to = Number(
-    options?.to ??
-      (options?.maxCount ? (options.from ?? 0n) + options.maxCount : NaN),
-  );
+  const toCondition =
+    options?.to !== undefined ? `AND stream_position <= ${options.to}` : '';
 
-  const toCondition = !isNaN(to) ? `AND stream_position <= ${to}` : '';
+  const limit =
+    options?.maxCount !== undefined ? `LIMIT ${options.maxCount}` : '';
 
   const events: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
     await mapRows(
@@ -57,7 +61,8 @@ export const readStream = async <
         SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id, transaction_id
            FROM ${tableReference(options?.databaseSchemaName, messagesTable.name)}
            WHERE stream_id = ${streamId} AND partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE ${SQL.plain(fromCondition)} ${SQL.plain(toCondition)}
-           ORDER BY stream_position ASC`,
+           ORDER BY stream_position ASC
+           ${SQL.plain(limit)}`,
       ),
       (row) => {
         const rawEvent = {
@@ -93,6 +98,33 @@ export const readStream = async <
         return upcastRecordedMessage(event, options?.schema?.versioning);
       },
     );
+
+  const isRange =
+    options?.from !== undefined ||
+    options?.to !== undefined ||
+    options?.maxCount !== undefined;
+
+  // A range may not include the last message, so read the version from the stream
+  if (isRange) {
+    const { rows } = await execute.query<{ stream_position: string }>(
+      SQL`SELECT stream_position
+           FROM ${tableReference(options?.databaseSchemaName, streamsTable.name)}
+           WHERE stream_id = ${streamId} AND partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE`,
+    );
+    const stream = rows[0];
+
+    return stream
+      ? {
+          currentStreamVersion: BigInt(stream.stream_position),
+          events,
+          streamExists: true,
+        }
+      : {
+          currentStreamVersion: PostgreSQLEventStoreDefaultStreamVersion,
+          events: [],
+          streamExists: false,
+        };
+  }
 
   return events.length > 0
     ? {

@@ -6,6 +6,7 @@ import {
   assertThrowsAsync,
   assertTrue,
   CommandHandler,
+  EmmettError,
   ExpectedVersionConflictError,
   isExpectedVersionConflictError,
   type EventStore,
@@ -84,17 +85,17 @@ export function testAggregateStream(
         const resultAt1 = await eventStore.aggregateStream(shoppingCartId, {
           evolve: testCase.evolve,
           initialState,
-          read: { to: 1n },
+          read: { to: options.getInitialIndex() },
         });
         const resultAt2 = await eventStore.aggregateStream(shoppingCartId, {
           evolve: testCase.evolve,
           initialState,
-          read: { to: 2n },
+          read: { to: options.getInitialIndex() + 1n },
         });
         const resultAt3 = await eventStore.aggregateStream(shoppingCartId, {
           evolve: testCase.evolve,
           initialState,
-          read: { to: 3n },
+          read: { to: options.getInitialIndex() + 2n },
         });
 
         // then
@@ -279,6 +280,214 @@ export function testStreamExists(
 
       assertFalse(await eventStore.streamExists(nonExistingShoppingCartId));
       assertTrue(await eventStore.streamExists(existingShoppingCartId));
+    });
+  });
+}
+
+/**
+ * Forward reads: `from` and `to` are inclusive stream positions, `maxCount` limits
+ * the number of messages, and the result reports the whole stream's version and
+ * existence even when the requested range is empty.
+ */
+export function testReadStreamRanges(
+  eventStoreFactory: EventStoreFactory,
+  options: TestOptions = {
+    getInitialIndex: () => 1n,
+  },
+) {
+  describe('readStream ranges', () => {
+    let eventStore: EventStore;
+    let streamName: string;
+    const position = (index: number) =>
+      options.getInitialIndex() + BigInt(index);
+    const lastPosition = () => position(9);
+
+    beforeAll(async () => {
+      eventStore = await eventStoreFactory();
+      streamName = `shopping_cart-${randomUUID()}`;
+      await eventStore.appendToStream(
+        streamName,
+        Array.from({ length: 10 }, (_, index) => ({
+          type: 'ProductItemAdded',
+          data: { index },
+        })),
+      );
+    });
+
+    afterAll(async () => {
+      const teardownHook = options?.teardownHook;
+      if (teardownHook) await teardownHook();
+    });
+
+    const read = async (range: {
+      from?: bigint;
+      to?: bigint;
+      maxCount?: bigint;
+    }) => {
+      const result = await eventStore.readStream(streamName, range);
+
+      return {
+        positions: result.events.map((e) => e.metadata.streamPosition),
+        currentStreamVersion: result.currentStreamVersion,
+        streamExists: result.streamExists,
+      };
+    };
+
+    const positions = (fromIndex: number, toIndex: number) =>
+      Array.from({ length: toIndex - fromIndex + 1 }, (_, i) =>
+        position(fromIndex + i),
+      );
+
+    it('reads the whole stream without a range', async () => {
+      assertDeepEqual(await read({}), {
+        positions: positions(0, 9),
+        currentStreamVersion: lastPosition(),
+        streamExists: true,
+      });
+    });
+
+    it('reads from an inclusive position', async () => {
+      assertDeepEqual(
+        (await read({ from: position(3) })).positions,
+        positions(3, 9),
+      );
+    });
+
+    it('reads up to an inclusive position', async () => {
+      assertDeepEqual(
+        (await read({ to: position(5) })).positions,
+        positions(0, 5),
+      );
+    });
+
+    it('reads an inclusive range', async () => {
+      assertDeepEqual(
+        (await read({ from: position(2), to: position(6) })).positions,
+        positions(2, 6),
+      );
+    });
+
+    it('reads at most maxCount messages', async () => {
+      assertDeepEqual(
+        (await read({ maxCount: 3n })).positions,
+        positions(0, 2),
+      );
+      assertDeepEqual(
+        (await read({ from: position(2), maxCount: 3n })).positions,
+        positions(2, 4),
+      );
+    });
+
+    it('applies maxCount within the range', async () => {
+      assertDeepEqual(
+        (await read({ from: position(2), to: position(8), maxCount: 3n }))
+          .positions,
+        positions(2, 4),
+      );
+    });
+
+    it('reports the stream version and existence for a partial range', async () => {
+      assertDeepEqual(await read({ from: position(2), maxCount: 2n }), {
+        positions: positions(2, 3),
+        currentStreamVersion: lastPosition(),
+        streamExists: true,
+      });
+    });
+
+    it('reports the stream version and existence for a range past the end', async () => {
+      assertDeepEqual(await read({ from: position(20) }), {
+        positions: [],
+        currentStreamVersion: lastPosition(),
+        streamExists: true,
+      });
+    });
+
+    it('reports a missing stream', async () => {
+      const result = await eventStore.readStream(
+        `shopping_cart-${randomUUID()}`,
+        { from: position(2), maxCount: 2n },
+      );
+
+      assertDeepEqual(result.events, []);
+      assertFalse(result.streamExists);
+    });
+  });
+}
+
+/**
+ * Stream listing for stores providing `listStreams`.
+ * Streams get a unique prefix, so the tests can share a database.
+ */
+export function testListStreams(
+  eventStoreFactory: EventStoreFactory,
+  options?: { teardownHook?: () => Promise<void> },
+) {
+  describe('listStreams', () => {
+    let eventStore: EventStore;
+    let prefix: string;
+
+    beforeAll(async () => {
+      eventStore = await eventStoreFactory();
+      prefix = `list_${randomUUID().replaceAll('-', '')}`;
+
+      for (const [suffix, count] of [
+        ['c', 1],
+        ['a', 2],
+        ['b', 3],
+      ] as const)
+        await eventStore.appendToStream(
+          `${prefix}-${suffix}`,
+          Array.from({ length: count }, (_, index) => ({
+            type: 'ProductItemAdded',
+            data: { index },
+          })),
+        );
+    });
+
+    afterAll(async () => {
+      const teardownHook = options?.teardownHook;
+      if (teardownHook) await teardownHook();
+    });
+
+    it('lists streams matching the search, ordered by name, with their versions', async () => {
+      const result = await eventStore.listStreams!({ limit: 10, q: prefix });
+
+      assertDeepEqual(
+        result.streams.map((s) => s.streamName),
+        [`${prefix}-a`, `${prefix}-b`, `${prefix}-c`],
+      );
+      assertDeepEqual(
+        result.streams.map(
+          (s) =>
+            s.currentStreamVersion - result.streams[2]!.currentStreamVersion,
+        ),
+        [1n, 2n, 0n],
+      );
+      assertEqual(result.nextCursor, undefined);
+    });
+
+    it('pages with an opaque cursor', async () => {
+      const names: string[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await eventStore.listStreams!({
+          limit: 2,
+          q: prefix,
+          ...(cursor ? { cursor } : {}),
+        });
+        names.push(...page.streams.map((s) => s.streamName));
+        cursor = page.nextCursor;
+      } while (cursor);
+
+      assertDeepEqual(names, [`${prefix}-a`, `${prefix}-b`, `${prefix}-c`]);
+    });
+
+    it('rejects a malformed cursor', async () => {
+      await assertThrowsAsync(
+        () => eventStore.listStreams!({ limit: 1, cursor: '%%%' }),
+        (error) =>
+          EmmettError.isInstanceOf(error, EmmettError.Codes.ValidationError),
+      );
     });
   });
 }

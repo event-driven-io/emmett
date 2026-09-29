@@ -24,6 +24,7 @@ import { eventStoreSchemaMigrationsFor } from './migrations';
 export * from './appendToStream';
 export * from './eventStoreDatabaseSchema';
 export * from './eventStoreSchemaSQL';
+export * from './listStreams';
 export * from './migrations';
 export * from './processors';
 export * from './projections';

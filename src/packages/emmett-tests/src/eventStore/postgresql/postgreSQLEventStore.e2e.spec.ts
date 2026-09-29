@@ -19,6 +19,8 @@ import { afterAll, describe, it } from 'vitest';
 import {
   testAggregateStream,
   testCommandHandling,
+  testListStreams,
+  testReadStreamRanges,
   testStreamExists,
   type EventStoreFactory,
 } from '../features';
@@ -78,6 +80,10 @@ describe('EventStoreDBEventStore', () => {
   });
 
   testStreamExists(eventStoreFactory);
+
+  testReadStreamRanges(eventStoreFactory);
+
+  testListStreams(eventStoreFactory);
 
   void it('should append events correctly using appendEvent function', async () => {
     const productItem: PricedProductItem = {

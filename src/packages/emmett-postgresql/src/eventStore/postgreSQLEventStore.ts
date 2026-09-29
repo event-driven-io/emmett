@@ -46,6 +46,8 @@ import {
   type ReadEventMetadataWithGlobalPosition,
   type ReadStreamOptions,
   type ReadStreamResult,
+  type ListStreamsOptions,
+  type ListStreamsResult,
   type StreamExistsResult,
 } from '@event-driven-io/emmett';
 import type pg from 'pg';
@@ -66,6 +68,7 @@ import {
   eventStoreSchemaSQL,
   PostgreSQLEventStoreCheckpoint,
   readStream,
+  listStreams,
   streamExists,
   type AppendToStreamBeforeCommitHook,
   type CreateEventStoreSchemaOptions,
@@ -98,6 +101,7 @@ export interface PostgresEventStore
     streamName: string,
     options?: PostgresStreamExistsOptions,
   ): Promise<StreamExistsResult>;
+  listStreams(options: ListStreamsOptions): Promise<ListStreamsResult>;
   schema: {
     sql(): string;
     print(): void;
@@ -552,7 +556,11 @@ export function getPostgreSQLEventStore(
             ...(read ?? {}),
             observability: withOperationScope(scope, read?.observability),
           });
-          const currentStreamVersion = result.currentStreamVersion;
+          // With a read range, the aggregated state is as of its last message
+          const currentStreamVersion =
+            result.events.length > 0
+              ? result.events[result.events.length - 1]!.metadata.streamPosition
+              : result.currentStreamVersion;
 
           assertExpectedVersionMatchesCurrent(
             currentStreamVersion,
@@ -650,6 +658,15 @@ export function getPostgreSQLEventStore(
       await ensureSchemaExists();
       return streamExists(pool.execute, streamName, {
         ...options,
+        databaseSchemaName: databaseSchema.databaseSchemaName,
+      });
+    },
+
+    listStreams: async (
+      listOptions: ListStreamsOptions,
+    ): Promise<ListStreamsResult> => {
+      await ensureSchemaExists();
+      return listStreams(pool.execute, listOptions, {
         databaseSchemaName: databaseSchema.databaseSchemaName,
       });
     },

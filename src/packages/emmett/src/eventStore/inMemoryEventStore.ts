@@ -119,22 +119,26 @@ export const getInMemoryEventStore = (
           InMemoryEventStoreDefaultStreamVersion,
         );
 
-        const from = Number(readOptions?.from ?? 0);
-        const to = Number(
-          readOptions?.to ??
-            (readOptions?.maxCount
-              ? (readOptions.from ?? 0n) + readOptions.maxCount
-              : (events?.length ?? 1)),
-        );
+        const from = readOptions?.from;
+        const to = readOptions?.to;
+        const maxCount = readOptions?.maxCount;
+
+        const inRange = (events ?? [])
+          .filter(
+            (event) =>
+              (from === undefined || event.metadata.streamPosition >= from) &&
+              (to === undefined || event.metadata.streamPosition <= to),
+          )
+          .slice(0, maxCount !== undefined ? Number(maxCount) : undefined);
 
         const resultEvents =
-          events !== undefined && events.length > 0
+          inRange.length > 0
             ? upcastRecordedMessages<
                 EventType,
                 EventPayloadType,
                 ReadEventMetadataWithGlobalPosition
               >(
-                events.slice(from, to) as ReadEvent<
+                inRange as ReadEvent<
                   EventPayloadType,
                   ReadEventMetadataWithGlobalPosition
                 >[],

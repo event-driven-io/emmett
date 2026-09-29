@@ -18,6 +18,7 @@ import { describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
 import {
   testAggregateStream,
+  testReadStreamRanges,
   testStreamExists,
   type EventStoreFactory,
 } from '../features';
@@ -46,6 +47,11 @@ describe('EventStoreDBEventStore', () => {
   });
 
   testStreamExists(eventStoreFactory, { teardownHook });
+
+  testReadStreamRanges(eventStoreFactory, {
+    teardownHook,
+    getInitialIndex: () => 0n,
+  });
 
   it('records observability spans while appending with ESDB storage', async () => {
     const container = await getSharedEventStoreDBTestContainer();

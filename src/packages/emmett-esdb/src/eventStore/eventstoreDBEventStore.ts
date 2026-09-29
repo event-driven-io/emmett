@@ -32,6 +32,8 @@ import {
 import type { EventStoreDBClient } from '@eventstore/db-client';
 import {
   ANY,
+  BACKWARDS,
+  END,
   STREAM_EXISTS as ESDB_STREAM_EXISTS,
   NO_STREAM,
   StreamNotFoundError,
@@ -49,23 +51,58 @@ import {
   type EventStoreDBEventStoreConsumerType,
 } from './consumers';
 
+/**
+ * Maps Emmett's inclusive `from`/`to` stream positions and `maxCount` to
+ * EventStoreDB's starting revision and count. Returns `undefined` for an empty range.
+ */
 const toEventStoreDBReadOptions = <
   EventType extends Event,
   EventPayloadType extends Event = EventType,
 >(
   options: ReadStreamOptions<EventType, EventPayloadType> | undefined,
-): ESDBReadStreamOptions | undefined => {
-  return options
-    ? {
-        fromRevision: 'from' in options ? options.from : undefined,
-        maxCount:
-          'maxCount' in options
-            ? options.maxCount
-            : 'to' in options
-              ? options.to
-              : undefined,
-      }
-    : undefined;
+): ESDBReadStreamOptions | undefined | 'EMPTY_RANGE' => {
+  if (!options) return undefined;
+
+  const { from, to, maxCount } = options;
+  const countToEnd = to !== undefined ? to - (from ?? 0n) + 1n : undefined;
+  const count =
+    countToEnd !== undefined && maxCount !== undefined
+      ? countToEnd < maxCount
+        ? countToEnd
+        : maxCount
+      : (countToEnd ?? maxCount);
+
+  if (count !== undefined && count <= 0n) return 'EMPTY_RANGE';
+
+  return {
+    ...(from !== undefined ? { fromRevision: from } : {}),
+    ...(count !== undefined ? { maxCount: count } : {}),
+  };
+};
+
+const isRange = (
+  options: Pick<ReadStreamOptions, 'from' | 'to' | 'maxCount'> | undefined,
+) =>
+  options?.from !== undefined ||
+  options?.to !== undefined ||
+  options?.maxCount !== undefined;
+
+const readCurrentRevision = async (
+  eventStore: EventStoreDBClient,
+  streamName: string,
+): Promise<bigint | undefined> => {
+  try {
+    for await (const { event } of eventStore.readStream(streamName, {
+      direction: BACKWARDS,
+      fromRevision: END,
+      maxCount: 1,
+    }))
+      if (event) return event.revision;
+    return undefined;
+  } catch (error) {
+    if (error instanceof StreamNotFoundError) return undefined;
+    throw error;
+  }
 };
 
 export const EventStoreDBEventStoreDefaultStreamVersion = -1n;
@@ -137,11 +174,15 @@ export const getEventStoreDBEventStore = (
               let currentStreamVersion: bigint =
                 EventStoreDBEventStoreDefaultStreamVersion;
 
+              const readOptions = toEventStoreDBReadOptions(read);
+
               try {
-                for await (const resolvedEvent of eventStore.readStream<EventPayloadType>(
-                  streamName,
-                  toEventStoreDBReadOptions(read),
-                )) {
+                for await (const resolvedEvent of readOptions === 'EMPTY_RANGE'
+                  ? []
+                  : eventStore.readStream<EventPayloadType>(
+                      streamName,
+                      readOptions,
+                    )) {
                   const { event } = resolvedEvent;
                   if (!event) continue;
 
@@ -217,39 +258,54 @@ export const getEventStoreDBEventStore = (
 
           let currentStreamVersion: bigint =
             EventStoreDBEventStoreDefaultStreamVersion;
+          const readOptions = toEventStoreDBReadOptions(options);
 
           try {
-            for await (const resolvedEvent of eventStore.readStream<EventPayloadType>(
-              streamName,
-              toEventStoreDBReadOptions(options),
-            )) {
-              const { event } = resolvedEvent;
-              if (!event) continue;
-              events.push(
-                upcastRecordedMessage(
-                  mapFromESDBEvent<EventPayloadType>(resolvedEvent),
-                  options?.schema?.versioning,
-                ),
-              );
+            if (readOptions !== 'EMPTY_RANGE')
+              for await (const resolvedEvent of eventStore.readStream<EventPayloadType>(
+                streamName,
+                readOptions,
+              )) {
+                const { event } = resolvedEvent;
+                if (!event) continue;
+                events.push(
+                  upcastRecordedMessage(
+                    mapFromESDBEvent<EventPayloadType>(resolvedEvent),
+                    options?.schema?.versioning,
+                  ),
+                );
 
-              currentStreamVersion = event.revision;
-            }
+                currentStreamVersion = event.revision;
+              }
+          } catch (error) {
+            if (!(error instanceof StreamNotFoundError)) throw error;
+
             return {
               currentStreamVersion,
-              events,
-              streamExists: true,
+              events: [],
+              streamExists: false,
             };
-          } catch (error) {
-            if (error instanceof StreamNotFoundError) {
-              return {
-                currentStreamVersion,
-                events: [],
-                streamExists: false,
-              };
-            }
-
-            throw error;
           }
+
+          // A range may not include the last message, so read the version from the stream
+          if (isRange(options)) {
+            const revision = await readCurrentRevision(eventStore, streamName);
+
+            return revision !== undefined
+              ? { currentStreamVersion: revision, events, streamExists: true }
+              : {
+                  currentStreamVersion:
+                    EventStoreDBEventStoreDefaultStreamVersion,
+                  events: [],
+                  streamExists: false,
+                };
+          }
+
+          return {
+            currentStreamVersion,
+            events,
+            streamExists: true,
+          };
         },
         options?.observability,
       ),

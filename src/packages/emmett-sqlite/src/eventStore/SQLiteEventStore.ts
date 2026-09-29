@@ -332,7 +332,11 @@ export const getSQLiteEventStore = <
             observability: withOperationScope(scope, read?.observability),
           });
 
-          const currentStreamVersion = result.currentStreamVersion;
+          // With a read range, the aggregated state is as of its last message
+          const currentStreamVersion =
+            result.events.length > 0
+              ? result.events[result.events.length - 1]!.metadata.streamPosition
+              : result.currentStreamVersion;
 
           assertExpectedVersionMatchesCurrent(
             currentStreamVersion,
