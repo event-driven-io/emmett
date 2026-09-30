@@ -1,8 +1,12 @@
+import { ObservabilitySpec } from '@event-driven-io/almanac';
 import {
+  assertEqual,
   assertThatArray,
   asyncRetry,
   bigIntProcessorCheckpoint,
   delay,
+  EmmettAttributes,
+  EmmettSpans,
   parseBigIntProcessorCheckpoint,
   type Event,
   type ProcessorCheckpoint,
@@ -10,7 +14,7 @@ import {
 } from '@event-driven-io/emmett';
 import { BACKWARDS, END } from '@eventstore/db-client';
 import { v4 as uuid } from 'uuid';
-import { beforeAll, describe, it } from 'vitest';
+import { beforeAll, describe, it, vi } from 'vitest';
 import {
   getSharedEventStoreDB,
   type SharedEventStoreDB,
@@ -89,6 +93,101 @@ void describe('EventStoreDB event store started consumer', () => {
     const result = await eventStore.appendToStream(streamName, events);
     await waitForProjectionToCommit(from, result.lastEventGlobalPosition);
   };
+
+  void describe('observability', () => {
+    const given = ObservabilitySpec.for();
+
+    const appendGuestCheckedIn = async () => {
+      const streamName = `guestStay-${uuid()}`;
+      const { lastEventGlobalPosition } = await eventStore.appendToStream(
+        streamName,
+        [{ type: 'GuestCheckedIn', data: { guestId: uuid() } }],
+      );
+      return { streamName, lastEventGlobalPosition };
+    };
+
+    void it(
+      'processor lifecycle logs and spans reach the configured observability',
+      withDeadline,
+      async () => {
+        const processorId = uuid();
+        const { streamName, lastEventGlobalPosition } =
+          await appendGuestCheckedIn();
+
+        await given((observability) => {
+          const consumer = eventStoreDBEventStoreConsumer({
+            connectionString,
+            from: { stream: streamName },
+            observability,
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId,
+            stopAfter: (event) =>
+              event.metadata.globalPosition === lastEventGlobalPosition,
+            eachMessage: () => {},
+          });
+          return consumer;
+        })
+          .when((consumer) => consumer.start())
+          .then(({ spans }) => {
+            spans
+              .hasSingleSpanNamed(EmmettSpans.processor.start)
+              .hasParentSpanNamed(EmmettSpans.consumer.start)
+              .logged('info', 'Processor started', {
+                [EmmettAttributes.processor.id]: processorId,
+              });
+            spans
+              .hasSingleSpanNamed(EmmettSpans.processor.close)
+              .hasParentSpanNamed(EmmettSpans.consumer.stop)
+              .logged('info', 'Processor stopped', {
+                [EmmettAttributes.processor.id]: processorId,
+              });
+          });
+      },
+    );
+
+    void it(
+      'a consumer with no observability configured logs nothing',
+      withDeadline,
+      async () => {
+        const { streamName, lastEventGlobalPosition } =
+          await appendGuestCheckedIn();
+        const outputs = [
+          vi.spyOn(console, 'log').mockImplementation(() => {}),
+          vi.spyOn(console, 'info').mockImplementation(() => {}),
+          vi.spyOn(console, 'warn').mockImplementation(() => {}),
+          vi.spyOn(console, 'error').mockImplementation(() => {}),
+          vi.spyOn(console, 'debug').mockImplementation(() => {}),
+          vi.spyOn(process.stdout, 'write').mockImplementation(() => true),
+          vi.spyOn(process.stderr, 'write').mockImplementation(() => true),
+        ];
+        let calls: number | undefined;
+
+        try {
+          const consumer = eventStoreDBEventStoreConsumer({
+            connectionString,
+            from: { stream: streamName },
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            stopAfter: (event) =>
+              event.metadata.globalPosition === lastEventGlobalPosition,
+            eachMessage: () => {},
+          });
+          try {
+            await consumer.start();
+          } finally {
+            await consumer.close();
+          }
+          calls = outputs.reduce((sum, o) => sum + o.mock.calls.length, 0);
+        } finally {
+          outputs.forEach((o) => o.mockRestore());
+        }
+
+        assertEqual(calls, 0);
+      },
+    );
+  });
 
   void describe('eachMessage', () => {
     void it(

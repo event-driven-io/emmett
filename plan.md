@@ -40,7 +40,7 @@ The work has four phases. Each one ends at a point worth reviewing, and depends 
 
 1. **Almanac API and attributes (prompts 1–5, spec §1, §2, §4).** Rename the logger option, fix the level default, turn `consoleLogger` into a function, add correlation ids to every scope log, change how the OTel tracer records failures, and add the missing `EmmettAttributes`. Everything later relies on this API.
 2. **Emmett core (prompts 6–15, spec §3, §5, §6 core).** Processor start and close spans with their children and logs, message and batch failure logs, consumer spans and "Consumer stopped", the remaining consumer sites, the Q22 rule for command handling, the `on_after_commit` span, and the task processor. This closes the noopScope gap for all drivers.
-3. **Drivers and web bindings (prompts 16–21, spec §6).** Remove the internal-rethrow and test helper logs, add the PG lock debug logs, check every driver end to end, then the Express, Hono and Fastify changes.
+3. **Drivers and web bindings (prompts 16–21, spec §6).** Remove the internal-rethrow and unreachable logs, add the PG lock debug logs, check every driver end to end, then the Express, Hono and Fastify changes.
 4. **Docs and CLI (prompts 22–23, spec §6 CLI, §8, §9).** The Logging docs page, samples and release notes, then the CLI, which matters least and goes last, followed by the full `npm test`.
 
 Each e2e scenario from spec §7 is written first, in the prompt that implements its behaviour:
@@ -434,7 +434,7 @@ Done when: no `TaskProcessorLogger` remains, tests pass, build green, unit suite
 
 ## Phase 3: Drivers and web bindings
 
-### Prompt 16: remove internal-rethrow, unreachable and test helper logs
+### Prompt 16: remove internal-rethrow and unreachable logs
 
 ```text
 Context: spec.md §3 rule 1, §6 PostgreSQL/SQLite rows and "Test helpers" table. Decisions: Q4, Q17, Q28, Q34.
@@ -445,15 +445,13 @@ Remove these logs, keeping the surrounding behaviour (errors still propagate):
 - `src/packages/emmett-postgresql/src/eventStore/projections/locks/tryAcquireProcessorLock.ts:67` and `:108`. The low-level SQL functions don't log.
 - PostgreSQL `writeToStream.ts:20`: remove with no replacement; the code is unreachable (Q28). Don't delete the rest of `node/streaming`; that's a follow-up.
 
-Test helpers:
-- `src/packages/emmett/src/workflows/workflow.testHelpers.ts:306`: remove the `console.log`.
-- `sqliteTestDatabase.ts:10` in `emmett-sqlite` and `emmett-tests`: remove the `console.log`, keep swallowing the error.
+Test helpers keep their `console.log` calls (Q34): `workflow.testHelpers.ts:306` and `sqliteTestDatabase.ts:10` in `emmett-sqlite` and `emmett-tests`.
 
 Find the files by name; match lines by content.
 
 Tests first: for each checkpoint store, a test "a failing checkpoint store rethrows and logs nothing" using a collecting logger set globally with `setupEmmettObservability` (reset it after the test). Run the PostgreSQL and SQLite checkpoint and lock integration tests.
 
-Done when: no `console.` call remains in those files (test helpers included), tests pass, build green.
+Done when: no `console.` call remains in the library files above, tests pass, build green.
 ```
 
 ### Prompt 17: PostgreSQL processor lock logs at debug

@@ -135,10 +135,10 @@ The Fastify default and the new header are behaviour changes for the release not
 
 ### Test helpers
 
-| Site                                                         | Decision                                                       | Source |
-| ------------------------------------------------------------ | -------------------------------------------------------------- | ------ |
-| `workflow.testHelpers.ts:306`                                | Remove the `console.log`                                       | Q34    |
-| `sqliteTestDatabase.ts:10` (`emmett-sqlite`, `emmett-tests`) | Remove the `console.log` and keep swallowing the error for now | Q34    |
+| Site                                                         | Decision                                             | Source |
+| ------------------------------------------------------------ | ---------------------------------------------------- | ------ |
+| `workflow.testHelpers.ts:306`                                | Keep the `console.log`; test-only output             | Q34    |
+| `sqliteTestDatabase.ts:10` (`emmett-sqlite`, `emmett-tests`) | Keep the `console.log` and keep swallowing the error | Q34    |
 
 ## 7. Tests
 

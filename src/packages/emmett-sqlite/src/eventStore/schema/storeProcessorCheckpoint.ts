@@ -120,22 +120,17 @@ export async function storeProcessorCheckpoint(
     databaseSchemaName?: string;
   },
 ): Promise<StoreProcessorCheckpointResult> {
-  try {
-    const result = await storeSubscriptionCheckpointSQLite(
-      execute,
-      options.processorId,
-      options.version ?? 1,
-      options.newCheckpoint,
-      options.lastProcessedCheckpoint,
-      options.partition ?? defaultTag,
-      options.databaseSchemaName,
-    );
+  const result = await storeSubscriptionCheckpointSQLite(
+    execute,
+    options.processorId,
+    options.version ?? 1,
+    options.newCheckpoint,
+    options.lastProcessedCheckpoint,
+    options.partition ?? defaultTag,
+    options.databaseSchemaName,
+  );
 
-    return result === 1
-      ? { success: true, newCheckpoint: options.newCheckpoint }
-      : { success: false, reason: result === 0 ? 'IGNORED' : 'MISMATCH' };
-  } catch (error) {
-    console.log(error);
-    throw error;
-  }
+  return result === 1
+    ? { success: true, newCheckpoint: options.newCheckpoint }
+    : { success: false, reason: result === 0 ? 'IGNORED' : 'MISMATCH' };
 }
