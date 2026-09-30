@@ -31,6 +31,8 @@ State for [plan.md](plan.md). Tick a box when the prompt's "Done when" holds and
 - [x] 13. Command handling logs only at the outermost operation (Q22), no `exception.*` span attributes
   - Log is `emmett.command.handle.exception`, "Command handling failed" (name to confirm with Oskar).
 - [ ] 14. `emmett.eventstore.hooks.on_after_commit` span for in-memory and MongoDB; e2e scenarios 1 and 4
+  - To discuss with Oskar: how to run e2e scenarios 1 (OTel + pino) and 4 (nothing configured). `PinoInstrumentation` doesn't patch pino inside vitest, and a child process can't run the `build:ts` output or the `/otel` subpaths without changing the TS setup. The e2e tests are skipped until then.
+  - Span and log done for in-memory and MongoDB. The scope goes in through a new `observabilityScope` field in the options, next to `onAfterCommit`, so the overloads and existing callers stay the same. The log is `emmett.eventstore.hooks.on_after_commit.exception`, "onAfterCommit hook failed" (name to confirm with Oskar).
 - [x] 15. Task processor takes `observability`; `TaskProcessorLogger` removed
   - `:229` and `:233` are reachable only by an internal bug, so they have no direct test (Q52). `:233` now rethrows only (the catch is gone).
 
