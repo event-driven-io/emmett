@@ -494,7 +494,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
 
         await tryPublishMessagesAfterCommit<MongoDBEventStore>(
           eventsToAppend,
-          this.options.hooks,
+          { ...this.options.hooks, observabilityScope: scope },
           // {
           // TODO: same context as InlineProjectionHandlerContext for mongodb?
           // },

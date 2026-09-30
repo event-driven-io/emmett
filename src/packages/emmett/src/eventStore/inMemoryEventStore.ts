@@ -282,10 +282,10 @@ export const getInMemoryEventStore = (
               currentStreamVersion === InMemoryEventStoreDefaultStreamVersion,
           };
 
-          await tryPublishMessagesAfterCommit<InMemoryEventStore>(
-            newEvents,
-            eventStoreOptions?.hooks,
-          );
+          await tryPublishMessagesAfterCommit<InMemoryEventStore>(newEvents, {
+            ...eventStoreOptions?.hooks,
+            observabilityScope: scope,
+          });
 
           return result;
         },
