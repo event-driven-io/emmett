@@ -183,6 +183,8 @@ const app = getFastifyApp({
 
 ### Server Options
 
+`serverOptions` takes Fastify's full server options. Fastify's logger is off by default, as in Fastify itself. Turn it on with `logger`, or pass your own logger with `loggerInstance`.
+
 ```typescript
 const app = getFastifyApp({
   apis: [myApi],

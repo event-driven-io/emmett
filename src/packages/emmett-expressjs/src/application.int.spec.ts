@@ -4,6 +4,9 @@ import {
   assertFalse,
   assertOk,
   assertTrue,
+  logger,
+  setupEmmettObservability,
+  type LogEvent,
 } from '@event-driven-io/emmett';
 import { trace, type Span } from '@opentelemetry/api';
 import express, {
@@ -13,8 +16,10 @@ import express, {
   type Router,
 } from 'express';
 import type { ProblemDocument } from 'http-problem-details';
+import { once } from 'node:events';
+import type { AddressInfo } from 'node:net';
 import request from 'supertest';
-import { describe, it, vi } from 'vitest';
+import { afterEach, describe, it, vi } from 'vitest';
 import {
   configureApplication,
   getApplication,
@@ -23,6 +28,7 @@ import {
   on,
   problemDetailsMiddleware,
   registerWebApi,
+  startAPI,
   traceIdMiddleware,
   type HttpResponse,
   type WebApiSetup,
@@ -409,6 +415,172 @@ void describe('getApplication', () => {
 
     assertEqual(response.statusCode, 418);
     assertDeepEqual(response.body, { detail: 'Application failed' });
+  });
+});
+
+void describe('observability', () => {
+  const traceId = '0123456789abcdef0123456789abcdef';
+
+  const withActiveSpan = async <T>(fn: () => Promise<T>): Promise<T> => {
+    const getSpan = vi.spyOn(trace, 'getSpan').mockReturnValue({
+      spanContext: () => ({
+        traceId,
+        spanId: '0123456789abcdef',
+        traceFlags: 1,
+      }),
+    } as Span);
+    try {
+      return await fn();
+    } finally {
+      getSpan.mockRestore();
+    }
+  };
+
+  const traceApi: WebApiSetup = (router) =>
+    router.get('/trace', (_request, response) => response.sendStatus(204));
+
+  afterEach(() => setupEmmettObservability(undefined));
+
+  void it('adds x-trace-id when observability is registered globally', async () => {
+    setupEmmettObservability({});
+    const application = getApplication({ apis: [traceApi] });
+
+    const response = await withActiveSpan(() =>
+      request(application).get('/trace').send(),
+    );
+
+    assertEqual(response.headers['x-trace-id'], traceId);
+  });
+
+  void it('adds x-trace-id when observability is passed to the application', async () => {
+    const application = getApplication({
+      apis: [traceApi],
+      observability: {},
+    });
+
+    const response = await withActiveSpan(() =>
+      request(application).get('/trace').send(),
+    );
+
+    assertEqual(response.headers['x-trace-id'], traceId);
+  });
+
+  void it('does not add x-trace-id when disableTraceIdHeader is true', async () => {
+    setupEmmettObservability({});
+    const application = getApplication({
+      apis: [traceApi],
+      observability: {},
+      disableTraceIdHeader: true,
+    });
+
+    const response = await withActiveSpan(() =>
+      request(application).get('/trace').send(),
+    );
+
+    assertFalse('x-trace-id' in response.headers);
+  });
+
+  void it('does not add x-trace-id when no observability is registered', async () => {
+    const application = getApplication({ apis: [traceApi] });
+
+    const response = await withActiveSpan(() =>
+      request(application).get('/trace').send(),
+    );
+
+    assertFalse('x-trace-id' in response.headers);
+  });
+
+  void it('startAPI logs Server listening with the port to the configured logger', async () => {
+    const records: LogEvent[] = [];
+    const application = getApplication({
+      apis: [traceApi],
+    });
+
+    const server = startAPI(application, {
+      port: 0,
+      observability: {
+        logger: logger({ log: (event) => records.push(event) }),
+      },
+    });
+    try {
+      await once(server, 'listening');
+      const { port } = server.address() as AddressInfo;
+
+      assertDeepEqual(
+        records.map(({ name, data, metadata: { level } }) => ({
+          name,
+          data,
+          level,
+        })),
+        [
+          {
+            name: 'Server listening',
+            data: {
+              body: 'Server listening',
+              attributes: { 'server.port': port },
+            },
+            level: 'info',
+          },
+        ],
+      );
+    } finally {
+      server.close();
+    }
+  });
+
+  void it('startAPI logs Server listening to the globally registered logger', async () => {
+    const records: LogEvent[] = [];
+    setupEmmettObservability({
+      logger: logger({ log: (event) => records.push(event) }),
+    });
+    const application = getApplication({ apis: [traceApi] });
+
+    const server = startAPI(application, { port: 0 });
+    try {
+      await once(server, 'listening');
+
+      assertDeepEqual(
+        records.map(({ name }) => name),
+        ['Server listening'],
+      );
+    } finally {
+      server.close();
+    }
+  });
+
+  void it('startAPI listens on port 3000 when the port is left out', async () => {
+    const application = getApplication({ apis: [traceApi] });
+
+    const server = startAPI(application, { observability: {} });
+    try {
+      await once(server, 'listening');
+
+      assertEqual((server.address() as AddressInfo).port, 3000);
+    } finally {
+      server.close();
+    }
+  });
+
+  void it('startAPI prints nothing when nothing is configured', async () => {
+    const consoleSpies = (
+      ['log', 'info', 'warn', 'error', 'debug'] as const
+    ).map((method) => vi.spyOn(console, method));
+    const stdout = vi.spyOn(process.stdout, 'write');
+    const stderr = vi.spyOn(process.stderr, 'write');
+    const application = getApplication({ apis: [traceApi] });
+
+    const server = startAPI(application, { port: 0 });
+    try {
+      await once(server, 'listening');
+
+      assertDeepEqual(
+        [...consoleSpies, stdout, stderr].map((spy) => spy.mock.calls.length),
+        [0, 0, 0, 0, 0, 0, 0],
+      );
+    } finally {
+      server.close();
+      for (const spy of [...consoleSpies, stdout, stderr]) spy.mockRestore();
+    }
   });
 });
 

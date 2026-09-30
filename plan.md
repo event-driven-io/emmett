@@ -511,7 +511,7 @@ Goal:
 - Add `disableTraceIdHeader?: boolean`. The `x-trace-id` middleware is on when Emmett observability is registered (explicit option or `currentDefaultObservability()` returns a value) and `disableTraceIdHeader` isn't `true`. The header value still comes from the active OTel span, as `traceIdMiddleware` does, so without an active span no header is set.
 - `startAPI` logs `info` "Server listening" with the port as an attribute through the resolved logger. Nothing configured → silent. Remove the `console.info`. `startAPI` needs access to the resolved observability; check its signature and pass it the smallest way.
 
-E2E first, scenario 5 (spec §7): a logger passed through `getApplication` receives "Server listening" when the app starts.
+E2E first, scenario 5 (spec §7): a logger passed to `startAPI` receives "Server listening" when the app starts (Q56).
 
 Integration tests first, in `application.int.spec.ts`:
 - "adds x-trace-id when observability is registered globally".
