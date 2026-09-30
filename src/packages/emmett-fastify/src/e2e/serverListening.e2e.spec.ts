@@ -1,4 +1,4 @@
-import { assertDeepEqual } from '@event-driven-io/emmett';
+import { assertThatArray } from '@event-driven-io/emmett';
 import { describe, it } from 'vitest';
 import { getApplication, startAPI } from '..';
 
@@ -15,11 +15,12 @@ void describe('Server listening E2E', () => {
     try {
       await startAPI(app, { port: 0 });
 
-      assertDeepEqual(
+      assertThatArray(
         lines
           .map((line) => JSON.parse(line) as { level: number; msg: string })
           .filter(({ msg }) => msg.startsWith('Server listening'))
           .map(({ level, msg }) => ({ level, msg })),
+      ).containsExactlyInAnyOrder(
         app.addresses().map(({ address, family, port }) => ({
           level: 30,
           msg: `Server listening at http://${family === 'IPv6' ? `[${address}]` : address}:${port}`,
