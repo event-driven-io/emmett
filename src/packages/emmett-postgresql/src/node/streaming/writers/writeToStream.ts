@@ -16,8 +16,6 @@ export const writeToStream = async <In, Out = In>(
     for (const item of items) {
       await writer.write(item);
     }
-  } catch (error) {
-    console.log(error);
   } finally {
     await writer.close();
   }

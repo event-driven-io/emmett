@@ -1,17 +1,20 @@
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 import type { EmmettError } from '@event-driven-io/emmett';
+import { ObservabilitySpec } from '@event-driven-io/almanac';
 import {
   assertEqual,
   assertThatArray,
   assertThrowsAsync,
   defaultTag,
+  EmmettAttributes,
+  EmmettSpans,
   getProjectorId,
   unknownTag,
   type Event,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, it, vi } from 'vitest';
 import {
   isolatedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
@@ -1084,7 +1087,175 @@ void describe('PostgreSQL event store started consumer', () => {
     );
   });
 
+  void describe('observability', () => {
+    const given = ObservabilitySpec.for();
+
+    const appendGuestCheckedIn = () => {
+      const guestId = uuid();
+      return eventStore.appendToStream(`guestStay-${guestId}`, [
+        { type: 'GuestCheckedIn', data: { guestId } },
+      ]);
+    };
+
+    void it(
+      'processor lifecycle logs and spans reach the configured observability',
+      withDeadline,
+      async () => {
+        const processorId = uuid();
+        const { lastEventGlobalPosition } = await appendGuestCheckedIn();
+
+        await given((config) => {
+          const consumer = postgreSQLEventStoreConsumer({
+            connectionString,
+            observability: config,
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId,
+            stopAfter: (event) =>
+              event.metadata.globalPosition === lastEventGlobalPosition,
+            eachMessage: () => {},
+          });
+          return consumer;
+        })
+          .when((consumer) => consumer.start())
+          .then(({ spans }) => {
+            spans
+              .hasSingleSpanNamed(EmmettSpans.processor.start)
+              .hasParentSpanNamed(EmmettSpans.consumer.start)
+              .logged('info', 'Processor started', {
+                [EmmettAttributes.processor.id]: processorId,
+              });
+            spans
+              .hasSingleSpanNamed(EmmettSpans.processor.close)
+              .hasParentSpanNamed(EmmettSpans.consumer.stop)
+              .logged('info', 'Processor stopped', {
+                [EmmettAttributes.processor.id]: processorId,
+              });
+          });
+      },
+    );
+
+    void it(
+      "a consumer created from an event store logs through the store's observability",
+      withDeadline,
+      async () => {
+        const processorId = uuid();
+        const { lastEventGlobalPosition } = await appendGuestCheckedIn();
+        let storeWithOwnLogger: PostgresEventStore | undefined;
+
+        try {
+          await given((config) => {
+            storeWithOwnLogger = getPostgreSQLEventStore({
+              driver: pgEventStoreDriver,
+              connectionString,
+              observability: config,
+            });
+            const consumer = storeWithOwnLogger.consumer();
+            consumer.reactor<GuestStayEvent>({
+              processorId,
+              stopAfter: (event) =>
+                event.metadata.globalPosition === lastEventGlobalPosition,
+              eachMessage: () => {},
+            });
+            return consumer;
+          })
+            .when((consumer) => consumer.start())
+            .then(({ spans }) => {
+              spans
+                .hasSingleSpanNamed(EmmettSpans.processor.start)
+                .logged('info', 'Processor started', {
+                  [EmmettAttributes.processor.id]: processorId,
+                });
+              spans
+                .hasSingleSpanNamed(EmmettSpans.processor.close)
+                .logged('info', 'Processor stopped', {
+                  [EmmettAttributes.processor.id]: processorId,
+                });
+            });
+        } finally {
+          await storeWithOwnLogger?.close();
+        }
+      },
+    );
+
+    void it(
+      'a consumer with no observability configured logs nothing',
+      withDeadline,
+      async () => {
+        const { lastEventGlobalPosition } = await appendGuestCheckedIn();
+        const outputs = [
+          vi.spyOn(console, 'log').mockImplementation(() => {}),
+          vi.spyOn(console, 'info').mockImplementation(() => {}),
+          vi.spyOn(console, 'warn').mockImplementation(() => {}),
+          vi.spyOn(console, 'error').mockImplementation(() => {}),
+          vi.spyOn(console, 'debug').mockImplementation(() => {}),
+          vi.spyOn(process.stdout, 'write').mockImplementation(() => true),
+          vi.spyOn(process.stderr, 'write').mockImplementation(() => true),
+        ];
+        let calls: number | undefined;
+
+        try {
+          const consumer = postgreSQLEventStoreConsumer({ connectionString });
+          consumer.reactor<GuestStayEvent>({
+            processorId: uuid(),
+            stopAfter: (event) =>
+              event.metadata.globalPosition === lastEventGlobalPosition,
+            eachMessage: () => {},
+          });
+          try {
+            await consumer.start();
+          } finally {
+            await consumer.close();
+          }
+          calls = outputs.reduce((sum, o) => sum + o.mock.calls.length, 0);
+        } finally {
+          outputs.forEach((o) => o.mockRestore());
+        }
+
+        assertEqual(calls, 0);
+      },
+    );
+  });
+
   void describe('processor lock', () => {
+    void it(
+      'starting a processor logs the lock outcome at debug inside the acquire_lock span',
+      withDeadline,
+      async () => {
+        const guestId = uuid();
+        const processorId = uuid();
+        const appendResult = await eventStore.appendToStream(
+          `guestStay-${guestId}`,
+          [{ type: 'GuestCheckedIn', data: { guestId } }],
+        );
+
+        const given = ObservabilitySpec.for();
+
+        await given((config) => {
+          const consumer = postgreSQLEventStoreConsumer({
+            connectionString,
+            observability: config,
+          });
+          consumer.reactor<GuestStayEvent>({
+            processorId,
+            stopAfter: (event) =>
+              event.metadata.globalPosition ===
+              appendResult.lastEventGlobalPosition,
+            eachMessage: () => {},
+          });
+          return consumer;
+        })
+          .when((consumer) => consumer.start())
+          .then(({ spans }) =>
+            spans
+              .hasSingleSpanNamed(EmmettSpans.processor.acquireLock)
+              .logged('debug', 'Processor lock acquired', {
+                [EmmettAttributes.processor.id]: processorId,
+              }),
+          );
+      },
+    );
+
     void it(
       'fails to start when another instance holds the processor lock and the acquisition policy is fail',
       withDeadline,

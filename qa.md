@@ -514,7 +514,11 @@ Proposal: (1) remove the PMS `console.log`; (2) remove the SQLite cleanup `conso
 
 > Keep seallowing for now for sqlite
 
-**Answer:** (2) Remove the `console.log` and keep swallowing the SQLite cleanup error for now. (1) was not objected to: remove the PMS `console.log`.
+> Man, those are test methods, why did you drop the console from them?
+
+> Yes
+
+**Answer:** The test helpers keep their `console.log` calls: the PMS "Releasing room …" line and the SQLite cleanup log, which still swallows the error. They run only in specs, so their output never reaches users. (Corrected during prompt 16, where the logs had been removed.)
 
 ## Q35. How do the processor lifecycle logs map?
 
@@ -735,3 +739,37 @@ Asked during prompt 15. `taskProcessor.ts:229` (unhandled task rejection) and `:
 > Ok
 
 **Answer:** Accepted. The two unreachable paths have no direct test; the rest of prompt 15 is tested through the public API.
+
+## Q53. Should `writeToStream` swallow write errors in an empty `catch` once the `console.log` is gone?
+
+Asked during prompt 16. Removing the `console.log` (Q28) left an empty `catch` that hides write errors completely. `writeToStream` has no logger or scope, and adding one means threading observability through `StreamingCoordinator`, which Q28 marks for deletion.
+
+**Oskar (verbatim):**
+
+> I don't think that doing empty catch without even debug is a good idea
+
+> ok
+
+**Answer:** Drop the `catch` and keep `try/finally`. A write error propagates to the caller, the writer still closes, and nothing is logged at this site.
+
+## Q54. Do e2e scenarios 2 (pino) and 7 (winston) belong in the PostgreSQL package?
+
+Asked during prompt 17. The draft set the user's pino globally with `setupEmmettObservability` and ran a PostgreSQL consumer with no `observability` option, checking that the lock debug logs reach pino at `debug` and not at `info`.
+
+**Oskar (verbatim):**
+
+> Skip global setup tests, they don't make sense in postgresql pacages
+
+> or at least I don't see the value
+
+**Answer:** Scenarios 2 and 7 are not written in `emmett-postgresql`. The lock logs are covered by the lock and consumer integration tests with observability passed explicitly.
+
+## Q55. What replaces e2e scenario 3 (loggers per component)?
+
+Asked during prompt 18. Scenario 3 compared a store's own pino child logger with the global logger. Per Q54 the global half has no value in a driver package; the per-component half checks that a store's own `observability` reaches the consumers created from it.
+
+**Oskar (verbatim):**
+
+> Sure, also we should check that nothing is logged by default, right?
+
+**Answer:** Scenario 3 becomes a PostgreSQL integration test: an event store with its own collecting logger, a consumer created from it without its own `observability`, and "Processor started" and "Processor stopped" land in the store's logger. Each driver also gets "a consumer with no observability configured logs nothing": nothing reaches `console`, `process.stdout` or `process.stderr`.

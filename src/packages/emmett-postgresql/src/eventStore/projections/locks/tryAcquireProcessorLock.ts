@@ -64,10 +64,6 @@ export const tryAcquireProcessorLock = async (
     ),
   );
 
-  console.log(
-    `Lock acquisition attempt for processor '${options.processorId}' with processor instance '${options.processorInstanceId}' and lock '${options.lockKey}' resulted in: ${acquired}`,
-  );
-
   return acquired
     ? { acquired: true, checkpoint: checkpoint! }
     : { acquired: false };
@@ -103,10 +99,6 @@ export const releaseProcessorLock = async (
         projectionName: options.projectionName ?? null,
       }),
     ),
-  );
-
-  console.log(
-    `Lock for processor '${options.processorId}' with processor instance '${options.processorInstanceId}' and lock '${options.lockKey}' released: ${result}`,
   );
 
   return result;

@@ -2,10 +2,12 @@ import { dumbo, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
+  assertEqual,
   assertIsNotNull,
+  assertThrowsAsync,
   defaultTag,
 } from '@event-driven-io/emmett';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { afterAll, beforeAll, describe, it, vi } from 'vitest';
 import { createEventStoreSchema, PostgreSQLEventStoreCheckpoint } from '.';
 import {
   sharedPostgreSQLDatabase,
@@ -412,6 +414,28 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
 
     assertDeepEqual(resultV1Read, { lastProcessedCheckpoint: checkpoint2 });
     assertDeepEqual(resultV2Read, { lastProcessedCheckpoint: checkpoint3 });
+  });
+
+  void it('a failing checkpoint store rethrows and logs nothing', async () => {
+    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+    let calls: number | undefined;
+
+    try {
+      await assertThrowsAsync(() =>
+        storeProcessorCheckpoint(pool.execute, {
+          processorId: 'processor-failing-store',
+          lastProcessedCheckpoint: null,
+          newCheckpoint: checkpoint1,
+          version: 1,
+          databaseSchemaName: 'missing_schema',
+        }),
+      );
+      calls = consoleLog.mock.calls.length;
+    } finally {
+      consoleLog.mockRestore();
+    }
+
+    assertEqual(calls, 0);
   });
 });
 

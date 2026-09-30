@@ -1,6 +1,8 @@
+import { LogEvent, type ObservabilityScope } from '@event-driven-io/almanac';
 import type { SQLExecutor } from '@event-driven-io/dumbo';
 import {
   DefaultProcessorLockPolicy,
+  EmmettAttributes,
   type LockAcquisitionPolicy,
   type ProcessorLock,
   type ProjectionHandlingType,
@@ -32,6 +34,7 @@ export type PostgreSQLProcessorLockOptions = {
 
 export type PostgreSQLProcessorLockContext = {
   execute: SQLExecutor;
+  observabilityScope?: ObservabilityScope;
 };
 
 export type PostgreSQLProcessorLock =
@@ -45,15 +48,20 @@ export const postgreSQLProcessorLock = (
 ): PostgreSQLProcessorLock => {
   let acquired = false;
   const lockKey = options.lockKey ?? toProcessorLockKey(options);
+  const lockAttributes = {
+    [EmmettAttributes.processor.id]: options.processorId,
+    [EmmettAttributes.processor.instanceId]: options.processorInstanceId,
+    [EmmettAttributes.processor.lock.key]: String(lockKey),
+  };
+  const logDebug = (context: PostgreSQLProcessorLockContext, message: string) =>
+    context.observabilityScope?.log(LogEvent.debug(lockAttributes, message));
 
   return {
     tryAcquire: async (
       context: PostgreSQLProcessorLockContext,
     ): Promise<boolean> => {
       if (acquired) {
-        console.log(
-          `Lock for processor '${options.processorId}' is already acquired by this instance. Reusing the lock.`,
-        );
+        logDebug(context, 'Processor lock already held, reusing it');
         return true;
       }
 
@@ -63,26 +71,34 @@ export const postgreSQLProcessorLock = (
       });
 
       acquired = result.acquired;
+      logDebug(
+        context,
+        acquired ? 'Processor lock acquired' : 'Processor lock not acquired',
+      );
       return acquired;
     },
 
     release: async (context: PostgreSQLProcessorLockContext): Promise<void> => {
       if (!acquired) {
-        console.log(
-          `Lock for processor '${options.processorId}' is not acquired by this instance. Skipping release.`,
-        );
+        logDebug(context, 'Processor lock not held, skipping release');
         return;
       }
 
       const { projection, ...releaseOptions } = options;
 
-      await releaseProcessorLock(context.execute, {
+      const ownedByThisInstance = await releaseProcessorLock(context.execute, {
         ...releaseOptions,
         lockKey,
         projectionName: projection?.name,
       });
 
       acquired = false;
+      logDebug(
+        context,
+        ownedByThisInstance
+          ? 'Processor lock released'
+          : 'Processor lock release skipped: another instance owns the processor',
+      );
     },
   };
 };

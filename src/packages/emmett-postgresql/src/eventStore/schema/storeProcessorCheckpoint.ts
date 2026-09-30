@@ -166,38 +166,32 @@ export const storeProcessorCheckpoint = async (
     databaseSchemaName?: string;
   },
 ): Promise<StoreProcessorCheckpointResult> => {
-  try {
-    const { result } = await single(
-      execute.command<{ result: 0 | 1 | 2 | 3 }>(
-        callStoreProcessorCheckpoint({
-          databaseSchemaName: options.databaseSchemaName,
-          processorId: options.processorId,
-          version: options.version ?? 1,
-          position:
-            options.newCheckpoint !== null ? options.newCheckpoint : null,
-          checkPosition:
-            options.lastProcessedCheckpoint !== null
-              ? options.lastProcessedCheckpoint
-              : null,
-          partition: options.partition ?? defaultTag,
-          processorInstanceId: options.processorInstanceId ?? unknownTag,
-        }),
-      ),
-    );
+  const { result } = await single(
+    execute.command<{ result: 0 | 1 | 2 | 3 }>(
+      callStoreProcessorCheckpoint({
+        databaseSchemaName: options.databaseSchemaName,
+        processorId: options.processorId,
+        version: options.version ?? 1,
+        position: options.newCheckpoint !== null ? options.newCheckpoint : null,
+        checkPosition:
+          options.lastProcessedCheckpoint !== null
+            ? options.lastProcessedCheckpoint
+            : null,
+        partition: options.partition ?? defaultTag,
+        processorInstanceId: options.processorInstanceId ?? unknownTag,
+      }),
+    ),
+  );
 
-    return result === 1
-      ? { success: true, newCheckpoint: options.newCheckpoint }
-      : {
-          success: false,
-          reason:
-            result === 0
-              ? 'IGNORED'
-              : result === 3
-                ? 'CURRENT_AHEAD'
-                : 'MISMATCH',
-        };
-  } catch (error) {
-    console.log(error);
-    throw error;
-  }
+  return result === 1
+    ? { success: true, newCheckpoint: options.newCheckpoint }
+    : {
+        success: false,
+        reason:
+          result === 0
+            ? 'IGNORED'
+            : result === 3
+              ? 'CURRENT_AHEAD'
+              : 'MISMATCH',
+      };
 };

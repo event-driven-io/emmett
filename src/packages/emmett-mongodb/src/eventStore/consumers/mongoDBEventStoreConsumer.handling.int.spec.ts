@@ -1,13 +1,17 @@
+import { ObservabilitySpec } from '@event-driven-io/almanac';
 import {
+  assertEqual,
   assertThatArray,
   delay,
+  EmmettAttributes,
+  EmmettSpans,
   inMemoryReactor,
   type Closeable,
   type Event,
   type ProcessorCheckpoint,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { afterAll, beforeAll, describe, it, vi } from 'vitest';
 import {
   sharedMongoDBDatabase,
   type SharedMongoDBDatabase,
@@ -1217,6 +1221,94 @@ void describe('MongoDB event store started consumer', () => {
         },
       );
     });
+  });
+
+  void describe('observability', () => {
+    const given = ObservabilitySpec.for();
+
+    const reactorStoppingAfterAppended = async (processorId: string) => {
+      const streamName = `guestStay-${uuid()}`;
+      const { nextExpectedStreamVersion } = await eventStore.appendToStream(
+        streamName,
+        [{ type: 'GuestCheckedIn', data: { guestId: uuid() } }],
+      );
+      return inMemoryReactor<GuestStayEvent>({
+        processorId,
+        stopAfter: (event) =>
+          event.metadata.streamName === streamName &&
+          event.metadata.streamPosition === nextExpectedStreamVersion,
+        eachMessage: () => {},
+      });
+    };
+
+    void it(
+      'processor lifecycle logs and spans reach the configured observability',
+      withDeadline,
+      async () => {
+        const processorId = uuid();
+        const reactor = await reactorStoppingAfterAppended(processorId);
+
+        await given((observability) =>
+          mongoDBEventStoreConsumer({
+            connectionString,
+            processors: [reactor],
+            clientOptions: { directConnection: true },
+            observability,
+          }),
+        )
+          .when((consumer) => consumer.start())
+          .then(({ spans }) => {
+            spans
+              .hasSingleSpanNamed(EmmettSpans.processor.start)
+              .hasParentSpanNamed(EmmettSpans.consumer.start)
+              .logged('info', 'Processor started', {
+                [EmmettAttributes.processor.id]: processorId,
+              });
+            spans
+              .hasSingleSpanNamed(EmmettSpans.processor.close)
+              .hasParentSpanNamed(EmmettSpans.consumer.stop)
+              .logged('info', 'Processor stopped', {
+                [EmmettAttributes.processor.id]: processorId,
+              });
+          });
+      },
+    );
+
+    void it(
+      'a consumer with no observability configured logs nothing',
+      withDeadline,
+      async () => {
+        const reactor = await reactorStoppingAfterAppended(uuid());
+        const outputs = [
+          vi.spyOn(console, 'log').mockImplementation(() => {}),
+          vi.spyOn(console, 'info').mockImplementation(() => {}),
+          vi.spyOn(console, 'warn').mockImplementation(() => {}),
+          vi.spyOn(console, 'error').mockImplementation(() => {}),
+          vi.spyOn(console, 'debug').mockImplementation(() => {}),
+          vi.spyOn(process.stdout, 'write').mockImplementation(() => true),
+          vi.spyOn(process.stderr, 'write').mockImplementation(() => true),
+        ];
+        let calls: number | undefined;
+
+        try {
+          const consumer = mongoDBEventStoreConsumer({
+            connectionString,
+            processors: [reactor],
+            clientOptions: { directConnection: true },
+          });
+          try {
+            await consumer.start();
+          } finally {
+            await consumer.close();
+          }
+          calls = outputs.reduce((sum, o) => sum + o.mock.calls.length, 0);
+        } finally {
+          outputs.forEach((o) => o.mockRestore());
+        }
+
+        assertEqual(calls, 0);
+      },
+    );
   });
 });
 

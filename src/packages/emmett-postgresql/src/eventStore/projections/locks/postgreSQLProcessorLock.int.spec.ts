@@ -1,15 +1,21 @@
 import { dumbo, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
+  ObservabilityScope,
+  ObservabilitySpec,
+} from '@event-driven-io/almanac';
+import {
   assertDeepEqual,
+  assertEqual,
   assertFalse,
   assertTrue,
   asyncAwaiter,
   defaultTag,
+  EmmettAttributes,
   getProcessorInstanceId,
   unknownTag,
 } from '@event-driven-io/emmett';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { afterAll, beforeAll, describe, it, vi } from 'vitest';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
@@ -1176,6 +1182,173 @@ void describe('tryAcquireProcessorLock', () => {
         secondResult,
         'Expected timeoutSeconds=0 to be blocked by actively held advisory lock',
       );
+    });
+  });
+
+  void describe('observability', () => {
+    const given = ObservabilitySpec.for();
+    const A = EmmettAttributes;
+
+    const lockFor = (processorId: string) =>
+      postgreSQLProcessorLock({
+        lockKey: `lock_${processorId}`,
+        processorId,
+        ...defaultPartitionAndVersion1,
+        processorInstanceId: 'instance_1',
+        lockAcquisitionPolicy: { type: 'skip' },
+      });
+
+    const lockAttributes = (processorId: string) => ({
+      [A.processor.id]: processorId,
+      [A.processor.instanceId]: 'instance_1',
+      [A.processor.lock.key]: `lock_${processorId}`,
+    });
+
+    void it('acquiring the lock logs the outcome at debug with the lock key', async () => {
+      const processorId = 'processor_observability_acquire';
+
+      await given(() => ({}))
+        .when((_, config) =>
+          ObservabilityScope(config).startScope('caller', async (scope) => {
+            const lock = lockFor(processorId);
+            await lock.tryAcquire({
+              execute: pool.execute,
+              observabilityScope: scope,
+            });
+            await lock.tryAcquire({
+              execute: pool.execute,
+              observabilityScope: scope,
+            });
+            await lock.release({ execute: pool.execute });
+          }),
+        )
+        .then(({ spans }) =>
+          spans
+            .hasSingleSpanNamed('caller')
+            .logged(
+              'debug',
+              'Processor lock acquired',
+              lockAttributes(processorId),
+            )
+            .logged(
+              'debug',
+              'Processor lock already held, reusing it',
+              lockAttributes(processorId),
+            )
+            .loggedCount(2),
+        );
+    });
+
+    void it('a lock held by another processor logs not acquired at debug', async () => {
+      const processorId = 'processor_observability_not_acquired';
+      const holder = lockFor(processorId);
+
+      await given(() => ({}))
+        .when((_, config) =>
+          pool.withTransaction(async (tx) => {
+            await holder.tryAcquire({ execute: tx.execute });
+            await ObservabilityScope(config).startScope('caller', (scope) =>
+              lockFor(processorId).tryAcquire({
+                execute: pool.execute,
+                observabilityScope: scope,
+              }),
+            );
+            await holder.release({ execute: tx.execute });
+          }),
+        )
+        .then(({ spans }) =>
+          spans
+            .hasSingleSpanNamed('caller')
+            .logged(
+              'debug',
+              'Processor lock not acquired',
+              lockAttributes(processorId),
+            )
+            .loggedCount(1),
+        );
+    });
+
+    void it('releasing the lock logs at debug', async () => {
+      const processorId = 'processor_observability_release';
+
+      await given(() => ({}))
+        .when((_, config) =>
+          ObservabilityScope(config).startScope('caller', async (scope) => {
+            const lock = lockFor(processorId);
+            await lock.tryAcquire({ execute: pool.execute });
+            await lock.release({
+              execute: pool.execute,
+              observabilityScope: scope,
+            });
+            await lock.release({
+              execute: pool.execute,
+              observabilityScope: scope,
+            });
+          }),
+        )
+        .then(({ spans }) =>
+          spans
+            .hasSingleSpanNamed('caller')
+            .logged(
+              'debug',
+              'Processor lock released',
+              lockAttributes(processorId),
+            )
+            .logged(
+              'debug',
+              'Processor lock not held, skipping release',
+              lockAttributes(processorId),
+            )
+            .loggedCount(2),
+        );
+    });
+
+    void it('releasing a lock whose processor another instance took over logs that at debug', async () => {
+      const processorId = 'processor_observability_taken_over';
+
+      await given(() => ({}))
+        .when((_, config) =>
+          ObservabilityScope(config).startScope('caller', async (scope) => {
+            const lock = lockFor(processorId);
+            await lock.tryAcquire({ execute: pool.execute });
+            await pool.execute.command(
+              SQL`UPDATE emt_processors SET processor_instance_id = 'instance_2' WHERE processor_id = ${processorId}`,
+            );
+            await lock.release({
+              execute: pool.execute,
+              observabilityScope: scope,
+            });
+          }),
+        )
+        .then(({ spans }) =>
+          spans
+            .hasSingleSpanNamed('caller')
+            .logged(
+              'debug',
+              'Processor lock release skipped: another instance owns the processor',
+              lockAttributes(processorId),
+            )
+            .loggedCount(1),
+        );
+    });
+
+    void it('a lock used without an observability scope logs nothing', async () => {
+      const processorId = 'processor_observability_no_scope';
+      const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+      let calls: number | undefined;
+
+      try {
+        const lock = lockFor(processorId);
+        await lock.tryAcquire({ execute: pool.execute });
+        await lock.tryAcquire({ execute: pool.execute });
+        await lock.release({ execute: pool.execute });
+        await lock.release({ execute: pool.execute });
+        calls = consoleLog.mock.calls.length;
+      } finally {
+        consoleLog.mockRestore();
+      }
+
+      assertEqual(calls, 0);
     });
   });
 });
