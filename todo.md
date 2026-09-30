@@ -42,10 +42,14 @@ State for [plan.md](plan.md). Tick a box when the prompt's "Done when" holds and
   - Test helpers keep their `console.log` (Q34 corrected). `writeToStream` lost its `catch`, so write errors propagate (Q53). The failing-store tests check `console` with `vi.spyOn`, like the task processor test; a collecting logger couldn't fail before the change.
 - [x] 17. PostgreSQL processor lock logs at debug; e2e scenarios 2 (pino) and 7 (winston)
   - Scenarios 2 and 7 skipped: global setup tests don't belong in the PostgreSQL package (Q54). Release logs the SQL result: "Processor lock released" or "Processor lock release skipped: another instance owns the processor".
-- [ ] 18. Lifecycle logs and spans reach the configured observability on PostgreSQL, SQLite, MongoDB and EventStoreDB; e2e scenario 3
-- [ ] 19. Express: observability resolution, `x-trace-id` on registration, `disableTraceIdHeader`, "Server listening"; e2e scenario 5
-- [ ] 20. Hono: same as Express; e2e scenario 5
-- [ ] 21. Fastify: full server options, `logger: false` default, no `console.log`, `x-trace-id`; e2e scenario 5
+- [x] 18. Lifecycle logs and spans reach the configured observability on PostgreSQL, SQLite, MongoDB and EventStoreDB; e2e scenario 3
+  - No production change needed. Scenario 3 became an integration test on PostgreSQL and SQLite: a consumer created from a store logs through the store's observability (Q55; MongoDB and EventStoreDB stores have no `consumer()`). Each driver also checks that a consumer with nothing configured writes nothing to `console`, stdout or stderr. The MongoDB tests sit at the end of the file because the first `eachMessage` tests collect every event.
+- [x] 19. Express: observability resolution, `x-trace-id` on registration, `disableTraceIdHeader`, "Server listening"; e2e scenario 5
+  - `startAPI` logs through its own `observability` option, then the global default, then noop; nothing is stored (Q56). The `getApplication` option only turns on the header. The port goes in the `server.port` attribute (OTel semantic convention). "Server listening" is logged without a span. The header check runs when the app is configured.
+- [x] 20. Hono: same as Express; e2e scenario 5
+  - Own `traceIdMiddleware` in `emmett-honojs/src/middlewares`. The silence test passed before the change, because Hono never printed anything; it stays as a guard.
+- [x] 21. Fastify: full server options, `logger: false` default, no `console.log`, `x-trace-id`; e2e scenario 5
+  - `serverOptions` is `FastifyServerOptions`. The header is an `onRequest` hook. The e2e and `loggerInstance` tests fail type-checking against the old `{ logger: boolean }` type. `emmett-fastify/README.md` and `docs/frameworks/fastify.md` say the logger is off by default.
 
 ## Phase 4: Docs and CLI
 

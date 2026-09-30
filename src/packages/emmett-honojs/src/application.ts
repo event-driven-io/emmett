@@ -1,9 +1,16 @@
+import {
+  currentDefaultObservability,
+  LogEvent,
+  noopLogger,
+  type Observability,
+} from '@event-driven-io/emmett';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { etag } from 'hono/etag';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { ProblemDocument } from 'http-problem-details';
 import { defaultErrorToProblemDetailsMapping } from './middlewares/problemDetailsMiddleware';
+import { traceIdMiddleware } from './middlewares/traceIdMiddleware';
 
 export type ErrorToProblemDetailsMapping = (
   error: Error,
@@ -15,6 +22,8 @@ export type ApplicationOptions = {
   apis: WebApiSetup[];
   mapError?: ErrorToProblemDetailsMapping;
   disableProblemDetailsMiddleware?: boolean;
+  observability?: Partial<Observability<string>>;
+  disableTraceIdHeader?: boolean;
 };
 
 export const registerWebApi = (
@@ -35,9 +44,21 @@ export const configureApplication = (
   application: Hono,
   options: ApplicationOptions,
 ): Hono => {
-  const { apis, mapError, disableProblemDetailsMiddleware } = options;
+  const {
+    apis,
+    mapError,
+    disableProblemDetailsMiddleware,
+    observability,
+    disableTraceIdHeader,
+  } = options;
 
   application.use(etag());
+
+  const isObservabilityRegistered =
+    observability !== undefined || currentDefaultObservability() !== undefined;
+
+  if (isObservabilityRegistered && disableTraceIdHeader !== true)
+    application.use(traceIdMiddleware);
 
   registerWebApi(application, apis);
 
@@ -61,6 +82,7 @@ export const configureApplication = (
 
 export type StartApiOptions = {
   port?: number;
+  observability?: Partial<Observability<string>>;
 };
 
 export const getApplication = (options: ApplicationOptions): Hono =>
@@ -71,8 +93,17 @@ export const startAPI = (
   options: StartApiOptions = { port: 3000 },
 ) => {
   const { port } = options;
-  return serve({
-    fetch: app.fetch,
-    port,
-  });
+  const log =
+    options.observability?.logger ??
+    currentDefaultObservability()?.logger ??
+    noopLogger;
+
+  return serve(
+    {
+      fetch: app.fetch,
+      port,
+    },
+    (info) =>
+      log(LogEvent.info({ 'server.port': info.port }, 'Server listening')),
+  );
 };

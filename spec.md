@@ -113,7 +113,7 @@ All four drivers need the fix: the default, PostgreSQL, SQLite and MongoDB consu
 - Every binding accepts an optional `observability` option and resolves it explicit, then global default, then noop. The option is never required (Q7, Q30, Q32).
 - The `x-trace-id` header is on once Emmett observability is registered (detected with almanac's `currentDefaultObservability()` or the binding option). The value comes from the active OTel span, as `traceIdMiddleware` does today, so with a non-OTel registration and no active span no header is set. The docs say the header works with OTel only (Q44).
 - Registration means `EmmettInstrumentation`, `setupObservability` or the binding option. `disableTraceIdHeader: true` opts out. Generic OTel users without Emmett's instrumentation are unaffected (Q32).
-- **Express and Hono:** `startAPI` logs `info` "Server listening" with the port through the resolved observability. With nothing configured, it's silent. This replaces Express's `console.info('server up listening')` (Q29, Q31).
+- **Express and Hono:** `startAPI` logs `info` "Server listening" with the port through its own `observability` option, then the global default, then noop (Q56). With nothing configured, it's silent. This replaces Express's `console.info('server up listening')` (Q29, Q31).
 - **Fastify:**
   - `serverOptions` takes the full Fastify server options (`logger: {...}`, `loggerInstance`), and the default follows Fastify (`logger: false`).
   - The `startAPI` `console.log` is removed, because Fastify prints its own listening line.
@@ -154,7 +154,7 @@ E2E scenarios (Q12, Q33):
 2. The user's own pino, set globally via `setupEmmettObservability`: at `debug` the PG lock messages appear, and at `info` they don't.
 3. Loggers per component: one event store's own pino child logger gets that store's logs, and the global logger gets the rest.
 4. Nothing configured: a child process with a failing hook prints nothing.
-5. Web app: a logger passed through `getApplication` receives "Server listening" on Express and Hono. On Fastify the line comes from Fastify's logger.
+5. Web app: a logger passed to `startAPI` receives "Server listening" on Express and Hono (Q56). On Fastify the line comes from Fastify's logger.
 6. CLI: a failing command prints the error on stderr.
 7. A non-pino logger (winston), plugged in with the documented recipe, behaves like scenario 2.
 

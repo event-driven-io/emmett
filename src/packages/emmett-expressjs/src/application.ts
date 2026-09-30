@@ -1,6 +1,12 @@
 import type { Observability } from '@event-driven-io/almanac';
+import {
+  currentDefaultObservability,
+  LogEvent,
+  noopLogger,
+} from '@event-driven-io/emmett';
 import express, { Router, type Application } from 'express';
 import http from 'http';
+import type { AddressInfo } from 'net';
 import { problemDetailsMiddleware } from './middlewares/problemDetailsMiddleware';
 import { traceIdMiddleware } from './middlewares/traceIdMiddleware';
 import type { ErrorToProblemDetailsMapping } from './responses';
@@ -17,6 +23,7 @@ export type ApplicationOptions = {
   disableUrlEncodingMiddleware?: boolean;
   disableProblemDetailsMiddleware?: boolean;
   observability?: Partial<Observability<string>>;
+  disableTraceIdHeader?: boolean;
 };
 
 export const registerWebApi = (
@@ -45,6 +52,7 @@ export const configureApplication = (
     disableUrlEncodingMiddleware,
     disableProblemDetailsMiddleware,
     observability,
+    disableTraceIdHeader,
   } = options;
 
   // disabling default etag behaviour
@@ -62,7 +70,11 @@ export const configureApplication = (
       }),
     );
 
-  if (observability) application.use(traceIdMiddleware);
+  const isObservabilityRegistered =
+    observability !== undefined || currentDefaultObservability() !== undefined;
+
+  if (isObservabilityRegistered && disableTraceIdHeader !== true)
+    application.use(traceIdMiddleware);
 
   registerWebApi(application, apis);
 
@@ -78,17 +90,20 @@ export const getApplication = (options: ApplicationOptions): Application =>
 
 export type StartApiOptions = {
   port?: number;
+  observability?: Partial<Observability<string>>;
 };
 
-export const startAPI = (
-  app: Application,
-  options: StartApiOptions = { port: 3000 },
-) => {
-  const { port } = options;
+export const startAPI = (app: Application, options: StartApiOptions = {}) => {
+  const { port = 3000 } = options;
   const server = http.createServer(app);
+  const log =
+    options.observability?.logger ??
+    currentDefaultObservability()?.logger ??
+    noopLogger;
 
   server.on('listening', () => {
-    console.info('server up listening');
+    const { port } = server.address() as AddressInfo;
+    log(LogEvent.info({ 'server.port': port }, 'Server listening'));
   });
 
   return server.listen(port);

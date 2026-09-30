@@ -773,3 +773,19 @@ Asked during prompt 18. Scenario 3 compared a store's own pino child logger with
 > Sure, also we should check that nothing is logged by default, right?
 
 **Answer:** Scenario 3 becomes a PostgreSQL integration test: an event store with its own collecting logger, a consumer created from it without its own `observability`, and "Processor started" and "Processor stopped" land in the store's logger. Each driver also gets "a consumer with no observability configured logs nothing": nothing reaches `console`, `process.stdout` or `process.stderr`.
+
+## Q56. How does `startAPI` get the logger for "Server listening"?
+
+Asked during prompts 19 and 20. `startAPI(app, options)` receives only the Express or Hono app, so a logger passed to `getApplication` can't reach it unless it's stored somewhere. The first implementation kept it in a module-level `WeakMap` keyed by the app. Options: (1) `startAPI` resolves its own `observability` option, then the global default, then noop, and scenario 5 passes the logger to `startAPI`; (2) Express stores it with `app.set`, and Hono does (1).
+
+**Oskar (verbatim):**
+
+> Dude, why weak map?
+
+> Hm, this cannot be so hard. What other options do we have?
+
+> WeakMap is not acceptable as a global state
+
+> 1.
+
+**Answer:** (1). `startAPI` logs through its own `observability` option, then the global default, then noop. Nothing is stored. The `observability` option on `getApplication` only turns on the `x-trace-id` header. Scenario 5 becomes: a logger passed to `startAPI` receives "Server listening" on Express and Hono.

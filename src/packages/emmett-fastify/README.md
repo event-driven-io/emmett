@@ -228,7 +228,7 @@ await startAPI(app, { port: 3000 });
 
 ### Custom Server Options
 
-Configure Fastify server options, including logging:
+`serverOptions` takes Fastify's full server options. Fastify's logger is off by default, as in Fastify itself. Turn it on with `logger`, or pass your own logger with `loggerInstance`:
 
 ```typescript
 const app = await getApplication({
@@ -319,11 +319,11 @@ Creates a configured Fastify application instance.
 
 **Parameters:**
 
-| Option                 | Type                             | Default                      | Description                      |
-| ---------------------- | -------------------------------- | ---------------------------- | -------------------------------- |
-| `registerRoutes`       | `(app: FastifyInstance) => void` | `undefined`                  | Function to register your routes |
-| `serverOptions`        | `{ logger: boolean }`            | `{ logger: true }`           | Fastify server configuration     |
-| `activeDefaultPlugins` | `Plugin[]`                       | `[ETag, Compress, FormBody]` | Plugins to register              |
+| Option                 | Type                             | Default                              | Description                      |
+| ---------------------- | -------------------------------- | ------------------------------------ | -------------------------------- |
+| `registerRoutes`       | `(app: FastifyInstance) => void` | `undefined`                          | Function to register your routes |
+| `serverOptions`        | `FastifyServerOptions`           | Fastify's defaults (`logger: false`) | Fastify server configuration     |
+| `activeDefaultPlugins` | `Plugin[]`                       | `[ETag, Compress, FormBody]`         | Plugins to register              |
 
 **Returns:** A Promise that resolves to a configured `FastifyInstance`.
 
@@ -342,9 +342,11 @@ Starts the Fastify server.
 
 ```typescript
 interface ApplicationOptions {
-  serverOptions?: { logger: boolean };
+  serverOptions?: FastifyServerOptions;
   registerRoutes?: (app: FastifyInstance) => void;
   activeDefaultPlugins?: Plugin[];
+  observability?: Partial<Observability<string>>;
+  disableTraceIdHeader?: boolean;
 }
 ```
 
