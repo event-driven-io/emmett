@@ -6,7 +6,7 @@ PostgreSQL and SQLite event stores must expose one composable schema graph that 
 
 The change also makes event-store async projection registrations useful at runtime. Async projection definitions registered on an event store are passed to consumers automatically and become ordinary projectors with default processor settings. Passing an explicit `processors` array to the consumer disables that automatic registration. A later explicit processor registration with the same processor ID replaces the automatically registered processor.
 
-A new read-only `verifyNoPendingMigrations()` operation compares migrations expected from the composed schema graph with migrations already recorded in the database. It does not execute DDL and is not an `autoMigration` mode.
+Dumbo must provide an immutable `DatabaseMigrator` that binds one storage-agnostic schema component graph to a concrete database. Pongo databases, PostgreSQL and SQLite event stores, and their consumers use that shared capability for SQL description, explicit migration, and lazy schema assurance. With `CreateOrUpdate`, `ensureMigrated()` applies pending migrations. With `None`, it performs a read-only migration-history check and throws when migrations are pending without executing DDL.
 
 ## Why this is needed
 
@@ -31,13 +31,16 @@ The connection and transaction are not missing today. PostgreSQL and SQLite proj
 - Include both inline and async event-store projection registrations in event-store migration composition and initialization.
 - Automatically register event-store async projections as consumer projectors using default processor settings.
 - Allow all processor kinds to contribute schema when they share the consumer's storage.
-- Provide a read-only migration-history check with a structured result and `assertSuccessful()` convenience method.
+- Use one Dumbo `DatabaseMigrator` capability across Pongo and Emmett schema owners.
+- Make `ensureMigrated()` apply migrations under `CreateOrUpdate` and validate migration history without DDL under `None`.
+- Report pending migrations through a typed `PendingMigrationsError` when read-only assurance fails.
 - Preserve current `dryRun` behavior: execute inside a transaction and roll back.
 
 ## Non-goals
 
 - Do not change the default `autoMigration` value to `None`.
 - Do not add `Verify` to the `autoMigration` union.
+- Do not add a separate `verifyNoPendingMigrations()` or validation-result API; `ensureMigrated()` owns that behavior.
 - Do not structurally inspect tables, functions, indexes, or other database objects.
 - Do not treat migrations recorded in the database but absent from the current bundle as an error.
 - Do not change `dryRun` into a no-execution operation.
@@ -48,7 +51,7 @@ The connection and transaction are not missing today. PostgreSQL and SQLite proj
 
 ## Existing behavior to preserve
 
-- An explicit `schema.migrate()` call runs even when `autoMigration` is `None`; `None` gates automatic migration only.
+- An explicit `schema.migrate()` call runs even when `autoMigration` is `None`; `None` changes automatic assurance from migration to a read-only check.
 - Automatic event-store migration is lazy and memoized per bound event-store instance.
 - A non-dry migration is not executed repeatedly by normal operations on the same bound instance.
 - `dryRun` executes migrations transactionally and does not mark the schema as migrated.
@@ -98,6 +101,42 @@ The concrete event store or consumer binds the composed component graph to its o
 - Do not compare connection strings. Two distinct pools cannot share the parent's active migration transaction even when they target the same database.
 - Existing Dumbo SQL rendering and execution behavior determines whether a component's migrations can run with the bound parent's driver; this change does not add a separate compatibility protocol.
 
+## Dumbo `DatabaseMigrator`
+
+Add a module-pattern `DatabaseMigrator` capability to Dumbo. It binds one immutable `AnySchemaComponent` graph to a concrete pool, migration-history table, resolved `autoMigration` setting, and default migration options:
+
+```ts
+export type DatabaseMigrator = {
+  readonly component: AnySchemaComponent;
+  sql(): string;
+  print(): void;
+  migrate(options?: MigratorRunOptions): Promise<RunSQLMigrationsResult>;
+  ensureMigrated(): Promise<void>;
+};
+
+export const databaseMigrator = (
+  options: DatabaseMigratorOptions,
+): DatabaseMigrator => {
+  // module-pattern implementation
+};
+```
+
+The exact option type should reuse Dumbo's existing pool, migration-table, timeout, hash, executor, and migration option types. Do not introduce a second schema model: `component` remains the declarative model, while `DatabaseMigrator` is the database-bound capability that operates on it.
+
+`DatabaseMigrator` behavior is:
+
+- The component graph and migration-history table are fixed for the lifetime of the migrator.
+- When an owner changes its graph or migration-table configuration, it creates and stores a new migrator.
+- `migrate()` explicitly invokes the migration runner regardless of `autoMigration`.
+- `ensureMigrated()` with `CreateOrUpdate` lazily invokes `migrate()`.
+- `ensureMigrated()` with `None` reads migration history without creating the migration table, acquiring a migration lock, or executing DDL.
+- A successful migration or read-only assurance is memoized for that migrator, and concurrent callers share the same in-flight promise.
+- A failed migration or assurance clears the in-flight state so a later call can retry.
+- `migrate({ dryRun: true })` retains Dumbo's execute-and-rollback behavior and never satisfies or memoizes migration assurance.
+- `sql()` and `print()` describe only the supplied component graph. They exclude the migration-history table, locks, and migration-record bookkeeping.
+
+The read-only path compares every expected component migration with recorded migrations. It uses the same migration table and `ignoreMigrationHashMismatch` setting as execution, ignores recorded migrations absent from the component graph, and treats a missing migration table as an empty history without creating it. When expected migrations are missing or hash-mismatched under the active hash settings, `ensureMigrated()` rejects with `PendingMigrationsError`, which contains the pending migrations. It otherwise resolves with no value.
+
 ## Storage-bound schema operations
 
 Only objects that own or inherit a concrete relational pool expose schema operations. Extend the existing PostgreSQL and SQLite event-store `schema` objects and add equivalent `schema` objects to their consumers:
@@ -108,17 +147,8 @@ schema: {
   sql(): string;
   print(): void;
   migrate(options?: MigrationOptions): Promise<RunSQLMigrationsResult>;
-  verifyNoPendingMigrations(
-    options?: MigrationOptions,
-  ): Promise<VerifyNoPendingMigrationsResult>;
+  ensureMigrated(): Promise<void>;
   // Event stores retain their existing `dangerous` operations.
-};
-
-export type VerifyNoPendingMigrationsResult = {
-  successful: boolean;
-  existing: readonly SQLMigration[];
-  pending: readonly SQLMigration[];
-  assertSuccessful(errorMessage?: string): void;
 };
 ```
 
@@ -126,9 +156,9 @@ Projections and processors expose only their optional declarative `schema` compo
 
 `autoMigration` remains configuration on event-store, consumer, and processor registrations. Its effective value is resolved through the ownership chain; it is not a property required on every schema component.
 
-The final operational methods reuse the existing PostgreSQL and SQLite migration option types rather than creating parallel option names. In particular, verification uses the same hash-check setting as migration execution.
+The public schema methods are backed by the owner's current Dumbo `DatabaseMigrator`. The owner resolves its effective `autoMigration` value and passes it to the migrator; Dumbo implements the automatic migration or read-only assurance behavior once.
 
-An event store or consumer's `sql()` and `print()` operate on its complete effective schema graph, not only its local tables. Its `migrate()` flattens that graph and calls the Dumbo migration runner once; it must not call child migration methods sequentially.
+An event store or consumer's `sql()`, `print()`, `migrate()`, and `ensureMigrated()` operate on its complete effective schema graph, not only its local tables. Its `migrate()` flattens that graph and calls the Dumbo migration runner once; it must not call child migration methods sequentially.
 
 ## Schema graph and ownership
 
@@ -138,7 +168,7 @@ Every schema owner has a local component and zero or more child components. Comp
 2. Consumer infrastructure owned by that event store or consumer, including processor checkpoint and projection-registration storage.
 3. Registered processor and projection schemas in registration order.
 
-The same order is used by `sql()`, `print()`, `migrate()`, and `verifyNoPendingMigrations()`.
+The same order is used by `sql()`, `print()`, `migrate()`, and `ensureMigrated()`.
 
 The event-store schema graph contains:
 
@@ -152,23 +182,23 @@ The consumer schema graph contains:
 - The consumer's local relational infrastructure.
 - Every effective schema-aware processor registered on the consumer that uses the inherited consumer pool.
 
-Components are flattened and deduplicated through Dumbo's component and migration utilities. The same migration name with equivalent SQL is included once. Conflicting SQL for the same migration name follows the existing hash-mismatch behavior rather than being silently selected.
+Components are flattened and deduplicated through Dumbo's component and migration utilities. The same migration name with equivalent SQL is included once. Dumbo's existing component composition rejects conflicting SQL for the same migration name before database execution rather than silently selecting one definition.
 
 All migrations in a bundle use the parent's configured migration table and the parent's active transaction executor. This removes the current nested Pongo migration runner and ensures the migration table is checked or created once per bundle.
 
 ## Binding and memoization
 
-A projection definition and its declarative component can be reused with different stores and databases, so migration state must never be stored globally on either object. When a child is registered, create an internal binding record between its component, the concrete schema owner, and the inherited storage target. This record is runtime state; it is not another public schema abstraction.
+A projection definition and its declarative component can be reused with different stores and databases, so migration state must never be stored globally on either object. Each storage-bound owner composes its current graph and creates a `DatabaseMigrator` for that graph and inherited storage target.
 
-Each storage-bound owner keeps the same in-flight/completed migration memoization used by event stores today. When a parent successfully migrates a composed plan, it marks the participating binding records as satisfied for that object graph. A later child initialization in the same graph must not run the component's migrations again.
+The migrator owns the in-flight and completed assurance state. Child initialization delegates to the same owner migrator, so a successful parent migration or assurance satisfies later initialization within that graph. When registration changes the graph, the owner composes the new graph and replaces its current migrator. The new migrator checks the complete plan on first use; recorded migrations are skipped and new migrations are applied or reported as pending according to `autoMigration`.
 
 The following operations do not mark a schema as migrated:
 
 - `sql()`
 - `print()`
-- `verifyNoPendingMigrations()`
 - `migrate({ dryRun: true })`
 - A failed migration
+- A failed read-only assurance
 
 ## `autoMigration` resolution
 
@@ -180,27 +210,28 @@ event store → consumer → processor
 
 The rules are:
 
-- A root event store or standalone consumer defaults to `CreateOrUpdate`.
+- A root Pongo database, event store, or standalone consumer defaults to `CreateOrUpdate`.
 - An omitted child value inherits its parent's effective policy.
 - An explicit child value overrides the inherited value.
 - A processor with separate storage starts a separate policy chain and defaults to `CreateOrUpdate` when it has no explicit value.
-- `None` prevents automatic migration before any Dumbo migration runner or migration-table setup is called.
+- `None` prevents automatic migration, migration-table creation, and migration-lock acquisition. `ensureMigrated()` instead reads the existing migration history and throws a typed pending-migrations error when the effective graph has not been applied.
 - An explicit `schema.migrate()` still runs under `None`.
 
 Automatic migration triggers remain consistent with current event-store behavior:
 
-- An inline projection is covered by the event store's lazy schema ensure before the first store operation. Projection handling itself never invokes initialization per event or batch.
-- A consumer ensures its effective schema once during initialization/start.
-- A processor with separate storage ensures its own schema during its initialization.
+- An inline projection is covered by the event store's lazy `ensureMigrated()` call before the first store operation. Projection handling itself never invokes initialization per event or batch.
+- A consumer calls `ensureMigrated()` for its effective graph during initialization/start.
+- A processor with separate storage calls its own migrator's `ensureMigrated()` during initialization.
 
 ## Projection and processor initialization
 
 Schema composition and lifecycle initialization are coordinated but are not the same operation.
 
 - Built-in Pongo projections expose collection migrations through their schema component instead of unconditionally starting a nested `collection.schema.migrate()` call.
-- When initialization sees an effective `CreateOrUpdate` policy and its bound contribution has not already participated in a successful parent migration, it lazily migrates that contribution through its storage-bound owner.
-- When initialization sees `None`, it performs no automatic schema migration.
-- When the bound contribution was already migrated through the parent bundle, initialization does not run migrations again.
+- Initialization delegates to the storage-bound owner's `ensureMigrated()` rather than calling child migration methods.
+- With effective `CreateOrUpdate`, the owner migrator lazily applies pending migrations.
+- With effective `None`, the owner migrator performs the read-only migration-history check and throws when migrations are pending.
+- When the current migrator has already completed migration or read-only assurance, later initialization does not access migration history again.
 - Non-schema initialization retains its existing once-per-instance behavior.
 - Existing schema-unaware processors and projections continue to use their current `init` behavior and cannot contribute imperative work to a declarative bundle.
 - Processors with separate storage are not included in the parent bundle and initialize normally against their own storage and policy.
@@ -236,28 +267,15 @@ The replacement behavior must be based on processor ID, not object identity. Do 
 
 This registration behavior belongs in core where possible so non-relational event stores with applicable consumer/projector factories can use it. The schema contribution and migration behavior remains relational.
 
-## Read-only pending-migration verification
+## Read-only assurance under `None`
 
-Add a Dumbo-level primitive used by every relational schema owner:
+`ensureMigrated()` is the single automatic schema entry point. It does not need a separate validation method or result object:
 
 ```ts
-const result = await schema.verifyNoPendingMigrations();
-
-result.assertSuccessful();
+await schema.ensureMigrated();
 ```
 
-Verification behavior is:
-
-- Read the configured migration table without creating it or any other database object.
-- Compare every expected migration from the effective schema graph with recorded migrations.
-- Put an expected migration in `existing` when a recorded migration matches.
-- Put an expected migration in `pending` when it has not been recorded.
-- When hash checking is enabled, put an expected migration with the same name but a different hash in `pending`.
-- When hash checking is disabled through the existing migration option, a recorded migration with the same name is `existing` regardless of hash.
-- Ignore recorded migrations that are not present in the current schema graph.
-- Set `successful` to `pending.length === 0`.
-- `assertSuccessful()` does nothing when successful and throws a descriptive migration verification error otherwise.
-- If the migration table does not exist, treat the recorded set as empty without issuing DDL; all expected migrations are pending.
+With `autoMigration: 'None'`, this call reads the configured migration table without creating it or any other database object. It compares expected migrations from the effective graph with recorded migrations, uses the configured hash-ignore behavior, and ignores historical records absent from the graph. A missing migration table makes every expected migration pending. If anything is pending, the call throws `PendingMigrationsError` with the pending migration list; otherwise it resolves and memoizes success.
 
 The operation must work for PostgreSQL runtime roles that have read access but no namespace `CREATE` privilege.
 
@@ -273,7 +291,7 @@ const eventStore = getPostgreSQLEventStore({
     ...projections.inline([ordersSummary]),
     ...projections.async([billingSummary]),
   ],
-  schema: { autoMigration: "None" },
+  schema: { autoMigration: 'None' },
 });
 
 await eventStore.schema.migrate();
@@ -288,7 +306,7 @@ const consumer = eventStore.consumer();
 await consumer.start();
 ```
 
-The consumer registers `billingSummary` as a projector with default processor settings. With inherited `autoMigration: 'None'`, startup does not execute schema migrations.
+The consumer registers `billingSummary` as a projector with default processor settings. With inherited `autoMigration: 'None'`, startup checks migration history without executing DDL and throws if the effective graph has pending migrations.
 
 ### Replace automatic processors completely
 
@@ -296,23 +314,21 @@ The consumer registers `billingSummary` as a projector with default processor se
 const consumer = eventStore.consumer({ processors: [] });
 
 consumer.projector({
-  processorId: "billing-summary-v2",
+  processorId: 'billing-summary-v2',
   projection: billingSummary,
-  startFrom: "BEGINNING",
+  startFrom: 'BEGINNING',
 });
 ```
 
 Because `processors` was explicitly provided, no async projection processors are added automatically.
 
-### Verify without DDL
+### Ensure migration state without DDL
 
 ```ts
-const verification = await eventStore.schema.verifyNoPendingMigrations();
-
-verification.assertSuccessful();
+await eventStore.schema.ensureMigrated();
 ```
 
-This reads migration history only. It does not behave like `dryRun` and does not require DDL privileges.
+With `autoMigration: 'None'`, this reads migration history only and throws the typed pending-migrations error when necessary. It does not behave like `dryRun` and does not require DDL privileges.
 
 ## Actionable code changes
 
@@ -331,15 +347,32 @@ This reads migration history only. It does not behave like `dryRun` and does not
   - Preserve explicit additions and the existing start/close behavior.
 - Update core consumer and event-store typing so relational adapters can pass event-store async projection defaults without adding Dumbo concepts to core.
 
-### Dumbo prerequisite
+### Dumbo
 
-- Add a read-only API that compares expected `SQLMigration` values with the configured migration table.
-- Return `{ successful, existing, pending, assertSuccessful }`.
-- Reuse the current hash-ignore option and migration-table configuration.
-- Ensure a missing migration table is observed as no recorded migrations without creating it.
-- Keep current `runSQLMigrations` and `dryRun` behavior unchanged.
+- Add the immutable `DatabaseMigrator` type and `databaseMigrator(...)` module-pattern factory.
+- Accept an `AnySchemaComponent`, concrete Dumbo pool, resolved `MigrationStyle`, migration-table configuration, and existing migrator defaults.
+- Expose `component`, `sql()`, `print()`, `migrate()`, and `ensureMigrated()`.
+- Implement `CreateOrUpdate` assurance by delegating to the existing `runSQLMigrations()` behavior.
+- Implement `None` assurance as a read-only comparison against recorded migration history.
+- Add `PendingMigrationsError` containing the pending `SQLMigration` values.
+- Reuse the existing hash calculation, `ignoreMigrationHashMismatch`, migration-table naming, timeout, executor, SQL formatting, and migration result types.
+- Treat a missing migration table as an empty history without creating it.
+- Memoize successful migration or assurance and share concurrent calls; clear state after failure and never memoize dry runs.
+- Keep `SchemaComponent`, `AnySchemaComponent`, `runSQLMigrations()`, and current `dryRun` behavior unchanged.
+- Ensure `sql()` and `print()` describe component migrations only, excluding migrator bookkeeping.
 
-If the Dumbo verification API cannot land first, use a temporary local verification adapter so Emmett work can proceed in parallel. Do not publish a separate Emmett component wrapper as permanent API; remove the temporary adapter when the Dumbo version is updated.
+If Dumbo cannot land first, use a temporary local structural fixture for compile-time work and a local migrator adapter for integration work. Do not publish an Emmett-specific schema wrapper; remove the adapter when the Dumbo version is updated.
+
+### Pongo
+
+- Construct one `DatabaseMigrator` for each `PongoDb` from the database component, pool, migration table, effective `autoMigration`, and migration defaults.
+- Make `PongoDb.schema` expose the common `component`, `sql`, `print`, `migrate`, and `ensureMigrated` capabilities while retaining Pongo-specific `migrations` and `renameCollection()` members.
+- Keep database-wide migration as the documented and supported operational boundary.
+- Make normal database and collection operations call the database migrator's memoized `ensureMigrated()`.
+- When a collection changes the database component graph, compose the new graph and replace the database's current immutable migrator.
+- Remove `collection.schema.migrate()` in this beta. Keep `collection.schema.component` as the declarative contribution used by Emmett and other parents.
+- Preserve Pongo's root `CreateOrUpdate` default and explicit `None` configuration while delegating their behavior to Dumbo.
+- Add PostgreSQL, sqlite3, D1, and Durable Object coverage for the common migrator behavior.
 
 ### PostgreSQL
 
@@ -350,76 +383,92 @@ If the Dumbo verification API cannot land first, use a temporary local verificat
   - Run one migration plan.
   - Initialize both registration kinds once.
   - Pass async projection definitions to created consumers when `processors` is omitted.
-  - Add the composed `component` and verification operation to the existing event-store schema object.
+  - Create and expose the current composed `DatabaseMigrator` through the existing event-store schema object.
+  - Replace the migrator if the registered component graph changes.
 - Update `src/packages/emmett-postgresql/src/eventStore/consumers/postgreSQLEventStoreConsumer.ts` to:
   - Resolve inherited `autoMigration`.
   - Build a consumer schema from the parent/local component and same-pool processor components.
-  - Expose the storage-bound `component`, `sql`, `print`, `migrate`, and `verifyNoPendingMigrations` operations.
+  - Create a `DatabaseMigrator` with the effective policy and expose `component`, `sql`, `print`, `migrate`, and `ensureMigrated`.
+  - Replace the migrator when processor registration changes the component graph.
 - Update `src/packages/emmett-postgresql/src/eventStore/consumers/postgreSQLProcessor.ts` to:
   - Bind schema-aware processors to inherited or owned storage.
   - Apply policy inheritance and overrides.
   - Avoid nested/repeated migration after a successful parent bundle.
 - Update `src/packages/emmett-postgresql/src/eventStore/projections/postgreSQLProjection.ts` to use the supplied registration type instead of hardcoding `async`.
-- Update Pongo projection factories under `src/packages/emmett-postgresql/src/eventStore/projections/pongo/` to expose collection schema components and stop unconditionally invoking a nested collection migration.
+- Update Pongo projection factories under `src/packages/emmett-postgresql/src/eventStore/projections/pongo/` to expose collection schema components and remove their dependency on `collection.schema.migrate()`.
 
 ### SQLite
 
 - Extract the current event-store migration array into an event-store schema component in `src/packages/emmett-sqlite/src/eventStore/schema/migrations/`.
 - Update `src/packages/emmett-sqlite/src/eventStore/SQLiteEventStore.ts` with the same composition, policy, async registration, and schema API behavior as PostgreSQL.
-- Update `src/packages/emmett-sqlite/src/eventStore/consumers/sqliteEventStoreConsumer.ts` and `sqliteProcessor.ts` with the same consumer and processor behavior.
+- Update `src/packages/emmett-sqlite/src/eventStore/consumers/sqliteEventStoreConsumer.ts` and `sqliteProcessor.ts` with the same `DatabaseMigrator`, replacement, consumer, and processor behavior.
 - Correct inline projection initialization to use `registrationType: 'inline'`.
-- Update Pongo projection factories under `src/packages/emmett-sqlite/src/eventStore/projections/pongo/` to contribute collection schema components rather than running nested migrations.
+- Update Pongo projection factories under `src/packages/emmett-sqlite/src/eventStore/projections/pongo/` to contribute collection schema components without calling the removed collection migration API.
 - Apply the behavior to sqlite3, D1, and Durable Object driver variants through shared code, with driver-specific integration coverage.
 
 ### Documentation
 
 - Document declarative schema components separately from the storage-bound event-store and consumer schema operations in both package READMEs and `src/docs`.
+- Document `PongoDb.schema` as Pongo's sole operational migration boundary and `collection.schema.component` as declarative only.
+- Add a Pongo beta migration note replacing `collection.schema.migrate()` with `db.schema.migrate()`.
 - Explain `autoMigration` inheritance and explicit overrides.
-- Explain the difference between `dryRun` and `verifyNoPendingMigrations()`.
+- Explain `ensureMigrated()` behavior under `CreateOrUpdate` and `None`, and distinguish the read-only `None` path from `dryRun`.
 - Show one-call provisioning for inline and async projections.
 - Show the omitted-versus-provided `processors` behavior.
 - State that independently configured processor storage is not included in the parent bundle.
 
 ## Test-first implementation order
 
-The order below follows real dependencies and starts with isolated quick wins. Each item begins with a failing test and ends with the smallest implementation needed to pass it; it is not a set of release phases. Dumbo verification work can proceed in parallel with the independent Emmett core fixes, using a temporary local verification adapter until the updated Dumbo package is available.
+The order below follows real dependencies and starts with isolated quick wins. Each item begins with a failing test and ends with the smallest implementation needed to pass it; it is not a set of release phases. Dumbo and Pongo work can proceed in parallel with the independent Emmett core fixes, using local structural fixtures and a temporary migrator adapter until updated packages are available.
 
 1. Add core unit tests proving `projections.async()` returns `type: 'async'` with the correct TypeScript registration type, then correct the helper.
 2. Add core consumer tests for automatically seeded processors, explicit `processors: []`, and replacement of an automatic processor by explicit registration with the same ID, then implement the registry behavior without changing unrelated lifecycle behavior.
 3. Add PostgreSQL and SQLite tests that expose the current registration-type errors: PostgreSQL must persist the supplied inline/async type, and SQLite inline initialization must receive `inline`. Fix those two localized defects.
-4. In Dumbo, add tests for read-only migration comparison: all existing, missing migrations, hash mismatch, ignored hashes, extra historical rows, missing migration table, and `assertSuccessful()`. Implement `verifyNoPendingMigrations()` without changing the migration runner.
-5. Add Emmett compile-time tests for the new projection and processor schema generics using a structural `AnySchemaComponent` fixture. Add composition tests proving existing Dumbo components remain unchanged and are bound to the parent event store or consumer only when collected; do not publish an Emmett-specific wrapper or add driver metadata to Dumbo components.
-6. Add PostgreSQL schema tests proving the event-store migration component produces the same SQL migrations as the current array. Extract the component while keeping existing `schema.sql()` and `schema.migrate()` tests green.
-7. Repeat the same component-equivalence test and extraction for shared SQLite schema code before testing individual SQLite drivers.
-8. Add Pongo projection tests proving each built-in projection exposes the expected collection component without opening a migration transaction. Refactor the PostgreSQL and SQLite Pongo factories to use that component.
-9. Add PostgreSQL integration tests showing one `eventStore.schema.migrate()` creates the event store plus inline and async Pongo projection tables through one migration runner and one transaction. Implement event-store component composition and ordered flattening.
-10. Add equivalent SQLite integration tests in shared suites and run them against sqlite3, D1, and Durable Object variants. Implement shared SQLite composition rather than duplicating it per driver.
-11. Add tests for the API boundary: projections and processors expose only a declarative component, while event stores and consumers expose the composed component plus `sql`, `print`, `migrate`, and `verifyNoPendingMigrations`. Assert that every storage-bound operation describes the same effective graph.
-12. Add policy tests for root `CreateOrUpdate`, inherited `None`, child override to `CreateOrUpdate`, child override to `None`, explicit migration under `None`, and independently configured processor storage. Implement effective-policy resolution once and reuse it across PostgreSQL and SQLite.
-13. Add initialization tests proving a successful parent migration satisfies child schema initialization, consumer start does not rerun it, inline handling never initializes per event, and separate-storage processors initialize independently. Implement bound per-owner memoization rather than storing state on reusable definitions.
-14. Add event-store consumer tests showing omitted `processors` creates projectors for async definitions with default settings, an explicit array suppresses defaults, and an explicit same-ID registration replaces an automatic projector.
-15. Add least-privilege PostgreSQL integration coverage: migrate with a migration role, then run `verifyNoPendingMigrations()` and start a consumer under a role with no schema `CREATE`; assert that no DDL or migration-table creation is attempted.
-16. Add regression tests confirming `dryRun` still executes transactionally and rolls back, and that it does not mark parent or child schemas migrated.
-17. Update documentation from the tested public examples, then run formatting/type checks and the smallest affected integration suites before the repository-wide unit and full test commands required for application-code completion.
+4. In Dumbo, add unit and type tests for `DatabaseMigrator`: it retains the supplied component, renders and prints only component SQL, and explicit `migrate()` delegates once to the existing runner with the configured database and migration table. Implement the module-pattern factory without changing `SchemaComponent` or `runSQLMigrations()`.
+5. Add Dumbo tests for `ensureMigrated()` under `CreateOrUpdate`: lazy execution, concurrent-call sharing, successful memoization, retry after failure, explicit migration under `None`, and dry runs that always execute but never satisfy assurance. Implement the state machine inside the immutable migrator.
+6. Add Dumbo PostgreSQL and SQLite tests for `ensureMigrated()` under `None`: all migrations present, missing migration, hash mismatch, ignored hash mismatch, extra historical rows, missing migration table, `PendingMigrationsError` contents, and no DDL or lock acquisition. Implement the read-only history comparison by reusing migrator hashing and options.
+7. Add Pongo API tests proving `PongoDb.schema` exposes the shared migrator capabilities plus existing Pongo-specific members, while `collection.schema` exposes only `component`. Remove `collection.schema.migrate()` and route explicit database migration through the Dumbo migrator.
+8. Add Pongo lifecycle tests proving normal operations call memoized `ensureMigrated()`, `None` performs the read-only check, a newly registered collection replaces the immutable migrator, and the new migrator observes the expanded graph. Run the shared behavior against PostgreSQL, sqlite3, D1, and Durable Object drivers.
+9. Add Emmett compile-time tests for the new projection and processor schema generics using a structural `AnySchemaComponent` fixture. Add composition tests proving existing Dumbo components remain unchanged and are bound only when collected by a storage owner; do not publish an Emmett-specific wrapper or add driver metadata to Dumbo components.
+10. Add PostgreSQL schema tests proving the event-store migration component produces the same SQL migrations as the current array. Extract the component while keeping existing `schema.sql()` and `schema.migrate()` tests green.
+11. Repeat the same component-equivalence test and extraction for shared SQLite schema code before testing individual SQLite drivers.
+12. Add Pongo projection tests proving each built-in projection exposes the expected collection component without opening a migration transaction or calling the removed collection migration API. Refactor the PostgreSQL and SQLite Pongo factories to use that component.
+13. Add PostgreSQL integration tests showing one `eventStore.schema.migrate()` creates the event store plus inline and async Pongo projection tables through one migration runner and one transaction. Implement event-store component composition and create its `DatabaseMigrator`.
+14. Add equivalent SQLite integration tests in shared suites and run them against sqlite3, D1, and Durable Object variants. Implement shared SQLite composition rather than duplicating it per driver.
+15. Add tests for the API boundary: projections and processors expose only a declarative component, while Pongo databases, event stores, and consumers expose `component`, `sql`, `print`, `migrate`, and `ensureMigrated`. Assert that every storage-bound operation describes the same effective graph and that registration recreates the owner's immutable migrator.
+16. Add policy tests for root `CreateOrUpdate`, inherited `None`, child override to `CreateOrUpdate`, child override to `None`, explicit migration under `None`, and independently configured processor storage. Implement effective-policy resolution once in Emmett core and pass the result to each relational `DatabaseMigrator`.
+17. Add initialization tests proving a successful parent migration or assurance satisfies later initialization on the same migrator, consumer start does not repeat it, inline handling never assures per event, graph replacement triggers a new assurance, and separate-storage processors initialize independently.
+18. Add event-store consumer tests showing omitted `processors` creates projectors for async definitions with default settings, an explicit array suppresses defaults, and an explicit same-ID registration replaces an automatic projector.
+19. Add least-privilege PostgreSQL integration coverage: migrate with a migration role, then start an event store and consumer with `autoMigration: 'None'` under a role with read access but no schema `CREATE`; assert that `ensureMigrated()` succeeds without DDL, migration-table creation, or lock acquisition. Add the pending-schema variant and assert the typed error identifies pending migrations.
+20. Add regression tests confirming `dryRun` still executes transactionally and rolls back, and that it does not satisfy parent or child migrators.
+21. Update documentation from the tested public examples, then run formatting/type checks and the smallest affected Dumbo, Pongo, PostgreSQL, and SQLite integration suites before the repository-wide unit and full test commands required for application-code completion.
 
 ## Acceptance criteria
 
 - A PostgreSQL or SQLite event store with inline and async Pongo projections can create every required table through one `eventStore.schema.migrate()` call.
 - The composed migration uses one Dumbo runner invocation, one configured migration table, and one transaction.
+- Dumbo exposes an immutable `DatabaseMigrator` created by `databaseMigrator(...)` without changing the storage-agnostic component model.
+- `DatabaseMigrator` exposes `component`, `sql`, `print`, `migrate`, and `ensureMigrated` and is reused by Pongo and Emmett storage owners.
+- `ensureMigrated()` under `CreateOrUpdate` applies migrations lazily; under `None` it performs a read-only history check and throws a typed error containing pending migrations.
+- Successful migration or assurance is memoized per migrator, concurrent calls share work, failures can retry, and dry runs never satisfy assurance.
+- Changing an owner's component graph recreates its immutable migrator, whose next assurance observes the new graph.
+- `DatabaseMigrator.sql()` and `print()` exclude migration-history and lock bookkeeping.
 - A projection or processor contributes only a storage-agnostic Dumbo schema component; it does not expose a second migration facade.
 - `eventStore.schema.component` and `consumer.schema.component` expose their complete composed graphs.
 - `eventStore.schema.sql()` includes event-store and registered projection migrations in ownership order.
+- `PongoDb.schema` is Pongo's database-wide operational migration API and exposes the common migrator capabilities plus its Pongo-specific members.
+- `PongoCollection.schema` exposes its component but no longer exposes `migrate()`.
 - `eventStore.consumer()` automatically registers async event-store projections as default projectors.
 - `eventStore.consumer({ processors: [] })` registers none of those defaults.
 - An explicit processor registration replaces an automatic processor with the same ID.
 - A consumer created by an event store exposes a schema bundle containing the parent schema and same-storage processor schemas.
 - Inline and async projection registration metadata uses the correct registration type.
 - `autoMigration` defaults to `CreateOrUpdate` only at a root and otherwise inherits through event store → consumer → processor.
-- `None` causes consumer startup and processor initialization to avoid invoking any migration runner or migration-table DDL.
+- `None` causes consumer startup and processor initialization to avoid invoking any migration runner, migration-table DDL, or migration lock while still checking recorded migrations.
 - Explicit `schema.migrate()` works under `None`.
-- A child already migrated by its parent does not migrate again during initialization in the same bound object graph.
+- A child using an already satisfied owner migrator does not access migration history again during initialization in the same bound object graph.
 - An explicitly configured processor pool is excluded from its parent's migration bundle and follows its own migration lifecycle.
-- `verifyNoPendingMigrations()` performs no DDL, returns only `existing` and `pending` expected migrations, ignores extra historical migrations, respects the existing hash-ignore option, and provides `assertSuccessful()`.
+- Read-only `ensureMigrated()` ignores extra historical migrations, respects the existing hash-ignore option, treats a missing migration table as all expected migrations pending, and reports pending values through its typed error.
 - `dryRun` retains current execute-and-rollback behavior.
 - Existing schema-unaware processors continue to initialize and process messages as before.
 
@@ -433,4 +482,4 @@ npm run test:unit
 npm test
 ```
 
-Also run the focused PostgreSQL and SQLite integration files added for schema composition, verification, policy inheritance, async processor defaults, and least-privilege startup. If Dumbo or Pongo changes live in separate repositories, run their complete relevant unit and integration suites before updating Emmett's dependency versions.
+Also run the focused PostgreSQL and SQLite integration files added for schema composition, assurance, policy inheritance, async processor defaults, and least-privilege startup. If Dumbo or Pongo changes live in separate repositories, run their complete relevant unit and integration suites before updating Emmett's dependency versions.

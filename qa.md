@@ -256,54 +256,6 @@ Regarding the name I don't like suggested names, technically it's not inheriting
 
 **Answer:** yes
 
-## Q47
-
-**Question:** Should Dumbo expose a reusable factory for bound schema operations that both Pongo and Emmett use to implement their matching `schema` APIs?
-
-**Answer:** "It would bind an existing `AnySchemaComponent` to a pool; it would not replace or wrap the component as a new schema model." - what do you mean? Something like Dumbo Database or something else?
-
-## Q48
-
-**Question:** Should Dumbo remain primitive-level, with Pongo and Emmett providing the owner-specific `schema` APIs?
-
-**Answer:** Ok, and how would this help?
-
-## Q49
-
-**Question:** Should Dumbo add only `verifyNoPendingMigrations()` and `describeSQLMigrations()`, with Pongo and Emmett wrapping those alongside the existing `runSQLMigrations()`?
-
-**Answer:** Sounds fine to me, I'm only usure the naming bind
-
-## Q50
-
-**Question:** Should we keep `describeSQLMigrations()` as the rendering helper's name?
-
-**Answer:** I mean, did you actually read my answer?
-
-## Q51
-
-**Question:** Which proposed name concerns you: `describeSQLMigrations()` or `verifyNoPendingMigrations()`?
-
-**Answer:** Dude, I wrote that what you suggested seems fine, but I didn't like the bindSchema name
-
-## Q52
-
-**Question:** Does `schemaOperations()` fit better?
-
-**Answer:** better, but still too focused on technicalities rather than capability
-
-## Q53
-
-**Question:** Would `manageSchema()` be the right capability-oriented name?
-
-**Answer:** Dude, could you stop thos vague strawman naming like operations, manage, provide etc.?
-
-## Q54
-
-**Question:** Does `SchemaMigrator` accurately name that capability?
-
-**Answer:** Yes, makes sense, or maybe databaseMigrator? As it's connected to the exact database
-
 ## Q37
 
 **Question:** If any migration in the combined plan fails, should the entire bundle roll back and leave every child uninitialized so a later call can retry the whole plan?
@@ -373,3 +325,162 @@ Someone would do if they had different behaviour than throwing.
 **Question:** Should `PongoDb.schema` expose the same common operations as Emmett—`component`, `sql()`, `print()`, `migrate()`, and `verifyNoPendingMigrations()`—while retaining Pongo-specific members such as `migrations` and `renameCollection()`?
 
 **Answer:** yes
+
+## Q47
+
+**Question:** Should Dumbo expose a reusable factory for bound schema operations that both Pongo and Emmett use to implement their matching `schema` APIs?
+
+**Answer:** "It would bind an existing `AnySchemaComponent` to a pool; it would not replace or wrap the component as a new schema model." - what do you mean? Something like Dumbo Database or something else?
+
+## Q48
+
+**Question:** Should Dumbo remain primitive-level, with Pongo and Emmett providing the owner-specific `schema` APIs?
+
+**Answer:** Ok, and how would this help?
+
+## Q49
+
+**Question:** Should Dumbo add only `verifyNoPendingMigrations()` and `describeSQLMigrations()`, with Pongo and Emmett wrapping those alongside the existing `runSQLMigrations()`?
+
+**Answer:** Sounds fine to me, I'm only usure the naming bind
+
+## Q50
+
+**Question:** Should we keep `describeSQLMigrations()` as the rendering helper's name?
+
+**Answer:** I mean, did you actually read my answer?
+
+## Q51
+
+**Question:** Which proposed name concerns you: `describeSQLMigrations()` or `verifyNoPendingMigrations()`?
+
+**Answer:** Dude, I wrote that what you suggested seems fine, but I didn't like the bindSchema name
+
+## Q52
+
+**Question:** Does `schemaOperations()` fit better?
+
+**Answer:** better, but still too focused on technicalities rather than capability
+
+## Q53
+
+**Question:** Would `manageSchema()` be the right capability-oriented name?
+
+**Answer:** Dude, could you stop thos vague strawman naming like operations, manage, provide etc.?
+
+## Q54
+
+**Question:** Does `SchemaMigrator` accurately name that capability?
+
+**Answer:** Yes, makes sense, or maybe databaseMigrator? As it's connected to the exact database
+
+## Q55
+
+**Question:** Should we standardize on the `DatabaseMigrator` type and `databaseMigrator(...)` factory?
+
+**Answer:** Yes, sounds gine by me
+
+## Q56
+
+**Question:** Should `DatabaseMigrator` expose an `ensureMigrated(policy)` capability for runtime initialization, while `migrate()` remains an unconditional explicit operation?
+
+**Answer:** What's policy in this context?
+
+## Q57
+
+**Question:** Should `databaseMigrator(...)` receive the resolved `autoMigration` setting rather than passing it to every `ensureMigrated()` call?
+
+**Answer:** Or maybe you have other idea?
+
+## Q58
+
+**Question:** Should we adopt the policy-free `DatabaseMigrator` design?
+
+**Answer:** Emmett and Pongo own their `autoMigration` configuration and inheritance
+
+Ok, but then all will need to be replicated, or am I missing something?
+
+## Q59
+
+**Question:** Should we use the split where owners resolve `autoMigration`, while `DatabaseMigrator` implements `ensureMigrated()` and explicit `migrate()` behavior?
+
+<!-- prettier-ignore -->
+**Answer:** Ok,  makes sense.
+
+## Q60
+
+**Question:** If a Pongo collection or Emmett processor is registered after that owner has already migrated successfully, should the next `ensureMigrated()` detect the expanded component graph and apply its new migrations?
+
+**Answer:** Yes, or it should generate new migrator
+
+## Q61
+
+**Question:** Should each `DatabaseMigrator` be immutable, with the owner replacing it whenever its component graph changes?
+
+**Answer:** Yes, if it doesn't complicate changes
+
+## Q62
+
+**Question:** For the existing misleading Pongo API, should `collection.schema.migrate()` be removed in the next beta rather than temporarily retained as a database-wide alias?
+
+**Answer:** Why would we need rebuildMigrator instead of just recreating it?
+
+## Q63
+
+**Question:** Returning to the unresolved Pongo decision: should `collection.schema.migrate()` be removed in the next beta?
+
+**Answer:** Why?
+
+## Q64
+
+**Question:** Should we deprecate it rather than remove it in this change?
+
+**Answer:** Ok, fine, then let's delete it
+
+## Q65
+
+**Question:** `DatabaseMigrator` needs `ensureMigrated()` so Pongo and Emmett can trigger automatic migration consistently. Should that method also be public through their `schema` objects, or remain an internal lifecycle method while users only see `migrate()`?
+
+**Answer:** Man, then validateNoPendingMigrations should be just ensureMigrated
+
+## Q66
+
+**Question:** When you say `ensureMigrated()`, should it be read-only and throw when migrations are pending—replacing `verifyNoPendingMigrations()`—or should it apply pending migrations?
+
+**Answer:** We don't need this method, we can just call ensureMigrated
+
+## Q67
+
+**Question:** When `autoMigration` is `None`, should `ensureMigrated()` perform a read-only check and throw if migrations are pending, or should it do nothing?
+
+**Answer:** It should perform check
+
+## Q68
+
+**Question:** Should `ensureMigrated()` return `Promise<void>` and throw a typed error containing the pending migrations when the read-only check fails?
+
+**Answer:** yes
+
+## Q69
+
+**Question:** Should a successful read-only `ensureMigrated()` under `None` be memoized for that immutable `DatabaseMigrator`, so normal runtime operations query migration history only once?
+
+**Answer:** Yes, that's why we're encapsulating so others didn'g have to
+
+## Q70
+
+**Question:** Should `DatabaseMigrator.sql()` and `print()` describe only the supplied component graph, excluding the migration-history table, locks, and migration-record bookkeeping?
+
+**Answer:** yes for now
+
+## Q71
+
+**Question:** Should the migration-history table configuration be fixed when creating an immutable `DatabaseMigrator`, with a different table requiring a new migrator rather than a per-call override?
+
+**Answer:** I don't understand what are you asking, we agreed that we're just recreating migrator
+
+## Q72
+
+**Question:** Are you ready for me to update `spec.md` with the Dumbo `DatabaseMigrator`, Pongo API changes, revised `ensureMigrated()` semantics, and the corresponding test-first plan?
+
+**Answer:** Yes, if you asked all questions then sure
