@@ -14,22 +14,24 @@ import {
   getSharedEventStoreDBTestContainer,
   releaseSharedEventStoreDBTestContainer,
 } from '@event-driven-io/emmett-testcontainers';
-import { describe, it } from 'vitest';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   testAggregateStream,
   testStreamExists,
   type EventStoreFactory,
 } from '../features';
 
-// const { stopOn } = streamTransformations;
-
-// type MockEvent = Event<'Mocked', { mocked: true }>;
-
 describe('EventStoreDBEventStore', () => {
   const M = MessagingAttributes;
   const given = ObservabilitySpec.for();
   let esdbContainer: StartedEventStoreDBContainer;
+
+  beforeAll(async () => {
+    await getSharedEventStoreDBTestContainer();
+  });
+
+  afterAll(() => releaseSharedEventStoreDBTestContainer());
 
   const eventStoreFactory: EventStoreFactory = async () => {
     esdbContainer = await getSharedEventStoreDBTestContainer();

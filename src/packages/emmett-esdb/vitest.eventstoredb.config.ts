@@ -5,8 +5,8 @@ export default defineConfig({
   ...containersShared,
   test: {
     ...containersShared.test,
-    name: '@event-driven-io/emmett-mongodb (integration)',
+    name: '@event-driven-io/emmett-esdb (eventstoredb)',
     include: ['**/*.int.spec.ts', '**/*.e2e.spec.ts'],
-    globalSetup: ['./src/testing/sharedMongoDBGlobalSetup.ts'],
+    globalSetup: ['./src/testing/sharedEventStoreDBGlobalSetup.ts'],
   },
 });

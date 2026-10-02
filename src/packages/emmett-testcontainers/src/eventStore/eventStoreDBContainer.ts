@@ -60,6 +60,11 @@ export class EventStoreDBContainer extends GenericContainer {
       EVENTSTORE_START_STANDARD_PROJECTIONS: 'true',
       EVENTSTORE_NODE_PORT: `${EVENTSTOREDB_PORT}`,
       EVENTSTORE_ENABLE_ATOM_PUB_OVER_HTTP: 'true',
+      // The server's 2s default times writes out when tests load the machine;
+      // 10s matches the client's default deadline.
+      EVENTSTORE_PREPARE_TIMEOUT_MS: '10000',
+      EVENTSTORE_COMMIT_TIMEOUT_MS: '10000',
+      EVENTSTORE_WRITE_TIMEOUT_MS: '10000',
     };
 
     this.withEnvironment(environment).withExposedPorts(EVENTSTOREDB_PORT);
@@ -99,7 +104,10 @@ const lock = InProcessLock();
 export const getSharedEventStoreDBTestContainer = () =>
   lock.withAcquire(
     async () => {
-      if (startedContainer) return startedContainer;
+      if (startedContainer) {
+        startedCount++;
+        return startedContainer;
+      }
 
       if (!container)
         container = new EventStoreDBContainer(EVENTSTOREDB_DEFAULT_IMAGE);
