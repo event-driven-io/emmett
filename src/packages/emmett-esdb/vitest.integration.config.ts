@@ -5,11 +5,8 @@ export default defineConfig({
   ...containersShared,
   test: {
     ...containersShared.test,
-    name: '@event-driven-io/emmett-tests (unit)',
-    exclude: [
-      ...(containersShared.test?.exclude ?? []),
-      '**/*.int.spec.ts',
-      '**/*.e2e.spec.ts',
-    ],
+    name: '@event-driven-io/emmett-esdb (integration)',
+    include: ['**/*.int.spec.ts', '**/*.e2e.spec.ts'],
+    globalSetup: ['./src/testing/sharedEventStoreDBGlobalSetup.ts'],
   },
 });

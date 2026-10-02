@@ -2,17 +2,22 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    maxWorkers: '50%',
     projects: [
       'packages/almanac',
       'packages/emmett',
       'packages/emmett-expressjs',
       'packages/emmett-honojs',
-      'packages/emmett-postgresql',
-      'packages/emmett-mongodb',
-      'packages/emmett-esdb',
+      'packages/emmett-postgresql/vitest.config.ts',
+      'packages/emmett-postgresql/vitest.integration.config.ts',
+      'packages/emmett-mongodb/vitest.config.ts',
+      'packages/emmett-mongodb/vitest.integration.config.ts',
+      'packages/emmett-esdb/vitest.config.ts',
+      'packages/emmett-esdb/vitest.integration.config.ts',
       'packages/emmett-testcontainers',
       'packages/emmett-fastify',
-      'packages/emmett-tests',
+      'packages/emmett-tests/vitest.config.ts',
+      'packages/emmett-tests/vitest.integration.config.ts',
       'packages/emmett-sqlite',
       'vitest.cloudflare.config.ts',
       {
