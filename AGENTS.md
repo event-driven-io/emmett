@@ -84,7 +84,7 @@ For documentation or agent-configuration changes, validate only the changed file
 
 While changing application code, identify and run the smallest relevant set of tests covering the affected behavior and applicable backends or variants. Before reporting a development phase as complete, also run `npm run test:unit`.
 
-Before the final handoff of completed application-code work, run `npm test`.
+Before the final handoff of completed application-code work, run `npm test`. If a test run is interrupted, ask before running it again.
 
 Report which verification commands were run, whether they passed, and why any relevant checks were skipped.
 

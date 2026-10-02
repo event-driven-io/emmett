@@ -2,8 +2,6 @@ import {
   getPostgreSQLEventStore,
   postgreSQLEventStoreConsumer,
 } from '@event-driven-io/emmett-postgresql';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, describe } from 'vitest';
 import {
   testReactorRecordsFailureAsEvent,
@@ -12,17 +10,21 @@ import {
   type ReactorConsumer,
 } from './reactorErrors.features';
 import { pgEventStoreDriver } from '@event-driven-io/emmett-postgresql/pg';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../testing/postgreSQLTestDatabase';
 
-let postgres: StartedPostgreSqlContainer;
+let database: PostgreSQLTestDatabase;
 let connectionString: string;
 
 beforeAll(async () => {
-  postgres = await getPostgreSQLStartedContainer();
-  connectionString = postgres.getConnectionUri();
-}, 120000);
+  database = await sharedPostgreSQLDatabase();
+  connectionString = database.connectionString;
+});
 
 afterAll(async () => {
-  await postgres?.stop();
+  await database?.close();
 });
 
 const postgreSQLConsumerFactory: ConsumerFactory = () => {

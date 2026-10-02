@@ -10,10 +10,8 @@ import {
   postgreSQLProjection,
   type PostgresEventStore,
 } from '@event-driven-io/emmett-postgresql';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, describe, it } from 'vitest';
 import {
@@ -29,16 +27,23 @@ import type {
   ShoppingCartEvent,
 } from '../shoppingCart.domain';
 import { pgEventStoreDriver } from '@event-driven-io/emmett-postgresql/pg';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../../testing/postgreSQLTestDatabase';
 
 describe('EventStoreDBEventStore', () => {
-  let postgres: StartedPostgreSqlContainer;
   let eventStore: PostgresEventStore;
-  let connectionString: string;
   let pongo: PongoClient;
+  const resources: {
+    database: PostgreSQLTestDatabase;
+    eventStore: PostgresEventStore;
+    pongo: PongoClient;
+  }[] = [];
 
   const eventStoreFactory: EventStoreFactory = async () => {
-    postgres = await getPostgreSQLStartedContainer();
-    connectionString = postgres.getConnectionUri();
+    const database = await sharedPostgreSQLDatabase();
+    const connectionString = database.connectionString;
     eventStore = getPostgreSQLEventStore({
       driver: pgEventStoreDriver,
       connectionString: connectionString,
@@ -56,14 +61,17 @@ describe('EventStoreDBEventStore', () => {
         },
       },
     });
+    resources.push({ database, eventStore, pongo });
     return eventStore;
   };
 
   afterAll(async () => {
     try {
-      await eventStore?.close();
-      await pongo?.close();
-      await postgres?.stop();
+      for (const resource of resources) {
+        await resource.eventStore.close();
+        await resource.pongo.close();
+        await resource.database.close();
+      }
     } catch (error) {
       console.log(error);
     }

@@ -6,32 +6,33 @@ import {
   postgreSQLProcessorLock,
   type PostgreSQLProcessorLockContext,
 } from '@event-driven-io/emmett-postgresql';
-import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, describe } from 'vitest';
+import {
+  sharedPostgreSQLDatabase,
+  type PostgreSQLTestDatabase,
+} from '../testing/postgreSQLTestDatabase';
 import {
   testProcessorLock,
   type ProcessorLockFactory,
 } from './processorLock.features';
 
-let postgres: StartedPostgreSqlContainer;
+let database: PostgreSQLTestDatabase;
 let pool: PgPool;
 
 beforeAll(async () => {
-  postgres = await getPostgreSQLStartedContainer();
-  const connectionString = postgres.getConnectionUri();
+  database = await sharedPostgreSQLDatabase();
 
   pool = dumbo({
-    connectionString,
+    connectionString: database.connectionString,
     driver: pgDumboDriver,
     transactionOptions: { allowNestedTransactions: true },
   });
   await createEventStoreSchema({ pool });
-}, 120000);
+});
 
 afterAll(async () => {
   await pool?.close();
-  await postgres?.stop();
+  await database?.close();
 });
 
 const postgreSQLProcessorLockFactory: ProcessorLockFactory<

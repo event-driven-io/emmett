@@ -1,0 +1,69 @@
+import { randomUUID } from 'crypto';
+import pg from 'pg';
+import { inject } from 'vitest';
+import { endPgPool } from '@event-driven-io/dumbo/pg';
+
+declare module 'vitest' {
+  export interface ProvidedContext {
+    sharedPostgreSQLConnectionString: string;
+  }
+}
+
+export type PostgreSQLTestDatabase = {
+  connectionString: string;
+  close: () => Promise<void>;
+};
+
+const withDatabaseName = (
+  serverConnectionString: string,
+  databaseName: string,
+): string => {
+  const url = new URL(serverConnectionString);
+  url.pathname = `/${databaseName}`;
+  return url.toString();
+};
+
+const onServer = async <Result>(
+  handle: (client: pg.Client) => Promise<Result>,
+): Promise<Result> => {
+  const client = new pg.Client({
+    connectionString: inject('sharedPostgreSQLConnectionString'),
+  });
+  await client.connect();
+
+  try {
+    return await handle(client);
+  } finally {
+    await client.end();
+  }
+};
+
+/**
+ * Gives the caller its own database on the container shared by the whole
+ * run. Creating a database costs milliseconds; starting a container costs
+ * seconds, and starting one per file starts a dozen at once.
+ */
+export const sharedPostgreSQLDatabase =
+  async (): Promise<PostgreSQLTestDatabase> => {
+    const databaseName = `emmett_test_${randomUUID().replaceAll('-', '')}`;
+
+    await onServer((client) =>
+      client.query(`CREATE DATABASE "${databaseName}"`),
+    );
+
+    const connectionString = withDatabaseName(
+      inject('sharedPostgreSQLConnectionString'),
+      databaseName,
+    );
+
+    return {
+      connectionString,
+      close: async () => {
+        await endPgPool({ connectionString, force: true });
+
+        await onServer(async (client) => {
+          await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+        });
+      },
+    };
+  };

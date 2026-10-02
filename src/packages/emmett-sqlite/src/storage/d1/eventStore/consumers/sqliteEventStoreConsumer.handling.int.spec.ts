@@ -1232,7 +1232,7 @@ void describe('SQLite event store started consumer', () => {
 
     void it(
       'handles concurrent writes with multiple processors without SQLITE_BUSY errors',
-      withDeadline,
+      { timeout: 60000 },
       async () => {
         // Given
         const concurrentStreams = 100;
