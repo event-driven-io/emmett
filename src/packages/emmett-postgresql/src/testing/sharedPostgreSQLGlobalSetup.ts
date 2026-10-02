@@ -1,11 +1,11 @@
 import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testcontainers';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import type { TestProject } from 'vitest/node';
-
-let container: StartedPostgreSqlContainer | undefined;
+import { acquireContainer, releaseContainer } from './sharedContainer';
 
 export const setup = async (project: TestProject): Promise<void> => {
-  container = await getPostgreSQLStartedContainer();
+  const container = await acquireContainer('postgresql', () =>
+    getPostgreSQLStartedContainer(),
+  );
 
   project.provide(
     'sharedPostgreSQLConnectionString',
@@ -13,7 +13,4 @@ export const setup = async (project: TestProject): Promise<void> => {
   );
 };
 
-export const teardown = async (): Promise<void> => {
-  await container?.stop();
-  container = undefined;
-};
+export const teardown = (): Promise<void> => releaseContainer('postgresql');

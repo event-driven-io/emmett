@@ -5,8 +5,8 @@ export default defineConfig({
   ...containersShared,
   test: {
     ...containersShared.test,
-    name: '@event-driven-io/emmett-postgresql (integration)',
+    name: '@event-driven-io/emmett-mongodb (mongodb)',
     include: ['**/*.int.spec.ts', '**/*.e2e.spec.ts'],
-    globalSetup: ['./src/testing/sharedPostgreSQLGlobalSetup.ts'],
+    globalSetup: ['./src/testing/sharedMongoDBGlobalSetup.ts'],
   },
 });

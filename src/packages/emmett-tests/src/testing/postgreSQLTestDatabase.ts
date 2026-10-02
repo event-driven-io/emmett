@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto';
 import pg from 'pg';
 import { inject } from 'vitest';
-import { endPgPool } from '@event-driven-io/dumbo/pg';
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -42,6 +41,9 @@ const onServer = async <Result>(
  * Gives the caller its own database on the container shared by the whole
  * run. Creating a database costs milliseconds; starting a container costs
  * seconds, and starting one per file starts a dozen at once.
+ *
+ * Close every connection before calling `close`: the drop fails while the
+ * database is still in use, which points at the spec that leaked it.
  */
 export const sharedPostgreSQLDatabase =
   async (): Promise<PostgreSQLTestDatabase> => {
@@ -59,8 +61,6 @@ export const sharedPostgreSQLDatabase =
     return {
       connectionString,
       close: async () => {
-        await endPgPool({ connectionString, force: true });
-
         await onServer(async (client) => {
           await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
         });

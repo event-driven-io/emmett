@@ -5,10 +5,11 @@ export default defineConfig({
   ...containersShared,
   test: {
     ...containersShared.test,
-    name: '@event-driven-io/emmett-tests (integration)',
-    include: ['**/*.int.spec.ts', '**/*.e2e.spec.ts'],
-    globalSetup: [
-      '../emmett-postgresql/src/testing/sharedPostgreSQLGlobalSetup.ts',
+    name: '@event-driven-io/emmett-esdb (unit)',
+    exclude: [
+      ...(containersShared.test?.exclude ?? []),
+      '**/*.int.spec.ts',
+      '**/*.e2e.spec.ts',
     ],
   },
 });

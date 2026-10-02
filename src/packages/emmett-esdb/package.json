@@ -9,12 +9,12 @@
     "build:ts:watch": "tsc -b --watch",
     "test": "run-s test:unit test:int test:e2e",
     "test:unit": "vitest run \".unit.spec\"",
-    "test:int": "vitest run --config vitest.integration.config.ts \".int.spec\"",
-    "test:e2e": "vitest run --config vitest.integration.config.ts \".e2e.spec\"",
+    "test:int": "vitest run \".int.spec\"",
+    "test:e2e": "vitest run \".e2e.spec\"",
     "test:watch": "vitest",
     "test:unit:watch": "vitest \".unit.spec\"",
-    "test:int:watch": "vitest --config vitest.integration.config.ts \".int.spec\"",
-    "test:e2e:watch": "vitest --config vitest.integration.config.ts \".e2e.spec\""
+    "test:int:watch": "vitest \".int.spec\"",
+    "test:e2e:watch": "vitest \".e2e.spec\""
   },
   "repository": {
     "type": "git",

@@ -2,7 +2,6 @@ import { getPostgreSQLStartedContainer } from '@event-driven-io/emmett-testconta
 import { randomUUID } from 'crypto';
 import pg from 'pg';
 import { inject } from 'vitest';
-import { endPgPool } from '@event-driven-io/dumbo/pg';
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -44,6 +43,9 @@ const onServer = async <Result>(
  * whole run. Creating a database costs milliseconds; starting a container costs
  * seconds, and starting one per file starts a dozen at once.
  *
+ * Close every connection before calling `close`: the drop fails while the
+ * database is still in use, which points at the spec that leaked it.
+ *
  * Not for every spec: see {@link isolatedPostgreSQLDatabase}.
  */
 export const sharedPostgreSQLDatabase =
@@ -62,8 +64,6 @@ export const sharedPostgreSQLDatabase =
     return {
       connectionString,
       close: async () => {
-        await endPgPool({ connectionString, force: true });
-
         await onServer(async (client) => {
           await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
         });
