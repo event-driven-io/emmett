@@ -126,15 +126,14 @@ void describe('Workflow Processor', () => {
 
     void it('should have canHandle with both input types and prefixed types when separateInputInboxFromProcessing is true', () => {
       // When
+      // #region workflow-separate-inbox
       const processor = workflowProcessor({
         ...workflowOptions,
         separateInputInboxFromProcessing: true,
       });
 
-      // Then
-      assertOk(processor.canHandle);
-      assertThatArray(processor.canHandle).hasSize(8);
-      assertThatArray(processor.canHandle).containsExactlyInAnyOrder([
+      // the processor now also subscribes to its own recorded copies
+      assertThatArray(processor.canHandle!).containsExactlyInAnyOrder([
         'InitiateGroupCheckout',
         'TimeoutGroupCheckout',
         'GuestCheckedOut',
@@ -144,6 +143,11 @@ void describe('Workflow Processor', () => {
         'GroupCheckoutWorkflow:GuestCheckedOut',
         'GroupCheckoutWorkflow:GuestCheckoutFailed',
       ]);
+      // #endregion workflow-separate-inbox
+
+      // Then
+      assertOk(processor.canHandle);
+      assertThatArray(processor.canHandle).hasSize(8);
     });
 
     void it('should handle workflow messages and store them in event store', async () => {
