@@ -67,11 +67,7 @@ import {
   storeProcessorCheckpoint,
   type EventStoreSchemaMigrationOptions,
 } from '../schema';
-import {
-  pgEventStoreDriver,
-  type PgEventStoreDriver,
-  type PgEventStoreDriverOptions,
-} from '../../pg';
+import { pgEventStoreDriver, type PgEventStoreDriverOptions } from '../../pg';
 import type {
   AnyPostgreSQLEventStoreDriver,
   InferDumboConnectionFromEventStoreDriver,
@@ -81,7 +77,7 @@ import type {
 } from '../eventStoreDriver';
 
 export type PostgreSQLProcessorHandlerContext<
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = MessageHandlerContext<
   {
     partition: string;
@@ -102,7 +98,7 @@ export type PostgreSQLProcessorHandlerContext<
 
 export type PostgreSQLProcessor<
   MessageType extends Message = AnyMessage,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = MessageProcessor<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
@@ -111,7 +107,7 @@ export type PostgreSQLProcessor<
 
 export type PostgreSQLProcessorEachMessageHandler<
   MessageType extends Message = Message,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = SingleRecordedMessageHandlerWithContext<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
@@ -120,7 +116,7 @@ export type PostgreSQLProcessorEachMessageHandler<
 
 export type PostgreSQLProcessorEachBatchHandler<
   MessageType extends Message = Message,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = BatchRecordedMessageHandlerWithContext<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
@@ -195,7 +191,7 @@ export type PostgreSQLProcessorConnectionOptions =
 
 export type PostgreSQLCheckpointer<
   MessageType extends AnyMessage = AnyMessage,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = Checkpointer<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
@@ -204,7 +200,7 @@ export type PostgreSQLCheckpointer<
 
 export const postgreSQLCheckpointer = <
   MessageType extends Message = Message,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 >(): PostgreSQLCheckpointer<MessageType, Driver> => ({
   read: async (options, context) => {
     const result = await readProcessorCheckpoint(context.execute, {
@@ -233,14 +229,14 @@ export const postgreSQLCheckpointer = <
 });
 
 type PostgreSQLConnectionOptions<
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = {
   connectionOptions?: PostgreSQLProcessorConnectionOptions;
   driver?: Driver;
 } & JSONSerializationOptions;
 
 type PostgreSQLProcessorOptionsBase<
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = PostgreSQLConnectionOptions<Driver> & {
   lock?: {
     /** Defaults to the PostgreSQL processor lock backed by the message store */
@@ -253,7 +249,7 @@ type PostgreSQLProcessorOptionsBase<
 export type PostgreSQLReactorOptions<
   MessageType extends Message = Message,
   MessagePayloadType extends AnyMessage = MessageType,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = ReactorOptions<
   MessageType,
   ReadEventMetadataWithGlobalPosition,
@@ -265,7 +261,7 @@ export type PostgreSQLReactorOptions<
 export type PostgreSQLProjectorOptions<
   EventType extends AnyEvent = AnyEvent,
   EventPayloadType extends Event = EventType,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = ProjectorOptions<
   EventType,
   ReadEventMetadataWithGlobalPosition,
@@ -282,7 +278,7 @@ export type PostgreSQLWorkflowProcessorOptions<
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = WorkflowProcessorOptions<
   Input,
   State,
@@ -294,7 +290,7 @@ export type PostgreSQLWorkflowProcessorOptions<
   PostgreSQLProcessorOptionsBase<Driver>;
 
 const postgreSQLProcessingScope = <
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 >(options: {
   pool: InferPoolFromEventStoreDriver<Driver> | null;
   connectionOptions: InferDumboOptionsFromEventStoreDriver<Driver> | null;
@@ -372,7 +368,7 @@ const postgreSQLProcessingScope = <
 };
 
 const getProcessorPool = <
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 >(
   options: PostgreSQLConnectionOptions<Driver>,
 ) => {
@@ -413,7 +409,7 @@ const getProcessorPool = <
 };
 
 const toProcessorLockOptions = <
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 >(
   processorLock: PostgreSQLProcessorLock,
   lock: PostgreSQLProcessorOptionsBase<Driver>['lock'],
@@ -426,7 +422,7 @@ const toProcessorLockOptions = <
 export const postgreSQLProjector = <
   EventType extends Event = Event,
   EventPayloadType extends Event = EventType,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 >(
   options: PostgreSQLProjectorOptions<EventType, EventPayloadType, Driver>,
 ): PostgreSQLProcessor<EventType, Driver> => {
@@ -524,7 +520,7 @@ export const postgreSQLWorkflowProcessor = <
   State,
   Output extends AnyEvent | AnyCommand,
   MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
   HandlerContext extends PostgreSQLProcessorHandlerContext<Driver> &
     WorkflowProcessorContext = PostgreSQLProcessorHandlerContext<Driver> &
     WorkflowProcessorContext,
@@ -603,7 +599,7 @@ export const postgreSQLWorkflowProcessor = <
 export const postgreSQLReactor = <
   MessageType extends AnyMessage = AnyMessage,
   MessagePayloadType extends AnyMessage = MessageType,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 >(
   options: PostgreSQLReactorOptions<MessageType, MessagePayloadType, Driver>,
 ): PostgreSQLProcessor<MessageType, Driver> => {

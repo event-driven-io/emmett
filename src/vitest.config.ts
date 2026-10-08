@@ -24,7 +24,7 @@ export default defineConfig({
         test: {
           name: 'bundle',
           environment: 'node',
-          include: ['e2e/bundleBoundaries.bundle.spec.ts'],
+          include: ['e2e/*.bundle.spec.ts'],
           globalSetup: ['e2e/buildBundles.ts'],
         },
       },

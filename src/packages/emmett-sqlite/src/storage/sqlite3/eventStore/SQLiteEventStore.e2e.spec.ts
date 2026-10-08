@@ -4,7 +4,6 @@ import {
   tableExists,
   type Sqlite3Pool,
 } from '@event-driven-io/dumbo/sqlite3';
-import { sqliteTableName } from '@event-driven-io/dumbo/sqlite';
 import {
   MessagingAttributes,
   ObservabilitySpec,
@@ -785,13 +784,9 @@ void describe('SQLiteEventStore with a database schema configured by the user', 
 
     try {
       assertTrue(
-        await tableExists(
-          pool.execute,
-          sqliteTableName({
-            databaseSchemaName: 'events',
-            tableName: 'emt_messages',
-          }),
-        ),
+        await tableExists(pool.execute, 'emt_messages', {
+          databaseSchemaName: 'events',
+        }),
       );
       assertFalse(await tableExists(pool.execute, 'emt_messages'));
     } finally {

@@ -2,7 +2,6 @@ import type { DurableObjectStorage } from '@cloudflare/workers-types';
 import { count, SQL, SQLTableReference } from '@event-driven-io/dumbo';
 import {
   cloudflareDurableObjectSQLitePool,
-  sqliteTableName,
   tableExists,
   type CloudflareDurableObjectSQLiteConnectionPool,
 } from '@event-driven-io/dumbo/cloudflare';
@@ -325,10 +324,7 @@ void describe('SQLite event store consumer schema configuration', () => {
       );
       assertFalse(await tableExists(pool.execute, collectionName));
       assertFalse(
-        await tableExists(
-          pool.execute,
-          sqliteTableName({ databaseSchemaName, tableName: collectionName }),
-        ),
+        await tableExists(pool.execute, collectionName, { databaseSchemaName }),
       );
     },
   );

@@ -5,7 +5,6 @@ import {
   tableExists,
   type CloudflareDurableObjectSQLiteConnectionPool,
 } from '@event-driven-io/dumbo/cloudflare';
-import { sqliteTableName } from '@event-driven-io/dumbo/sqlite';
 import {
   assertDeepEqual,
   assertEqual,
@@ -335,10 +334,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     databaseSchemaName: string,
     tableName: string,
   ): Promise<boolean> =>
-    tableExists(
-      pool.execute,
-      sqliteTableName({ databaseSchemaName, tableName }),
-    );
+    tableExists(pool.execute, tableName, { databaseSchemaName });
 
   const migrationNames = async (identifier: {
     databaseSchemaName: string;

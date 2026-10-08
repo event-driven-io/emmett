@@ -9,7 +9,6 @@ import {
   transactionToPostgreSQLProjectionHandlerContext,
   type PostgreSQLProjectionHandlerContext,
 } from '../projections';
-import type { PgEventStoreDriver } from '../../pg';
 import type {
   AnyPostgreSQLEventStoreDriver,
   InferDumboOptionsFromEventStoreDriver,
@@ -49,7 +48,7 @@ export type EventStoreSchemaMigrationOptions = {
 };
 
 export const createEventStoreSchema = <
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 >({
   hooks,
   schema: options,

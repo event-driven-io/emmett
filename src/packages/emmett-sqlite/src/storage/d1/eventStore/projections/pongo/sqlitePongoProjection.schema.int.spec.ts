@@ -3,8 +3,6 @@ import { mapRows, SQL, SQLTableReference } from '@event-driven-io/dumbo';
 import {
   d1Pool,
   indexExists,
-  sqliteIndexName,
-  sqliteTableName,
   tableExists,
   type D1ConnectionPool,
 } from '@event-driven-io/dumbo/cloudflare';
@@ -109,10 +107,7 @@ void describe('SQLite Pongo projection schema configuration', () => {
       );
       assertFalse(await tableExists(pool.execute, collectionName));
       assertFalse(
-        await tableExists(
-          pool.execute,
-          sqliteTableName({ databaseSchemaName, tableName: collectionName }),
-        ),
+        await tableExists(pool.execute, collectionName, { databaseSchemaName }),
       );
       assertTrue(
         (await migrationNames(migrationSchemaName, migrationTableName)).some(
@@ -197,19 +192,12 @@ void describe('SQLite Pongo projection schema configuration', () => {
         productItemsCount: 4,
       });
       assertFalse(
-        await tableExists(
-          pool.execute,
-          sqliteTableName({
-            databaseSchemaName: projectionsDatabaseSchemaName,
-            tableName: collectionName,
-          }),
-        ),
+        await tableExists(pool.execute, collectionName, {
+          databaseSchemaName: projectionsDatabaseSchemaName,
+        }),
       );
       assertFalse(
-        await tableExists(
-          pool.execute,
-          sqliteTableName({ databaseSchemaName, tableName: collectionName }),
-        ),
+        await tableExists(pool.execute, collectionName, { databaseSchemaName }),
       );
     },
   );
@@ -442,14 +430,9 @@ void describe('SQLite Pongo projection schema configuration', () => {
       }
 
       assertTrue(
-        await indexExists(
-          pool.execute,
-          sqliteIndexName({
-            databaseSchemaName: projectionsDatabaseSchemaName,
-            tableName: collectionName,
-            indexName,
-          }),
-        ),
+        await indexExists(pool.execute, indexName, {
+          databaseSchemaName: projectionsDatabaseSchemaName,
+        }),
       );
     },
   );

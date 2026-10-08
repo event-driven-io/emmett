@@ -2,7 +2,6 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { count, SQL, SQLTableReference } from '@event-driven-io/dumbo';
 import {
   d1Pool,
-  sqliteTableName,
   tableExists,
   type D1ConnectionPool,
 } from '@event-driven-io/dumbo/cloudflare';
@@ -326,10 +325,7 @@ void describe('SQLite event store consumer schema configuration', () => {
       );
       assertFalse(await tableExists(pool.execute, collectionName));
       assertFalse(
-        await tableExists(
-          pool.execute,
-          sqliteTableName({ databaseSchemaName, tableName: collectionName }),
-        ),
+        await tableExists(pool.execute, collectionName, { databaseSchemaName }),
       );
     },
   );

@@ -78,7 +78,7 @@ Available test suites:
 
 ## Verification
 
-The completion hook runs `npm run agent:check` automatically.
+The completion hook runs `npm run agent:validate` automatically. It checks lint and TypeScript without applying source fixes. Use `npm run agent:check` explicitly when source fixes are within the approved task.
 
 For documentation or agent-configuration changes, validate only the changed files and configuration. Application test suites are not required.
 
@@ -103,3 +103,11 @@ Report which verification commands were run, whether they passed, and why any re
 ## Coding guide
 
 - Use the module pattern with functions, closures, and object literals instead of classes.
+
+## Design and review
+
+Before changing shared contracts or delegating implementation across packages, read the requested behavior, the existing APIs, and representative call sites. Explain how the change fits the current ownership and lifecycle. Reuse existing types and configuration before proposing additions.
+
+For changes spanning packages or shared contracts, use an independent reviewer before handoff. The reviewer must read the request, existing code, and complete diff, and check that each addition serves a requirement, internal bookkeeping stays internal, and tests exercise requested usage. Reconsider the design after a user rejects it; renaming or relocating the same mechanism does not resolve the objection. The main agent owns shared contracts and coordinates corrections across delegates.
+
+Hook checks verify mechanical correctness. They do not replace design review or authorize edits during a read-only discussion.

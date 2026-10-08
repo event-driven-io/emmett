@@ -20,11 +20,7 @@ import {
   describe,
   it,
 } from 'vitest';
-import {
-  d1Pool,
-  sqliteTableName,
-  tableExists,
-} from '@event-driven-io/dumbo/cloudflare';
+import { d1Pool, tableExists } from '@event-driven-io/dumbo/cloudflare';
 import { d1EventStoreDriver, type D1EventStoreDriver } from '..';
 import type {
   DiscountApplied,
@@ -471,13 +467,9 @@ void describe('SQLiteEventStore with a database schema configured by the user', 
 
     try {
       assertTrue(
-        await tableExists(
-          pool.execute,
-          sqliteTableName({
-            databaseSchemaName: 'events',
-            tableName: 'emt_messages',
-          }),
-        ),
+        await tableExists(pool.execute, 'emt_messages', {
+          databaseSchemaName: 'events',
+        }),
       );
       assertFalse(await tableExists(pool.execute, 'emt_messages'));
     } finally {

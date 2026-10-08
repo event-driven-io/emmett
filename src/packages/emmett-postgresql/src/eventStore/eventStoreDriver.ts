@@ -2,6 +2,7 @@ import { EmmettError } from '@event-driven-io/emmett';
 import type { AnyPongoDriver } from '@event-driven-io/pongo';
 import type { PostgreSQLDriverType } from '@event-driven-io/dumbo/pg';
 import type {
+  AnyDatabaseTransaction,
   AnyDumboDatabaseDriver,
   Connection,
   Dumbo,
@@ -75,8 +76,7 @@ export type AnyPostgreSQLConnection = Connection<
   PostgreSQLDriverType,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  any
+  AnyDatabaseTransaction
 >;
 
 /**

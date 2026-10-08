@@ -1,5 +1,4 @@
 import { count, SQL, SQLTableReference } from '@event-driven-io/dumbo';
-import { sqliteTableName } from '@event-driven-io/dumbo/sqlite';
 import {
   sqlite3Pool,
   tableExists,
@@ -321,10 +320,7 @@ void describe('SQLite event store consumer schema configuration', () => {
       );
       assertFalse(await tableExists(pool.execute, collectionName));
       assertFalse(
-        await tableExists(
-          pool.execute,
-          sqliteTableName({ databaseSchemaName, tableName: collectionName }),
-        ),
+        await tableExists(pool.execute, collectionName, { databaseSchemaName }),
       );
     },
   );

@@ -5,7 +5,6 @@ import {
   sqlMigration,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
-import { sqliteTableName } from '@event-driven-io/dumbo/sqlite';
 import {
   InMemorySQLiteDatabase,
   sqlite3Connection,
@@ -396,10 +395,7 @@ void describe('Schema migrations tests', () => {
     databaseSchemaName: string,
     tableName: string,
   ): Promise<boolean> =>
-    tableExists(
-      connection.execute,
-      sqliteTableName({ databaseSchemaName, tableName }),
-    );
+    tableExists(connection.execute, tableName, { databaseSchemaName });
 
   const assertProjectionsTableExists = async (execute: SQLExecutor) => {
     assertTrue(await tableExists(execute, 'emt_projections'));
