@@ -15,7 +15,7 @@ import {
   unknownTag,
 } from './typing';
 
-import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
+import { createFunctionIfDoesNotExistSQL } from '@event-driven-io/dumbo/postgresql';
 
 const globalMessagePositionSequenceRegclass = (
   databaseSchemaName: string | undefined,
@@ -108,7 +108,7 @@ export const sanitizeNameSQLFor = (databaseSchemaName?: string) =>
         RETURN REGEXP_REPLACE(input_name, '[^a-zA-Z0-9_]', '_', 'g');
     END;
     $emt_sanitize_name$ LANGUAGE plpgsql;`,
-    databaseSchemaName,
+    { databaseSchemaName },
   );
 
 export const sanitizeNameSQL = sanitizeNameSQLFor();
@@ -148,7 +148,7 @@ export const addTablePartitionsFor = (databaseSchemaName?: string) =>
       );
   END;
   $emt_add_table_partition$ LANGUAGE plpgsql;`,
-    databaseSchemaName,
+    { databaseSchemaName },
   );
 
 export const addTablePartitions = addTablePartitionsFor();
@@ -175,7 +175,7 @@ export const addPartitionSQLFor = (databaseSchemaName?: string) =>
       );
   END;
   $emt_add_partition$ LANGUAGE plpgsql;`,
-    databaseSchemaName,
+    { databaseSchemaName },
   );
 
 export const addPartitionSQL = addPartitionSQLFor();

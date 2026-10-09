@@ -5,7 +5,15 @@ import {
   sqlMigration,
   type Dumbo,
 } from '@event-driven-io/dumbo';
-import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
+import {
+  pgDumboDriver,
+  type PgPool,
+  functionExists,
+  indexExists,
+  schemaExists,
+  sequenceExists,
+  tableExists,
+} from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   assertFalse,
@@ -22,13 +30,6 @@ import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../../../testing/postgreSQLTestDatabase';
-import {
-  functionExists,
-  indexExists,
-  schemaExists,
-  sequenceExists,
-  tableExists,
-} from '../../../../testing/schemaObjects';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -146,43 +147,65 @@ void describe('Schema migrations tests', () => {
     assertThatArray(skipped).isEmpty();
     assertTrue(await schemaExists(pool.execute, 'events'));
     assertTrue(await schemaExists(pool.execute, 'infrastructure'));
-    assertTrue(await tableExists(pool.execute, 'emt_streams', 'events'));
-    assertTrue(await tableExists(pool.execute, 'emt_messages', 'events'));
     assertTrue(
-      await sequenceExists(
-        pool.execute,
-        'emt_global_message_position',
-        'events',
-      ),
+      await tableExists(pool.execute, 'emt_streams', {
+        databaseSchemaName: 'events',
+      }),
     );
     assertTrue(
-      await functionExists(pool.execute, 'emt_append_to_stream', 'events'),
+      await tableExists(pool.execute, 'emt_messages', {
+        databaseSchemaName: 'events',
+      }),
     );
     assertTrue(
-      await functionExists(
-        pool.execute,
-        'store_processor_checkpoint',
-        'events',
-      ),
+      await sequenceExists(pool.execute, 'emt_global_message_position', {
+        databaseSchemaName: 'events',
+      }),
     );
     assertTrue(
-      await tableExists(pool.execute, 'emmett_migrations', 'infrastructure'),
+      await functionExists(pool.execute, 'emt_append_to_stream', {
+        databaseSchemaName: 'events',
+      }),
     );
-    assertFalse(await tableExists(pool.execute, 'emt_streams', 'public'));
-    assertFalse(await tableExists(pool.execute, 'emt_streams', 'read_models'));
-    assertFalse(await tableExists(pool.execute, 'emmett_migrations', 'events'));
-    assertFalse(
-      await tableExists(pool.execute, 'dmb_migrations', 'infrastructure'),
+    assertTrue(
+      await functionExists(pool.execute, 'store_processor_checkpoint', {
+        databaseSchemaName: 'events',
+      }),
     );
-    assertFalse(
-      await sequenceExists(
-        pool.execute,
-        'emt_global_message_position',
-        'public',
-      ),
+    assertTrue(
+      await tableExists(pool.execute, 'emmett_migrations', {
+        databaseSchemaName: 'infrastructure',
+      }),
     );
     assertFalse(
-      await functionExists(pool.execute, 'emt_append_to_stream', 'public'),
+      await tableExists(pool.execute, 'emt_streams', {
+        databaseSchemaName: 'public',
+      }),
+    );
+    assertFalse(
+      await tableExists(pool.execute, 'emt_streams', {
+        databaseSchemaName: 'read_models',
+      }),
+    );
+    assertFalse(
+      await tableExists(pool.execute, 'emmett_migrations', {
+        databaseSchemaName: 'events',
+      }),
+    );
+    assertFalse(
+      await tableExists(pool.execute, 'dmb_migrations', {
+        databaseSchemaName: 'infrastructure',
+      }),
+    );
+    assertFalse(
+      await sequenceExists(pool.execute, 'emt_global_message_position', {
+        databaseSchemaName: 'public',
+      }),
+    );
+    assertFalse(
+      await functionExists(pool.execute, 'emt_append_to_stream', {
+        databaseSchemaName: 'public',
+      }),
     );
 
     const result = await assertCanAppendAndRead(eventStore);

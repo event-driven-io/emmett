@@ -18,7 +18,7 @@ import {
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
+import { createFunctionIfDoesNotExistSQL } from '@event-driven-io/dumbo/postgresql';
 import { postgreSQLFunctionName } from './postgreSQLFunctionName';
 import { PostgreSQLEventStoreCheckpoint } from './readMessagesBatch';
 import {
@@ -122,7 +122,7 @@ export const appendToStreamSQLFor = (databaseSchemaName?: string) =>
   END;
   $emt_append_to_stream$;
   `,
-    databaseSchemaName,
+    { databaseSchemaName },
   );
 
 export const appendToStreamSQL = appendToStreamSQLFor();

@@ -688,6 +688,112 @@ void describe('consumer', () => {
     assertEqual(sourceState.closed, 1);
     assertEqual(closeHookCalls, 1);
   });
+
+  void it('runs the init hook before processors initialise', async () => {
+    const { source } = testSource([]);
+    const calls: string[] = [];
+    const { processor } = testProcessor('a');
+    processor.init = () => {
+      calls.push('processor');
+      return Promise.resolve();
+    };
+
+    const messageConsumer = testConsumer({
+      source,
+      processors: [processor],
+      hooks: {
+        onInit: () => {
+          calls.push('hook');
+          return Promise.resolve();
+        },
+      },
+    });
+
+    await messageConsumer.init();
+    await messageConsumer.init();
+
+    assertDeepEqual(calls, ['hook', 'processor']);
+  });
+
+  void it('initialises no processor when the init hook fails and retries it on the next init', async () => {
+    const { source } = testSource([]);
+    const { processor, state } = testProcessor('a');
+    const failure = new Error('Init hook failed');
+    let hookCalls = 0;
+
+    const messageConsumer = testConsumer({
+      source,
+      processors: [processor],
+      hooks: {
+        onInit: () => {
+          hookCalls++;
+          return hookCalls === 1 ? Promise.reject(failure) : Promise.resolve();
+        },
+      },
+    });
+
+    await assertRejects(messageConsumer.init(), failure);
+    assertEqual(state.inits, 0);
+
+    await messageConsumer.init();
+
+    assertEqual(hookCalls, 2);
+    assertEqual(state.inits, 1);
+  });
+
+  void it('replaces a processor registered with the same id at its position', () => {
+    const { source } = testSource([]);
+    const first = testProcessor('a').processor;
+    const other = testProcessor('b').processor;
+    const replacement = testProcessor('a').processor;
+    const messageConsumer = testConsumer({ source });
+
+    messageConsumer.reactor(first);
+    messageConsumer.reactor(other);
+    messageConsumer.projector({ processor: replacement });
+
+    assertDeepEqual([...messageConsumer.processors], [replacement, other]);
+  });
+
+  void it('replaces an array processor registered later with the same id', () => {
+    const { source } = testSource([]);
+    const first = testProcessor('a').processor;
+    const replacement = testProcessor('a').processor;
+    const messageConsumer = testConsumer({
+      source,
+      processors: [first],
+    });
+
+    messageConsumer.reactor(replacement);
+
+    assertEqual(messageConsumer.processors.length, 1);
+    assertEqual(messageConsumer.processors[0], replacement);
+  });
+
+  void it('keeps the later processor when the processors array repeats an id', () => {
+    const { source } = testSource([]);
+    const first = testProcessor('a').processor;
+    const other = testProcessor('b').processor;
+    const replacement = testProcessor('a').processor;
+
+    const messageConsumer = testConsumer({
+      source,
+      processors: [first, other, replacement],
+    });
+
+    assertDeepEqual([...messageConsumer.processors], [replacement, other]);
+  });
+
+  void it('keeps processors with different ids', () => {
+    const { source } = testSource([]);
+    const a = testProcessor('a').processor;
+    const b = testProcessor('b').processor;
+    const messageConsumer = testConsumer({ source, processors: [a] });
+
+    messageConsumer.reactor(b);
+
+    assertDeepEqual([...messageConsumer.processors], [a, b]);
+  });
 });
 
 void describe('consumer observability', () => {

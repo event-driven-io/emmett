@@ -6,7 +6,7 @@ import {
   SQLTableReference,
   type Dumbo,
 } from '@event-driven-io/dumbo';
-import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
+import { pgDumboDriver, tableExists } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   assertEqual,
@@ -28,7 +28,6 @@ import {
   isolatedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
-import { tableExists } from '../../testing/schemaObjects';
 import type {
   ProductItemAdded,
   ShoppingCartConfirmed,
@@ -180,7 +179,9 @@ void describe('Rebuilding PostgreSQL Projections', () => {
             ),
           );
           assertFalse(
-            await tableExists(pool.execute, collectionName, eventSchemaName),
+            await tableExists(pool.execute, collectionName, {
+              databaseSchemaName: eventSchemaName,
+            }),
           );
           assertFalse(await tableExists(pool.execute, collectionName));
         } finally {

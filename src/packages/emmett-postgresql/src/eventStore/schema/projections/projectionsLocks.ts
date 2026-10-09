@@ -1,5 +1,5 @@
 import { SQL } from '@event-driven-io/dumbo';
-import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
+import { createFunctionIfDoesNotExistSQL } from '@event-driven-io/dumbo/postgresql';
 import { postgreSQLFunctionName } from '../postgreSQLFunctionName';
 import { projectionsTable, tableReference } from '../typing';
 
@@ -32,7 +32,7 @@ BEGIN
 END;
 $emt_try_acquire_projection_lock$;
 `,
-    databaseSchemaName,
+    { databaseSchemaName },
   );
 
 export const tryAcquireProjectionLockSQL = tryAcquireProjectionLockSQLFor();

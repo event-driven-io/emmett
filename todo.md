@@ -37,9 +37,7 @@ Status 2026-10-08:
 
 ## G0: baseline (sequential, Oskar)
 
-- [ ] 0.1 Patch against `21802d7c` saved to `../codex-working-tree.patch`, classification table written below
-- [ ] Oskar restored the files that do not match
-- [ ] Gate green
+- [x] Replaced: Oskar restored `src/packages` to `21802d7c`; T.1 re-applied on the clean code. The old work is in the scratchpad patch `f-full.patch`.
 
 ### G0 classification
 
@@ -48,17 +46,35 @@ Status 2026-10-08:
 
 ## G1: localized fixes (parallel)
 
-- [ ] 1.1 Core `projections.async()` returns async registrations
-- [ ] 1.2 Real registration types in PG and SQLite
-- [ ] 1.3 Dumbo helpers in specs and SQL
-- [ ] Gate green
+- [x] 1.1 Core `projections.async()` returns async registrations
+- [x] 1.2 Real registration types in PG and SQLite
+- [x] 1.3 Dumbo helpers in specs and SQL
+- [ ] Gate green: 6 known failures remain, owned by later steps
+
+Status 2026-10-09:
+
+- `npm run build:ts`: passed.
+- `npm run agent:check`: passed.
+- `npm run test:unit`: 143 files, 1840 passed, 2 skipped.
+- All PG and SQLite specs (`npx vitest run packages/emmett-postgresql packages/emmett-sqlite`): 1102 passed, 3 skipped, 8 failed. After the snapshot update below, 6 failures remain:
+  - "ignores a Pongo collection migration hash mismatch" (PG, sqlite3, d1, durableObject): the Pongo projection migrates its collection on the first append, without the ignore option. Owner: 6.1.
+  - "rejects a nested transaction and rolls back" (sqlite3, durableObject): the inline Pongo `init` migrates its collection in a nested transaction. It fails the same way with the 1.2 change reverted. Owner: 4.2 and 6.1.
+- 1.3: the event-store SQL renders the same (checked with temporary snapshot tests, removed after the swap). The migration hash uses this rendering, so it does not change. The two "is the latest one" snapshots (0_43_0, 0_44_0) were updated, because they store the template parts: Dumbo passes the function name as a literal instead of `'` plus a plain name.
 
 ## G2: core contracts and processor settings (parallel)
 
-- [ ] 2.1 Projection and projector schema generic, `resolveAutoMigration`
-- [ ] 2.2 `ConsumerHooks.onInit`, replacement by ID
-- [ ] 2.3 Processors take the consumer's migration options (PG, SQLite)
-- [ ] Gate green
+- [x] 2.1 Projection and projector schema generic, `resolveAutoMigration`
+- [x] 2.2 `ConsumerHooks.onInit`, replacement by ID
+- [x] 2.3 Processors take the consumer's migration options (PG, SQLite)
+- [ ] Gate green: the same 6 known failures as G1, no new ones
+
+Status 2026-10-09:
+
+- `npm run build:ts`, `npm run agent:check`: passed.
+- `npm run test:unit`: 144 files, 1859 passed, 2 skipped.
+- All PG and SQLite specs: 1108 passed, 3 skipped, 6 failed (the G1 list).
+- 2.1: core types `autoMigration` as the literal union `'None' | 'CreateOrUpdate'` (Oskar). `Schema` is inferred only without explicit type arguments; `projection<TestEvent>({ schema })` types it as `unknown`.
+- 2.3: the PG processor lock takes the schema from its context when the processor sets none. The SQLite consumer scope now passes `driver` and `migrationOptions`; before, a SQLite array processor failed with "The handler context carries no event store driver".
 
 ## G3: declarative components (parallel)
 
@@ -71,6 +87,7 @@ Status 2026-10-08:
 
 - [ ] 4.1 PG event store, with `init()`
 - [ ] 4.2 SQLite event store, with `init()` (sqlite3, d1, durableObject)
+- Note: the 1.2 inline registration tests (`postgreSQLProjection.registration.int.spec.ts`, `sqliteProjection.registration.int.spec.ts`) trigger inline `init` through `schema.migrate()`. Switch them to `eventStore.init()` in 4.1 and 4.2.
 - [ ] Gate green
 
 ## G5: processors and consumers (two parallel tracks, sequential inside)

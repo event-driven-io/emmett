@@ -35,6 +35,7 @@ import {
 import { pongoClient } from '@event-driven-io/pongo';
 import { pongoSingleStreamProjection } from '../../../../eventStore/projections';
 import { sqliteEventStoreConsumer } from '../../../../eventStore/consumers/sqliteEventStoreConsumer';
+import { sqliteProjector } from '../../../../eventStore/consumers/sqliteProcessor';
 import { pongoDriverOf } from '../../../../eventStore/eventStoreDriver';
 
 const withDeadline = { timeout: 30000 };
@@ -321,6 +322,136 @@ void describe('SQLite event store consumer schema configuration', () => {
       assertFalse(await tableExists(pool.execute, collectionName));
       assertFalse(
         await tableExists(pool.execute, collectionName, { databaseSchemaName }),
+      );
+    },
+  );
+
+  void it(
+    'keeps the checkpoints and message store of an array processor in the consumer schema',
+    withDeadline,
+    async () => {
+      const processorId = `processor:${uuid()}`;
+      const markerStreamName = `marker-${uuid()}`;
+      const eventStore = getSQLiteEventStore({
+        driver: sqlite3EventStoreDriver,
+        fileName,
+        schema: { databaseSchemaName },
+      });
+
+      try {
+        await eventStore.schema.migrate();
+        await eventStore.appendToStream(`guestStay-${uuid()}`, [
+          { type: 'GuestCheckedIn', data: { guestId: uuid() } },
+        ]);
+
+        const consumer = eventStore.consumer<GuestStayEvent>({
+          stopWhen: { noMessagesLeft: true },
+          processors: [
+            sqliteProjector<GuestStayEvent>({
+              processorId,
+              projection: {
+                name: `projection:${uuid()}`,
+                canHandle: ['GuestCheckedIn'],
+                handle: () => Promise.resolve(),
+              },
+              hooks: {
+                onStart: async (context) => {
+                  await context.session.messageStore.appendToStream(
+                    markerStreamName,
+                    [{ type: 'Marked', data: {} }],
+                  );
+                },
+              },
+            }),
+          ],
+        });
+
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await eventStore.close();
+      }
+
+      const { lastProcessedCheckpoint } = await readProcessorCheckpoint(
+        pool.execute,
+        { processorId, databaseSchemaName },
+      );
+
+      assertIsNotNull(lastProcessedCheckpoint);
+      assertEqual(await messagesInStream(markerStreamName), 1);
+      assertFalse(await tableExists(pool.execute, processorsTable.name));
+      assertFalse(await tableExists(pool.execute, messagesTable.name));
+    },
+  );
+
+  void it(
+    'keeps the checkpoints of an array processor in its own schema when it sets one',
+    withDeadline,
+    async () => {
+      const processorId = `processor:${uuid()}`;
+      const processorSchemaName = 'processors_metadata';
+      const eventStore = getSQLiteEventStore({
+        driver: sqlite3EventStoreDriver,
+        fileName,
+        schema: { databaseSchemaName },
+      });
+      const processorStore = getSQLiteEventStore({
+        driver: sqlite3EventStoreDriver,
+        fileName,
+        schema: { databaseSchemaName: processorSchemaName },
+      });
+
+      try {
+        await eventStore.schema.migrate();
+        await processorStore.schema.migrate();
+        await eventStore.appendToStream(`guestStay-${uuid()}`, [
+          { type: 'GuestCheckedIn', data: { guestId: uuid() } },
+        ]);
+
+        const consumer = eventStore.consumer<GuestStayEvent>({
+          stopWhen: { noMessagesLeft: true },
+          processors: [
+            sqliteProjector<GuestStayEvent>({
+              processorId,
+              migrationOptions: { databaseSchemaName: processorSchemaName },
+              projection: {
+                name: `projection:${uuid()}`,
+                canHandle: ['GuestCheckedIn'],
+                handle: () => Promise.resolve(),
+              },
+            }),
+          ],
+        });
+
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await processorStore.close();
+        await eventStore.close();
+      }
+
+      assertIsNotNull(
+        (
+          await readProcessorCheckpoint(pool.execute, {
+            processorId,
+            databaseSchemaName: processorSchemaName,
+          })
+        ).lastProcessedCheckpoint,
+      );
+      assertEqual(
+        (
+          await readProcessorCheckpoint(pool.execute, {
+            processorId,
+            databaseSchemaName,
+          })
+        ).lastProcessedCheckpoint,
+        null,
       );
     },
   );

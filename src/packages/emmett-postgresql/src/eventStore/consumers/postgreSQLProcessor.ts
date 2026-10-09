@@ -314,6 +314,8 @@ const postgreSQLProcessingScope = <
     >,
   ) => {
     const session = partialContext?.session;
+    const migrationOptions =
+      options.migrationOptions ?? partialContext?.migrationOptions;
 
     const { pool, connectionOptions } = processorPool
       ? {
@@ -354,11 +356,11 @@ const postgreSQLProcessingScope = <
             },
             schema: {
               autoMigration: 'None',
-              ...options.migrationOptions,
+              ...migrationOptions,
             },
           }),
         },
-        migrationOptions: options.migrationOptions,
+        migrationOptions,
         observabilityScope: partialContext?.observabilityScope ?? noopScope,
       });
     });
@@ -465,16 +467,9 @@ export const postgreSQLProjector = <
                 version: options.projection.version ?? version,
                 status: 'active',
                 registrationType: 'async',
-                context: {
-                  ...context,
-                  migrationOptions: options.migrationOptions,
-                },
+                context,
               });
-            if (options.hooks?.onInit)
-              await options.hooks.onInit({
-                ...context,
-                migrationOptions: options.migrationOptions,
-              });
+            if (options.hooks?.onInit) await options.hooks.onInit(context);
           }
         : options.hooks?.onInit,
     onClose: close

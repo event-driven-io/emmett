@@ -1,5 +1,9 @@
 import { dumbo, mapRows, SQL, SQLTableReference } from '@event-driven-io/dumbo';
-import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
+import {
+  pgDumboDriver,
+  type PgPool,
+  tableExists,
+} from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   assertFalse,
@@ -15,7 +19,6 @@ import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../../testing/postgreSQLTestDatabase';
-import { tableExists } from '../../../testing/schemaObjects';
 import { getPostgreSQLEventStore } from '../../postgreSQLEventStore';
 import { PostgreSQLProjectionSpec } from '../postgresProjectionSpec';
 import { pongoSingleStreamProjection } from './pongoProjections';
@@ -91,7 +94,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           { _id: streamName, _version: 1n, productItemsCount: 3 },
         );
         assertFalse(
-          await tableExists(pool.execute, collectionName, eventSchemaName),
+          await tableExists(pool.execute, collectionName, {
+            databaseSchemaName: eventSchemaName,
+          }),
         );
         assertFalse(await tableExists(pool.execute, collectionName));
         assertTrue(
@@ -142,10 +147,14 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           { _id: streamName, _version: 1n, productItemsCount: 4 },
         );
         assertFalse(
-          await tableExists(pool.execute, collectionName, projectionSchemaName),
+          await tableExists(pool.execute, collectionName, {
+            databaseSchemaName: projectionSchemaName,
+          }),
         );
         assertFalse(
-          await tableExists(pool.execute, collectionName, eventSchemaName),
+          await tableExists(pool.execute, collectionName, {
+            databaseSchemaName: eventSchemaName,
+          }),
         );
       } finally {
         await store.close();
@@ -194,7 +203,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           { _id: streamName, _version: 1n, productItemsCount: 7 },
         );
         assertFalse(
-          await tableExists(pool.execute, collectionName, eventSchemaName),
+          await tableExists(pool.execute, collectionName, {
+            databaseSchemaName: eventSchemaName,
+          }),
         );
         assertFalse(await tableExists(pool.execute, collectionName));
         assertTrue(
@@ -250,7 +261,9 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
             { _id: streamName, _version: 1n, productItemsCount: 8 },
           );
           assertFalse(
-            await tableExists(pool.execute, collectionName, eventSchemaName),
+            await tableExists(pool.execute, collectionName, {
+              databaseSchemaName: eventSchemaName,
+            }),
           );
           assertTrue(
             (await migrationRows(migrationSchemaName, migrationTableName)).some(

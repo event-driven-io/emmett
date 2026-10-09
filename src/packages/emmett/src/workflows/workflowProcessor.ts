@@ -163,11 +163,13 @@ export type WorkflowProcessorOptions<
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
   HandledOutput extends Output = Output,
+  Schema = unknown,
 > = Omit<
   BaseMessageProcessorOptions<
     Input | Output,
     MessageMetadataType,
-    HandlerContext
+    HandlerContext,
+    Schema
   >,
   'type' | 'canHandle' | 'processorId'
 > & { processorId?: string } & WorkflowOptions<
@@ -198,6 +200,7 @@ export const workflowProcessor = <
   HandlerContext extends WorkflowProcessorContext = WorkflowProcessorContext,
   StoredMessage extends AnyEvent | AnyCommand = Output,
   HandledOutput extends Output = Output,
+  Schema = unknown,
 >(
   options: WorkflowProcessorOptions<
     Input,
@@ -206,9 +209,10 @@ export const workflowProcessor = <
     MetaDataType,
     HandlerContext,
     StoredMessage,
-    HandledOutput
+    HandledOutput,
+    Schema
   >,
-): MessageProcessor<Input, MetaDataType, HandlerContext> => {
+): MessageProcessor<Input, MetaDataType, HandlerContext, Schema> => {
   const { workflow, ...rest } = options;
 
   const inputs = [...options.inputs.commands, ...options.inputs.events];
@@ -226,7 +230,13 @@ export const workflowProcessor = <
 
   const handle = WorkflowHandler(options);
 
-  return reactor<Input | Output, MetaDataType, HandlerContext>({
+  return reactor<
+    Input | Output,
+    MetaDataType,
+    HandlerContext,
+    Input | Output,
+    Schema
+  >({
     ...rest,
     processorId:
       options.processorId ?? getWorkflowId({ workflowName: workflow.name }),

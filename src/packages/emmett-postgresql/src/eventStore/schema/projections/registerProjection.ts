@@ -1,5 +1,5 @@
 import { SQL } from '@event-driven-io/dumbo';
-import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
+import { createFunctionIfDoesNotExistSQL } from '@event-driven-io/dumbo/postgresql';
 import { postgreSQLFunctionName } from '../postgreSQLFunctionName';
 import { projectionsTable, tableReference } from '../typing';
 
@@ -43,7 +43,7 @@ BEGIN
 END;
 $emt_register_projection$;
 `,
-    databaseSchemaName,
+    { databaseSchemaName },
   );
 
 export const registerProjectionSQL = registerProjectionSQLFor();
@@ -83,7 +83,7 @@ BEGIN
 END;
 $emt_activate_projection$;
 `,
-    databaseSchemaName,
+    { databaseSchemaName },
   );
 
 export const activateProjectionSQL = activateProjectionSQLFor();
@@ -123,7 +123,7 @@ BEGIN
 END;
 $emt_deactivate_projection$;
 `,
-    databaseSchemaName,
+    { databaseSchemaName },
   );
 
 export const deactivateProjectionSQL = deactivateProjectionSQLFor();

@@ -5,6 +5,7 @@ import {
   type Dumbo,
 } from '@event-driven-io/dumbo';
 import {
+  columnExists,
   functionExists,
   pgDumboDriver,
   type PgPool,
@@ -131,34 +132,20 @@ void describe('Schema migrations tests', () => {
     assertTrue(await functionExists(pool.execute, 'emt_deactivate_projection'));
 
     // Verify columns exist on emt_processors
-    const processorsCreatedAtResult = await pool.execute.query<{
-      column_name: string;
-    }>(
-      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'created_at'`,
+    assertTrue(
+      await columnExists(pool.execute, 'emt_processors', 'created_at'),
     );
-    assertDeepEqual(processorsCreatedAtResult.rows.length, 1);
-
-    const processorsLastUpdatedResult = await pool.execute.query<{
-      column_name: string;
-    }>(
-      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_processors' AND column_name = 'last_updated'`,
+    assertTrue(
+      await columnExists(pool.execute, 'emt_processors', 'last_updated'),
     );
-    assertDeepEqual(processorsLastUpdatedResult.rows.length, 1);
 
     // Verify columns exist on emt_projections
-    const projectionsCreatedAtResult = await pool.execute.query<{
-      column_name: string;
-    }>(
-      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'created_at'`,
+    assertTrue(
+      await columnExists(pool.execute, 'emt_projections', 'created_at'),
     );
-    assertDeepEqual(projectionsCreatedAtResult.rows.length, 1);
-
-    const projectionsLastUpdatedResult = await pool.execute.query<{
-      column_name: string;
-    }>(
-      SQL`SELECT column_name FROM information_schema.columns WHERE table_name = 'emt_projections' AND column_name = 'last_updated'`,
+    assertTrue(
+      await columnExists(pool.execute, 'emt_projections', 'last_updated'),
     );
-    assertDeepEqual(projectionsLastUpdatedResult.rows.length, 1);
   });
 
   void it('migrates from 0.42.0 schema', async () => {

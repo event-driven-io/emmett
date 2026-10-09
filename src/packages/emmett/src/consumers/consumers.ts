@@ -132,6 +132,7 @@ export const DefaultConsumerBatchSize = 100;
 export const DefaultConsumerBatchDeadlineInMs = 50;
 
 export type ConsumerHooks = {
+  onInit?: () => Promise<void>;
   onClose?: () => Promise<void>;
 };
 
@@ -223,7 +224,8 @@ export const consumer = <
 > => {
   const { source, batchSize, batchDeadlineInMs, hooks, until } = options;
 
-  const processors = options.processors ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const processors: MessageProcessor<ConsumerMessageType, any, any>[] = [];
 
   const scope: MessageConsumerScope<HandlerContext> =
     options.scope ?? ((handler) => handler({}));
@@ -252,10 +254,15 @@ export const consumer = <
   const register: RegisterMessageProcessor<ConsumerMessageType> = (
     processor,
   ) => {
-    if (!processors.includes(processor)) processors.push(processor);
+    const index = processors.findIndex((p) => p.id === processor.id);
+
+    if (index === -1) processors.push(processor);
+    else processors[index] = processor;
 
     return processor;
   };
+
+  for (const processor of options.processors ?? []) register(processor);
 
   const withMergedObservability = (processorOptions: unknown): unknown => {
     if (typeof processorOptions !== 'object' || processorOptions === null)
@@ -293,6 +300,8 @@ export const consumer = <
     (observabilityScope ? withObservabilityScope(observabilityScope) : scope)(
       async (context) => {
         if (isInitialized) return;
+
+        if (hooks?.onInit) await hooks.onInit();
 
         for (const processor of processors) {
           try {

@@ -1,5 +1,11 @@
 import { count, dumbo, SQL, SQLTableReference } from '@event-driven-io/dumbo';
-import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
+import {
+  pgDumboDriver,
+  type PgPool,
+  functionExists,
+  schemaExists,
+  tableExists,
+} from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   assertEqual,
@@ -13,11 +19,6 @@ import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
-import {
-  functionExists,
-  schemaExists,
-  tableExists,
-} from '../../testing/schemaObjects';
 import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import { createEventStoreSchema } from '../schema';
 import type { EventStoreDatabaseSchemaOptions } from './eventStoreDatabaseSchema';
@@ -238,30 +239,56 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     });
 
     assertTrue(await schemaExists(pool.execute, 'events'));
-    assertTrue(await tableExists(pool.execute, 'emt_streams', 'events'));
-    assertTrue(await tableExists(pool.execute, 'emt_messages', 'events'));
     assertTrue(
-      await tableExists(pool.execute, 'emt_messages_emt_default', 'events'),
+      await tableExists(pool.execute, 'emt_streams', {
+        databaseSchemaName: 'events',
+      }),
     );
     assertTrue(
-      await tableExists(
-        pool.execute,
-        'emt_messages_emt_default_active',
-        'events',
-      ),
-    );
-    assertTrue(await tableExists(pool.execute, 'dmb_migrations', 'events'));
-    assertTrue(
-      await functionExists(pool.execute, 'emt_append_to_stream', 'events'),
+      await tableExists(pool.execute, 'emt_messages', {
+        databaseSchemaName: 'events',
+      }),
     );
     assertTrue(
-      await functionExists(pool.execute, 'emt_add_partition', 'events'),
+      await tableExists(pool.execute, 'emt_messages_emt_default', {
+        databaseSchemaName: 'events',
+      }),
+    );
+    assertTrue(
+      await tableExists(pool.execute, 'emt_messages_emt_default_active', {
+        databaseSchemaName: 'events',
+      }),
+    );
+    assertTrue(
+      await tableExists(pool.execute, 'dmb_migrations', {
+        databaseSchemaName: 'events',
+      }),
+    );
+    assertTrue(
+      await functionExists(pool.execute, 'emt_append_to_stream', {
+        databaseSchemaName: 'events',
+      }),
+    );
+    assertTrue(
+      await functionExists(pool.execute, 'emt_add_partition', {
+        databaseSchemaName: 'events',
+      }),
     );
 
-    assertFalse(await tableExists(pool.execute, 'emt_streams', 'public'));
-    assertFalse(await tableExists(pool.execute, 'dmb_migrations', 'public'));
     assertFalse(
-      await functionExists(pool.execute, 'emt_append_to_stream', 'public'),
+      await tableExists(pool.execute, 'emt_streams', {
+        databaseSchemaName: 'public',
+      }),
+    );
+    assertFalse(
+      await tableExists(pool.execute, 'dmb_migrations', {
+        databaseSchemaName: 'public',
+      }),
+    );
+    assertFalse(
+      await functionExists(pool.execute, 'emt_append_to_stream', {
+        databaseSchemaName: 'public',
+      }),
     );
   });
 
@@ -279,13 +306,27 @@ void describe('createEventStoreSchema with configured database schemas', () => {
 
     assertTrue(await schemaExists(pool.execute, 'store'));
     assertTrue(await schemaExists(pool.execute, 'infrastructure'));
-    assertTrue(await tableExists(pool.execute, 'emt_streams', 'store'));
     assertTrue(
-      await tableExists(pool.execute, 'emmett_migrations', 'infrastructure'),
+      await tableExists(pool.execute, 'emt_streams', {
+        databaseSchemaName: 'store',
+      }),
+    );
+    assertTrue(
+      await tableExists(pool.execute, 'emmett_migrations', {
+        databaseSchemaName: 'infrastructure',
+      }),
     );
 
-    assertFalse(await tableExists(pool.execute, 'dmb_migrations', 'store'));
-    assertFalse(await tableExists(pool.execute, 'emmett_migrations', 'public'));
+    assertFalse(
+      await tableExists(pool.execute, 'dmb_migrations', {
+        databaseSchemaName: 'store',
+      }),
+    );
+    assertFalse(
+      await tableExists(pool.execute, 'emmett_migrations', {
+        databaseSchemaName: 'public',
+      }),
+    );
   });
 
   void it('applies the configured migration after the user dry-runs it first', async () => {
@@ -313,7 +354,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
         await tableExists(
           pool.execute,
           schemaOptions.migrationTable.tableName,
-          schemaOptions.migrationTable.schemaName,
+          { databaseSchemaName: schemaOptions.migrationTable.schemaName },
         ),
       );
 
@@ -412,9 +453,15 @@ void describe('createEventStoreSchema with configured database schemas', () => {
       assertEqual(readResult.events.length, 1);
       assertTrue(exists);
       assertTrue(
-        await tableExists(pool.execute, 'emt_messages', configuredSchemaName),
+        await tableExists(pool.execute, 'emt_messages', {
+          databaseSchemaName: configuredSchemaName,
+        }),
       );
-      assertFalse(await tableExists(pool.execute, 'emt_messages', 'public'));
+      assertFalse(
+        await tableExists(pool.execute, 'emt_messages', {
+          databaseSchemaName: 'public',
+        }),
+      );
     } finally {
       await eventStore.close();
     }
@@ -458,18 +505,24 @@ void describe('createEventStoreSchema with configured database schemas', () => {
           'sku-quoted',
         );
         assertTrue(
-          await tableExists(pool.execute, 'emt_messages', eventSchemaName),
+          await tableExists(pool.execute, 'emt_messages', {
+            databaseSchemaName: eventSchemaName,
+          }),
         );
         assertTrue(
-          await tableExists(
-            pool.execute,
-            migrationTableName,
-            migrationSchemaName,
-          ),
+          await tableExists(pool.execute, migrationTableName, {
+            databaseSchemaName: migrationSchemaName,
+          }),
         );
-        assertFalse(await tableExists(pool.execute, 'emt_messages', 'public'));
         assertFalse(
-          await tableExists(pool.execute, migrationTableName, 'public'),
+          await tableExists(pool.execute, 'emt_messages', {
+            databaseSchemaName: 'public',
+          }),
+        );
+        assertFalse(
+          await tableExists(pool.execute, migrationTableName, {
+            databaseSchemaName: 'public',
+          }),
         );
       } finally {
         await store.close();
@@ -532,7 +585,11 @@ void describe('createEventStoreSchema with configured database schemas', () => {
       );
       assertEqual(1, await messagesCountInSchema(firstSchemaName));
       assertEqual(1, await messagesCountInSchema(secondSchemaName));
-      assertFalse(await tableExists(pool.execute, 'emt_messages', 'public'));
+      assertFalse(
+        await tableExists(pool.execute, 'emt_messages', {
+          databaseSchemaName: 'public',
+        }),
+      );
     } finally {
       await firstEventStore.close();
       await secondEventStore.close();

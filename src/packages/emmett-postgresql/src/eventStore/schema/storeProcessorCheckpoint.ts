@@ -1,6 +1,6 @@
 import { single, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import type { ProcessorCheckpoint } from '@event-driven-io/emmett';
-import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
+import { createFunctionIfDoesNotExistSQL } from '@event-driven-io/dumbo/postgresql';
 import { postgreSQLFunctionName } from './postgreSQLFunctionName';
 import {
   defaultTag,
@@ -117,7 +117,7 @@ BEGIN
 END;
 $spc$ LANGUAGE plpgsql;
 `,
-    databaseSchemaName,
+    { databaseSchemaName },
   );
 
 export const storeSubscriptionCheckpointSQL =

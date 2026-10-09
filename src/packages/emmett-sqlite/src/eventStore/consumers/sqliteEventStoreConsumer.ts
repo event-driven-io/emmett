@@ -198,6 +198,8 @@ export const sqliteEventStoreConsumer = <
           connectionOptions: dumboOptions,
         },
         execute: pool.execute,
+        driver: options.driver,
+        migrationOptions: processorMetadataSchema,
       }),
     until:
       options.until ??

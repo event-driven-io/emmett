@@ -35,6 +35,7 @@ export type PostgreSQLProcessorLockOptions = {
 export type PostgreSQLProcessorLockContext = {
   execute: SQLExecutor;
   observabilityScope?: ObservabilityScope;
+  migrationOptions?: { databaseSchemaName?: string };
 };
 
 export type PostgreSQLProcessorLock =
@@ -53,6 +54,8 @@ export const postgreSQLProcessorLock = (
     [EmmettAttributes.processor.instanceId]: options.processorInstanceId,
     [EmmettAttributes.processor.lock.key]: String(lockKey),
   };
+  const databaseSchemaName = (context: PostgreSQLProcessorLockContext) =>
+    options.databaseSchemaName ?? context.migrationOptions?.databaseSchemaName;
   const logDebug = (context: PostgreSQLProcessorLockContext, message: string) =>
     context.observabilityScope?.log(LogEvent.debug(lockAttributes, message));
 
@@ -67,6 +70,7 @@ export const postgreSQLProcessorLock = (
 
       const result = await tryAcquireProcessorLock(context.execute, {
         ...options,
+        databaseSchemaName: databaseSchemaName(context),
         lockKey,
       });
 
@@ -88,6 +92,7 @@ export const postgreSQLProcessorLock = (
 
       const ownedByThisInstance = await releaseProcessorLock(context.execute, {
         ...releaseOptions,
+        databaseSchemaName: databaseSchemaName(context),
         lockKey,
         projectionName: projection?.name,
       });

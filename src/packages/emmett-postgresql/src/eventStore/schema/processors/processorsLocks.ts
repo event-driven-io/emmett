@@ -1,6 +1,6 @@
 import { SQL } from '@event-driven-io/dumbo';
 import { bigInt } from '@event-driven-io/emmett';
-import { createFunctionIfDoesNotExistSQL } from '../createFunctionIfDoesNotExist';
+import { createFunctionIfDoesNotExistSQL } from '@event-driven-io/dumbo/postgresql';
 import { postgreSQLFunctionName } from '../postgreSQLFunctionName';
 import {
   defaultTag,
@@ -83,7 +83,7 @@ BEGIN
 END;
 $emt_try_acquire_processor_lock$;
 `,
-    databaseSchemaName,
+    { databaseSchemaName },
   );
 
 export const tryAcquireProcessorLockSQL = tryAcquireProcessorLockSQLFor();
@@ -132,7 +132,7 @@ BEGIN
 END;
 $emt_release_processor_lock$;
 `,
-    databaseSchemaName,
+    { databaseSchemaName },
   );
 
 export const releaseProcessorLockSQL = releaseProcessorLockSQLFor();

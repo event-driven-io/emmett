@@ -1,5 +1,9 @@
 import { count, dumbo, SQL, SQLTableReference } from '@event-driven-io/dumbo';
-import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
+import {
+  pgDumboDriver,
+  type PgPool,
+  tableExists,
+} from '@event-driven-io/dumbo/pg';
 import {
   assertEqual,
   assertFalse,
@@ -12,7 +16,6 @@ import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
-import { tableExists } from '../../testing/schemaObjects';
 import type { ProductItemAdded } from '../../testing/shoppingCart.domain';
 import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import {
@@ -28,6 +31,7 @@ import {
   tableReference,
 } from '../schema/typing';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
+import { postgreSQLProjector } from './postgreSQLProcessor';
 import { pgEventStoreDriver } from '../../pg';
 
 const withDeadline = { timeout: 30000 };
@@ -162,19 +166,15 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         assertIsNotNull(checkpoint);
         assertIsNotNull(registration);
         assertFalse(
-          await tableExists(
-            pool.execute,
-            processorsTable.name,
-            projectionSchemaName,
-          ),
+          await tableExists(pool.execute, processorsTable.name, {
+            databaseSchemaName: projectionSchemaName,
+          }),
         );
         assertFalse(await tableExists(pool.execute, processorsTable.name));
         assertFalse(
-          await tableExists(
-            pool.execute,
-            projectionsTable.name,
-            projectionSchemaName,
-          ),
+          await tableExists(pool.execute, projectionsTable.name, {
+            databaseSchemaName: projectionSchemaName,
+          }),
         );
         assertFalse(await tableExists(pool.execute, projectionsTable.name));
       } finally {
@@ -475,10 +475,161 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         assertEqual(1, await rowsInTable(projectionSchemaName, collectionName));
         assertEqual(1, await messagesInStream(eventSchemaName, streamName));
         assertFalse(
-          await tableExists(pool.execute, collectionName, eventSchemaName),
+          await tableExists(pool.execute, collectionName, {
+            databaseSchemaName: eventSchemaName,
+          }),
         );
         assertFalse(await tableExists(pool.execute, collectionName));
       } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'keeps the lock, checkpoints and message store of an array processor in the consumer schema',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const processorId = `processor:${uuid()}`;
+      const projectionName = schemaName('projection');
+      const markerStreamName = `marker-${uuid()}`;
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { databaseSchemaName: eventSchemaName },
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+          processors: [
+            postgreSQLProjector<ProductItemAdded>({
+              processorId,
+              projection: postgreSQLProjection<ProductItemAdded>({
+                name: projectionName,
+                canHandle: ['ProductItemAdded'],
+                handle: () => {},
+              }),
+              hooks: {
+                onStart: async (context) => {
+                  await context.session.messageStore.appendToStream(
+                    markerStreamName,
+                    [{ type: 'Marked', data: {} }],
+                  );
+                },
+              },
+            }),
+          ],
+        });
+
+        await store.appendToStream(`shopping_cart-${uuid()}`, [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ]);
+        await consumer.start();
+
+        assertIsNotNull(
+          (
+            await readProcessorCheckpoint(pool.execute, {
+              processorId,
+              databaseSchemaName: eventSchemaName,
+            })
+          ).lastProcessedCheckpoint,
+        );
+        assertIsNotNull(
+          await readProjectionInfo(pool.execute, {
+            databaseSchemaName: eventSchemaName,
+            name: projectionName,
+            partition: 'emt:default',
+            version: 1,
+          }),
+        );
+        assertEqual(
+          await messagesInStream(eventSchemaName, markerStreamName),
+          1,
+        );
+        if (await tableExists(pool.execute, processorsTable.name))
+          assertEqual(
+            await count(
+              pool.execute.query<{ count: number }>(
+                SQL`
+                  SELECT COUNT(*)::integer AS count
+                  FROM ${SQL.identifier(processorsTable.name)}
+                  WHERE processor_id = ${processorId}
+                `,
+              ),
+            ),
+            0,
+          );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'keeps the checkpoints of an array processor in its own schema when it sets one',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const processorSchemaName = schemaName('processor');
+      const processorId = `processor:${uuid()}`;
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { databaseSchemaName: eventSchemaName },
+      });
+      const processorStore = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { databaseSchemaName: processorSchemaName },
+      });
+
+      try {
+        await store.schema.migrate();
+        await processorStore.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+          processors: [
+            postgreSQLProjector<ProductItemAdded>({
+              processorId,
+              migrationOptions: { databaseSchemaName: processorSchemaName },
+              projection: postgreSQLProjection<ProductItemAdded>({
+                name: schemaName('projection'),
+                canHandle: ['ProductItemAdded'],
+                handle: () => {},
+              }),
+            }),
+          ],
+        });
+
+        await store.appendToStream(`shopping_cart-${uuid()}`, [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ]);
+        await consumer.start();
+
+        assertIsNotNull(
+          (
+            await readProcessorCheckpoint(pool.execute, {
+              processorId,
+              databaseSchemaName: processorSchemaName,
+            })
+          ).lastProcessedCheckpoint,
+        );
+        assertEqual(
+          (
+            await readProcessorCheckpoint(pool.execute, {
+              processorId,
+              databaseSchemaName: eventSchemaName,
+            })
+          ).lastProcessedCheckpoint,
+          null,
+        );
+      } finally {
+        await processorStore.close();
         await store.close();
       }
     },

@@ -178,9 +178,9 @@ IF NOT EXISTS (
   WHERE n.nspname = ",
         "current_schema()",
         "
-    AND p.proname = '",
-        "emt_sanitize_name",
-        "'
+    AND p.proname = ",
+        "'emt_sanitize_name'",
+        "
 ) THEN
   ",
         "CREATE OR REPLACE FUNCTION ",
@@ -210,9 +210,9 @@ IF NOT EXISTS (
   WHERE n.nspname = ",
         "current_schema()",
         "
-    AND p.proname = '",
-        "emt_add_table_partition",
-        "'
+    AND p.proname = ",
+        "'emt_add_table_partition'",
+        "
 ) THEN
   ",
         "
@@ -299,9 +299,9 @@ IF NOT EXISTS (
   WHERE n.nspname = ",
         "current_schema()",
         "
-    AND p.proname = '",
-        "emt_add_partition",
-        "'
+    AND p.proname = ",
+        "'emt_add_partition'",
+        "
 ) THEN
   ",
         "
@@ -381,9 +381,9 @@ IF NOT EXISTS (
   WHERE n.nspname = ",
         "current_schema()",
         "
-    AND p.proname = '",
-        "emt_append_to_stream",
-        "'
+    AND p.proname = ",
+        "'emt_append_to_stream'",
+        "
 ) THEN
   ",
         "CREATE OR REPLACE FUNCTION ",
@@ -545,9 +545,9 @@ IF NOT EXISTS (
   WHERE n.nspname = ",
         "current_schema()",
         "
-    AND p.proname = '",
-        "store_processor_checkpoint",
-        "'
+    AND p.proname = ",
+        "'store_processor_checkpoint'",
+        "
 ) THEN
   ",
         "
@@ -728,9 +728,9 @@ IF NOT EXISTS (
   WHERE n.nspname = ",
         "current_schema()",
         "
-    AND p.proname = '",
-        "emt_try_acquire_processor_lock",
-        "'
+    AND p.proname = ",
+        "'emt_try_acquire_processor_lock'",
+        "
 ) THEN
   ",
         "
@@ -878,9 +878,9 @@ IF NOT EXISTS (
   WHERE n.nspname = ",
         "current_schema()",
         "
-    AND p.proname = '",
-        "emt_release_processor_lock",
-        "'
+    AND p.proname = ",
+        "'emt_release_processor_lock'",
+        "
 ) THEN
   ",
         "
@@ -967,9 +967,9 @@ IF NOT EXISTS (
   WHERE n.nspname = ",
         "current_schema()",
         "
-    AND p.proname = '",
-        "emt_try_acquire_projection_lock",
-        "'
+    AND p.proname = ",
+        "'emt_try_acquire_projection_lock'",
+        "
 ) THEN
   ",
         "
@@ -1029,9 +1029,9 @@ IF NOT EXISTS (
   WHERE n.nspname = ",
         "current_schema()",
         "
-    AND p.proname = '",
-        "emt_register_projection",
-        "'
+    AND p.proname = ",
+        "'emt_register_projection'",
+        "
 ) THEN
   ",
         "
@@ -1102,9 +1102,9 @@ IF NOT EXISTS (
   WHERE n.nspname = ",
         "current_schema()",
         "
-    AND p.proname = '",
-        "emt_activate_projection",
-        "'
+    AND p.proname = ",
+        "'emt_activate_projection'",
+        "
 ) THEN
   ",
         "
@@ -1170,9 +1170,9 @@ IF NOT EXISTS (
   WHERE n.nspname = ",
         "current_schema()",
         "
-    AND p.proname = '",
-        "emt_deactivate_projection",
-        "'
+    AND p.proname = ",
+        "'emt_deactivate_projection'",
+        "
 ) THEN
   ",
         "

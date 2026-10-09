@@ -151,11 +151,13 @@ export type MessageProcessor<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
+  Schema = unknown,
 > = {
   id: string;
   instanceId: string;
   type: string;
   canHandle?: string[];
+  schema?: Schema;
   init: (options?: PartialHandlerContext<HandlerContext>) => Promise<void>;
   start: (
     options?: PartialHandlerContext<HandlerContext>,
@@ -310,9 +312,12 @@ export type BaseMessageProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
+  Schema = unknown,
 > = {
   type?: string;
   processorId: string;
+  schema?: Schema;
+  autoMigration?: 'None' | 'CreateOrUpdate';
   processorInstanceId?: string;
   version?: number;
   partition?: string;
@@ -369,10 +374,12 @@ export type ReactorOptions<
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
   MessagePayloadType extends AnyMessage = MessageType,
+  Schema = unknown,
 > = BaseMessageProcessorOptions<
   MessageType,
   MessageMetadataType,
-  HandlerContext
+  HandlerContext,
+  Schema
 > &
   HandlerOptions<MessageType, MessageMetadataType, HandlerContext> & {
     messageOptions?: {
@@ -387,8 +394,14 @@ export type ProjectorOptions<
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
   EventPayloadType extends Event = EventType,
+  Schema = unknown,
 > = Omit<
-  BaseMessageProcessorOptions<EventType, MessageMetadataType, HandlerContext>,
+  BaseMessageProcessorOptions<
+    EventType,
+    MessageMetadataType,
+    HandlerContext,
+    Schema
+  >,
   'type' | 'processorId'
 > & { processorId?: string } & {
   truncateOnStart?: boolean;
@@ -396,7 +409,8 @@ export type ProjectorOptions<
     EventType,
     MessageMetadataType,
     HandlerContext,
-    EventPayloadType
+    EventPayloadType,
+    Schema
   >;
 };
 
@@ -525,14 +539,21 @@ export const reactor = <
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
   MessagePayloadType extends Message = MessageType,
+  Schema = unknown,
 >(
   options: ReactorOptions<
     MessageType,
     MessageMetadataType,
     HandlerContext,
-    MessagePayloadType
+    MessagePayloadType,
+    Schema
   >,
-): MessageProcessor<MessageType, MessageMetadataType, HandlerContext> => {
+): MessageProcessor<
+  MessageType,
+  MessageMetadataType,
+  HandlerContext,
+  Schema
+> => {
   const {
     checkpoints,
     processorId,
@@ -546,6 +567,7 @@ export const reactor = <
     startFrom,
     canHandle,
     stopAfter,
+    schema,
   } = options;
 
   const checkpointer =
@@ -840,6 +862,7 @@ export const reactor = <
     instanceId,
     type,
     canHandle,
+    schema,
     init: async (partialOptions) => {
       partialOptions ??= {};
       const options: WithObservabilityScope<
@@ -1166,14 +1189,16 @@ export const projector = <
     AnyRecordedMessageMetadata,
   HandlerContext extends AnyMessageHandlerContext = AnyMessageHandlerContext,
   EventPayloadType extends Event = EventType,
+  Schema = unknown,
 >(
   options: ProjectorOptions<
     EventType,
     EventMetaDataType,
     HandlerContext,
-    EventPayloadType
+    EventPayloadType,
+    Schema
   >,
-): MessageProcessor<EventType, EventMetaDataType, HandlerContext> => {
+): MessageProcessor<EventType, EventMetaDataType, HandlerContext, Schema> => {
   const {
     projection,
     processorId = getProjectorId({
@@ -1186,9 +1211,11 @@ export const projector = <
     EventType,
     EventMetaDataType,
     HandlerContext,
-    EventPayloadType
+    EventPayloadType,
+    Schema
   >({
     ...rest,
+    schema: options.schema ?? projection.schema,
     type: MessageProcessorType.PROJECTOR,
     canHandle: projection.canHandle,
     processorId,
@@ -1210,3 +1237,8 @@ export const projector = <
     eachBatch: (events, context) => projection.handle(events, context),
   });
 };
+
+export const resolveAutoMigration = (
+  own: 'None' | 'CreateOrUpdate' | undefined,
+  inherited: 'None' | 'CreateOrUpdate' | undefined,
+): 'None' | 'CreateOrUpdate' => own ?? inherited ?? 'CreateOrUpdate';

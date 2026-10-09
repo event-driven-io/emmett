@@ -5,7 +5,13 @@ import {
   SQL,
   type Dumbo,
 } from '@event-driven-io/dumbo';
-import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
+import {
+  pgDumboDriver,
+  type PgPool,
+  functionExists,
+  indexExists,
+  tableExists,
+} from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   assertFalse,
@@ -22,11 +28,6 @@ import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../../../testing/postgreSQLTestDatabase';
-import {
-  functionExists,
-  indexExists,
-  tableExists,
-} from '../../../../testing/schemaObjects';
 import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
@@ -208,20 +209,28 @@ void describe('Schema migrations tests', () => {
 
     // Then
     assertDeepEqual(applied, migrations_0_43_0);
-    assertFalse(await tableExists(pool.execute, 'emt_messages', 'public'));
-    assertFalse(await tableExists(pool.execute, 'emt_processors', 'public'));
+    assertFalse(
+      await tableExists(pool.execute, 'emt_messages', {
+        databaseSchemaName: 'public',
+      }),
+    );
+    assertFalse(
+      await tableExists(pool.execute, 'emt_processors', {
+        databaseSchemaName: 'public',
+      }),
+    );
     assertFalse(
       await indexExists(
         pool.execute,
         'idx_messages_transaction_id_global_position',
-        'public',
+        { databaseSchemaName: 'public' },
       ),
     );
     assertTrue(
       await indexExists(
         pool.execute,
         'idx_messages_transaction_id_global_position',
-        otherSchemaName,
+        { databaseSchemaName: otherSchemaName },
       ),
     );
   });

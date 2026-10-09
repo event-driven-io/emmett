@@ -51,10 +51,12 @@ export type ProjectionDefinition<
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
   EventPayloadType extends Event = EventType,
+  Schema = unknown,
 > = {
   name?: string;
   version?: number;
   kind?: string;
+  schema?: Schema;
   canHandle: CanHandle<EventType>;
   handle: ProjectionHandler<EventType, EventMetaDataType, HandlerContext>;
   truncate?: TruncateProjection<HandlerContext>;
@@ -70,13 +72,15 @@ export type ProjectionRegistration<
   HandlingType extends ProjectionHandlingType,
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
+  Schema = unknown,
 > = {
   type: HandlingType;
   projection: ProjectionDefinition<
     AnyEvent,
     ReadEventMetadataType,
     HandlerContext,
-    AnyEvent
+    AnyEvent,
+    Schema
   >;
 };
 
@@ -115,31 +119,43 @@ export const projection = <
   EventMetaDataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
   EventPayloadType extends Event = EventType,
+  Schema = unknown,
 >(
   definition: ProjectionDefinition<
     EventType,
     EventMetaDataType,
     HandlerContext,
-    EventPayloadType
+    EventPayloadType,
+    Schema
   >,
 ): ProjectionDefinition<
   EventType,
   EventMetaDataType,
   HandlerContext,
-  EventPayloadType
+  EventPayloadType,
+  Schema
 > => definition;
 
 export const inlineProjections = <
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
+  Schema = unknown,
 >(
   definitions: ProjectionDefinition<
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     any,
     ReadEventMetadataType,
-    HandlerContext
+    HandlerContext,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
+    Schema
   >[],
-): ProjectionRegistration<'inline', ReadEventMetadataType, HandlerContext>[] =>
+): ProjectionRegistration<
+  'inline',
+  ReadEventMetadataType,
+  HandlerContext,
+  Schema
+>[] =>
   definitions.map((definition) => ({
     type: 'inline',
     projection: definition,
@@ -148,15 +164,23 @@ export const inlineProjections = <
 export const asyncProjections = <
   ReadEventMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
+  Schema = unknown,
 >(
   definitions: ProjectionDefinition<
     AnyEvent,
     ReadEventMetadataType,
-    HandlerContext
+    HandlerContext,
+    AnyEvent,
+    Schema
   >[],
-): ProjectionRegistration<'inline', ReadEventMetadataType, HandlerContext>[] =>
+): ProjectionRegistration<
+  'async',
+  ReadEventMetadataType,
+  HandlerContext,
+  Schema
+>[] =>
   definitions.map((definition) => ({
-    type: 'inline',
+    type: 'async',
     projection: definition,
   }));
 

@@ -1,6 +1,8 @@
-import { describe, it } from 'vitest';
+import { describe, expectTypeOf, it } from 'vitest';
 import {
   filterProjections,
+  projection,
+  projections,
   type ProjectionHandlingType,
   type ProjectionRegistration,
 } from '.';
@@ -146,5 +148,68 @@ void describe('filterProjections', () => {
       // Expect both, since '' != undefined
       assertThatArray(result).hasSize(2);
     });
+  });
+});
+
+void describe('projections', () => {
+  const projection = {
+    name: 'test',
+    canHandle: ['test'],
+    handle: () => Promise.resolve(),
+  };
+
+  void it('registers async projections as async', () => {
+    const registrations = projections.async([projection]);
+
+    assertDeepEqual(registrations, [{ type: 'async', projection }]);
+    expectTypeOf(registrations).toEqualTypeOf<
+      ProjectionRegistration<'async'>[]
+    >();
+  });
+
+  void it('registers inline projections as inline', () => {
+    const registrations = projections.inline([projection]);
+
+    assertDeepEqual(registrations, [{ type: 'inline', projection }]);
+    expectTypeOf(registrations).toEqualTypeOf<
+      ProjectionRegistration<'inline'>[]
+    >();
+  });
+});
+
+void describe('projection schema', () => {
+  type TestSchema = { schemaComponentKey: string };
+  const schema: TestSchema = { schemaComponentKey: 'test' };
+
+  const definition = projection({
+    name: 'test',
+    canHandle: ['test'],
+    handle: () => Promise.resolve(),
+    schema,
+  });
+
+  void it('carries the schema of a projection definition', () => {
+    assertEqual(definition.schema, schema);
+    expectTypeOf(definition.schema).toEqualTypeOf<TestSchema | undefined>();
+  });
+
+  void it('carries the schema of a registered projection', () => {
+    const [registration] = projections.async([definition]);
+
+    assertEqual(registration!.projection.schema, schema);
+    expectTypeOf(registration!.projection.schema).toEqualTypeOf<
+      TestSchema | undefined
+    >();
+  });
+
+  void it('carries no schema when a projection sets none', () => {
+    const withoutSchema = projection({
+      name: 'test',
+      canHandle: ['test'],
+      handle: () => Promise.resolve(),
+    });
+
+    assertEqual(withoutSchema.schema, undefined);
+    expectTypeOf(withoutSchema.schema).toEqualTypeOf<unknown>();
   });
 });

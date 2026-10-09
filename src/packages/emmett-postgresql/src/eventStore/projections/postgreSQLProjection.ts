@@ -170,7 +170,7 @@ export const postgreSQLProjection = <
         partition: defaultTag,
         status: 'active',
         registration: {
-          type: 'async',
+          type: options.registrationType,
           // TODO: fix this
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
           projection: definition as any,
