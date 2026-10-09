@@ -10,8 +10,8 @@ import {
 import {
   eventStoreDatabaseSchema,
   type EventStoreDatabaseSchemaOptions,
-} from '../eventStoreDatabaseSchema';
-import { eventStoreSchemaMigrationsFor } from '.';
+} from './eventStoreDatabaseSchema';
+import { eventStoreSchemaMigrationsFor } from './migrations';
 
 export type EventStoreSchemaComponentOptions = {
   pool: Dumbo;

@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
-} from '../../../testing/postgreSQLTestDatabase';
+} from '../../testing/postgreSQLTestDatabase';
 import { eventStoreSchemaComponent } from './eventStoreSchemaComponent';
 
 void describe('PostgreSQL event store schema component', () => {

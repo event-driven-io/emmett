@@ -1,3 +1,4 @@
+import type { AnyDatabaseComponent } from '@event-driven-io/dumbo';
 import {
   reduceAsync,
   type CanHandle,
@@ -9,6 +10,7 @@ import {
 } from '@event-driven-io/emmett';
 import {
   pongoClient,
+  pongoSchema,
   type PongoClient,
   type PongoDBCollectionOptions,
   type PongoDocument,
@@ -25,8 +27,13 @@ export type PongoProjectionHandlerContext = SQLiteProjectionHandlerContext & {
   pongo: PongoClient;
 };
 
-const pongoSchemaOptions = (context: SQLiteProjectionHandlerContext) => ({
-  defaultSchemaName: context.migrationOptions?.projectionsDatabaseSchemaName,
+const pongoClientSchemaOptions = (
+  context: SQLiteProjectionHandlerContext,
+  defaultSchemaName: string | undefined,
+) => ({
+  defaultSchemaName:
+    defaultSchemaName ??
+    context.migrationOptions?.projectionsDatabaseSchemaName,
   migrationTable: context.migrationOptions?.migrationTable,
 });
 
@@ -83,30 +90,43 @@ export type PongoProjectionOptions<
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
+  schema?: AnyDatabaseComponent;
+  defaultSchemaName?: string;
 } & JSONSerializationOptions;
 
 export const pongoProjection = <
   EventType extends Event,
   EventPayloadType extends Event = EventType,
->({
-  name,
-  kind,
-  version,
-  truncate,
-  handle,
-  canHandle,
-  eventsOptions,
-  init,
-}: PongoProjectionOptions<
-  EventType,
-  EventPayloadType
->): SQLiteProjectionDefinition<EventType, EventPayloadType> =>
-  sqliteProjection<EventType, EventPayloadType>({
+>(
+  options: PongoProjectionOptions<EventType, EventPayloadType>,
+): SQLiteProjectionDefinition<EventType, EventPayloadType> => {
+  const {
+    name,
+    kind,
+    version,
+    truncate,
+    handle,
+    canHandle,
+    eventsOptions,
+    init,
+    schema,
+    defaultSchemaName,
+  } = options;
+  const pongoSchemaOptions = (context: SQLiteProjectionHandlerContext) =>
+    pongoClientSchemaOptions(context, defaultSchemaName);
+
+  return sqliteProjection<EventType, EventPayloadType>({
     name,
     version,
     kind: kind ?? 'emt:projections:sqlite:pongo:generic',
     canHandle,
     eventsOptions,
+    schema:
+      schema && defaultSchemaName
+        ? schema.withDefaultSchemaName(defaultSchemaName)
+        : schema,
+    withDefaultSchemaName: (databaseSchemaName) =>
+      pongoProjection({ ...options, defaultSchemaName: databaseSchemaName }),
     handle: async (events, context) => {
       const { connection } = context.session;
       const pongo = pongoClient({
@@ -161,6 +181,7 @@ export const pongoProjection = <
         }
       : undefined,
   });
+};
 
 export type PongoMultiStreamProjectionOptions<
   Document extends PongoDocument,
@@ -224,12 +245,22 @@ export const pongoMultiStreamProjection = <
     options.version && options.version > 0
       ? `${collectionName}_v${options.version}`
       : collectionName;
+  const collectionComponent =
+    options.collectionOptions?.definition?.withTableName(
+      collectionNameWithVersion,
+    ) ?? pongoSchema.collection<Document>(collectionNameWithVersion);
+  const collection = { [collectionNameWithVersion]: collectionComponent };
+  const collectionSchemaName = options.collectionOptions?.databaseSchemaName;
+  const database = pongoSchema.db({ collections: {} });
 
   return pongoProjection({
     name: collectionNameWithVersion,
     version: options.version,
     kind: options.kind ?? 'emt:projections:sqlite:pongo:multi_stream',
     eventsOptions: options.eventsOptions,
+    schema: collectionSchemaName
+      ? database.withTable(collection, collectionSchemaName)
+      : database.withTable(collection),
     handle: async (events, { pongo }) => {
       const collection = pongo
         .db()
@@ -272,25 +303,14 @@ export const pongoMultiStreamProjection = <
       );
     },
     canHandle,
-    truncate: async (context) => {
-      const { connection } = context.session;
-      const pongo = pongoClient({
-        driver: pongoDriverOf(context.driver),
-        ...pongoSchemaOptions(context),
-        connectionOptions: { connection },
-      });
-
-      try {
-        await pongo
-          .db()
-          .collection<Document>(
-            collectionNameWithVersion,
-            options.collectionOptions,
-          )
-          .deleteMany();
-      } finally {
-        await pongo.close();
-      }
+    truncate: async ({ pongo }) => {
+      await pongo
+        .db()
+        .collection<Document>(
+          collectionNameWithVersion,
+          options.collectionOptions,
+        )
+        .deleteMany();
     },
     init: async (context) => {
       await context.pongo

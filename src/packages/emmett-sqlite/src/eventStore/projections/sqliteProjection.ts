@@ -1,5 +1,6 @@
 import type {
   AnyConnection,
+  AnyDatabaseComponent,
   AnyDatabaseTransaction,
   DatabaseDriverType,
   Dumbo,
@@ -90,7 +91,11 @@ export type SQLiteProjectionDefinition<
   SQLiteReadEventMetadata,
   SQLiteProjectionHandlerContext<Driver>,
   EventPayloadType
->;
+> & {
+  withDefaultSchemaName?: (
+    databaseSchemaName: string,
+  ) => SQLiteProjectionDefinition<EventType, EventPayloadType, Driver>;
+};
 
 export type SQLiteProjectionHandlerOptions<
   EventType extends Event = Event,
@@ -166,6 +171,7 @@ export type SQLiteRawBatchSQLProjection<
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
+  schema?: AnyDatabaseComponent;
 } & JSONSerializationOptions;
 
 export const sqliteRawBatchSQLProjection = <
@@ -181,6 +187,12 @@ export const sqliteRawBatchSQLProjection = <
     version: options.version,
     canHandle: options.canHandle,
     eventsOptions: options.eventsOptions,
+    schema: options.schema,
+    withDefaultSchemaName: (databaseSchemaName) =>
+      sqliteRawBatchSQLProjection({
+        ...options,
+        schema: options.schema?.withDefaultSchemaName(databaseSchemaName),
+      }),
     handle: async (events, context) => {
       const sqls: SQL[] = await options.evolve(events, context);
 
@@ -220,6 +232,7 @@ export type SQLiteRawSQLProjection<
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
+  schema?: AnyDatabaseComponent;
 } & JSONSerializationOptions;
 
 export const sqliteRawSQLProjection = <

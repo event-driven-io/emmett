@@ -1,5 +1,6 @@
 import type {
   AnyConnection,
+  AnyDatabaseComponent,
   AnyDatabaseTransaction,
   DatabaseDriverType,
   Dumbo,
@@ -93,7 +94,11 @@ export type PostgreSQLProjectionDefinition<
   PostgresReadEventMetadata,
   PostgreSQLProjectionHandlerContext<Driver>,
   EventPayloadType
->;
+> & {
+  withDefaultSchemaName?: (
+    databaseSchemaName: string,
+  ) => PostgreSQLProjectionDefinition<EventType, EventPayloadType, Driver>;
+};
 
 export type PostgreSQLProjectionHandlerOptions<
   EventType extends Event = Event,
@@ -151,8 +156,10 @@ export const postgreSQLProjection = <
   EventPayloadType extends Event = EventType,
 >(
   definition: PostgreSQLProjectionDefinition<EventType, EventPayloadType>,
-): PostgreSQLProjectionDefinition<EventType, EventPayloadType> =>
-  projection<
+): PostgreSQLProjectionDefinition<EventType, EventPayloadType> => {
+  const { schema: _schema, ...registeredDefinition } = definition;
+
+  return projection<
     EventType,
     PostgresReadEventMetadata,
     PostgreSQLProjectionHandlerContext,
@@ -173,7 +180,7 @@ export const postgreSQLProjection = <
           type: options.registrationType,
           // TODO: fix this
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
-          projection: definition as any,
+          projection: registeredDefinition as any,
         },
       });
       if (definition.init) {
@@ -181,6 +188,7 @@ export const postgreSQLProjection = <
       }
     },
   });
+};
 
 export type PostgreSQLRawBatchSQLProjection<
   EventType extends Event,
@@ -200,6 +208,7 @@ export type PostgreSQLRawBatchSQLProjection<
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
+  schema?: AnyDatabaseComponent;
 } & JSONSerializationOptions;
 
 export const postgreSQLRawBatchSQLProjection = <
@@ -214,6 +223,12 @@ export const postgreSQLRawBatchSQLProjection = <
     version: options.version,
     canHandle: options.canHandle,
     eventsOptions: options.eventsOptions,
+    schema: options.schema,
+    withDefaultSchemaName: (databaseSchemaName) =>
+      postgreSQLRawBatchSQLProjection({
+        ...options,
+        schema: options.schema?.withDefaultSchemaName(databaseSchemaName),
+      }),
     handle: async (events, context) => {
       const sqls: SQL[] = await options.evolve(events, context);
 
@@ -252,6 +267,7 @@ export type PostgreSQLRawSQLProjection<
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
+  schema?: AnyDatabaseComponent;
 } & JSONSerializationOptions;
 
 export const postgreSQLRawSQLProjection = <

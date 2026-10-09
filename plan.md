@@ -55,7 +55,9 @@ Spec: [spec.md](spec.md). State: [todo.md](todo.md). The clean baseline is `2180
   - `add(schema)` adds the component as a child, unchanged, and replaces its migrator. It places no tables: each component provides its full schema, including `CREATE SCHEMA` for a non-default database schema. Dumbo dedupes equal migrations and rejects conflicting SQL for one name when the migrations are read.
   - It exposes `component`, `migrations` and `migrator`. The driver's `migrationOptions` are spread into each new migrator.
   - The event store, the consumer and an own-pool processor each hold one instance.
-- **Pongo projections:** the multi-stream projection sets `schema` to `definition?.withTableName(name) ?? pongoSchema.collection(name)`, moved to `collectionOptions.databaseSchemaName` when that is set. `pongoProjection` passes `schema` through. `init` stays until G6.
+- **Default schema for projections:** the PG and SQLite adapters define `withDefaultSchemaName(databaseSchemaName)` on Pongo and raw SQL projections. It returns a rebuilt definition; an explicit schema in the definition wins. The event store calls it on each registration that has it, with `projectionsDatabaseSchemaName ?? databaseSchemaName`, and skips the call when both are unset. Core types stay as in 2.1.
+- **Pongo projections:** `schema` is the component a Pongo client db with the projection's default schema name holds for its collection (`definition?.withTableName(name) ?? pongoSchema.collection(name)`, in `collectionOptions.databaseSchemaName` when set). Build it as `PongoDatabaseComponent` does, from a Pongo database definition rebased with `withDefaultSchemaName`; no pool is needed. The handler's Pongo database uses the same default schema name. `pongoProjection` passes `schema` through. `init` stays until G6.
+- **Raw SQL projections:** `schema` is a Dumbo database component; `withDefaultSchemaName` rebuilds it with the component's `withDefaultSchemaName`.
 - **Pongo client reuse (D5):** one Pongo client per storage instead of one per batch. Inline: one client on the store's database. Async: one client created from the projector's pool in its init. First check how the batch transaction reaches a reused client. When it costs too much, stop and report; it moves to the spec's future improvements.
 - **Projection registration** serializes the definition without `schema`.
 - **Processors:**
@@ -64,7 +66,7 @@ Spec: [spec.md](spec.md). State: [todo.md](todo.md). The clean baseline is `2180
   - A processor with its own pool is a child owner. Its migrator covers only its own schema under `databaseComponent({ defaultSchemaName })`; no event-store tables on that storage (Q3). Its `schema` value is the owner shape `{ component, sql, print, migrate, ensureMigrated }`, which is how the consumer recognizes it (Q1). It runs assurance in `onInit` before `projection.init`, with `resolveAutoMigration(options.autoMigration, consumer's effective value)` (D6).
 - **Event store:**
   - It accepts inline and async registrations.
-  - Graph: its event-store schema component instance with all registration schemas added at construction. One migrator.
+  - Graph: its event-store schema component instance with all registration schemas added at construction, after `withDefaultSchemaName`. One migrator.
   - `migrate(options)`: one transaction with `onBeforeSchemaCreated`, `migrator.migrate({ execute: tx.execute })` and `onAfterSchemaCreated`. A dry run returns `{ success: false, result }`. A successful non-dry run sets a once-per-instance flag, so the hooks run once. No shared promise (spec non-goal 54).
   - Public `init()`, once per instance; the first operation calls it when nobody did:
     1. automatic assurance: `migrate()` under `CreateOrUpdate` (skipped when the flag is set), `migrator.ensureMigrated()` under `None`;
@@ -196,7 +198,7 @@ Same as 3.1 in shared SQLite schema code.
 ### 3.3 Pongo projections expose `schema`
 
 ```text
-PG and SQLite pongoProjections.ts. pongoProjection passes schema through. Multi-stream sets definition?.withTableName(name) ?? pongoSchema.collection(name), moved to collectionOptions.databaseSchemaName when set. Keep init, handle and truncate as at 21802d7c. registerProjection serializes the definition without schema. Unit tests: versioned name, explicit schema, indexes kept, migrations equal Pongo's, registered definition has no schema.
+PG and SQLite pongoProjections.ts and the raw SQL projections. Pongo and raw SQL projections get withDefaultSchemaName and schema as in section 2. Keep init, handle and truncate as at 21802d7c, except that the Pongo handler uses the definition's default schema name. registerProjection serializes the definition without schema. Unit tests: Pongo schema migrations equal those of a Pongo client db with the same defaultSchemaName and collection, for no default, a default, and an explicit collection schema; versioned name; indexes kept; a raw SQL table lands in the default schema and an explicit schema wins; registered definition has no schema.
 ```
 
 ### 4.1 PG event store

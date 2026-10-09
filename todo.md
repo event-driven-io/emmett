@@ -78,10 +78,19 @@ Status 2026-10-09:
 
 ## G3: declarative components (parallel)
 
-- [ ] 3.1 PG reusable event-store schema component
-- [ ] 3.2 SQLite reusable event-store schema component
-- [ ] 3.3 Pongo projections expose `schema` (PG, SQLite)
-- [ ] Gate green
+- [x] 3.1 PG reusable event-store schema component
+- [x] 3.2 SQLite reusable event-store schema component
+- [x] 3.3 Pongo and raw SQL projections expose `schema` and `withDefaultSchemaName` (PG, SQLite)
+- [ ] Gate green: the same 6 known failures as G1, no new ones
+
+Status 2026-10-09:
+
+- 3.1/3.2 redesigned with Oskar: the component only aggregates (event-store migrations plus children), no table placement. It lives in `schema/eventStoreSchemaComponent.ts`. PG and SQLite: 8 unit and 1 int test each, green.
+- 3.3: projections get the store default through `withDefaultSchemaName` (spec section on core schema). PG Pongo (6 unit), PG raw SQL (3 unit), registration without schema (int), SQLite raw SQL (3 unit): green, verified red first. SQLite Pongo (6 unit): green, verified red first.
+- 3.3: the multi-stream Pongo `truncate` uses the client from its context instead of opening a second one. spec.md: raw SQL handlers keep the schema name from the handler context.
+- `npm run build:ts`, `npm run agent:check`: passed.
+- `npm run test:unit`: 150 files, 1891 passed, 2 skipped.
+- All PG and SQLite specs: 1143 passed, 3 skipped, 6 failed (the G1 list).
 
 ## G4: event stores own the migrator (parallel)
 

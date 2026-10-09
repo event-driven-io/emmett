@@ -15,9 +15,9 @@ import {
 import { pongoClient } from '@event-driven-io/pongo';
 import { pgDriver as pgPongoDriver } from '@event-driven-io/pongo/pg';
 import { afterAll, describe, it } from 'vitest';
-import type { EventStoreDatabaseSchemaOptions } from '../eventStoreDatabaseSchema';
+import type { EventStoreDatabaseSchemaOptions } from './eventStoreDatabaseSchema';
 import { eventStoreSchemaComponent } from './eventStoreSchemaComponent';
-import { eventStoreSchemaMigrationsFor } from '.';
+import { eventStoreSchemaMigrationsFor } from './migrations';
 
 const connectionString = 'postgresql://localhost:5432/postgres';
 

@@ -94,6 +94,14 @@ export type MessageProcessor<
 
 The exact generic placement must preserve existing inference and default type arguments. Core does not inspect the schema value. PostgreSQL and SQLite adapters accept Dumbo `AnySchemaComponent` values and use Dumbo's component guard when collecting contributions.
 
+The PostgreSQL and SQLite adapters define a projection capability `withDefaultSchemaName(databaseSchemaName: string)`. It returns a rebuilt projection definition that uses that name for every table the definition does not place in its own schema, in its `schema` component and in its handlers. It follows Dumbo's `databaseComponent.withDefaultSchemaName`: an explicit schema in the definition wins. Pongo and raw SQL projections have it.
+
+When an event store adds its projection registrations, it calls `withDefaultSchemaName` on each projection that has it, with `projectionsDatabaseSchemaName`, else `databaseSchemaName`. With neither set, it does not call it. Then it adds the rebuilt projection's `schema` unchanged, and the rebuilt projection is the one that gets registered, initialized, and handled.
+
+- A Pongo projection uses the name as the `defaultSchemaName` of its Pongo database. Its `schema` is the component that a Pongo database with that `defaultSchemaName` holds for its collection, so Pongo places the collection and adds the `CREATE SCHEMA` migration for a named schema.
+- A raw SQL projection takes its `schema` as a Dumbo database component and calls `withDefaultSchemaName` on it. Its table components can carry raw migration SQL, `tableComponent({ tableName, migrations: (fullName) => [...] })`, and Dumbo passes the placed table name. Its handlers keep the schema name from the handler context, as today. SQL that is not tied to a table, such as a view, names its schema itself.
+- A projector that a user builds and passes to a consumer's `processors` array keeps the projection it was given. The user calls `withDefaultSchemaName` on the projection or sets the schema in its definition.
+
 Do not introduce a core `RelationalSchema`, migration facade, or duplicate component wrapper.
 
 ## Storage-agnostic Dumbo components
@@ -304,7 +312,7 @@ Automatic migration triggers remain consistent with current event-store behavior
 
 Schema composition and lifecycle initialization are coordinated but are not the same operation.
 
-- Built-in Pongo projections expose collection migrations through `collection.schema.component` instead of calling the deprecated `collection.schema.migrate()`.
+- Built-in Pongo projections expose their collection through `schema`, the component of their Pongo database for their default schema name, instead of calling the deprecated `collection.schema.migrate()`.
 - Initialization delegates to the storage-bound owner's automatic assurance rather than calling child migration methods.
 - With effective `CreateOrUpdate`, the owner calls `migrate()`, which lazily applies pending migrations.
 - With effective `None`, the owner calls `ensureMigrated()`, which performs the read-only migration-history check and throws when migrations are pending.
@@ -469,7 +477,7 @@ Done in [Pongo PR #225](https://github.com/event-driven-io/Pongo/pull/225). See 
 
 ### PostgreSQL
 
-- Extract the current event-store migration array into the reusable event-store schema component in `src/packages/emmett-postgresql/src/eventStore/schema/migrations/`, modeled on `PongoDatabaseComponent`. The event store and the consumer each hold an instance.
+- Add the reusable event-store schema component in `src/packages/emmett-postgresql/src/eventStore/schema/eventStoreSchemaComponent.ts`, modeled on `PongoDatabaseComponent`. It starts from the current event-store migration array. The event store and the consumer each hold an instance.
 - Delete `src/packages/emmett-postgresql/src/eventStore/schema/createFunctionIfDoesNotExist.ts` and import `createFunctionIfDoesNotExistSQL` from `@event-driven-io/dumbo/postgresql`. The schema name moves from the third positional argument to `{ databaseSchemaName }`. The default schema stays `current_schema()`. Dumbo renders the same SQL text as Emmett's helper, and a Dumbo unit test pins that text, so recorded migration hashes still match.
 - Update `src/packages/emmett-postgresql/src/eventStore/postgreSQLEventStore.ts` to:
   - Accept and retain both inline and async projection registrations.
@@ -496,7 +504,7 @@ Done in [Pongo PR #225](https://github.com/event-driven-io/Pongo/pull/225). See 
 
 ### SQLite
 
-- Extract the current event-store migration array into an event-store schema component in `src/packages/emmett-sqlite/src/eventStore/schema/migrations/`.
+- Add the reusable event-store schema component in `src/packages/emmett-sqlite/src/eventStore/schema/eventStoreSchemaComponent.ts`. It starts from the current event-store migration array.
 - Update `src/packages/emmett-sqlite/src/eventStore/SQLiteEventStore.ts` with the same composition, policy, async registration, and schema API behavior as PostgreSQL.
 - Update `src/packages/emmett-sqlite/src/eventStore/consumers/sqliteEventStoreConsumer.ts` and `sqliteProcessor.ts` with the same `SchemaComponentMigrator`, replacement, consumer, and processor behavior.
 - Correct inline projection initialization to use `registrationType: 'inline'`.

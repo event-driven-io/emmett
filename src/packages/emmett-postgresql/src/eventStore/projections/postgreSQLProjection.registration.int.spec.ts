@@ -1,6 +1,10 @@
-import { dumbo } from '@event-driven-io/dumbo';
+import { dumbo, schemaComponent } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
-import { assertEqual, assertIsNotNull } from '@event-driven-io/emmett';
+import {
+  assertEqual,
+  assertFalse,
+  assertIsNotNull,
+} from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { pgEventStoreDriver } from '../../pg';
@@ -78,6 +82,47 @@ void describe('PostgreSQL projection registration', () => {
           await registrationType(databaseSchemaName, projectionName),
           'inline',
         );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'registers a projection definition without its schema',
+    withDeadline,
+    async () => {
+      const databaseSchemaName = schemaName('events');
+      const projectionName = schemaName('projection_with_schema');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString,
+        schema: { databaseSchemaName },
+        projections: [
+          {
+            type: 'inline',
+            projection: postgreSQLProjection<ProductItemAdded>({
+              name: projectionName,
+              canHandle: ['ProductItemAdded'],
+              handle: () => {},
+              schema: schemaComponent('custom'),
+            }),
+          },
+        ],
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const registration = await readProjectionInfo(pool.execute, {
+          databaseSchemaName,
+          name: projectionName,
+          partition: 'emt:default',
+          version: 1,
+        });
+        assertIsNotNull(registration);
+        assertEqual(registration.registration.projection.name, projectionName);
+        assertFalse('schema' in registration.registration.projection);
       } finally {
         await store.close();
       }
