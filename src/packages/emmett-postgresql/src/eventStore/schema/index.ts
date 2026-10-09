@@ -24,6 +24,7 @@ export * from './appendToStream';
 export * from './eventStoreDatabaseSchema';
 export * from './eventStoreSchemaSQL';
 export * from './migrations';
+export * from './migrations/eventStoreSchemaComponent';
 export * from './processors';
 export * from './projections';
 export * from './readLastMessageCheckpoint';

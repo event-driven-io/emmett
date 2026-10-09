@@ -244,12 +244,13 @@ The consumer schema graph contains:
 - The consumer's local relational infrastructure.
 - The schema of every processor registered on the consumer that uses the inherited consumer pool, whether it came through the `processors` array or a `projector()`, `reactor()`, or `workflowProcessor()` call.
 
-The graph of a processor with its own storage contains only its own schema, placed with `databaseComponent({ defaultSchemaName })` as the reusable component does. Emmett does not create checkpoint, lock, or projection-registration tables on that storage; the user sets them up. On the consumer's storage, the event store or the consumer creates them through the event-store component. See [Future improvements](#future-improvements).
+The graph of a processor with its own storage contains only its own schema, aggregated as the reusable component does. Emmett does not create checkpoint, lock, or projection-registration tables on that storage; the user sets them up. On the consumer's storage, the event store or the consumer creates them through the event-store component. See [Future improvements](#future-improvements).
 
 The event store and the consumer each group their graph with one reusable event-store schema component, the same for PostgreSQL and SQLite, modeled on Pongo's `PongoDatabaseComponent`:
 
-- It starts from the event-store migrations, placed under the owner's default schema with `databaseComponent({ defaultSchemaName })`.
-- Adding a schema places a Dumbo table component with `withTable` and adds any other component as a child. Then it replaces its migrator, as `PongoDatabaseComponent.replaceComponent` does.
+- It starts from the event-store migrations.
+- Adding a schema adds the component as a child, unchanged. The reusable component does not place tables. Then it replaces its migrator, as `PongoDatabaseComponent.replaceComponent` does. Adding the same component instance again changes nothing.
+- An added component provides its full schema: its tables with their database schema names, and the migration that creates a non-default database schema. A Dumbo `databaseSchemaComponent` or `databaseComponent` generates that `CREATE SCHEMA` migration; a bare table component does not. A raw SQL projection names its tables the same way in its migrations and in its handler SQL.
 - It exposes `component`, `migrations`, and `migrator`. The owner picks `migrate()` or `ensureMigrated()` on that migrator from its effective `autoMigration`.
 - Each owner holds its own instance, because the migration memo belongs to the owner, as with one `PongoDatabaseComponent` per `PongoDb`.
 

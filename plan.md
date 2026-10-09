@@ -51,8 +51,8 @@ Spec: [spec.md](spec.md). State: [todo.md](todo.md). The clean baseline is `2180
 **PG and SQLite** (same shape; SQLite in shared code):
 
 - **Reusable event-store schema component**, one per owner instance, modeled on `PongoDatabaseComponent`:
-  - It starts from `databaseComponent({ defaultSchemaName })` with the event-store migrations (`eventStoreSchemaMigrationsFor(options)`, same names and SQL).
-  - `add(schema)` places a Dumbo table component (`isTableComponent`) with `withTable`, keeping a non-default `fullName.databaseSchemaName`, and adds any other component as a child. Then it replaces its migrator.
+  - It starts from the event-store migrations (`eventStoreSchemaMigrationsFor(options)`, same names and SQL).
+  - `add(schema)` adds the component as a child, unchanged, and replaces its migrator. It places no tables: each component provides its full schema, including `CREATE SCHEMA` for a non-default database schema. Dumbo dedupes equal migrations and rejects conflicting SQL for one name when the migrations are read.
   - It exposes `component`, `migrations` and `migrator`. The driver's `migrationOptions` are spread into each new migrator.
   - The event store, the consumer and an own-pool processor each hold one instance.
 - **Pongo projections:** the multi-stream projection sets `schema` to `definition?.withTableName(name) ?? pongoSchema.collection(name)`, moved to `collectionOptions.databaseSchemaName` when that is set. `pongoProjection` passes `schema` through. `init` stays until G6.
@@ -184,13 +184,13 @@ PG and SQLite processors. Test first, per database: a projector built with postg
 ### 3.1 PG components
 
 ```text
-Read Pongo's PongoDatabaseComponent and Dumbo's databaseComponent first. Add the reusable PG event-store schema component (section 2). Unit tests: without additions its migrations equal eventStoreSchemaMigrationsFor(options); an added Pongo collection has the same migrations as a Pongo client db with the same defaultSchemaName and that collection; explicit schemas are kept; non-table components become children; duplicates dedupe; conflicts throw; each add replaces the migrator; two instances do not share a memo. Export it from schema/index.ts.
+Read Pongo's PongoDatabaseComponent first. Add the reusable PG event-store schema component (section 2). Unit tests: without additions its migrations equal eventStoreSchemaMigrationsFor(options); an added Pongo database's migrations follow the event-store migrations; any schema component is added as a child; equal migrations dedupe; conflicting SQL for one name throws when the migrations are read; each add replaces the migrator. Integration test: two instances do not share a memo. Export it from schema/index.ts.
 ```
 
 ### 3.2 SQLite components
 
 ```text
-Same as 3.1 in shared SQLite schema code. First check how Dumbo and Pongo name non-default schemas on SQLite. Match them, and report if they differ from Emmett's sqliteTableName.
+Same as 3.1 in shared SQLite schema code.
 ```
 
 ### 3.3 Pongo projections expose `schema`
