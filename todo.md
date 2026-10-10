@@ -94,8 +94,9 @@ Status 2026-10-09:
 
 ## G4: event stores own the migrator (parallel)
 
-- [ ] 4.1 PG event store, with `init()`
-- [ ] 4.2 SQLite event store, with `init()` (sqlite3, d1, durableObject)
+- [x] 4.0 Core `EnsureMigrated` (D8)
+- [ ] 4.1 PG event store, with `init()` and `withSession` sharing it
+- [ ] 4.2 SQLite event store, with `init()` and `withSession` sharing it (sqlite3, d1, durableObject)
 - Note: the 1.2 inline registration tests (`postgreSQLProjection.registration.int.spec.ts`, `sqliteProjection.registration.int.spec.ts`) trigger inline `init` through `schema.migrate()`. Switch them to `eventStore.init()` in 4.1 and 4.2.
 - [ ] Gate green
 

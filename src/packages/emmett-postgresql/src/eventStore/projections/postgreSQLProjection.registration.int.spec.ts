@@ -76,7 +76,7 @@ void describe('PostgreSQL projection registration', () => {
       });
 
       try {
-        await store.schema.migrate();
+        await store.init();
 
         assertEqual(
           await registrationType(databaseSchemaName, projectionName),
@@ -112,7 +112,7 @@ void describe('PostgreSQL projection registration', () => {
       });
 
       try {
-        await store.schema.migrate();
+        await store.init();
 
         const registration = await readProjectionInfo(pool.execute, {
           databaseSchemaName,

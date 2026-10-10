@@ -100,6 +100,26 @@ void describe('Processor schema', () => {
 
     assertEqual(processors.length, 3);
   });
+
+  void it('accepts EnsureMigrated on every processor', () => {
+    const processors = [
+      reactor<TestEvent>({
+        processorId: 'reactor',
+        eachMessage: () => Promise.resolve(),
+        autoMigration: 'EnsureMigrated',
+      }),
+      projector({
+        projection: testProjection,
+        autoMigration: 'EnsureMigrated',
+      }),
+      workflowProcessor({
+        ...workflowOptions,
+        autoMigration: 'EnsureMigrated',
+      }),
+    ];
+
+    assertEqual(processors.length, 3);
+  });
 });
 
 void describe('resolveAutoMigration', () => {
@@ -113,6 +133,17 @@ void describe('resolveAutoMigration', () => {
 
   void it('inherits the value when the own value is not set', () => {
     assertEqual(resolveAutoMigration(undefined, 'None'), 'None');
+  });
+
+  void it('keeps an own or inherited EnsureMigrated', () => {
+    assertEqual(
+      resolveAutoMigration('EnsureMigrated', 'CreateOrUpdate'),
+      'EnsureMigrated',
+    );
+    assertEqual(
+      resolveAutoMigration(undefined, 'EnsureMigrated'),
+      'EnsureMigrated',
+    );
   });
 
   void it('defaults to CreateOrUpdate when no value is set', () => {

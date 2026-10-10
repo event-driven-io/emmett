@@ -1,10 +1,8 @@
 import type { ObservabilityScope } from '@event-driven-io/almanac';
 import {
   dumbo,
-  fromDatabaseDriverType,
-  getFormatter,
-  JSONSerializer,
-  type MigrationStyle,
+  isSchemaComponent,
+  type AnySchemaComponent,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
 import type {
@@ -33,6 +31,7 @@ import {
   type AnyMessage,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
+  type AutoMigration,
   type EmmettObservabilityConfig,
   type Event,
   type EventStore,
@@ -40,6 +39,7 @@ import {
   type EventStoreSessionFactory,
   type JSONSerializationOptions,
   type Message,
+  type ProjectionHandlingType,
   type ProjectionRegistration,
   type BeforeEventStoreCommitHandler,
   type ReadEvent,
@@ -57,13 +57,13 @@ import {
 import {
   handleProjections,
   transactionToPostgreSQLProjectionHandlerContext,
+  type PostgreSQLProjectionDefinition,
   type PostgreSQLProjectionHandlerContext,
 } from './projections';
 import {
   appendToStream,
-  createEventStoreSchema,
   eventStoreDatabaseSchema,
-  eventStoreSchemaSQL,
+  eventStoreSchemaComponent,
   PostgreSQLEventStoreCheckpoint,
   readStream,
   streamExists,
@@ -94,16 +94,19 @@ export interface PostgresEventStore
     options?: PostgreSQLEventStoreConsumerConfig<ConsumerMessageType>,
   ): PostgreSQLEventStoreConsumer<ConsumerMessageType>;
   close(): Promise<void>;
+  init(): Promise<void>;
   streamExists(
     streamName: string,
     options?: PostgresStreamExistsOptions,
   ): Promise<StreamExistsResult>;
   schema: {
+    readonly component: AnySchemaComponent;
     sql(): string;
     print(): void;
     migrate(
       options?: CreateEventStoreSchemaOptions,
     ): Promise<RunSQLMigrationsResult>;
+    ensureMigrated(): Promise<void>;
     dangerous: {
       truncate(options?: {
         resetSequences?: boolean;
@@ -189,12 +192,12 @@ export type PostgresEventStoreOptions<
 > = {
   driver: Driver;
   projections?: ProjectionRegistration<
-    'inline',
+    ProjectionHandlingType,
     PostgresReadEventMetadata,
     PostgreSQLProjectionHandlerContext<Driver>
   >[];
   observability?: EmmettObservabilityConfig;
-  schema?: { autoMigration?: MigrationStyle } & EventStoreDatabaseSchemaOptions;
+  schema?: { autoMigration?: AutoMigration } & EventStoreDatabaseSchemaOptions;
   hooks?: {
     /**
      * This hook will be called **BEFORE** event store schema is created
@@ -239,12 +242,12 @@ export type PostgresEventStoreDriverOptions<
  */
 export type PostgresEventStoreConnectionStringOptions = {
   projections?: ProjectionRegistration<
-    'inline',
+    ProjectionHandlingType,
     PostgresReadEventMetadata,
     PostgreSQLProjectionHandlerContext<PgEventStoreDriver>
   >[];
   observability?: EmmettObservabilityConfig;
-  schema?: { autoMigration?: MigrationStyle } & EventStoreDatabaseSchemaOptions;
+  schema?: { autoMigration?: AutoMigration } & EventStoreDatabaseSchemaOptions;
   hooks?: {
     /**
      * This hook will be called **BEFORE** event store schema is created
@@ -272,6 +275,26 @@ export type PostgresEventStoreConnectionStringOptions = {
   };
   connectionOptions?: PostgresEventStoreConnectionOptions;
 } & JSONSerializationOptions;
+
+type PostgreSQLEventStoreSession = {
+  pool: PgPool;
+  driver: PgEventStoreDriver;
+  connectionOptions: PgPoolOptions;
+};
+
+const withProjectionsSchemaName = <Projection>(
+  projection: Projection,
+  projectionsDatabaseSchemaName: string | undefined,
+): Projection =>
+  projectionsDatabaseSchemaName === undefined
+    ? projection
+    : (((
+        projection as Pick<
+          PostgreSQLProjectionDefinition,
+          'withDefaultSchemaName'
+        >
+      ).withDefaultSchemaName?.(projectionsDatabaseSchemaName) as
+        Projection | undefined) ?? projection);
 
 export const defaultPostgreSQLOptions: PostgresEventStoreConnectionStringOptions =
   {
@@ -340,97 +363,139 @@ export function getPostgreSQLEventStore(
         : dumbo({ serialization: options.serialization, ...dumboOptions })
   ) as PgPool;
 
-  const session = {
+  const session: PostgreSQLEventStoreSession = {
     pool,
     driver: eventStoreDriver,
     connectionOptions: dumboOptions,
   };
 
-  let migrateSchema: Promise<RunSQLMigrationsResult> | undefined = undefined;
-
-  const autoGenerateSchema =
-    options.schema?.autoMigration === undefined ||
-    options.schema?.autoMigration !== 'None';
-
-  const inlineProjections = (options.projections ?? [])
+  const autoMigration = options.schema?.autoMigration ?? 'CreateOrUpdate';
+  const databaseSchema = eventStoreDatabaseSchema(options.schema);
+  const projectionRegistrations = (options.projections ?? []).map(
+    ({ type, projection }) => ({
+      type,
+      projection: withProjectionsSchemaName(
+        projection,
+        databaseSchema.projectionsDatabaseSchemaName,
+      ),
+    }),
+  );
+  const inlineProjections = projectionRegistrations
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
-  const databaseSchema = eventStoreDatabaseSchema(options.schema);
+  const eventStoreSchema = eventStoreSchemaComponent({
+    pool,
+    schema: options.schema,
+  });
+  for (const { projection } of projectionRegistrations) {
+    if (isSchemaComponent(projection.schema))
+      eventStoreSchema.add(projection.schema);
+  }
   const observability = eventStoreObservability(options);
   const collector = eventStoreCollector(observability);
 
-  const migrate = async (migrationOptions?: CreateEventStoreSchemaOptions) => {
-    if (!migrateSchema) {
-      const migrationSchemaOptions = {
-        ...options.schema,
-        ...migrationOptions,
-      };
-      const schemaMigrationOptions = {
-        ...migrationSchemaOptions,
-        ...eventStoreDatabaseSchema(migrationSchemaOptions),
+  let schemaMigrated = false;
+
+  const migrate = async (
+    migrationOptions?: CreateEventStoreSchemaOptions,
+  ): Promise<RunSQLMigrationsResult> => {
+    const dryRun = migrationOptions?.dryRun === true;
+
+    if (schemaMigrated && !dryRun)
+      return { applied: [], skipped: [...eventStoreSchema.migrations] };
+
+    const migrationSchemaOptions = {
+      ...options.schema,
+      ...migrationOptions,
+      ...databaseSchema,
+    };
+
+    const result = await pool.withTransaction(async (transaction) => {
+      const context: PostgreSQLProjectionHandlerContext = {
+        ...transactionToPostgreSQLProjectionHandlerContext(
+          session,
+          transaction,
+        ),
+        migrationOptions: migrationSchemaOptions,
       };
 
-      // TODO: Fix this cast when introducing more drivers
-      const migration = createEventStoreSchema({
-        ...session,
-        hooks: {
-          onBeforeSchemaCreated: async (context) => {
-            if (options.hooks?.onBeforeSchemaCreated) {
-              await options.hooks.onBeforeSchemaCreated(context);
-            }
-          },
-          onAfterSchemaCreated: async (context) => {
-            for (const projection of inlineProjections) {
-              if (projection.init) {
-                await projection.init({
-                  version: projection.version ?? 1,
-                  status: 'active',
-                  registrationType: 'inline',
-                  context: {
-                    ...context,
-                    migrationOptions: schemaMigrationOptions,
-                    observabilityScope: noopScope,
-                  },
-                });
-              }
-            }
-            if (options.hooks?.onAfterSchemaCreated) {
-              await options.hooks.onAfterSchemaCreated(context);
-            }
-          },
-        },
-        schema: schemaMigrationOptions,
-      });
-
-      if (migrationOptions?.dryRun) {
-        return migration;
+      if (options.hooks?.onBeforeSchemaCreated) {
+        await options.hooks.onBeforeSchemaCreated(context);
       }
 
-      migrateSchema = migration;
-      return migration;
-    }
-    const result = await migrateSchema;
+      const result = await eventStoreSchema.migrator.migrate({
+        execute: transaction.execute,
+        dryRun,
+        ignoreMigrationHashMismatch:
+          migrationOptions?.ignoreMigrationHashMismatch,
+        migrationTimeoutMS: migrationOptions?.migrationTimeoutMs,
+      });
 
-    return { applied: [], skipped: result.applied.concat(result.skipped) };
+      if (options.hooks?.onAfterSchemaCreated) {
+        await options.hooks.onAfterSchemaCreated(context);
+      }
+
+      return { success: !dryRun, result };
+    });
+
+    if (!dryRun) schemaMigrated = true;
+
+    return result;
   };
 
-  const ensureSchemaExists = () => {
-    if (!autoGenerateSchema) return Promise.resolve();
+  const ensureMigrated = () => eventStoreSchema.migrator.ensureMigrated();
 
-    return migrate();
+  const initializeInlineProjections = () =>
+    pool.withTransaction(async (transaction) => {
+      const context = transactionToPostgreSQLProjectionHandlerContext(
+        session,
+        transaction,
+      );
+
+      for (const projection of inlineProjections) {
+        if (projection.init) {
+          await projection.init({
+            version: projection.version ?? 1,
+            status: 'active',
+            registrationType: 'inline',
+            context: {
+              ...context,
+              migrationOptions: { ...options.schema, ...databaseSchema },
+              observabilityScope: noopScope,
+            },
+          });
+        }
+      }
+    });
+
+  let initialized = false;
+
+  const init = async () => {
+    if (initialized) return;
+
+    if (!schemaMigrated) {
+      if (autoMigration === 'CreateOrUpdate') await migrate();
+      else if (autoMigration === 'EnsureMigrated') await ensureMigrated();
+    }
+
+    if (inlineProjections.some(({ init }) => init !== undefined))
+      await initializeInlineProjections();
+
+    initialized = true;
   };
 
   const readStreamFromPostgreSQL = <
     EventType extends Event,
     EventPayloadType extends Event = EventType,
   >(
+    pool: PgPool,
     streamName: string,
     readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
   ): Promise<ReadStreamResult<EventType, PostgresReadEventMetadata>> =>
     collector.instrumentRead(
       streamName,
       async () => {
-        await ensureSchemaExists();
+        await init();
         return readStream<EventType, EventPayloadType>(
           pool.execute,
           streamName,
@@ -447,6 +512,7 @@ export function getPostgreSQLEventStore(
   const onBeforeCommitHook = options.hooks?.onBeforeCommit;
 
   const beforeCommitHook = (
+    session: PostgreSQLEventStoreSession,
     streamName: string,
     appendScope: ObservabilityScope,
   ): AppendToStreamBeforeCommitHook | undefined =>
@@ -482,24 +548,48 @@ export function getPostgreSQLEventStore(
         }
       : undefined;
 
-  const eventStoreSchemaDescription = (): string =>
-    getFormatter(fromDatabaseDriverType(pool.driverType).databaseType).describe(
-      eventStoreSchemaSQL(options.schema),
-      { serializer: JSONSerializer },
-    );
+  const sessionFor = (
+    connection: PgConnection,
+  ): PostgreSQLEventStoreSession => {
+    const connectionOptions = (
+      optionsWithDriver
+        ? { ...dumboOptions, connection }
+        : pgEventStoreDriver.mapToDumboOptions({
+            connectionString: poolOptions.connectionString,
+            connectionOptions: { connection },
+          })
+    ) as PgPoolOptions;
 
-  return {
+    return {
+      // TODO: Fix this cast when introducing more drivers
+      pool: dumbo({
+        serialization: options.serialization,
+        ...connectionOptions,
+      }) as PgPool,
+      driver: eventStoreDriver,
+      connectionOptions,
+    };
+  };
+
+  const storeFor = (
+    session: PostgreSQLEventStoreSession,
+  ): PostgresEventStore => ({
+    init,
     schema: {
-      sql: eventStoreSchemaDescription,
-      print: () => console.log(eventStoreSchemaDescription()),
+      get component() {
+        return eventStoreSchema.component;
+      },
+      sql: () => eventStoreSchema.migrator.sql(),
+      print: () => eventStoreSchema.migrator.print(),
       migrate,
+      ensureMigrated,
       dangerous: {
-        truncate: (truncateOptions?: {
+        truncate: async (truncateOptions?: {
           resetSequences?: boolean;
           truncateProjections?: boolean;
-        }): Promise<void> =>
-          pool.withTransaction(async (transaction) => {
-            await ensureSchemaExists();
+        }): Promise<void> => {
+          await init();
+          await session.pool.withTransaction(async (transaction) => {
             await truncateTables(transaction.execute, {
               ...truncateOptions,
               databaseSchemaName: databaseSchema.databaseSchemaName,
@@ -511,16 +601,17 @@ export function getPostgreSQLEventStore(
                   session,
                   transaction,
                 );
-              for (const projection of options?.projections ?? []) {
-                if (projection.projection.truncate)
-                  await projection.projection.truncate({
+              for (const { projection } of projectionRegistrations) {
+                if (projection.truncate)
+                  await projection.truncate({
                     ...projectionContext,
                     migrationOptions: databaseSchema,
                     observabilityScope: noopScope,
                   });
               }
             }
-          }),
+          });
+        },
       },
     },
     async aggregateStream<
@@ -548,7 +639,7 @@ export function getPostgreSQLEventStore(
           const result = await readStreamFromPostgreSQL<
             EventType,
             EventPayloadType
-          >(streamName, {
+          >(session.pool, streamName, {
             ...(read ?? {}),
             observability: withOperationScope(scope, read?.observability),
           });
@@ -582,7 +673,7 @@ export function getPostgreSQLEventStore(
       streamName: string,
       readOptions?: ReadStreamOptions<EventType, EventPayloadType>,
     ): Promise<ReadStreamResult<EventType, PostgresReadEventMetadata>> =>
-      readStreamFromPostgreSQL(streamName, readOptions),
+      readStreamFromPostgreSQL(session.pool, streamName, readOptions),
 
     appendToStream: async <
       EventType extends Event,
@@ -596,32 +687,37 @@ export function getPostgreSQLEventStore(
         streamName,
         events,
         async (scope) => {
-          await ensureSchemaExists();
+          await init();
           // TODO: This has to be smarter when we introduce urn-based resolution
           const [firstPart, ...rest] = streamName.split('-');
 
           const streamType =
             firstPart && rest.length > 0 ? firstPart : unknownTag;
 
-          const appendResult = await pool.withConnection(async (connection) =>
-            appendToStream(
-              // TODO: Fix this when introducing more drivers
-              connection,
-              streamName,
-              streamType,
-              downcastRecordedMessages(
-                events,
-                appendOptions?.schema?.versioning,
+          const appendResult = await session.pool.withConnection(
+            async (connection) =>
+              appendToStream(
+                // TODO: Fix this when introducing more drivers
+                connection,
+                streamName,
+                streamType,
+                downcastRecordedMessages(
+                  events,
+                  appendOptions?.schema?.versioning,
+                ),
+                {
+                  ...(appendOptions as AppendToStreamOptions),
+                  messageIdGenerator: () =>
+                    observability.contextGenerator.generateMessageId(),
+                  context: scope.context,
+                  beforeCommitHook: beforeCommitHook(
+                    session,
+                    streamName,
+                    scope,
+                  ),
+                  databaseSchemaName: databaseSchema.databaseSchemaName,
+                },
               ),
-              {
-                ...(appendOptions as AppendToStreamOptions),
-                messageIdGenerator: () =>
-                  observability.contextGenerator.generateMessageId(),
-                context: scope.context,
-                beforeCommitHook: beforeCommitHook(streamName, scope),
-                databaseSchemaName: databaseSchema.databaseSchemaName,
-              },
-            ),
           );
 
           if (!appendResult.success)
@@ -647,8 +743,8 @@ export function getPostgreSQLEventStore(
       streamName: string,
       options?: PostgresStreamExistsOptions,
     ): Promise<StreamExistsResult> => {
-      await ensureSchemaExists();
-      return streamExists(pool.execute, streamName, {
+      await init();
+      return streamExists(session.pool.execute, streamName, {
         ...options,
         databaseSchemaName: databaseSchema.databaseSchemaName,
       });
@@ -664,53 +760,29 @@ export function getPostgreSQLEventStore(
           options.observability,
           consumerOptions?.observability,
         ),
-        pool,
+        pool: session.pool,
         /**
          * The consumer's own `connectionString` option is deprecated and pg
          * specific, so it is read back out of the pg connection context.
          */
-        connectionString: dumboOptions.connectionString,
+        connectionString: session.connectionOptions.connectionString,
       }),
 
-    close: () => pool.close(),
+    close: () => session.pool.close(),
 
     async withSession<T = unknown>(
       callback: (session: EventStoreSession<PostgresEventStore>) => Promise<T>,
     ): Promise<T> {
-      return await pool.withConnection(async (connection) => {
-        const storeOptions: PostgresEventStoreConnectionStringOptions = {
-          ...options,
-          connectionOptions: {
-            connection: connection,
-          },
-          schema: {
-            ...(options.schema ?? {}),
-            autoMigration: 'None',
-          },
-        };
+      await init();
 
-        const eventStore = optionsWithDriver
-          ? getPostgreSQLEventStore({
-              ...optionsWithDriver,
-              pool: dumbo({
-                serialization: options.serialization,
-                ...dumboOptions,
-                connection,
-              }),
-              schema: {
-                ...(options.schema ?? {}),
-                autoMigration: 'None',
-              },
-            })
-          : getPostgreSQLEventStore(poolOptions.connectionString, storeOptions);
-
-        return ensureSchemaExists().then(() =>
-          callback({
-            eventStore,
-            close: () => Promise.resolve(),
-          }),
-        );
-      });
+      return await session.pool.withConnection((connection) =>
+        callback({
+          eventStore: storeFor(sessionFor(connection)),
+          close: () => Promise.resolve(),
+        }),
+      );
     },
-  };
+  });
+
+  return storeFor(session);
 }

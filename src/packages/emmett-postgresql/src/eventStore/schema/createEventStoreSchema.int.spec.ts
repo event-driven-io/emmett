@@ -329,7 +329,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     );
   });
 
-  void it('applies the configured migration after the user dry-runs it first', async () => {
+  void it('rolls back the dry run and applies the configured migration afterwards', async () => {
     const schemaOptions = {
       databaseSchemaName: schemaName('events'),
       migrationTable: {
@@ -350,16 +350,13 @@ void describe('createEventStoreSchema with configured database schemas', () => {
       const dryRun = await store.schema.migrate({ dryRun: true });
 
       assertDeepEqual(dryRun.applied, [schemaMigrationFor(schemaOptions)]);
-      assertTrue(
+      assertFalse(
         await tableExists(
           pool.execute,
           schemaOptions.migrationTable.tableName,
           { databaseSchemaName: schemaOptions.migrationTable.schemaName },
         ),
       );
-
-      await dropSchema(schemaOptions.databaseSchemaName);
-      await dropSchema(schemaOptions.migrationTable.schemaName);
 
       const actualMigration = await store.schema.migrate();
 
@@ -626,11 +623,6 @@ void describe('createEventStoreSchema with configured database schemas', () => {
         WHERE name = ${migrationName}`),
     );
   };
-
-  const dropSchema = (schemaName: string): Promise<unknown> =>
-    pool.execute.command(SQL`
-      DROP SCHEMA IF EXISTS ${SQL.identifier(schemaName)} CASCADE
-    `);
 });
 
 void describe('createEventStoreSchema sharing a database with a configured schema', () => {

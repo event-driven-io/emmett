@@ -1,7 +1,6 @@
 import {
   dumbo,
   type Dumbo,
-  type MigrationStyle,
   type QueryResultRow,
   type SQL,
 } from '@event-driven-io/dumbo';
@@ -13,6 +12,7 @@ import {
   assertThatArray,
   assertTrue,
   isErrorConstructor,
+  type AutoMigration,
   type CombinedReadEventMetadata,
   type Event,
   type ReadEvent,
@@ -71,7 +71,7 @@ export type PostgreSQLProjectionAssert = (options: {
 export type PostgreSQLProjectionSpecOptions<EventType extends Event> = {
   projection: PostgreSQLProjectionDefinition<EventType>;
   schema?:
-    | ({ autoMigration?: MigrationStyle } & EventStoreDatabaseSchemaOptions)
+    | ({ autoMigration?: AutoMigration } & EventStoreDatabaseSchemaOptions)
     | undefined;
 } & PgPoolOptions;
 

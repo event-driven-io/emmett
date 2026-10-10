@@ -308,6 +308,8 @@ export type ProcessorHooks<
   onClose?: OnReactorCloseHook<HandlerContext>;
 };
 
+export type AutoMigration = 'None' | 'EnsureMigrated' | 'CreateOrUpdate';
+
 export type BaseMessageProcessorOptions<
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
@@ -317,7 +319,7 @@ export type BaseMessageProcessorOptions<
   type?: string;
   processorId: string;
   schema?: Schema;
-  autoMigration?: 'None' | 'CreateOrUpdate';
+  autoMigration?: AutoMigration;
   processorInstanceId?: string;
   version?: number;
   partition?: string;
@@ -1239,6 +1241,6 @@ export const projector = <
 };
 
 export const resolveAutoMigration = (
-  own: 'None' | 'CreateOrUpdate' | undefined,
-  inherited: 'None' | 'CreateOrUpdate' | undefined,
-): 'None' | 'CreateOrUpdate' => own ?? inherited ?? 'CreateOrUpdate';
+  own: AutoMigration | undefined,
+  inherited: AutoMigration | undefined,
+): AutoMigration => own ?? inherited ?? 'CreateOrUpdate';

@@ -29,7 +29,7 @@ Spec: [spec.md](spec.md). State: [todo.md](todo.md). The clean baseline is `2180
 - PG `dryRun` commits: the test asserts that the migration table exists after the dry run.
 - The store has no registration after construction.
 - Projection `init` is lifecycle. The relational wrapper calls `registerProjection` first: an upsert on `(name, partition, version)` that keeps `type` and serializes the whole definition. Then it calls the definition's `init`. Only the Pongo multi-stream `init` does DDL (`collection.schema.migrate()`).
-- An async projector's `onInit` calls `projection.init` (hardcoded `'async'`) under every policy. Async Pongo tables are created there.
+- An async projector's `onInit` calls `projection.init` (hardcoded `'async'`) under every `autoMigration` value. Async Pongo tables are created there.
 - The consumer migrates nothing. Checkpoint and registration tables are event-store migrations.
 - Core `register` dedupes by identity. `ConsumerHooks` has only `onClose`.
 - Consumer defaults (merged observability; the PG factory's `driver` and `migrationOptions`) reach only factory-created processors. Array processors are pushed as they are.
@@ -42,7 +42,8 @@ Spec: [spec.md](spec.md). State: [todo.md](todo.md). The clean baseline is `2180
 **Core** (no Dumbo import):
 
 - `ProjectionDefinition`, `ProjectionRegistration` and `projection()` get `Schema = unknown` and `schema?: Schema`.
-- `MessageProcessor` and the processor options get `schema?: Schema` and `autoMigration?: MigrationStyle`. Every processor accepts both. `projector()` takes its projection's schema when its options set none.
+- `AutoMigration = 'None' | 'EnsureMigrated' | 'CreateOrUpdate'` (D8). Core, PG and SQLite options use it instead of Dumbo's `MigrationStyle` until Emmett uses the Dumbo release that has `EnsureMigrated`.
+- `MessageProcessor` and the processor options get `schema?: Schema` and `autoMigration?: AutoMigration`. Every processor accepts both. `projector()` takes its projection's schema when its options set none.
 - `projections.async()` returns `type: 'async'`.
 - `ConsumerHooks.onInit` sits next to `onClose`. It runs once before processor init. When it fails, no processor inits, and the next start retries.
 - `register` replaces a processor with the same ID at its position (D3). It does not track where a processor came from.
@@ -69,10 +70,11 @@ Spec: [spec.md](spec.md). State: [todo.md](todo.md). The clean baseline is `2180
   - Graph: its event-store schema component instance with all registration schemas added at construction, after `withDefaultSchemaName`. One migrator.
   - `migrate(options)`: one transaction with `onBeforeSchemaCreated`, `migrator.migrate({ execute: tx.execute })` and `onAfterSchemaCreated`. A dry run returns `{ success: false, result }`. A successful non-dry run sets a once-per-instance flag, so the hooks run once. No shared promise (spec non-goal 54).
   - Public `init()`, once per instance; the first operation calls it when nobody did:
-    1. automatic assurance: `migrate()` under `CreateOrUpdate` (skipped when the flag is set), `migrator.ensureMigrated()` under `None`;
+    1. automatic assurance: `migrate()` under `CreateOrUpdate` (skipped when the flag is set), `migrator.ensureMigrated()` under `EnsureMigrated`, nothing under `None`;
     2. `init` for each inline registration in its own transaction, with `registrationType: 'inline'`, under every `autoMigration` value (D7).
   - `schema = { component, sql, print, migrate, ensureMigrated, dangerous }`.
-  - The `withSession` store and the processing-scope `messageStore` are built through an internal factory that takes the owner's assurance, like `pongoCollection({ ensureSchema })`. They run no assurance and no inline `init` of their own.
+  - A local function inside `getPostgreSQLEventStore` builds the store object for a pool. The store uses it with its own pool; `withSession` uses it with the session's connection instead of calling `getPostgreSQLEventStore`. The session shares the store's `init()`, so it runs no assurance and no inline `init` of its own (D8).
+  - The processing-scope `messageStore` keeps `autoMigration: 'None'`, no `projections` and no `hooks`, so its `init()` does nothing.
   - `consumer()` passes `autoMigration`. When `processors` is omitted, it passes one projector per async registration in `processors`: `postgreSQLProjector({ projection, observability })`, with the observability the consumer would merge.
 - **Consumer:**
   - It has an `autoMigration` option, resolved against the inherited value.
@@ -90,7 +92,7 @@ Spec: [spec.md](spec.md). State: [todo.md](todo.md). The clean baseline is `2180
 - `projections` on the core consumer options, and `projections: undefined` in the PG consumer.
 - A per-call migrator (`usesConfiguredSchema`), `hasInitialization` branches, `ensureMigrated()` after `migrate()`, and `init` inside the migration transaction.
 - `isPongoCollectionComponent` or `databaseSchemaComponent` placement in stores.
-- `ensureSchema` in handler contexts. Owner assurance reaches nested stores only through the internal factory.
+- `ensureSchema` in handler contexts, and an internal factory or option that passes the owner's assurance to nested stores.
 - Direct `pongoCollection` or a per-batch `dumbo` pool in Pongo projections.
 
 ## 3. Decisions (Oskar)
@@ -99,9 +101,13 @@ Decided on 2026-10-09:
 
 - **D1:** already in spec non-goal "Do not share concurrent first calls through an in-flight promise". Not a decision.
 - **D3 (simplified):** any later registration with the same ID replaces the earlier processor. Automatically registered processors are ordinary processors. Throwing on explicit duplicates is a future improvement.
-- **D5:** reuse Pongo clients per storage (inline: the store's database; async: the projector's pool, created in init). Pongo `None` must execute nothing when the owner has checked; that is a Pongo change. Either part may become a follow-up if it costs too much.
+- **D5:** reuse Pongo clients per storage (inline: the store's database; async: the projector's pool, created in init). Pongo's `None` executing nothing comes with the separate `EnsureMigrated` change in Dumbo and Pongo (D8). Either part may become a follow-up if it costs too much.
 - **D6:** every processor accepts `autoMigration`; the default comes from the top (consumer, then event store, then `CreateOrUpdate`). It takes effect where the processor owns a run (own pool). On the consumer's pool, the consumer's call covers its schema, as a PongoDb covers its collections.
 - **D7:** inline `init` runs under every `autoMigration` value, in `eventStore.init()`.
+
+Decided on 2026-10-10:
+
+- **D8:** `autoMigration` gets `EnsureMigrated`. `None` runs no assurance and reads no history; `EnsureMigrated` calls `ensureMigrated()`; `CreateOrUpdate` calls `migrate()`. Emmett core defines the union until Dumbo ships it; Dumbo and Pongo get the same change in parallel. `withSession` reuses the store through a local function of the pool, not a second store instance.
 - **Owners:** event store `init()`; recursive owners (a processor with its own pool is a child owner of its consumer); one reusable event-store schema component per event store and consumer; any processor may contribute `schema`.
 - **Q1:** the shape of `schema` tells grouped processors from child owners (`isSchemaComponent`).
 - **Q3:** on another storage, a processor migrates only its own schema; the user sets up checkpointing there. Metadata storage is a future improvement.
@@ -165,7 +171,7 @@ PG postgreSQLProjection init: registerProjection uses options.registrationType. 
 Delete PG createFunctionIfDoesNotExist.ts. Use createFunctionIfDoesNotExistSQL from '@event-driven-io/dumbo/postgresql' with { databaseSchemaName }, and add a test that the migration SQL is unchanged (capture a fixture before the change). Delete testing/schemaObjects.ts. Use the '@event-driven-io/dumbo/pg' helpers with { databaseSchemaName }, and columnExists in 0_42_0. Change the SQLite specs to tableExists/indexExists(execute, name, { databaseSchemaName }). The existing tests stay green.
 ```
 
-### 2.1 Core schema generic and policy
+### 2.1 Core schema generic and `autoMigration`
 
 ```text
 Section 2 Core, first two bullets and the last. Type tests use a structural component fixture (no Dumbo): a projection definition and registration carry schema; projector({ schema }) exposes it; projector without schema exposes its projection's schema; reactor({ schema }) and the workflow processor expose theirs; every processor option accepts autoMigration. Existing inference is unchanged. resolveAutoMigration: own, then inherited, then CreateOrUpdate. All call sites compile unchanged.
@@ -201,19 +207,27 @@ Same as 3.1 in shared SQLite schema code.
 PG and SQLite pongoProjections.ts and the raw SQL projections. Pongo and raw SQL projections get withDefaultSchemaName and schema as in section 2. Keep init, handle and truncate as at 21802d7c, except that the Pongo handler uses the definition's default schema name. registerProjection serializes the definition without schema. Unit tests: Pongo schema migrations equal those of a Pongo client db with the same defaultSchemaName and collection, for no default, a default, and an explicit collection schema; versioned name; indexes kept; a raw SQL table lands in the default schema and an explicit schema wins; registered definition has no schema.
 ```
 
+### 4.0 Core `EnsureMigrated`
+
+```text
+D8. Add AutoMigration = 'None' | 'EnsureMigrated' | 'CreateOrUpdate' to core next to resolveAutoMigration, and use it in the processor options and resolveAutoMigration. Type test: every processor option accepts EnsureMigrated; resolveAutoMigration keeps an own or inherited EnsureMigrated. All call sites compile unchanged.
+```
+
 ### 4.1 PG event store
 
 ```text
-Section 2 "Event store", D7. Integration tests:
+Section 2 "Event store", D7, D8. Use AutoMigration in the PG store options. Integration tests:
 - one migrate() under None creates the event store and the inline and async Pongo collections;
 - sql() lists them in registration order; component lists the whole graph;
 - ensureMigrated throws PendingMigrationsError on a fresh database and passes after migrate;
-- under None, append creates nothing and registers the inline projections;
+- after migrate, under None, append reads no migration history, executes no DDL and registers the inline projections;
 - migrate() does not call init; init() calls it once per inline registration with 'inline'; the first operation calls init() when nobody did, and not again after an explicit init();
-- under None, init() on a fresh database throws PendingMigrationsError;
+- under EnsureMigrated, init() on a fresh database throws PendingMigrationsError;
+- under None, init() reads no migration history;
 - the hooks run once per instance, in the migration transaction, also when nothing is pending;
 - dry run rolls back (replace the baseline assertion) and does not satisfy assurance;
 - after the first operation, appends, withSession calls and a processor's messageStore read no migration history;
+- a withSession session runs no inline init and no hooks, also when it is the first operation;
 - the baseline hook and "schema only once" tests stay green.
 ```
 
@@ -229,13 +243,14 @@ Same as 4.1 in shared code. The driver gets migrationOptions?(pool): MigratorOpt
 5.1 Processors:
 - Shared pool: the processor exposes its schema (a projector: its projection's by default; a reactor: its own option).
 - Own pool: a child owner. Its migrator covers only its own schema; its schema value is the owner shape (component, sql, print, migrate, ensureMigrated); assurance in onInit before projection.init, with resolveAutoMigration(options.autoMigration, the consumer's effective value).
-Tests: schema for each pool kind (component versus owner shape); an own-pool projector creates no emt_processors on its storage; an own-pool projector on a fresh database migrates on init; it inherits the consumer's None and then throws PendingMigrationsError; its own CreateOrUpdate overrides the consumer's None; a shared-pool processor does not migrate on init.
+Tests: schema for each pool kind (component versus owner shape); an own-pool projector creates no emt_processors on its storage; an own-pool projector on a fresh database migrates on init; it inherits the consumer's EnsureMigrated and then throws PendingMigrationsError; under an inherited None it reads no migration history; its own CreateOrUpdate overrides the consumer's EnsureMigrated; a shared-pool processor does not migrate on init.
 
 5.2 Consumer:
 - autoMigration option, schema API, its reusable component instance with same-pool processor schemas added at construction and on registration; owner-shaped schemas kept as child owners; hooks.onInit runs assurance on its own graph; sql() and print() show the grouped graph only.
 Tests:
 - a standalone start creates everything;
-- under None, start throws and creates nothing;
+- under EnsureMigrated, start throws and creates nothing;
+- under None, start reads no migration history;
 - sql() order;
 - array processors and later projector() and reactor() calls are included; an own-pool projector is not;
 - schema.migrate() migrates the consumer's database, then the own-pool projector's database, in two transactions; when the second fails, the first stays committed and a retry passes;
@@ -249,7 +264,7 @@ Tests (spec examples 2 and 3):
 - defaults run with the same settings as consumer.projector({ projection });
 - [] and an explicit array add none;
 - a same-ID projector replaces the default;
-- inherit None, override CreateOrUpdate, override None;
+- inherit None and EnsureMigrated, override CreateOrUpdate, override None;
 - starts without DDL after store migrate.
 ```
 
@@ -280,13 +295,13 @@ Test only. On PG and sqlite3, start two consumers from two stores on a fresh dat
 ### 7.2 PG least privilege
 
 ```text
-A migration role migrates. A runtime role has USAGE, DML and EXECUTE, but no CREATE. Under None, a runtime append, start and catch-up pass, and inline and async registrations are written. When the projections are not migrated, start throws PendingMigrationsError listing them. Start takes no migration lock (check pg_locks, or report why it cannot be checked).
+A migration role migrates. A runtime role has USAGE, DML and EXECUTE, but no CREATE. Under EnsureMigrated, a runtime append, start and catch-up pass, and inline and async registrations are written. When the projections are not migrated, start throws PendingMigrationsError listing them. Start takes no migration lock (check pg_locks, or report why it cannot be checked).
 ```
 
 ### 7.3 Dry run and retry
 
 ```text
-Test only, store and consumer, PG, sqlite3 and durableObject: a dry run applies and rolls back; a dry run does not satisfy None; a failed migration can be retried.
+Test only, store and consumer, PG, sqlite3 and durableObject: a dry run applies and rolls back; a dry run does not satisfy EnsureMigrated; a failed migration can be retried.
 ```
 
 ### 8.1 Docs
@@ -295,6 +310,7 @@ Test only, store and consumer, PG, sqlite3 and durableObject: a dry run applies 
 src/docs and the PG and SQLite READMEs, with snippets from tests through <<< @/snippets regions. Cover:
 - projection schema versus storage-bound schema;
 - autoMigration inheritance;
+- None versus EnsureMigrated versus CreateOrUpdate;
 - migrate versus ensureMigrated versus dryRun;
 - one-call provisioning;
 - omitted versus provided processors;
