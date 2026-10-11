@@ -370,6 +370,7 @@ const styles = `
   form { align-items: end; display: grid; gap: 12px; grid-template-columns: 1fr 140px auto; margin-top: 24px; }
   label { color: #344054; display: grid; font-size: 0.85rem; font-weight: 600; gap: 6px; }
   input, button { border: 1px solid #cfd7e3; border-radius: 8px; font: inherit; min-height: 42px; padding: 8px 12px; }
+  input { min-width: 0; width: 100%; }
   button { background: #5b4ee5; border-color: #5b4ee5; color: white; cursor: pointer; font-weight: 700; }
   button.secondary { background: white; border-color: #cfd7e3; color: #344054; }
   button.danger { background: #b42318; border-color: #b42318; }
